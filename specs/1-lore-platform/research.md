@@ -99,18 +99,18 @@ submitted → running → completed
 **Decision:** PostgreSQL 16 with pgvector extension, deployed via
 the CloudNativePG (CNPG) Kubernetes operator on GKE. HNSW index
 for vector similarity search. Same `<=>` cosine distance operator
-as PostgreSQL. Embedding via application-level Vertex AI
+as AlloyDB. Embedding via application-level Vertex AI
 `text-embedding-005` calls.
 
 **Rationale:** CNPG provides a production-grade PostgreSQL on
 Kubernetes without managed-service lock-in. pgvector's HNSW index
 delivers sub-200ms p99 latency for our corpus size (~1M vectors).
 The SQL interface is identical — same `<=>` operator, same hybrid
-search pattern. Upgrade path to PostgreSQL (CNPG) (containerized) or
-managed PostgreSQL is straightforward if scale demands it.
+search pattern. Upgrade path to AlloyDB Omni (containerized) or
+managed AlloyDB is straightforward if scale demands it.
 
 **Alternatives considered:**
-- PostgreSQL + pgvector (managed GCP): higher cost, HNSW advantage only
+- AlloyDB AI (managed GCP): higher cost, ScaNN advantage only
   matters at >10M vectors. Remains the upgrade path.
 - Self-hosted Qdrant: operational overhead (StatefulSets, PVCs,
   custom backup), no SQL interface.
@@ -119,9 +119,9 @@ managed PostgreSQL is straightforward if scale demands it.
   operator-level backup/failover customization.
 
 **Upgrade path:**
-- PostgreSQL (CNPG) (containerized): drop-in replacement, same pgvector
-  interface, adds HNSW if needed at scale.
-- Managed PostgreSQL: when corpus exceeds ~10M vectors or when
+- AlloyDB Omni (containerized): drop-in replacement, same pgvector
+  interface, adds ScaNN if needed at scale.
+- Managed AlloyDB: when corpus exceeds ~10M vectors or when
   `embedding()` SQL function is preferred over app-level calls.
 
 **Best practices:**
@@ -138,26 +138,43 @@ managed PostgreSQL is straightforward if scale demands it.
 - CNPG operator handles backups (Barman to Cloud Storage),
   failover, and rolling updates.
 
-## R5: Langfuse Observability (Phase 1)
+## R5: OpenTelemetry → Cloud Monitoring (Phase 1)
 
-**Decision:** Self-hosted Langfuse on GKE with Cloud SQL backend
-and BigQuery export.
+**Decision:** OpenTelemetry SDK instrumentation in the MCP server,
+exporting traces and custom metrics to Cloud Monitoring (free on
+GCP). No separate observability service. Gap signal feeds into
+Graphiti episodes in Phase 3.
 
-**Rationale:** Self-hosted gives full control over data residency
-(europe-west4). Native BigQuery export enables gap detection
-analytics without custom ETL. OIDC SSO via Google Workspace.
+**Rationale:** Cloud Monitoring is free for GKE workloads and
+natively integrated. OTEL is the industry-standard instrumentation
+layer — no vendor lock-in. Eliminates the operational overhead of
+running a separate Langfuse instance (Cloud SQL, Helm chart, OIDC
+config). Gap candidate metrics are queryable via Cloud Monitoring
+API for the gap detection Klaus agent.
 
 **Alternatives considered:**
+- Langfuse self-hosted: additional Cloud SQL instance, Helm chart
+  maintenance, OIDC configuration. Significant operational overhead
+  for what is primarily latency + gap signal.
 - Langfuse Cloud: data leaves our GCP project.
 - Fully custom observability: months of engineering, no benefit.
 
+**Fallback:**
+- Langfuse Lite (sidecar mode): can be added later if deeper trace
+  debugging is needed beyond what Cloud Monitoring provides. No
+  architectural changes required — OTEL spans are compatible.
+
 **Best practices:**
-- Deploy via official Helm chart.
-- Cloud SQL Auth Proxy as sidecar (no credentials stored).
+- Use `@opentelemetry/sdk-node` with
+  `@opentelemetry/exporter-cloud-monitoring`.
+- `tracedSearch()` wrapper emits OTEL spans around every MCP
+  retrieval call.
 - Low-confidence threshold: start at 0.72, tune after 2 weeks of
   production data.
-- Tag low-confidence traces with `gap_candidate` for gap detection.
-- `tracedSearch()` wrapper around every MCP retrieval call.
+- Tag low-confidence spans with `gap_candidate` attribute + emit
+  `lore/gap_candidates` custom metric for gap detection.
+- Cloud Monitoring dashboards: retrieval latency p99, gap candidate
+  rate, query volume per namespace.
 
 ## R6: PromptFoo CI Evals (Phase 1)
 
