@@ -37,7 +37,7 @@ install_context() {
   CURRENT_STEP="install context directory"
   if [ ! -d "$LORE_DIR" ]; then
     echo "[lore] Installing context to $LORE_DIR ..."
-    mkdir -p "$HOME/.lore"
+    mkdir -p "$(dirname "$LORE_DIR")"
     cp -r "$REPO_DIR" "$LORE_DIR"
   else
     echo "[lore] Context directory exists, pulling latest ..."
