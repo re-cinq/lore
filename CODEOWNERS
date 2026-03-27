@@ -1,30 +1,30 @@
 # Root context — requires broad review
-/CLAUDE.md @acme/platform-eng @acme/tech-leads
-/AGENTS.md @acme/platform-eng
+/CLAUDE.md @lore/platform-eng @lore/tech-leads
+/AGENTS.md @lore/platform-eng
 
 # Team-specific context — owned by respective teams
-/teams/payments/ @acme/payments-team
-/teams/platform/ @acme/platform-team
-/teams/mobile/ @acme/mobile-team
-/teams/data/ @acme/data-team
+/teams/payments/ @lore/payments-team
+/teams/platform/ @lore/platform-team
+/teams/mobile/ @lore/mobile-team
+/teams/data/ @lore/data-team
 
 # Architecture decisions — arch group + affected team
-/adrs/ @acme/arch-group
+/adrs/ @lore/arch-group
 
 # Runbooks — owning team
-/runbooks/payments-* @acme/payments-team
-/runbooks/platform-* @acme/platform-team
+/runbooks/payments-* @lore/payments-team
+/runbooks/platform-* @lore/platform-team
 
 # MCP server and scripts — platform engineering
-/mcp-server/ @acme/platform-eng
-/scripts/ @acme/platform-eng
+/mcp-server/ @lore/platform-eng
+/scripts/ @lore/platform-eng
 
 # Evals — each team owns their evals
-/evals/payments/ @acme/payments-team
-/evals/platform/ @acme/platform-team
+/evals/payments/ @lore/payments-team
+/evals/platform/ @lore/platform-team
 
 # CI workflows
-/.github/ @acme/platform-eng
+/.github/ @lore/platform-eng
 
 # Infrastructure
-/terraform/ @acme/platform-eng @acme/sre-team
+/terraform/ @lore/platform-eng @lore/sre-team

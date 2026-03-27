@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------------
-# GKE cluster (acme-ai-platform) — private, regional, Workload Identity
+# GKE cluster (lore-ai-platform) — private, regional, Workload Identity
 # --------------------------------------------------------------------------
 
 terraform {
@@ -18,7 +18,7 @@ terraform {
 # ----- GKE Cluster -----
 
 resource "google_container_cluster" "main" {
-  name     = "acme-ai-platform"
+  name     = "lore-ai-platform"
   project  = var.project_id
   location = var.region
 
@@ -107,8 +107,8 @@ resource "google_container_node_pool" "general" {
 # ----- GKE Node Service Account -----
 
 resource "google_service_account" "gke_nodes" {
-  account_id   = "acme-gke-nodes"
-  display_name = "GKE Node Service Account for acme-ai-platform"
+  account_id   = "lore-gke-nodes"
+  display_name = "GKE Node Service Account for lore-ai-platform"
   project      = var.project_id
 }
 

@@ -16,11 +16,11 @@
 | Layer              | Technology                       | Phase |
 |--------------------|----------------------------------|-------|
 | MCP Server         | TypeScript + `@modelcontextprotocol/sdk` | 0     |
-| Glue Scripts       | Python (acme-gen-constitution, acme-tasks-to-beads) | 0 |
-| Settings Merge     | Node.js (acme-merge-settings.js) | 0     |
-| Health Check       | Bash (acme-doctor.sh)            | 0     |
+| Glue Scripts       | Python (lore-gen-constitution, lore-tasks-to-beads) | 0 |
+| Settings Merge     | Node.js (lore-merge-settings.js) | 0     |
+| Health Check       | Bash (lore-doctor.sh)            | 0     |
 | Install            | Bash (install.sh)                | 0     |
-| Platform Skills    | Markdown (acme-feature.md, acme-pr.md) | 0  |
+| Platform Skills    | Markdown (lore-feature.md, lore-pr.md) | 0  |
 | PR CI Check        | GitHub Actions YAML              | 0     |
 | Vector Store       | AlloyDB AI (europe-west4)        | 1     |
 | Cluster Agents     | Klaus on GKE                     | 1     |
@@ -47,7 +47,7 @@
 ### Repository Structure
 
 ```
-acme/context/
+lore/context/
 ├── CLAUDE.md
 ├── AGENTS.md
 ├── CODEOWNERS
@@ -65,14 +65,14 @@ acme/context/
 │   └── Dockerfile
 ├── scripts/
 │   ├── install.sh
-│   ├── acme-gen-constitution.py
-│   ├── acme-tasks-to-beads.py
-│   ├── acme-merge-settings.js
-│   └── acme-doctor.sh
+│   ├── lore-gen-constitution.py
+│   ├── lore-tasks-to-beads.py
+│   ├── lore-merge-settings.js
+│   └── lore-doctor.sh
 ├── .claude/
 │   └── skills/
-│       ├── acme-feature.md
-│       └── acme-pr.md
+│       ├── lore-feature.md
+│       └── lore-pr.md
 ├── terraform/
 ├── .github/
 │   ├── workflows/
@@ -90,7 +90,7 @@ acme/context/
 | P1: DX-First Delivery | PASS | Phase 0 delivers full DX with zero infra. Gate enforced before Phase 1. |
 | P2: Zero Stored Credentials | PASS | Phase 0 uses no credentials. Phase 1 uses Workload Identity exclusively. |
 | P3: PR Quality Gates | PASS | PR template + CI check deployed in Phase 0 Day 1. |
-| P4: Three-Command Interface | PASS | `bd ready`, `/acme-feature`, `/acme-pr` — all delivered in Phase 0. |
+| P4: Three-Command Interface | PASS | `bd ready`, `/lore-feature`, `/lore-pr` — all delivered in Phase 0. |
 | P5: Single Interface (Lore MCP) | PASS | MCP server is the only developer-facing interface. Klaus accessed only via MCP delegation. |
 | P6: Distributed Ownership | PASS | CODEOWNERS enforced. PromptFoo evals owned by teams. |
 | P7: Architecture Final | PASS | Plan uses all decided technologies. No alternatives proposed. |
@@ -111,7 +111,7 @@ on the previous.
 #### Day 1: Foundation
 
 **Deliverables:**
-1. Create `acme/context` GitHub repository.
+1. Create `lore/context` GitHub repository.
 2. Write root `CLAUDE.md` (architecture contracts, code conventions,
    key services — under 2 pages).
 3. Write `teams/payments/CLAUDE.md` (richest existing conventions:
@@ -142,20 +142,20 @@ on the previous.
      across all content files.
    - Falls back gracefully if files missing.
 2. `install.sh`:
-   - Clone `acme/context` to `~/.acme/context` (or pull if exists).
+   - Clone `lore/context` to `~/.lore/context` (or pull if exists).
    - `npm install && npm run build` in mcp-server/.
-   - Detect team via `git config --global acme.team`.
-   - Run `acme-merge-settings.js` to configure Claude Code.
+   - Detect team via `git config --global lore.team`.
+   - Run `lore-merge-settings.js` to configure Claude Code.
    - Install platform skills to `~/.claude/skills/`.
    - Install `@beads/bd` and `specify-cli`.
-   - Run `bd init` in `~/.acme/context`.
-   - Run `acme-doctor.sh`.
+   - Run `bd init` in `~/.lore/context`.
+   - Run `lore-doctor.sh`.
    - Idempotent — safe to re-run.
-3. `acme-merge-settings.js` (~40 lines):
+3. `lore-merge-settings.js` (~40 lines):
    - Reads existing `~/.claude/settings.json`.
    - Merges platform MCP config, env vars, hooks.
    - Never overwrites personal hooks.
-   - Idempotent — detects existing acme hooks.
+   - Idempotent — detects existing lore hooks.
 4. `AGENTS.md` with proactive guidance instructions.
 
 **Dependencies:** Day 1 content (CLAUDE.md, ADRs) must exist for
@@ -168,62 +168,62 @@ MCP server to serve.
 - `get_adrs(domain="payments")` returns ADR-042.
 - `search_context("error handling")` returns relevant results.
 - `bd --version` works.
-- `acme-doctor` prints all green.
+- `lore-doctor` prints all green.
 
 #### Day 3: Glue Scripts + Hooks + Skills
 
 **Deliverables:**
-1. `acme-gen-constitution.py` (~60 lines):
+1. `lore-gen-constitution.py` (~60 lines):
    - Calls MCP `get_context(team)` and `get_adrs(domain=team)`.
    - Renders `.specify/constitution.md`.
    - Handles: MCP not running, missing team, existing file.
-2. `acme-tasks-to-beads.py` (~80 lines):
+2. `lore-tasks-to-beads.py` (~80 lines):
    - Parses Spec Kit `tasks.md`.
    - Calls `bd create` for each task.
    - Calls `bd dep add` for `[DEPENDS ON: ...]` markers.
    - Handles: `bd` not installed, file not found, duplicates.
-3. `acme-doctor.sh` (~40 lines):
+3. `lore-doctor.sh` (~40 lines):
    - Tests: MCP server responds, `get_context` returns data,
      `bd` installed, `specify` installed, git connectivity,
      platform hooks present, platform skills present.
    - Prints pass/fail with fix instructions.
-4. Platform hooks (in `acme-merge-settings.js`):
+4. Platform hooks (in `lore-merge-settings.js`):
    - `SessionStart`: pull context repo + Beads state silently.
    - `PostToolUse` (Write/Edit/MultiEdit): mark claimed task
      in-progress.
    - `Stop`: remind about open claimed tasks.
 5. Platform skills:
-   - `acme-feature.md`: full spec-driven loop. Claude Code asks
+   - `lore-feature.md`: full spec-driven loop. Claude Code asks
      one question, then runs constitution -> specify -> tasks ->
      Beads wiring. Developer confirms at 3 decision points only.
-   - `acme-pr.md`: reads Beads task + spec + diff + ADRs, drafts
+   - `lore-pr.md`: reads Beads task + spec + diff + ADRs, drafts
      complete PR description. Developer reviews once.
 
 **Dependencies:** Day 2 MCP server + install.sh must work.
 
 **Verification:**
-- `acme-gen-constitution --team payments` produces valid constitution
+- `lore-gen-constitution --team payments` produces valid constitution
   from real ADRs.
-- `acme-tasks-to-beads .specify/tasks.md` creates Beads tasks with
+- `lore-tasks-to-beads .specify/tasks.md` creates Beads tasks with
   correct dependencies.
 - SessionStart hook pulls silently (no visible output on success).
 - PostToolUse hook updates task progress on file edit.
-- `/acme-feature` runs the full loop interactively.
-- `/acme-pr` drafts a description from context.
-- `acme-doctor` tests all of the above.
+- `/lore-feature` runs the full loop interactively.
+- `/lore-pr` drafts a description from context.
+- `lore-doctor` tests all of the above.
 
 #### Day 4: Integration + Pilot
 
 **Deliverables:**
 1. End-to-end pilot run by platform engineering team:
    - Fresh machine install via `curl | bash`.
-   - `acme-gen-constitution --team platform`.
+   - `lore-gen-constitution --team platform`.
    - `/speckit.specify` for a real feature.
    - `/speckit.tasks` to generate tasks.
-   - `acme-tasks-to-beads` to wire tasks.
+   - `lore-tasks-to-beads` to wire tasks.
    - `bd ready` to see tasks.
    - Implement one task.
-   - `/acme-pr` to draft PR description.
+   - `/lore-pr` to draft PR description.
 2. Fix any friction discovered during pilot.
 3. Document any workarounds or known issues.
 
@@ -231,8 +231,8 @@ MCP server to serve.
 
 **Verification (Phase 0 Gate):**
 - Full loop completes in under 30 minutes.
-- Developer speaks fewer than 10 words during `/acme-feature`.
-- `acme-doctor` all green on pilot machine.
+- Developer speaks fewer than 10 words during `/lore-feature`.
+- `lore-doctor` all green on pilot machine.
 - PR description has all sections populated.
 - No manual context loading required at any point.
 
@@ -249,14 +249,14 @@ MCP server to serve.
      `org_shared`.
    - Chunks table with `VECTOR(768)` embedding column, ScaNN index,
      GIN index on `search_tsv`.
-   - GKE cluster (`acme-ai-platform`, private, regional).
+   - GKE cluster (`lore-ai-platform`, private, regional).
    - Node pools: `mcp-pool` (n2-standard-4, 2-6),
      `general` (n2-standard-2, 2-8).
    - Namespaces: `mcp-servers`, `langfuse`, `klaus`.
    - Workload Identity bindings per MCP server.
    - Cloud SQL (postgres-15) for Langfuse metadata.
-   - BigQuery dataset: `acme_platform_traces`.
-   - Cloud Storage bucket: `acme-langfuse-media`.
+   - BigQuery dataset: `lore_platform_traces`.
+   - Cloud Storage bucket: `lore-langfuse-media`.
 
 2. **Klaus deployment:**
    - Helm chart in GKE `klaus` namespace.
@@ -322,7 +322,7 @@ MCP server to serve.
 ### Phase 2: Feedback Loop (Weeks 4-5)
 
 1. **Dolt remote (~1 hour):**
-   - Create DoltHub `acme/beads-tasks`.
+   - Create DoltHub `lore/beads-tasks`.
    - Add remote to `install.sh`.
    - Auto-pull in `.zshrc`/`.bashrc`.
    - Optimistic locking with version counter for concurrent claims.
@@ -339,7 +339,7 @@ MCP server to serve.
    - Agent queries BigQuery for gap traces.
    - Clusters by embedding similarity.
    - For 3+ occurrence clusters: drafts content, opens PR to
-     `acme/context`, labels `context-gap-draft`, assigns team.
+     `lore/context`, labels `context-gap-draft`, assigns team.
    - Human review required.
 
 **Phase 2 Verification:**

@@ -38,9 +38,9 @@ and build the knowledge graph from the updated chunks.
    that shaped them.
 
 6. Store the graph and summaries to Cloud Storage:
-   - gs://acme-lore-graphrag/latest/graph.json
-   - gs://acme-lore-graphrag/latest/communities.json
-   - gs://acme-lore-graphrag/{date}/graph.json (archival copy)
+   - gs://lore-graphrag/latest/graph.json
+   - gs://lore-graphrag/latest/communities.json
+   - gs://lore-graphrag/{date}/graph.json (archival copy)
 
 ## Prerequisites
 

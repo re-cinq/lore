@@ -105,8 +105,8 @@ A developer MUST need to remember exactly three things:
 
 ```
 bd ready          -> what should I work on right now?
-/acme-feature     -> I'm starting something new
-/acme-pr          -> I'm about to open a PR
+/lore-feature     -> I'm starting something new
+/lore-pr          -> I'm about to open a PR
 ```
 
 Everything else — context sync, task state updates, spec generation,
@@ -142,10 +142,10 @@ harder to evolve.
 Content ownership is distributed to teams. Governance is enforced by
 CI, not by a central team reviewing every change.
 
-- Root `CLAUDE.md`: requires `@acme/platform-eng` +
-  `@acme/tech-leads` review.
+- Root `CLAUDE.md`: requires `@lore/platform-eng` +
+  `@lore/tech-leads` review.
 - `teams/<team>/CLAUDE.md`: owned by the respective team.
-- `adrs/`: owned by `@acme/arch-group` + affected team.
+- `adrs/`: owned by `@lore/arch-group` + affected team.
 - `runbooks/`: owned by the operating team.
 - PromptFoo evals: each team owns their eval cases. Platform does
   not own domain knowledge.
@@ -269,14 +269,14 @@ depends on.
 ### Phase 0: Developer Experience (3-4 working days, zero infra)
 
 Validate the workflow before investing in infrastructure. Deliverables:
-- `acme/context` repo with CLAUDE.md hierarchy + ADRs + runbooks.
+- `lore/context` repo with CLAUDE.md hierarchy + ADRs + runbooks.
 - MVP MCP server (file-backed, ~80 lines TypeScript).
 - `install.sh` (idempotent, one-command onboarding).
-- `acme-gen-constitution.py` + `acme-tasks-to-beads.py` glue scripts.
-- `acme-doctor.sh` health check.
-- `acme-merge-settings.js` for safe settings merging.
+- `lore-gen-constitution.py` + `lore-tasks-to-beads.py` glue scripts.
+- `lore-doctor.sh` health check.
+- `lore-merge-settings.js` for safe settings merging.
 - Platform hooks (SessionStart, PostToolUse, Stop).
-- Platform skills (`/acme-feature`, `/acme-pr`).
+- Platform skills (`/lore-feature`, `/lore-pr`).
 - PR template + CI description check in all product repos.
 - Beads + AGENTS.md integration.
 
@@ -319,7 +319,7 @@ Close the loop — system improves based on actual usage. Deliverables:
 ### Amendment Procedure
 
 1. Propose changes via PR to `.specify/memory/constitution.md`.
-2. Changes to principles require review from `@acme/platform-eng`.
+2. Changes to principles require review from `@lore/platform-eng`.
 3. Architecture decision changes require a superseding ADR with full
    alternatives-rejected documentation.
 4. Version bumps follow semantic versioning:

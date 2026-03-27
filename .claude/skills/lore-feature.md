@@ -1,5 +1,5 @@
 ---
-name: acme-feature
+name: lore-feature
 description: Start a new spec-driven feature. Handles constitution, spec, tasks, and Beads wiring interactively. Developer confirms decisions; Claude Code does the work.
 ---
 
@@ -10,9 +10,9 @@ confirmation at decision points only.
 ## Steps (the developer does not need to know this sequence)
 
 1. Ask: "What do you want to build? Short description — what it does and why."
-2. Detect team from `git config --global acme.team` or $ACME_TEAM. If not set,
+2. Detect team from `git config --global lore.team` or $LORE_TEAM. If not set,
    ask which team (payments, platform, mobile, data).
-3. Run `acme-gen-constitution --team <team>` silently.
+3. Run `lore-gen-constitution --team <team>` silently.
    Show the result. Ask: "Does this constitution look right for your team's
    current constraints?"
 4. Run `specify init <feature-name> --ai claude` (derive name from description).
@@ -20,7 +20,7 @@ confirmation at decision points only.
    Show the spec. Ask: "Does this spec capture what you want to build?"
 5. Run `/speckit.tasks` to generate task breakdown.
    Show the tasks. Ask: "Does this task breakdown look right?"
-6. Run `acme-tasks-to-beads .specify/tasks.md` silently.
+6. Run `lore-tasks-to-beads .specify/tasks.md` silently.
    Show created task IDs.
 7. Say: "Done. Run `bd ready` to see your tasks. Pick one with
    `bd update <id> --claim` to start."

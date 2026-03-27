@@ -26,8 +26,8 @@
 
 ## Phase 1: Setup
 
-- [x] T001 Initialize `acme/context` GitHub repository with README, .gitignore, and LICENSE
-- [x] T002 Create repository directory structure per plan.md in acme/context/
+- [x] T001 Initialize `lore/context` GitHub repository with README, .gitignore, and LICENSE
+- [x] T002 Create repository directory structure per plan.md in lore/context/
 - [x] T003 [P] Initialize MCP server project with package.json and tsconfig.json in mcp-server/
 - [x] T004 [P] Create .github/PULL_REQUEST_TEMPLATE.md with required sections (Why, Approach, Alternatives Rejected, ADR References, Spec)
 
@@ -42,17 +42,17 @@ Populate the context repository with real organizational knowledge
 so the MCP server has content to serve and all downstream tools
 have context to work with.
 
-- [x] T005 Write root CLAUDE.md with architecture contracts, code conventions, and key service descriptions (under 2 pages) in acme/context/CLAUDE.md
-- [x] T006 [P] Write payments team conventions including ADR-042 minor units, PCI scope, and idempotency patterns in acme/context/teams/payments/CLAUDE.md
-- [x] T007 [P] Write platform team conventions in acme/context/teams/platform/CLAUDE.md
-- [x] T008 [P] Write mobile team conventions in acme/context/teams/mobile/CLAUDE.md
-- [x] T009 [P] Write data team conventions in acme/context/teams/data/CLAUDE.md
-- [x] T010 [P] Write ADR-042 (monetary amounts in minor units) in MADR format with YAML frontmatter in acme/context/adrs/ADR-042-minor-units.md
-- [x] T011 [P] Write second real ADR in MADR format with YAML frontmatter in acme/context/adrs/
-- [x] T012 [P] Write third real ADR in MADR format with YAML frontmatter in acme/context/adrs/
-- [x] T013 [P] Write runbook for stripe webhook failure incident in acme/context/runbooks/payments-service-stripe-webhook-failure.md
-- [x] T014 [P] Write second runbook from real incident in acme/context/runbooks/
-- [x] T015 Create CODEOWNERS with ownership boundaries (root CLAUDE.md -> platform-eng + tech-leads, teams/ -> respective teams, adrs/ -> arch-group) in acme/context/CODEOWNERS
+- [x] T005 Write root CLAUDE.md with architecture contracts, code conventions, and key service descriptions (under 2 pages) in lore/context/CLAUDE.md
+- [x] T006 [P] Write payments team conventions including ADR-042 minor units, PCI scope, and idempotency patterns in lore/context/teams/payments/CLAUDE.md
+- [x] T007 [P] Write platform team conventions in lore/context/teams/platform/CLAUDE.md
+- [x] T008 [P] Write mobile team conventions in lore/context/teams/mobile/CLAUDE.md
+- [x] T009 [P] Write data team conventions in lore/context/teams/data/CLAUDE.md
+- [x] T010 [P] Write ADR-042 (monetary amounts in minor units) in MADR format with YAML frontmatter in lore/context/adrs/ADR-042-minor-units.md
+- [x] T011 [P] Write second real ADR in MADR format with YAML frontmatter in lore/context/adrs/
+- [x] T012 [P] Write third real ADR in MADR format with YAML frontmatter in lore/context/adrs/
+- [x] T013 [P] Write runbook for stripe webhook failure incident in lore/context/runbooks/payments-service-stripe-webhook-failure.md
+- [x] T014 [P] Write second runbook from real incident in lore/context/runbooks/
+- [x] T015 Create CODEOWNERS with ownership boundaries (root CLAUDE.md -> platform-eng + tech-leads, teams/ -> respective teams, adrs/ -> arch-group) in lore/context/CODEOWNERS
 
 ---
 
@@ -64,7 +64,7 @@ Claude Code environment with org context loaded in under 5 minutes.
 
 ### Independent Test Criteria
 - `install.sh` completes on clean macOS/Linux machine in < 5 minutes.
-- `acme-doctor` reports all green.
+- `lore-doctor` reports all green.
 - Re-running `install.sh` is idempotent — no errors, no side effects.
 - Claude Code opens with MCP server configured and context available.
 
@@ -72,10 +72,10 @@ Claude Code environment with org context loaded in under 5 minutes.
 
 - [x] T016 [US1] Implement MVP MCP server with get_context, get_adrs, and search_context tools (~80 lines) in mcp-server/src/index.ts
 - [x] T017 [US1] Add Dockerfile for MCP server in mcp-server/Dockerfile
-- [x] T018 [US1] Write acme-merge-settings.js that reads existing ~/.claude/settings.json and merges platform MCP config, env vars, and hooks without overwriting personal hooks (~40 lines) in scripts/acme-merge-settings.js
-- [x] T019 [US1] Write acme-doctor.sh health check that tests MCP server, get_context, bd CLI, specify CLI, git connectivity, hooks, and skills — prints pass/fail with fix instructions (~40 lines) in scripts/acme-doctor.sh
-- [x] T020 [US1] Write install.sh: clone repo, build MCP server, detect team, run acme-merge-settings.js, install skills, install bd + specify-cli, run bd init, run acme-doctor — idempotent, works without pre-clone in scripts/install.sh
-- [x] T021 [US1] Write AGENTS.md with proactive guidance instructions (first session greeting, orientation, feature start, delegation, task tracking) in acme/context/AGENTS.md
+- [x] T018 [US1] Write lore-merge-settings.js that reads existing ~/.claude/settings.json and merges platform MCP config, env vars, and hooks without overwriting personal hooks (~40 lines) in scripts/lore-merge-settings.js
+- [x] T019 [US1] Write lore-doctor.sh health check that tests MCP server, get_context, bd CLI, specify CLI, git connectivity, hooks, and skills — prints pass/fail with fix instructions (~40 lines) in scripts/lore-doctor.sh
+- [x] T020 [US1] Write install.sh: clone repo, build MCP server, detect team, run lore-merge-settings.js, install skills, install bd + specify-cli, run bd init, run lore-doctor — idempotent, works without pre-clone in scripts/install.sh
+- [x] T021 [US1] Write AGENTS.md with proactive guidance instructions (first session greeting, orientation, feature start, delegation, task tracking) in lore/context/AGENTS.md
 
 ---
 
@@ -94,48 +94,48 @@ automatically. Unblocked tasks surface without manual action.
 
 ### Tasks
 
-- [x] T022 [US2] Add SessionStart hook to acme-merge-settings.js: silently pull context repo + bd pull in scripts/acme-merge-settings.js
-- [x] T023 [US2] Add PostToolUse hook (Write|Edit|MultiEdit matcher) to acme-merge-settings.js: mark claimed task in-progress in scripts/acme-merge-settings.js
-- [x] T024 [US2] Add Stop hook to acme-merge-settings.js: remind about open claimed tasks with exact bd command in scripts/acme-merge-settings.js
+- [x] T022 [US2] Add SessionStart hook to lore-merge-settings.js: silently pull context repo + bd pull in scripts/lore-merge-settings.js
+- [x] T023 [US2] Add PostToolUse hook (Write|Edit|MultiEdit matcher) to lore-merge-settings.js: mark claimed task in-progress in scripts/lore-merge-settings.js
+- [x] T024 [US2] Add Stop hook to lore-merge-settings.js: remind about open claimed tasks with exact bd command in scripts/lore-merge-settings.js
 
 ---
 
 ## Phase 5: US3 — Starting a New Feature [P2]
 
 ### Story Goal
-Developer invokes `/acme-feature` and Claude Code guides the entire
+Developer invokes `/lore-feature` and Claude Code guides the entire
 loop: constitution -> spec -> tasks -> Beads wiring. Developer
 confirms at 3 decision points, speaks fewer than 10 words.
 
 ### Independent Test Criteria
-- `acme-gen-constitution --team payments` produces valid constitution.
-- `acme-tasks-to-beads tasks.md` creates Beads tasks with deps.
-- `/acme-feature` completes the full loop in under 30 minutes.
+- `lore-gen-constitution --team payments` produces valid constitution.
+- `lore-tasks-to-beads tasks.md` creates Beads tasks with deps.
+- `/lore-feature` completes the full loop in under 30 minutes.
 - Generated constitution reflects real team ADRs.
 
 ### Tasks
 
-- [x] T025 [US3] Write acme-gen-constitution.py: calls MCP get_context + get_adrs, renders .specify/constitution.md. Handles MCP down, missing team, existing file (~60 lines) in scripts/acme-gen-constitution.py
-- [x] T026 [US3] Write acme-tasks-to-beads.py: parses Spec Kit tasks.md, calls bd create per task, bd dep add for [DEPENDS ON] markers. Handles bd not installed, file missing, duplicates (~80 lines) in scripts/acme-tasks-to-beads.py
-- [x] T027 [US3] Write /acme-feature platform skill: asks one question, runs constitution -> specify -> tasks -> Beads wiring silently, confirms at 3 decision points in .claude/skills/acme-feature.md
-- [x] T028 [US3] Update install.sh to symlink acme-gen-constitution and acme-tasks-to-beads onto PATH in scripts/install.sh
+- [x] T025 [US3] Write lore-gen-constitution.py: calls MCP get_context + get_adrs, renders .specify/constitution.md. Handles MCP down, missing team, existing file (~60 lines) in scripts/lore-gen-constitution.py
+- [x] T026 [US3] Write lore-tasks-to-beads.py: parses Spec Kit tasks.md, calls bd create per task, bd dep add for [DEPENDS ON] markers. Handles bd not installed, file missing, duplicates (~80 lines) in scripts/lore-tasks-to-beads.py
+- [x] T027 [US3] Write /lore-feature platform skill: asks one question, runs constitution -> specify -> tasks -> Beads wiring silently, confirms at 3 decision points in .claude/skills/lore-feature.md
+- [x] T028 [US3] Update install.sh to symlink lore-gen-constitution and lore-tasks-to-beads onto PATH in scripts/install.sh
 
 ---
 
 ## Phase 6: US4 — Opening a Pull Request [P2]
 
 ### Story Goal
-Developer invokes `/acme-pr` and Claude Code drafts a complete PR
+Developer invokes `/lore-pr` and Claude Code drafts a complete PR
 description from Beads task, spec, changed files, and ADR references.
 
 ### Independent Test Criteria
-- `/acme-pr` reads task + spec + diff + ADRs automatically.
+- `/lore-pr` reads task + spec + diff + ADRs automatically.
 - Generated description has all sections populated.
 - If no spec exists, asks one question about alternatives rejected.
 
 ### Tasks
 
-- [x] T029 [US4] Write /acme-pr platform skill: reads Beads task + spec + constitution + git diff + ADRs, drafts PR description, asks for one round of edits in .claude/skills/acme-pr.md
+- [x] T029 [US4] Write /lore-pr platform skill: reads Beads task + spec + constitution + git diff + ADRs, drafts PR description, asks for one round of edits in .claude/skills/lore-pr.md
 - [x] T030 [US4] Update install.sh to copy platform skills from .claude/skills/ to ~/.claude/skills/ in scripts/install.sh
 
 ---
@@ -164,9 +164,9 @@ ADRs. Warning mode for first 2 weeks, manual flip to enforcement.
 Platform engineering team runs the full loop end-to-end on a fresh
 machine. Fix friction. Validate Phase 0 before proceeding.
 
-- [ ] T033 Run end-to-end pilot: fresh install via curl|bash, acme-gen-constitution, /speckit.specify, /speckit.tasks, acme-tasks-to-beads, bd ready, implement one task, /acme-pr
+- [ ] T033 Run end-to-end pilot: fresh install via curl|bash, lore-gen-constitution, /speckit.specify, /speckit.tasks, lore-tasks-to-beads, bd ready, implement one task, /lore-pr
 - [ ] T034 Fix friction discovered during pilot run — document any workarounds
-- [ ] T035 Verify Phase 0 gate: full loop in < 30 minutes, acme-doctor all green, no manual context loading required
+- [ ] T035 Verify Phase 0 gate: full loop in < 30 minutes, lore-doctor all green, no manual context loading required
 
 ---
 
@@ -185,7 +185,7 @@ results from AlloyDB via hybrid vector + keyword search in < 200ms.
 
 - [x] T036 [US6] Write Terraform module for AlloyDB cluster (Enterprise, europe-west4, db-perf-optimized-N-4) with vector/scann/ml extensions in terraform/modules/alloydb/
 - [x] T037 [US6] Write Terraform AlloyDB schema-per-team DDL: chunks table with VECTOR(768), ScaNN index, GIN index on search_tsv for payments, platform, mobile, data, org_shared in terraform/modules/alloydb/schemas.sql
-- [x] T038 [US6] Write Terraform module for GKE cluster (acme-ai-platform, private, regional europe-west4) with mcp-servers, langfuse, klaus namespaces in terraform/modules/gke-mcp/
+- [x] T038 [US6] Write Terraform module for GKE cluster (lore-ai-platform, private, regional europe-west4) with mcp-servers, langfuse, klaus namespaces in terraform/modules/gke-mcp/
 - [x] T039 [US6] Write Terraform Workload Identity bindings: per-team MCP service account (read own schema + org_shared), Klaus SA (write ingestion + read GitHub) in terraform/modules/gke-mcp/workload-identity.tf
 - [x] T040 [US6] Upgrade MCP server search_context to hybrid AlloyDB search: ScaNN vector + BM25 keyword with Reciprocal Rank Fusion (k=60) in mcp-server/src/index.ts
 - [x] T041 [US6] Upgrade MCP server get_context and get_adrs to query AlloyDB instead of local files in mcp-server/src/index.ts
@@ -220,7 +220,7 @@ continues locally.
 - [x] T052 [US7] Implement task_status MCP tool: polls Klaus for task state, surfaces failure reason and Beads claim release in mcp-server/src/index.ts
 - [x] T053 [US7] Implement task_result MCP tool: retrieves completed output from Klaus in mcp-server/src/index.ts
 - [x] T054 [US7] Implement list_cluster_tasks MCP tool: lists all running/completed tasks in mcp-server/src/index.ts
-- [x] T055 [US7] Update AGENTS.md with delegation guidance: when to delegate, when not to, always pass context in acme/context/AGENTS.md
+- [x] T055 [US7] Update AGENTS.md with delegation guidance: when to delegate, when not to, always pass context in lore/context/AGENTS.md
 
 ---
 
@@ -232,7 +232,7 @@ tagged for gap detection.
 
 - [x] T056 Write Terraform module for Langfuse: Helm chart on GKE langfuse namespace, Cloud SQL Auth Proxy sidecar, OIDC SSO in terraform/modules/langfuse/
 - [x] T057 Write Terraform for Cloud SQL (postgres-15, db-g1-small) for Langfuse metadata in terraform/modules/langfuse/cloud-sql.tf
-- [x] T058 [P] Write Terraform for BigQuery dataset acme_platform_traces and Cloud Storage bucket acme-langfuse-media in terraform/modules/langfuse/bigquery.tf
+- [x] T058 [P] Write Terraform for BigQuery dataset lore_platform_traces and Cloud Storage bucket lore-langfuse-media in terraform/modules/langfuse/bigquery.tf
 - [x] T059 Implement tracedSearch wrapper in MCP server: traces every retrieval call to Langfuse, tags low-confidence (< 0.72) as gap_candidate in mcp-server/src/index.ts
 - [x] T060 Configure Langfuse BigQuery export integration for gap detection analytics in terraform/modules/langfuse/
 
@@ -242,13 +242,13 @@ tagged for gap detection.
 
 ### Story Goal
 Weekly job identifies low-confidence retrieval clusters and a Klaus
-agent drafts missing content and opens PRs to acme/context. Human
+agent drafts missing content and opens PRs to lore/context. Human
 review required.
 
 ### Independent Test Criteria
 - Gap detection identifies clusters with 3+ occurrences.
 - Klaus agent drafts specific, actionable content.
-- PR opened to acme/context, labelled context-gap-draft, assigned to team.
+- PR opened to lore/context, labelled context-gap-draft, assigned to team.
 - No content merged without human review.
 
 ### Tasks
@@ -256,7 +256,7 @@ review required.
 - [x] T061 [US8] Deploy self-hosted Dolt remote on GKE (dolt-helm chart) and update install.sh to add remote + auto-pull in scripts/install.sh
 - [x] T062 [US8] Add .specify/** to context-evals.yml trigger paths (1 line) in .github/workflows/context-evals.yml
 - [x] T063 [US8] Configure Cloud Scheduler weekly job (Monday 9am UTC): gap detection via delegate_task to Klaus in terraform/modules/gke-mcp/cloud-scheduler.tf
-- [x] T064 [US8] Write Klaus agent prompt for gap detection: query BigQuery for gap traces, cluster by similarity, draft missing content, open PR to acme/context with context-gap-draft label
+- [x] T064 [US8] Write Klaus agent prompt for gap detection: query BigQuery for gap traces, cluster by similarity, draft missing content, open PR to lore/context with context-gap-draft label
 
 ---
 
@@ -293,7 +293,7 @@ Autoresearch loop autonomously improves context quality.
 - [x] T070 Review and harden install.sh error handling: ensure every step has clear error messages and recovery instructions in scripts/install.sh
 - [x] T071 Write internal comms template for PR description enforcement rollout (frame as "makes Claude Code smarter for the team")
 - [ ] T072 Verify all Terraform modules pass `terraform validate` and `terraform plan` in terraform/
-- [x] T073 Update acme-doctor.sh to include Phase 1+ checks: AlloyDB reachable, Langfuse reachable, Klaus endpoint responsive in scripts/acme-doctor.sh
+- [x] T073 Update lore-doctor.sh to include Phase 1+ checks: AlloyDB reachable, Langfuse reachable, Klaus endpoint responsive in scripts/lore-doctor.sh
 
 ---
 
@@ -332,15 +332,15 @@ Day 1:
 Day 2:
   Agent A: T016 (MCP server)
   Agent B: T017 (Dockerfile) + T018 (merge-settings) [P]
-  Agent C: T019 (acme-doctor) [P]
+  Agent C: T019 (lore-doctor) [P]
   Sync: T020 (install.sh — depends on T016, T018, T019)
   Agent D: T021 (AGENTS.md) [P]
 
 Day 3:
-  Agent A: T025 (acme-gen-constitution) [P]
-  Agent B: T026 (acme-tasks-to-beads) [P]
-  Agent C: T027 (acme-feature skill) [P]
-  Agent D: T029 (acme-pr skill) [P]
+  Agent A: T025 (lore-gen-constitution) [P]
+  Agent B: T026 (lore-tasks-to-beads) [P]
+  Agent C: T027 (lore-feature skill) [P]
+  Agent D: T029 (lore-pr skill) [P]
   Sync: T022-T024 (hooks — updates merge-settings)
   Sync: T028, T030 (install.sh updates)
   Agent E: T031 (PR check CI) [P]

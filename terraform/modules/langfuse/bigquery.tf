@@ -13,7 +13,7 @@ resource "google_service_account" "langfuse" {
 # ----- BigQuery Dataset -----
 
 resource "google_bigquery_dataset" "traces" {
-  dataset_id = "acme_platform_traces"
+  dataset_id = "lore_platform_traces"
   project    = var.project_id
   location   = "EU"
 
@@ -36,7 +36,7 @@ resource "google_bigquery_dataset_iam_member" "langfuse_data_editor" {
 # ----- Cloud Storage Bucket -----
 
 resource "google_storage_bucket" "langfuse_media" {
-  name     = "acme-langfuse-media"
+  name     = "lore-langfuse-media"
   project  = var.project_id
   location = var.region
 

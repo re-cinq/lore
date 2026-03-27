@@ -44,5 +44,5 @@ variable "cloud_sql_connection_name" {
 variable "langfuse_domain" {
   description = "Public domain for the Langfuse UI (used for NEXTAUTH_URL)."
   type        = string
-  default     = "langfuse.acme.internal"
+  default     = "langfuse.lore.internal"
 }

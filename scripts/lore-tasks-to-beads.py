@@ -4,7 +4,7 @@
 Parses the task markdown format, creates bd tasks, and wires up
 dependencies from [DEPENDS ON: ...] markers.
 
-Usage: acme-tasks-to-beads .specify/tasks.md
+Usage: lore-tasks-to-beads .specify/tasks.md
 """
 
 import re
@@ -66,7 +66,7 @@ def parse_tasks(content: str) -> list[dict]:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: acme-tasks-to-beads <tasks.md>", file=sys.stderr)
+        print("Usage: lore-tasks-to-beads <tasks.md>", file=sys.stderr)
         sys.exit(1)
 
     tasks_path = Path(sys.argv[1])
@@ -83,7 +83,7 @@ def main():
         print("No tasks found in file.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"[acme] Creating {len(tasks)} Beads tasks...")
+    print(f"[lore] Creating {len(tasks)} Beads tasks...")
 
     # Track created task IDs (bd id -> spec task id)
     created = {}
@@ -104,8 +104,8 @@ def main():
                 run_bd(["dep", "add", child_id, parent_id])
                 dep_count += 1
 
-    print(f"[acme] Done. {len(tasks)} tasks created, {dep_count} dependencies wired.")
-    print("[acme] Run 'bd ready' to see unblocked tasks.")
+    print(f"[lore] Done. {len(tasks)} tasks created, {dep_count} dependencies wired.")
+    print("[lore] Run 'bd ready' to see unblocked tasks.")
 
 
 if __name__ == "__main__":

@@ -247,7 +247,7 @@ system is performing.
 
 ### FR-1: Context Repository
 
-The system MUST maintain a single repository (`acme/context`) that
+The system MUST maintain a single repository (`lore/context`) that
 serves as the source of truth for organizational context.
 
 - FR-1.1: Root `CLAUDE.md` with architecture contracts, code
@@ -324,9 +324,9 @@ The system MUST integrate Beads for agent-native task tracking.
 The system MUST provide an end-to-end feature workflow via platform
 skills.
 
-- FR-5.1: `/acme-feature` skill guides the full loop: constitution
+- FR-5.1: `/lore-feature` skill guides the full loop: constitution
   generation -> specification -> task breakdown -> Beads wiring.
-- FR-5.2: `/acme-pr` skill drafts PR descriptions from spec, task
+- FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
   context, and changed files.
 - FR-5.3: Constitution generation script calls MCP to populate
   `.specify/constitution.md` with real ADRs and team conventions.
@@ -493,7 +493,7 @@ improvements.
   instructions.
 - When the MCP server is unreachable, Claude Code MUST fall back to
   the last-synced local copy of CLAUDE.md files and ADRs in
-  `~/.acme/context` and display a one-time warning to the developer
+  `~/.lore/context` and display a one-time warning to the developer
   that search quality may be degraded. Semantic search is unavailable
   in this mode; convention and ADR lookups continue from local files.
 
@@ -518,7 +518,7 @@ improvements.
 
 ### Session 2026-03-25
 
-- Q: What happens when the MCP server is unreachable during a developer session? → A: Fall back to local `~/.acme/context` files with a one-time warning that search quality is degraded.
+- Q: What happens when the MCP server is unreachable during a developer session? → A: Fall back to local `~/.lore/context` files with a one-time warning that search quality is degraded.
 - Q: What happens to ingested chunks when their source is deleted, reverted, or superseded? → A: Hard delete. Nightly re-index removes chunks whose source no longer exists. No stale content retained.
 - Q: How are concurrent Beads task claims resolved? → A: Optimistic locking with version counter. Claim rejected if version changed since last read.
 - Q: What happens when a Klaus agent fails mid-task? → A: Fail immediately, release Beads claim, store failure reason. No automatic retry — developer decides whether to resubmit.

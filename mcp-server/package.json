@@ -1,5 +1,5 @@
 {
-  "name": "@acme/context-mcp",
+  "name": "@lore/context-mcp",
   "version": "0.1.0",
   "description": "Lore MCP server — serves org context, ADRs, and search to Claude Code",
   "type": "module",

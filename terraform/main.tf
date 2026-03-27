@@ -21,7 +21,7 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "acme-terraform-state"
+    bucket = "lore-terraform-state"
     prefix = "lore-platform"
   }
 }
