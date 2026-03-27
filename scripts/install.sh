@@ -84,10 +84,23 @@ select_team() {
   fi
 }
 
-# --- 4. Merge settings -------------------------------------------------------
+# --- 4. Register MCP server + merge settings ---------------------------------
 merge_settings() {
   CURRENT_STEP="merge Claude settings"
-  echo "[lore] Merging Claude settings for team '$TEAM' ..."
+  echo "[lore] Configuring MCP server + hooks for team '$TEAM' ..."
+
+  # Register MCP server via CLI (the reliable way)
+  if command -v claude &>/dev/null; then
+    claude mcp remove lore-context 2>/dev/null || true
+    claude mcp add lore-context node \
+      "$LORE_DIR/mcp-server/dist/index.js" \
+      -e "CONTEXT_PATH=$LORE_DIR" \
+      -e "LORE_TEAM=$TEAM" \
+      2>/dev/null && echo "[lore] MCP server registered via claude CLI" || \
+      echo "[lore] Warning: claude mcp add failed, falling back to settings.json"
+  fi
+
+  # Merge env vars + hooks into settings.json (still needed for hooks and env)
   node "$LORE_DIR/scripts/lore-merge-settings.js" "$TEAM"
 }
 

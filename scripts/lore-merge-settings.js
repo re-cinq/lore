@@ -43,17 +43,8 @@ const settings = readSettings();
 if (!settings.env) settings.env = {};
 settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
 
-// 2. mcpServers — use resolved HOME path, not ${HOME} (Claude Code doesn't expand shell vars in JSON)
-const HOME = process.env.HOME || process.env.USERPROFILE;
-if (!settings.mcpServers) settings.mcpServers = {};
-settings.mcpServers["lore-context"] = {
-  command: "node",
-  args: [path.join(HOME, ".re-cinq/lore/mcp-server/dist/index.js")],
-  env: {
-    CONTEXT_PATH: path.join(HOME, ".re-cinq/lore"),
-    LORE_TEAM: TEAM,
-  },
-};
+// 2. mcpServers — registered via `claude mcp add` in install.sh (not here)
+//    The CLI writes to the correct location regardless of Claude Code version.
 
 // 3. hooks — Claude Code format: { matcher, hooks: [{ type, command }] }
 if (!settings.hooks) settings.hooks = {};
