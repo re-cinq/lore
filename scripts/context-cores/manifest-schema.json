@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Lore Context Core Manifest",
+  "type": "object",
+  "required": ["version", "namespace", "built_at", "source_commit", "ontology_version", "chunk_count", "eval_score"],
+  "properties": {
+    "version": { "type": "string", "pattern": "^v\\d{4}-\\d{2}-\\d{2}-[a-f0-9]{4}$" },
+    "namespace": { "type": "string" },
+    "built_at": { "type": "string", "format": "date-time" },
+    "source_commit": { "type": "string" },
+    "ontology_version": { "type": "string" },
+    "chunk_count": { "type": "integer", "minimum": 0 },
+    "eval_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "promoted_by": { "type": "string" },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "adrs": { "type": "array", "items": { "type": "string" } },
+        "pr_count": { "type": "integer" },
+        "confluence_pages": { "type": "integer" }
+      }
+    }
+  }
+}

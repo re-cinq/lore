@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    log_level: {{ .Values.config.log_level }}
+    user:
+      name: {{ .Values.config.user.name }}
+    listener:
+      host: {{ .Values.config.listener.host }}
+      port: {{ .Values.config.listener.port }}
+    remotesapi:
+      port: {{ .Values.config.remotesapi.port }}

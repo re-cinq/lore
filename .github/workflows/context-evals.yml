@@ -1,0 +1,55 @@
+name: Context evals
+
+on:
+  pull_request:
+    paths:
+      - "adrs/**"
+      - "teams/**"
+      - "CLAUDE.md"
+      - ".specify/**"
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install promptfoo
+        run: npm install -g promptfoo
+
+      - name: Determine changed teams
+        id: teams
+        run: |
+          TEAMS=""
+          CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+
+          # Check each eval directory for teams whose context may have changed
+          for team_dir in evals/*/; do
+            team=$(basename "$team_dir")
+            if [ -f "$team_dir/promptfooconfig.yaml" ]; then
+              TEAMS="$TEAMS $team"
+            fi
+          done
+
+          echo "teams=$TEAMS" >> "$GITHUB_OUTPUT"
+
+      - name: Run evals
+        run: |
+          EXIT_CODE=0
+          for team in ${{ steps.teams.outputs.teams }}; do
+            echo "::group::Running evals for $team"
+            if ! promptfoo eval \
+              --config "evals/$team/promptfooconfig.yaml" \
+              --assert-pass-rate 0.85; then
+              EXIT_CODE=1
+              echo "::error::Eval pass rate below 85% for team: $team"
+            fi
+            echo "::endgroup::"
+          done
+          exit $EXIT_CODE

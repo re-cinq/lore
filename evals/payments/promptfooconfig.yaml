@@ -1,0 +1,64 @@
+prompts:
+  - "You are a developer at Acme. Using the following context:\n{{context}}\n\nAnswer: {{question}}"
+
+providers:
+  - id: openai:gpt-4o
+    config:
+      temperature: 0
+
+tests:
+  - description: "Knows monetary amounts must be in minor units"
+    vars:
+      context: "{{payments_context}}"
+      question: "How should I store a product price of 9.99 EUR in our system?"
+    assert:
+      - type: llm-rubric
+        value: "Response explains that monetary amounts must be stored as integers in minor units (cents). For example, 9.99 EUR should be stored as 999."
+      - type: not-contains
+        value: "9.99"
+
+  - description: "Knows PCI scope is payments-service only"
+    vars:
+      context: "{{payments_context}}"
+      question: "Where should I store customer card data in our architecture?"
+    assert:
+      - type: llm-rubric
+        value: "Response states that card data must only be handled via Stripe and that payments-service is the only PCI-scoped service. No other service should touch card data directly."
+
+  - description: "Knows idempotency key pattern"
+    vars:
+      context: "{{payments_context}}"
+      question: "How do we prevent duplicate charges when a customer double-clicks the pay button?"
+    assert:
+      - type: llm-rubric
+        value: "Response mentions using an IdempotencyKey, storing it in Redis, and that keys have a 24-hour TTL."
+      - type: contains
+        value: "IdempotencyKey"
+
+  - description: "Knows PaymentIntents migration"
+    vars:
+      context: "{{payments_context}}"
+      question: "How should I create a new Stripe charge in our codebase?"
+    assert:
+      - type: llm-rubric
+        value: "Response mentions using the PaymentIntents API, not the legacy Charges API."
+      - type: not-contains
+        value: "Charges API"
+
+  - description: "Knows ChargeBuilder interface"
+    vars:
+      context: "{{payments_context}}"
+      question: "How do I create a charge in our payments system?"
+    assert:
+      - type: llm-rubric
+        value: "Response mentions using the ChargeBuilder interface and calling ChargeBuilder.build() to construct a charge."
+      - type: contains
+        value: "ChargeBuilder"
+
+  - description: "Knows webhook signature validation"
+    vars:
+      context: "{{payments_context}}"
+      question: "How should I handle incoming Stripe webhooks in our service?"
+    assert:
+      - type: llm-rubric
+        value: "Response mentions that Stripe webhook signature validation must be performed to verify the authenticity of incoming webhook events."

@@ -1,0 +1,35 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/giantswarm/klaus
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: "2"
+    memory: 4Gi
+  requests:
+    cpu: "500m"
+    memory: 1Gi
+
+taskDefaults:
+  timeoutMinutes: 30
+  maxConcurrent: 5
+
+serviceAccount:
+  create: true
+  name: klaus-agent
+  annotations:
+    iam.gke.io/gcp-service-account: acme-klaus-agent@PROJECT_ID.iam.gserviceaccount.com
+
+env:
+  - name: ANTHROPIC_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: klaus-secrets
+        key: anthropic-api-key

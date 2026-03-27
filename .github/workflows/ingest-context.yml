@@ -1,0 +1,37 @@
+name: Incremental context ingest
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get changed files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+
+      - name: Submit changed files to Lore MCP
+        if: steps.changed.outputs.files != '[]'
+        run: |
+          curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.LORE_AGENT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "task": "ingest_changed_files",
+              "params": {
+                "files": ${{ steps.changed.outputs.files }},
+                "repo": "${{ github.repository }}",
+                "commit": "${{ github.sha }}"
+              }
+            }' \
+            "${{ vars.LORE_MCP_ENDPOINT || 'https://lore.internal/api/delegate_task' }}"
