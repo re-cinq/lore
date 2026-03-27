@@ -115,9 +115,9 @@ install_bd() {
     echo "[lore] Installing @beads/bd ..."
     if ! command -v npm &>/dev/null; then
       echo "[lore] Warning: npm not found, skipping @beads/bd"
-    elif ! npm install -g @beads/bd 2>&1; then
+    elif ! npm install -g @beads/bd --silent 2>/dev/null; then
       echo "[lore] Warning: could not install @beads/bd"
-      echo "  Check Node.js version (>= 18): node --version"
+      echo "  Try manually: npm install -g @beads/bd"
     fi
   else
     echo "[lore] bd CLI already installed"
@@ -129,9 +129,10 @@ install_specify() {
   CURRENT_STEP="install specify CLI"
   if ! command -v specify >/dev/null 2>&1; then
     echo "[lore] Installing specify-cli ..."
-    pip install specify-cli 2>/dev/null || \
+    pipx install specify-cli 2>/dev/null || \
       uv tool install specify-cli 2>/dev/null || \
-      echo "[lore] Warning: could not install specify-cli"
+      pip install --user specify-cli 2>/dev/null || \
+      echo "[lore] Warning: could not install specify-cli (try: pipx install specify-cli)"
   else
     echo "[lore] specify CLI already installed"
   fi
@@ -160,11 +161,11 @@ install_agentdb() {
   read -r USE_AGENTDB
   if [[ "$USE_AGENTDB" == "y" || "$USE_AGENTDB" == "Y" ]]; then
     if command -v npx &>/dev/null; then
-      if ! npm install -g agentdb 2>&1; then
-        echo "[lore] Warning: could not install agentdb"
-        echo "  Check Node.js version (>= 18): node --version"
-      else
+      if npm install -g agentdb --silent 2>/dev/null; then
         echo "[lore] AgentDB installed"
+      else
+        echo "[lore] Warning: could not install agentdb"
+        echo "  Try manually: npm install -g agentdb"
       fi
       # Add to claude settings
       node -e "

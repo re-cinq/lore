@@ -27,9 +27,12 @@ function writeSettings(obj) {
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(obj, null, 2) + "\n", "utf8");
 }
 
-function hookExists(hooks, type, needle) {
-  if (!Array.isArray(hooks[type])) return false;
-  return hooks[type].some((h) => h.command && h.command.includes(needle));
+function hasHook(hooks, event, needle) {
+  if (!Array.isArray(hooks[event])) return false;
+  return hooks[event].some((entry) =>
+    Array.isArray(entry.hooks) &&
+    entry.hooks.some((h) => h.command && h.command.includes(needle))
+  );
 }
 
 // --- main -------------------------------------------------------------------
@@ -51,33 +54,50 @@ settings.mcpServers["lore-context"] = {
   },
 };
 
-// 3. hooks (append, never overwrite)
+// 3. hooks — Claude Code format: { matcher, hooks: [{ type, command }] }
 if (!settings.hooks) settings.hooks = {};
 
-// SessionStart
-if (!hookExists(settings.hooks, "SessionStart", "re-cinq/lore pull")) {
-  if (!Array.isArray(settings.hooks.SessionStart)) settings.hooks.SessionStart = [];
+if (!hasHook(settings.hooks, "SessionStart", "re-cinq/lore")) {
+  if (!Array.isArray(settings.hooks.SessionStart))
+    settings.hooks.SessionStart = [];
   settings.hooks.SessionStart.push({
-    command: "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; bd pull --quiet 2>/dev/null; echo '[lore] Context and task state synced'",
+    matcher: "",
+    hooks: [
+      {
+        type: "command",
+        command:
+          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; bd pull --quiet 2>/dev/null; echo '[lore] Context and task state synced'",
+      },
+    ],
   });
 }
 
-// PostToolUse (Write|Edit|MultiEdit)
-if (!hookExists(settings.hooks, "PostToolUse", "bd update")) {
-  if (!Array.isArray(settings.hooks.PostToolUse)) settings.hooks.PostToolUse = [];
+if (!hasHook(settings.hooks, "PostToolUse", "bd update")) {
+  if (!Array.isArray(settings.hooks.PostToolUse))
+    settings.hooks.PostToolUse = [];
   settings.hooks.PostToolUse.push({
     matcher: "Write|Edit|MultiEdit",
-    command:
-      "TASK=$(bd list --claimed --json 2>/dev/null | jq -r '.[0].id // empty'); [ -n \"$TASK\" ] && bd update $TASK --progress 2>/dev/null || true",
+    hooks: [
+      {
+        type: "command",
+        command:
+          'TASK=$(bd list --claimed --json 2>/dev/null | jq -r \'.[0].id // empty\'); [ -n "$TASK" ] && bd update $TASK --progress 2>/dev/null || true',
+      },
+    ],
   });
 }
 
-// Stop
-if (!hookExists(settings.hooks, "Stop", "bd update")) {
+if (!hasHook(settings.hooks, "Stop", "Active task")) {
   if (!Array.isArray(settings.hooks.Stop)) settings.hooks.Stop = [];
   settings.hooks.Stop.push({
-    command:
-      "TASK=$(bd list --claimed --json 2>/dev/null | jq -r '.[0].id // empty'); [ -n \"$TASK\" ] && echo \"[lore] Active task: $TASK \\u2014 run 'bd update $TASK --status done' if finished\"",
+    matcher: "",
+    hooks: [
+      {
+        type: "command",
+        command:
+          'TASK=$(bd list --claimed --json 2>/dev/null | jq -r \'.[0].id // empty\'); [ -n "$TASK" ] && echo "[lore] Active task: $TASK \u2014 run \'bd update $TASK --status done\' if finished"',
+      },
+    ],
   });
 }
 
