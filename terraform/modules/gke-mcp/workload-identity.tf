@@ -2,7 +2,7 @@
 # Workload Identity: GCP service accounts + Kubernetes SA bindings
 # --------------------------------------------------------------------------
 #
-# Each team MCP server gets a GCP SA with AlloyDB client access scoped
+# Each team MCP server gets a GCP SA with PostgreSQL (CNPG) client access scoped
 # to its own schema + org_shared. Klaus agents get write access to
 # ingestion schemas and GitHub read access.
 # --------------------------------------------------------------------------
@@ -21,11 +21,11 @@ resource "google_service_account" "mcp_team" {
   project      = var.project_id
 }
 
-resource "google_project_iam_member" "mcp_team_alloydb_client" {
+resource "google_project_iam_member" "mcp_team_lore-db_client" {
   for_each = toset(local.mcp_teams)
 
   project = var.project_id
-  role    = "roles/alloydb.client"
+  role    = "roles/lore-db.client"
   member  = "serviceAccount:${google_service_account.mcp_team[each.key].email}"
 }
 
@@ -65,10 +65,10 @@ resource "google_service_account" "klaus_agent" {
   project      = var.project_id
 }
 
-# AlloyDB client — write to ingestion schemas
-resource "google_project_iam_member" "klaus_alloydb_client" {
+# PostgreSQL (CNPG) client — write to ingestion schemas
+resource "google_project_iam_member" "klaus_lore-db_client" {
   project = var.project_id
-  role    = "roles/alloydb.client"
+  role    = "roles/lore-db.client"
   member  = "serviceAccount:${google_service_account.klaus_agent.email}"
 }
 

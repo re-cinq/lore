@@ -5,7 +5,7 @@ and build the knowledge graph from the updated chunks.
 
 ## Steps
 
-1. Export all chunks from AlloyDB:
+1. Export all chunks from PostgreSQL:
    ```sql
    SELECT id, content, content_type, metadata, team, repo, file_path
    FROM org_shared.chunks
@@ -44,6 +44,6 @@ and build the knowledge graph from the updated chunks.
 
 ## Prerequisites
 
-- Only run if AlloyDB has 3+ months of ingested PRs
+- Only run if PostgreSQL has 3+ months of ingested PRs
 - Only run if ADR count > 30
 - If prerequisites not met, log a message and exit without error

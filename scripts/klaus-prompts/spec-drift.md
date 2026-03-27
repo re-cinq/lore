@@ -5,7 +5,7 @@ that no longer match the actual code.
 
 ## Steps
 
-1. Find all spec files in AlloyDB:
+1. Find all spec files in PostgreSQL:
    ```sql
    SELECT content, metadata->>'feature_name' as feature, file_path
    FROM org_shared.chunks

@@ -22,11 +22,11 @@
 | Install            | Bash (install.sh)                | 0     |
 | Platform Skills    | Markdown (lore-feature.md, lore-pr.md) | 0  |
 | PR CI Check        | GitHub Actions YAML              | 0     |
-| Vector Store       | AlloyDB AI (europe-west4)        | 1     |
+| Vector Store       | PostgreSQL + pgvector (CNPG on GKE, europe-west4) | 1 |
 | Cluster Agents     | Klaus on GKE                     | 1     |
-| Observability      | Langfuse (self-hosted) + BigQuery | 1    |
+| Observability      | OpenTelemetry → Cloud Monitoring  | 1    |
 | CI Evals           | PromptFoo                        | 1     |
-| Infrastructure     | Terraform                        | 1     |
+| Infrastructure     | Terraform + CNPG operator + Helm | 1     |
 | Task Sync          | Dolt (self-hosted on GKE)        | 2     |
 | Knowledge Graph    | Graphiti + FalkorDB                | 3     |
 | Context Cores      | OCI bundles via Artifact Registry  | 3     |
@@ -40,8 +40,8 @@
 | `@beads/bd`             | Agent task tracking CLI          | Medium — newer tool, API may evolve |
 | `specify-cli`           | Spec Kit CLI                     | Medium — newer tool |
 | Klaus (`giantswarm/klaus`) | Cluster agent runtime         | Medium — requires GKE, Phase 1 |
-| AlloyDB AI              | Vector store + embedding         | Low — managed GCP service |
-| Langfuse                | Trace observability              | Low — mature OSS, Helm chart |
+| CloudNativePG (CNPG)    | PostgreSQL operator + pgvector   | Low — mature CNCF operator |
+| OpenTelemetry + Cloud Monitoring | Trace observability     | Low — native GCP, free tier |
 | PromptFoo               | CI eval framework                | Low — mature, good GH Actions support |
 
 ### Repository Structure
@@ -94,7 +94,7 @@ re-cinq/lore/
 | P5: Single Interface (Lore MCP) | PASS | MCP server is the only developer-facing interface. Klaus accessed only via MCP delegation. |
 | P6: Distributed Ownership | PASS | CODEOWNERS enforced. PromptFoo evals owned by teams. |
 | P7: Architecture Final | PASS | Plan uses all decided technologies. No alternatives proposed. |
-| P8: Schema-Per-Team | PASS | Phase 1 AlloyDB uses schema-per-team. Phase 0 simulates via file directories. |
+| P8: Schema-Per-Team | PASS | Phase 1 PostgreSQL (CNPG) uses schema-per-team. Phase 0 simulates via file directories. |
 | P9: Agents Over Scripts | PASS | Phase 1 replaces all Python scripts with Klaus agents. |
 | P10: Opt-In Data | PASS | Slack indexing opt-in only. PII classifier at ingest. |
 
@@ -240,28 +240,25 @@ MCP server to serve.
 
 #### Week 2: Infrastructure + Klaus
 
-1. **Terraform provisioning:**
-   - AlloyDB cluster (Enterprise, `europe-west4`,
-     `db-perf-optimized-N-4`).
-   - Extensions: `vector`, `alloydb_scann`,
-     `google_ml_integration`.
-   - Schema per team: `payments`, `platform`, `mobile`, `data`,
-     `org_shared`.
-   - Chunks table with `VECTOR(768)` embedding column, ScaNN index,
-     GIN index on `search_tsv`.
-   - GKE cluster (`lore-ai-platform`, private, regional).
+1. **Infrastructure provisioning:**
+   - GKE cluster (`lore-ai-platform`, private, regional,
+     `europe-west4`).
    - Node pools: `mcp-pool` (n2-standard-4, 2-6),
      `general` (n2-standard-2, 2-8).
-   - Namespaces: `mcp-servers`, `langfuse`, `klaus`.
+   - Namespaces: `mcp-servers`, `cnpg-system`, `klaus`.
+   - CNPG operator installed via Helm.
+   - CNPG Cluster resource: PostgreSQL 16 with `pgvector` extension.
+   - Schema per team: `payments`, `platform`, `mobile`, `data`,
+     `org_shared`.
+   - Chunks table with `VECTOR(768)` embedding column, HNSW index
+     (`lists = 100, m = 16, ef_construction = 64`),
+     GIN index on `search_tsv`.
    - Workload Identity bindings per MCP server.
-   - Cloud SQL (postgres-15) for Langfuse metadata.
-   - BigQuery dataset: `lore_platform_traces`.
-   - Cloud Storage bucket: `lore-langfuse-media`.
 
 2. **Klaus deployment:**
    - Helm chart in GKE `klaus` namespace.
    - HTTP MCP endpoint for task submission.
-   - Workload Identity: write to AlloyDB ingestion schemas +
+   - Workload Identity: write to PostgreSQL ingestion schemas +
      read GitHub API.
 
 3. **Lore MCP server — Klaus client module (~200 lines TS):**
@@ -271,18 +268,18 @@ MCP server to serve.
    - `task_result(task_id)` — retrieves completed output.
    - `list_cluster_tasks()` — shows running tasks.
    - `buildContextBundle()` (~80 lines) — packages Beads task +
-     spec + AlloyDB seed chunks + branch.
+     spec + PostgreSQL seed chunks + branch.
 
 4. **AGENTS.md update:** add delegation guidance (when to delegate,
    when not to, always pass context).
 
 #### Week 3: MCP Upgrade + Observability + Evals
 
-1. **MCP server AlloyDB upgrade:**
-   - Replace file reads with AlloyDB queries.
-   - `search_context` → hybrid search (ScaNN vector + BM25 keyword,
+1. **MCP server PostgreSQL upgrade:**
+   - Replace file reads with PostgreSQL (CNPG) queries.
+   - `search_context` → hybrid search (HNSW vector + BM25 keyword,
      Reciprocal Rank Fusion).
-   - `get_context` → query `org_shared` + team schema.
+   - `get_context` → query PostgreSQL `org_shared` + team schema.
    - `get_adrs` → query with status/domain filters.
    - Add `get_file_pr_history(file_path)`.
    - Add degraded-mode fallback (local files + warning).
@@ -295,13 +292,15 @@ MCP server to serve.
      `delegate_task` to Klaus.
    - Hard-delete stale chunks during nightly re-index.
 
-3. **Langfuse deployment:**
-   - Helm chart on GKE, `langfuse` namespace.
-   - Cloud SQL Auth Proxy sidecar.
-   - BigQuery export integration.
-   - OIDC → Google Workspace SSO.
-   - `tracedSearch()` wrapper in MCP server.
-   - Low-confidence threshold tagging (initial: 0.72).
+3. **OpenTelemetry instrumentation:**
+   - Add `@opentelemetry/sdk-node` + `@opentelemetry/exporter-cloud-monitoring`
+     to MCP server.
+   - `tracedSearch()` wrapper emits OTEL spans for every MCP retrieval call.
+   - Low-confidence threshold tagging (initial: 0.72) as OTEL span
+     attributes + Cloud Monitoring custom metric (`lore/gap_candidates`).
+   - Cloud Monitoring dashboards: retrieval latency p99, gap candidate
+     rate, query volume per namespace.
+   - Optional: Langfuse Lite sidecar later if deeper trace debugging needed.
 
 4. **PromptFoo CI evals:**
    - `evals/<team>/promptfooconfig.yaml` per team (5-10 cases).
@@ -316,7 +315,7 @@ MCP server to serve.
 - `search_context("ChargeBuilder idempotency")` returns code chunk
   (vector) + PR (keyword).
 - Re-run `install.sh` — no workflow changes, better context quality.
-- Langfuse shows all retrieval traces. Low-confidence tagged.
+- Cloud Monitoring shows retrieval latency p99 per namespace. Low-confidence tagged.
 - PR changing CLAUDE.md to "store amounts as floats" fails CI.
 
 ### Phase 2: Feedback Loop (Weeks 4-5)
@@ -336,7 +335,7 @@ MCP server to serve.
 
 4. **Gap detection Klaus agent:**
    - Cloud Scheduler Monday 9am UTC → `delegate_task`.
-   - Agent queries BigQuery for gap traces.
+   - Agent queries Cloud Monitoring for gap candidate metrics.
    - Clusters by embedding similarity.
    - For 3+ occurrence clusters: drafts content, opens PR to
      `re-cinq/lore`, labels `context-gap-draft`, assigns team.
@@ -365,7 +364,7 @@ MCP server to serve.
    - GKE `graphiti` namespace.
    - FalkorDB as the graph backend (lighter than Neo4j).
    - Graphiti MCP server: exposes graph search + entity history as MCP tools.
-   - Ingests from AlloyDB change stream after each Klaus ingest job.
+   - Ingests from PostgreSQL (CNPG) after each Klaus ingest job.
    - Incremental updates — no full re-index needed.
 
 3. **Lore MCP tools (Graphiti proxy):**
@@ -381,7 +380,7 @@ MCP server to serve.
    - Stored as OCI artifacts in Artifact Registry.
 
 2. **Context Core builder (nightly Klaus agent):**
-   - Builds candidate Core from latest AlloyDB content.
+   - Builds candidate Core from latest PostgreSQL (CNPG) content.
    - Runs full PromptFoo eval suite against candidate.
    - Promotes if score improves by >= 2% over current version.
    - Discards and opens Beads task if score regresses.
@@ -399,12 +398,12 @@ MCP server to serve.
    - Platform engineers update this file to steer the research system.
 
 2. **Autoresearch loop (weekly Klaus agent):**
-   - For each gap cluster from Langfuse traces:
+   - For each gap cluster from Cloud Monitoring gap candidate metrics:
      Generate 3 candidate additions (direct, example-based, constraint-based).
    - Build candidate Context Core for each.
    - Evaluate against PromptFoo suite.
    - Best candidate promoted if score improves >= 2%.
-   - Failed attempts logged to BigQuery, Beads task for manual review.
+   - Failed attempts logged to Cloud Monitoring, Beads task for manual review.
    - PRs labelled `context-experiment-passed`.
 
 #### Week 9: Spec Drift + Graph Integration
@@ -434,7 +433,7 @@ MCP server to serve.
 | Beads CLI API changes | Medium | Medium | Pin version in install.sh, test in CI |
 | Klaus HTTP API not stable | High | Medium | Abstract behind Lore MCP delegation layer |
 | Low PR description quality despite template | High | Medium | Warning period + internal comms campaign |
-| AlloyDB cold-start latency | Medium | Low | Connection pooling, keep-alive |
+| CNPG PostgreSQL cold-start latency | Medium | Low | Connection pooling, PgBouncer sidecar |
 | Developer adoption friction | High | Medium | Phase 0 gate — fix friction before Phase 1 |
 | PromptFoo eval false positives | Medium | Medium | Start with high-confidence cases, tune threshold |
 | Graphiti + FalkorDB operational overhead | Medium | Medium | Start with FalkorDB (lighter than Neo4j), monitor resource usage |

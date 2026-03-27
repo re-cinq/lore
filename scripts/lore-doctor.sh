@@ -70,15 +70,15 @@ echo "[lore] Results: $PASS passed, $FAIL failed"
 echo ""
 echo "Phase 1+ (optional):"
 
-echo -n "  AlloyDB: "
-if [ -n "${ALLOYDB_HOST:-}" ]; then
-  if pg_isready -h "$ALLOYDB_HOST" -p 5432 -t 3 &>/dev/null; then
+echo -n "  PostgreSQL: "
+if [ -n "${LORE_DB_HOST:-}" ]; then
+  if pg_isready -h "$LORE_DB_HOST" -p 5432 -t 3 &>/dev/null; then
     echo "reachable"
   else
-    echo "unreachable at $ALLOYDB_HOST"
+    echo "unreachable at $LORE_DB_HOST"
   fi
 else
-  echo "- not configured (ALLOYDB_HOST not set)"
+  echo "- not configured (LORE_DB_HOST not set)"
 fi
 
 echo -n "  Langfuse: "

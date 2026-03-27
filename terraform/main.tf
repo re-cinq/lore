@@ -26,67 +26,78 @@ terraform {
   }
 }
 
+locals {
+  project_id   = "re5-n8n-platform"
+  region       = "europe-west1"
+  cluster_name = "n8n-cluster"
+  network      = "default"
+}
+
 provider "google" {
-  project = var.project_id
-  region  = var.region
+  project = local.project_id
+  region  = local.region
 }
 
 provider "google-beta" {
-  project = var.project_id
-  region  = var.region
+  project = local.project_id
+  region  = local.region
 }
 
-variable "project_id" {
-  type        = string
-  description = "GCP project ID"
+# Connect to existing GKE cluster
+data "google_container_cluster" "existing" {
+  name     = local.cluster_name
+  location = local.region
+  project  = local.project_id
 }
 
-variable "region" {
-  type    = string
-  default = "europe-west4"
+provider "kubernetes" {
+  host                   = "https://${data.google_container_cluster.existing.endpoint}"
+  token                  = data.google_client_config.default.access_token
+  cluster_ca_certificate = base64decode(data.google_container_cluster.existing.master_auth[0].cluster_ca_certificate)
 }
 
-variable "network_id" {
-  type        = string
-  description = "VPC network self_link"
+provider "helm" {
+  kubernetes {
+    host                   = "https://${data.google_container_cluster.existing.endpoint}"
+    token                  = data.google_client_config.default.access_token
+    cluster_ca_certificate = base64decode(data.google_container_cluster.existing.master_auth[0].cluster_ca_certificate)
+  }
 }
 
-variable "subnetwork_id" {
-  type        = string
-  description = "Subnet self_link for GKE nodes"
+data "google_client_config" "default" {}
+
+# --- Namespaces in existing cluster ------------------------------------------
+
+resource "kubernetes_namespace" "mcp_servers" {
+  metadata { name = "mcp-servers" }
 }
 
-module "alloydb" {
-  source     = "./modules/alloydb"
-  project_id = var.project_id
-  region     = var.region
-  network_id = var.network_id
+resource "kubernetes_namespace" "klaus" {
+  metadata { name = "klaus" }
 }
 
-module "gke" {
-  source        = "./modules/gke-mcp"
-  project_id    = var.project_id
-  region        = var.region
-  network_id    = var.network_id
-  subnetwork_id = var.subnetwork_id
+resource "kubernetes_namespace" "graphiti" {
+  metadata { name = "graphiti" }
 }
 
-module "langfuse" {
-  source                    = "./modules/langfuse"
-  project_id                = var.project_id
-  region                    = var.region
-  cluster_name              = module.gke.cluster_name
-  google_client_id          = var.google_client_id
-  google_client_secret      = var.google_client_secret
-  cloud_sql_connection_name = module.langfuse.connection_name
+resource "kubernetes_namespace" "dolt" {
+  metadata { name = "dolt" }
 }
 
-variable "google_client_id" {
+# --- PostgreSQL (CNPG) ------------------------------------------------------------
+
+module "lore-db" {
+  source      = "./modules/lore-db"
+  project_id  = local.project_id
+  region      = local.region
+  db_password = var.lore_db_password
+}
+
+variable "lore_db_password" {
   type      = string
   sensitive = true
 }
 
-variable "google_client_secret" {
-  type      = string
-  sensitive = true
-}
+# --- Observability is OpenTelemetry → Cloud Monitoring (no separate service) --
+# OTEL instrumentation is in the MCP server code, not Terraform.
+# Cloud Monitoring is available by default on GCP — no resources to create.
