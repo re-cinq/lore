@@ -109,14 +109,15 @@ install_skills() {
   CURRENT_STEP="install platform skills"
   echo "[lore] Installing platform skills ..."
   mkdir -p "$HOME/.claude/skills"
-  for skill in "$LORE_DIR/.claude/skills/"*.md; do
-    [ -f "$skill" ] || continue
-    dest="$HOME/.claude/skills/$(basename "$skill")"
-    if [ ! -f "$dest" ]; then
-      cp "$skill" "$dest"
-      echo "  Installed $(basename "$skill")"
+  for skill_dir in "$LORE_DIR/.claude/skills/"*/; do
+    [ -d "$skill_dir" ] || continue
+    name="$(basename "$skill_dir")"
+    dest="$HOME/.claude/skills/$name"
+    if [ ! -d "$dest" ]; then
+      cp -r "$skill_dir" "$dest"
+      echo "  Installed /$(basename "$skill_dir")"
     else
-      echo "  Skipped $(basename "$skill") (already exists)"
+      echo "  Skipped /$(basename "$skill_dir") (already exists)"
     fi
   done
 }

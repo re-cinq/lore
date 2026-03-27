@@ -56,12 +56,12 @@ check "Platform hooks installed" \
 
 # 6. Platform skills
 check_skills() {
-  [ -f "$HOME/.claude/skills/lore-feature.md" ] && \
-  [ -f "$HOME/.claude/skills/lore-pr.md" ]
+  [ -f "$HOME/.claude/skills/lore-feature/SKILL.md" ] && \
+  [ -f "$HOME/.claude/skills/lore-pr/SKILL.md" ]
 }
 check "Platform skills installed (/lore-feature, /lore-pr)" \
   check_skills || \
-  echo "     Fix: cp $LORE_DIR/.claude/skills/*.md ~/.claude/skills/"
+  echo "     Fix: cp -r $LORE_DIR/.claude/skills/* ~/.claude/skills/"
 
 echo ""
 echo "[lore] Results: $PASS passed, $FAIL failed"
