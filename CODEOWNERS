@@ -1,0 +1,30 @@
+# Root context — requires broad review
+/CLAUDE.md @acme/platform-eng @acme/tech-leads
+/AGENTS.md @acme/platform-eng
+
+# Team-specific context — owned by respective teams
+/teams/payments/ @acme/payments-team
+/teams/platform/ @acme/platform-team
+/teams/mobile/ @acme/mobile-team
+/teams/data/ @acme/data-team
+
+# Architecture decisions — arch group + affected team
+/adrs/ @acme/arch-group
+
+# Runbooks — owning team
+/runbooks/payments-* @acme/payments-team
+/runbooks/platform-* @acme/platform-team
+
+# MCP server and scripts — platform engineering
+/mcp-server/ @acme/platform-eng
+/scripts/ @acme/platform-eng
+
+# Evals — each team owns their evals
+/evals/payments/ @acme/payments-team
+/evals/platform/ @acme/platform-team
+
+# CI workflows
+/.github/ @acme/platform-eng
+
+# Infrastructure
+/terraform/ @acme/platform-eng @acme/sre-team

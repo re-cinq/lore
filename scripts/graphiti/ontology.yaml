@@ -1,0 +1,99 @@
+# Lore Knowledge Graph Ontology
+# Consumed by Graphiti during entity extraction.
+# Define this before Graphiti runs — do not let entity types emerge unguided.
+
+version: "v1.0"
+
+entity_types:
+  - name: Service
+    description: A deployable unit (payments-service, identity-service, platform-api)
+    examples: [payments-service, identity-service, platform-api, data-pipeline]
+
+  - name: Team
+    description: An engineering team
+    examples: [payments, platform, mobile, data]
+
+  - name: Function
+    description: A code-level function, class, or method
+    examples: [ChargeBuilder.build, IdempotencyKey.wrap, AuthMiddleware.validate]
+
+  - name: PR
+    description: A merged pull request — the unit of change + reasoning
+    key_fields: [pr_number, merged_at, alternatives_rejected]
+
+  - name: ADR
+    description: An architectural decision record
+    key_fields: [adr_number, status, domains, superseded_by]
+
+  - name: Spec
+    description: A .specify/spec.md feature specification
+    key_fields: [feature_name, linked_pr]
+
+  - name: Concept
+    description: A domain concept that appears across code and decisions
+    examples: [idempotency, minor-units, PCI-scope, structured-logging, mTLS]
+
+  - name: Runbook
+    description: An operational procedure, updated post-incident
+    key_fields: [service, incident_type, severity]
+
+relationship_types:
+  - name: OWNS
+    from: Team
+    to: Service
+    description: Team is responsible for this service
+
+  - name: CALLS
+    from: [Function, Service]
+    to: [Function, Service]
+    description: Direct invocation dependency
+
+  - name: IMPLEMENTS
+    from: [PR, Function]
+    to: [ADR, Spec, Concept]
+    description: This PR/function implements this decision/spec/concept
+
+  - name: SUPERSEDES
+    from: ADR
+    to: ADR
+    description: This ADR replaces a previous one
+
+  - name: REFERENCES
+    from: [PR, Spec, Runbook]
+    to: [ADR, Concept]
+    description: References without implementing
+
+  - name: AUTHORED_BY
+    from: PR
+    to: Team
+    description: Derived from CODEOWNERS
+
+  - name: DEFINES
+    from: ADR
+    to: Concept
+    description: This ADR introduces or formalizes this concept
+
+  - name: VIOLATES
+    from: Function
+    to: ADR
+    description: This function contradicts this decision (detected by spec drift)
+
+  - name: DERIVED_FROM
+    from: Chunk
+    to: [PR, ADR]
+    description: Provenance — which source produced this chunk
+
+  - name: PART_OF
+    from: [Function, ADR]
+    to: [Service, Team]
+    description: Structural containment
+
+  - name: VALID_FROM
+    from: any
+    to: timestamp
+    description: When this fact became true
+
+  - name: VALID_UNTIL
+    from: any
+    to: timestamp
+    description: When this fact was superseded or deprecated (null if current)

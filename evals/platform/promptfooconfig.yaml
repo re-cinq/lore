@@ -1,0 +1,48 @@
+prompts:
+  - "You are a developer at Acme. Using the following context:\n{{context}}\n\nAnswer: {{question}}"
+
+providers:
+  - id: openai:gpt-4o
+    config:
+      temperature: 0
+
+tests:
+  - description: "Knows structured logging format"
+    vars:
+      context: "{{platform_context}}"
+      question: "What logging format and libraries should I use in our services?"
+    assert:
+      - type: llm-rubric
+        value: "Response mentions JSON-formatted structured logging, includes correlation_id as a required field, and references at least one of pino, structlog, or zap as the logging library."
+
+  - description: "Knows API gateway rate limiting"
+    vars:
+      context: "{{platform_context}}"
+      question: "What rate limiting is configured for our API gateway?"
+    assert:
+      - type: llm-rubric
+        value: "Response mentions Kong as the API gateway and states the rate limit is 1000 requests per minute."
+
+  - description: "Knows mTLS via Istio"
+    vars:
+      context: "{{platform_context}}"
+      question: "How is service-to-service authentication handled in our infrastructure?"
+    assert:
+      - type: llm-rubric
+        value: "Response mentions Istio for service mesh, mTLS (mutual TLS) for service-to-service authentication, and states that mTLS cannot be bypassed."
+
+  - description: "Knows deployment flow"
+    vars:
+      context: "{{platform_context}}"
+      question: "What is the process for deploying a service to production?"
+    assert:
+      - type: llm-rubric
+        value: "Response describes that staging deploys automatically, production requires manual approval, and Helm is used for deployments."
+
+  - description: "Knows SLO target"
+    vars:
+      context: "{{platform_context}}"
+      question: "What is our availability target for production services?"
+    assert:
+      - type: llm-rubric
+        value: "Response mentions a 99.9% availability SLO target."
