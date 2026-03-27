@@ -32,15 +32,22 @@ check "bd CLI installed" \
   command -v bd || \
   echo "     Fix: npm install -g @beads/bd"
 
-# 3. specify CLI
-check "specify CLI installed" \
-  command -v specify || \
-  echo "     Fix: pipx install specify-cli  OR  uv tool install specify-cli"
+# 3. specify CLI (optional — warn but don't count as failure)
+if command -v specify >/dev/null 2>&1; then
+  printf '  \xe2\x9c\x93  %s\n' "specify CLI installed"
+  PASS=$((PASS + 1))
+else
+  printf '  \xe2\x97\x8b  %s\n' "specify CLI not installed (optional)"
+  echo "     Install: pipx install specify-cli  OR  uv tool install specify-cli"
+fi
 
-# 4. Git connectivity
-check "Git can reach github.com" \
-  timeout 5 git ls-remote --exit-code --quiet https://github.com 2>/dev/null || \
-  echo "     Fix: check network connectivity"
+# 4. Git connectivity (test SSH — GitHub returns exit 1 but prints "successfully" on success)
+git_ssh_ok() {
+  timeout 5 ssh -T git@github.com 2>&1 | grep -qi "successfully" 2>/dev/null
+}
+check "Git can reach github.com (SSH)" \
+  git_ssh_ok || \
+  echo "     Fix: check SSH key config (ssh -T git@github.com)"
 
 # 5. Platform hooks
 check "Platform hooks installed" \
