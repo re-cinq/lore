@@ -44,9 +44,9 @@ settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
 if (!settings.mcpServers) settings.mcpServers = {};
 settings.mcpServers["lore-context"] = {
   command: "node",
-  args: ["${HOME}/.lore/context/mcp-server/dist/index.js"],
+  args: ["${HOME}/.re-cinq/lore/mcp-server/dist/index.js"],
   env: {
-    CONTEXT_PATH: "${HOME}/.lore/context",
+    CONTEXT_PATH: "${HOME}/.re-cinq/lore",
     LORE_TEAM: TEAM,
   },
 };
@@ -55,10 +55,10 @@ settings.mcpServers["lore-context"] = {
 if (!settings.hooks) settings.hooks = {};
 
 // SessionStart
-if (!hookExists(settings.hooks, "SessionStart", "lore/context pull")) {
+if (!hookExists(settings.hooks, "SessionStart", "re-cinq/lore pull")) {
   if (!Array.isArray(settings.hooks.SessionStart)) settings.hooks.SessionStart = [];
   settings.hooks.SessionStart.push({
-    command: "git -C ~/.lore/context pull --quiet --ff-only 2>/dev/null; bd pull --quiet 2>/dev/null; echo '[lore] Context and task state synced'",
+    command: "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; bd pull --quiet 2>/dev/null; echo '[lore] Context and task state synced'",
   });
 }
 

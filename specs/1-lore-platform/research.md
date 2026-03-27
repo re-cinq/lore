@@ -172,7 +172,7 @@ first-class.
 ## R7: MCP Server Degraded Mode
 
 **Decision:** When MCP server is unreachable, fall back to local
-`~/.lore/context` files with a one-time warning.
+`~/.re-cinq/lore` files with a one-time warning.
 
 **Rationale:** The SessionStart hook already pulls the context repo
 locally. Local files provide convention and ADR lookups. Only

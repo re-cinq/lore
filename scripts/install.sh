@@ -28,7 +28,7 @@ require_cmd git "Install git from https://git-scm.com"
 require_cmd node "Install Node.js >= 18 from https://nodejs.org"
 require_cmd npm "npm ships with Node.js – check your Node.js installation"
 
-LORE_DIR="$HOME/.lore/context"
+LORE_DIR="$HOME/.re-cinq/lore"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 

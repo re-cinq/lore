@@ -21,9 +21,9 @@ echo ""
 
 # 1. MCP server entry point
 check "MCP server built" \
-  test -f "$HOME/.lore/context/mcp-server/dist/index.js"
-[ ! -f "$HOME/.lore/context/mcp-server/dist/index.js" ] && \
-  echo "     Fix: cd ~/.lore/context/mcp-server && npm install && npm run build"
+  test -f "$HOME/.re-cinq/lore/mcp-server/dist/index.js"
+[ ! -f "$HOME/.re-cinq/lore/mcp-server/dist/index.js" ] && \
+  echo "     Fix: cd ~/.re-cinq/lore/mcp-server && npm install && npm run build"
 
 # 2. bd CLI
 check "bd CLI installed" \
@@ -44,9 +44,9 @@ check "Git can reach github.com" \
 
 # 5. Platform hooks
 check "Platform hooks installed" \
-  grep -q "lore/context pull" "$HOME/.claude/settings.json" 2>/dev/null
-grep -q "lore/context pull" "$HOME/.claude/settings.json" 2>/dev/null || \
-  echo "     Fix: node ~/.lore/context/scripts/lore-merge-settings.js"
+  grep -q "re-cinq/lore pull" "$HOME/.claude/settings.json" 2>/dev/null
+grep -q "re-cinq/lore pull" "$HOME/.claude/settings.json" 2>/dev/null || \
+  echo "     Fix: node ~/.re-cinq/lore/scripts/lore-merge-settings.js"
 
 # 6. Platform skills
 SKILLS_OK=true
@@ -57,7 +57,7 @@ if $SKILLS_OK; then
   ((PASS++))
 else
   printf '  \xe2\x9c\x97  %s\n' "Platform skills installed"
-  echo "     Fix: cp ~/.lore/context/.claude/skills/*.md ~/.claude/skills/"
+  echo "     Fix: cp ~/.re-cinq/lore/.claude/skills/*.md ~/.claude/skills/"
   ((FAIL++))
 fi
 

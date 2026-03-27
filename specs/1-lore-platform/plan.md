@@ -47,7 +47,7 @@
 ### Repository Structure
 
 ```
-lore/context/
+re-cinq/lore/
 ├── CLAUDE.md
 ├── AGENTS.md
 ├── CODEOWNERS
@@ -111,7 +111,7 @@ on the previous.
 #### Day 1: Foundation
 
 **Deliverables:**
-1. Create `lore/context` GitHub repository.
+1. Create `re-cinq/lore` GitHub repository.
 2. Write root `CLAUDE.md` (architecture contracts, code conventions,
    key services — under 2 pages).
 3. Write `teams/payments/CLAUDE.md` (richest existing conventions:
@@ -142,13 +142,13 @@ on the previous.
      across all content files.
    - Falls back gracefully if files missing.
 2. `install.sh`:
-   - Clone `lore/context` to `~/.lore/context` (or pull if exists).
+   - Clone `re-cinq/lore` to `~/.re-cinq/lore` (or pull if exists).
    - `npm install && npm run build` in mcp-server/.
    - Detect team via `git config --global lore.team`.
    - Run `lore-merge-settings.js` to configure Claude Code.
    - Install platform skills to `~/.claude/skills/`.
    - Install `@beads/bd` and `specify-cli`.
-   - Run `bd init` in `~/.lore/context`.
+   - Run `bd init` in `~/.re-cinq/lore`.
    - Run `lore-doctor.sh`.
    - Idempotent — safe to re-run.
 3. `lore-merge-settings.js` (~40 lines):
@@ -339,7 +339,7 @@ MCP server to serve.
    - Agent queries BigQuery for gap traces.
    - Clusters by embedding similarity.
    - For 3+ occurrence clusters: drafts content, opens PR to
-     `lore/context`, labels `context-gap-draft`, assigns team.
+     `re-cinq/lore`, labels `context-gap-draft`, assigns team.
    - Human review required.
 
 **Phase 2 Verification:**

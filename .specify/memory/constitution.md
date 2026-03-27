@@ -269,7 +269,7 @@ depends on.
 ### Phase 0: Developer Experience (3-4 working days, zero infra)
 
 Validate the workflow before investing in infrastructure. Deliverables:
-- `lore/context` repo with CLAUDE.md hierarchy + ADRs + runbooks.
+- `re-cinq/lore` repo with CLAUDE.md hierarchy + ADRs + runbooks.
 - MVP MCP server (file-backed, ~80 lines TypeScript).
 - `install.sh` (idempotent, one-command onboarding).
 - `lore-gen-constitution.py` + `lore-tasks-to-beads.py` glue scripts.
