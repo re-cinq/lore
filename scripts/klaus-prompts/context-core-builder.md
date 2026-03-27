@@ -43,7 +43,7 @@ promote or discard it.
 4. Fetch the current promoted Core's eval score from BigQuery:
    ```sql
    SELECT eval_score
-   FROM `acme_platform_lore.context_core_history`
+   FROM `lore_platform.context_core_history`
    WHERE namespace = @namespace
      AND status = 'production'
    ORDER BY built_at DESC
@@ -57,7 +57,7 @@ promote or discard it.
    - Update `lore-core.json` with the final eval score.
    - Insert a row into `context_core_history`:
      ```sql
-     INSERT INTO `acme_platform_lore.context_core_history`
+     INSERT INTO `lore_platform.context_core_history`
      (version, namespace, built_at, eval_score, status, promoted_by)
      VALUES (@version, @namespace, CURRENT_TIMESTAMP(), @score, 'production', 'context-core-builder');
      ```

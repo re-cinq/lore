@@ -1,5 +1,5 @@
 ---
-name: acme-pr
+name: lore-pr
 description: Draft a PR description from Beads task, spec, changed files, and ADR references. Reads everything automatically. Developer reviews once.
 ---
 

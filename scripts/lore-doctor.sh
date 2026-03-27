@@ -16,14 +16,14 @@ check() {
   fi
 }
 
-echo "[acme] Running diagnostics..."
+echo "[lore] Running diagnostics..."
 echo ""
 
 # 1. MCP server entry point
 check "MCP server built" \
-  test -f "$HOME/.acme/context/mcp-server/dist/index.js"
-[ ! -f "$HOME/.acme/context/mcp-server/dist/index.js" ] && \
-  echo "     Fix: cd ~/.acme/context/mcp-server && npm install && npm run build"
+  test -f "$HOME/.lore/context/mcp-server/dist/index.js"
+[ ! -f "$HOME/.lore/context/mcp-server/dist/index.js" ] && \
+  echo "     Fix: cd ~/.lore/context/mcp-server && npm install && npm run build"
 
 # 2. bd CLI
 check "bd CLI installed" \
@@ -44,25 +44,25 @@ check "Git can reach github.com" \
 
 # 5. Platform hooks
 check "Platform hooks installed" \
-  grep -q "acme/context pull" "$HOME/.claude/settings.json" 2>/dev/null
-grep -q "acme/context pull" "$HOME/.claude/settings.json" 2>/dev/null || \
-  echo "     Fix: node ~/.acme/context/scripts/acme-merge-settings.js"
+  grep -q "lore/context pull" "$HOME/.claude/settings.json" 2>/dev/null
+grep -q "lore/context pull" "$HOME/.claude/settings.json" 2>/dev/null || \
+  echo "     Fix: node ~/.lore/context/scripts/lore-merge-settings.js"
 
 # 6. Platform skills
 SKILLS_OK=true
-[ -f "$HOME/.claude/skills/acme-feature.md" ] || SKILLS_OK=false
-[ -f "$HOME/.claude/skills/acme-pr.md" ] || SKILLS_OK=false
+[ -f "$HOME/.claude/skills/lore-feature.md" ] || SKILLS_OK=false
+[ -f "$HOME/.claude/skills/lore-pr.md" ] || SKILLS_OK=false
 if $SKILLS_OK; then
   printf '  \xe2\x9c\x93  %s\n' "Platform skills installed"
   ((PASS++))
 else
   printf '  \xe2\x9c\x97  %s\n' "Platform skills installed"
-  echo "     Fix: cp ~/.acme/context/.claude/skills/*.md ~/.claude/skills/"
+  echo "     Fix: cp ~/.lore/context/.claude/skills/*.md ~/.claude/skills/"
   ((FAIL++))
 fi
 
 echo ""
-echo "[acme] Results: $PASS passed, $FAIL failed"
+echo "[lore] Results: $PASS passed, $FAIL failed"
 
 # Phase 1+ checks (optional — skip if infra not deployed)
 echo ""

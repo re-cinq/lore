@@ -6,8 +6,8 @@ CURRENT_STEP="initialisation"
 
 cleanup_on_error() {
   echo ""
-  echo "[acme] Installation failed at step: $CURRENT_STEP"
-  echo "[acme] Please fix the issue above and re-run the installer."
+  echo "[lore] Installation failed at step: $CURRENT_STEP"
+  echo "[lore] Please fix the issue above and re-run the installer."
   exit 1
 }
 trap cleanup_on_error ERR
@@ -16,7 +16,7 @@ require_cmd() {
   local cmd="$1"
   local hint="${2:-}"
   if ! command -v "$cmd" &>/dev/null; then
-    echo "[acme] Error: '$cmd' is required but not found."
+    echo "[lore] Error: '$cmd' is required but not found."
     [ -n "$hint" ] && echo "  Hint: $hint"
     return 1
   fi
@@ -28,32 +28,32 @@ require_cmd git "Install git from https://git-scm.com"
 require_cmd node "Install Node.js >= 18 from https://nodejs.org"
 require_cmd npm "npm ships with Node.js – check your Node.js installation"
 
-ACME_DIR="$HOME/.acme/context"
+LORE_DIR="$HOME/.lore/context"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # --- 1. Install context directory --------------------------------------------
 install_context() {
   CURRENT_STEP="install context directory"
-  if [ ! -d "$ACME_DIR" ]; then
-    echo "[acme] Installing context to $ACME_DIR ..."
-    mkdir -p "$HOME/.acme"
-    cp -r "$REPO_DIR" "$ACME_DIR"
+  if [ ! -d "$LORE_DIR" ]; then
+    echo "[lore] Installing context to $LORE_DIR ..."
+    mkdir -p "$HOME/.lore"
+    cp -r "$REPO_DIR" "$LORE_DIR"
   else
-    echo "[acme] Context directory exists, pulling latest ..."
-    git -c http.timeout=10 -C "$ACME_DIR" pull --quiet --ff-only 2>/dev/null || true
+    echo "[lore] Context directory exists, pulling latest ..."
+    git -c http.timeout=10 -C "$LORE_DIR" pull --quiet --ff-only 2>/dev/null || true
   fi
 }
 
 # --- 2. Build MCP server -----------------------------------------------------
 build_mcp_server() {
   CURRENT_STEP="build MCP server"
-  echo "[acme] Building MCP server ..."
-  if ! (cd "$ACME_DIR/mcp-server" && npm install --silent && npm run build) 2>&1 | \
+  echo "[lore] Building MCP server ..."
+  if ! (cd "$LORE_DIR/mcp-server" && npm install --silent && npm run build) 2>&1 | \
     sed 's/^/  /'; then
-    echo "[acme] Error: npm install/build failed in mcp-server."
+    echo "[lore] Error: npm install/build failed in mcp-server."
     echo "  Check that Node.js >= 18 is installed: node --version"
-    echo "  Try running manually: cd $ACME_DIR/mcp-server && npm install"
+    echo "  Try running manually: cd $LORE_DIR/mcp-server && npm install"
     return 1
   fi
 }
@@ -61,42 +61,42 @@ build_mcp_server() {
 # --- 3. Detect / prompt for team ---------------------------------------------
 select_team() {
   CURRENT_STEP="detect/prompt for team"
-  TEAM="$(git config --global acme.team 2>/dev/null || true)"
+  TEAM="$(git config --global lore.team 2>/dev/null || true)"
 
   if [ -z "$TEAM" ]; then
     echo ""
-    echo "[acme] Available teams:"
+    echo "[lore] Available teams:"
     echo "  1) payments"
     echo "  2) platform"
     echo "  3) mobile"
     echo "  4) data"
     echo ""
-    read -r -p "[acme] Select your team (1-4): " CHOICE
+    read -r -p "[lore] Select your team (1-4): " CHOICE
     case "$CHOICE" in
       1) TEAM="payments" ;;
       2) TEAM="platform" ;;
       3) TEAM="mobile" ;;
       4) TEAM="data" ;;
-      *) echo "[acme] Invalid choice, defaulting to 'platform'"; TEAM="platform" ;;
+      *) echo "[lore] Invalid choice, defaulting to 'platform'"; TEAM="platform" ;;
     esac
-    git config --global acme.team "$TEAM"
-    echo "[acme] Team set to '$TEAM' (stored in git config --global acme.team)"
+    git config --global lore.team "$TEAM"
+    echo "[lore] Team set to '$TEAM' (stored in git config --global lore.team)"
   fi
 }
 
 # --- 4. Merge settings -------------------------------------------------------
 merge_settings() {
   CURRENT_STEP="merge Claude settings"
-  echo "[acme] Merging Claude settings for team '$TEAM' ..."
-  node "$ACME_DIR/scripts/acme-merge-settings.js" "$TEAM"
+  echo "[lore] Merging Claude settings for team '$TEAM' ..."
+  node "$LORE_DIR/scripts/lore-merge-settings.js" "$TEAM"
 }
 
 # --- 5. Install platform skills -----------------------------------------------
 install_skills() {
   CURRENT_STEP="install platform skills"
-  echo "[acme] Installing platform skills ..."
+  echo "[lore] Installing platform skills ..."
   mkdir -p "$HOME/.claude/skills"
-  for skill in "$ACME_DIR/.claude/skills/"*.md; do
+  for skill in "$LORE_DIR/.claude/skills/"*.md; do
     [ -f "$skill" ] || continue
     dest="$HOME/.claude/skills/$(basename "$skill")"
     if [ ! -f "$dest" ]; then
@@ -112,15 +112,15 @@ install_skills() {
 install_bd() {
   CURRENT_STEP="install bd CLI"
   if ! command -v bd >/dev/null 2>&1; then
-    echo "[acme] Installing @beads/bd ..."
+    echo "[lore] Installing @beads/bd ..."
     if ! command -v npm &>/dev/null; then
-      echo "[acme] Warning: npm not found, skipping @beads/bd"
+      echo "[lore] Warning: npm not found, skipping @beads/bd"
     elif ! npm install -g @beads/bd 2>&1; then
-      echo "[acme] Warning: could not install @beads/bd"
+      echo "[lore] Warning: could not install @beads/bd"
       echo "  Check Node.js version (>= 18): node --version"
     fi
   else
-    echo "[acme] bd CLI already installed"
+    echo "[lore] bd CLI already installed"
   fi
 }
 
@@ -128,27 +128,27 @@ install_bd() {
 install_specify() {
   CURRENT_STEP="install specify CLI"
   if ! command -v specify >/dev/null 2>&1; then
-    echo "[acme] Installing specify-cli ..."
+    echo "[lore] Installing specify-cli ..."
     pip install specify-cli 2>/dev/null || \
       uv tool install specify-cli 2>/dev/null || \
-      echo "[acme] Warning: could not install specify-cli"
+      echo "[lore] Warning: could not install specify-cli"
   else
-    echo "[acme] specify CLI already installed"
+    echo "[lore] specify CLI already installed"
   fi
 }
 
 # --- 8. Initialise beads -----------------------------------------------------
 init_beads() {
   CURRENT_STEP="initialise beads"
-  if [ ! -d "$ACME_DIR/.beads" ]; then
-    echo "[acme] Initialising beads ..."
+  if [ ! -d "$LORE_DIR/.beads" ]; then
+    echo "[lore] Initialising beads ..."
     if command -v bd &>/dev/null; then
-      (cd "$ACME_DIR" && bd init 2>/dev/null) || true
+      (cd "$LORE_DIR" && bd init 2>/dev/null) || true
     else
-      echo "[acme] Warning: bd not found, skipping beads init"
+      echo "[lore] Warning: bd not found, skipping beads init"
     fi
   else
-    echo "[acme] Beads already initialised"
+    echo "[lore] Beads already initialised"
   fi
 }
 
@@ -156,15 +156,15 @@ init_beads() {
 install_agentdb() {
   CURRENT_STEP="AgentDB local cache (optional)"
   echo ""
-  echo -n "[acme] Install AgentDB local cache for sub-ms retrieval? (y/N) "
+  echo -n "[lore] Install AgentDB local cache for sub-ms retrieval? (y/N) "
   read -r USE_AGENTDB
   if [[ "$USE_AGENTDB" == "y" || "$USE_AGENTDB" == "Y" ]]; then
     if command -v npx &>/dev/null; then
       if ! npm install -g agentdb 2>&1; then
-        echo "[acme] Warning: could not install agentdb"
+        echo "[lore] Warning: could not install agentdb"
         echo "  Check Node.js version (>= 18): node --version"
       else
-        echo "[acme] AgentDB installed"
+        echo "[lore] AgentDB installed"
       fi
       # Add to claude settings
       node -e "
@@ -175,14 +175,14 @@ install_agentdb() {
         if (!s.mcpServers['local-cache']) {
           s.mcpServers['local-cache'] = {
             command: 'npx',
-            args: ['agentdb', 'mcp', 'start', '--db', process.env.HOME + '/.acme-cache.db']
+            args: ['agentdb', 'mcp', 'start', '--db', process.env.HOME + '/.lore-cache.db']
           };
           fs.writeFileSync(p, JSON.stringify(s, null, 2));
-          console.log('[acme] AgentDB MCP server configured');
+          console.log('[lore] AgentDB MCP server configured');
         }
       "
     else
-      echo "[acme] Warning: npx not found, skipping AgentDB"
+      echo "[lore] Warning: npx not found, skipping AgentDB"
     fi
   fi
 }
@@ -201,7 +201,7 @@ install_agentdb
 # --- 10. Run diagnostics -----------------------------------------------------
 CURRENT_STEP="run diagnostics"
 echo ""
-"$ACME_DIR/scripts/acme-doctor.sh" || true
+"$LORE_DIR/scripts/lore-doctor.sh" || true
 
 echo ""
-echo "[acme] Installation complete."
+echo "[lore] Installation complete."

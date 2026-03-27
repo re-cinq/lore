@@ -4,7 +4,7 @@
 Calls the MCP server's get_context and get_adrs tools, then renders
 the results as .specify/constitution.md.
 
-Usage: acme-gen-constitution --team payments
+Usage: lore-gen-constitution --team payments
 """
 
 import argparse
@@ -20,7 +20,7 @@ AVAILABLE_TEAMS = ["payments", "platform", "mobile", "data"]
 def call_mcp_tool(tool_name: str, arguments: dict) -> str:
     """Call an MCP tool via the local server and return the text result."""
     context_path = os.environ.get(
-        "CONTEXT_PATH", os.path.expanduser("~/.acme/context")
+        "CONTEXT_PATH", os.path.expanduser("~/.lore/context")
     )
     server_path = os.path.join(context_path, "mcp-server", "dist", "index.js")
 
@@ -100,7 +100,7 @@ def main():
         f"## Team Conventions\n\n{context}\n\n"
         f"## Active Architecture Decisions\n\n{adrs}\n"
     )
-    print(f"[acme] Constitution written to {output_path}")
+    print(f"[lore] Constitution written to {output_path}")
 
 
 if __name__ == "__main__":

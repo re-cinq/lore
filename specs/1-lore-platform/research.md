@@ -172,7 +172,7 @@ first-class.
 ## R7: MCP Server Degraded Mode
 
 **Decision:** When MCP server is unreachable, fall back to local
-`~/.acme/context` files with a one-time warning.
+`~/.lore/context` files with a one-time warning.
 
 **Rationale:** The SessionStart hook already pulls the context repo
 locally. Local files provide convention and ADR lookups. Only
@@ -181,7 +181,7 @@ without blocking work.
 
 **Implementation approach:**
 - MCP server wrapper catches connection errors.
-- On first failure: display `[acme] MCP server unreachable —
+- On first failure: display `[lore] MCP server unreachable —
   using local context (search quality degraded)`.
 - Subsequent calls in the same session: silently use local files.
 - Local file reads use the same parsing logic as Phase 0 MCP

@@ -16,7 +16,7 @@ locals {
 resource "google_service_account" "mcp_team" {
   for_each = toset(local.mcp_teams)
 
-  account_id   = "acme-mcp-${each.key}"
+  account_id   = "lore-mcp-${each.key}"
   display_name = "MCP Server SA — ${each.key} team"
   project      = var.project_id
 }
@@ -60,7 +60,7 @@ resource "google_service_account_iam_member" "mcp_team_workload_identity" {
 # ----- Klaus Agent Service Account -----
 
 resource "google_service_account" "klaus_agent" {
-  account_id   = "acme-klaus-agent"
+  account_id   = "lore-klaus-agent"
   display_name = "Klaus Agent SA — ingestion and GitHub access"
   project      = var.project_id
 }

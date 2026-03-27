@@ -9,7 +9,7 @@ and draft content to fill them.
    past 7 days:
    ```sql
    SELECT query, namespace, topScore, timestamp
-   FROM `acme_platform_traces.traces`
+   FROM `lore_platform_traces.traces`
    WHERE 'low-confidence' IN UNNEST(tags)
      AND timestamp > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
    ORDER BY timestamp DESC
@@ -23,7 +23,7 @@ and draft content to fill them.
    b. Determine the right content type: CLAUDE.md addition, ADR, or runbook.
    c. Draft the missing content. Be specific — write the actual text,
       not a placeholder.
-   d. Open a PR to acme/context:
+   d. Open a PR to lore/context:
       - Branch: `gap-draft/<topic-slug>`
       - Label: `context-gap-draft`
       - Assign to the relevant team based on the namespace

@@ -13,7 +13,7 @@ what is out of scope. Do not deviate from the charter.
 1. Query Langfuse for low-confidence traces from the past 7 days:
    ```sql
    SELECT trace_id, query, namespace, topScore, timestamp, tags
-   FROM `acme_platform_traces.traces`
+   FROM `lore_platform_traces.traces`
    WHERE 'low-confidence' IN UNNEST(tags)
      AND timestamp > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
    ORDER BY timestamp DESC;
@@ -75,7 +75,7 @@ what is out of scope. Do not deviate from the charter.
    **If no candidate passes the 2% threshold:** Escalate.
    - Log all 3 attempts to BigQuery:
      ```sql
-     INSERT INTO `acme_platform_lore.research_attempts`
+     INSERT INTO `lore_platform.research_attempts`
      (cluster_id, namespace, approach, content, eval_score, delta, created_at)
      VALUES (@cluster_id, @namespace, @approach, @content, @score, @delta, CURRENT_TIMESTAMP());
      ```
@@ -101,6 +101,6 @@ what is out of scope. Do not deviate from the charter.
 ## Scheduling
 
 This agent runs via Cloud Scheduler every Monday at 06:00 UTC.
-Results are logged to BigQuery table `acme_platform_lore.research_runs`
+Results are logged to BigQuery table `lore_platform.research_runs`
 with columns: run_id, started_at, completed_at, clusters_found,
 candidates_generated, prs_opened, tasks_created.

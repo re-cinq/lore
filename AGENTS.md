@@ -9,8 +9,8 @@ git activity in this repo), say:
 active decisions, and current work. A few things to know:
 
 - `bd ready` shows what's available to work on
-- `/acme-feature` sets up a new feature end-to-end
-- `/acme-pr` drafts your PR description when you're done
+- `/lore-feature` sets up a new feature end-to-end
+- `/lore-pr` drafts your PR description when you're done
 
 Want me to show you what's currently unblocked?"
 
@@ -28,9 +28,9 @@ At the start of every session, check Beads task state:
 If the developer mentions starting a new feature, building something new,
 or picking up a ticket:
 
-- Suggest `/acme-feature` before they do anything else.
-- Do not ask them to run specify, acme-gen-constitution, or
-  acme-tasks-to-beads separately. `/acme-feature` handles all of it.
+- Suggest `/lore-feature` before they do anything else.
+- Do not ask them to run specify, lore-gen-constitution, or
+  lore-tasks-to-beads separately. `/lore-feature` handles all of it.
 
 ## During implementation
 
@@ -51,7 +51,7 @@ When the developer signals they are done with a piece of work:
 If the developer mentions opening a PR, creating a pull request, or
 pushing for review:
 
-- Suggest `/acme-pr` before they open a browser.
+- Suggest `/lore-pr` before they open a browser.
 - Do not let them write the PR description from scratch if a spec exists.
 
 ## Delegating work to the cluster
@@ -88,5 +88,5 @@ Run these yourself. Do not ask the developer to remember them:
 - Ask the developer to load context manually
 - Ask the developer to remember the spec-driven workflow steps
 - Ask the developer to write a PR description from scratch
-- Suggest running acme-gen-constitution, /speckit.specify, /speckit.tasks,
-  or acme-tasks-to-beads individually — `/acme-feature` handles all of these
+- Suggest running lore-gen-constitution, /speckit.specify, /speckit.tasks,
+  or lore-tasks-to-beads individually — `/lore-feature` handles all of these

@@ -20,7 +20,7 @@ variable "subnetwork_id" {
 }
 
 variable "lore_mcp_endpoint" {
-  description = "HTTPS endpoint of the Lore MCP server for Cloud Scheduler jobs (e.g. https://mcp.internal.acme.dev)."
+  description = "HTTPS endpoint of the Lore MCP server for Cloud Scheduler jobs (e.g. https://mcp.internal.lore.dev)."
   type        = string
 }
 

@@ -22,7 +22,7 @@ spec:
               if [ ! -d "beads-tasks/.dolt" ]; then
                 mkdir -p beads-tasks
                 cd beads-tasks
-                dolt init --name "lore-platform" --email "platform@acme.com"
+                dolt init --name "lore-platform" --email "platform@lore.dev"
                 echo "Dolt database initialized"
               else
                 echo "Database already exists, skipping init"

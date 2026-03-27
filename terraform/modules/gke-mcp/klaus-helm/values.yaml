@@ -25,7 +25,7 @@ serviceAccount:
   create: true
   name: klaus-agent
   annotations:
-    iam.gke.io/gcp-service-account: acme-klaus-agent@PROJECT_ID.iam.gserviceaccount.com
+    iam.gke.io/gcp-service-account: lore-klaus-agent@PROJECT_ID.iam.gserviceaccount.com
 
 env:
   - name: ANTHROPIC_API_KEY

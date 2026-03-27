@@ -42,12 +42,12 @@ settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
 
 // 2. mcpServers
 if (!settings.mcpServers) settings.mcpServers = {};
-settings.mcpServers["acme-context"] = {
+settings.mcpServers["lore-context"] = {
   command: "node",
-  args: ["${HOME}/.acme/context/mcp-server/dist/index.js"],
+  args: ["${HOME}/.lore/context/mcp-server/dist/index.js"],
   env: {
-    CONTEXT_PATH: "${HOME}/.acme/context",
-    ACME_TEAM: TEAM,
+    CONTEXT_PATH: "${HOME}/.lore/context",
+    LORE_TEAM: TEAM,
   },
 };
 
@@ -55,10 +55,10 @@ settings.mcpServers["acme-context"] = {
 if (!settings.hooks) settings.hooks = {};
 
 // SessionStart
-if (!hookExists(settings.hooks, "SessionStart", "acme/context pull")) {
+if (!hookExists(settings.hooks, "SessionStart", "lore/context pull")) {
   if (!Array.isArray(settings.hooks.SessionStart)) settings.hooks.SessionStart = [];
   settings.hooks.SessionStart.push({
-    command: "git -C ~/.acme/context pull --quiet --ff-only 2>/dev/null; bd pull --quiet 2>/dev/null; echo '[acme] Context and task state synced'",
+    command: "git -C ~/.lore/context pull --quiet --ff-only 2>/dev/null; bd pull --quiet 2>/dev/null; echo '[lore] Context and task state synced'",
   });
 }
 
@@ -77,10 +77,10 @@ if (!hookExists(settings.hooks, "Stop", "bd update")) {
   if (!Array.isArray(settings.hooks.Stop)) settings.hooks.Stop = [];
   settings.hooks.Stop.push({
     command:
-      "TASK=$(bd list --claimed --json 2>/dev/null | jq -r '.[0].id // empty'); [ -n \"$TASK\" ] && echo \"[acme] Active task: $TASK \\u2014 run 'bd update $TASK --status done' if finished\"",
+      "TASK=$(bd list --claimed --json 2>/dev/null | jq -r '.[0].id // empty'); [ -n \"$TASK\" ] && echo \"[lore] Active task: $TASK \\u2014 run 'bd update $TASK --status done' if finished\"",
   });
 }
 
 // 4. write
 writeSettings(settings);
-console.log(`[acme] Settings merged for team "${TEAM}" -> ${SETTINGS_PATH}`);
+console.log(`[lore] Settings merged for team "${TEAM}" -> ${SETTINGS_PATH}`);

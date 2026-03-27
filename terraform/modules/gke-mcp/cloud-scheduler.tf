@@ -14,7 +14,7 @@
 # ----- Service Account for Cloud Scheduler HTTP calls -----
 
 resource "google_service_account" "scheduler" {
-  account_id   = "acme-scheduler-lore"
+  account_id   = "lore-scheduler"
   display_name = "Cloud Scheduler SA — Lore automated jobs"
   project      = var.project_id
 }
