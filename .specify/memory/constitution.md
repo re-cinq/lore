@@ -50,7 +50,7 @@ else automatic.
 ### Principle 1: DX-First Delivery
 
 Phase 0 delivers working developer value with zero GCP infrastructure.
-The workflow MUST be validated before investing in AlloyDB and
+The workflow MUST be validated before investing in PostgreSQL and
 Kubernetes. If developers do not naturally reach for the platform
 tools within 5 working days of Phase 0 delivery, the friction MUST
 be fixed before Phase 1 begins.
@@ -65,9 +65,9 @@ cost pressure from pushing a bad workflow into production infra.
 No long-lived credentials anywhere in the system. This is a hard
 requirement with no exceptions.
 
-- AlloyDB auth: Workload Identity for all GKE workloads.
+- PostgreSQL (CNPG) auth: Workload Identity for all GKE workloads.
 - GitHub Actions: Workload Identity Federation.
-- Langfuse: OIDC via Google Workspace SSO, no password auth.
+- Cloud Monitoring: default GKE service account scoping.
 - Dolt remote: personal access tokens stored in 1Password, injected
   via Workload Identity in CI.
 - MCP server keys: scoped per team via IAM.
@@ -162,11 +162,11 @@ The following decisions have been made and MUST NOT be relitigated:
 
 | Decision | Choice |
 |---|---|
-| Vector store | AlloyDB AI (managed GCP) |
-| Namespace model | Schema per team in AlloyDB |
+| Vector store | PostgreSQL + pgvector via CloudNativePG (CNPG) on GKE |
+| Namespace model | Schema per team in PostgreSQL (CNPG) |
 | MCP deployment | Per-team containers on GKE |
 | Ingestion trigger | On-push (fast) + nightly (full) |
-| Observability | Langfuse self-hosted + BigQuery |
+| Observability | OpenTelemetry → Cloud Monitoring + Graphiti (gap signal) |
 | Task tracking | Beads (agent) + GH Issues (platform) |
 | Governance | Distributed ownership + CI eval gate |
 | Build sequence | DX-first: Phase 0 before infra |
@@ -176,7 +176,7 @@ The following decisions have been made and MUST NOT be relitigated:
 | Context ontology | Explicit 8-type schema (Phase 3) |
 | Self-improvement loop | Autoresearch-style keep/discard against PromptFoo |
 
-Revisit Vertex AI Vector Search only if corpus exceeds ~100M vectors.
+Upgrade path to AlloyDB Omni or managed AlloyDB if corpus exceeds ~10M vectors. Revisit Vertex AI Vector Search only if corpus exceeds ~100M vectors.
 
 **Rationale:** Relitigating settled architecture decisions burns team
 time without producing value. These decisions were made with full
@@ -186,7 +186,7 @@ superseding the original.
 
 ### Principle 8: Schema-Per-Team Isolation
 
-Each team has its own schema in AlloyDB. An MCP server instance for
+Each team has its own schema in PostgreSQL. An MCP server instance for
 team X can read schema X + `org_shared`, never another team's schema.
 
 Content types stored:
@@ -247,18 +247,18 @@ depends on.
 
 | Component | Technology |
 |---|---|
-| Vector store | AlloyDB AI (managed GCP, `europe-west4`) |
-| Embedding | Vertex AI `text-embedding-005` via `embedding()` SQL function |
-| Vector index | ScaNN (via `alloydb_scann` extension) |
-| Search | Hybrid: ScaNN vector + BM25 keyword, Reciprocal Rank Fusion |
+| Vector store | PostgreSQL + pgvector (CNPG on GKE, `europe-west4`) |
+| Embedding | Vertex AI `text-embedding-005` via application-level call |
+| Vector index | HNSW (pgvector) |
+| Search | Hybrid: HNSW vector + BM25 keyword, Reciprocal Rank Fusion |
 | MCP server | TypeScript, per-team containers on GKE |
 | Cluster agents | Klaus in GKE (`klaus` namespace) |
 | Local orchestration | Claude Code Agent Teams (native) |
 | Task tracking | Beads (`@beads/bd`) + GitHub Issues |
 | Feature workflow | Spec Kit (`specify-cli`) |
-| Observability | Langfuse self-hosted + BigQuery export |
+| Observability | OpenTelemetry → Cloud Monitoring |
 | CI evals | PromptFoo |
-| Infrastructure | Terraform (AlloyDB, GKE, Langfuse, Cloud SQL) |
+| Infrastructure | Terraform (GKE namespaces) + CNPG operator + Helm |
 | Auth | Workload Identity (GKE), Workload Identity Federation (GHA) |
 | Code parsing | tree-sitter (TypeScript, Python, Go, Kotlin, Swift) |
 | Document parsing | LlamaIndex readers (GitHub, Confluence) + unstructured |
@@ -285,12 +285,12 @@ Phase 1 starts.
 
 ### Phase 1: Managed Infrastructure (~2 weeks)
 
-Replace file-backed MCP with AlloyDB AI. Wire up ingestion via Klaus.
+Replace file-backed MCP with PostgreSQL + pgvector (CNPG). Wire up ingestion via Klaus.
 Deliverables:
-- AlloyDB cluster + schema-per-team + ScaNN indexes.
-- GKE cluster (`mcp-servers`, `langfuse`, `klaus` namespaces).
+- CNPG Cluster resource + schema-per-team + HNSW indexes.
+- GKE cluster (`mcp-servers`, `cnpg-system`, `klaus` namespaces).
 - Klaus deployment + Lore MCP delegation tools.
-- Langfuse deployment + `tracedSearch()` instrumentation.
+- OpenTelemetry instrumentation → Cloud Monitoring.
 - Cloud Scheduler jobs (replacing GitHub Actions cron).
 - PromptFoo eval suite + CI gate.
 
@@ -301,7 +301,7 @@ Deliverables:
 Close the loop — system improves based on actual usage. Deliverables:
 - Gap detection as Klaus agent (drafts content, opens PRs).
 - Beads Dolt remote for multi-developer sync.
-- Spec file ingestion into AlloyDB.
+- Spec file ingestion into PostgreSQL.
 - Spec evals in CI.
 
 ### Phase 3: Knowledge Graph, Context Cores, and Self-Improvement (3-4 weeks, after 3+ months of content)

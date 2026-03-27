@@ -14,7 +14,7 @@ You are a Lore ingestion agent running the nightly full re-index.
       - YAML frontmatter files (ADRs, runbooks): preserve frontmatter
         as metadata, split body at sections.
    b. For each chunk, determine the owning team from CODEOWNERS.
-   c. Upsert to the appropriate AlloyDB schema.
+   c. Upsert to the appropriate PostgreSQL schema.
 
 3. Fetch merged PRs from the past 24 hours via GitHub API:
    a. For each PR, combine: diff + description + all review comments.

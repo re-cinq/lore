@@ -174,7 +174,7 @@ machine. Fix friction. Validate Phase 0 before proceeding.
 
 ### Story Goal
 Developer asks Claude Code a question and gets semantically relevant
-results from AlloyDB via hybrid vector + keyword search in < 200ms.
+results from PostgreSQL via hybrid vector + keyword search in < 200ms.
 
 ### Independent Test Criteria
 - `search_context("ChargeBuilder idempotency")` returns code + PR.
@@ -183,14 +183,14 @@ results from AlloyDB via hybrid vector + keyword search in < 200ms.
 
 ### Tasks
 
-- [x] T036 [US6] Write Terraform module for AlloyDB cluster (Enterprise, europe-west4, db-perf-optimized-N-4) with vector/scann/ml extensions in terraform/modules/alloydb/
-- [x] T037 [US6] Write Terraform AlloyDB schema-per-team DDL: chunks table with VECTOR(768), ScaNN index, GIN index on search_tsv for payments, platform, mobile, data, org_shared in terraform/modules/alloydb/schemas.sql
+- [x] T036 [US6] Write Terraform module for PostgreSQL cluster (Enterprise, europe-west4, db-perf-optimized-N-4) with vector/scann/ml extensions in terraform/modules/lore-db/
+- [x] T037 [US6] Write Terraform PostgreSQL schema-per-team DDL: chunks table with VECTOR(768), HNSW index, GIN index on search_tsv for payments, platform, mobile, data, org_shared in terraform/modules/lore-db/schemas.sql
 - [x] T038 [US6] Write Terraform module for GKE cluster (lore-ai-platform, private, regional europe-west4) with mcp-servers, langfuse, klaus namespaces in terraform/modules/gke-mcp/
 - [x] T039 [US6] Write Terraform Workload Identity bindings: per-team MCP service account (read own schema + org_shared), Klaus SA (write ingestion + read GitHub) in terraform/modules/gke-mcp/workload-identity.tf
-- [x] T040 [US6] Upgrade MCP server search_context to hybrid AlloyDB search: ScaNN vector + BM25 keyword with Reciprocal Rank Fusion (k=60) in mcp-server/src/index.ts
-- [x] T041 [US6] Upgrade MCP server get_context and get_adrs to query AlloyDB instead of local files in mcp-server/src/index.ts
+- [x] T040 [US6] Upgrade MCP server search_context to hybrid PostgreSQL search: HNSW vector + BM25 keyword with Reciprocal Rank Fusion (k=60) in mcp-server/src/index.ts
+- [x] T041 [US6] Upgrade MCP server get_context and get_adrs to query PostgreSQL instead of local files in mcp-server/src/index.ts
 - [x] T042 [US6] Add get_file_pr_history tool to MCP server: queries chunks WHERE content_type=pull_request AND file_path in metadata.files_changed in mcp-server/src/index.ts
-- [x] T043 [US6] Implement degraded-mode fallback: catch AlloyDB connection errors, fall back to local files, display one-time warning in mcp-server/src/index.ts
+- [x] T043 [US6] Implement degraded-mode fallback: catch PostgreSQL connection errors, fall back to local files, display one-time warning in mcp-server/src/index.ts
 - [x] T044 [P] [US6] Write incremental ingest GitHub Action: on push to main, submit changed files to Klaus via delegate_task in .github/workflows/ingest-context.yml
 - [x] T045 [US6] Configure Cloud Scheduler nightly job (2am): full re-index via delegate_task to Klaus, hard-delete stale chunks in terraform/modules/gke-mcp/cloud-scheduler.tf
 - [x] T046 [P] [US6] Write PromptFoo eval suite with 5-10 test cases for payments team in evals/payments/promptfooconfig.yaml
@@ -215,7 +215,7 @@ continues locally.
 ### Tasks
 
 - [x] T049 [US7] Write Klaus Helm chart for GKE klaus namespace with HTTP MCP endpoint, resource limits, configurable timeouts in terraform/modules/gke-mcp/klaus-helm/
-- [x] T050 [US7] Implement buildContextBundle function: packages Beads task + spec + constitution + AlloyDB seed chunks + branch (~80 lines) in mcp-server/src/context-bundle.ts
+- [x] T050 [US7] Implement buildContextBundle function: packages Beads task + spec + constitution + PostgreSQL seed chunks + branch (~80 lines) in mcp-server/src/context-bundle.ts
 - [x] T051 [US7] Implement delegate_task MCP tool: packages context bundle, submits to Klaus HTTP endpoint, returns task_id in mcp-server/src/index.ts
 - [x] T052 [US7] Implement task_status MCP tool: polls Klaus for task state, surfaces failure reason and Beads claim release in mcp-server/src/index.ts
 - [x] T053 [US7] Implement task_result MCP tool: retrieves completed output from Klaus in mcp-server/src/index.ts
@@ -293,7 +293,7 @@ Autoresearch loop autonomously improves context quality.
 - [x] T070 Review and harden install.sh error handling: ensure every step has clear error messages and recovery instructions in scripts/install.sh
 - [x] T071 Write internal comms template for PR description enforcement rollout (frame as "makes Claude Code smarter for the team")
 - [ ] T072 Verify all Terraform modules pass `terraform validate` and `terraform plan` in terraform/
-- [x] T073 Update lore-doctor.sh to include Phase 1+ checks: AlloyDB reachable, Langfuse reachable, Klaus endpoint responsive in scripts/lore-doctor.sh
+- [x] T073 Update lore-doctor.sh to include Phase 1+ checks: PostgreSQL reachable, Langfuse reachable, Klaus endpoint responsive in scripts/lore-doctor.sh
 
 ---
 
@@ -350,10 +350,10 @@ Day 3:
 
 ```
 Week 2:
-  Agent A: T036, T037 (AlloyDB Terraform) [P]
+  Agent A: T036, T037 (PostgreSQL Terraform) [P]
   Agent B: T038, T039 (GKE Terraform) [P]
   Agent C: T049 (Klaus Helm chart)
-  Sync: T040-T043 (MCP server upgrade — needs AlloyDB)
+  Sync: T040-T043 (MCP server upgrade — needs PostgreSQL)
 
 Week 3:
   Agent A: T044, T045 (ingestion triggers) [P]
@@ -372,7 +372,7 @@ Week 3:
 - Gate: pilot team completes full feature loop.
 
 ### Phase 1 Increment (Weeks 2-3)
-- T036-T060: AlloyDB, Klaus, Langfuse, PromptFoo CI.
+- T036-T060: PostgreSQL, Klaus, Langfuse, PromptFoo CI.
 - 25 tasks, targeting 2 weeks.
 - Gate: Phase 1 acceptance criteria pass.
 

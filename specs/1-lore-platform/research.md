@@ -94,33 +94,49 @@ submitted → running → completed
                    → timed_out (treated as failure)
 ```
 
-## R4: AlloyDB AI (Phase 1)
+## R4: PostgreSQL + pgvector via CloudNativePG (Phase 1)
 
-**Decision:** AlloyDB AI with `text-embedding-005` via `embedding()`
-SQL function, ScaNN index via `alloydb_scann` extension.
+**Decision:** PostgreSQL 16 with pgvector extension, deployed via
+the CloudNativePG (CNPG) Kubernetes operator on GKE. HNSW index
+for vector similarity search. Same `<=>` cosine distance operator
+as PostgreSQL. Embedding via application-level Vertex AI
+`text-embedding-005` calls.
 
-**Rationale:** Replaces self-hosted vector store — no StatefulSets,
-no PVC management, no HNSW tuning. Embedding happens inline via SQL
-function (no separate embedding service). ScaNN outperforms HNSW at
-scale. IAM via Workload Identity — no API keys.
+**Rationale:** CNPG provides a production-grade PostgreSQL on
+Kubernetes without managed-service lock-in. pgvector's HNSW index
+delivers sub-200ms p99 latency for our corpus size (~1M vectors).
+The SQL interface is identical — same `<=>` operator, same hybrid
+search pattern. Upgrade path to PostgreSQL (CNPG) (containerized) or
+managed PostgreSQL is straightforward if scale demands it.
 
 **Alternatives considered:**
+- PostgreSQL + pgvector (managed GCP): higher cost, HNSW advantage only
+  matters at >10M vectors. Remains the upgrade path.
 - Self-hosted Qdrant: operational overhead (StatefulSets, PVCs,
-  HNSW tuning).
+  custom backup), no SQL interface.
 - Vertex AI Vector Search: separate service, no SQL integration.
-- Cloud SQL pgvector: weaker index performance, no ScaNN.
+- Cloud SQL pgvector: managed but less control than CNPG, no
+  operator-level backup/failover customization.
+
+**Upgrade path:**
+- PostgreSQL (CNPG) (containerized): drop-in replacement, same pgvector
+  interface, adds HNSW if needed at scale.
+- Managed PostgreSQL: when corpus exceeds ~10M vectors or when
+  `embedding()` SQL function is preferred over app-level calls.
 
 **Best practices:**
 - Embedding dimension: 768 (`text-embedding-005`).
-- ScaNN index: `num_leaves = 64` for initial corpus size. Increase
-  when corpus exceeds 1M chunks.
-- Hybrid search: Reciprocal Rank Fusion of ScaNN vector results
+- HNSW index: `m = 16`, `ef_construction = 64` for initial corpus.
+  Tune `ef_search` (default 40) based on recall/latency tradeoff.
+- Hybrid search: Reciprocal Rank Fusion of HNSW vector results
   and BM25 keyword results. RRF constant `k=60`.
 - Schema isolation: one schema per team, MCP server IAM scoped to
   own schema + `org_shared`.
 - Hard-delete stale chunks on nightly re-index (no soft-delete).
 - PII classifier at ingest: email regex + card number patterns →
   `sensitivity=restricted`, excluded from general search.
+- CNPG operator handles backups (Barman to Cloud Storage),
+  failover, and rolling updates.
 
 ## R5: Langfuse Observability (Phase 1)
 

@@ -35,11 +35,7 @@ variable "google_client_secret" {
   sensitive   = true
 }
 
-variable "cloud_sql_connection_name" {
-  description = "Cloud SQL instance connection name (project:region:instance). If empty, the module creates its own Cloud SQL instance."
-  type        = string
-  default     = ""
-}
+# Cloud SQL connection name is computed internally from the instance this module creates.
 
 variable "langfuse_domain" {
   description = "Public domain for the Langfuse UI (used for NEXTAUTH_URL)."

@@ -1,19 +1,11 @@
-# --------------------------------------------------------------------------
-# Outputs for the Langfuse module
-# --------------------------------------------------------------------------
-
-# ----- Langfuse URL -----
-
 output "langfuse_url" {
   description = "Public URL for the Langfuse UI."
   value       = "https://${var.langfuse_domain}"
 }
 
-# ----- Cloud SQL -----
-
 output "connection_name" {
-  description = "Cloud SQL instance connection name (project:region:instance)."
-  value       = local.cloud_sql_connection
+  description = "Cloud SQL instance connection name."
+  value       = "${var.project_id}:${var.region}:${google_sql_database_instance.langfuse.name}"
 }
 
 output "instance_ip" {

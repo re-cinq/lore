@@ -6,7 +6,7 @@ promote or discard it.
 
 ## Steps
 
-1. Export all promoted chunks from AlloyDB for the target namespace:
+1. Export all promoted chunks from PostgreSQL for the target namespace:
    ```sql
    SELECT chunk_id, content, metadata, embedding, promoted_at
    FROM <namespace>.chunks
@@ -77,7 +77,7 @@ promote or discard it.
 
 ## Failure modes
 
-- If AlloyDB export returns 0 chunks: abort. Do not build an empty Core.
+- If PostgreSQL export returns 0 chunks: abort. Do not build an empty Core.
   Log error and open Beads task.
 - If PromptFoo eval fails to run: abort. Log the error output. Do not
   promote or discard — leave the candidate tagged for manual inspection.

@@ -86,18 +86,18 @@ across all `.md` files in `$CONTEXT_PATH`). Returns matching
 paragraphs with file path as source.
 
 **Phase 1:** Hybrid search:
-1. Vector search via ScaNN (`embedding <=> embedding('text-embedding-005', query)`).
+1. Vector search via HNSW (`embedding <=> embedding('text-embedding-005', query)`).
 2. Keyword search via BM25 (`search_tsv @@ plainto_tsquery(query)`).
 3. Reciprocal Rank Fusion (k=60) to merge rankings.
 4. If `team` provided: scope to team schema + `org_shared`.
 5. If no `team`: search `org_shared` only.
 
-**Degraded mode:** If AlloyDB unreachable, fall back to Phase 0
+**Degraded mode:** If PostgreSQL unreachable, fall back to Phase 0
 text match on local files. Display one-time warning.
 
 ---
 
-## Phase 1 Tools (AlloyDB + Klaus)
+## Phase 1 Tools (PostgreSQL + Klaus)
 
 ### get_file_pr_history
 
@@ -141,7 +141,7 @@ Submit work to a Klaus cluster agent via the Lore MCP server.
     branch: z.string().optional()
       .describe('Branch for the Klaus agent to clone and work on.'),
     seed_query: z.string().optional()
-      .describe('Pre-fetch AlloyDB context chunks matching this query for the agent.')
+      .describe('Pre-fetch PostgreSQL context chunks matching this query for the agent.')
   }).optional(),
   priority: z.enum(['low', 'normal', 'high']).default('normal')
 }

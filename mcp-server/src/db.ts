@@ -1,8 +1,8 @@
 /**
- * AlloyDB-backed search module for Phase 1 queries.
+ * PostgreSQL-backed search module for Phase 1 queries.
  *
  * Uses Reciprocal Rank Fusion (RRF) to combine vector and keyword search.
- * Degrades gracefully when AlloyDB is unavailable.
+ * Degrades gracefully when PostgreSQL is unavailable.
  */
 
 // Placeholder: in production, import a configured pg Pool from a config module.

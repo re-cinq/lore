@@ -372,11 +372,13 @@ store via intelligent agents.
 
 The system MUST provide observability into context retrieval quality.
 
-- FR-8.1: All MCP retrieval calls traced in Langfuse.
+- FR-8.1: All MCP retrieval calls traced via OpenTelemetry spans
+  exported to Cloud Monitoring.
 - FR-8.2: Low-confidence retrievals (score < threshold) tagged as
-  gap candidates.
-- FR-8.3: Traces exported to BigQuery for analysis.
-- FR-8.4: SSO via Google Workspace OIDC.
+  gap candidates via OTEL span attributes and Cloud Monitoring
+  custom metrics.
+- FR-8.3: Gap signal feeds into Graphiti episodes in Phase 3 for
+  automated context improvement.
 
 ### FR-9: Context Evaluation (Phase 1)
 
@@ -407,7 +409,7 @@ The system MUST automatically identify and address knowledge gaps.
 The system MUST support temporal, traversable knowledge via Graphiti.
 
 - FR-11.1: Graphiti deployed on GKE with FalkorDB backend, ingesting
-  from AlloyDB change stream after each Klaus ingest job.
+  from PostgreSQL (CNPG) after each Klaus ingest job.
 - FR-11.2: Explicit ontology with 8 entity types (Service, Team,
   Function, PR, ADR, Spec, Concept, Runbook) and 15 typed
   relationships (OWNS, CALLS, IMPLEMENTS, SUPERSEDES, REFERENCES,
@@ -435,7 +437,7 @@ The system MUST detect when specifications diverge from implementation.
 The system MUST distribute context as versioned, evaluated OCI bundles.
 
 - FR-13.1: Nightly Klaus agent builds a candidate Context Core from
-  latest AlloyDB content.
+  latest PostgreSQL content.
 - FR-13.2: Candidate Core runs full PromptFoo eval suite.
 - FR-13.3: If eval score improves by >= 2% over current version, Core
   is promoted to Artifact Registry. If score regresses, Core is
@@ -456,8 +458,8 @@ improvements.
 - FR-14.2: Each candidate is built into a Context Core and evaluated
   against the full PromptFoo suite.
 - FR-14.3: Best candidate promoted if it improves score by >= 2%.
-  If no candidate passes, all attempts logged to BigQuery and a Beads
-  task opened for manual intervention.
+  If no candidate passes, all attempts logged to Cloud Monitoring and
+  a Beads task opened for manual intervention.
 - FR-14.4: `research-charter.md` defines the standing instructions:
   metric definition, good context criteria, entity scope, exclusions
   (no PII, no credentials, no forward-looking strategy).
@@ -499,8 +501,9 @@ improvements.
 
 ### NFR-4: Scalability
 
-- AlloyDB instance starts at 4 vCPU / 32GB RAM; scale up when
-  query latency p99 exceeds 50ms.
+- CNPG PostgreSQL instance starts at 4 vCPU / 32GB RAM; scale up
+  when query latency p99 exceeds 50ms. Upgrade path to AlloyDB Omni
+  or managed AlloyDB if needed.
 - GKE node pools auto-scale (MCP pool: 2-6 nodes, general: 2-8
   nodes).
 - Revisit vector store choice only if corpus exceeds 100M vectors.
@@ -529,14 +532,14 @@ improvements.
 ### In Scope
 
 - Context repository structure and content.
-- MCP server (file-backed Phase 0, AlloyDB-backed Phase 1+).
+- MCP server (file-backed Phase 0, PostgreSQL/pgvector-backed Phase 1+).
 - Developer onboarding (install script, health check, settings
   merge).
 - Task tracking integration (Beads + AGENTS.md + hooks).
 - Spec-driven feature workflow (skills + glue scripts).
 - PR quality enforcement (template + CI check).
 - Ingestion pipeline (Klaus agents in GKE).
-- Observability (Langfuse + BigQuery).
+- Observability (OpenTelemetry + Cloud Monitoring).
 - Context evaluation (PromptFoo CI gate).
 - Gap detection (automated drafting + PR opening).
 - Knowledge graph (Graphiti, Phase 3).
@@ -558,13 +561,13 @@ improvements.
 ## Dependencies
 
 - Claude Code v2.1.32+ (Agent Teams support).
-- GCP project with AlloyDB, GKE, Cloud SQL, BigQuery, Cloud Storage,
+- GCP project with GKE, Cloud Monitoring, Cloud Storage,
   Cloud Scheduler access (Phase 1+).
+- CloudNativePG operator (CNPG) on GKE (Phase 1+).
 - GitHub organization with Actions, CODEOWNERS, and PR template
   support.
 - Beads CLI (`@beads/bd`).
 - Spec Kit CLI (`specify-cli`).
-- Langfuse (self-hosted on GKE, Phase 1+).
 - PromptFoo (Phase 1+).
 - Dolt (self-hosted on GKE, Phase 2).
 - Klaus (Phase 1+).

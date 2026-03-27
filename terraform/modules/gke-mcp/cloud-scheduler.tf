@@ -58,7 +58,7 @@ resource "google_cloud_scheduler_job" "nightly_reindex" {
       params = {
         name = "delegate_task"
         arguments = {
-          task     = "Full re-index of all context sources. Crawl every registered repository and content source. For each source file, upsert the corresponding chunks in AlloyDB (match on file_path + content_type + repo). After upsert completes, hard-delete any chunks whose source file no longer exists in the repository — do not soft-delete, remove them permanently. Report summary: total chunks upserted, total stale chunks deleted, any errors encountered."
+          task     = "Full re-index of all context sources. Crawl every registered repository and content source. For each source file, upsert the corresponding chunks in PostgreSQL (CNPG) (match on file_path + content_type + repo). After upsert completes, hard-delete any chunks whose source file no longer exists in the repository — do not soft-delete, remove them permanently. Report summary: total chunks upserted, total stale chunks deleted, any errors encountered."
           priority = "normal"
         }
       }
