@@ -73,7 +73,7 @@ if (!hasHook(settings.hooks, "PostToolUse", "bd update")) {
       {
         type: "command",
         command:
-          'TASK=$(bd list --claimed --json 2>/dev/null | jq -r \'.[0].id // empty\'); [ -n "$TASK" ] && bd update $TASK --progress 2>/dev/null || true',
+          'TASK=$(bd list --claimed --json 2>/dev/null | jq -r \'.[0].id // empty\' 2>/dev/null) || true; [ -n "$TASK" ] && bd update $TASK --progress 2>/dev/null || true',
       },
     ],
   });
@@ -87,7 +87,7 @@ if (!hasHook(settings.hooks, "Stop", "Active task")) {
       {
         type: "command",
         command:
-          'TASK=$(bd list --claimed --json 2>/dev/null | jq -r \'.[0].id // empty\'); [ -n "$TASK" ] && echo "[lore] Active task: $TASK \u2014 run \'bd update $TASK --status done\' if finished"',
+          'TASK=$(bd list --claimed --json 2>/dev/null | jq -r \'.[0].id // empty\' 2>/dev/null) || true; [ -n "$TASK" ] && echo "[lore] Active task: $TASK \u2014 run \'bd update $TASK --status done\' if finished" || true',
       },
     ],
   });
