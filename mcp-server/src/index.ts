@@ -30,7 +30,7 @@ function parseFrontmatter(content: string): { meta: Record<string, unknown>; bod
   return { meta, body: match[2] };
 }
 
-const server = new McpServer({ name: "@lore/context-mcp", version: "0.1.0" });
+const server = new McpServer({ name: "@re-cinq/lore-mcp", version: "0.1.0" });
 
 // --- get_context ---
 server.tool(

@@ -23,7 +23,7 @@ and draft content to fill them.
    b. Determine the right content type: CLAUDE.md addition, ADR, or runbook.
    c. Draft the missing content. Be specific — write the actual text,
       not a placeholder.
-   d. Open a PR to lore/context:
+   d. Open a PR to re-cinq/lore:
       - Branch: `gap-draft/<topic-slug>`
       - Label: `context-gap-draft`
       - Assign to the relevant team based on the namespace

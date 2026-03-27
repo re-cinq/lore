@@ -26,8 +26,8 @@
 
 ## Phase 1: Setup
 
-- [x] T001 Initialize `lore/context` GitHub repository with README, .gitignore, and LICENSE
-- [x] T002 Create repository directory structure per plan.md in lore/context/
+- [x] T001 Initialize `re-cinq/lore` GitHub repository with README, .gitignore, and LICENSE
+- [x] T002 Create repository directory structure per plan.md in re-cinq/lore/
 - [x] T003 [P] Initialize MCP server project with package.json and tsconfig.json in mcp-server/
 - [x] T004 [P] Create .github/PULL_REQUEST_TEMPLATE.md with required sections (Why, Approach, Alternatives Rejected, ADR References, Spec)
 
@@ -42,17 +42,17 @@ Populate the context repository with real organizational knowledge
 so the MCP server has content to serve and all downstream tools
 have context to work with.
 
-- [x] T005 Write root CLAUDE.md with architecture contracts, code conventions, and key service descriptions (under 2 pages) in lore/context/CLAUDE.md
-- [x] T006 [P] Write payments team conventions including ADR-042 minor units, PCI scope, and idempotency patterns in lore/context/teams/payments/CLAUDE.md
-- [x] T007 [P] Write platform team conventions in lore/context/teams/platform/CLAUDE.md
-- [x] T008 [P] Write mobile team conventions in lore/context/teams/mobile/CLAUDE.md
-- [x] T009 [P] Write data team conventions in lore/context/teams/data/CLAUDE.md
-- [x] T010 [P] Write ADR-042 (monetary amounts in minor units) in MADR format with YAML frontmatter in lore/context/adrs/ADR-042-minor-units.md
-- [x] T011 [P] Write second real ADR in MADR format with YAML frontmatter in lore/context/adrs/
-- [x] T012 [P] Write third real ADR in MADR format with YAML frontmatter in lore/context/adrs/
-- [x] T013 [P] Write runbook for stripe webhook failure incident in lore/context/runbooks/payments-service-stripe-webhook-failure.md
-- [x] T014 [P] Write second runbook from real incident in lore/context/runbooks/
-- [x] T015 Create CODEOWNERS with ownership boundaries (root CLAUDE.md -> platform-eng + tech-leads, teams/ -> respective teams, adrs/ -> arch-group) in lore/context/CODEOWNERS
+- [x] T005 Write root CLAUDE.md with architecture contracts, code conventions, and key service descriptions (under 2 pages) in re-cinq/lore/CLAUDE.md
+- [x] T006 [P] Write payments team conventions including ADR-042 minor units, PCI scope, and idempotency patterns in re-cinq/lore/teams/payments/CLAUDE.md
+- [x] T007 [P] Write platform team conventions in re-cinq/lore/teams/platform/CLAUDE.md
+- [x] T008 [P] Write mobile team conventions in re-cinq/lore/teams/mobile/CLAUDE.md
+- [x] T009 [P] Write data team conventions in re-cinq/lore/teams/data/CLAUDE.md
+- [x] T010 [P] Write ADR-042 (monetary amounts in minor units) in MADR format with YAML frontmatter in re-cinq/lore/adrs/ADR-042-minor-units.md
+- [x] T011 [P] Write second real ADR in MADR format with YAML frontmatter in re-cinq/lore/adrs/
+- [x] T012 [P] Write third real ADR in MADR format with YAML frontmatter in re-cinq/lore/adrs/
+- [x] T013 [P] Write runbook for stripe webhook failure incident in re-cinq/lore/runbooks/payments-service-stripe-webhook-failure.md
+- [x] T014 [P] Write second runbook from real incident in re-cinq/lore/runbooks/
+- [x] T015 Create CODEOWNERS with ownership boundaries (root CLAUDE.md -> platform-eng + tech-leads, teams/ -> respective teams, adrs/ -> arch-group) in re-cinq/lore/CODEOWNERS
 
 ---
 
@@ -75,7 +75,7 @@ Claude Code environment with org context loaded in under 5 minutes.
 - [x] T018 [US1] Write lore-merge-settings.js that reads existing ~/.claude/settings.json and merges platform MCP config, env vars, and hooks without overwriting personal hooks (~40 lines) in scripts/lore-merge-settings.js
 - [x] T019 [US1] Write lore-doctor.sh health check that tests MCP server, get_context, bd CLI, specify CLI, git connectivity, hooks, and skills — prints pass/fail with fix instructions (~40 lines) in scripts/lore-doctor.sh
 - [x] T020 [US1] Write install.sh: clone repo, build MCP server, detect team, run lore-merge-settings.js, install skills, install bd + specify-cli, run bd init, run lore-doctor — idempotent, works without pre-clone in scripts/install.sh
-- [x] T021 [US1] Write AGENTS.md with proactive guidance instructions (first session greeting, orientation, feature start, delegation, task tracking) in lore/context/AGENTS.md
+- [x] T021 [US1] Write AGENTS.md with proactive guidance instructions (first session greeting, orientation, feature start, delegation, task tracking) in re-cinq/lore/AGENTS.md
 
 ---
 
@@ -220,7 +220,7 @@ continues locally.
 - [x] T052 [US7] Implement task_status MCP tool: polls Klaus for task state, surfaces failure reason and Beads claim release in mcp-server/src/index.ts
 - [x] T053 [US7] Implement task_result MCP tool: retrieves completed output from Klaus in mcp-server/src/index.ts
 - [x] T054 [US7] Implement list_cluster_tasks MCP tool: lists all running/completed tasks in mcp-server/src/index.ts
-- [x] T055 [US7] Update AGENTS.md with delegation guidance: when to delegate, when not to, always pass context in lore/context/AGENTS.md
+- [x] T055 [US7] Update AGENTS.md with delegation guidance: when to delegate, when not to, always pass context in re-cinq/lore/AGENTS.md
 
 ---
 
@@ -242,13 +242,13 @@ tagged for gap detection.
 
 ### Story Goal
 Weekly job identifies low-confidence retrieval clusters and a Klaus
-agent drafts missing content and opens PRs to lore/context. Human
+agent drafts missing content and opens PRs to re-cinq/lore. Human
 review required.
 
 ### Independent Test Criteria
 - Gap detection identifies clusters with 3+ occurrences.
 - Klaus agent drafts specific, actionable content.
-- PR opened to lore/context, labelled context-gap-draft, assigned to team.
+- PR opened to re-cinq/lore, labelled context-gap-draft, assigned to team.
 - No content merged without human review.
 
 ### Tasks
@@ -256,7 +256,7 @@ review required.
 - [x] T061 [US8] Deploy self-hosted Dolt remote on GKE (dolt-helm chart) and update install.sh to add remote + auto-pull in scripts/install.sh
 - [x] T062 [US8] Add .specify/** to context-evals.yml trigger paths (1 line) in .github/workflows/context-evals.yml
 - [x] T063 [US8] Configure Cloud Scheduler weekly job (Monday 9am UTC): gap detection via delegate_task to Klaus in terraform/modules/gke-mcp/cloud-scheduler.tf
-- [x] T064 [US8] Write Klaus agent prompt for gap detection: query BigQuery for gap traces, cluster by similarity, draft missing content, open PR to lore/context with context-gap-draft label
+- [x] T064 [US8] Write Klaus agent prompt for gap detection: query BigQuery for gap traces, cluster by similarity, draft missing content, open PR to re-cinq/lore with context-gap-draft label
 
 ---
 

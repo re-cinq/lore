@@ -20,7 +20,7 @@ AVAILABLE_TEAMS = ["payments", "platform", "mobile", "data"]
 def call_mcp_tool(tool_name: str, arguments: dict) -> str:
     """Call an MCP tool via the local server and return the text result."""
     context_path = os.environ.get(
-        "CONTEXT_PATH", os.path.expanduser("~/.lore/context")
+        "CONTEXT_PATH", os.path.expanduser("~/.re-cinq/lore")
     )
     server_path = os.path.join(context_path, "mcp-server", "dist", "index.js")
 
