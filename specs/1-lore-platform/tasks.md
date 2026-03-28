@@ -164,9 +164,9 @@ ADRs. Warning mode for first 2 weeks, manual flip to enforcement.
 Platform engineering team runs the full loop end-to-end on a fresh
 machine. Fix friction. Validate Phase 0 before proceeding.
 
-- [ ] T033 Run end-to-end pilot: fresh install via curl|bash, lore-gen-constitution, /speckit.specify, /speckit.tasks, lore-tasks-to-beads, bd ready, implement one task, /lore-pr
-- [ ] T034 Fix friction discovered during pilot run — document any workarounds
-- [ ] T035 Verify Phase 0 gate: full loop in < 30 minutes, lore-doctor all green, no manual context loading required
+- [x] T033 Run end-to-end pilot: fresh install via curl|bash, lore-gen-constitution, /speckit.specify, /speckit.tasks, lore-tasks-to-beads, bd ready, implement one task, /lore-pr
+- [x] T034 Fix friction discovered during pilot run — document any workarounds
+- [x] T035 Verify Phase 0 gate: full loop in < 30 minutes, lore-doctor all green, no manual context loading required
 
 ---
 
