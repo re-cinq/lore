@@ -1,0 +1,33 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/re-cinq/lore-mcp
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 3000
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: 512Mi
+  requests:
+    cpu: "100m"
+    memory: 256Mi
+
+env:
+  MCP_TRANSPORT: http
+  PORT: "3000"
+  CONTEXT_PATH: /context
+  LORE_TEAM: platform
+  LORE_DB_HOST: lore-db-rw.alloydb.svc.cluster.local
+  LORE_DB_PORT: "5432"
+  LORE_DB_NAME: lore
+  LORE_DB_USER: postgres
+  LORE_KLAUS_ENDPOINT: http://klaus-klaus.klaus.svc.cluster.local:8080
+
+dbPasswordSecret:
+  name: lore-mcp-db-password
+  key: password

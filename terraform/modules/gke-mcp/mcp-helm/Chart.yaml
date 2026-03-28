@@ -1,0 +1,5 @@
+apiVersion: v2
+name: lore-mcp
+description: Lore MCP server for Claude Code context
+version: 0.1.0
+appVersion: "1.0.0"
