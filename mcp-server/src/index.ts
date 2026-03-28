@@ -1,5 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createServer } from "node:http";
 import { z } from "zod";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -146,8 +148,26 @@ server.tool(
 
 // --- Start server ---
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  const mode = process.env.MCP_TRANSPORT || "stdio";
+
+  if (mode === "http") {
+    const port = parseInt(process.env.PORT || "3000", 10);
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => crypto.randomUUID() });
+    const httpServer = createServer(async (req, res) => {
+      if (req.url === "/mcp" || req.url === "/mcp/") {
+        await transport.handleRequest(req, res);
+      } else {
+        res.writeHead(404).end();
+      }
+    });
+    await server.connect(transport);
+    httpServer.listen(port, () => {
+      console.log(`MCP server (HTTP) listening on :${port}/mcp`);
+    });
+  } else {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  }
 }
 
 main().catch((err) => {
