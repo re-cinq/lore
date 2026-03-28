@@ -15,6 +15,7 @@ import {
   getFilePrHistory,
   isAlloyDbAvailable,
   setPool,
+  getHealthStatus,
 } from "./db.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
@@ -224,6 +225,11 @@ async function main() {
     const httpServer = createServer(async (req, res) => {
       if (req.url === "/mcp" || req.url === "/mcp/") {
         await transport.handleRequest(req, res);
+      } else if (req.url === "/healthz") {
+        const health = await getHealthStatus();
+        const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
+        const code = status === "error" ? 503 : 200;
+        res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status, database: health }));
       } else {
         res.writeHead(404).end();
       }

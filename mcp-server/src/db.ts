@@ -32,6 +32,23 @@ export async function isAlloyDbAvailable(): Promise<boolean> {
   }
 }
 
+export async function getHealthStatus(): Promise<{
+  connected: boolean;
+  chunk_count: number | null;
+  reason?: string;
+}> {
+  if (!pool) {
+    return { connected: false, chunk_count: null, reason: "no database configured (file-backed mode)" };
+  }
+  try {
+    await pool.query("SELECT 1");
+    const { rows } = await pool.query("SELECT count(*)::int AS cnt FROM org_shared.chunks");
+    return { connected: true, chunk_count: rows[0].cnt };
+  } catch {
+    return { connected: false, chunk_count: null, reason: "connection failed" };
+  }
+}
+
 // ── Vertex AI embedding ─────────────────────────────────────────────
 
 async function getQueryEmbedding(query: string): Promise<number[] | null> {
