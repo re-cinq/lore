@@ -58,7 +58,7 @@ if (!hasHook(settings.hooks, "SessionStart", "re-cinq/lore")) {
       {
         type: "command",
         command:
-          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; bd pull --quiet 2>/dev/null; echo '[lore] Context and task state synced'",
+          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; bd pull --quiet 2>/dev/null; [ ! -d .beads ] && command -v bd &>/dev/null && bd init --quiet 2>/dev/null; echo '[lore] Context and task state synced'",
       },
     ],
   });
