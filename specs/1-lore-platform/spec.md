@@ -482,7 +482,10 @@ improvements.
 ### NFR-2: Performance
 
 - Context search returns results in under 200ms (p99) once
-  infrastructure is deployed.
+  infrastructure is deployed. **Note (2026-03-28):** Hybrid search
+  (Vertex AI embedding + HNSW + BM25 + RRF) is functional end-to-end
+  but p99 latency has not been benchmarked yet. The 200ms target
+  remains aspirational until measured under load.
 - Install script completes in under 5 minutes.
 - Session start context sync completes in under 5 seconds.
 - Incremental ingestion completes within 5 minutes of a merge.
@@ -566,6 +569,10 @@ improvements.
   `europe-west1`) and Cloud Monitoring access (Phase 1+).
 - CloudNativePG operator (CNPG) on GKE (Phase 1+, already installed
   on shared cluster).
+- Vertex AI `text-embedding-005` for 768-dim embeddings (Phase 1+).
+  Auth via Workload Identity — `lore-mcp-server` GCP SA with
+  `aiplatform.user` role, bound to `default` SA in `mcp-servers`
+  namespace. No API keys.
 - GitHub organization with Actions, CODEOWNERS, and PR template
   support.
 - Beads CLI (`@beads/bd`).

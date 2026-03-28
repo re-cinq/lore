@@ -6,7 +6,7 @@
 | Branch       | 1-lore-platform                                 |
 | Spec         | [spec.md](spec.md)                              |
 | Constitution | [constitution.md](../../.specify/memory/constitution.md) |
-| Status       | Phase 1 Deployed                                |
+| Status       | Phase 1 Operational — hybrid search verified    |
 | Created      | 2026-03-25                                      |
 
 ## Technical Context
@@ -336,6 +336,16 @@ BigQuery.
 - Re-run `install.sh` — no workflow changes, better context quality.
 - Cloud Monitoring shows retrieval latency p99 per namespace. Low-confidence tagged.
 - PR changing CLAUDE.md to "store amounts as floats" fails CI.
+- Hybrid search verified end-to-end: Workload Identity → Vertex AI
+  text-embedding-005 → PostgreSQL HNSW + BM25 → RRF ranked results.
+  Query "how does the lore platform work" returns plan.md, spec.md,
+  platform CLAUDE.md as top results.
+- Dedicated `lore` DB user (not the CNPG-managed `postgres` user) for
+  cross-namespace access — bypasses CNPG reconciliation of password.
+- Embeddings generated via `scripts/infra/generate-embeddings.sh`
+  using Vertex AI text-embedding-005 (768 dimensions).
+- 46 chunks seeded from clean repo after `lore-init` replaced
+  fictional Acme content with re-cinq skeleton.
 
 ### Phase 2: Feedback Loop (Weeks 4-5)
 
