@@ -65,17 +65,11 @@ select_team() {
   if [ -z "$TEAM" ]; then
     echo ""
     echo "[lore] Available teams:"
-    echo "  1) payments"
-    echo "  2) platform"
-    echo "  3) mobile"
-    echo "  4) data"
+    echo "  1) platform"
     echo ""
-    read -r -p "[lore] Select your team (1-4): " CHOICE
+    read -r -p "[lore] Select your team (1-1): " CHOICE
     case "$CHOICE" in
-      1) TEAM="payments" ;;
-      2) TEAM="platform" ;;
-      3) TEAM="mobile" ;;
-      4) TEAM="data" ;;
+      1) TEAM="platform" ;;
       *) echo "[lore] Invalid choice, defaulting to 'platform'"; TEAM="platform" ;;
     esac
     git config --global lore.team "$TEAM"
