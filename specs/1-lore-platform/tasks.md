@@ -71,7 +71,7 @@ Claude Code environment with org context loaded in under 5 minutes.
 ### Tasks
 
 - [x] T016 [US1] Implement MVP MCP server with get_context, get_adrs, and search_context tools (~80 lines) in mcp-server/src/index.ts
-- [x] T017 [US1] Add Dockerfile for MCP server in mcp-server/Dockerfile
+- [x] T017 [US1] Add Dockerfile for MCP server (ghcr.io/re-cinq/lore-mcp:latest), supports stdio (local) and HTTP (:3000/mcp, GKE) transport via MCP_TRANSPORT env var
 - [x] T018 [US1] Write lore-merge-settings.js that reads existing ~/.claude/settings.json and merges platform MCP config, env vars, and hooks without overwriting personal hooks (~40 lines) in scripts/lore-merge-settings.js
 - [x] T019 [US1] Write lore-doctor.sh health check that tests MCP server, get_context, bd CLI, specify CLI, git connectivity, hooks, and skills — prints pass/fail with fix instructions (~40 lines) in scripts/lore-doctor.sh
 - [x] T020 [US1] Write install.sh: clone repo, build MCP server, detect team, run lore-merge-settings.js, install skills, install bd + specify-cli, run bd init, run lore-doctor — idempotent, works without pre-clone in scripts/install.sh
@@ -183,16 +183,16 @@ results from PostgreSQL via hybrid vector + keyword search in < 200ms.
 
 ### Tasks
 
-- [x] T036 [US6] Write Terraform module for PostgreSQL cluster (Enterprise, europe-west4, db-perf-optimized-N-4) with vector/scann/ml extensions in terraform/modules/lore-db/
-- [x] T037 [US6] Write Terraform PostgreSQL schema-per-team DDL: chunks table with VECTOR(768), HNSW index, GIN index on search_tsv for payments, platform, mobile, data, org_shared in terraform/modules/lore-db/schemas.sql
-- [x] T038 [US6] Write Terraform module for GKE cluster (lore-ai-platform, private, regional europe-west4) with mcp-servers, langfuse, klaus namespaces in terraform/modules/gke-mcp/
-- [x] T039 [US6] Write Terraform Workload Identity bindings: per-team MCP service account (read own schema + org_shared), Klaus SA (write ingestion + read GitHub) in terraform/modules/gke-mcp/workload-identity.tf
+- [x] T036 [US6] Deploy CNPG Cluster resource (PostgreSQL 16 + pgvector) in namespace "alloydb" on existing GKE cluster n8n-cluster (europe-west1)
+- [x] T037 [US6] Create schema-per-team DDL: chunks table with VECTOR(768), HNSW index, GIN index on search_tsv for payments, platform, mobile, data, org_shared schemas
+- [x] T038 [US6] Configure namespaces (mcp-servers, klaus, alloydb, dolt) on existing GKE cluster n8n-cluster in europe-west1
+- [x] T039 [US6] Configure Workload Identity bindings: per-team MCP service account (read own schema + org_shared), Klaus SA (write ingestion + read GitHub)
 - [x] T040 [US6] Upgrade MCP server search_context to hybrid PostgreSQL search: HNSW vector + BM25 keyword with Reciprocal Rank Fusion (k=60) in mcp-server/src/index.ts
 - [x] T041 [US6] Upgrade MCP server get_context and get_adrs to query PostgreSQL instead of local files in mcp-server/src/index.ts
 - [x] T042 [US6] Add get_file_pr_history tool to MCP server: queries chunks WHERE content_type=pull_request AND file_path in metadata.files_changed in mcp-server/src/index.ts
 - [x] T043 [US6] Implement degraded-mode fallback: catch PostgreSQL connection errors, fall back to local files, display one-time warning in mcp-server/src/index.ts
 - [x] T044 [P] [US6] Write incremental ingest GitHub Action: on push to main, submit changed files to Klaus via delegate_task in .github/workflows/ingest-context.yml
-- [x] T045 [US6] Configure Cloud Scheduler nightly job (2am): full re-index via delegate_task to Klaus, hard-delete stale chunks in terraform/modules/gke-mcp/cloud-scheduler.tf
+- [x] T045 [US6] Deploy 3 CronJobs in klaus namespace: nightly reindex (2am), weekly gap detection (Mon 9am), weekly spec drift (Mon 10am)
 - [x] T046 [P] [US6] Write PromptFoo eval suite with 5-10 test cases for payments team in evals/payments/promptfooconfig.yaml
 - [x] T047 [P] [US6] Write PromptFoo eval suite with 5-10 test cases for platform team in evals/platform/promptfooconfig.yaml
 - [x] T048 [US6] Write context-evals.yml GitHub Action: triggered on ADR/CLAUDE.md/spec changes, runs PromptFoo with --assert-pass-rate 0.85 in .github/workflows/context-evals.yml
@@ -214,7 +214,7 @@ continues locally.
 
 ### Tasks
 
-- [x] T049 [US7] Write Klaus Helm chart for GKE klaus namespace with HTTP MCP endpoint, resource limits, configurable timeouts in terraform/modules/gke-mcp/klaus-helm/
+- [x] T049 [US7] Build Klaus from source (giantswarm/klaus), push to ghcr.io/re-cinq/klaus:latest, deploy in GKE klaus namespace on port 8080 with real Anthropic API key
 - [x] T050 [US7] Implement buildContextBundle function: packages Beads task + spec + constitution + PostgreSQL seed chunks + branch (~80 lines) in mcp-server/src/context-bundle.ts
 - [x] T051 [US7] Implement delegate_task MCP tool: packages context bundle, submits to Klaus HTTP endpoint, returns task_id in mcp-server/src/index.ts
 - [x] T052 [US7] Implement task_status MCP tool: polls Klaus for task state, surfaces failure reason and Beads claim release in mcp-server/src/index.ts
@@ -227,14 +227,15 @@ continues locally.
 ## Phase 11: Observability [Phase 1]
 
 ### Goal
-All MCP retrieval calls traced in Langfuse. Low-confidence retrievals
-tagged for gap detection.
+All MCP retrieval calls traced via OpenTelemetry to Cloud Monitoring.
+Low-confidence retrievals tagged for gap detection. No Langfuse, no
+Cloud SQL, no BigQuery — OTEL built directly into the MCP server.
 
-- [x] T056 Write Terraform module for Langfuse: Helm chart on GKE langfuse namespace, Cloud SQL Auth Proxy sidecar, OIDC SSO in terraform/modules/langfuse/
-- [x] T057 Write Terraform for Cloud SQL (postgres-15, db-g1-small) for Langfuse metadata in terraform/modules/langfuse/cloud-sql.tf
-- [x] T058 [P] Write Terraform for BigQuery dataset lore_platform_traces and Cloud Storage bucket lore-langfuse-media in terraform/modules/langfuse/bigquery.tf
-- [x] T059 Implement tracedSearch wrapper in MCP server: traces every retrieval call to Langfuse, tags low-confidence (< 0.72) as gap_candidate in mcp-server/src/index.ts
-- [x] T060 Configure Langfuse BigQuery export integration for gap detection analytics in terraform/modules/langfuse/
+- [x] T056 Integrate OpenTelemetry SDK into Lore MCP server with Cloud Monitoring exporter for traces + metrics
+- [x] T057 Configure OTEL spans for all MCP retrieval calls with latency and confidence attributes
+- [x] T058 [P] Set up Cloud Monitoring custom metric (lore/gap_candidates) for low-confidence retrieval tracking
+- [x] T059 Implement tracedSearch wrapper in MCP server: emits OTEL spans for every retrieval call, tags low-confidence (< 0.72) as gap_candidate via span attributes
+- [x] T060 Configure Cloud Monitoring dashboards: retrieval latency p99, gap candidate rate, query volume per namespace
 
 ---
 
@@ -253,10 +254,10 @@ review required.
 
 ### Tasks
 
-- [x] T061 [US8] Deploy self-hosted Dolt remote on GKE (dolt-helm chart) and update install.sh to add remote + auto-pull in scripts/install.sh
+- [x] T061 [US8] Deploy self-hosted Dolt remote (dolt-sql-server) in GKE dolt namespace and update install.sh to add remote + auto-pull in scripts/install.sh
 - [x] T062 [US8] Add .specify/** to context-evals.yml trigger paths (1 line) in .github/workflows/context-evals.yml
-- [x] T063 [US8] Configure Cloud Scheduler weekly job (Monday 9am UTC): gap detection via delegate_task to Klaus in terraform/modules/gke-mcp/cloud-scheduler.tf
-- [x] T064 [US8] Write Klaus agent prompt for gap detection: query BigQuery for gap traces, cluster by similarity, draft missing content, open PR to re-cinq/lore with context-gap-draft label
+- [x] T063 [US8] Deploy weekly gap detection CronJob (Monday 9am UTC) in klaus namespace: delegate_task to Klaus
+- [x] T064 [US8] Write Klaus agent prompt for gap detection: query Cloud Monitoring for gap candidate metrics, cluster by similarity, draft missing content, open PR to re-cinq/lore with context-gap-draft label
 
 ---
 
@@ -277,7 +278,7 @@ Autoresearch loop autonomously improves context quality.
 ### Tasks
 
 - [x] T065 [US9] Write ontology definition file with 8 entity types and 15 relationships in scripts/graphiti/ontology.yaml
-- [ ] T066 [US9] Write Terraform/Helm for Graphiti deployment on GKE (graphiti namespace + FalkorDB) in terraform/modules/graphiti/
+- [ ] T066 [US9] Write K8s manifests for Graphiti deployment on GKE (graphiti namespace + FalkorDB)
 - [ ] T067 [US9] Rewrite mcp-server/src/graph.ts: graph_search and get_entity_history as Graphiti MCP proxies (replace local JSON implementation)
 - [x] T068 [US9] Write Klaus agent prompt for weekly spec drift detection with VIOLATES graph edges in scripts/klaus-prompts/spec-drift.md
 - [x] T069 [US9] Add optional AgentDB local cache prompt to install.sh
@@ -292,8 +293,8 @@ Autoresearch loop autonomously improves context quality.
 
 - [x] T070 Review and harden install.sh error handling: ensure every step has clear error messages and recovery instructions in scripts/install.sh
 - [x] T071 Write internal comms template for PR description enforcement rollout (frame as "makes Claude Code smarter for the team")
-- [ ] T072 Verify all Terraform modules pass `terraform validate` and `terraform plan` in terraform/
-- [x] T073 Update lore-doctor.sh to include Phase 1+ checks: PostgreSQL reachable, Langfuse reachable, Klaus endpoint responsive in scripts/lore-doctor.sh
+- [ ] T072 Verify all K8s manifests pass validation (kubectl dry-run) for CNPG Cluster, Klaus deployment, MCP server deployment, Dolt, and CronJobs
+- [x] T073 Update lore-doctor.sh to include Phase 1+ checks: PostgreSQL (CNPG) reachable, Klaus endpoint responsive, OTEL traces flowing to Cloud Monitoring in scripts/lore-doctor.sh
 
 ---
 
@@ -350,18 +351,17 @@ Day 3:
 
 ```
 Week 2:
-  Agent A: T036, T037 (PostgreSQL Terraform) [P]
-  Agent B: T038, T039 (GKE Terraform) [P]
-  Agent C: T049 (Klaus Helm chart)
+  Agent A: T036, T037 (CNPG Cluster + schemas) [P]
+  Agent B: T038, T039 (GKE namespace setup + Workload Identity) [P]
+  Agent C: T049 (Klaus build + deploy)
   Sync: T040-T043 (MCP server upgrade — needs PostgreSQL)
 
 Week 3:
-  Agent A: T044, T045 (ingestion triggers) [P]
+  Agent A: T044, T045 (ingestion triggers + CronJobs) [P]
   Agent B: T046, T047 (PromptFoo evals) [P]
   Agent C: T050, T051-T054 (Klaus client + delegation tools)
-  Agent D: T056-T058 (Langfuse Terraform) [P]
+  Agent D: T056-T059 (OTEL instrumentation) [P]
   Sync: T048 (context-evals CI)
-  Sync: T059 (tracedSearch — needs Langfuse)
 ```
 
 ## Implementation Strategy
@@ -372,7 +372,7 @@ Week 3:
 - Gate: pilot team completes full feature loop.
 
 ### Phase 1 Increment (Weeks 2-3)
-- T036-T060: PostgreSQL, Klaus, Langfuse, PromptFoo CI.
+- T036-T060: PostgreSQL (CNPG), Klaus, OTEL + Cloud Monitoring, PromptFoo CI.
 - 25 tasks, targeting 2 weeks.
 - Gate: Phase 1 acceptance criteria pass.
 

@@ -6,7 +6,7 @@
 | Branch       | 1-lore-platform                                 |
 | Spec         | [spec.md](spec.md)                              |
 | Constitution | [constitution.md](../../.specify/memory/constitution.md) |
-| Status       | Draft                                           |
+| Status       | Phase 1 Deployed                                |
 | Created      | 2026-03-25                                      |
 
 ## Technical Context
@@ -22,11 +22,11 @@
 | Install            | Bash (install.sh)                | 0     |
 | Platform Skills    | Markdown (lore-feature.md, lore-pr.md) | 0  |
 | PR CI Check        | GitHub Actions YAML              | 0     |
-| Vector Store       | PostgreSQL + pgvector (CNPG on GKE, europe-west4) | 1 |
+| Vector Store       | PostgreSQL + pgvector (CNPG on GKE, europe-west1) | 1 |
 | Cluster Agents     | Klaus on GKE                     | 1     |
 | Observability      | OpenTelemetry → Cloud Monitoring  | 1    |
 | CI Evals           | PromptFoo                        | 1     |
-| Infrastructure     | Terraform + CNPG operator + Helm | 1     |
+| Infrastructure     | CNPG operator + K8s manifests + CronJobs | 1     |
 | Task Sync          | Dolt (self-hosted on GKE)        | 2     |
 | Knowledge Graph    | Graphiti + FalkorDB                | 3     |
 | Context Cores      | OCI bundles via Artifact Registry  | 3     |
@@ -73,7 +73,7 @@ re-cinq/lore/
 │   └── skills/
 │       ├── lore-feature.md
 │       └── lore-pr.md
-├── terraform/
+├── k8s/                    # K8s manifests (CNPG, Klaus, MCP, Dolt, CronJobs)
 ├── .github/
 │   ├── workflows/
 │   │   ├── pr-description-check.yml
@@ -238,17 +238,21 @@ MCP server to serve.
 
 ### Phase 1: Managed Infrastructure (Weeks 2-3)
 
+Phase 1 deployed onto the existing shared GKE cluster `n8n-cluster`
+in `europe-west1` — no new cluster was provisioned. All infrastructure
+is Kubernetes-native (CNPG operator, K8s CronJobs, K8s Deployments).
+No Terraform, no Cloud SQL, no Cloud Scheduler, no Langfuse, no
+BigQuery.
+
 #### Week 2: Infrastructure + Klaus
 
 1. **Infrastructure provisioning:**
-   - GKE cluster (`lore-ai-platform`, private, regional,
-     `europe-west4`).
-   - Node pools: `mcp-pool` (n2-standard-4, 2-6),
-     `general` (n2-standard-2, 2-8).
-   - Namespaces: `mcp-servers`, `cnpg-system`, `klaus`.
-   - CNPG operator installed via Helm.
-   - CNPG Cluster resource: PostgreSQL 16 with `pgvector` extension.
-   - Schema per team: `payments`, `platform`, `mobile`, `data`,
+   - Existing GKE cluster `n8n-cluster` in `europe-west1` (shared
+     cluster, already running).
+   - CNPG operator already installed on cluster.
+   - CNPG Cluster resource deployed: PostgreSQL 16 with `pgvector`
+     extension, namespace `alloydb`, pod `lore-db-1`.
+   - 5 schemas: `payments`, `platform`, `mobile`, `data`,
      `org_shared`.
    - Chunks table with `VECTOR(768)` embedding column, HNSW index
      (`lists = 100, m = 16, ef_construction = 64`),
@@ -256,12 +260,20 @@ MCP server to serve.
    - Workload Identity bindings per MCP server.
 
 2. **Klaus deployment:**
-   - Helm chart in GKE `klaus` namespace.
-   - HTTP MCP endpoint for task submission.
+   - Built from source (`giantswarm/klaus`), pushed to
+     `ghcr.io/re-cinq/klaus:latest`.
+   - Deployed in GKE `klaus` namespace, port 8080.
+   - Configured with real Anthropic API key.
    - Workload Identity: write to PostgreSQL ingestion schemas +
      read GitHub API.
 
-3. **Lore MCP server — Klaus client module (~200 lines TS):**
+3. **Lore MCP server deployment:**
+   - Built and pushed to `ghcr.io/re-cinq/lore-mcp:latest`.
+   - Deployed in GKE `mcp-servers` namespace.
+   - HTTP transport on `:3000/mcp` (GKE), stdio transport for
+     local dev — selected via `MCP_TRANSPORT` env var.
+   - Connected to PostgreSQL (CNPG) + Klaus + Cloud Monitoring
+     via OTEL.
    - `delegate_task(task, context?, priority?)` — packages context
      bundle, submits to Klaus HTTP endpoint.
    - `task_status(task_id)` — polls Klaus.
@@ -270,7 +282,11 @@ MCP server to serve.
    - `buildContextBundle()` (~80 lines) — packages Beads task +
      spec + PostgreSQL seed chunks + branch.
 
-4. **AGENTS.md update:** add delegation guidance (when to delegate,
+4. **Dolt remote deployment:**
+   - Deployed in GKE `dolt` namespace as `dolt-sql-server`.
+   - Used for Beads task sync across developers.
+
+5. **AGENTS.md update:** add delegation guidance (when to delegate,
    when not to, always pass context).
 
 #### Week 3: MCP Upgrade + Observability + Evals
@@ -285,22 +301,25 @@ MCP server to serve.
    - Add degraded-mode fallback (local files + warning).
    - No interface changes — `install.sh` re-run updates seamlessly.
 
-2. **Cloud Scheduler jobs → Klaus:**
+2. **CronJobs in `klaus` namespace (replacing Cloud Scheduler):**
+   - Nightly full re-index: CronJob at 2am UTC →
+     `delegate_task` to Klaus. Hard-delete stale chunks.
+   - Weekly gap detection: CronJob Monday 9am UTC →
+     `delegate_task` to Klaus.
+   - Weekly spec drift: CronJob Monday 10am UTC →
+     `delegate_task` to Klaus.
    - Incremental ingest: GitHub Actions on-push webhook triggers
      `delegate_task` to Klaus.
-   - Nightly full re-index: Cloud Scheduler 2am →
-     `delegate_task` to Klaus.
-   - Hard-delete stale chunks during nightly re-index.
 
-3. **OpenTelemetry instrumentation:**
-   - Add `@opentelemetry/sdk-node` + `@opentelemetry/exporter-cloud-monitoring`
-     to MCP server.
+3. **OpenTelemetry instrumentation (built into MCP server):**
+   - OTEL SDK integrated directly into the Lore MCP server.
+   - Traces + metrics exported to Cloud Monitoring.
    - `tracedSearch()` wrapper emits OTEL spans for every MCP retrieval call.
    - Low-confidence threshold tagging (initial: 0.72) as OTEL span
      attributes + Cloud Monitoring custom metric (`lore/gap_candidates`).
    - Cloud Monitoring dashboards: retrieval latency p99, gap candidate
      rate, query volume per namespace.
-   - Optional: Langfuse Lite sidecar later if deeper trace debugging needed.
+   - No Langfuse — OTEL to Cloud Monitoring is sufficient.
 
 4. **PromptFoo CI evals:**
    - `evals/<team>/promptfooconfig.yaml` per team (5-10 cases).
@@ -320,9 +339,13 @@ MCP server to serve.
 
 ### Phase 2: Feedback Loop (Weeks 4-5)
 
-1. **Dolt remote (~1 hour):**
-   - Create DoltHub `lore/beads-tasks`.
-   - Add remote to `install.sh`.
+Dolt remote and gap detection CronJob were deployed as part of
+Phase 1, reducing Phase 2 scope.
+
+1. **Dolt remote (deployed in Phase 1):**
+   - Self-hosted `dolt-sql-server` in GKE `dolt` namespace (no
+     DoltHub dependency).
+   - Remote added to `install.sh`.
    - Auto-pull in `.zshrc`/`.bashrc`.
    - Optimistic locking with version counter for concurrent claims.
 
@@ -333,8 +356,9 @@ MCP server to serve.
 3. **Spec evals in CI:**
    - Add `.specify/**` to `context-evals.yml` trigger paths.
 
-4. **Gap detection Klaus agent:**
-   - Cloud Scheduler Monday 9am UTC → `delegate_task`.
+4. **Gap detection Klaus agent (CronJob deployed in Phase 1):**
+   - CronJob Monday 9am UTC in `klaus` namespace →
+     `delegate_task`.
    - Agent queries Cloud Monitoring for gap candidate metrics.
    - Clusters by embedding similarity.
    - For 3+ occurrence clusters: drafts content, opens PR to
