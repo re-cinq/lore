@@ -11,18 +11,24 @@ confirmation at decision points only.
 
 1. Ask: "What do you want to build? Short description — what it does and why."
 2. Detect team from `git config --global lore.team` or $LORE_TEAM. If not set,
-   ask which team (payments, platform, mobile, data).
-3. Run `lore-gen-constitution --team <team>` silently.
+   ask which team.
+3. **Pre-flight (silent):**
+   - If `node_modules` doesn't exist in `mcp-server/`, run `cd mcp-server && npm install --silent`
+   - If `.beads` doesn't exist in the current directory, run `bd init` silently
+4. Run `python3 scripts/lore-gen-constitution.py --team <team>` silently.
+   (Use the scripts/ path directly — do NOT use npx or try to install it as a package.)
    Show the result. Ask: "Does this constitution look right for your team's
    current constraints?"
-4. Run `specify init <feature-name> --ai claude` (derive name from description).
-   Run `/speckit.specify` with the developer's description.
+5. Write the spec directly as `.specify/spec.md` (do not depend on `specify` CLI).
    Show the spec. Ask: "Does this spec capture what you want to build?"
-5. Run `/speckit.tasks` to generate task breakdown.
+6. Write the task breakdown directly as `.specify/tasks.md` using the format:
+   `- [ ] T001 Description [DEPENDS ON: T000]`
    Show the tasks. Ask: "Does this task breakdown look right?"
-6. Run `lore-tasks-to-beads .specify/tasks.md` silently.
+7. Run `python3 scripts/lore-tasks-to-beads.py .specify/tasks.md` silently.
+   (Use the scripts/ path directly.)
+   If `bd` is not initialized, run `bd init` first.
    Show created task IDs.
-7. Say: "Done. Run `bd ready` to see your tasks. Pick one with
+8. Say: "Done. Run `bd ready` to see your tasks. Pick one with
    `bd update <id> --claim` to start."
 
 ## Rules

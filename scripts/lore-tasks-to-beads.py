@@ -32,6 +32,12 @@ def check_bd():
         )
         sys.exit(1)
 
+    # Auto-init Beads if not yet initialized in cwd
+    if not Path(".beads").exists():
+        print("[lore] Beads not initialized, running bd init...")
+        subprocess.run(["bd", "init"], capture_output=True)
+
+
 
 def run_bd(args: list[str]) -> str:
     result = subprocess.run(
