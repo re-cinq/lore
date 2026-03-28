@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/giantswarm/klaus
+  repository: ghcr.io/re-cinq/klaus
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -11,11 +11,11 @@ service:
 
 resources:
   limits:
-    cpu: "2"
-    memory: 4Gi
+    cpu: "1"
+    memory: 2Gi
   requests:
-    cpu: "500m"
-    memory: 1Gi
+    cpu: "250m"
+    memory: 512Mi
 
 taskDefaults:
   timeoutMinutes: 30

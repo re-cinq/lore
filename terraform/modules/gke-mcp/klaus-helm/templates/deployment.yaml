@@ -20,6 +20,10 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
       containers:
         - name: klaus
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -31,20 +35,14 @@ spec:
           env:
             {{- toYaml .Values.env | nindent 12 }}
           livenessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: http
             initialDelaySeconds: 15
             periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 3
           readinessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
