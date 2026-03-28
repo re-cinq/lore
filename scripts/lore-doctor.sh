@@ -81,15 +81,15 @@ else
   echo "- not configured (LORE_DB_HOST not set)"
 fi
 
-echo -n "  Langfuse: "
-if [ -n "${LANGFUSE_HOST:-}" ]; then
-  if curl -sf --max-time 3 "$LANGFUSE_HOST/api/public/health" &>/dev/null; then
+echo -n "  MCP HTTP endpoint: "
+if [ -n "${LORE_MCP_ENDPOINT:-}" ]; then
+  if curl -sf --max-time 3 "$LORE_MCP_ENDPOINT/mcp" -X POST -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' -H 'Content-Type: application/json' &>/dev/null; then
     echo "reachable"
   else
-    echo "unreachable at $LANGFUSE_HOST"
+    echo "unreachable at $LORE_MCP_ENDPOINT"
   fi
 else
-  echo "- not configured (LANGFUSE_HOST not set)"
+  echo "- not configured (LORE_MCP_ENDPOINT not set)"
 fi
 
 echo -n "  Klaus: "
@@ -108,6 +108,13 @@ if command -v bd &>/dev/null && bd remote -v 2>/dev/null | grep -q origin; then
   echo "configured"
 else
   echo "- not configured"
+fi
+
+echo -n "  Scheduled jobs: "
+if kubectl get cronjobs -n klaus 2>/dev/null | grep -q lore-; then
+  echo "configured ($(kubectl get cronjobs -n klaus --no-headers 2>/dev/null | wc -l | tr -d ' ') jobs)"
+else
+  echo "- not configured (run scripts/infra/setup-schedulers.sh)"
 fi
 
 if [ "$FAIL" -gt 0 ]; then

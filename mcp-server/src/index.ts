@@ -7,6 +7,15 @@ import { z } from "zod";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { globSync } from "glob";
+import pg from "pg";
+import {
+  hybridSearch,
+  getContextFromDb,
+  getAdrsFromDb,
+  getFilePrHistory,
+  isAlloyDbAvailable,
+  setPool,
+} from "./db.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -41,6 +50,16 @@ server.tool(
   "Returns merged CLAUDE.md content for the org and optionally a specific team.",
   { team: z.string().optional().describe('Team name (e.g., "payments"). If omitted, returns org-level context only.') },
   async ({ team }) => {
+    if (await isAlloyDbAvailable()) {
+      const results = await getContextFromDb(team || "org_shared");
+      if (results.length === 0) {
+        return { content: [{ type: "text" as const, text: `No context documents found for "${team || "org_shared"}".` }] };
+      }
+      const text = results.map((r: any) => r.content).join("\n\n---\n\n");
+      return { content: [{ type: "text" as const, text }] };
+    }
+
+    // File-based fallback
     const rootPath = join(CONTEXT_PATH, "CLAUDE.md");
     const root = readFileSafe(rootPath);
     if (!root) {
@@ -69,6 +88,16 @@ server.tool(
     status: z.enum(["proposed", "accepted", "deprecated", "superseded"]).default("accepted").describe("ADR status filter. Defaults to accepted."),
   },
   async ({ domain, status }) => {
+    if (await isAlloyDbAvailable()) {
+      const results = await getAdrsFromDb(domain || "", status);
+      if (results.length === 0) {
+        return { content: [{ type: "text" as const, text: domain ? `No ADRs found for domain "${domain}" with status "${status}".` : `No ADRs found with status "${status}".` }] };
+      }
+      const text = results.map((r: any) => r.content).join("\n\n---\n\n");
+      return { content: [{ type: "text" as const, text }] };
+    }
+
+    // File-based fallback
     const adrsDir = join(CONTEXT_PATH, "adrs");
     if (!existsSync(adrsDir)) {
       return { content: [{ type: "text" as const, text: `Error: adrs/ directory not found at ${adrsDir}.` }] };
@@ -117,6 +146,17 @@ server.tool(
     limit: z.number().default(8).describe("Maximum results to return."),
   },
   async ({ query, team, limit }) => {
+    if (await isAlloyDbAvailable()) {
+      const schema = team || "org_shared";
+      const results = await hybridSearch(query, schema, limit);
+      // trace with actual RRF score
+      traceRetrieval({ query, namespace: schema, topScore: results[0]?.rrf_score || 0, resultCount: results.length });
+      if (results.length === 0) return { content: [{ type: "text" as const, text: `No results for "${query}".` }] };
+      const text = results.map((r: any) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`).join("\n\n---\n\n");
+      return { content: [{ type: "text" as const, text }] };
+    }
+
+    // File-based fallback
     const searchRoot = team ? join(CONTEXT_PATH, "teams", team) : CONTEXT_PATH;
     if (!existsSync(searchRoot)) {
       return { content: [{ type: "text" as const, text: `Error: search path not found at ${searchRoot}.` }] };
@@ -159,6 +199,23 @@ server.tool(
 // --- Start server ---
 async function main() {
   await initOtel();
+
+  // Initialize PostgreSQL connection pool if LORE_DB_HOST is set
+  if (process.env.LORE_DB_HOST) {
+    const dbHost = process.env.LORE_DB_HOST;
+    const dbPool = new pg.Pool({
+      host: dbHost,
+      port: parseInt(process.env.LORE_DB_PORT || "5432", 10),
+      database: process.env.LORE_DB_NAME || "lore",
+      user: process.env.LORE_DB_USER || "postgres",
+      password: process.env.LORE_DB_PASSWORD,
+    });
+    setPool(dbPool);
+    console.error(`[lore] Database mode: PostgreSQL at ${dbHost}`);
+  } else {
+    console.error("[lore] Database mode: local files (LORE_DB_HOST not set)");
+  }
+
   const mode = process.env.MCP_TRANSPORT || "stdio";
 
   if (mode === "http") {
