@@ -1,3 +1,4 @@
+import { initOtel, traceRetrieval, shutdownOtel } from "./otel.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -138,6 +139,15 @@ server.tool(
       if (results.length >= limit) break;
     }
 
+    // Trace the retrieval for observability + gap detection
+    const topScore = results.length > 0 ? 1.0 : 0.0; // Phase 0: binary score. Phase 1: RRF score.
+    traceRetrieval({
+      query,
+      namespace: team || "org",
+      topScore,
+      resultCount: results.length,
+    });
+
     if (results.length === 0) {
       return { content: [{ type: "text" as const, text: `No results found for "${query}".` }] };
     }
@@ -148,6 +158,7 @@ server.tool(
 
 // --- Start server ---
 async function main() {
+  await initOtel();
   const mode = process.env.MCP_TRANSPORT || "stdio";
 
   if (mode === "http") {
