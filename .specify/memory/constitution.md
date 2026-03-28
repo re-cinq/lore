@@ -24,7 +24,7 @@ Sync Impact Report
 | Subtitle | Shared context infrastructure for Claude Code |
 | Constitution Version | 1.0.0 |
 | Ratification Date | 2026-03-25 |
-| Last Amended Date | 2026-03-27 |
+| Last Amended Date | 2026-03-28 |
 
 ## Purpose
 
@@ -165,8 +165,10 @@ The following decisions have been made and MUST NOT be relitigated:
 | Vector store | PostgreSQL + pgvector via CloudNativePG (CNPG) on GKE |
 | Namespace model | Schema per team in PostgreSQL (CNPG) |
 | MCP deployment | Per-team containers on GKE |
-| Ingestion trigger | On-push (fast) + nightly (full) |
+| Ingestion trigger | On-push (fast) + nightly (full) via K8s CronJobs |
 | Observability | OpenTelemetry → Cloud Monitoring + Graphiti (gap signal) |
+| Scheduling | K8s CronJobs in `klaus` namespace (not Cloud Scheduler) |
+| GKE cluster | Existing shared `n8n-cluster` in `europe-west1` (not dedicated) |
 | Task tracking | Beads (agent) + GH Issues (platform) |
 | Governance | Distributed ownership + CI eval gate |
 | Build sequence | DX-first: Phase 0 before infra |
@@ -247,7 +249,7 @@ depends on.
 
 | Component | Technology |
 |---|---|
-| Vector store | PostgreSQL + pgvector (CNPG on GKE, `europe-west4`) |
+| Vector store | PostgreSQL + pgvector (CNPG on GKE, `europe-west1`) |
 | Embedding | Vertex AI `text-embedding-005` via application-level call |
 | Vector index | HNSW (pgvector) |
 | Search | Hybrid: HNSW vector + BM25 keyword, Reciprocal Rank Fusion |
@@ -258,7 +260,7 @@ depends on.
 | Feature workflow | Spec Kit (`specify-cli`) |
 | Observability | OpenTelemetry → Cloud Monitoring |
 | CI evals | PromptFoo |
-| Infrastructure | Terraform (GKE namespaces) + CNPG operator + Helm |
+| Infrastructure | CNPG operator + K8s manifests + CronJobs (on existing shared GKE cluster `n8n-cluster`) |
 | Auth | Workload Identity (GKE), Workload Identity Federation (GHA) |
 | Code parsing | tree-sitter (TypeScript, Python, Go, Kotlin, Swift) |
 | Document parsing | LlamaIndex readers (GitHub, Confluence) + unstructured |
@@ -283,16 +285,23 @@ Validate the workflow before investing in infrastructure. Deliverables:
 **Gate:** Pilot team completes a full feature loop naturally before
 Phase 1 starts.
 
-### Phase 1: Managed Infrastructure (~2 weeks)
+### Phase 1: Managed Infrastructure (~2 weeks) — DEPLOYED
 
 Replace file-backed MCP with PostgreSQL + pgvector (CNPG). Wire up ingestion via Klaus.
+Deployed onto existing shared GKE cluster `n8n-cluster` in `europe-west1`.
 Deliverables:
-- CNPG Cluster resource + schema-per-team + HNSW indexes.
-- GKE cluster (`mcp-servers`, `cnpg-system`, `klaus` namespaces).
-- Klaus deployment + Lore MCP delegation tools.
-- OpenTelemetry instrumentation → Cloud Monitoring.
-- Cloud Scheduler jobs (replacing GitHub Actions cron).
+- CNPG Cluster resource (namespace `alloydb`, pod `lore-db-1`) +
+  schema-per-team + HNSW indexes.
+- Namespaces on shared cluster: `mcp-servers`, `alloydb`, `klaus`, `dolt`.
+- Klaus (`ghcr.io/re-cinq/klaus:latest`) in `klaus` namespace, port 8080.
+- Lore MCP server (`ghcr.io/re-cinq/lore-mcp:latest`) in `mcp-servers`
+  namespace, HTTP transport on `:3000/mcp`.
+- Dolt remote (`dolt-sql-server`) in `dolt` namespace for Beads sync.
+- 3 CronJobs in `klaus` namespace: nightly reindex (2am), weekly gap
+  detection (Mon 9am), weekly spec drift (Mon 10am).
+- OpenTelemetry instrumentation built into MCP server → Cloud Monitoring.
 - PromptFoo eval suite + CI gate.
+- No Langfuse, no Cloud SQL, no BigQuery, no Cloud Scheduler, no Terraform.
 
 **Gate:** Phase 1 acceptance criteria pass before Phase 2.
 

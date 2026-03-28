@@ -501,11 +501,12 @@ improvements.
 
 ### NFR-4: Scalability
 
-- CNPG PostgreSQL instance starts at 4 vCPU / 32GB RAM; scale up
+- CNPG PostgreSQL instance on existing shared GKE cluster
+  (`n8n-cluster`, `europe-west1`). Scale up CNPG resource requests
   when query latency p99 exceeds 50ms. Upgrade path to AlloyDB Omni
   or managed AlloyDB if needed.
-- GKE node pools auto-scale (MCP pool: 2-6 nodes, general: 2-8
-  nodes).
+- GKE cluster is shared — Lore workloads run in dedicated namespaces
+  (`mcp-servers`, `alloydb`, `klaus`, `dolt`) on the existing cluster.
 - Revisit vector store choice only if corpus exceeds 100M vectors.
 
 ### NFR-5: Governance
@@ -561,16 +562,18 @@ improvements.
 ## Dependencies
 
 - Claude Code v2.1.32+ (Agent Teams support).
-- GCP project with GKE, Cloud Monitoring, Cloud Storage,
-  Cloud Scheduler access (Phase 1+).
-- CloudNativePG operator (CNPG) on GKE (Phase 1+).
+- GCP project with existing GKE cluster (`n8n-cluster`,
+  `europe-west1`) and Cloud Monitoring access (Phase 1+).
+- CloudNativePG operator (CNPG) on GKE (Phase 1+, already installed
+  on shared cluster).
 - GitHub organization with Actions, CODEOWNERS, and PR template
   support.
 - Beads CLI (`@beads/bd`).
 - Spec Kit CLI (`specify-cli`).
 - PromptFoo (Phase 1+).
-- Dolt (self-hosted on GKE, Phase 2).
-- Klaus (Phase 1+).
+- Dolt (self-hosted `dolt-sql-server` on GKE, Phase 1+).
+- Klaus (`ghcr.io/re-cinq/klaus:latest`, Phase 1+).
+- Anthropic API key (for Klaus, Phase 1+).
 - Graphiti (Phase 3).
 - FalkorDB (Phase 3).
 - OCI/crane tooling (Phase 3).
