@@ -165,17 +165,23 @@ async function spawnAgent(task: any): Promise<void> {
     const config = getTaskTypeConfig(task.task_type);
     await updateTaskStatus(task.id, 'running');
 
+    // Klaus MCP calls are synchronous — the result comes back when the
+    // agent finishes. This blocks until Klaus completes the work.
+    console.log(`[pipeline] Submitting task ${task.id} to Klaus...`);
     const result = await submitToKlaus(fullPrompt, contextStr, 'normal');
 
-    if (result && 'task_id' in result) {
-      // Klaus accepted the task — it will run async
-      await pool.query(
-        `UPDATE pipeline.tasks SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{klaus_task_id}', $1)
-         WHERE id = $2`,
-        [JSON.stringify(result.task_id), task.id],
-      );
-      // Start monitoring the agent for completion/failure
-      monitorAgent(task.id, result.task_id, task.task_type);
+    if (result && 'error' in result && (result as any).error) {
+      // Klaus returned an error
+      throw new Error((result as any).message || 'Klaus returned an error');
+    }
+
+    if (result && 'output' in result && (result as any).output) {
+      // Klaus completed the task — create PR with the output
+      console.log(`[pipeline] Task ${task.id} completed, creating PR...`);
+      await handleAgentCompletion(task.id, (result as any).output);
+    } else {
+      // Klaus returned but with no output
+      await handleAgentCompletion(task.id, 'Agent completed but produced no output.');
     }
   } catch (err: any) {
     await updateTaskStatus(task.id, 'failed', { error: err.message });
