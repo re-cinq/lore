@@ -22,27 +22,24 @@ jobs:
       - name: Get changed files
         id: changes
         run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD | tr '\n' ',')
-          echo "files=$CHANGED" >> $GITHUB_OUTPUT
+          FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
 
-      - name: Trigger Lore ingestion
-        if: steps.changes.outputs.files != ''
+      - name: Notify Lore to ingest
+        if: steps.changes.outputs.files != '[]'
+        env:
+          LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
+          LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL }}
         run: |
-          curl -sf -X POST "${{ secrets.LORE_MCP_ENDPOINT }}/mcp" \
-            -H 'Content-Type: application/json' \
-            -H 'Accept: application/json, text/event-stream' \
-            -d '{
-              "jsonrpc": "2.0",
-              "id": 1,
-              "method": "tools/call",
-              "params": {
-                "name": "delegate_task",
-                "arguments": {
-                  "task": "Incrementally ingest changed files: ${{ steps.changes.outputs.files }}",
-                  "context": {
-                    "branch": "main"
-                  },
-                  "priority": "normal"
-                }
-              }
-            }' || echo "Warning: Could not reach Lore MCP endpoint"
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"files\": ${FILES},
+              \"repo\": \"${{ github.repository }}\",
+              \"commit\": \"${{ github.sha }}\"
+            }" \
+            "${LORE_INGEST_URL:-https://lore-api.gcp.re-cinq.com}/api/ingest" \
+            || echo "::warning::Could not reach Lore ingest endpoint"
+          env:
+            FILES: ${{ steps.changes.outputs.files }}

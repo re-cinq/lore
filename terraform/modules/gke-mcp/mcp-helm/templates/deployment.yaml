@@ -36,6 +36,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.dbPasswordSecret.name }}
                   key: {{ .Values.dbPasswordSecret.key }}
+            - name: LORE_INGEST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ingestTokenSecret.name }}
+                  key: {{ .Values.ingestTokenSecret.key }}
           livenessProbe:
             tcpSocket:
               port: http
