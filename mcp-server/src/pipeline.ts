@@ -231,30 +231,46 @@ function parseAgentOutput(raw: string): string {
 
 /**
  * Extract a JSON object from agent output that may contain surrounding text.
- * Looks for the outermost { "files": ... } block via brace matching.
+ * Handles multiple wrapping layers:
+ *  1. Klaus wraps output in {"result_text": "..."}
+ *  2. Agent may put JSON inside ```json code fences
+ *  3. Agent may add explanation text before/after the JSON
  */
 function extractJsonFromOutput(raw: string): any | null {
-  // First try parsing the whole thing
+  let text = raw;
+
+  // Layer 1: unwrap {"result_text": "..."} from Klaus
   try {
-    const parsed = JSON.parse(raw);
+    const outer = JSON.parse(text);
+    if (outer.result_text) text = outer.result_text;
+    else if (outer.output) text = outer.output;
+    else if (outer.files) return outer; // already the target
+  } catch {}
+
+  // Layer 2: extract from ```json code fences
+  const fenceMatch = text.match(/```json\s*\n?([\s\S]*?)```/);
+  if (fenceMatch) text = fenceMatch[1].trim();
+
+  // Try direct parse
+  try {
+    const parsed = JSON.parse(text);
     if (parsed.files) return parsed;
   } catch {}
 
-  // Find first { that starts a "files" object
-  const startIdx = raw.indexOf('{"files"');
-  const altIdx = raw.indexOf('{ "files"');
+  // Layer 3: brace-match to find {"files": ...}
+  const startIdx = text.indexOf('{"files"');
+  const altIdx = text.indexOf('{ "files"');
   const idx = startIdx === -1 ? altIdx : (altIdx === -1 ? startIdx : Math.min(startIdx, altIdx));
   if (idx === -1) return null;
 
-  // Brace-match to find the closing }
   let depth = 0;
-  for (let i = idx; i < raw.length; i++) {
-    if (raw[i] === '{') depth++;
-    else if (raw[i] === '}') {
+  for (let i = idx; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') {
       depth--;
       if (depth === 0) {
         try {
-          return JSON.parse(raw.substring(idx, i + 1));
+          return JSON.parse(text.substring(idx, i + 1));
         } catch {
           return null;
         }
