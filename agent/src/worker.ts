@@ -150,50 +150,37 @@ async function processTask(task: any): Promise<void> {
       fullPrompt += `\n\n## Repository Context\n\n${JSON.stringify(context, null, 2)}`;
 
       try {
-        const toolResult = await callLLMWithTool<{ files: Record<string, string> }>({
+        const toolResult = await callLLMWithTool<Record<string, string>>({
           prompt: fullPrompt,
           systemPrompt: "You are onboarding a repository to the Lore platform. Generate all onboarding files based on the repo context provided.",
           toolName: "generate_onboard_files",
-          toolDescription: "Generate onboarding files for a repository. Return each file with its full content.",
+          toolDescription: "Generate onboarding files for a repository. Each parameter is a file path, and its value is the complete file content as a string.",
           toolSchema: {
-            type: "object",
-            properties: {
-              files: {
-                type: "object",
-                description: "Map of file paths to file contents. Keys are paths like 'AGENTS.md', 'adrs/ADR-001-foo.md', '.specify/spec.md', '.github/PULL_REQUEST_TEMPLATE.md', '.github/workflows/pr-description-check.yml'",
-                additionalProperties: { type: "string" },
-              },
-            },
-            required: ["files"],
+            type: "object" as const,
+            description: "Map of file paths to file contents. Use paths like AGENTS.md, adrs/ADR-001-title.md, .specify/spec.md, .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/pr-description-check.yml",
+            additionalProperties: { type: "string" },
           },
           model,
           maxTokens: 16384,
           taskId: task.id,
         });
 
-        // Debug: log what tool_use actually returned
-        const rawData = toolResult.data;
-        console.log(`[agent] tool_use data type: ${typeof rawData}, keys: ${typeof rawData === 'object' && rawData ? Object.keys(rawData).join(',') : 'N/A'}`);
-        console.log(`[agent] tool_use data.files type: ${typeof (rawData as any)?.files}`);
-
-        // The tool may return {files: {...}} or the files object directly
-        let filesObj: any = (rawData as any).files;
-        if (!filesObj && typeof rawData === "object" && rawData !== null) {
-          // Maybe the model returned files directly without the wrapper
-          const keys = Object.keys(rawData);
-          if (keys.length > 0 && keys.every(k => k.includes('.') || k.includes('/'))) {
-            filesObj = rawData; // The data IS the files map
-          }
+        // tool_use returns the files map directly as the tool input
+        let filesObj: any = toolResult.data;
+        // If model wrapped in {files: ...}, unwrap
+        if (filesObj && typeof filesObj === "object" && "files" in filesObj && typeof filesObj.files === "object") {
+          filesObj = filesObj.files;
         }
         if (typeof filesObj === "string") {
           try { filesObj = JSON.parse(filesObj); } catch { /* leave as-is */ }
         }
+        console.log(`[agent] tool_use returned ${typeof filesObj}, keys: ${typeof filesObj === 'object' && filesObj ? Object.keys(filesObj).length : 'N/A'}`);
+
         if (typeof filesObj !== "object" || filesObj === null || Array.isArray(filesObj)) {
-          console.error(`[agent] tool_use files extraction failed. data preview: ${JSON.stringify(rawData).substring(0, 500)}`);
-          throw new Error(`tool_use returned invalid files type: ${typeof filesObj}`);
+          throw new Error(`tool_use returned invalid type: ${typeof filesObj}`);
         }
         const fileEntries = Object.entries(filesObj).filter(
-          ([k, v]) => typeof v === "string" && v.length > 0 && k.length > 1,
+          ([k, v]) => typeof v === "string" && (v as string).length > 0 && k.length > 1,
         );
         console.log(`[agent] Extracted ${fileEntries.length} files: ${fileEntries.map(([k]) => k).join(', ')}`);
 
