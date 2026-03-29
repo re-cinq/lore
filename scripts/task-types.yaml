@@ -60,22 +60,67 @@ task_types:
   onboard:
     prompt_template: |
       You are onboarding a repository to the Lore platform. Inspect the
-      repository and create an onboarding PR with customized files.
+      repository thoroughly and create an onboarding PR with customized
+      files that document the actual codebase — not generic templates.
 
       Repository: {description}
 
       Steps:
-      1. Read the repository structure via GitHub API (list files, read
-         key files like package.json, Dockerfile, README, any existing
-         CLAUDE.md)
-      2. Understand the tech stack, language, framework, and patterns
-      3. Generate a CLAUDE.md that accurately describes:
-         - Architecture (based on what you find in the repo)
-         - Code conventions (inferred from the code)
-         - Key services/entry points
-      4. Include standard files: AGENTS.md, PR template, CI workflows
-      5. Your output should be a JSON object with file paths and content:
-         {"files": {"CLAUDE.md": "...", "AGENTS.md": "...", ...}}
+      1. Read the repository structure via GitHub API:
+         - List all top-level files and directories
+         - Read: package.json, Dockerfile, docker-compose.yml, README,
+           go.mod, requirements.txt, Cargo.toml, pom.xml (whichever exist)
+         - Read any existing CLAUDE.md, AGENTS.md, ADRs
+         - Sample 3-5 key source files to understand patterns
+
+      2. Generate a CLAUDE.md that accurately describes THIS repo:
+         - Architecture: how services communicate, what databases are used,
+           what the entry points are (based on actual code, not guesses)
+         - Code conventions: error handling patterns, logging format, auth
+           approach, testing patterns (inferred from the actual code)
+         - Key services: what each main module/service owns, key constraints
+
+      3. Generate initial ADRs for decisions you can infer:
+         - What language/framework was chosen (and why it makes sense)
+         - What database is used
+         - What deployment approach is used (Docker, K8s, serverless)
+         - Use MADR format with YAML frontmatter (adr_number, title,
+           status: accepted, date, domains)
+         - Put in adrs/ directory. Number starting from 001.
+
+      4. Generate an initial spec describing the existing system:
+         - What the system does (from README + code inspection)
+         - Key components and their responsibilities
+         - Put in .specify/spec.md
+
+      5. Include standard Lore files:
+         - AGENTS.md: task tracking, context loading, workflow commands
+         - .github/PULL_REQUEST_TEMPLATE.md: Why, Alternatives, ADRs, Spec
+         - .github/workflows/pr-description-check.yml: CI for PR quality
+         - .github/workflows/spec-agent.yml: spec PR triggers agent
+         - .github/workflows/lore-ingest.yml: push triggers ingestion
+
+      6. Output format — JSON object with ALL files:
+         {
+           "files": {
+             "CLAUDE.md": "# ...",
+             "AGENTS.md": "# ...",
+             "adrs/ADR-001-language-choice.md": "---\nadr_number: 1\n...",
+             "adrs/ADR-002-database.md": "---\nadr_number: 2\n...",
+             ".specify/spec.md": "# Feature Specification: ...",
+             ".github/PULL_REQUEST_TEMPLATE.md": "## Why\n...",
+             ".github/workflows/pr-description-check.yml": "name: ...",
+             ".github/workflows/spec-agent.yml": "name: ...",
+             ".github/workflows/lore-ingest.yml": "name: ..."
+           }
+         }
+
+      Rules:
+      - Be specific. Write what you actually find, not generic placeholders.
+      - If a file already exists in the repo (e.g. CLAUDE.md), skip it.
+      - ADRs should document real decisions visible in the code.
+      - The spec should describe the system as it exists today.
+      - Keep CLAUDE.md under 2 pages. Keep ADRs concise.
     target_repo: null
-    timeout_minutes: 10
+    timeout_minutes: 15
     review_required: false
