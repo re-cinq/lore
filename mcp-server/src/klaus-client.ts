@@ -201,10 +201,8 @@ export async function submitTaskAsync(
     const fullPrompt = contextBundle ? `${task}\n\n## Context\n${contextBundle}` : task;
 
     // Fire and forget — prompt returns immediately with session info
-    const model = process.env.KLAUS_MODEL || process.env.CLAUDE_MODEL || undefined;
-    const args: Record<string, string> = { message: fullPrompt };
-    if (model) args.model = model;
-    const result = await c.callTool({ name: 'prompt', arguments: args });
+    // Model is set via CLAUDE_MODEL env var on the Klaus container
+    const result = await c.callTool({ name: 'prompt', arguments: { message: fullPrompt } });
     const text = Array.isArray(result.content)
       ? result.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
       : '';
