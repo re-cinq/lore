@@ -1,0 +1,46 @@
+name: Spec PR → Agent
+
+on:
+  pull_request:
+    paths:
+      - '.specify/**'
+
+jobs:
+  trigger-agent:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read spec content
+        id: spec
+        run: |
+          SPEC=$(cat .specify/spec.md 2>/dev/null || echo "No spec found")
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$SPEC" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create pipeline task
+        env:
+          LORE_MCP_ENDPOINT: ${{ secrets.LORE_MCP_ENDPOINT }}
+        run: |
+          curl -sf -X POST "${LORE_MCP_ENDPOINT}/mcp" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            -d '{
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "tools/call",
+              "params": {
+                "name": "create_pipeline_task",
+                "arguments": {
+                  "description": "Implement spec from PR #${{ github.event.number }}: ${{ github.event.pull_request.title }}",
+                  "task_type": "implementation",
+                  "target_repo": "${{ github.repository }}",
+                  "context": {
+                    "spec_file": true,
+                    "branch": "${{ github.head_ref }}"
+                  }
+                }
+              }
+            }' || echo "Warning: Could not reach Lore MCP endpoint"

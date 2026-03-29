@@ -1,0 +1,62 @@
+name: PR Description Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+env:
+  ENFORCE_MODE: "false"
+
+jobs:
+  check-pr-description:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR description sections
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.body // ""')
+
+          FAILED=0
+          WARNINGS=""
+
+          # --- Check "## Why" section ---
+          WHY_CONTENT=$(echo "$BODY" | sed -n '/^## Why/,/^## /{ /^## /d; p; }')
+          # Strip HTML comments and whitespace
+          WHY_STRIPPED=$(echo "$WHY_CONTENT" | sed 's/<!--.*-->//g' | tr -d '[:space:]')
+
+          if [ -z "$WHY_STRIPPED" ]; then
+            WARNINGS="${WARNINGS}MISSING: '## Why' section is empty or missing. Explain what problem this solves.\n"
+            FAILED=1
+          fi
+
+          # --- Check "## Alternatives rejected" section ---
+          ALT_CONTENT=$(echo "$BODY" | sed -n '/^## Alternatives rejected/,/^## /{ /^## /d; p; }')
+          ALT_STRIPPED=$(echo "$ALT_CONTENT" | sed 's/<!--.*-->//g' | tr -d '[:space:]')
+
+          if [ -z "$ALT_STRIPPED" ]; then
+            WARNINGS="${WARNINGS}MISSING: '## Alternatives rejected' section is empty or missing. Describe what you considered and why you rejected it.\n"
+            FAILED=1
+          fi
+
+          # --- Report results ---
+          if [ "$FAILED" -eq 1 ]; then
+            echo "============================================"
+            echo "PR description check found issues:"
+            echo "============================================"
+            echo -e "$WARNINGS"
+
+            if [ "${{ env.ENFORCE_MODE }}" = "true" ]; then
+              echo "ENFORCE_MODE is enabled. Failing the check."
+              exit 1
+            else
+              echo "ENFORCE_MODE is disabled. Passing with warnings."
+              exit 0
+            fi
+          else
+            echo "PR description looks good."
+          fi

@@ -519,3 +519,130 @@ pre {
 .empty-state p {
   font-size: 14px;
 }
+
+/* --- Forms --- */
+.task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.task-form label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+.task-form input,
+.task-form textarea,
+.task-form select {
+  padding: 10px 14px;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #ededed;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.task-form input:focus,
+.task-form textarea:focus,
+.task-form select:focus {
+  border-color: #3b82f6;
+  outline: none;
+}
+.task-form textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+.task-form button[type="submit"] {
+  padding: 10px 24px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  align-self: flex-start;
+}
+.task-form button[type="submit"]:hover {
+  background: #2563eb;
+}
+
+/* --- Tab navigation --- */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #222;
+  margin-bottom: 0;
+}
+.tab-link {
+  padding: 10px 20px;
+  color: #94a3b8;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-link:hover {
+  color: #ededed;
+  border-bottom-color: #333;
+}
+.tab-link.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
+
+/* --- Repo grid --- */
+.repo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.repo-card {
+  display: block;
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 8px;
+  padding: 16px;
+  text-decoration: none;
+  color: #ededed;
+  transition: border-color 0.2s;
+}
+.repo-card:hover {
+  border-color: #3b82f6;
+}
+.repo-card h3 {
+  margin: 0 0 8px 0;
+  font-family: monospace;
+  font-size: 15px;
+  color: #3b82f6;
+}
+.repo-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+/* --- Buttons --- */
+button {
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+button:hover {
+  background: #2563eb;
+}
+button.danger {
+  background: #dc2626;
+}
+button.danger:hover {
+  background: #b91c1c;
+}

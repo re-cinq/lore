@@ -4,14 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const links = [
-  { href: '/', label: 'Agents' },
+  { href: '/', label: 'Repos' },
   { href: '/search', label: 'Search' },
   { href: '/audit', label: 'Audit' },
   { href: '/pools', label: 'Pools' },
-  { href: '/context', label: 'Context' },
-  { href: '/tasks', label: 'Tasks' },
-  { href: '/specs', label: 'Specs' },
-  { href: '/gaps', label: 'Gaps' },
   { href: '/pipeline', label: 'Pipeline' },
 ];
 
@@ -31,6 +27,9 @@ export default function SidebarNav() {
           </Link>
         );
       })}
+      <Link href="/onboard" className={pathname === '/onboard' ? 'active' : ''} style={{marginTop:'12px', background:'#1e293b', textAlign:'center', borderRadius:'6px', color:'#e2e8f0', fontSize:'13px'}}>
+        + Add Repo
+      </Link>
     </nav>
   );
 }
