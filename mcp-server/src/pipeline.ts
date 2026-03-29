@@ -247,30 +247,52 @@ function extractJsonFromOutput(raw: string): any | null {
     else if (outer.files) return outer; // already the target
   } catch {}
 
-  // Layer 2: extract from ```json code fences
-  const fenceMatch = text.match(/```json\s*\n?([\s\S]*?)```/);
-  if (fenceMatch) text = fenceMatch[1].trim();
-
-  // Try direct parse
+  // Try direct parse of the unwrapped text
   try {
     const parsed = JSON.parse(text);
     if (parsed.files) return parsed;
   } catch {}
 
-  // Layer 3: brace-match to find {"files": ...}
-  const startIdx = text.indexOf('{"files"');
-  const altIdx = text.indexOf('{ "files"');
-  const idx = startIdx === -1 ? altIdx : (altIdx === -1 ? startIdx : Math.min(startIdx, altIdx));
-  if (idx === -1) return null;
+  // Brace-match to find {"files": ...} — handles code fences,
+  // explanation text, and any other wrapping around the JSON.
+  // We search from the LAST occurrence of "files" key to get the
+  // outermost JSON object in case there are nested examples.
+  const markers = ['"files"', "'files'"];
+  let bestIdx = -1;
+  for (const marker of markers) {
+    let searchFrom = 0;
+    while (true) {
+      const pos = text.indexOf(marker, searchFrom);
+      if (pos === -1) break;
+      // Walk backwards to find the opening {
+      for (let j = pos - 1; j >= 0; j--) {
+        if (text[j] === '{') {
+          if (bestIdx === -1 || j < bestIdx) bestIdx = j;
+          break;
+        }
+        if (text[j] !== ' ' && text[j] !== '\n' && text[j] !== '\r' && text[j] !== '\t') break;
+      }
+      searchFrom = pos + 1;
+    }
+  }
+  if (bestIdx === -1) return null;
 
+  // Find matching closing brace, but handle escaped quotes inside strings
   let depth = 0;
-  for (let i = idx; i < text.length; i++) {
-    if (text[i] === '{') depth++;
-    else if (text[i] === '}') {
+  let inString = false;
+  let escaped = false;
+  for (let i = bestIdx; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\' && inString) { escaped = true; continue; }
+    if (ch === '"' && !escaped) { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') {
       depth--;
       if (depth === 0) {
         try {
-          return JSON.parse(text.substring(idx, i + 1));
+          return JSON.parse(text.substring(bestIdx, i + 1));
         } catch {
           return null;
         }
