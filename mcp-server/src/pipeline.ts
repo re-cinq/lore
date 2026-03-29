@@ -11,6 +11,7 @@ import { getTaskTypeConfig, buildPrompt, getDefaultRepo, loadTaskTypes } from '.
 import { submitTask as submitToKlaus, getTaskStatus as getKlausStatus, getTaskResult as getKlausResult, isKlausError, submitTaskAsync, pollKlausUntilDone } from './klaus-client.js';
 import { buildContextBundle } from './context-bundle.js';
 import { createBranch, commitFile, createPR, isConfigured as isGitHubConfigured } from './pipeline-github.js';
+import { fetchRepoContext } from './repo-onboard.js';
 
 // ── Pool management ──────────────────────────────────────────────────
 
@@ -159,7 +160,20 @@ async function spawnAgent(task: any): Promise<void> {
 
   try {
     const prompt = buildPrompt(task.task_type, task.description);
-    const contextStr = task.context_bundle ? JSON.stringify(task.context_bundle) : '';
+    let contextStr = task.context_bundle ? JSON.stringify(task.context_bundle) : '';
+
+    // For onboard tasks, pre-fetch repo content so Klaus doesn't need GitHub access
+    if (task.task_type === 'onboard' && task.target_repo) {
+      try {
+        console.log(`[pipeline] Pre-fetching repo context for ${task.target_repo}...`);
+        const repoContext = await fetchRepoContext(task.target_repo);
+        contextStr = JSON.stringify({ ...JSON.parse(contextStr || '{}'), repoContext });
+        console.log(`[pipeline] Fetched: ${repoContext.tree.length} tree entries, ${Object.keys(repoContext.files).length} files, ${Object.keys(repoContext.samples).length} samples`);
+      } catch (err: any) {
+        console.error(`[pipeline] Failed to pre-fetch repo context: ${err.message}`);
+      }
+    }
+
     const fullPrompt = `${prompt}\n\n## Context\n${contextStr}`;
 
     const config = getTaskTypeConfig(task.task_type);
