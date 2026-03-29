@@ -118,18 +118,50 @@ export async function submitTask(
       ? `${task}\n\n## Context\n${contextBundle}`
       : task;
 
-    // Klaus's "prompt" tool expects { message: "..." }
-    const result = await c.callTool({
-      name: promptTool,
+    // 1. Start the task via "prompt" tool
+    console.log("[klaus-client] Calling prompt tool...");
+    const promptResult = await c.callTool({
+      name: "prompt",
       arguments: { message: fullPrompt },
     });
+    console.log("[klaus-client] Prompt returned:", JSON.stringify(promptResult.content).substring(0, 200));
 
-    const contentArr = Array.isArray(result.content) ? result.content : [];
-    const output =
-      contentArr
-        .filter((c: any) => c.type === "text")
-        .map((c: any) => c.text)
-        .join("\n") || "";
+    // 2. Poll "status" until agent is done
+    let attempts = 0;
+    const maxAttempts = 120; // 120 * 5s = 10 minutes max
+    while (attempts < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 5000));
+      attempts++;
+
+      const statusResult = await c.callTool({
+        name: "status",
+        arguments: {},
+      });
+      const statusText = Array.isArray(statusResult.content)
+        ? statusResult.content.filter((c: any) => c.type === "text").map((c: any) => c.text).join("")
+        : "";
+
+      console.log(`[klaus-client] Status poll ${attempts}: ${statusText.substring(0, 100)}`);
+
+      // Check if the agent is done
+      if (statusText.includes('"idle"') || statusText.includes('"stopped"') || statusText.includes('"completed"')) {
+        break;
+      }
+    }
+
+    // 3. Get the result
+    console.log("[klaus-client] Fetching result...");
+    const resultCall = await c.callTool({
+      name: "result",
+      arguments: {},
+    });
+    const contentArr = Array.isArray(resultCall.content) ? resultCall.content : [];
+    const output = contentArr
+      .filter((c: any) => c.type === "text")
+      .map((c: any) => c.text)
+      .join("\n") || "";
+
+    console.log(`[klaus-client] Result length: ${output.length} chars`);
 
     return {
       task_id: `klaus-${Date.now()}`,
