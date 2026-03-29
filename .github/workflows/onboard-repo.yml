@@ -1,0 +1,33 @@
+name: Onboard Repository
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'Repository to onboard (owner/repo)'
+        required: true
+        type: string
+
+jobs:
+  onboard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate input
+        run: |
+          if [[ ! "${{ inputs.repo }}" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]]; then
+            echo "::error::Invalid repo format. Use owner/repo"
+            exit 1
+          fi
+
+      - name: Trigger onboarding via Lore API
+        env:
+          LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
+          LORE_API_URL: ${{ vars.LORE_API_URL || 'https://lore-api.gcp.re-cinq.com' }}
+        run: |
+          RESPONSE=$(curl -sf -X POST \
+            -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"repo\": \"${{ inputs.repo }}\"}" \
+            "${LORE_API_URL}/api/onboard")
+          echo "Response: ${RESPONSE}"
+          echo "::notice::Onboarding triggered for ${{ inputs.repo }}"

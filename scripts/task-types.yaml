@@ -59,21 +59,21 @@ task_types:
 
   onboard:
     prompt_template: |
-      You are onboarding a repository to the Lore platform. Inspect the
-      repository thoroughly and create an onboarding PR with customized
-      files that document the actual codebase — not generic templates.
+      You are onboarding a repository to the Lore platform. The repo
+      content has been pre-fetched and is provided in the Context section
+      below. DO NOT use git, shell commands, or any tools. Just analyze
+      the provided content and output a JSON object.
 
       Repository: {description}
 
-      Steps:
-      1. Read the repository structure via GitHub API:
-         - List all top-level files and directories
-         - Read: package.json, Dockerfile, docker-compose.yml, README,
-           go.mod, requirements.txt, Cargo.toml, pom.xml (whichever exist)
-         - Read any existing CLAUDE.md, AGENTS.md, ADRs
-         - Sample 3-5 key source files to understand patterns
+      The Context section contains:
+      - repoContext.tree: top-level directory listing
+      - repoContext.files: key config files (README, package.json, etc.)
+      - repoContext.samples: sample source files (first 200 lines)
 
-      2. Generate a CLAUDE.md that accurately describes THIS repo:
+      Analyze this content and generate onboarding files:
+
+      1. Generate a CLAUDE.md that accurately describes THIS repo:
          - Architecture: how services communicate, what databases are used,
            what the entry points are (based on actual code, not guesses)
          - Code conventions: error handling patterns, logging format, auth
@@ -115,9 +115,12 @@ task_types:
            }
          }
 
-      Rules:
+      CRITICAL RULES:
+      - Your ENTIRE output must be a single valid JSON object. Nothing else.
+      - Do NOT use git, bash, shell commands, or any tools.
+      - Do NOT write any text before or after the JSON.
       - Be specific. Write what you actually find, not generic placeholders.
-      - If a file already exists in the repo (e.g. CLAUDE.md), skip it.
+      - If a file already exists in repoContext.files (e.g. CLAUDE.md), skip it.
       - ADRs should document real decisions visible in the code.
       - The spec should describe the system as it exists today.
       - Keep CLAUDE.md under 2 pages. Keep ADRs concise.

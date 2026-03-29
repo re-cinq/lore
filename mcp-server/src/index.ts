@@ -770,6 +770,34 @@ async function main() {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
           }
         });
+      } else if (req.url === "/api/onboard" && req.method === "POST") {
+        // Bearer token auth
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) {
+          res.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+        if (!dbPoolRef) {
+          res.writeHead(503, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "database not available" }));
+          return;
+        }
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", async () => {
+          try {
+            const { repo } = JSON.parse(body);
+            if (!repo || !repo.includes("/")) {
+              res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "required: repo (owner/name format)" }));
+              return;
+            }
+            const result = await onboardRepo(dbPoolRef, repo);
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
+          } catch (err: any) {
+            console.error("[onboard] API error:", err.message);
+            res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+          }
+        });
       } else {
         res.writeHead(404).end();
       }
