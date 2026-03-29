@@ -2,7 +2,10 @@ name: Build and push Lore UI
 
 on:
   push:
-    branches: [2-agent-memory, main]
+    branches: [main]
+    paths:
+      - 'web-ui/**'
+  pull_request:
     paths:
       - 'web-ui/**'
   workflow_dispatch:
@@ -32,5 +35,30 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: web-ui
-          push: true
+          push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: n8n-cluster
+          location: europe-west1
+          project_id: re5-n8n-platform
+
+      - name: Restart deployment
+        run: kubectl rollout restart deployment/lore-ui -n lore-ui
