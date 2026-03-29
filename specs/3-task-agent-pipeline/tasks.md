@@ -22,18 +22,18 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Create pipeline schema DDL script in scripts/infra/setup-pipeline-schema.sh (pipeline.tasks + pipeline.task_events tables with indexes, updated_at trigger, grant to lore user)
-- [ ] T002 Run schema DDL on the existing lore database
-- [ ] T003 [P] Create task type config file in scripts/task-types.yaml with types: general, runbook, implementation, gap-fill (each with prompt_template, target_repo, timeout, review_required)
-- [ ] T004 [P] Add octokit and @octokit/auth-app to mcp-server/package.json dependencies
+- [x] T001 Create pipeline schema DDL script in scripts/infra/setup-pipeline-schema.sh (pipeline.tasks + pipeline.task_events tables with indexes, updated_at trigger, grant to lore user)
+- [x] T002 Run schema DDL on the existing lore database
+- [x] T003 [P] Create task type config file in scripts/task-types.yaml with types: general, runbook, implementation, gap-fill (each with prompt_template, target_repo, timeout, review_required)
+- [x] T004 [P] Add octokit and @octokit/auth-app to mcp-server/package.json dependencies
 
 ---
 
 ## Phase 2: Foundational — Pipeline Modules
 
-- [ ] T005 Create mcp-server/src/pipeline-config.ts: load and parse task-types.yaml, export getTaskTypeConfig(type) function, reload on SIGHUP
-- [ ] T006 Create mcp-server/src/pipeline-github.ts: GitHub App auth (generate installation token from APP_ID + PRIVATE_KEY env), create branch, commit files, open PR, add label, post review comment. All via octokit REST.
-- [ ] T007 Create mcp-server/src/pipeline.ts: task CRUD (createTask, getTask, listTasks, cancelTask, updateTaskStatus), task event recording (recordEvent), poller (pollPendingTasks — query every 10s, spawn agents, respect max 5 concurrent), agent spawner (buildContextBundle + call Klaus)
+- [x] T005 Create mcp-server/src/pipeline-config.ts: load and parse task-types.yaml, export getTaskTypeConfig(type) function, reload on SIGHUP
+- [x] T006 Create mcp-server/src/pipeline-github.ts: GitHub App auth (generate installation token from APP_ID + PRIVATE_KEY env), create branch, commit files, open PR, add label, post review comment. All via octokit REST.
+- [x] T007 Create mcp-server/src/pipeline.ts: task CRUD (createTask, getTask, listTasks, cancelTask, updateTaskStatus), task event recording (recordEvent), poller (pollPendingTasks — query every 10s, spawn agents, respect max 5 concurrent), agent spawner (buildContextBundle + call Klaus)
 
 ---
 
@@ -51,12 +51,12 @@ on GKE, does the work, task status trackable via MCP.
 
 ### Tasks
 
-- [ ] T008 [US3] Register create_pipeline_task MCP tool in mcp-server/src/index.ts: calls createTask from pipeline.ts, validates task_type against config
-- [ ] T009 [US3] Register get_pipeline_status MCP tool in mcp-server/src/index.ts: returns task with full event history
-- [ ] T010 [US3] Register list_pipeline_tasks MCP tool in mcp-server/src/index.ts: filterable by status, paginated
-- [ ] T011 [US3] Register cancel_task MCP tool in mcp-server/src/index.ts: transitions to cancelled, kills agent if running
-- [ ] T012 [US3] Start the poller in main() function of index.ts: call pollPendingTasks every 10s after server starts, log poll cycle to console
-- [ ] T013 [US3] Wire agent spawner in pipeline.ts: on pending task found, check concurrent count < 5, transition to queued → running, call Klaus with task prompt + context bundle
+- [x] T008 [US3] Register create_pipeline_task MCP tool in mcp-server/src/index.ts: calls createTask from pipeline.ts, validates task_type against config
+- [x] T009 [US3] Register get_pipeline_status MCP tool in mcp-server/src/index.ts: returns task with full event history
+- [x] T010 [US3] Register list_pipeline_tasks MCP tool in mcp-server/src/index.ts: filterable by status, paginated
+- [x] T011 [US3] Register cancel_task MCP tool in mcp-server/src/index.ts: transitions to cancelled, kills agent if running
+- [x] T012 [US3] Start the poller in main() function of index.ts: call pollPendingTasks every 10s after server starts, log poll cycle to console
+- [x] T013 [US3] Wire agent spawner in pipeline.ts: on pending task found, check concurrent count < 5, transition to queued → running, call Klaus with task prompt + context bundle
 
 ---
 
@@ -75,12 +75,12 @@ PO sees PR link in the UI.
 
 ### Tasks
 
-- [ ] T014 [US1] Implement PR creation in pipeline-github.ts: after agent completes, create branch agent/<task-id>/<slug>, commit agent output, open PR with structured description (task link, context refs), label agent-generated
-- [ ] T015 [US1] Add agent completion handler in pipeline.ts: when Klaus reports task done, call pipeline-github to create PR, update task status to pr-created with pr_url
-- [ ] T016 [US1] Add agent failure handler in pipeline.ts: when Klaus reports failure or timeout, update task status to failed with failure_reason
-- [ ] T017 [P] [US1] Create web-ui/src/app/pipeline/create/page.tsx: task creation form with description textarea, task type selector (loaded from task-types.yaml via API), target repo input, submit button (Server Action writes to pipeline.tasks)
-- [ ] T018 [P] [US1] Create web-ui/src/app/pipeline/page.tsx: pipeline dashboard listing all tasks with status badge, agent ID, PR link, created time, filterable by status
-- [ ] T019 [US1] Create web-ui/src/app/pipeline/[id]/page.tsx: task detail page with full event timeline, agent logs, PR link, cancel button
+- [x] T014 [US1] Implement PR creation in pipeline-github.ts: after agent completes, create branch agent/<task-id>/<slug>, commit agent output, open PR with structured description (task link, context refs), label agent-generated
+- [x] T015 [US1] Add agent completion handler in pipeline.ts: when Klaus reports task done, call pipeline-github to create PR, update task status to pr-created with pr_url
+- [x] T016 [US1] Add agent failure handler in pipeline.ts: when Klaus reports failure or timeout, update task status to failed with failure_reason
+- [x] T017 [P] [US1] Create web-ui/src/app/pipeline/create/page.tsx: task creation form with description textarea, task type selector (loaded from task-types.yaml via API), target repo input, submit button (Server Action writes to pipeline.tasks)
+- [x] T018 [P] [US1] Create web-ui/src/app/pipeline/page.tsx: pipeline dashboard listing all tasks with status badge, agent ID, PR link, created time, filterable by status
+- [x] T019 [US1] Create web-ui/src/app/pipeline/[id]/page.tsx: task detail page with full event timeline, agent logs, PR link, cancel button
 
 ---
 
@@ -98,9 +98,9 @@ creates a pipeline task, agent implements the spec.
 
 ### Tasks
 
-- [ ] T020 [US2] Create .github/workflows/spec-agent.yml: triggered on PR with paths .specify/**, calls create_pipeline_task via MCP HTTP endpoint with task_type=implementation and spec content as context
-- [ ] T021 [US2] Add spec-to-task context builder in pipeline.ts: when task_type=implementation, read the spec file from the PR branch and include in context bundle
-- [ ] T022 [US2] Configure implementation task type in scripts/task-types.yaml: prompt template that instructs agent to read spec, generate plan, implement code, commit to branch
+- [x] T020 [US2] Create .github/workflows/spec-agent.yml: triggered on PR with paths .specify/**, calls create_pipeline_task via MCP HTTP endpoint with task_type=implementation and spec content as context
+- [x] T021 [US2] Add spec-to-task context builder in pipeline.ts: when task_type=implementation, read the spec file from the PR branch and include in context bundle
+- [x] T022 [US2] Configure implementation task type in scripts/task-types.yaml: prompt template that instructs agent to read spec, generate plan, implement code, commit to branch
 
 ---
 
@@ -118,10 +118,10 @@ Lore context. Max 2 iterations, then escalate to human.
 
 ### Tasks
 
-- [ ] T023 [US4] Create .github/workflows/agent-review.yml: triggered on PR labelled agent-generated, calls create_pipeline_task with task_type=review and PR URL as context
-- [ ] T024 [US4] Add review task type to scripts/task-types.yaml: prompt template instructs agent to review PR against ADRs, conventions, and original spec, post comments via GitHub API
-- [ ] T025 [US4] Implement review iteration logic in pipeline.ts: track review_iteration on task, if review agent requests changes → create new implementation task (iteration+1), if iteration >= 2 → add label needs-human-review and stop
-- [ ] T026 [US4] Add review comment posting to pipeline-github.ts: post review comments on PR, request changes or approve
+- [x] T023 [US4] Create .github/workflows/agent-review.yml: triggered on PR labelled agent-generated, calls create_pipeline_task with task_type=review and PR URL as context
+- [x] T024 [US4] Add review task type to scripts/task-types.yaml: prompt template instructs agent to review PR against ADRs, conventions, and original spec, post comments via GitHub API
+- [x] T025 [US4] Implement review iteration logic in pipeline.ts: track review_iteration on task, if review agent requests changes → create new implementation task (iteration+1), if iteration >= 2 → add label needs-human-review and stop
+- [x] T026 [US4] Add review comment posting to pipeline-github.ts: post review comments on PR, request changes or approve
 
 ---
 
@@ -139,19 +139,19 @@ both UI and MCP.
 
 ### Tasks
 
-- [ ] T027 [US5] Add status webhook listener in pipeline.ts: when Klaus reports status changes (running, completed, failed), call recordEvent and updateTaskStatus
-- [ ] T028 [US5] Add PR merge detection: GitHub webhook or polling that detects when agent-generated PR is merged, transitions task to merged status
-- [ ] T029 [P] [US5] Add auto-refresh to web-ui/src/app/pipeline/page.tsx: client component that polls get_pipeline_status every 5s for active tasks
-- [ ] T030 [US5] Update web-ui/src/app/pipeline/[id]/page.tsx: show full event timeline with timestamps, failure_reason display, cancel button functionality
+- [x] T027 [US5] Add status webhook listener in pipeline.ts: when Klaus reports status changes (running, completed, failed), call recordEvent and updateTaskStatus
+- [x] T028 [US5] Add PR merge detection: GitHub webhook or polling that detects when agent-generated PR is merged, transitions task to merged status
+- [x] T029 [P] [US5] Add auto-refresh to web-ui/src/app/pipeline/page.tsx: client component that polls get_pipeline_status every 5s for active tasks
+- [x] T030 [US5] Update web-ui/src/app/pipeline/[id]/page.tsx: show full event timeline with timestamps, failure_reason display, cancel button functionality
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T031 Rebuild and push MCP server image with pipeline modules
-- [ ] T032 Deploy pipeline schema to GKE database (run setup-pipeline-schema.sh)
-- [ ] T033 Deploy updated MCP server to GKE
-- [ ] T034 Build and push updated web-ui with pipeline pages
+- [x] T031 Rebuild and push MCP server image with pipeline modules
+- [x] T032 Deploy pipeline schema to GKE database (run setup-pipeline-schema.sh)
+- [x] T033 Deploy updated MCP server to GKE
+- [x] T034 Build and push updated web-ui with pipeline pages
 - [ ] T035 Create GitHub App for re-cinq org, store APP_ID + PRIVATE_KEY as K8s secrets in mcp-servers namespace
 - [ ] T036 Update CLAUDE.md to document pipeline tools and task types
 - [ ] T037 Update web-ui layout.tsx sidebar to include Pipeline nav link
