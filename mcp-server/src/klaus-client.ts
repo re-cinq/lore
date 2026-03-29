@@ -118,9 +118,10 @@ export async function submitTask(
       ? `${task}\n\n## Context\n${contextBundle}`
       : task;
 
+    // Klaus's "prompt" tool expects { message: "..." }
     const result = await c.callTool({
       name: promptTool,
-      arguments: { prompt: fullPrompt },
+      arguments: { message: fullPrompt },
     });
 
     const contentArr = Array.isArray(result.content) ? result.content : [];
