@@ -1,0 +1,58 @@
+task_types:
+  general:
+    prompt_template: |
+      Complete the following task using Lore context.
+      Search the Lore MCP for relevant conventions, ADRs, and existing
+      patterns before starting. Write your output to files and commit.
+
+      Task: {description}
+    target_repo: "re-cinq/lore"
+    timeout_minutes: 30
+    review_required: true
+
+  runbook:
+    prompt_template: |
+      Write a runbook for the following incident type. Follow the existing
+      runbook format in the repo (YAML frontmatter + steps). Search Lore
+      for related ADRs, existing runbooks, and team conventions.
+
+      Task: {description}
+    target_repo: "re-cinq/lore"
+    timeout_minutes: 20
+    review_required: true
+
+  implementation:
+    prompt_template: |
+      Implement the following specification. Read the spec file carefully.
+      Follow the code conventions from Lore context. Write clean,
+      well-structured code with clear commit messages.
+
+      Spec: {description}
+    timeout_minutes: 45
+    review_required: true
+
+  gap-fill:
+    prompt_template: |
+      Draft missing context for the following knowledge gap detected by
+      Lore. Write the content as a CLAUDE.md addition, ADR, or runbook
+      as appropriate. Be specific and factual.
+
+      Gap: {description}
+    target_repo: "re-cinq/lore"
+    timeout_minutes: 15
+    review_required: false
+
+  review:
+    prompt_template: |
+      Review the following pull request. Check the code against:
+      1. The original task/spec requirements
+      2. Organization conventions from Lore context (ADRs, CLAUDE.md)
+      3. Code quality and correctness
+
+      Post specific, actionable comments on the PR. If the code meets
+      all requirements, approve. If not, request changes with clear
+      explanations of what needs fixing.
+
+      PR: {description}
+    timeout_minutes: 15
+    review_required: false

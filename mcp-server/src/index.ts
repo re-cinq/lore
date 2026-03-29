@@ -42,6 +42,15 @@ import {
 } from "./memory-file.js";
 import { searchMemories } from "./memory-search.js";
 import { extractFacts } from "./facts.js";
+import {
+  createTask,
+  getTask,
+  listTasks,
+  cancelTask,
+  setPipelinePool,
+  startPoller,
+} from './pipeline.js';
+import { loadTaskTypes, getTaskTypes } from './pipeline-config.js';
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -478,6 +487,106 @@ server.tool(
   }
 );
 
+// --- Pipeline tools ---
+
+server.tool(
+  "create_pipeline_task",
+  "Create a new task in the pipeline. The task enters 'pending' status and will be picked up by the poller.",
+  {
+    description: z.string().describe("Task description. What should the agent do? Be specific -- this is the primary instruction the agent receives."),
+    task_type: z.string().default("general").describe('Task type from task-types.yaml (e.g., "general", "runbook", "implementation", "gap-fill"). Determines prompt template, timeout, and review policy.'),
+    target_repo: z.string().optional().describe('Target GitHub repository in "owner/repo" format (e.g., "re-cinq/lore"). If omitted, uses the default from task type config.'),
+    context: z.object({
+      beads_task_id: z.string().optional(),
+      spec_file: z.boolean().optional(),
+      branch: z.string().optional(),
+      seed_query: z.string().optional(),
+    }).optional().describe("Additional context to pass to the agent."),
+  },
+  async ({ description: desc, task_type, target_repo, context }) => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      if (!desc || !desc.trim()) {
+        return { content: [{ type: "text" as const, text: "description is required and cannot be empty" }] };
+      }
+      const validTypes = getTaskTypes();
+      const resolvedType = validTypes.includes(task_type) ? task_type : "general";
+      const result = await createTask(desc, resolvedType, target_repo, "mcp", context || undefined);
+      return { content: [{ type: "text" as const, text: JSON.stringify({ ...result, task_type: resolvedType, target_repo: target_repo || result.target_repo }) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error creating pipeline task: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "get_pipeline_status",
+  "Retrieve the current status of a pipeline task, including its full event timeline.",
+  {
+    task_id: z.string().describe("UUID of the pipeline task."),
+  },
+  async ({ task_id }) => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const task = await getTask(task_id);
+      if (!task) {
+        return { content: [{ type: "text" as const, text: `task not found: ${task_id}` }] };
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify(task, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error fetching pipeline status: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "list_pipeline_tasks",
+  "List pipeline tasks with optional filtering by status. Returns tasks ordered by creation time, newest first.",
+  {
+    status: z.string().optional().describe('Filter by status (e.g., "pending", "running", "pr-created", "failed"). Omit to return all tasks.'),
+    limit: z.number().default(20).describe("Maximum number of tasks to return. Default 20, max 100."),
+  },
+  async ({ status, limit }) => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const validStatuses = ["pending", "queued", "running", "pr-created", "review", "merged", "failed", "cancelled"];
+      if (status && !validStatuses.includes(status)) {
+        return { content: [{ type: "text" as const, text: `invalid status: ${status}. Valid values: ${validStatuses.join(", ")}` }] };
+      }
+      const clampedLimit = Math.min(limit, 100);
+      const result = await listTasks(status, clampedLimit);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error listing pipeline tasks: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "cancel_task",
+  "Cancel a pipeline task. If the task has a running agent, attempts to cancel it.",
+  {
+    task_id: z.string().describe("UUID of the pipeline task to cancel."),
+  },
+  async ({ task_id }) => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await cancelTask(task_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error cancelling task: ${err.message}` }] };
+    }
+  }
+);
+
 // --- Start server ---
 async function main() {
   await initOtel();
@@ -494,9 +603,17 @@ async function main() {
     });
     setPool(dbPool);
     setMemoryPool(dbPool);
+    setPipelinePool(dbPool);
     console.error(`[lore] Database mode: PostgreSQL at ${dbHost}`);
   } else {
     console.error("[lore] Database mode: local files (LORE_DB_HOST not set)");
+  }
+
+  // Initialize pipeline
+  loadTaskTypes();
+  if (process.env.LORE_DB_HOST) {
+    startPoller();
+    console.error('[lore] Pipeline poller started');
   }
 
   const mode = process.env.MCP_TRANSPORT || "stdio";
