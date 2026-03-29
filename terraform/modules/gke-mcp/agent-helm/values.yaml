@@ -5,6 +5,9 @@ image:
   tag: latest
   pullPolicy: Always
 
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
 service:
   type: ClusterIP
   port: 8080
@@ -21,7 +24,7 @@ env:
   LORE_DB_HOST: lore-db-rw.alloydb.svc.cluster.local
   LORE_DB_PORT: "5432"
   LORE_DB_NAME: lore
-  LORE_DB_USER: postgres
+  LORE_DB_USER: lore
   ANTHROPIC_MODEL: claude-haiku-4-5-20251001
   TASK_TYPES_PATH: /config/task-types.yaml
   PORT: "8080"
@@ -32,7 +35,7 @@ dbPasswordSecret:
 
 anthropicKeySecret:
   name: lore-agent-anthropic-key
-  key: api-key
+  key: anthropic-api-key
 
 githubAppSecret:
   name: lore-agent-github-app

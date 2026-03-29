@@ -60,18 +60,23 @@ export async function commitFile(
   const octokit = await getOctokit();
   const [owner, repoName] = repo.split("/");
 
-  // Get current file SHA if it exists
+  // Get current file SHA if it exists (check branch first, then main)
   let sha: string | undefined;
-  try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo: repoName,
-      path,
-      ref: branch,
-    });
-    if ("sha" in data) sha = data.sha;
-  } catch {
-    // file doesn't exist yet
+  for (const ref of [branch, "main"]) {
+    try {
+      const { data } = await octokit.rest.repos.getContent({
+        owner,
+        repo: repoName,
+        path,
+        ref,
+      });
+      if ("sha" in data) {
+        sha = data.sha;
+        break;
+      }
+    } catch {
+      // file doesn't exist on this ref
+    }
   }
 
   await octokit.rest.repos.createOrUpdateFileContents({
