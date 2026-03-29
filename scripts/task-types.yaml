@@ -56,3 +56,26 @@ task_types:
       PR: {description}
     timeout_minutes: 15
     review_required: false
+
+  onboard:
+    prompt_template: |
+      You are onboarding a repository to the Lore platform. Inspect the
+      repository and create an onboarding PR with customized files.
+
+      Repository: {description}
+
+      Steps:
+      1. Read the repository structure via GitHub API (list files, read
+         key files like package.json, Dockerfile, README, any existing
+         CLAUDE.md)
+      2. Understand the tech stack, language, framework, and patterns
+      3. Generate a CLAUDE.md that accurately describes:
+         - Architecture (based on what you find in the repo)
+         - Code conventions (inferred from the code)
+         - Key services/entry points
+      4. Include standard files: AGENTS.md, PR template, CI workflows
+      5. Your output should be a JSON object with file paths and content:
+         {"files": {"CLAUDE.md": "...", "AGENTS.md": "...", ...}}
+    target_repo: null
+    timeout_minutes: 10
+    review_required: false

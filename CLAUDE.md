@@ -89,6 +89,17 @@ searchable facts with embeddings.
 Agent ID resolved from: explicit parameter, `LORE_AGENT_ID` env,
 `~/.lore/agent-id` file, or auto-generated UUID.
 
+## Developer Setup
+
+`install.sh` runs once per machine. It configures:
+- MCP server (serves context for ALL onboarded repos)
+- Skills (/lore-feature, /lore-pr)
+- Hooks (SessionStart syncs context, PostToolUse tracks tasks)
+- Agent ID (~/.lore/agent-id)
+
+No per-repo install needed. The MCP server auto-detects which repo
+you're in from the git remote and serves that repo's context.
+
 ## Running Locally
 
 ```bash

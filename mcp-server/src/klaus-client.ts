@@ -183,6 +183,74 @@ export async function submitTask(
   }
 }
 
+// ── Async API (non-blocking dispatch + background poll) ─────────────
+
+/**
+ * Submit a task to Klaus asynchronously — fires the prompt and returns
+ * immediately with a session ID instead of blocking until completion.
+ */
+export async function submitTaskAsync(
+  task: string, contextBundle: string, priority: string
+): Promise<KlausResult<{ session_id: string }>> {
+  try {
+    const c = await getClient();
+    const tools = await c.listTools();
+    const promptTool = tools.tools.find(t => t.name === 'prompt') || tools.tools[0];
+    if (!promptTool) return { error: true, message: 'No tools available' };
+
+    const fullPrompt = contextBundle ? `${task}\n\n## Context\n${contextBundle}` : task;
+
+    // Fire and forget — prompt returns immediately with session info
+    const result = await c.callTool({ name: 'prompt', arguments: { message: fullPrompt } });
+    const text = Array.isArray(result.content)
+      ? result.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
+      : '';
+
+    // Extract session ID
+    const sessionMatch = text.match(/"session_id":"([^"]+)"/);
+    return { session_id: sessionMatch?.[1] || `unknown-${Date.now()}` };
+  } catch (err: any) {
+    client = null; clientReady = false;
+    return { error: true, message: `Klaus error: ${err.message}` };
+  }
+}
+
+/**
+ * Poll Klaus status every 5 seconds until the agent is idle/stopped/completed.
+ * Then fetch the final result.
+ */
+export async function pollKlausUntilDone(
+  onStatus?: (status: string) => void,
+  maxMinutes: number = 10
+): Promise<{ output: string; cost: number | null }> {
+  const c = await getClient();
+  const maxAttempts = maxMinutes * 12; // 5s intervals
+  let statusText = '';
+
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    const result = await c.callTool({ name: 'status', arguments: {} });
+    statusText = Array.isArray(result.content)
+      ? result.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
+      : '';
+
+    onStatus?.(statusText.substring(0, 100));
+
+    if (statusText.includes('"idle"') || statusText.includes('"stopped"') || statusText.includes('"completed"')) {
+      break;
+    }
+  }
+
+  // Fetch result
+  const resultCall = await c.callTool({ name: 'result', arguments: {} });
+  const output = Array.isArray(resultCall.content)
+    ? resultCall.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('\n')
+    : '';
+
+  const costMatch = statusText.match(/"total_cost_usd":([\d.]+)/);
+  return { output, cost: costMatch ? parseFloat(costMatch[1]) : null };
+}
+
 /**
  * Get status. Since we're using synchronous tool calls, the task is
  * either completed (we have the result) or failed. No polling needed.

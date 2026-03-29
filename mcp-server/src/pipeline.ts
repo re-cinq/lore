@@ -8,7 +8,7 @@
 
 import { resolveAgentId } from './agent-id.js';
 import { getTaskTypeConfig, buildPrompt, getDefaultRepo, loadTaskTypes } from './pipeline-config.js';
-import { submitTask as submitToKlaus, getTaskStatus as getKlausStatus, getTaskResult as getKlausResult, isKlausError } from './klaus-client.js';
+import { submitTask as submitToKlaus, getTaskStatus as getKlausStatus, getTaskResult as getKlausResult, isKlausError, submitTaskAsync, pollKlausUntilDone } from './klaus-client.js';
 import { buildContextBundle } from './context-bundle.js';
 import { createBranch, commitFile, createPR, isConfigured as isGitHubConfigured } from './pipeline-github.js';
 
@@ -165,29 +165,32 @@ async function spawnAgent(task: any): Promise<void> {
     const config = getTaskTypeConfig(task.task_type);
     await updateTaskStatus(task.id, 'running');
 
-    // Klaus MCP calls are synchronous — the result comes back when the
-    // agent finishes. This blocks until Klaus completes the work.
-    console.log(`[pipeline] Submitting task ${task.id} to Klaus...`);
-    const result = await submitToKlaus(fullPrompt, contextStr, 'normal');
-
-    if (result && 'error' in result && (result as any).error) {
-      // Klaus returned an error
-      throw new Error((result as any).message || 'Klaus returned an error');
+    // Async dispatch — submit to Klaus and return immediately with session ID.
+    // Polling happens in the background so the pipeline poller is not blocked.
+    console.log(`[pipeline] Submitting task ${task.id} to Klaus (async)...`);
+    const submitResult = await submitTaskAsync(fullPrompt, contextStr, 'normal');
+    if (isKlausError(submitResult)) {
+      throw new Error(submitResult.message);
     }
 
-    if (result && 'output' in result && (result as any).output) {
-      // Klaus completed the task — create PR with the output
-      console.log(`[pipeline] Task ${task.id} completed, creating PR...`);
-      await handleAgentCompletion(task.id, (result as any).output);
-    } else {
-      // Klaus returned but with no output
-      await handleAgentCompletion(task.id, 'Agent completed but produced no output.');
-    }
+    console.log(`[pipeline] Task ${task.id} dispatched, session: ${submitResult.session_id}`);
 
-    // Store cost in task events if available
-    if (result && 'cost' in result && (result as any).cost) {
-      await recordEvent(task.id, null, null, { cost_usd: (result as any).cost });
-    }
+    // Poll in background (don't block the poller)
+    pollKlausUntilDone(
+      (status) => console.log(`[pipeline] Task ${task.id}: ${status}`),
+      config?.timeout_minutes || 30
+    ).then(async ({ output, cost }) => {
+      if (output) {
+        await handleAgentCompletion(task.id, output);
+      } else {
+        await handleAgentCompletion(task.id, 'Agent completed but produced no output.');
+      }
+      if (cost) {
+        await recordEvent(task.id, null, null, { cost_usd: cost });
+      }
+    }).catch(async (err) => {
+      await handleAgentFailure(task.id, err.message);
+    });
   } catch (err: any) {
     await updateTaskStatus(task.id, 'failed', { error: err.message });
     await pool.query(
@@ -223,10 +226,33 @@ export async function handleAgentCompletion(taskId: string, output: string): Pro
   const repo = task.target_repo;
 
   try {
-    await createBranch(repo, branchName);
-
     // Parse agent output (may be JSON-wrapped)
     const cleanOutput = parseAgentOutput(output);
+
+    // ── Onboard tasks return multi-file JSON ───────────────────────
+    if (task.task_type === 'onboard') {
+      try {
+        const parsed = JSON.parse(cleanOutput);
+        if (parsed.files && typeof parsed.files === 'object') {
+          await createBranch(repo, branchName);
+          for (const [filePath, content] of Object.entries(parsed.files)) {
+            await commitFile(repo, branchName, filePath, content as string, `lore: add ${filePath}`);
+          }
+          const prBody = `## Lore Onboarding\n\nThis PR adds Lore platform files to enable AI-powered development.\n\n**Files added:**\n${Object.keys(parsed.files).map(f => '- ' + f).join('\n')}\n\nReview and merge to complete onboarding.`;
+          const { url, number } = await createPR(repo, branchName, `lore: onboard ${repo}`, prBody, 'main', ['lore-onboarding']);
+          await pool.query(`UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2`, [url, repo]);
+          await pool.query(
+            `UPDATE pipeline.tasks SET pr_url = $1, pr_number = $2, target_branch = $3 WHERE id = $4`,
+            [url, number, branchName, taskId],
+          );
+          await updateTaskStatus(taskId, 'pr-created', { pr_url: url, pr_number: number });
+          return;
+        }
+      } catch {} // Fall through to normal file commit
+    }
+
+    // ── Default: single-file commit ────────────────────────────────
+    await createBranch(repo, branchName);
 
     // Determine output file path based on task type
     const filePath = getOutputPath(task.task_type, slug);
