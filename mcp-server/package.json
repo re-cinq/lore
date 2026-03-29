@@ -19,8 +19,11 @@
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.57.0",
     "@google-cloud/opentelemetry-cloud-trace-exporter": "^2.4.0",
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": "^0.20.0",
+    "@octokit/auth-app": "^7.1.0",
     "glob": "^11.0.1",
+    "octokit": "^4.1.0",
     "pg": "^8.13.0",
+    "yaml": "^2.7.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
