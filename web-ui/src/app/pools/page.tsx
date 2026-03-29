@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import Link from 'next/link';
 import { query } from '@/lib/db';
 
 interface Pool {
@@ -31,15 +32,19 @@ export default async function PoolsPage() {
         <tbody>
           {pools.map(p => (
             <tr key={p.id}>
-              <td><strong>{p.name}</strong></td>
+              <td>
+                <Link href={`/pools/${encodeURIComponent(p.name)}`}>
+                  <strong>{p.name}</strong>
+                </Link>
+              </td>
               <td>{p.entry_count}</td>
               <td>{p.agent_count}</td>
-              <td>{p.created_by.substring(0, 8)}...</td>
+              <td title={p.created_by}>{p.created_by.substring(0, 8)}...</td>
               <td>{new Date(p.created_at).toLocaleString()}</td>
             </tr>
           ))}
           {pools.length === 0 && (
-            <tr><td colSpan={5} style={{textAlign: 'center', color: '#666'}}>No shared pools yet</td></tr>
+            <tr><td colSpan={5} style={{ textAlign: 'center', color: '#666', padding: 24 }}>No shared pools yet</td></tr>
           )}
         </tbody>
       </table>

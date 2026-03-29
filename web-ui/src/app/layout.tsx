@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import SidebarNav from './SidebarNav';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -18,15 +18,7 @@ export default function RootLayout({
         <div className="app-layout">
           <aside className="sidebar">
             <div className="sidebar-brand">LORE</div>
-            <nav>
-              <Link href="/">Agents</Link>
-              <Link href="/search">Search</Link>
-              <Link href="/audit">Audit</Link>
-              <Link href="/pools">Pools</Link>
-              <Link href="/tasks">Tasks</Link>
-              <Link href="/specs">Specs</Link>
-              <Link href="/gaps">Gaps</Link>
-            </nav>
+            <SidebarNav />
           </aside>
           <main className="main-content">{children}</main>
         </div>
