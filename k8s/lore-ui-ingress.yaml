@@ -7,7 +7,7 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     external-dns.alpha.kubernetes.io/hostname: lore.gcp.re-cinq.com
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-ingress
   tls:
     - hosts:
         - lore.gcp.re-cinq.com
