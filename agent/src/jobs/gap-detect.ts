@@ -20,7 +20,7 @@ export async function gapDetectJob(): Promise<string> {
       // Check if CLAUDE.md content exists for this repo
       const chunks = await query<{ id: string }>(
         `SELECT id FROM org_shared.chunks
-         WHERE source_repo = $1
+         WHERE repo = $1
            AND content_type = 'claude-md'
          LIMIT 1`,
         [repo.full_name],

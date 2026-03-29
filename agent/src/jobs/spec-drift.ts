@@ -8,7 +8,7 @@ interface RepoWithSpecs {
 // For now we just identify repos that have specs in the chunk store.
 export async function specDriftJob(): Promise<string> {
   const repos = await query<RepoWithSpecs>(
-    `SELECT DISTINCT source_repo AS full_name
+    `SELECT DISTINCT repo AS full_name
      FROM org_shared.chunks
      WHERE content_type = 'spec'`,
   );
