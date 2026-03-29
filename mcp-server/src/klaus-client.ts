@@ -123,9 +123,10 @@ export async function submitTask(
       arguments: { prompt: fullPrompt },
     });
 
+    const contentArr = Array.isArray(result.content) ? result.content : [];
     const output =
-      result.content
-        ?.filter((c: any) => c.type === "text")
+      contentArr
+        .filter((c: any) => c.type === "text")
         .map((c: any) => c.text)
         .join("\n") || "";
 
