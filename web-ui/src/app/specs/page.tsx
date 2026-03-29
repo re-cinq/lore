@@ -60,6 +60,12 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
   return (
     <div>
       <h1>Org Context &amp; Specifications</h1>
+      <div style={{ background: 'var(--bg-muted, #1a1a2e)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+        <p className="meta" style={{ margin: 0 }}>
+          This is the global view across all repos. For repo-specific specs, visit{' '}
+          <Link href="/">Repositories</Link> and select a repo.
+        </p>
+      </div>
       <p className="meta" style={{ marginBottom: 16 }}>
         Browse ingested specs, ADRs, CLAUDE.md, and other org context from the context repository.
       </p>

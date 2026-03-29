@@ -7,8 +7,6 @@ const links = [
   { href: '/', label: 'Repos' },
   { href: '/search', label: 'Search' },
   { href: '/audit', label: 'Audit' },
-  { href: '/pools', label: 'Pools' },
-  { href: '/pipeline', label: 'Pipeline' },
 ];
 
 export default function SidebarNav() {

@@ -58,6 +58,7 @@ import {
   getOnboardedReposWithCounts,
   getAvailableRepos,
   onboardRepo,
+  checkOnboardingPRs,
 } from './repo-onboard.js';
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
@@ -707,6 +708,8 @@ async function main() {
   if (process.env.LORE_DB_HOST) {
     startPoller();
     startMergeChecker();
+    // T018: Check onboarding PRs every 60s
+    setInterval(() => checkOnboardingPRs(dbPoolRef).catch(e => console.error('[lore] Onboarding PR check error:', e.message)), 60_000);
     console.error('[lore] Pipeline poller started');
   }
 

@@ -14,6 +14,23 @@ interface Repo {
   active_agents: number;
 }
 
+function freshnessIndicator(lastIngestedAt: string | null): { color: string; label: string } {
+  if (!lastIngestedAt) {
+    return { color: '#6b7280', label: 'Never ingested' }; // gray
+  }
+  const now = new Date();
+  const ingested = new Date(lastIngestedAt);
+  const hoursAgo = (now.getTime() - ingested.getTime()) / (1000 * 60 * 60);
+
+  if (hoursAgo < 24) {
+    return { color: '#22c55e', label: 'Fresh (< 24h)' }; // green
+  } else if (hoursAgo < 7 * 24) {
+    return { color: '#eab308', label: 'Stale (< 7d)' }; // yellow
+  } else {
+    return { color: '#ef4444', label: 'Outdated (> 7d)' }; // red
+  }
+}
+
 export default async function HomePage() {
   // Query repos with activity summary
   const repos = await query<Repo>(`
@@ -34,7 +51,20 @@ export default async function HomePage() {
       <div className="repo-grid">
         {repos.map(r => (
           <Link key={r.full_name} href={`/repos/${r.owner}/${r.name}`} className="repo-card">
-            <h3>{r.full_name}</h3>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span
+                title={freshnessIndicator(r.last_ingested_at).label}
+                style={{
+                  display: 'inline-block',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  backgroundColor: freshnessIndicator(r.last_ingested_at).color,
+                  flexShrink: 0,
+                }}
+              />
+              {r.full_name}
+            </h3>
             <div className="repo-meta">
               {r.team && <span className="badge">{r.team}</span>}
               <span className="meta">{r.task_count} tasks</span>

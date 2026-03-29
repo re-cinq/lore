@@ -4,9 +4,16 @@ You are a Lore ingestion agent running the nightly full re-index.
 
 ## Steps
 
-1. Clone all configured repositories to a working directory.
+1. Query the repos table to get the list of onboarded repositories:
+   ```sql
+   SELECT full_name, owner, name, team, settings
+   FROM lore.repos
+   WHERE onboarding_pr_merged = TRUE
+   ORDER BY full_name;
+   ```
+   Clone each repository to a working directory.
 
-2. For each repository:
+2. For each repository from `lore.repos`:
    a. Walk the file tree. For each supported file type:
       - TypeScript/Python/Go/Kotlin/Swift: parse with tree-sitter,
         split at function/class boundaries.
@@ -34,7 +41,12 @@ You are a Lore ingestion agent running the nightly full re-index.
    For PR chunks: delete if the PR's source branch repo no longer exists
    or the PR has been reverted.
 
-5. Report summary: chunks created, updated, deleted per schema.
+5. After processing each repo, update its `last_ingested_at` timestamp:
+   ```sql
+   UPDATE lore.repos SET last_ingested_at = now() WHERE full_name = $1;
+   ```
+
+6. Report summary: chunks created, updated, deleted per schema and per repo.
 
 ## Content quality checks
 
