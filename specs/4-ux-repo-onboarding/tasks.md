@@ -22,18 +22,18 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Create repos schema DDL script in scripts/infra/setup-repos-schema.sh (lore.repos table with indexes, grants to lore user)
-- [ ] T002 Run schema DDL on the existing lore database
-- [ ] T003 [P] Create onboarding template files in scripts/onboarding-templates/ (CLAUDE.md, AGENTS.md, PR template, pr-description-check.yml, spec-agent.yml)
+- [x] T001 Create repos schema DDL script in scripts/infra/setup-repos-schema.sh (lore.repos table with indexes, grants to lore user)
+- [x] T002 Run schema DDL on the existing lore database
+- [x] T003 [P] Create onboarding template files in scripts/onboarding-templates/ (CLAUDE.md, AGENTS.md, PR template, pr-description-check.yml, spec-agent.yml)
 
 ---
 
 ## Phase 2: Foundational — Repo Backend
 
-- [ ] T004 Create mcp-server/src/repo-onboard.ts: fetch repos from GitHub App installation, filter to unonboarded, onboard flow (create branch, commit templates, open PR, insert to lore.repos)
-- [ ] T005 Register list_repos MCP tool in mcp-server/src/index.ts: query lore.repos with activity summary (task count from pipeline.tasks, last_ingested_at)
-- [ ] T006 Register onboard_repo MCP tool in mcp-server/src/index.ts: calls repo-onboard.ts, returns PR URL
-- [ ] T007 Create web-ui API route for fetching available repos: web-ui/src/app/api/repos/route.ts (queries GitHub App installation repos + lore.repos to show onboarded vs available)
+- [x] T004 Create mcp-server/src/repo-onboard.ts: fetch repos from GitHub App installation, filter to unonboarded, onboard flow (create branch, commit templates, open PR, insert to lore.repos)
+- [x] T005 Register list_repos MCP tool in mcp-server/src/index.ts: query lore.repos with activity summary (task count from pipeline.tasks, last_ingested_at)
+- [x] T006 Register onboard_repo MCP tool in mcp-server/src/index.ts: calls repo-onboard.ts, returns PR URL
+- [x] T007 Create web-ui API route for fetching available repos: web-ui/src/app/api/repos/route.ts (queries GitHub App installation repos + lore.repos to show onboarded vs available)
 
 ---
 
@@ -50,14 +50,14 @@ page with tabs for tasks, context, specs, and agents.
 
 ### Tasks
 
-- [ ] T008 [US1] Create web-ui/src/app/page.tsx (replace): repo list as home page — queries lore.repos + pipeline.tasks count + last_ingested_at, shows repo cards with activity badges
-- [ ] T009 [US1] Create web-ui/src/app/repos/[owner]/[repo]/layout.tsx: repo detail layout with tab navigation (Overview, Tasks, Context, Specs, Agents, Settings)
-- [ ] T010 [US1] Create web-ui/src/app/repos/[owner]/[repo]/page.tsx: overview tab — recent tasks, active agents, context freshness, latest PRs
-- [ ] T011 [P] [US1] Create web-ui/src/app/repos/[owner]/[repo]/tasks/page.tsx: pipeline tasks filtered by target_repo
-- [ ] T012 [P] [US1] Create web-ui/src/app/repos/[owner]/[repo]/context/page.tsx: CLAUDE.md + ADRs + runbooks from org_shared.chunks WHERE file_path matches repo
-- [ ] T013 [P] [US1] Create web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx: .specify/ specs for this repo
-- [ ] T014 [P] [US1] Create web-ui/src/app/repos/[owner]/[repo]/agents/page.tsx: agent memories scoped to agents that worked on this repo
-- [ ] T015 [US1] Update web-ui/src/app/SidebarNav.tsx: replace tool-centric nav with repo-centric (Repos, Search, Audit, Pools) + Add Repo button
+- [x] T008 [US1] Create web-ui/src/app/page.tsx (replace): repo list as home page — queries lore.repos + pipeline.tasks count + last_ingested_at, shows repo cards with activity badges
+- [x] T009 [US1] Create web-ui/src/app/repos/[owner]/[repo]/layout.tsx: repo detail layout with tab navigation (Overview, Tasks, Context, Specs, Agents, Settings)
+- [x] T010 [US1] Create web-ui/src/app/repos/[owner]/[repo]/page.tsx: overview tab — recent tasks, active agents, context freshness, latest PRs
+- [x] T011 [P] [US1] Create web-ui/src/app/repos/[owner]/[repo]/tasks/page.tsx: pipeline tasks filtered by target_repo
+- [x] T012 [P] [US1] Create web-ui/src/app/repos/[owner]/[repo]/context/page.tsx: CLAUDE.md + ADRs + runbooks from org_shared.chunks WHERE file_path matches repo
+- [x] T013 [P] [US1] Create web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx: .specify/ specs for this repo
+- [x] T014 [P] [US1] Create web-ui/src/app/repos/[owner]/[repo]/agents/page.tsx: agent memories scoped to agents that worked on this repo
+- [x] T015 [US1] Update web-ui/src/app/SidebarNav.tsx: replace tool-centric nav with repo-centric (Repos, Search, Audit, Pools) + Add Repo button
 
 ---
 
@@ -75,10 +75,10 @@ onboarding PR with all required files.
 
 ### Tasks
 
-- [ ] T016 [US2] Create web-ui/src/app/onboard/page.tsx: shows available repos (from API route T007), click to onboard, shows progress + PR link
-- [ ] T017 [US2] Create web-ui/src/app/api/onboard/route.ts: server action that calls onboard_repo via direct PostgreSQL + GitHub API (not MCP, since UI has its own DB connection)
-- [ ] T018 [US2] Add merge detection for onboarding PRs: polling or webhook that checks if onboarding PR is merged, updates lore.repos.onboarding_pr_merged = true
-- [ ] T019 [US2] Trigger initial ingestion after onboarding PR merge: when PR merged, clone repo content into org_shared.chunks with repo attribution
+- [x] T016 [US2] Create web-ui/src/app/onboard/page.tsx: shows available repos (from API route T007), click to onboard, shows progress + PR link
+- [x] T017 [US2] Create web-ui/src/app/api/onboard/route.ts: server action that calls onboard_repo via direct PostgreSQL + GitHub API (not MCP, since UI has its own DB connection)
+- [x] T018 [US2] Add merge detection for onboarding PRs: polling or webhook that checks if onboarding PR is merged, updates lore.repos.onboarding_pr_merged = true
+- [x] T019 [US2] Trigger initial ingestion after onboarding PR merge: when PR merged, clone repo content into org_shared.chunks with repo attribution
 
 ---
 
@@ -94,9 +94,9 @@ Task creation is always scoped to a repo via dropdown, not free text.
 
 ### Tasks
 
-- [ ] T020 [US3] Update web-ui/src/app/repos/[owner]/[repo]/tasks/page.tsx: add "New Task" button that opens creation form with repo pre-filled
-- [ ] T021 [US3] Create web-ui/src/app/repos/[owner]/[repo]/tasks/create/page.tsx: task creation form with repo locked to current repo, task type dropdown, description textarea
-- [ ] T022 [US3] Update web-ui/src/app/pipeline/create/page.tsx: replace free-text repo input with dropdown of onboarded repos from lore.repos
+- [x] T020 [US3] Update web-ui/src/app/repos/[owner]/[repo]/tasks/page.tsx: add "New Task" button that opens creation form with repo pre-filled
+- [x] T021 [US3] Create web-ui/src/app/repos/[owner]/[repo]/tasks/create/page.tsx: task creation form with repo locked to current repo, task type dropdown, description textarea
+- [x] T022 [US3] Update web-ui/src/app/pipeline/create/page.tsx: replace free-text repo input with dropdown of onboarded repos from lore.repos
 
 ---
 
@@ -112,8 +112,8 @@ Global search returns results attributed to their source repo.
 
 ### Tasks
 
-- [ ] T023 [US4] Update web-ui/src/app/search/page.tsx: add repo filter dropdown, show repo attribution on each result, search across org_shared.chunks + memory.memories with repo context
-- [ ] T024 [P] [US4] Add repo column to search results: join org_shared.chunks.metadata->>'file_path' to determine source repo
+- [x] T023 [US4] Update web-ui/src/app/search/page.tsx: add repo filter dropdown, show repo attribution on each result, search across org_shared.chunks + memory.memories with repo context
+- [x] T024 [P] [US4] Add repo column to search results: join org_shared.chunks.metadata->>'file_path' to determine source repo
 
 ---
 
@@ -130,26 +130,26 @@ task types).
 
 ### Tasks
 
-- [ ] T025 [US5] Create web-ui/src/app/repos/[owner]/[repo]/settings/page.tsx: form to edit team, ingestion schedule, available task types, eval config. Saves to lore.repos.settings JSONB.
-- [ ] T026 [US5] Create web-ui/src/app/api/repos/[owner]/[repo]/settings/route.ts: POST handler to update lore.repos.settings
+- [x] T025 [US5] Create web-ui/src/app/repos/[owner]/[repo]/settings/page.tsx: form to edit team, ingestion schedule, available task types, eval config. Saves to lore.repos.settings JSONB.
+- [x] T026 [US5] Create web-ui/src/app/api/repos/[owner]/[repo]/settings/route.ts: POST handler to update lore.repos.settings
 
 ---
 
 ## Phase 8: Form Styling + Fixes
 
-- [ ] T027 Update web-ui/src/app/globals.css: comprehensive form styling — inputs, textareas, selects, buttons, labels, validation states, all consistent dark theme
-- [ ] T028 Fix /pipeline redirect issue: investigate and fix the middleware or layout causing unexpected redirect to /pipeline
-- [ ] T029 Remove redundant pages: /specs and /context now live under /repos/[owner]/[repo]/, remove or redirect old routes
-- [ ] T030 Update /pipeline/page.tsx: add repo column to pipeline dashboard table, link to repo detail
+- [x] T027 Update web-ui/src/app/globals.css: comprehensive form styling — inputs, textareas, selects, buttons, labels, validation states, all consistent dark theme
+- [x] T028 Fix /pipeline redirect issue: investigate and fix the middleware or layout causing unexpected redirect to /pipeline
+- [x] T029 Remove redundant pages: /specs and /context now live under /repos/[owner]/[repo]/, remove or redirect old routes
+- [x] T030 Update /pipeline/page.tsx: add repo column to pipeline dashboard table, link to repo detail
 
 ---
 
 ## Phase 9: Polish — Ingestion + Freshness
 
-- [ ] T031 Update nightly ingestion CronJob to iterate over lore.repos and ingest per-repo content (not just the lore repo)
-- [ ] T032 Add freshness indicator to repo list: show "last ingested X hours ago" with color coding (green < 24h, yellow < 7d, red > 7d)
-- [ ] T033 Build and push updated MCP server and web-ui images via CI (merge to main)
-- [ ] T034 Update CLAUDE.md to document repo onboarding flow and repo-centric UI
+- [x] T031 Update nightly ingestion CronJob to iterate over lore.repos and ingest per-repo content (not just the lore repo)
+- [x] T032 Add freshness indicator to repo list: show "last ingested X hours ago" with color coding (green < 24h, yellow < 7d, red > 7d)
+- [x] T033 Build and push updated MCP server and web-ui images via CI (merge to main)
+- [x] T034 Update CLAUDE.md to document repo onboarding flow and repo-centric UI
 
 ---
 
