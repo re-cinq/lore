@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lore-ui
+  namespace: lore-ui
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    external-dns.alpha.kubernetes.io/hostname: lore.gcp.re-cinq.com
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - lore.gcp.re-cinq.com
+      secretName: lore-ui-tls
+  rules:
+    - host: lore.gcp.re-cinq.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lore-ui
+                port:
+                  number: 3000
