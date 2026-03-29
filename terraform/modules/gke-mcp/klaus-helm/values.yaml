@@ -33,3 +33,5 @@ env:
       secretKeyRef:
         name: klaus-secrets
         key: anthropic-api-key
+  - name: CLAUDE_MODEL
+    value: claude-haiku-4-5-20251001
