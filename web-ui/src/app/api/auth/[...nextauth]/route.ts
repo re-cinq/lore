@@ -19,7 +19,7 @@ const handler = NextAuth({
       const allowedOrg = process.env.GITHUB_ALLOWED_ORG;
       if (!allowedOrg) return true;
       try {
-        const res = await fetch(`https://api.github.com/orgs/${allowedOrg}/members/${profile?.login}`, {
+        const res = await fetch(`https://api.github.com/orgs/${allowedOrg}/members/${(profile as any)?.login}`, {
           headers: { Authorization: `token ${process.env.GITHUB_OAUTH_CLIENT_SECRET}` },
         });
         return res.status === 204;
