@@ -20,7 +20,10 @@ export default function RootLayout({
         <SessionWrapper>
           <div className="app-layout">
             <aside className="sidebar">
-              <div className="sidebar-brand">LORE</div>
+              <div className="sidebar-brand">
+                <img src="/logo.svg" alt="Lore" width={28} height={28} />
+                LORE
+              </div>
               <SidebarNav />
               <UserMenu />
             </aside>

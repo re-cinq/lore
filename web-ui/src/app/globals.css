@@ -58,6 +58,9 @@ a:hover {
 }
 
 .sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 0 16px 16px;
   font-size: 16px;
   font-weight: 600;
