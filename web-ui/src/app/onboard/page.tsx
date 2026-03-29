@@ -17,11 +17,25 @@ async function onboardRepo(formData: FormData) {
     return;
   }
 
-  // Insert into repos table (the MCP server's onboard module will create the PR)
+  // Insert into repos table
   await query(
     `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3) ON CONFLICT (full_name) DO NOTHING`,
     [owner, name, fullName]
   );
+
+  // Create pipeline task for the onboarding agent
+  const task = await query(
+    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by)
+     VALUES ($1, 'onboard', $2, 'ui')
+     RETURNING id`,
+    [fullName, fullName]
+  );
+  if (task[0]) {
+    await query(
+      `INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`,
+      [task[0].id]
+    );
+  }
 
   revalidatePath('/');
   redirect('/');
