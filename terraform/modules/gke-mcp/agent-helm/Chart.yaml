@@ -1,0 +1,5 @@
+apiVersion: v2
+name: lore-agent
+description: Lore Agent Service — pipeline task processor and job scheduler
+version: 0.1.0
+appVersion: "0.1.0"

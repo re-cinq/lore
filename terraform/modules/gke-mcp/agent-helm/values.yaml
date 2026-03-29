@@ -1,0 +1,46 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/re-cinq/lore-agent
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: 512Mi
+  requests:
+    cpu: "100m"
+    memory: 256Mi
+
+env:
+  LORE_DB_HOST: lore-db-rw.alloydb.svc.cluster.local
+  LORE_DB_PORT: "5432"
+  LORE_DB_NAME: lore
+  LORE_DB_USER: postgres
+  ANTHROPIC_MODEL: claude-haiku-4-5-20251001
+  TASK_TYPES_PATH: /config/task-types.yaml
+  PORT: "8080"
+
+dbPasswordSecret:
+  name: lore-agent-db-password
+  key: password
+
+anthropicKeySecret:
+  name: lore-agent-anthropic-key
+  key: api-key
+
+githubAppSecret:
+  name: lore-agent-github-app
+  appIdKey: app-id
+  privateKeyKey: private-key
+  installationIdKey: installation-id
+
+configMap:
+  name: lore-agent-config
+
+gcpProject: re5-n8n-platform
