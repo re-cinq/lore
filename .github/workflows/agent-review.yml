@@ -1,0 +1,32 @@
+name: Agent PR Review
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  review:
+    if: contains(github.event.label.name, 'agent-generated')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger review agent
+        run: |
+          curl -sf -X POST "${{ secrets.LORE_MCP_ENDPOINT }}/mcp" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            -d '{
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "tools/call",
+              "params": {
+                "name": "create_pipeline_task",
+                "arguments": {
+                  "description": "Review PR #${{ github.event.number }}: ${{ github.event.pull_request.title }}. Check against Lore context, ADRs, and conventions. Post review comments on the PR.",
+                  "task_type": "review",
+                  "target_repo": "${{ github.repository }}",
+                  "context": {
+                    "branch": "${{ github.head_ref }}"
+                  }
+                }
+              }
+            }' || echo "Warning: Could not reach Lore MCP endpoint"

@@ -79,3 +79,14 @@ Four services in the `n8n-cluster` (europe-west1):
 - Lore MCP server: `mcp-servers` namespace
 
 Deploy order: `setup-db.sh` → `setup-schedulers.sh` → Helm install Klaus + MCP.
+
+## Task Pipeline
+
+Tasks created via UI, MCP, or PR trigger Klaus agents on GKE.
+Pipeline tools: create_pipeline_task, get_pipeline_status,
+list_pipeline_tasks, cancel_task, mark_task_merged,
+submit_review_result. Task types configured in
+scripts/task-types.yaml. Agent creates branch + PR when done.
+Review agent optionally checks agent PRs (max 2 iterations).
+PR label `agent-generated` triggers the review workflow
+(.github/workflows/agent-review.yml).

@@ -30,6 +30,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
 
   return (
     <div>
+      <meta httpEquiv="refresh" content="10" />
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <h1>Pipeline</h1>
         <Link href="/pipeline/create"><button>+ Create Task</button></Link>
