@@ -229,6 +229,41 @@ function parseAgentOutput(raw: string): string {
   return raw;
 }
 
+/**
+ * Extract a JSON object from agent output that may contain surrounding text.
+ * Looks for the outermost { "files": ... } block via brace matching.
+ */
+function extractJsonFromOutput(raw: string): any | null {
+  // First try parsing the whole thing
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.files) return parsed;
+  } catch {}
+
+  // Find first { that starts a "files" object
+  const startIdx = raw.indexOf('{"files"');
+  const altIdx = raw.indexOf('{ "files"');
+  const idx = startIdx === -1 ? altIdx : (altIdx === -1 ? startIdx : Math.min(startIdx, altIdx));
+  if (idx === -1) return null;
+
+  // Brace-match to find the closing }
+  let depth = 0;
+  for (let i = idx; i < raw.length; i++) {
+    if (raw[i] === '{') depth++;
+    else if (raw[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(raw.substring(idx, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 // ── Agent completion (T014) ─────────────────────────────────────────
 
 export async function handleAgentCompletion(taskId: string, output: string): Promise<void> {
@@ -245,24 +280,26 @@ export async function handleAgentCompletion(taskId: string, output: string): Pro
 
     // ── Onboard tasks return multi-file JSON ───────────────────────
     if (task.task_type === 'onboard') {
-      try {
-        const parsed = JSON.parse(cleanOutput);
-        if (parsed.files && typeof parsed.files === 'object') {
-          await createBranch(repo, branchName);
-          for (const [filePath, content] of Object.entries(parsed.files)) {
-            await commitFile(repo, branchName, filePath, content as string, `lore: add ${filePath}`);
-          }
-          const prBody = `## Lore Onboarding\n\nThis PR adds Lore platform files to enable AI-powered development.\n\n**Files added:**\n${Object.keys(parsed.files).map(f => '- ' + f).join('\n')}\n\nReview and merge to complete onboarding.`;
-          const { url, number } = await createPR(repo, branchName, `lore: onboard ${repo}`, prBody, 'main', ['lore-onboarding']);
-          await pool.query(`UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2`, [url, repo]);
-          await pool.query(
-            `UPDATE pipeline.tasks SET pr_url = $1, pr_number = $2, target_branch = $3 WHERE id = $4`,
-            [url, number, branchName, taskId],
-          );
-          await updateTaskStatus(taskId, 'pr-created', { pr_url: url, pr_number: number });
-          return;
+      const parsed = extractJsonFromOutput(output);
+      if (parsed && parsed.files && typeof parsed.files === 'object') {
+        const fileEntries = Object.entries(parsed.files).filter(([, v]) => typeof v === 'string' && (v as string).length > 0);
+        console.log(`[pipeline] Onboard: extracted ${fileEntries.length} files from agent output`);
+        await createBranch(repo, branchName);
+        for (const [filePath, content] of fileEntries) {
+          await commitFile(repo, branchName, filePath, content as string, `lore: add ${filePath}`);
         }
-      } catch {} // Fall through to normal file commit
+        const prBody = `## Lore Onboarding\n\nThis PR adds Lore platform files to enable AI-powered development.\n\n**Files added:**\n${fileEntries.map(([f]) => '- ' + f).join('\n')}\n\nReview and merge to complete onboarding.`;
+        const { url, number } = await createPR(repo, branchName, `lore: onboard ${repo}`, prBody, 'main', ['lore-onboarding']);
+        await pool.query(`UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2`, [url, repo]);
+        await pool.query(
+          `UPDATE pipeline.tasks SET pr_url = $1, pr_number = $2, target_branch = $3 WHERE id = $4`,
+          [url, number, branchName, taskId],
+        );
+        await updateTaskStatus(taskId, 'pr-created', { pr_url: url, pr_number: number });
+        return;
+      } else {
+        console.error(`[pipeline] Onboard: could not extract JSON files from output (${output.length} chars). First 200: ${output.substring(0, 200)}`);
+      }
     }
 
     // ── Default: single-file commit ────────────────────────────────
