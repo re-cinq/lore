@@ -114,4 +114,4 @@ export async function postReviewComment(
   });
 }
 
-export { isConfigured };
+export { isConfigured, getOctokit };

@@ -107,6 +107,13 @@ Four services in the `n8n-cluster` (europe-west1):
 
 Deploy order: `setup-db.sh` → `setup-schedulers.sh` → Helm install Klaus + MCP.
 
+## Repo Onboarding
+
+Add a repo to Lore via the UI (/onboard) or MCP tool (onboard_repo).
+Creates a PR on the target repo with CLAUDE.md, AGENTS.md, PR
+template, and CI workflows. After merge, nightly ingestion picks
+up the repo's content. Repos table: lore.repos.
+
 ## Task Pipeline
 
 Tasks created via UI, MCP, or PR trigger Klaus agents on GKE.

@@ -1,0 +1,52 @@
+export const dynamic = "force-dynamic";
+import { query } from '@/lib/db';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+
+async function createTask(formData: FormData) {
+  'use server';
+  const description = formData.get('description') as string;
+  const taskType = formData.get('task_type') as string || 'general';
+  const targetRepo = formData.get('target_repo') as string;
+  if (!description?.trim()) return;
+
+  await query(
+    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by)
+     VALUES ($1, $2, $3, 'ui')`,
+    [description, taskType, targetRepo]
+  );
+  // Also insert the initial event
+  const task = await query(`SELECT id FROM pipeline.tasks ORDER BY created_at DESC LIMIT 1`);
+  if (task[0]) {
+    await query(`INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`, [task[0].id]);
+  }
+  revalidatePath(`/repos/${targetRepo}/tasks`);
+  redirect(`/repos/${targetRepo.split('/')[0]}/${targetRepo.split('/')[1]}/tasks`);
+}
+
+export default async function CreateRepoTask({ params }: { params: Promise<{ owner: string; repo: string }> }) {
+  const { owner, repo } = await params;
+  const fullName = `${owner}/${repo}`;
+
+  return (
+    <div>
+      <h2>New Task for {fullName}</h2>
+      <form action={createTask} className="task-form" style={{maxWidth:'600px'}}>
+        <input type="hidden" name="target_repo" value={fullName} />
+
+        <label>Description</label>
+        <textarea name="description" rows={4} required placeholder="What should the agent do?" />
+
+        <label>Task Type</label>
+        <select name="task_type">
+          <option value="general">General</option>
+          <option value="runbook">Runbook</option>
+          <option value="implementation">Implementation</option>
+          <option value="gap-fill">Gap Fill</option>
+        </select>
+
+        <button type="submit">Create Task</button>
+      </form>
+    </div>
+  );
+}

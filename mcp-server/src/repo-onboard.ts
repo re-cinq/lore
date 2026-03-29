@@ -5,28 +5,9 @@
  * and creates onboarding PRs with skeleton templates.
  */
 
-import { createBranch, commitFile, createPR, isConfigured as isGitHubConfigured } from './pipeline-github.js';
+import { createBranch, commitFile, createPR, isConfigured as isGitHubConfigured, getOctokit } from './pipeline-github.js';
 import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
-
-// GitHub App credentials from env (mirrors pipeline-github.ts)
-const APP_ID = process.env.GITHUB_APP_ID || '';
-const PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY || '';
-const INSTALLATION_ID = process.env.GITHUB_APP_INSTALLATION_ID || '';
-
-async function getOctokit(): Promise<Octokit> {
-  if (!(APP_ID && PRIVATE_KEY && INSTALLATION_ID)) {
-    throw new Error('GitHub App not configured. Set GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_APP_INSTALLATION_ID');
-  }
-  return new Octokit({
-    authStrategy: createAppAuth,
-    auth: {
-      appId: APP_ID,
-      privateKey: PRIVATE_KEY,
-      installationId: INSTALLATION_ID,
-    },
-  });
-}
 
 // ── Template content ────────────────────────────────────────────────
 
@@ -209,4 +190,45 @@ export async function onboardRepo(pool: any, fullName: string): Promise<OnboardR
     pr_url: prUrl,
     repo_id: rows[0].id,
   };
+}
+
+// ── Onboarding PR merge detection (T018) ────────────────────────────
+
+/**
+ * Checks all repos with unmerged onboarding PRs. When a PR is found to
+ * be merged, flips onboarding_pr_merged to true and sets last_ingested_at
+ * so the nightly CronJob picks it up for initial ingestion (T019).
+ */
+export async function checkOnboardingPRs(pool: any): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT id, full_name, onboarding_pr_url FROM lore.repos
+     WHERE onboarding_pr_merged = false AND onboarding_pr_url IS NOT NULL`
+  );
+  for (const repo of rows) {
+    try {
+      // Extract PR number from URL
+      const match = repo.onboarding_pr_url.match(/\/pull\/(\d+)/);
+      if (!match) continue;
+      const prNumber = parseInt(match[1]);
+      const [owner, name] = repo.full_name.split('/');
+
+      // Check PR status via GitHub API
+      const octokit = await getOctokit();
+      const { data: pr } = await octokit.rest.pulls.get({ owner, repo: name, pull_number: prNumber });
+
+      if (pr.merged) {
+        // T019: Mark merged and set last_ingested_at so nightly ingestion picks it up
+        await pool.query(
+          `UPDATE lore.repos
+             SET onboarding_pr_merged = true,
+                 last_ingested_at = now()
+           WHERE id = $1`,
+          [repo.id]
+        );
+        console.log(`[repo-onboard] Onboarding PR merged for ${repo.full_name}`);
+      }
+    } catch (err: any) {
+      console.error(`[repo-onboard] Error checking PR for ${repo.full_name}: ${err.message}`);
+    }
+  }
 }

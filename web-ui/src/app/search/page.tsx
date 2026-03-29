@@ -6,19 +6,28 @@ interface SearchResult {
   value: string;
   agent_id: string;
   score: number;
-  source: 'memory' | 'fact';
+  source: 'memory' | 'fact' | 'chunk';
+  repo: string | null;
 }
 
-export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q } = await searchParams;
+interface Repo {
+  full_name: string;
+}
+
+export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; repo?: string }> }) {
+  const { q, repo } = await searchParams;
   let results: SearchResult[] = [];
+
+  // Populate repo filter dropdown
+  const repos = await query<Repo>(`SELECT full_name FROM lore.repos ORDER BY full_name`);
 
   if (q) {
     // Search memories using inline to_tsvector (no generated column on memory.memories)
     const memoryResults = await query<SearchResult>(`
       SELECT key, substring(value, 1, 300) as value, agent_id,
              ts_rank(to_tsvector('english', value), plainto_tsquery($1)) as score,
-             'memory' as source
+             'memory' as source,
+             NULL as repo
       FROM memory.memories
       WHERE is_deleted = FALSE
         AND (expires_at IS NULL OR expires_at > now())
@@ -31,7 +40,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     const factResults = await query<SearchResult>(`
       SELECT m.key, substring(f.fact_text, 1, 300) as value, m.agent_id,
              ts_rank(to_tsvector('english', f.fact_text), plainto_tsquery($1)) as score,
-             'fact' as source
+             'fact' as source,
+             NULL as repo
       FROM memory.facts f
       JOIN memory.memories m ON m.id = f.memory_id
       WHERE m.is_deleted = FALSE
@@ -41,33 +51,75 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       LIMIT 20
     `, [q]);
 
+    // Search repo chunks (scoped by repo if filtered)
+    const chunkParams: any[] = [q];
+    let chunkRepoFilter = '';
+    if (repo) {
+      chunkRepoFilter = 'AND c.repo = $2';
+      chunkParams.push(repo);
+    }
+    const chunkResults = await query<SearchResult>(`
+      SELECT c.file_path as key, substring(c.content, 1, 300) as value,
+             'ingestion' as agent_id,
+             ts_rank(to_tsvector('english', c.content), plainto_tsquery($1)) as score,
+             'chunk' as source,
+             c.repo as repo
+      FROM org_shared.chunks c
+      WHERE to_tsvector('english', c.content) @@ plainto_tsquery($1)
+        ${chunkRepoFilter}
+      ORDER BY score DESC
+      LIMIT 20
+    `, chunkParams);
+
     // Merge and sort by score descending
-    results = [...memoryResults, ...factResults]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 30);
+    const allResults = [...memoryResults, ...factResults, ...chunkResults];
+
+    // If repo filter is active, only include chunk results (scoped) plus memories/facts
+    if (repo) {
+      results = allResults
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 30);
+    } else {
+      results = allResults
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 30);
+    }
   }
 
   return (
     <div>
       <h1>Search Memories</h1>
       <form method="get" className="search-form">
-        <input type="text" name="q" defaultValue={q || ''} placeholder="Search across all agent memories and facts..." />
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <select name="repo" defaultValue={repo || ''} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)' }}>
+            <option value="">All repos</option>
+            {repos.map(r => (
+              <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
+            ))}
+          </select>
+        </div>
+        <input type="text" name="q" defaultValue={q || ''} placeholder="Search across all agent memories, facts, and repo chunks..." />
         <button type="submit">Search</button>
       </form>
       {q && (
         <p className="meta" style={{ marginBottom: 16 }}>
           {results.length} result{results.length !== 1 ? 's' : ''} for &quot;{q}&quot;
+          {repo && <> in <strong>{repo}</strong></>}
         </p>
       )}
       {results.map((r, i) => (
         <div key={i} className="search-result">
           <div className="result-header">
             <strong>{r.key}</strong>
-            <span className="meta">agent: {r.agent_id.substring(0, 8)}... · score: {r.score.toFixed(3)}</span>
+            <span className="meta">
+              agent: {r.agent_id.substring(0, 8)}... · score: {r.score.toFixed(3)}
+              {r.repo && <> · repo: <strong>{r.repo}</strong></>}
+            </span>
           </div>
           <pre>{r.value}</pre>
           <div className="result-source">
-            source: <span className={`op-badge ${r.source === 'fact' ? 'op-search' : 'op-read'}`}>{r.source}</span>
+            source: <span className={`op-badge ${r.source === 'fact' ? 'op-search' : r.source === 'chunk' ? 'op-write' : 'op-read'}`}>{r.source}</span>
+            {r.repo && <span className="badge" style={{ marginLeft: '0.5rem' }}>{r.repo}</span>}
           </div>
         </div>
       ))}

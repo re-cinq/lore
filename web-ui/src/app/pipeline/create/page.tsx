@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { query } from '@/lib/db';
-import { getSession, getUserRepos } from '@/lib/session';
+import { getSession } from '@/lib/session';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -28,9 +28,10 @@ async function createTask(formData: FormData) {
 }
 
 export default async function CreateTaskPage() {
-  const session = await getSession();
-  const accessToken = (session as any)?.accessToken as string | undefined;
-  const repos = accessToken ? await getUserRepos(accessToken) : [];
+  // Query onboarded repos from lore.repos for the dropdown
+  const onboardedRepos = await query<{ full_name: string }>(
+    `SELECT full_name FROM lore.repos ORDER BY full_name`
+  );
 
   return (
     <div>
@@ -48,10 +49,10 @@ export default async function CreateTaskPage() {
         </select>
 
         <label>Target Repository</label>
-        {repos.length > 0 ? (
-          <select name="target_repo" defaultValue="re-cinq/lore">
-            {repos.map((repo) => (
-              <option key={repo} value={repo}>{repo}</option>
+        {onboardedRepos.length > 0 ? (
+          <select name="target_repo">
+            {onboardedRepos.map((r) => (
+              <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
             ))}
           </select>
         ) : (

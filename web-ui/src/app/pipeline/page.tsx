@@ -53,7 +53,11 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
               <td><Link href={`/pipeline/${t.id}`}>{t.description.substring(0, 60)}...</Link></td>
               <td><span className="badge">{t.task_type}</span></td>
               <td><span className={`op-badge op-${t.status}`}>{t.status}</span></td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{t.target_repo}</td>
+              <td style={{fontFamily:'monospace', fontSize:'12px'}}>
+                {t.target_repo ? (
+                  <Link href={`/repos/${t.target_repo}`}>{t.target_repo}</Link>
+                ) : '—'}
+              </td>
               <td>{t.agent_id ? t.agent_id.substring(0, 12) + '...' : '—'}</td>
               <td>{t.pr_url ? <a href={t.pr_url} target="_blank">PR</a> : '—'}</td>
               <td className="meta">{new Date(t.created_at).toLocaleString()}</td>
