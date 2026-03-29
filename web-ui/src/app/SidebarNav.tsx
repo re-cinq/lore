@@ -12,6 +12,7 @@ const links = [
   { href: '/tasks', label: 'Tasks' },
   { href: '/specs', label: 'Specs' },
   { href: '/gaps', label: 'Gaps' },
+  { href: '/pipeline', label: 'Pipeline' },
 ];
 
 export default function SidebarNav() {

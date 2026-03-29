@@ -8,8 +8,9 @@
 
 import { resolveAgentId } from './agent-id.js';
 import { getTaskTypeConfig, buildPrompt, getDefaultRepo, loadTaskTypes } from './pipeline-config.js';
-import { submitTask as submitToKlaus, getTaskStatus as getKlausStatus } from './klaus-client.js';
+import { submitTask as submitToKlaus, getTaskStatus as getKlausStatus, getTaskResult as getKlausResult, isKlausError } from './klaus-client.js';
 import { buildContextBundle } from './context-bundle.js';
+import { createBranch, commitFile, createPR } from './pipeline-github.js';
 
 // ── Pool management ──────────────────────────────────────────────────
 
@@ -173,6 +174,8 @@ async function spawnAgent(task: any): Promise<void> {
          WHERE id = $2`,
         [JSON.stringify(result.task_id), task.id],
       );
+      // Start monitoring the agent for completion/failure
+      monitorAgent(task.id, result.task_id, task.task_type);
     }
   } catch (err: any) {
     await updateTaskStatus(task.id, 'failed', { error: err.message });
@@ -181,4 +184,88 @@ async function spawnAgent(task: any): Promise<void> {
       [err.message, task.id],
     );
   }
+}
+
+// ── Agent completion (T014) ─────────────────────────────────────────
+
+export async function handleAgentCompletion(taskId: string, output: string): Promise<void> {
+  const task = await getTask(taskId);
+  if (!task) return;
+
+  const slug = task.description.substring(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const branchName = `agent/${taskId.substring(0, 8)}/${slug}`;
+  const repo = task.target_repo;
+
+  try {
+    await createBranch(repo, branchName);
+
+    // Determine output file path based on task type
+    const filePath = getOutputPath(task.task_type, slug);
+    await commitFile(repo, branchName, filePath, output, `agent: ${task.description.substring(0, 50)}`);
+
+    const prBody = `## Agent-Generated PR\n\n**Task:** ${task.description}\n**Type:** ${task.task_type}\n**Agent:** ${task.agent_id}\n\n---\n\n${output.substring(0, 500)}...`;
+    const { url, number } = await createPR(repo, branchName, `agent: ${task.description.substring(0, 60)}`, prBody);
+
+    await pool.query(
+      `UPDATE pipeline.tasks SET pr_url = $1, pr_number = $2, target_branch = $3 WHERE id = $4`,
+      [url, number, branchName, taskId],
+    );
+    await updateTaskStatus(taskId, 'pr-created', { pr_url: url, pr_number: number });
+  } catch (err: any) {
+    await updateTaskStatus(taskId, 'failed', { error: `PR creation failed: ${err.message}` });
+    await pool.query(
+      `UPDATE pipeline.tasks SET failure_reason = $1 WHERE id = $2`,
+      [`PR creation failed: ${err.message}`, taskId],
+    );
+  }
+}
+
+function getOutputPath(taskType: string, slug: string): string {
+  switch (taskType) {
+    case 'runbook': return `runbooks/${slug}.md`;
+    case 'gap-fill': return `teams/platform/${slug}.md`;
+    case 'implementation': return `src/${slug}.ts`;
+    default: return `output/${slug}.md`;
+  }
+}
+
+// ── Agent monitoring (T015) ─────────────────────────────────────────
+
+async function monitorAgent(taskId: string, klausTaskId: string, taskType: string): Promise<void> {
+  const checkInterval = setInterval(async () => {
+    try {
+      const status = await getKlausStatus(klausTaskId);
+      if (isKlausError(status)) return; // transient error, retry next interval
+
+      if (status.status === 'completed') {
+        clearInterval(checkInterval);
+        const result = await getKlausResult(klausTaskId);
+        const output = (!isKlausError(result) && result.output) ? result.output : '';
+        await handleAgentCompletion(taskId, output);
+      } else if (status.status === 'failed') {
+        clearInterval(checkInterval);
+        await handleAgentFailure(taskId, status.failure_reason || 'Agent failed');
+      }
+    } catch {
+      // Swallow transient errors; next interval will retry
+    }
+  }, 30000);
+
+  // Safety timeout based on task-type configuration
+  const config = getTaskTypeConfig(taskType);
+  const timeout = (config?.timeout_minutes || 30) * 60 * 1000;
+  setTimeout(() => {
+    clearInterval(checkInterval);
+    handleAgentFailure(taskId, 'Task timed out').catch(() => {});
+  }, timeout);
+}
+
+// ── Agent failure (T016) ────────────────────────────────────────────
+
+export async function handleAgentFailure(taskId: string, reason: string): Promise<void> {
+  await pool.query(
+    `UPDATE pipeline.tasks SET failure_reason = $1 WHERE id = $2`,
+    [reason, taskId],
+  );
+  await updateTaskStatus(taskId, 'failed', { error: reason });
 }
