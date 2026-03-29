@@ -115,6 +115,15 @@ else
   echo "- not configured"
 fi
 
+echo -n "  Pipeline: "
+if kubectl get pods -n klaus -l app=lore-mcp 2>/dev/null | grep -q Running; then
+  PENDING=$(kubectl exec -n alloydb lore-db-1 -- psql -U postgres -d lore -t -c "SELECT count(*) FROM pipeline.tasks WHERE status='pending'" 2>/dev/null | tr -d ' ')
+  RUNNING=$(kubectl exec -n alloydb lore-db-1 -- psql -U postgres -d lore -t -c "SELECT count(*) FROM pipeline.tasks WHERE status='running'" 2>/dev/null | tr -d ' ')
+  echo "active (${PENDING:-0} pending, ${RUNNING:-0} running)"
+else
+  echo "- MCP server not running"
+fi
+
 echo -n "  Scheduled jobs: "
 if kubectl get cronjobs -n klaus 2>/dev/null | grep -q lore-; then
   echo "configured ($(kubectl get cronjobs -n klaus --no-headers 2>/dev/null | wc -l | tr -d ' ') jobs)"

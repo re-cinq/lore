@@ -47,8 +47,11 @@ import {
   getTask,
   listTasks,
   cancelTask,
+  markTaskMerged,
+  handleReviewResult,
   setPipelinePool,
   startPoller,
+  startMergeChecker,
 } from './pipeline.js';
 import { loadTaskTypes, getTaskTypes } from './pipeline-config.js';
 
@@ -587,6 +590,46 @@ server.tool(
   }
 );
 
+server.tool(
+  "mark_task_merged",
+  "Manually mark a pipeline task as merged. Use this after a PR has been merged on GitHub.",
+  {
+    task_id: z.string().describe("UUID of the pipeline task whose PR was merged."),
+  },
+  async ({ task_id }) => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await markTaskMerged(task_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error marking task merged: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "submit_review_result",
+  "Submit a review result for a pipeline task. Approved tasks await human merge; rejected tasks get re-iterated (max 2 iterations) or escalated.",
+  {
+    task_id: z.string().describe("UUID of the pipeline task being reviewed."),
+    approved: z.boolean().describe("Whether the review approves the changes."),
+    comments: z.string().describe("Review comments. For rejections, explain what needs fixing."),
+  },
+  async ({ task_id, approved, comments }) => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      await handleReviewResult(task_id, approved, comments);
+      return { content: [{ type: "text" as const, text: JSON.stringify({ task_id, approved, status: approved ? 'approved' : 'changes-requested' }) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error submitting review: ${err.message}` }] };
+    }
+  }
+);
+
 // --- Start server ---
 async function main() {
   await initOtel();
@@ -613,6 +656,7 @@ async function main() {
   loadTaskTypes();
   if (process.env.LORE_DB_HOST) {
     startPoller();
+    startMergeChecker();
     console.error('[lore] Pipeline poller started');
   }
 

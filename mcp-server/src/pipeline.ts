@@ -10,7 +10,7 @@ import { resolveAgentId } from './agent-id.js';
 import { getTaskTypeConfig, buildPrompt, getDefaultRepo, loadTaskTypes } from './pipeline-config.js';
 import { submitTask as submitToKlaus, getTaskStatus as getKlausStatus, getTaskResult as getKlausResult, isKlausError } from './klaus-client.js';
 import { buildContextBundle } from './context-bundle.js';
-import { createBranch, commitFile, createPR } from './pipeline-github.js';
+import { createBranch, commitFile, createPR, isConfigured as isGitHubConfigured } from './pipeline-github.js';
 
 // ── Pool management ──────────────────────────────────────────────────
 
@@ -268,4 +268,74 @@ export async function handleAgentFailure(taskId: string, reason: string): Promis
     [reason, taskId],
   );
   await updateTaskStatus(taskId, 'failed', { error: reason });
+}
+
+// ── Review iteration (T025) ─────────────────────────────────────────
+
+export async function handleReviewResult(taskId: string, approved: boolean, comments: string): Promise<void> {
+  const task = await getTask(taskId);
+  if (!task) return;
+
+  if (approved) {
+    await updateTaskStatus(taskId, 'review', { review_result: 'approved', comments });
+    // Agent approval logged but human still needs to approve
+  } else {
+    // Check iteration count
+    const iteration = (task.review_iteration || 0) + 1;
+    await pool.query(
+      `UPDATE pipeline.tasks SET review_iteration = $1 WHERE id = $2`,
+      [iteration, taskId],
+    );
+
+    if (iteration >= 2) {
+      // Max iterations reached, escalate to human
+      await updateTaskStatus(taskId, 'review', {
+        review_result: 'needs-human-review',
+        comments,
+        iterations: iteration,
+      });
+    } else {
+      // Re-trigger implementation agent with review feedback
+      await createTask(
+        `Address review feedback on PR: ${comments.substring(0, 200)}`,
+        task.task_type,
+        task.target_repo,
+        'review-agent',
+        { branch: task.target_branch, review_comments: comments },
+      );
+      await updateTaskStatus(taskId, 'review', { review_result: 'changes-requested', iteration });
+    }
+  }
+}
+
+// ── PR merge management (T028) ──────────────────────────────────────
+
+export async function markTaskMerged(taskId: string): Promise<any> {
+  const task = await getTask(taskId);
+  if (!task) throw new Error('Task not found');
+  if (task.status !== 'pr-created' && task.status !== 'review') {
+    throw new Error(`Cannot mark task as merged from ${task.status} state (expected pr-created or review)`);
+  }
+  await updateTaskStatus(taskId, 'merged', { merged_by: 'manual' });
+  return { task_id: taskId, status: 'merged' };
+}
+
+export function startMergeChecker(): void {
+  setInterval(async () => {
+    if (!pool) return;
+    try {
+      const { rows } = await pool.query(
+        `SELECT id, pr_url, pr_number, target_repo FROM pipeline.tasks
+         WHERE status = 'pr-created' AND pr_number IS NOT NULL`,
+      );
+      for (const task of rows) {
+        try {
+          if (!isGitHubConfigured()) continue;
+          const { Octokit } = await import('octokit');
+          // Simplified check — full implementation requires GitHub App auth per-repo.
+          // For now merge detection is manual via mark_task_merged tool.
+        } catch {}
+      }
+    } catch {}
+  }, 60000);
 }

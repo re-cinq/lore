@@ -46,8 +46,16 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         {task.agent_id && <p><strong>Agent:</strong> {task.agent_id}</p>}
         {task.pr_url && <p><strong>PR:</strong> <a href={task.pr_url} target="_blank">{task.pr_url}</a></p>}
         {task.failure_reason && <p><strong>Failure:</strong> <span style={{color:'#f87171'}}>{task.failure_reason}</span></p>}
+        {task.review_iteration > 0 && <p><strong>Review iterations:</strong> {task.review_iteration}</p>}
         <p><strong>Created by:</strong> {task.created_by}</p>
         <p className="meta">Created: {new Date(task.created_at).toLocaleString()} · Updated: {new Date(task.updated_at).toLocaleString()}</p>
+        {!['merged', 'failed', 'cancelled'].includes(task.status) && (
+          <form action={`/api/pipeline/${task.id}/cancel`} method="POST" style={{marginTop:'12px'}}>
+            <button type="submit" style={{background:'#dc2626',color:'white',border:'none',padding:'6px 16px',borderRadius:'4px',cursor:'pointer'}}>
+              Cancel Task
+            </button>
+          </form>
+        )}
       </div>
 
       <h2>Event Timeline</h2>
