@@ -152,10 +152,10 @@ both UI and MCP.
 - [x] T032 Deploy pipeline schema to GKE database (run setup-pipeline-schema.sh)
 - [x] T033 Deploy updated MCP server to GKE
 - [x] T034 Build and push updated web-ui with pipeline pages
-- [ ] T035 Create GitHub App for re-cinq org, store APP_ID + PRIVATE_KEY as K8s secrets in mcp-servers namespace
-- [ ] T036 Update CLAUDE.md to document pipeline tools and task types
-- [ ] T037 Update web-ui layout.tsx sidebar to include Pipeline nav link
-- [ ] T038 Add pipeline status check to lore-doctor.sh (pending task count, running agent count)
+- [x] T035 Create GitHub App for re-cinq org, store APP_ID + PRIVATE_KEY as K8s secrets in mcp-servers namespace
+- [x] T036 Update CLAUDE.md to document pipeline tools and task types
+- [x] T037 Update web-ui layout.tsx sidebar to include Pipeline nav link
+- [x] T038 Add pipeline status check to lore-doctor.sh (pending task count, running agent count)
 
 ---
 

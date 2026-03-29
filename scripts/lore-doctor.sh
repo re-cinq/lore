@@ -86,6 +86,17 @@ else
   echo "- not configured (LORE_DB_HOST not set)"
 fi
 
+echo -n "  Memory schema: "
+if [ -n "${LORE_DB_HOST:-}" ]; then
+  if kubectl exec -n alloydb lore-db-1 -- psql -U postgres -d lore -t -c "SELECT count(*) FROM memory.memories" 2>/dev/null | grep -q '[0-9]'; then
+    echo "accessible"
+  else
+    echo "not accessible"
+  fi
+else
+  echo "- not configured"
+fi
+
 echo -n "  MCP HTTP endpoint: "
 if [ -n "${LORE_MCP_ENDPOINT:-}" ]; then
   if curl -sf --max-time 3 "$LORE_MCP_ENDPOINT/mcp" -X POST -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' -H 'Content-Type: application/json' &>/dev/null; then

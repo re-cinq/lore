@@ -322,6 +322,192 @@ export function listMemoriesFile(
   return { memories: paged, total };
 }
 
+// ── Shared Pools (T025) ──────────────────────────────────────────────
+
+function sharedPoolDir(pool: string): string {
+  return join(BASE_DIR, 'shared', pool);
+}
+
+function sharedMemoriesPath(pool: string): string {
+  return join(sharedPoolDir(pool), 'memories.json');
+}
+
+export interface SharedWriteResult {
+  pool: string;
+  key: string;
+  version: number;
+  agent_id: string;
+  created_at: string;
+}
+
+export function sharedWriteFile(
+  pool: string,
+  key: string,
+  value: string,
+  agentId?: string,
+): SharedWriteResult {
+  const id = resolveAgentId(agentId);
+  const now = new Date().toISOString();
+  const filePath = sharedMemoriesPath(pool);
+
+  const memories = readJson<Record<string, MemoryRecord>>(filePath, {});
+
+  const existing = memories[key];
+  const nextVersion = existing && !existing.is_deleted ? existing.version + 1 : 1;
+
+  memories[key] = {
+    value,
+    version: nextVersion,
+    created_at: now,
+    ttl_seconds: null,
+    is_deleted: false,
+    expires_at: null,
+  };
+
+  writeJson(filePath, memories);
+
+  appendAudit({
+    agent_id: id,
+    operation: 'shared_write',
+    memory_key: key,
+    pool_name: pool,
+    metadata: { version: nextVersion },
+  });
+
+  return { pool, key, version: nextVersion, agent_id: id, created_at: now };
+}
+
+export function sharedReadFile(
+  pool: string,
+  key?: string,
+): MemoryEntry | MemoryEntry[] | null {
+  const filePath = sharedMemoriesPath(pool);
+  const memories = readJson<Record<string, MemoryRecord>>(filePath, {});
+
+  // Return a specific key
+  if (key !== undefined) {
+    const record = memories[key];
+    if (!record || record.is_deleted || isExpired(record)) return null;
+    return {
+      key,
+      value: record.value,
+      version: record.version,
+      created_at: record.created_at,
+      ttl_seconds: record.ttl_seconds,
+      is_deleted: record.is_deleted,
+      expires_at: record.expires_at,
+    };
+  }
+
+  // Return all active entries in the pool
+  const entries: MemoryEntry[] = [];
+  for (const [k, record] of Object.entries(memories)) {
+    if (record.is_deleted || isExpired(record)) continue;
+    entries.push({
+      key: k,
+      value: record.value,
+      version: record.version,
+      created_at: record.created_at,
+      ttl_seconds: record.ttl_seconds,
+      is_deleted: record.is_deleted,
+      expires_at: record.expires_at,
+    });
+  }
+
+  return entries.length > 0 ? entries : null;
+}
+
+// ── Snapshots (T028) ─────────────────────────────────────────────────
+
+export interface SnapshotRecord {
+  snapshot_id: string;
+  agent_id: string;
+  created_at: string;
+  memory_refs: Record<string, { value: string; version: number }>;
+}
+
+function snapshotsDir(agentId: string): string {
+  return join(agentDir(agentId), 'snapshots');
+}
+
+export function createSnapshotFile(
+  agentId?: string,
+): { snapshot_path: string; memory_count: number; created_at: string } {
+  const id = resolveAgentId(agentId);
+  const now = new Date().toISOString();
+  const timestamp = now.replace(/[:.]/g, '-');
+  const snapshotPath = join(snapshotsDir(id), `${timestamp}.json`);
+
+  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
+
+  // Collect all active (non-deleted, non-expired) memories
+  const memoryRefs: Record<string, { value: string; version: number }> = {};
+  for (const [key, record] of Object.entries(memories)) {
+    if (record.is_deleted || isExpired(record)) continue;
+    memoryRefs[key] = { value: record.value, version: record.version };
+  }
+
+  const snapshot: SnapshotRecord = {
+    snapshot_id: randomUUID(),
+    agent_id: id,
+    created_at: now,
+    memory_refs: memoryRefs,
+  };
+
+  writeJson(snapshotPath, snapshot);
+
+  appendAudit({
+    agent_id: id,
+    operation: 'create_snapshot',
+    memory_key: null,
+    pool_name: null,
+    metadata: { snapshot_path: snapshotPath, memory_count: Object.keys(memoryRefs).length },
+  });
+
+  return {
+    snapshot_path: snapshotPath,
+    memory_count: Object.keys(memoryRefs).length,
+    created_at: now,
+  };
+}
+
+export function restoreSnapshotFile(
+  snapshotPath: string,
+): { restored: boolean; memory_count: number } {
+  const snapshot = readJson<SnapshotRecord | null>(snapshotPath, null);
+  if (!snapshot) {
+    return { restored: false, memory_count: 0 };
+  }
+
+  const id = snapshot.agent_id;
+  const now = new Date().toISOString();
+
+  // Rebuild memories from snapshot refs
+  const restoredMemories: Record<string, MemoryRecord> = {};
+  for (const [key, ref] of Object.entries(snapshot.memory_refs)) {
+    restoredMemories[key] = {
+      value: ref.value,
+      version: ref.version,
+      created_at: now,
+      ttl_seconds: null,
+      is_deleted: false,
+      expires_at: null,
+    };
+  }
+
+  writeJson(memoriesPath(id), restoredMemories);
+
+  appendAudit({
+    agent_id: id,
+    operation: 'restore_snapshot',
+    memory_key: null,
+    pool_name: null,
+    metadata: { snapshot_path: snapshotPath, memory_count: Object.keys(restoredMemories).length },
+  });
+
+  return { restored: true, memory_count: Object.keys(restoredMemories).length };
+}
+
 // ── Search (case-insensitive substring) ──────────────────────────────
 
 export function searchMemoryFile(

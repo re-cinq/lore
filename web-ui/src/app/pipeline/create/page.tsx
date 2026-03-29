@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { query } from '@/lib/db';
+import { getSession, getUserRepos } from '@/lib/session';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -10,10 +11,13 @@ async function createTask(formData: FormData) {
   const targetRepo = formData.get('target_repo') as string || 're-cinq/lore';
   if (!description?.trim()) return;
 
+  const session = await getSession();
+  const createdBy = (session?.user?.name || session?.user?.email || 'ui') as string;
+
   const result = await query(
     `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by)
-     VALUES ($1, $2, $3, 'ui') RETURNING id`,
-    [description, taskType, targetRepo]
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [description, taskType, targetRepo, createdBy]
   );
   await query(
     `INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`,
@@ -23,7 +27,11 @@ async function createTask(formData: FormData) {
   redirect('/pipeline');
 }
 
-export default function CreateTaskPage() {
+export default async function CreateTaskPage() {
+  const session = await getSession();
+  const accessToken = (session as any)?.accessToken as string | undefined;
+  const repos = accessToken ? await getUserRepos(accessToken) : [];
+
   return (
     <div>
       <h1>Create Task</h1>
@@ -40,7 +48,15 @@ export default function CreateTaskPage() {
         </select>
 
         <label>Target Repository</label>
-        <input name="target_repo" defaultValue="re-cinq/lore" placeholder="owner/repo" />
+        {repos.length > 0 ? (
+          <select name="target_repo" defaultValue="re-cinq/lore">
+            {repos.map((repo) => (
+              <option key={repo} value={repo}>{repo}</option>
+            ))}
+          </select>
+        ) : (
+          <input name="target_repo" defaultValue="re-cinq/lore" placeholder="owner/repo" />
+        )}
 
         <button type="submit">Create Task</button>
       </form>
