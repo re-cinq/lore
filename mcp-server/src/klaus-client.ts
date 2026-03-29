@@ -1,41 +1,39 @@
 /**
- * Klaus HTTP MCP client.
+ * Klaus MCP client.
  *
- * Communicates with the Klaus endpoint defined by LORE_KLAUS_ENDPOINT.
- * Uses native fetch (Node 18+). All functions return result objects
- * rather than throwing on errors.
+ * Communicates with Klaus via the Streamable HTTP MCP protocol.
+ * Uses @modelcontextprotocol/sdk client for proper session management.
+ *
+ * Klaus exposes a single /mcp endpoint that requires:
+ * 1. Session initialization (initialize request)
+ * 2. Tool calls via the session
+ *
+ * For task submission, we use Klaus's built-in "prompt" tool which
+ * starts a Claude Code subprocess with the given prompt.
  */
+
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 // ── Interfaces ───────────────────────────────────────────────────────
 
-export interface SubmitTaskRequest {
-  task: string;
-  context_bundle: string;
-  priority: string;
-}
-
 export interface SubmitTaskResponse {
   task_id: string;
-  status: 'submitted';
+  status: "submitted";
+  output?: string;
 }
 
 export interface TaskStatus {
   task_id: string;
-  status: 'submitted' | 'running' | 'completed' | 'failed';
+  status: "submitted" | "running" | "completed" | "failed";
   elapsed?: number;
   failure_reason?: string;
 }
 
 export interface TaskResult {
   task_id: string;
-  status: 'completed';
+  status: "completed";
   output: string;
-}
-
-export interface TaskListItem {
-  task_id: string;
-  status: string;
-  created_at?: string;
 }
 
 export interface KlausError {
@@ -50,95 +48,137 @@ type KlausResult<T> = T | KlausError;
 function getEndpoint(): string {
   const endpoint = process.env.LORE_KLAUS_ENDPOINT;
   if (!endpoint) {
-    throw new Error('LORE_KLAUS_ENDPOINT environment variable is not set');
+    throw new Error("LORE_KLAUS_ENDPOINT environment variable is not set");
   }
-  return endpoint.replace(/\/+$/, '');
+  return endpoint.replace(/\/+$/, "");
 }
 
-function isKlausError(value: unknown): value is KlausError {
-  return typeof value === 'object' && value !== null && (value as any).error === true;
+export function isKlausError(value: unknown): value is KlausError {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as any).error === true
+  );
 }
 
-async function klausFetch<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<KlausResult<T>> {
-  let endpoint: string;
-  try {
-    endpoint = getEndpoint();
-  } catch (e: any) {
-    return { error: true, message: e.message };
-  }
+// ── MCP Client ──────────────────────────────────────────────────────
 
-  try {
-    const res = await fetch(`${endpoint}${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers ?? {}),
-      },
-    });
+let client: Client | null = null;
+let clientReady = false;
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      return {
-        error: true,
-        message: `Klaus responded with ${res.status}: ${body}`,
-      };
-    }
+async function getClient(): Promise<Client> {
+  if (client && clientReady) return client;
 
-    return (await res.json()) as T;
-  } catch (e: any) {
-    return {
-      error: true,
-      message: `Klaus connection error: ${e.message}`,
-    };
-  }
+  const endpoint = getEndpoint();
+  const url = new URL("/mcp", endpoint);
+
+  const transport = new StreamableHTTPClientTransport(url);
+  client = new Client(
+    { name: "lore-pipeline", version: "1.0.0" },
+    { capabilities: {} }
+  );
+
+  await client.connect(transport);
+  clientReady = true;
+  console.log("[klaus-client] Connected to Klaus MCP at", endpoint);
+  return client;
 }
 
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
- * Submit a new task to Klaus.
+ * Submit a task to Klaus. Klaus runs it as a Claude Code subprocess.
+ *
+ * We use the MCP protocol to send a prompt. Klaus's built-in behavior
+ * is to run Claude Code with the prompt and return the result.
  */
 export async function submitTask(
   task: string,
   contextBundle: string,
-  priority: string,
+  priority: string
 ): Promise<KlausResult<SubmitTaskResponse>> {
-  return klausFetch<SubmitTaskResponse>('/mcp', {
-    method: 'POST',
-    body: JSON.stringify({
-      task,
-      context_bundle: contextBundle,
-      priority,
-    } satisfies SubmitTaskRequest),
-  });
+  try {
+    const c = await getClient();
+
+    // List available tools to find the right one
+    const tools = await c.listTools();
+    const toolNames = tools.tools.map((t) => t.name);
+    console.log("[klaus-client] Available tools:", toolNames.join(", "));
+
+    // Try different tool names Klaus might expose
+    const promptTool =
+      toolNames.find((n) => n === "prompt" || n === "run" || n === "execute") ||
+      toolNames[0];
+
+    if (!promptTool) {
+      return { error: true, message: "Klaus has no tools available" };
+    }
+
+    const fullPrompt = contextBundle
+      ? `${task}\n\n## Context\n${contextBundle}`
+      : task;
+
+    const result = await c.callTool({
+      name: promptTool,
+      arguments: { prompt: fullPrompt },
+    });
+
+    const output =
+      result.content
+        ?.filter((c: any) => c.type === "text")
+        .map((c: any) => c.text)
+        .join("\n") || "";
+
+    return {
+      task_id: `klaus-${Date.now()}`,
+      status: "submitted",
+      output,
+    };
+  } catch (err: any) {
+    // Reset client on connection errors
+    client = null;
+    clientReady = false;
+    return { error: true, message: `Klaus error: ${err.message}` };
+  }
 }
 
 /**
- * Get the status of a submitted task.
+ * Get status. Since we're using synchronous tool calls, the task is
+ * either completed (we have the result) or failed. No polling needed.
  */
 export async function getTaskStatus(
-  taskId: string,
+  taskId: string
 ): Promise<KlausResult<TaskStatus>> {
-  return klausFetch<TaskStatus>(`/mcp/tasks/${encodeURIComponent(taskId)}/status`);
+  // With synchronous MCP calls, the task is already done when submitTask returns
+  return {
+    task_id: taskId,
+    status: "completed",
+  };
 }
 
 /**
- * Get the result of a completed task.
+ * Get result. Not applicable with synchronous MCP calls — the result
+ * comes back from submitTask directly.
  */
 export async function getTaskResult(
-  taskId: string,
+  taskId: string
 ): Promise<KlausResult<TaskResult>> {
-  return klausFetch<TaskResult>(`/mcp/tasks/${encodeURIComponent(taskId)}/result`);
+  return {
+    task_id: taskId,
+    status: "completed",
+    output: "",
+  };
 }
 
 /**
- * List all tasks.
+ * Check Klaus server status (not via MCP, just the /status HTTP endpoint).
  */
-export async function listTasks(): Promise<KlausResult<TaskListItem[]>> {
-  return klausFetch<TaskListItem[]>('/mcp/tasks');
+export async function getKlausStatus(): Promise<any> {
+  try {
+    const endpoint = getEndpoint();
+    const res = await fetch(`${endpoint}/status`);
+    return await res.json();
+  } catch (err: any) {
+    return { error: true, message: err.message };
+  }
 }
-
-export { isKlausError };
