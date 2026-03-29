@@ -54,8 +54,16 @@ import {
   startMergeChecker,
 } from './pipeline.js';
 import { loadTaskTypes, getTaskTypes } from './pipeline-config.js';
+import {
+  getOnboardedReposWithCounts,
+  getAvailableRepos,
+  onboardRepo,
+} from './repo-onboard.js';
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
+
+// Module-level pool ref for tools that take pool as argument
+let dbPoolRef: any = null;
 
 function readFileSafe(path: string): string | null {
   try { return readFileSync(path, "utf-8"); } catch { return null; }
@@ -630,6 +638,47 @@ server.tool(
   }
 );
 
+// --- Repo onboarding tools ---
+
+server.tool(
+  "list_repos",
+  "Returns all onboarded repos from lore.repos with pipeline task counts.",
+  {},
+  async () => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Repo management requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const repos = await getOnboardedReposWithCounts(dbPoolRef!);
+      if (repos.length === 0) {
+        return { content: [{ type: "text" as const, text: "No repos onboarded yet. Use onboard_repo to add one." }] };
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify(repos, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error listing repos: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "onboard_repo",
+  "Onboard a GitHub repo: creates branch with CLAUDE.md, AGENTS.md and PR template, opens a PR, and registers the repo in lore.repos.",
+  {
+    full_name: z.string().describe('Repository in "owner/repo" format (e.g., "re-cinq/lore").'),
+  },
+  async ({ full_name }) => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Repo onboarding requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await onboardRepo(dbPoolRef!, full_name);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error onboarding repo: ${err.message}` }] };
+    }
+  }
+);
+
 // --- Start server ---
 async function main() {
   await initOtel();
@@ -647,6 +696,7 @@ async function main() {
     setPool(dbPool);
     setMemoryPool(dbPool);
     setPipelinePool(dbPool);
+    dbPoolRef = dbPool;
     console.error(`[lore] Database mode: PostgreSQL at ${dbHost}`);
   } else {
     console.error("[lore] Database mode: local files (LORE_DB_HOST not set)");
