@@ -41,13 +41,27 @@ export async function createBranch(
     ref: `heads/${baseBranch}`,
   });
 
-  // Create new branch
-  await octokit.rest.git.createRef({
-    owner,
-    repo: repoName,
-    ref: `refs/heads/${branchName}`,
-    sha: ref.object.sha,
-  });
+  // Create new branch (delete existing if stale from previous attempt)
+  try {
+    await octokit.rest.git.createRef({
+      owner,
+      repo: repoName,
+      ref: `refs/heads/${branchName}`,
+      sha: ref.object.sha,
+    });
+  } catch (err: any) {
+    if (err.status === 422 && err.message?.includes("Reference already exists")) {
+      await octokit.rest.git.deleteRef({ owner, repo: repoName, ref: `heads/${branchName}` });
+      await octokit.rest.git.createRef({
+        owner,
+        repo: repoName,
+        ref: `refs/heads/${branchName}`,
+        sha: ref.object.sha,
+      });
+    } else {
+      throw err;
+    }
+  }
 }
 
 export async function commitFile(
