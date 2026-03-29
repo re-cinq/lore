@@ -160,6 +160,19 @@ init_beads() {
   fi
 }
 
+# --- Generate agent ID ---
+generate_agent_id() {
+  CURRENT_STEP="generate agent ID"
+  AGENT_ID_FILE="$HOME/.lore/agent-id"
+  mkdir -p "$HOME/.lore"
+  if [ ! -f "$AGENT_ID_FILE" ]; then
+    uuidgen > "$AGENT_ID_FILE" 2>/dev/null || python3 -c "import uuid; print(uuid.uuid4())" > "$AGENT_ID_FILE"
+    echo "[lore] Agent ID generated: $(cat "$AGENT_ID_FILE")"
+  else
+    echo "[lore] Agent ID exists: $(cat "$AGENT_ID_FILE")"
+  fi
+}
+
 # --- 9. Optional: AgentDB local cache ----------------------------------------
 install_agentdb() {
   CURRENT_STEP="AgentDB local cache (optional)"
@@ -204,6 +217,7 @@ install_skills
 install_bd
 install_specify
 init_beads
+generate_agent_id
 install_agentdb
 
 # --- 10. Run diagnostics -----------------------------------------------------

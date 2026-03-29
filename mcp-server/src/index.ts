@@ -16,7 +16,25 @@ import {
   isAlloyDbAvailable,
   setPool,
   getHealthStatus,
+  getQueryEmbedding,
 } from "./db.js";
+import { resolveAgentId } from "./agent-id.js";
+import {
+  writeMemory,
+  readMemory,
+  deleteMemory,
+  listMemories,
+  setMemoryPool,
+  isMemoryDbAvailable,
+} from "./memory.js";
+import {
+  writeMemoryFile,
+  readMemoryFile,
+  deleteMemoryFile,
+  listMemoriesFile,
+  searchMemoryFile,
+} from "./memory-file.js";
+import { searchMemories } from "./memory-search.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -197,6 +215,120 @@ server.tool(
   }
 );
 
+// --- Memory tools ---
+
+server.tool(
+  "write_memory",
+  "Store a new memory or update an existing one. Returns version number.",
+  {
+    key: z.string().describe("Memory key (e.g. 'user-preference', 'last-gap-run')"),
+    value: z.string().describe("Memory value (text)"),
+    agent_id: z.string().optional().describe("Override agent ID. Defaults to ~/.lore/agent-id."),
+    ttl: z.number().optional().describe("Time-to-live in seconds. Omit for permanent."),
+    extract_facts: z.boolean().optional().describe("Extract individual facts from value (async)."),
+  },
+  async ({ key, value, agent_id, ttl, extract_facts }) => {
+    try {
+      const embedding = await getQueryEmbedding(value);
+      if (isMemoryDbAvailable()) {
+        const result = await writeMemory(key, value, agent_id, ttl, embedding || undefined);
+        if (extract_facts) { /* Phase 2: queue async fact extraction */ }
+        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      }
+      const result = await writeMemoryFile(key, value, agent_id, ttl);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error writing memory: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "read_memory",
+  "Retrieve a specific memory by key. Supports version history.",
+  {
+    key: z.string().describe("Memory key to read."),
+    agent_id: z.string().optional(),
+    version: z.string().optional().describe('"all" for full history, or specific version number.'),
+  },
+  async ({ key, agent_id, version }) => {
+    try {
+      const result = isMemoryDbAvailable()
+        ? await readMemory(key, agent_id, version)
+        : await readMemoryFile(key, agent_id, version);
+      if (!result) return { content: [{ type: "text" as const, text: `Memory "${key}" not found.` }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error reading memory: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "delete_memory",
+  "Soft-delete a memory (preserved in history but excluded from search).",
+  {
+    key: z.string().describe("Memory key to delete."),
+    agent_id: z.string().optional(),
+  },
+  async ({ key, agent_id }) => {
+    try {
+      const result = isMemoryDbAvailable()
+        ? await deleteMemory(key, agent_id)
+        : await deleteMemoryFile(key, agent_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error deleting memory: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "list_memories",
+  "List all memories for an agent, paginated.",
+  {
+    agent_id: z.string().optional(),
+    limit: z.number().default(50).describe("Max results."),
+    offset: z.number().default(0).describe("Pagination offset."),
+  },
+  async ({ agent_id, limit, offset }) => {
+    try {
+      const result = isMemoryDbAvailable()
+        ? await listMemories(agent_id, limit, offset)
+        : await listMemoriesFile(agent_id, limit, offset);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error listing memories: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "search_memory",
+  "Semantic search across agent memories. Returns results ranked by similarity.",
+  {
+    query: z.string().describe("Natural language search query."),
+    agent_id: z.string().optional().describe("Scope to agent. Omit for cross-agent search."),
+    pool: z.string().optional().describe("Search within a shared pool."),
+    limit: z.number().default(10),
+  },
+  async ({ query, agent_id, pool, limit }) => {
+    try {
+      if (isMemoryDbAvailable()) {
+        const results = await searchMemories(
+          null, // pool is passed via the memory module's internal pool
+          query, agent_id, pool, limit
+        );
+        return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
+      }
+      const results = await searchMemoryFile(query, agent_id, limit);
+      return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error searching memories: ${err.message}` }] };
+    }
+  }
+);
+
 // --- Start server ---
 async function main() {
   await initOtel();
@@ -212,6 +344,7 @@ async function main() {
       password: process.env.LORE_DB_PASSWORD,
     });
     setPool(dbPool);
+    setMemoryPool(dbPool);
     console.error(`[lore] Database mode: PostgreSQL at ${dbHost}`);
   } else {
     console.error("[lore] Database mode: local files (LORE_DB_HOST not set)");

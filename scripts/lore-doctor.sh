@@ -63,6 +63,11 @@ check "Platform skills installed (/lore-feature, /lore-pr)" \
   check_skills || \
   echo "     Fix: cp -r $LORE_DIR/.claude/skills/* ~/.claude/skills/"
 
+# 7. Agent ID
+check "Agent ID configured" \
+  test -f "$HOME/.lore/agent-id" || \
+  echo "     Fix: run install.sh or: mkdir -p ~/.lore && uuidgen > ~/.lore/agent-id"
+
 echo ""
 echo "[lore] Results: $PASS passed, $FAIL failed"
 
