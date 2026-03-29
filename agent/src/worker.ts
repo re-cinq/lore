@@ -171,17 +171,31 @@ async function processTask(task: any): Promise<void> {
           taskId: task.id,
         });
 
-        // Ensure files is an object (model may return stringified JSON)
-        let filesObj = toolResult.data.files;
+        // Debug: log what tool_use actually returned
+        const rawData = toolResult.data;
+        console.log(`[agent] tool_use data type: ${typeof rawData}, keys: ${typeof rawData === 'object' && rawData ? Object.keys(rawData).join(',') : 'N/A'}`);
+        console.log(`[agent] tool_use data.files type: ${typeof (rawData as any)?.files}`);
+
+        // The tool may return {files: {...}} or the files object directly
+        let filesObj: any = (rawData as any).files;
+        if (!filesObj && typeof rawData === "object" && rawData !== null) {
+          // Maybe the model returned files directly without the wrapper
+          const keys = Object.keys(rawData);
+          if (keys.length > 0 && keys.every(k => k.includes('.') || k.includes('/'))) {
+            filesObj = rawData; // The data IS the files map
+          }
+        }
         if (typeof filesObj === "string") {
           try { filesObj = JSON.parse(filesObj); } catch { /* leave as-is */ }
         }
         if (typeof filesObj !== "object" || filesObj === null || Array.isArray(filesObj)) {
+          console.error(`[agent] tool_use files extraction failed. data preview: ${JSON.stringify(rawData).substring(0, 500)}`);
           throw new Error(`tool_use returned invalid files type: ${typeof filesObj}`);
         }
         const fileEntries = Object.entries(filesObj).filter(
           ([k, v]) => typeof v === "string" && v.length > 0 && k.length > 1,
         );
+        console.log(`[agent] Extracted ${fileEntries.length} files: ${fileEntries.map(([k]) => k).join(', ')}`);
 
         if (fileEntries.length > 0) {
           await createBranch(targetRepo, branchName);
