@@ -14,15 +14,17 @@ const handler = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ profile }) {
+    async signIn({ account, profile }) {
       // Optional: restrict to specific GitHub org
       const allowedOrg = process.env.GITHUB_ALLOWED_ORG;
       if (!allowedOrg) return true;
       try {
-        const res = await fetch(`https://api.github.com/orgs/${allowedOrg}/members/${(profile as any)?.login}`, {
-          headers: { Authorization: `token ${process.env.GITHUB_OAUTH_CLIENT_SECRET}` },
+        // Use the user's own access token to check org membership
+        const res = await fetch(`https://api.github.com/user/orgs`, {
+          headers: { Authorization: `Bearer ${account?.access_token}` },
         });
-        return res.status === 204;
+        const orgs = await res.json();
+        return Array.isArray(orgs) && orgs.some((o: any) => o.login === allowedOrg);
       } catch {
         return false;
       }
