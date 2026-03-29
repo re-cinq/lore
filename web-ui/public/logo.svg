@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Background circle / knowledge graph ring -->
+  <circle cx="100" cy="100" r="85" stroke="#3b82f6" stroke-width="2" opacity="0.3"/>
+  <circle cx="100" cy="100" r="70" stroke="#3b82f6" stroke-width="1.5" opacity="0.2"/>
+
+  <!-- Graph nodes -->
+  <circle cx="100" cy="20" r="6" fill="#3b82f6" opacity="0.7"/>
+  <circle cx="160" cy="45" r="5" fill="#3b82f6" opacity="0.6"/>
+  <circle cx="175" cy="100" r="5" fill="#3b82f6" opacity="0.5"/>
+  <circle cx="160" cy="155" r="5" fill="#3b82f6" opacity="0.6"/>
+  <circle cx="100" cy="180" r="6" fill="#3b82f6" opacity="0.4"/>
+  <circle cx="40" cy="155" r="5" fill="#3b82f6" opacity="0.6"/>
+  <circle cx="25" cy="100" r="5" fill="#3b82f6" opacity="0.5"/>
+  <circle cx="40" cy="45" r="5" fill="#3b82f6" opacity="0.6"/>
+
+  <!-- Graph edges - ring -->
+  <line x1="100" y1="20" x2="160" y2="45" stroke="#3b82f6" stroke-width="1" opacity="0.3"/>
+  <line x1="160" y1="45" x2="175" y2="100" stroke="#3b82f6" stroke-width="1" opacity="0.3"/>
+  <line x1="175" y1="100" x2="160" y2="155" stroke="#3b82f6" stroke-width="1" opacity="0.3"/>
+  <line x1="160" y1="155" x2="100" y2="180" stroke="#3b82f6" stroke-width="1" opacity="0.3"/>
+  <line x1="100" y1="180" x2="40" y2="155" stroke="#3b82f6" stroke-width="1" opacity="0.3"/>
+  <line x1="40" y1="155" x2="25" y2="100" stroke="#3b82f6" stroke-width="1" opacity="0.3"/>
+  <line x1="25" y1="100" x2="40" y2="45" stroke="#3b82f6" stroke-width="1" opacity="0.3"/>
+  <line x1="40" y1="45" x2="100" y2="20" stroke="#3b82f6" stroke-width="1" opacity="0.3"/>
+  <!-- Graph edges - cross connections -->
+  <line x1="160" y1="45" x2="40" y2="155" stroke="#3b82f6" stroke-width="0.8" opacity="0.15"/>
+  <line x1="40" y1="45" x2="160" y2="155" stroke="#3b82f6" stroke-width="0.8" opacity="0.15"/>
+  <line x1="175" y1="100" x2="25" y2="100" stroke="#3b82f6" stroke-width="0.8" opacity="0.15"/>
+  <line x1="100" y1="20" x2="100" y2="65" stroke="#3b82f6" stroke-width="1" opacity="0.3"/>
+
+  <!-- Mine cart body -->
+  <path d="M55 95 L65 130 L135 130 L145 95 Z" stroke="#06b6d4" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+
+  <!-- Cart contents - code/doc icons simplified -->
+  <rect x="72" y="80" width="16" height="12" rx="1" stroke="#06b6d4" stroke-width="1.2" fill="none" opacity="0.6"/>
+  <line x1="75" y1="84" x2="85" y2="84" stroke="#06b6d4" stroke-width="0.8" opacity="0.5"/>
+  <line x1="75" y1="87" x2="82" y2="87" stroke="#06b6d4" stroke-width="0.8" opacity="0.5"/>
+
+  <rect x="92" y="75" width="16" height="16" rx="1" stroke="#06b6d4" stroke-width="1.2" fill="none" opacity="0.6"/>
+  <text x="96" y="87" font-family="monospace" font-size="8" fill="#06b6d4" opacity="0.7">&lt;/&gt;</text>
+
+  <rect x="112" y="80" width="16" height="12" rx="1" stroke="#06b6d4" stroke-width="1.2" fill="none" opacity="0.6"/>
+  <line x1="115" y1="84" x2="125" y2="84" stroke="#06b6d4" stroke-width="0.8" opacity="0.5"/>
+  <line x1="115" y1="87" x2="122" y2="87" stroke="#06b6d4" stroke-width="0.8" opacity="0.5"/>
+
+  <!-- "lore" text on cart -->
+  <rect x="73" y="106" width="54" height="18" rx="3" fill="#0a1628"/>
+  <text x="100" y="119" text-anchor="middle" font-family="monospace" font-size="14" font-weight="bold" fill="#e2e8f0" letter-spacing="2">lore</text>
+
+  <!-- Cart wheels -->
+  <circle cx="78" cy="138" r="7" stroke="#06b6d4" stroke-width="2" fill="none"/>
+  <circle cx="78" cy="138" r="2" fill="#06b6d4"/>
+  <circle cx="122" cy="138" r="7" stroke="#06b6d4" stroke-width="2" fill="none"/>
+  <circle cx="122" cy="138" r="2" fill="#06b6d4"/>
+
+  <!-- Rail -->
+  <line x1="45" y1="145" x2="155" y2="145" stroke="#06b6d4" stroke-width="2" opacity="0.5"/>
+
+  <!-- Rail ties -->
+  <line x1="60" y1="148" x2="60" y2="152" stroke="#06b6d4" stroke-width="1.5" opacity="0.3"/>
+  <line x1="80" y1="148" x2="80" y2="152" stroke="#06b6d4" stroke-width="1.5" opacity="0.3"/>
+  <line x1="100" y1="148" x2="100" y2="155" stroke="#06b6d4" stroke-width="1.5" opacity="0.3"/>
+  <line x1="120" y1="148" x2="120" y2="152" stroke="#06b6d4" stroke-width="1.5" opacity="0.3"/>
+  <line x1="140" y1="148" x2="140" y2="152" stroke="#06b6d4" stroke-width="1.5" opacity="0.3"/>
+
+  <!-- Circuit traces from rail -->
+  <line x1="100" y1="155" x2="70" y2="170" stroke="#06b6d4" stroke-width="1" opacity="0.2"/>
+  <line x1="100" y1="155" x2="130" y2="170" stroke="#06b6d4" stroke-width="1" opacity="0.2"/>
+  <circle cx="70" cy="170" r="2" fill="#06b6d4" opacity="0.3"/>
+  <circle cx="130" cy="170" r="2" fill="#06b6d4" opacity="0.3"/>
+</svg>
