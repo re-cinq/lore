@@ -12,6 +12,8 @@ import { resolveAgentId } from './agent-id.js';
 
 let pool: any = null;
 
+export function getMemoryPool(): any { return pool; }
+
 export function setMemoryPool(p: any): void {
   pool = p;
 }
@@ -216,6 +218,90 @@ export async function listMemories(
 
   await auditLog(agent, 'list', null);
   return { memories: rows, total: countResult.rows[0].total };
+}
+
+// ── Shared Pools ─────────────────────────────────────────────────────
+
+export async function sharedWrite(poolName: string, key: string, value: string, agentId?: string, embedding?: number[]): Promise<WriteResult> {
+  const agent = resolveAgentId(agentId);
+  // Get or create pool
+  let poolResult = await pool.query(`SELECT id FROM memory.shared_pools WHERE name = $1`, [poolName]);
+  if (poolResult.rows.length === 0) {
+    poolResult = await pool.query(`INSERT INTO memory.shared_pools (name, created_by) VALUES ($1, $2) RETURNING id`, [poolName, agent]);
+  }
+  const poolId = poolResult.rows[0].id;
+  // Write memory with pool_id
+  const result = await pool.query(`INSERT INTO memory.memories (agent_id, key, value, embedding, version, pool_id) VALUES ($1, $2, $3, $4, 1, $5) RETURNING id, created_at`, [agent, key, value, embedding ? `[${embedding.join(',')}]` : null, poolId]);
+  await pool.query(`INSERT INTO memory.memory_versions (memory_id, version, value, embedding) VALUES ($1, 1, $2, $3)`, [result.rows[0].id, value, embedding ? `[${embedding.join(',')}]` : null]);
+  await auditLog(agent, 'shared_write', key, { pool: poolName });
+  return { key, version: 1, agent_id: agent, created_at: result.rows[0].created_at };
+}
+
+export async function sharedRead(poolName: string, key?: string): Promise<any> {
+  const poolResult = await pool.query(`SELECT id FROM memory.shared_pools WHERE name = $1`, [poolName]);
+  if (poolResult.rows.length === 0) return key ? null : [];
+  const poolId = poolResult.rows[0].id;
+  if (key) {
+    const { rows } = await pool.query(`SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND key = $2 AND is_deleted = FALSE ORDER BY version DESC LIMIT 1`, [poolId, key]);
+    return rows[0] || null;
+  }
+  const { rows } = await pool.query(`SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND is_deleted = FALSE ORDER BY created_at DESC LIMIT 100`, [poolId]);
+  return rows;
+}
+
+// ── Snapshots ────────────────────────────────────────────────────────
+
+export async function createSnapshot(agentId?: string): Promise<any> {
+  const agent = resolveAgentId(agentId);
+  const { rows: memories } = await pool.query(`SELECT id, version FROM memory.memories WHERE agent_id = $1 AND is_deleted = FALSE AND (expires_at IS NULL OR expires_at > now())`, [agent]);
+  const memoryRefs = memories.map((m: any) => ({ memory_id: m.id, version: m.version }));
+  const { rows } = await pool.query(`INSERT INTO memory.snapshots (agent_id, memory_refs, trigger) VALUES ($1, $2, 'manual') RETURNING id, created_at`, [agent, JSON.stringify(memoryRefs)]);
+  await auditLog(agent, 'snapshot', null, { snapshot_id: rows[0].id, memory_count: memoryRefs.length });
+  return { snapshot_id: rows[0].id, agent_id: agent, memory_count: memoryRefs.length, created_at: rows[0].created_at };
+}
+
+export async function restoreSnapshot(snapshotId: string): Promise<any> {
+  const { rows: snaps } = await pool.query(`SELECT agent_id, memory_refs, created_at FROM memory.snapshots WHERE id = $1`, [snapshotId]);
+  if (snaps.length === 0) throw new Error('Snapshot not found');
+  const snap = snaps[0];
+  const refs = snap.memory_refs as Array<{memory_id: string, version: number}>;
+  const refIds = refs.map(r => r.memory_id);
+  // Revert each memory to snapshotted version
+  for (const ref of refs) {
+    const { rows: ver } = await pool.query(`SELECT value, embedding FROM memory.memory_versions WHERE memory_id = $1 AND version = $2`, [ref.memory_id, ref.version]);
+    if (ver.length > 0) {
+      await pool.query(`UPDATE memory.memories SET value = $1, version = $2, embedding = $3, is_deleted = FALSE WHERE id = $4`, [ver[0].value, ref.version, ver[0].embedding, ref.memory_id]);
+    }
+  }
+  // Soft-delete memories created after snapshot that aren't in refs
+  await pool.query(`UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND id != ALL($2::uuid[]) AND created_at > $3`, [snap.agent_id, refIds, snap.created_at]);
+  await auditLog(snap.agent_id, 'restore', null, { snapshot_id: snapshotId, restored_count: refs.length });
+  return { snapshot_id: snapshotId, memories_restored: refs.length, snapshot_created_at: snap.created_at };
+}
+
+// ── Health & Stats ───────────────────────────────────────────────────
+
+export async function agentHealth(agentId?: string): Promise<any> {
+  const agent = resolveAgentId(agentId);
+  const { rows } = await pool.query(`
+    SELECT count(*)::int as memory_count,
+           max(created_at) as last_active,
+           (SELECT count(*)::int FROM memory.snapshots WHERE agent_id = $1) as snapshot_count
+    FROM memory.memories WHERE agent_id = $1 AND is_deleted = FALSE
+  `, [agent]);
+  return { agent_id: agent, ...rows[0] };
+}
+
+export async function agentStats(agentId?: string): Promise<any> {
+  const agent = resolveAgentId(agentId);
+  const { rows } = await pool.query(`
+    SELECT
+      (SELECT count(*)::int FROM memory.memories WHERE agent_id = $1 AND is_deleted = FALSE) as total_memories,
+      (SELECT count(*)::int FROM memory.facts f JOIN memory.memories m ON f.memory_id = m.id WHERE m.agent_id = $1) as total_facts,
+      (SELECT count(*)::int FROM memory.audit_log WHERE agent_id = $1 AND operation = 'search') as total_searches,
+      (SELECT count(DISTINCT name) FROM memory.shared_pools WHERE created_by = $1) as shared_pools_created
+  `, [agent]);
+  return { agent_id: agent, ...rows[0] };
 }
 
 // ── Audit helper ─────────────────────────────────────────────────────

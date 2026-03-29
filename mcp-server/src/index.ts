@@ -26,6 +26,12 @@ import {
   listMemories,
   setMemoryPool,
   isMemoryDbAvailable,
+  sharedWrite,
+  sharedRead,
+  createSnapshot,
+  restoreSnapshot,
+  agentHealth,
+  agentStats,
 } from "./memory.js";
 import {
   writeMemoryFile,
@@ -35,6 +41,7 @@ import {
   searchMemoryFile,
 } from "./memory-file.js";
 import { searchMemories } from "./memory-search.js";
+import { extractFacts } from "./facts.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -232,7 +239,20 @@ server.tool(
       const embedding = await getQueryEmbedding(value);
       if (isMemoryDbAvailable()) {
         const result = await writeMemory(key, value, agent_id, ttl, embedding || undefined);
-        if (extract_facts) { /* Phase 2: queue async fact extraction */ }
+        if (extract_facts) {
+          // Async fact extraction — fire and forget
+          import("./memory.js").then(({ getMemoryPool }) => {
+            const p = getMemoryPool();
+            if (p) {
+              p.query(
+                `SELECT id FROM memory.memories WHERE agent_id = $1 AND key = $2 ORDER BY version DESC LIMIT 1`,
+                [resolveAgentId(agent_id), key]
+              ).then((r: any) => {
+                if (r.rows[0]?.id) extractFacts(r.rows[0].id, value, p).catch(() => {});
+              });
+            }
+          });
+        }
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       }
       const result = await writeMemoryFile(key, value, agent_id, ttl);
@@ -326,6 +346,134 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error searching memories: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Shared pool tools ---
+
+server.tool(
+  "shared_write",
+  "Write a memory to a shared pool visible to all agents in that pool.",
+  {
+    pool_name: z.string().describe("Name of the shared pool (e.g. 'team-decisions')."),
+    key: z.string().describe("Memory key."),
+    value: z.string().describe("Memory value (text)."),
+    agent_id: z.string().optional().describe("Override agent ID."),
+  },
+  async ({ pool_name, key, value, agent_id }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Shared pools require PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const embedding = await getQueryEmbedding(value);
+      const result = await sharedWrite(pool_name, key, value, agent_id, embedding || undefined);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error writing to shared pool: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "shared_read",
+  "Read memories from a shared pool. Returns a specific key or lists all pool entries.",
+  {
+    pool_name: z.string().describe("Name of the shared pool."),
+    key: z.string().optional().describe("Specific key to read. Omit to list all entries."),
+  },
+  async ({ pool_name, key }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Shared pools require PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await sharedRead(pool_name, key);
+      if (!result || (Array.isArray(result) && result.length === 0)) {
+        return { content: [{ type: "text" as const, text: key ? `Key "${key}" not found in pool "${pool_name}".` : `Pool "${pool_name}" is empty or does not exist.` }] };
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error reading shared pool: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Snapshot tools ---
+
+server.tool(
+  "create_snapshot",
+  "Create a point-in-time snapshot of all agent memories for later restoration.",
+  {
+    agent_id: z.string().optional().describe("Override agent ID."),
+  },
+  async ({ agent_id }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Snapshots require PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await createSnapshot(agent_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error creating snapshot: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "restore_snapshot",
+  "Restore agent memories to a previous snapshot state.",
+  {
+    snapshot_id: z.string().describe("UUID of the snapshot to restore."),
+  },
+  async ({ snapshot_id }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Snapshots require PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await restoreSnapshot(snapshot_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error restoring snapshot: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Health & stats tools ---
+
+server.tool(
+  "agent_health",
+  "Returns health summary for an agent: memory count, last activity, snapshot count.",
+  {
+    agent_id: z.string().optional().describe("Override agent ID."),
+  },
+  async ({ agent_id }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Agent health requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await agentHealth(agent_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error fetching agent health: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "agent_stats",
+  "Returns usage statistics: total memories, facts, searches, and shared pools created.",
+  {
+    agent_id: z.string().optional().describe("Override agent ID."),
+  },
+  async ({ agent_id }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Agent stats requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await agentStats(agent_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error fetching agent stats: ${err.message}` }] };
     }
   }
 );
