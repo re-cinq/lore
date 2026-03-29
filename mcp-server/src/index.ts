@@ -253,9 +253,10 @@ server.tool(
   },
   async ({ key, agent_id, version }) => {
     try {
+      const ver = version === "all" ? "all" : version ? Number(version) : undefined;
       const result = isMemoryDbAvailable()
-        ? await readMemory(key, agent_id, version)
-        : await readMemoryFile(key, agent_id, version);
+        ? await readMemory(key, agent_id, ver)
+        : await readMemoryFile(key, agent_id, ver);
       if (!result) return { content: [{ type: "text" as const, text: `Memory "${key}" not found.` }] };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err: any) {
