@@ -150,35 +150,35 @@ async function processTask(task: any): Promise<void> {
       fullPrompt += `\n\n## Repository Context\n\n${JSON.stringify(context, null, 2)}`;
 
       try {
-        const toolResult = await callLLMWithTool<Record<string, string>>({
+        const result = await callLLM({
           prompt: fullPrompt,
-          systemPrompt: "You are onboarding a repository to the Lore platform. Generate all onboarding files based on the repo context provided.",
-          toolName: "generate_onboard_files",
-          toolDescription: "Generate onboarding files for a repository. Each parameter is a file path, and its value is the complete file content as a string.",
-          toolSchema: {
-            type: "object" as const,
-            description: "Map of file paths to file contents. Use paths like AGENTS.md, adrs/ADR-001-title.md, .specify/spec.md, .github/PULL_REQUEST_TEMPLATE.md, .github/workflows/pr-description-check.yml",
-            additionalProperties: { type: "string" },
-          },
+          systemPrompt: 'You are onboarding a repository. Respond with ONLY a JSON object. No markdown, no code fences, no explanation. The JSON must have a "files" key mapping file paths to their full content. Example: {"files":{"AGENTS.md":"# content...","adrs/ADR-001.md":"---\\nadr_number: 1\\n..."}}',
           model,
           maxTokens: 16384,
           taskId: task.id,
         });
 
-        // tool_use returns the files map directly as the tool input
-        let filesObj: any = toolResult.data;
-        // If model wrapped in {files: ...}, unwrap
-        if (filesObj && typeof filesObj === "object" && "files" in filesObj && typeof filesObj.files === "object") {
-          filesObj = filesObj.files;
+        // Parse JSON — direct API means no Klaus wrapping
+        let filesObj: any = null;
+        try {
+          const parsed = JSON.parse(result.text);
+          filesObj = parsed.files || parsed;
+        } catch {
+          // Try extracting JSON from text (model may have added minor text)
+          const match = result.text.match(/\{[\s\S]*"files"[\s\S]*\}/);
+          if (match) {
+            try {
+              const parsed = JSON.parse(match[0]);
+              filesObj = parsed.files || parsed;
+            } catch { /* give up */ }
+          }
         }
-        if (typeof filesObj === "string") {
-          try { filesObj = JSON.parse(filesObj); } catch { /* leave as-is */ }
-        }
-        console.log(`[agent] tool_use returned ${typeof filesObj}, keys: ${typeof filesObj === 'object' && filesObj ? Object.keys(filesObj).length : 'N/A'}`);
 
-        if (typeof filesObj !== "object" || filesObj === null || Array.isArray(filesObj)) {
-          throw new Error(`tool_use returned invalid type: ${typeof filesObj}`);
+        if (!filesObj || typeof filesObj !== "object") {
+          console.error(`[agent] JSON parse failed. First 300 chars: ${result.text.substring(0, 300)}`);
+          throw new Error("Could not parse onboard files from LLM response");
         }
+
         const fileEntries = Object.entries(filesObj).filter(
           ([k, v]) => typeof v === "string" && (v as string).length > 0 && k.length > 1,
         );
