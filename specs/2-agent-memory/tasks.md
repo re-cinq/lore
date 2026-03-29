@@ -25,19 +25,19 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Create memory schema DDL script in scripts/infra/setup-memory-schema.sh
-- [ ] T002 Run schema DDL: create memory.memories, memory.memory_versions, memory.facts, memory.snapshots, memory.shared_pools, memory.audit_log tables with indexes in the existing lore database
-- [ ] T003 [P] Create mcp-server/src/agent-id.ts: resolve agent ID from explicit param → LORE_AGENT_ID env → ~/.lore/agent-id file → generate UUID
-- [ ] T004 [P] Update scripts/install.sh to generate ~/.lore/agent-id (UUID) between beads init and AgentDB steps
-- [ ] T005 [P] Update scripts/lore-doctor.sh to check ~/.lore/agent-id exists
+- [x] T001 Create memory schema DDL script in scripts/infra/setup-memory-schema.sh
+- [x] T002 Run schema DDL: create memory.memories, memory.memory_versions, memory.facts, memory.snapshots, memory.shared_pools, memory.audit_log tables with indexes in the existing lore database
+- [x] T003 [P] Create mcp-server/src/agent-id.ts: resolve agent ID from explicit param → LORE_AGENT_ID env → ~/.lore/agent-id file → generate UUID
+- [x] T004 [P] Update scripts/install.sh to generate ~/.lore/agent-id (UUID) between beads init and AgentDB steps
+- [x] T005 [P] Update scripts/lore-doctor.sh to check ~/.lore/agent-id exists
 
 ---
 
 ## Phase 2: Foundational — Memory Module
 
-- [ ] T006 Create mcp-server/src/memory.ts: PostgreSQL-backed memory CRUD (writeMemory, readMemory, deleteMemory, listMemories) using the memory schema. Import agent-id.ts for ID resolution. Log all operations to memory.audit_log.
-- [ ] T007 Create mcp-server/src/memory-file.ts: file-backed fallback for all memory operations. Store as JSON in ~/.lore/memory/<agent-id>/. Substring search instead of vector search. Same function signatures as memory.ts.
-- [ ] T008 Create mcp-server/src/memory-search.ts: semantic search over memories using Vertex AI embeddings + HNSW vector search + keyword fallback. Search both memories and facts tables. Return results with similarity scores.
+- [x] T006 Create mcp-server/src/memory.ts: PostgreSQL-backed memory CRUD (writeMemory, readMemory, deleteMemory, listMemories) using the memory schema. Import agent-id.ts for ID resolution. Log all operations to memory.audit_log.
+- [x] T007 Create mcp-server/src/memory-file.ts: file-backed fallback for all memory operations. Store as JSON in ~/.lore/memory/<agent-id>/. Substring search instead of vector search. Same function signatures as memory.ts.
+- [x] T008 Create mcp-server/src/memory-search.ts: semantic search over memories using Vertex AI embeddings + HNSW vector search + keyword fallback. Search both memories and facts tables. Return results with similarity scores.
 
 ---
 
@@ -55,11 +55,11 @@ search in a later session, without any manual loading.
 
 ### Tasks
 
-- [ ] T009 [US1] Register write_memory MCP tool in mcp-server/src/index.ts: calls writeMemory from memory.ts, generates embedding via getQueryEmbedding, falls back to memory-file.ts when DB unavailable
-- [ ] T010 [US1] Register read_memory MCP tool in mcp-server/src/index.ts: calls readMemory, supports version parameter ("all" for history)
-- [ ] T011 [US1] Register delete_memory MCP tool in mcp-server/src/index.ts: calls deleteMemory (soft-delete)
-- [ ] T012 [US1] Register list_memories MCP tool in mcp-server/src/index.ts: calls listMemories with pagination
-- [ ] T013 [US1] Register search_memory MCP tool in mcp-server/src/index.ts: calls searchMemory from memory-search.ts, scoped by agent_id or pool
+- [x] T009 [US1] Register write_memory MCP tool in mcp-server/src/index.ts: calls writeMemory from memory.ts, generates embedding via getQueryEmbedding, falls back to memory-file.ts when DB unavailable
+- [x] T010 [US1] Register read_memory MCP tool in mcp-server/src/index.ts: calls readMemory, supports version parameter ("all" for history)
+- [x] T011 [US1] Register delete_memory MCP tool in mcp-server/src/index.ts: calls deleteMemory (soft-delete)
+- [x] T012 [US1] Register list_memories MCP tool in mcp-server/src/index.ts: calls listMemories with pagination
+- [x] T013 [US1] Register search_memory MCP tool in mcp-server/src/index.ts: calls searchMemory from memory-search.ts, scoped by agent_id or pool
 
 ---
 
@@ -76,9 +76,9 @@ preserved and queryable. Latest returned by default.
 
 ### Tasks
 
-- [ ] T014 [US2] Implement version increment logic in memory.ts writeMemory: insert into memory_versions on every write, update memories row to latest version
-- [ ] T015 [US2] Implement version history query in memory.ts readMemory: support version="all" returning array sorted by version desc
-- [ ] T016 [US2] Implement last-write-wins in memory.ts: concurrent writes both create versions, latest timestamp wins default read
+- [x] T014 [US2] Implement version increment logic in memory.ts writeMemory: insert into memory_versions on every write, update memories row to latest version
+- [x] T015 [US2] Implement version history query in memory.ts readMemory: support version="all" returning array sorted by version desc
+- [x] T016 [US2] Implement last-write-wins in memory.ts: concurrent writes both create versions, latest timestamp wins default read
 
 ---
 
@@ -96,9 +96,9 @@ under 100ms. Works across all agent memories simultaneously.
 
 ### Tasks
 
-- [ ] T017 [US3] Implement hybrid search in memory-search.ts: HNSW vector search on memories.embedding + facts.embedding, keyword fallback via search_tsv, Reciprocal Rank Fusion, respects is_deleted and expires_at filters
-- [ ] T018 [US3] Add cross-agent search: when agent_id is omitted, search across all agents. When pool is specified, scope to pool entries only.
-- [ ] T019 [US3] Implement file-backed search in memory-file.ts: case-insensitive substring match across all memory values for the agent
+- [x] T017 [US3] Implement hybrid search in memory-search.ts: HNSW vector search on memories.embedding + facts.embedding, keyword fallback via search_tsv, Reciprocal Rank Fusion, respects is_deleted and expires_at filters
+- [x] T018 [US3] Add cross-agent search: when agent_id is omitted, search across all agents. When pool is specified, scope to pool entries only.
+- [x] T019 [US3] Implement file-backed search in memory-file.ts: case-insensitive substring match across all memory values for the agent
 
 ---
 
@@ -116,9 +116,9 @@ facts. Each fact independently searchable via semantic search.
 
 ### Tasks
 
-- [ ] T020 [US4] Create mcp-server/src/facts.ts: async fact extraction via configurable LLM (LORE_FACT_LLM env: claude/openai/ollama). Prompt extracts individual facts. Stores each in memory.facts with embedding. Retry queue (3 attempts, exponential backoff).
-- [ ] T021 [US4] Update write_memory in memory.ts: when extract_facts=true, queue async fact extraction after write succeeds. Log extraction status to audit_log.
-- [ ] T022 [P] [US4] Update search_memory in memory-search.ts: include facts table in vector search, merge with memory results via RRF, indicate source="fact" in results
+- [x] T020 [US4] Create mcp-server/src/facts.ts: async fact extraction via configurable LLM (LORE_FACT_LLM env: claude/openai/ollama). Prompt extracts individual facts. Stores each in memory.facts with embedding. Retry queue (3 attempts, exponential backoff).
+- [x] T021 [US4] Update write_memory in memory.ts: when extract_facts=true, queue async fact extraction after write succeeds. Log extraction status to audit_log.
+- [x] T022 [P] [US4] Update search_memory in memory-search.ts: include facts table in vector search, merge with memory results via RRF, indicate source="fact" in results
 
 ---
 
@@ -136,8 +136,8 @@ custom integration code.
 
 ### Tasks
 
-- [ ] T023 [US5] Register shared_write MCP tool in mcp-server/src/index.ts: creates pool in memory.shared_pools if not exists, writes memory with pool_id set
-- [ ] T024 [US5] Register shared_read MCP tool in mcp-server/src/index.ts: reads all entries or specific key from a pool
+- [x] T023 [US5] Register shared_write MCP tool in mcp-server/src/index.ts: creates pool in memory.shared_pools if not exists, writes memory with pool_id set
+- [x] T024 [US5] Register shared_read MCP tool in mcp-server/src/index.ts: reads all entries or specific key from a pool
 - [ ] T025 [P] [US5] Implement file-backed shared pools in memory-file.ts: store in ~/.lore/memory/shared/<pool-name>/
 
 ---
@@ -156,8 +156,8 @@ second with zero data loss.
 
 ### Tasks
 
-- [ ] T026 [US6] Register create_snapshot MCP tool in mcp-server/src/index.ts: queries active memories, stores memory_refs JSONB in memory.snapshots
-- [ ] T027 [US6] Register restore_snapshot MCP tool in mcp-server/src/index.ts: reads snapshot refs, bulk UPDATE memories to snapshotted versions in single transaction, soft-delete post-snapshot memories
+- [x] T026 [US6] Register create_snapshot MCP tool in mcp-server/src/index.ts: queries active memories, stores memory_refs JSONB in memory.snapshots
+- [x] T027 [US6] Register restore_snapshot MCP tool in mcp-server/src/index.ts: reads snapshot refs, bulk UPDATE memories to snapshotted versions in single transaction, soft-delete post-snapshot memories
 - [ ] T028 [P] [US6] Implement file-backed snapshots in memory-file.ts: JSON snapshot of memory state
 
 ---
@@ -174,10 +174,10 @@ Temporary memories expire automatically and are excluded from search.
 
 ### Tasks
 
-- [ ] T029 [US7] Implement TTL in memory.ts writeMemory: compute expires_at from ttl_seconds, add to partial index filter
-- [ ] T030 [US7] Create k8s/memory-ttl-cronjob.yaml: hourly CronJob that hard-deletes expired memories (24h grace period after expiration) and orphaned versions/facts
-- [ ] T031 [US7] Register agent_health MCP tool in mcp-server/src/index.ts: returns memory_count, last_active, snapshot_count from memory schema
-- [ ] T032 [P] [US7] Register agent_stats MCP tool in mcp-server/src/index.ts: returns total_memories, total_facts, total_searches, memories_by_day from audit_log
+- [x] T029 [US7] Implement TTL in memory.ts writeMemory: compute expires_at from ttl_seconds, add to partial index filter
+- [x] T030 [US7] Create k8s/memory-ttl-cronjob.yaml: hourly CronJob that hard-deletes expired memories (24h grace period after expiration) and orphaned versions/facts
+- [x] T031 [US7] Register agent_health MCP tool in mcp-server/src/index.ts: returns memory_count, last_active, snapshot_count from memory schema
+- [x] T032 [P] [US7] Register agent_stats MCP tool in mcp-server/src/index.ts: returns total_memories, total_facts, total_searches, memories_by_day from audit_log
 
 ---
 
@@ -197,28 +197,28 @@ add tasks/specs without using Claude Code.
 
 ### Tasks
 
-- [ ] T033 [US8] Initialize web-ui/ Next.js project with App Router, TypeScript, shadcn/ui, NextAuth.js (Google Workspace OIDC) in web-ui/
-- [ ] T034 [US8] Create web-ui/src/lib/db.ts: PostgreSQL connection to lore database with read-only lore_ui user, query helper functions
-- [ ] T035 [US8] Create web-ui/src/lib/auth.ts: Google Workspace OIDC via NextAuth.js, restrict to configured domain
-- [ ] T036 [P] [US8] Create web-ui/src/app/page.tsx: Agent overview — list all agents with memory_count, last_active, snapshot_count, link to drill-in
-- [ ] T037 [P] [US8] Create web-ui/src/app/agents/[id]/page.tsx: Memory browser — paginated list of memories with expand for version history + facts
-- [ ] T038 [P] [US8] Create web-ui/src/app/search/page.tsx: Cross-agent semantic search with agent/pool scope filter, similarity scores
-- [ ] T039 [P] [US8] Create web-ui/src/app/audit/page.tsx: Filterable audit trail (agent, operation, date range), paginated
-- [ ] T040 [P] [US8] Create web-ui/src/app/pools/page.tsx: Shared pools browser with entry counts, drill-in, pool-scoped search
-- [ ] T041 [US8] Create web-ui/src/app/tasks/page.tsx: View Beads tasks, add new task form (writes via bd create)
-- [ ] T042 [US8] Create web-ui/src/app/specs/page.tsx: Browse ingested specs from org_shared.chunks, add new spec text
-- [ ] T043 [US8] Create web-ui/src/app/gaps/page.tsx: Review gap detection draft PRs (fetch from GitHub API), approve/reject actions
-- [ ] T044 [US8] Create Dockerfile for web-ui in web-ui/Dockerfile
-- [ ] T045 [US8] Build and push web-ui image to ghcr.io/re-cinq/lore-ui
-- [ ] T046 [US8] Create K8s deployment manifest in k8s/lore-ui-deployment.yaml: lore-ui namespace, port 3000, Google OIDC secrets, read-only DB user
+- [x] T033 [US8] Initialize web-ui/ Next.js project with App Router, TypeScript, shadcn/ui, NextAuth.js (Google Workspace OIDC) in web-ui/
+- [x] T034 [US8] Create web-ui/src/lib/db.ts: PostgreSQL connection to lore database with read-only lore_ui user, query helper functions
+- [x] T035 [US8] Create web-ui/src/lib/auth.ts: Google Workspace OIDC via NextAuth.js, restrict to configured domain
+- [x] T036 [P] [US8] Create web-ui/src/app/page.tsx: Agent overview — list all agents with memory_count, last_active, snapshot_count, link to drill-in
+- [x] T037 [P] [US8] Create web-ui/src/app/agents/[id]/page.tsx: Memory browser — paginated list of memories with expand for version history + facts
+- [x] T038 [P] [US8] Create web-ui/src/app/search/page.tsx: Cross-agent semantic search with agent/pool scope filter, similarity scores
+- [x] T039 [P] [US8] Create web-ui/src/app/audit/page.tsx: Filterable audit trail (agent, operation, date range), paginated
+- [x] T040 [P] [US8] Create web-ui/src/app/pools/page.tsx: Shared pools browser with entry counts, drill-in, pool-scoped search
+- [x] T041 [US8] Create web-ui/src/app/tasks/page.tsx: View Beads tasks, add new task form (writes via bd create)
+- [x] T042 [US8] Create web-ui/src/app/specs/page.tsx: Browse ingested specs from org_shared.chunks, add new spec text
+- [x] T043 [US8] Create web-ui/src/app/gaps/page.tsx: Review gap detection draft PRs (fetch from GitHub API), approve/reject actions
+- [x] T044 [US8] Create Dockerfile for web-ui in web-ui/Dockerfile
+- [x] T045 [US8] Build and push web-ui image to ghcr.io/re-cinq/lore-ui
+- [x] T046 [US8] Create K8s deployment manifest in k8s/lore-ui-deployment.yaml: lore-ui namespace, port 3000, Google OIDC secrets, read-only DB user
 
 ---
 
 ## Phase 11: Polish & Cross-Cutting Concerns
 
-- [ ] T047 Rebuild and push MCP server image (ghcr.io/re-cinq/lore-mcp) with all memory tools
-- [ ] T048 Redeploy MCP server to GKE (kubectl rollout restart)
-- [ ] T049 Deploy TTL cleanup CronJob (kubectl apply -f k8s/memory-ttl-cronjob.yaml)
+- [x] T047 Rebuild and push MCP server image (ghcr.io/re-cinq/lore-mcp) with all memory tools
+- [x] T048 Redeploy MCP server to GKE (kubectl rollout restart)
+- [x] T049 Deploy TTL cleanup CronJob (kubectl apply -f k8s/memory-ttl-cronjob.yaml)
 - [ ] T050 Update CLAUDE.md and teams/platform/CLAUDE.md to document memory tools
 - [ ] T051 Update lore-doctor.sh with memory schema health check
 - [ ] T052 Re-seed database with updated repo content + generate embeddings
