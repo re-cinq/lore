@@ -171,8 +171,17 @@ async function processTask(task: any): Promise<void> {
           taskId: task.id,
         });
 
-        // toolResult.data.files is guaranteed to be Record<string, string>
-        const fileEntries = Object.entries(toolResult.data.files).filter(([, v]) => v.length > 0);
+        // Ensure files is an object (model may return stringified JSON)
+        let filesObj = toolResult.data.files;
+        if (typeof filesObj === "string") {
+          try { filesObj = JSON.parse(filesObj); } catch { /* leave as-is */ }
+        }
+        if (typeof filesObj !== "object" || filesObj === null || Array.isArray(filesObj)) {
+          throw new Error(`tool_use returned invalid files type: ${typeof filesObj}`);
+        }
+        const fileEntries = Object.entries(filesObj).filter(
+          ([k, v]) => typeof v === "string" && v.length > 0 && k.length > 1,
+        );
 
         if (fileEntries.length > 0) {
           await createBranch(targetRepo, branchName);
