@@ -2,20 +2,13 @@
  * Repo onboarding module.
  *
  * Lists repos the GitHub App can access, compares against lore.repos,
- * and creates onboarding PRs with skeleton templates.
+ * and submits onboarding tasks to the Klaus pipeline so an agent can
+ * inspect the repo and generate customized CLAUDE.md / onboarding PRs.
  */
 
 import { createBranch, commitFile, createPR, isConfigured as isGitHubConfigured, getOctokit } from './pipeline-github.js';
 import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
-
-// ── Template content ────────────────────────────────────────────────
-
-const TEMPLATES: Record<string, string> = {
-  'CLAUDE.md': `# Engineering Guide\n\n## Architecture\n\n<!-- Describe service communication patterns... -->\n\n## Code Conventions\n\n<!-- Error handling, logging, auth patterns... -->\n\n## Key Services\n\n<!-- List main services and what they own... -->`,
-  'AGENTS.md': `# Agent Instructions\n\n## Task Tracking\n- Run \`bd ready\` to see unblocked work\n- Run \`bd update <id> --claim\` before starting\n- Run \`bd update <id> --status done\` when complete\n\n## Context\n- Org and team context loaded via Lore MCP\n- Use /lore-feature for new features\n- Use /lore-pr for PR descriptions`,
-  '.github/PULL_REQUEST_TEMPLATE.md': `## Why\n<!-- What problem? -->\n\n## Approach\n<!-- How? -->\n\n## Alternatives rejected\n<!-- Required. -->\n\n## ADR references\n<!-- Links -->\n\n## Spec\n<!-- Link to spec -->`,
-};
 
 // ── Installation repos ──────────────────────────────────────────────
 
@@ -119,77 +112,43 @@ export async function getAvailableRepos(pool: any): Promise<InstallationRepo[]> 
 // ── Onboard a repo ──────────────────────────────────────────────────
 
 export interface OnboardResult {
-  full_name: string;
-  pr_url: string;
   repo_id: string;
+  task_id: string;
+  status: string;
 }
 
 /**
- * Onboards a repo: creates a branch, commits template files, opens a PR,
- * and inserts a row into lore.repos.
+ * Onboards a repo by inserting it into lore.repos and submitting an
+ * "onboard" task to the Klaus pipeline. The agent will inspect the repo,
+ * understand its tech stack, and generate a customized CLAUDE.md plus
+ * supporting files — then open a single onboarding PR.
  */
 export async function onboardRepo(pool: any, fullName: string): Promise<OnboardResult> {
-  if (!isGitHubConfigured()) {
-    throw new Error('GitHub App not configured. Set GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_APP_INSTALLATION_ID');
-  }
-
   const [owner, name] = fullName.split('/');
   if (!owner || !name) {
     throw new Error(`Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`);
   }
 
-  // Check if already onboarded
-  const { rows: existing } = await pool.query(
-    `SELECT id FROM lore.repos WHERE full_name = $1`,
-    [fullName],
-  );
-  if (existing.length > 0) {
-    throw new Error(`Repo "${fullName}" is already onboarded (id: ${existing[0].id}).`);
-  }
-
-  const branchName = 'lore/onboarding';
-
-  // 1. Create branch
-  await createBranch(fullName, branchName);
-
-  // 2. Commit template files
-  for (const [path, content] of Object.entries(TEMPLATES)) {
-    await commitFile(fullName, branchName, path, content, `chore(lore): add ${path}`);
-  }
-
-  // 3. Open PR
-  const { url: prUrl } = await createPR(
-    fullName,
-    branchName,
-    'chore(lore): onboard repo with engineering templates',
-    [
-      '## Lore Onboarding',
-      '',
-      'This PR adds the baseline engineering templates for Lore-powered development:',
-      '',
-      '- **CLAUDE.md** — Engineering guide skeleton (architecture, conventions, key services)',
-      '- **AGENTS.md** — Instructions for Claude Code agents using Lore MCP',
-      '- **.github/PULL_REQUEST_TEMPLATE.md** — PR template with Why / Alternatives / ADR sections',
-      '',
-      'Please review and customise the placeholders for your repo.',
-    ].join('\n'),
-    'main',
-    ['lore-onboarding'],
-  );
-
-  // 4. Insert into lore.repos
+  // Insert into repos table (upsert — re-onboarding refreshes the timestamp)
   const { rows } = await pool.query(
-    `INSERT INTO lore.repos (owner, name, full_name, onboarding_pr_url)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO lore.repos (owner, name, full_name)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now()
      RETURNING id`,
-    [owner, name, fullName, prUrl],
+    [owner, name, fullName],
   );
 
-  return {
-    full_name: fullName,
-    pr_url: prUrl,
-    repo_id: rows[0].id,
-  };
+  // Create a pipeline task for the onboarding agent
+  const { createTask } = await import('./pipeline.js');
+  const result = await createTask(
+    fullName,       // description is the repo name
+    'onboard',
+    fullName,       // target_repo
+    'onboard-system',
+    { repo: fullName },
+  );
+
+  return { repo_id: rows[0].id, task_id: result.task_id, status: 'onboarding-agent-spawned' };
 }
 
 // ── Onboarding PR merge detection (T018) ────────────────────────────
@@ -217,15 +176,19 @@ export async function checkOnboardingPRs(pool: any): Promise<void> {
       const { data: pr } = await octokit.rest.pulls.get({ owner, repo: name, pull_number: prNumber });
 
       if (pr.merged) {
-        // T019: Mark merged and set last_ingested_at so nightly ingestion picks it up
         await pool.query(
-          `UPDATE lore.repos
-             SET onboarding_pr_merged = true,
-                 last_ingested_at = now()
-           WHERE id = $1`,
+          `UPDATE lore.repos SET onboarding_pr_merged = true, last_ingested_at = now() WHERE id = $1`,
           [repo.id]
         );
-        console.log(`[repo-onboard] Onboarding PR merged for ${repo.full_name}`);
+        // Trigger initial ingestion via pipeline
+        const { createTask } = await import('./pipeline.js');
+        await createTask(
+          `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
+          'general',
+          repo.full_name,
+          'onboard-ingest'
+        );
+        console.log(`[repo-onboard] Onboarding PR merged for ${repo.full_name}, ingestion triggered`);
       }
     } catch (err: any) {
       console.error(`[repo-onboard] Error checking PR for ${repo.full_name}: ${err.message}`);

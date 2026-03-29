@@ -60,6 +60,7 @@ import {
   onboardRepo,
   checkOnboardingPRs,
 } from './repo-onboard.js';
+import { detectCurrentRepo } from './repo-detect.js';
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -97,6 +98,13 @@ server.tool(
   "Returns merged CLAUDE.md content for the org and optionally a specific team.",
   { team: z.string().optional().describe('Team name (e.g., "payments"). If omitted, returns org-level context only.') },
   async ({ team }) => {
+    // Auto-detect repo from git remote when no team is specified.
+    // The MCP server runs locally via stdio, so cwd is the developer's repo.
+    const detectedRepo = !team ? detectCurrentRepo() : null;
+    if (detectedRepo) {
+      console.error(`[lore] Auto-detected repo: ${detectedRepo}`);
+    }
+
     if (await isAlloyDbAvailable()) {
       const results = await getContextFromDb(team || "org_shared");
       if (results.length === 0) {
@@ -193,6 +201,13 @@ server.tool(
     limit: z.number().default(8).describe("Maximum results to return."),
   },
   async ({ query, team, limit }) => {
+    // Auto-detect repo from git remote when no team is specified.
+    // Scopes DB search to the detected repo's context namespace.
+    const detectedRepo = !team ? detectCurrentRepo() : null;
+    if (detectedRepo) {
+      console.error(`[lore] search_context: auto-detected repo ${detectedRepo}`);
+    }
+
     if (await isAlloyDbAvailable()) {
       const schema = team || "org_shared";
       const results = await hybridSearch(query, schema, limit);
