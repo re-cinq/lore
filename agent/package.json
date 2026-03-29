@@ -1,0 +1,25 @@
+{
+  "name": "@re-cinq/lore-agent",
+  "version": "0.1.0",
+  "description": "Lore agent runner — processes pipeline tasks via Anthropic API, runs scheduled jobs",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@octokit/auth-app": "^7.1.0",
+    "octokit": "^4.1.0",
+    "pg": "^8.13.0",
+    "yaml": "^2.7.0",
+    "cron-parser": "^4.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/pg": "^8.11.0",
+    "typescript": "^5.7.3"
+  }
+}

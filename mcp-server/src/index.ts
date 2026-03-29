@@ -50,8 +50,6 @@ import {
   markTaskMerged,
   handleReviewResult,
   setPipelinePool,
-  startPoller,
-  startMergeChecker,
 } from './pipeline.js';
 import { loadTaskTypes, getTaskTypes } from './pipeline-config.js';
 import {
@@ -719,14 +717,10 @@ async function main() {
     console.error("[lore] Database mode: local files (LORE_DB_HOST not set)");
   }
 
-  // Initialize pipeline
+  // Initialize pipeline config (task CRUD only — processing moved to lore-agent service)
   loadTaskTypes();
   if (process.env.LORE_DB_HOST) {
-    startPoller();
-    startMergeChecker();
-    // T018: Check onboarding PRs every 60s
-    setInterval(() => checkOnboardingPRs(dbPoolRef).catch(e => console.error('[lore] Onboarding PR check error:', e.message)), 60_000);
-    console.error('[lore] Pipeline poller started');
+    console.error('[lore] Pipeline task CRUD ready (processing handled by lore-agent)');
   }
 
   const mode = process.env.MCP_TRANSPORT || "stdio";
