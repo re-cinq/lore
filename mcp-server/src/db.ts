@@ -51,7 +51,7 @@ export async function getHealthStatus(): Promise<{
 
 // ── Vertex AI embedding ─────────────────────────────────────────────
 
-async function getQueryEmbedding(query: string): Promise<number[] | null> {
+export async function getQueryEmbedding(query: string): Promise<number[] | null> {
   try {
     // Try GKE metadata server first (Workload Identity), fall back to gcloud
     let token: string;
