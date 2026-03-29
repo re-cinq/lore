@@ -138,7 +138,7 @@ custom integration code.
 
 - [x] T023 [US5] Register shared_write MCP tool in mcp-server/src/index.ts: creates pool in memory.shared_pools if not exists, writes memory with pool_id set
 - [x] T024 [US5] Register shared_read MCP tool in mcp-server/src/index.ts: reads all entries or specific key from a pool
-- [ ] T025 [P] [US5] Implement file-backed shared pools in memory-file.ts: store in ~/.lore/memory/shared/<pool-name>/
+- [x] T025 [P] [US5] Implement file-backed shared pools in memory-file.ts: store in ~/.lore/memory/shared/<pool-name>/
 
 ---
 
@@ -158,7 +158,7 @@ second with zero data loss.
 
 - [x] T026 [US6] Register create_snapshot MCP tool in mcp-server/src/index.ts: queries active memories, stores memory_refs JSONB in memory.snapshots
 - [x] T027 [US6] Register restore_snapshot MCP tool in mcp-server/src/index.ts: reads snapshot refs, bulk UPDATE memories to snapshotted versions in single transaction, soft-delete post-snapshot memories
-- [ ] T028 [P] [US6] Implement file-backed snapshots in memory-file.ts: JSON snapshot of memory state
+- [x] T028 [P] [US6] Implement file-backed snapshots in memory-file.ts: JSON snapshot of memory state
 
 ---
 
@@ -219,8 +219,8 @@ add tasks/specs without using Claude Code.
 - [x] T047 Rebuild and push MCP server image (ghcr.io/re-cinq/lore-mcp) with all memory tools
 - [x] T048 Redeploy MCP server to GKE (kubectl rollout restart)
 - [x] T049 Deploy TTL cleanup CronJob (kubectl apply -f k8s/memory-ttl-cronjob.yaml)
-- [ ] T050 Update CLAUDE.md and teams/platform/CLAUDE.md to document memory tools
-- [ ] T051 Update lore-doctor.sh with memory schema health check
+- [x] T050 Update CLAUDE.md and teams/platform/CLAUDE.md to document memory tools
+- [x] T051 Update lore-doctor.sh with memory schema health check
 - [ ] T052 Re-seed database with updated repo content + generate embeddings
 
 ---

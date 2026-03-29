@@ -21,6 +21,7 @@ export interface SubmitTaskResponse {
   task_id: string;
   status: "submitted";
   output?: string;
+  cost?: number | null;
 }
 
 export interface TaskStatus {
@@ -128,6 +129,7 @@ export async function submitTask(
 
     // 2. Poll "status" until agent is done
     let attempts = 0;
+    let statusText = "";
     const maxAttempts = 120; // 120 * 5s = 10 minutes max
     while (attempts < maxAttempts) {
       await new Promise((r) => setTimeout(r, 5000));
@@ -137,7 +139,7 @@ export async function submitTask(
         name: "status",
         arguments: {},
       });
-      const statusText = Array.isArray(statusResult.content)
+      statusText = Array.isArray(statusResult.content)
         ? statusResult.content.filter((c: any) => c.type === "text").map((c: any) => c.text).join("")
         : "";
 
@@ -163,10 +165,15 @@ export async function submitTask(
 
     console.log(`[klaus-client] Result length: ${output.length} chars`);
 
+    // Extract cost from the last status poll if available
+    const costMatch = statusText.match(/"total_cost_usd":([\d.]+)/);
+    const cost = costMatch ? parseFloat(costMatch[1]) : null;
+
     return {
       task_id: `klaus-${Date.now()}`,
       status: "submitted",
       output,
+      cost,
     };
   } catch (err: any) {
     // Reset client on connection errors

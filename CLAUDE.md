@@ -62,6 +62,33 @@ gcloud auth for local dev.
 - `teams/` — per-team CLAUDE.md files
 - `evals/` — PromptFoo eval configs per team
 
+## Agent Memory
+
+11 MCP memory tools for persistent agent memory:
+- **write_memory** — store a key-value memory with optional TTL
+- **read_memory** — retrieve a memory by key (supports version history)
+- **delete_memory** — soft-delete a memory
+- **list_memories** — paginated listing of active memories
+- **search_memory** — semantic search across memories and facts
+- **shared_write** — write to a named shared pool (cross-agent)
+- **shared_read** — read from a shared pool
+- **create_snapshot** — snapshot all current memories for crash recovery
+- **restore_snapshot** — restore memories from a snapshot
+- **agent_health** — memory count, last active, snapshot count
+- **agent_stats** — total memories, facts, searches, daily breakdown
+
+Memory is stored in the PostgreSQL `memory` schema (tables:
+`memories`, `memory_versions`, `facts`, `snapshots`, `shared_pools`,
+`audit_log`). File-backed fallback to `~/.lore/memory/` when DB is
+unavailable.
+
+Fact extraction via configurable LLM (`LORE_FACT_LLM` env:
+claude/openai/ollama) breaks unstructured text into individually
+searchable facts with embeddings.
+
+Agent ID resolved from: explicit parameter, `LORE_AGENT_ID` env,
+`~/.lore/agent-id` file, or auto-generated UUID.
+
 ## Running Locally
 
 ```bash

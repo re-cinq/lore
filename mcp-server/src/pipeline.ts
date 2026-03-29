@@ -98,7 +98,7 @@ export async function updateTaskStatus(taskId: string, newStatus: string, meta?:
   await recordEvent(taskId, oldStatus, newStatus, meta);
 }
 
-async function recordEvent(taskId: string, fromStatus: string | null, toStatus: string, meta?: any): Promise<void> {
+async function recordEvent(taskId: string, fromStatus: string | null, toStatus: string | null, meta?: any): Promise<void> {
   try {
     await pool.query(
       `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
@@ -183,6 +183,11 @@ async function spawnAgent(task: any): Promise<void> {
       // Klaus returned but with no output
       await handleAgentCompletion(task.id, 'Agent completed but produced no output.');
     }
+
+    // Store cost in task events if available
+    if (result && 'cost' in result && (result as any).cost) {
+      await recordEvent(task.id, null, null, { cost_usd: (result as any).cost });
+    }
   } catch (err: any) {
     await updateTaskStatus(task.id, 'failed', { error: err.message });
     await pool.query(
@@ -190,6 +195,21 @@ async function spawnAgent(task: any): Promise<void> {
       [err.message, task.id],
     );
   }
+}
+
+// ── Output parsing ──────────────────────────────────────────────────
+
+function parseAgentOutput(raw: string): string {
+  // Try to parse as JSON and extract result_text
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.result_text) return parsed.result_text;
+    if (parsed.output) return parsed.output;
+    if (typeof parsed === 'string') return parsed;
+  } catch {}
+
+  // It's raw text — return as-is
+  return raw;
 }
 
 // ── Agent completion (T014) ─────────────────────────────────────────
@@ -205,11 +225,14 @@ export async function handleAgentCompletion(taskId: string, output: string): Pro
   try {
     await createBranch(repo, branchName);
 
+    // Parse agent output (may be JSON-wrapped)
+    const cleanOutput = parseAgentOutput(output);
+
     // Determine output file path based on task type
     const filePath = getOutputPath(task.task_type, slug);
-    await commitFile(repo, branchName, filePath, output, `agent: ${task.description.substring(0, 50)}`);
+    await commitFile(repo, branchName, filePath, cleanOutput, `agent: ${task.description.substring(0, 50)}`);
 
-    const prBody = `## Agent-Generated PR\n\n**Task:** ${task.description}\n**Type:** ${task.task_type}\n**Agent:** ${task.agent_id}\n\n---\n\n${output.substring(0, 500)}...`;
+    const prBody = `## Agent-Generated PR\n\n**Task:** ${task.description}\n**Type:** ${task.task_type}\n**Agent:** ${task.agent_id}\n\n---\n\n${cleanOutput.substring(0, 500)}...`;
     const { url, number } = await createPR(repo, branchName, `agent: ${task.description.substring(0, 60)}`, prBody);
 
     await pool.query(

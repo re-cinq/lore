@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import SidebarNav from './SidebarNav';
+import SessionWrapper from './SessionWrapper';
+import UserMenu from './UserMenu';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -15,13 +17,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="app-layout">
-          <aside className="sidebar">
-            <div className="sidebar-brand">LORE</div>
-            <SidebarNav />
-          </aside>
-          <main className="main-content">{children}</main>
-        </div>
+        <SessionWrapper>
+          <div className="app-layout">
+            <aside className="sidebar">
+              <div className="sidebar-brand">LORE</div>
+              <SidebarNav />
+              <UserMenu />
+            </aside>
+            <main className="main-content">{children}</main>
+          </div>
+        </SessionWrapper>
       </body>
     </html>
   );

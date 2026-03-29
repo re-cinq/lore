@@ -38,6 +38,25 @@ spec:
               value: "lore"
             - name: LORE_DB_PASSWORD
               value: "loredb2026"
+            - name: GITHUB_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: lore-ui-oauth
+                  key: github-oauth-client-id
+            - name: GITHUB_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lore-ui-oauth
+                  key: github-oauth-client-secret
+            - name: GITHUB_ALLOWED_ORG
+              value: "re-cinq"
+            - name: NEXTAUTH_URL
+              value: "https://lore.re-cinq.com"
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lore-ui-oauth
+                  key: nextauth-secret
           resources:
             requests:
               cpu: 100m

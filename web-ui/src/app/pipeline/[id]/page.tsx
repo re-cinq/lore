@@ -65,6 +65,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             <span className={`op-badge op-${e.to_status}`}>{e.to_status}</span>
             {e.from_status && <span className="meta"> ← {e.from_status}</span>}
             <span className="meta" style={{marginLeft:'12px'}}>{new Date(e.created_at).toLocaleString()}</span>
+            {e.metadata?.cost_usd && <span className="badge" style={{marginLeft:'8px'}}>{'$' + Number(e.metadata.cost_usd).toFixed(4)}</span>}
             {e.metadata && <pre style={{marginTop:'4px',fontSize:'12px'}}>{JSON.stringify(e.metadata, null, 2)}</pre>}
           </div>
         ))}
