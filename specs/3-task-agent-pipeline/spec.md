@@ -153,8 +153,10 @@ and audit trail.
 
 The system MUST detect new tasks from multiple sources.
 
-- FR-1.1: UI task creation (writes to PostgreSQL) triggers agent
-  spawn via database notification (LISTEN/NOTIFY) or polling.
+- FR-1.1: UI task creation triggers agent spawn via a polling loop
+  in the MCP server (query pending tasks every 10 seconds). No
+  database-specific event mechanisms — infra-agnostic so the system
+  can be packaged and deployed anywhere.
 - FR-1.2: PR with `.specify/` files triggers agent via GitHub
   webhook or Actions workflow.
 - FR-1.3: `delegate_task` MCP tool triggers agent via Klaus HTTP
@@ -170,12 +172,18 @@ The system MUST spawn Klaus agents in response to task events.
   per task).
 - FR-2.2: Agent receives: task description, context bundle (Lore
   memory, relevant context chunks, spec if available), target
-  repo + branch.
-- FR-2.3: Agent has GitHub access (to clone repos, create branches,
-  open PRs).
+  repo + branch. Lore is one instance per org managing multiple
+  repos. Target repo is required — defaults to the Lore context
+  repo for context tasks, must be specified for code tasks (via
+  task type config or task description).
+- FR-2.3: Agent has GitHub access via a GitHub App installed on
+  the org. Each agent run gets a short-lived installation token
+  scoped to configured repos. No personal access tokens.
 - FR-2.4: Agent has Lore MCP access (to search context, read/write
   memory).
 - FR-2.5: Configurable timeout per task type (default: 30 minutes).
+- FR-2.7: Maximum 5 concurrent agents. Tasks exceeding the limit
+  queue in `pending` state until a slot opens. Configurable.
 - FR-2.6: Agent runs with a unique agent ID (written to Lore
   memory for tracking).
 
@@ -202,7 +210,9 @@ The system MUST support automated review of agent-generated PRs.
 - FR-4.4: Review agent can approve (but human approval still
   required for merge).
 - FR-4.5: If review agent requests changes, the original agent
-  can be re-triggered to address them.
+  is re-triggered to address them. Maximum 2 iterations
+  (implement → review → revise → final review). If still failing
+  after one revision, escalate to human with full context.
 
 ### FR-5: Task Status Tracking
 
@@ -245,10 +255,21 @@ The system MUST support configurable agent behavior per task type.
 
 ### NFR-3: Security
 
-- Agents have scoped GitHub access (only repos they need).
+- Agents authenticate via GitHub App (org-level install) with
+  short-lived installation tokens. Scoped to configured repos only.
 - Agent-generated PRs require human approval for merge.
 - Agent prompts are version-controlled (not editable via UI).
 - No credentials in task descriptions or agent memory.
+
+## Clarifications
+
+### Session 2026-03-29
+
+- Q: How does the system detect new tasks from the UI? → A: Polling loop in MCP server (every 10s). Infra-agnostic — no LISTEN/NOTIFY or K8s-specific mechanisms. System should be packageable as a product.
+- Q: Which repo does an agent commit to? → A: Lore is one instance per org, manages multiple repos. Task must specify a target repo. Default for context tasks (runbooks, ADRs) is the Lore context repo. For code tasks, the repo is required — either from task type config, the task description, or the team's configured repo.
+- Q: How many review iterations before escalating to human? → A: Max 2 (implement → review → revise → final review). Escalate to human if still failing after one revision.
+- Q: How do agents authenticate to GitHub? → A: GitHub App installed on the org. Short-lived installation tokens per agent run, scoped to configured repos. No PATs.
+- Q: How many agents can run concurrently? → A: Max 5. Overflow queued as pending until a slot opens. Configurable.
 
 ## Scope Boundaries
 
