@@ -61,6 +61,7 @@ import {
   checkOnboardingPRs,
 } from './repo-onboard.js';
 import { detectCurrentRepo } from './repo-detect.js';
+import { ingestFiles } from './ingest.js';
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -741,6 +742,34 @@ async function main() {
         const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
         const code = status === "error" ? 503 : 200;
         res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status, database: health }));
+      } else if (req.url === "/api/ingest" && req.method === "POST") {
+        // Bearer token auth
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) {
+          res.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+        if (!dbPoolRef) {
+          res.writeHead(503, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "database not available" }));
+          return;
+        }
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", async () => {
+          try {
+            const { files, repo, commit } = JSON.parse(body);
+            if (!Array.isArray(files) || !repo || !commit) {
+              res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "required: files (array), repo (string), commit (string)" }));
+              return;
+            }
+            const result = await ingestFiles(dbPoolRef, files, repo, commit);
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
+          } catch (err: any) {
+            console.error("[ingest] API error:", err.message);
+            res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+          }
+        });
       } else {
         res.writeHead(404).end();
       }

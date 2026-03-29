@@ -2,36 +2,45 @@ name: Incremental context ingest
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    paths:
+      - 'CLAUDE.md'
+      - 'AGENTS.md'
+      - 'adrs/**'
+      - 'runbooks/**'
+      - 'teams/**'
+      - '.specify/**'
+      - 'scripts/klaus-prompts/**'
+      - '.claude/skills/**'
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
       - name: Get changed files
-        id: changed
+        id: changes
         run: |
           FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
           echo "files=$FILES" >> "$GITHUB_OUTPUT"
 
-      - name: Submit changed files to Lore MCP
-        if: steps.changed.outputs.files != '[]'
+      - name: Submit to Lore ingest API
+        if: steps.changes.outputs.files != '[]'
+        env:
+          LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
+          LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL }}
+          FILES: ${{ steps.changes.outputs.files }}
         run: |
-          curl -s -X POST \
-            -H "Authorization: Bearer ${{ secrets.LORE_AGENT_TOKEN }}" \
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "task": "ingest_changed_files",
-              "params": {
-                "files": ${{ steps.changed.outputs.files }},
-                "repo": "${{ github.repository }}",
-                "commit": "${{ github.sha }}"
-              }
-            }' \
-            "${{ vars.LORE_MCP_ENDPOINT || 'https://lore.internal/api/delegate_task' }}"
+            -d "{
+              \"files\": ${FILES},
+              \"repo\": \"${{ github.repository }}\",
+              \"commit\": \"${{ github.sha }}\"
+            }" \
+            "${LORE_INGEST_URL:-https://lore-api.gcp.re-cinq.com}/api/ingest" \
+            || echo "::warning::Could not reach Lore ingest endpoint"

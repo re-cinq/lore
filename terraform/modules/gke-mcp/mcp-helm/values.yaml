@@ -31,3 +31,7 @@ env:
 dbPasswordSecret:
   name: lore-mcp-db-password
   key: password
+
+ingestTokenSecret:
+  name: lore-ingest-token
+  key: token
