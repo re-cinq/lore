@@ -2,13 +2,15 @@ import { query } from "../db.js";
 
 export async function ttlCleanupJob(): Promise<string> {
   const result = await query<{ count: string }>(
-    `WITH deleted AS (
-       DELETE FROM memory.memories
+    `WITH expired AS (
+       UPDATE memory.memories
+       SET deleted = true, updated_at = now()
        WHERE ttl_expires_at IS NOT NULL
          AND ttl_expires_at < now()
+         AND deleted = false
        RETURNING id
      )
-     SELECT count(*)::text AS count FROM deleted`,
+     SELECT count(*)::text AS count FROM expired`,
   );
 
   const count = parseInt(result[0]?.count || "0", 10);
