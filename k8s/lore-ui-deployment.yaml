@@ -51,7 +51,7 @@ spec:
             - name: GITHUB_ALLOWED_ORG
               value: "re-cinq"
             - name: NEXTAUTH_URL
-              value: "https://lore.re-cinq.com"
+              value: "https://lore.gcp.re-cinq.com"
             - name: NEXTAUTH_SECRET
               valueFrom:
                 secretKeyRef:
