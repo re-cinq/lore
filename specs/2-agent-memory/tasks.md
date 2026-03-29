@@ -221,7 +221,7 @@ add tasks/specs without using Claude Code.
 - [x] T049 Deploy TTL cleanup CronJob (kubectl apply -f k8s/memory-ttl-cronjob.yaml)
 - [x] T050 Update CLAUDE.md and teams/platform/CLAUDE.md to document memory tools
 - [x] T051 Update lore-doctor.sh with memory schema health check
-- [ ] T052 Re-seed database with updated repo content + generate embeddings
+- [x] T052 Re-seed database with updated repo content + generate embeddings
 
 ---
 
