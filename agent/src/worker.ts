@@ -205,7 +205,7 @@ async function processTask(task: any): Promise<void> {
               targetRepo,
               branchName,
               filePath,
-              content,
+              content as string,
               `lore: add ${filePath}`,
             );
           }
