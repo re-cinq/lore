@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lore-ui
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lore-ui
+  namespace: lore-ui
+  labels:
+    app: lore-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lore-ui
+  template:
+    metadata:
+      labels:
+        app: lore-ui
+    spec:
+      containers:
+        - name: ui
+          image: ghcr.io/re-cinq/lore-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: LORE_DB_HOST
+              value: "lore-db-rw.alloydb.svc.cluster.local"
+            - name: LORE_DB_PORT
+              value: "5432"
+            - name: LORE_DB_NAME
+              value: "lore"
+            - name: LORE_DB_USER
+              value: "lore"
+            - name: LORE_DB_PASSWORD
+              value: "loredb2026"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lore-ui
+  namespace: lore-ui
+  labels:
+    app: lore-ui
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+  selector:
+    app: lore-ui
