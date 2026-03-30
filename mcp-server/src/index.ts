@@ -671,6 +671,45 @@ server.tool(
   }
 );
 
+server.tool(
+  "get_analytics",
+  "Returns org-level analytics: LLM costs, task throughput, success rates. Useful for cost tracking and usage reporting.",
+  {
+    period: z.enum(["today", "week", "month", "all"]).default("month").describe("Time period for analytics."),
+  },
+  async ({ period }) => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Analytics requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+
+      const periodFilter = {
+        today: "created_at > current_date",
+        week: "created_at > date_trunc('week', current_date)",
+        month: "created_at > date_trunc('month', current_date)",
+        all: "TRUE",
+      }[period];
+
+      const [costResult, taskResult, byTypeResult] = await Promise.all([
+        dbPoolRef.query(`SELECT COALESCE(SUM(cost_usd), 0)::numeric(10,2) as cost, count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`),
+        dbPoolRef.query(`SELECT count(*) as total, count(*) FILTER (WHERE status IN ('pr-created', 'merged')) as succeeded, count(*) FILTER (WHERE status = 'failed') as failed FROM pipeline.tasks WHERE ${periodFilter}`),
+        dbPoolRef.query(`SELECT t.task_type, count(DISTINCT t.id) as tasks, COALESCE(SUM(lc.cost_usd), 0)::numeric(10,2) as cost FROM pipeline.tasks t LEFT JOIN pipeline.llm_calls lc ON lc.task_id = t.id WHERE t.${periodFilter} GROUP BY t.task_type ORDER BY cost DESC`),
+      ]);
+
+      const analytics = {
+        period,
+        cost: { total_usd: costResult.rows[0].cost, llm_calls: parseInt(costResult.rows[0].calls), input_tokens: parseInt(costResult.rows[0].input_tokens), output_tokens: parseInt(costResult.rows[0].output_tokens) },
+        tasks: { total: parseInt(taskResult.rows[0].total), succeeded: parseInt(taskResult.rows[0].succeeded), failed: parseInt(taskResult.rows[0].failed) },
+        by_type: byTypeResult.rows,
+      };
+
+      return { content: [{ type: "text" as const, text: JSON.stringify(analytics, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error fetching analytics: ${err.message}` }] };
+    }
+  }
+);
+
 // --- Repo onboarding tools ---
 
 server.tool(
