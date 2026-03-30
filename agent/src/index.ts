@@ -9,6 +9,7 @@ import { ttlCleanupJob } from "./jobs/ttl-cleanup.js";
 import { reindexJob } from "./jobs/reindex.js";
 import { gapDetectJob } from "./jobs/gap-detect.js";
 import { specDriftJob } from "./jobs/spec-drift.js";
+import { reviewReactorJob } from "./jobs/review-reactor.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
   }
 
   registerJob("merge_check", "*/1 * * * *", mergeCheckJob);
+  registerJob("review_reactor", "*/5 * * * *", reviewReactorJob);
   registerJob("memory_ttl", "0 * * * *", ttlCleanupJob);
   registerJob("context_reindex", "0 2 * * *", reindexJob);
   registerJob("gap_detection", "0 9 * * 1", gapDetectJob);
