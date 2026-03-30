@@ -9,6 +9,7 @@ const links = [
   { href: '/analytics', label: 'Analytics' },
   { href: '/search', label: 'Search' },
   { href: '/audit', label: 'Audit' },
+  { href: '/settings', label: 'Settings' },
 ];
 
 export default function SidebarNav() {
