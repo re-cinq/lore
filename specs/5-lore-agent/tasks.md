@@ -4,7 +4,7 @@
 |---------|----------------------|
 | Feature | Lore Agent Service   |
 | Branch  | 5-lore-agent         |
-| Tasks   | 31                   |
+| Tasks   | 42                   |
 | Phases  | 6                    |
 
 ---
@@ -38,6 +38,10 @@ Test criteria: Insert a pending onboard task → agent picks it up → creates m
 - [x] T029 [US1] Implement feature-request handler: pre-fetch context, generate spec/data-model/tasks per-file, create PR in agent/src/worker.ts
 - [x] T030 [US1] Add feature-request task type to scripts/task-types.yaml
 - [x] T031 [US1] Add Feature Request option to task create UI in web-ui/src/app/repos/[owner]/[repo]/tasks/create/page.tsx
+- [x] T032 [US3] Add LLM cost display to pipeline list page (per-task cost + today total) in web-ui/src/app/pipeline/page.tsx
+- [x] T033 [US3] Add LLM calls detail table to pipeline task detail page in web-ui/src/app/pipeline/[id]/page.tsx
+- [x] T035 [US1] Implement Claude Code headless execution module in agent/src/claude-code.ts
+- [x] T036 [US1] Add handleClaudeCodeTask to worker for implementation tasks in agent/src/worker.ts
 
 ## Phase 4: Scheduled Jobs [US2]
 
@@ -52,6 +56,7 @@ Test criteria: Start service → jobs execute at configured times → job_runs t
 - [x] T019 [P] [US2] Implement gap detection job: compare repo structure vs CLAUDE.md via LLM, create gap-fill tasks in agent/src/jobs/gap-detect.ts
 - [x] T020 [P] [US2] Implement spec drift job: compare spec vs code via LLM, create drift tasks in agent/src/jobs/spec-drift.ts
 - [x] T021 [US2] Register all 5 jobs in scheduler and wire into index.ts entry point in agent/src/index.ts
+- [x] T034 [US2] Implement full reindex job with Vertex AI embeddings via GKE metadata in agent/src/jobs/reindex.ts
 
 ## Phase 5: Observability [US3]
 
@@ -69,6 +74,12 @@ Test criteria: GET /healthz returns JSON with uptime, task counts, job schedules
 - [x] T026 [P] Create GitHub Actions CI workflow for agent build+push in .github/workflows/build-agent.yml
 - [x] T027 Remove Klaus pipeline poller, Klaus client, merge checker, and onboarding PR interval from MCP server in mcp-server/src/index.ts
 - [x] T028 Write ADR documenting Klaus replacement with rationale in adrs/ADR-007-lore-agent-replaces-klaus.md
+- [x] T037 Remove Klaus deployment from GKE cluster (helm uninstall klaus)
+- [x] T038 Update constitution to v1.2.0 — Klaus references replaced with Lore Agent
+- [x] T039 Add /api/task endpoint to MCP server for local task delegation in mcp-server/src/index.ts
+- [x] T040 Update create_pipeline_task to proxy to GKE when running locally in mcp-server/src/index.ts
+- [x] T041 Update install.sh to configure LORE_API_URL and LORE_INGEST_TOKEN for local proxy in scripts/install.sh
+- [x] T042 Auto-configure ingest secrets on target repos after onboarding PR creation in agent/src/worker.ts
 
 ---
 
