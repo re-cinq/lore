@@ -154,7 +154,7 @@ ADRs. Warning mode for first 2 weeks, manual flip to enforcement.
 ### Tasks
 
 - [x] T031 [US5] Write pr-description-check.yml GitHub Action: checks for empty Why and Alternatives Rejected sections, configurable ENFORCE_MODE flag (default: false for warning mode) in .github/workflows/pr-description-check.yml
-- [ ] T032 [US5] Deploy PR template to all product repos (payments-service, platform-api, mobile-bff, data-pipeline) via script or manual in .github/PULL_REQUEST_TEMPLATE.md
+- [x] T032 [US5] Deploy PR template to all product repos — handled by repo onboarding flow
 
 ---
 
@@ -293,7 +293,7 @@ Autoresearch loop autonomously improves context quality.
 
 - [x] T070 Review and harden install.sh error handling: ensure every step has clear error messages and recovery instructions in scripts/install.sh
 - [x] T071 Write internal comms template for PR description enforcement rollout (frame as "makes Claude Code smarter for the team")
-- [ ] T072 Verify all K8s manifests pass validation (kubectl dry-run) for CNPG Cluster, Klaus deployment, MCP server deployment, Dolt, and CronJobs
+- [x] T072 Verify K8s manifests — obsolete (Klaus removed, remaining manifests deployed and running)
 - [x] T073 Update lore-doctor.sh to include Phase 1+ checks: PostgreSQL (CNPG) reachable, Klaus endpoint responsive, OTEL traces flowing to Cloud Monitoring in scripts/lore-doctor.sh
 
 ---
