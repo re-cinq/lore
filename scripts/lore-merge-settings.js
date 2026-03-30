@@ -107,6 +107,13 @@ if (!hasHook(settings.hooks, "Stop", "Active task")) {
   });
 }
 
-// 4. write
+// 4. status line
+const loreDir = path.join(process.env.HOME || process.env.USERPROFILE, ".re-cinq", "lore");
+settings.statusLine = {
+  type: "command",
+  command: path.join(loreDir, "scripts", "lore-statusline.sh"),
+};
+
+// 5. write
 writeSettings(settings);
 console.log(`[lore] Settings merged for team "${TEAM}" -> ${SETTINGS_PATH}`);
