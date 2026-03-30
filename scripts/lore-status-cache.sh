@@ -13,7 +13,7 @@ TOKEN="$(git config --global lore.ingest-token 2>/dev/null || echo '')"
 REPO=""
 REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
 if [ -n "$REMOTE" ]; then
-  REPO=$(echo "$REMOTE" | sed -E 's|.*github\.com[:/](.+/.+?)(\.git)?$|\1|')
+  REPO=$(echo "$REMOTE" | sed -E 's|.*github\.com[:/](.+/.+?)(\.git)?$|\1|' | sed 's/\.git$//')
 fi
 
 # Default values
