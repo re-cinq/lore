@@ -1,5 +1,0 @@
-apiVersion: v2
-name: klaus
-description: Klaus cluster agent runtime for Lore platform
-version: 0.1.0
-appVersion: "1.0.0"
