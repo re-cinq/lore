@@ -217,6 +217,9 @@ scripts/infra/setup-db.sh           # PostgreSQL + pgvector
 scripts/infra/setup-agent-schema.sh  # Pipeline + job tables
 helm install lore-mcp terraform/modules/gke-mcp/mcp-helm/ -n mcp-servers
 helm install lore-agent terraform/modules/gke-mcp/agent-helm/ -n lore-agent
+
+# Remove Klaus (replaced by lore-agent)
+helm uninstall klaus -n klaus  # if still running
 ```
 
 ## Project Structure

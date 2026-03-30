@@ -154,6 +154,13 @@ In `agent/src/worker.ts`, add `handleFeatureRequest()`:
 
 Also add to task-types.yaml config: `feature-request` type with model override to Haiku.
 
+### Task 1.11: Claude Code Headless Module
+
+New module `agent/src/claude-code.ts`:
+- `isClaudeCodeAvailable()` — checks if `claude` CLI is in PATH
+- `runClaudeCode({ prompt, workDir, model, maxTokens, taskId })` — runs `claude --print` via child_process, logs to pipeline.llm_calls
+- `handleClaudeCodeTask` in worker.ts — clones repo, runs Claude Code, commits changes, pushes, creates PR
+
 ### Task 1.9: Entry Point (`index.ts`)
 
 Wire everything together:
@@ -253,6 +260,19 @@ Write `adrs/ADR-XXX-lore-agent-replaces-klaus.md`:
 - Context: Klaus output parsing failures, session fragility, model inflexibility
 - Rationale: Direct API control, predictable output, cost efficiency
 - Supersedes: Constitution Principle 7 "Klaus in GKE" row
+
+### Task 3.8: Remove Klaus
+
+- `helm uninstall klaus -n klaus`
+- Update constitution to v1.2.0 (Principles 7, 9)
+- Update CLAUDE.md architecture section
+- Mark klaus-client.ts as deprecated
+
+### Task 3.9: Local Task Proxy
+
+- Add `/api/task` REST endpoint to MCP server HTTP handler
+- Update `create_pipeline_task` MCP tool to proxy via fetch when LORE_DB_HOST not set
+- Update install.sh to prompt for LORE_INGEST_TOKEN and set LORE_API_URL env
 
 ### Task 3.7: Deploy and Verify
 

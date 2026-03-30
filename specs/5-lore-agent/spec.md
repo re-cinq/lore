@@ -235,6 +235,18 @@ cost, and duration.
 
 The service accepts plain-language feature descriptions from product managers and generates structured engineering artifacts: a specification (spec.md), data model changes (data-model.md), and task breakdown (tasks.md). The agent fetches the target repo's context to match existing conventions. Each artifact is generated with a separate focused LLM call and committed individually to a PR.
 
+### FR-10: Claude Code Headless Execution
+
+For complex tasks (implementation, refactoring), the service can spawn a headless Claude Code process with full tool access. The agent clones the target repo, runs `claude --print` in the repo directory, commits all changes, and creates a PR. This mode is used when the `claude` CLI is available and the task type has `execution_mode: claude-code`.
+
+### FR-11: Local Task Delegation
+
+When the MCP server runs locally without database access, the `create_pipeline_task` tool proxies task creation to the GKE MCP server via HTTP. Developers can delegate work from their terminal without infrastructure.
+
+### FR-12: Automatic Ingest Configuration
+
+After creating an onboarding PR, the agent automatically sets `LORE_INGEST_TOKEN` (encrypted secret) and `LORE_INGEST_URL` (variable) on the target repo via the GitHub API. This ensures the `lore-ingest.yml` workflow works immediately after the onboarding PR is merged.
+
 ## Non-Functional Requirements
 
 - **Availability:** Service should recover from crashes within 60
@@ -250,8 +262,7 @@ The service accepts plain-language feature descriptions from product managers an
 
 - Multi-tenant task isolation (all tasks share one agent)
 - Interactive agent sessions (this is batch processing only)
-- Custom tool use by the LLM (no code execution, file system
-  access, or web browsing — prompt-in, text-out only)
+- Multi-model routing (all tasks use a single configured model per type)
 - Migration of existing Klaus-processed tasks
 - UI for configuring scheduled job times (config file only)
 
@@ -284,12 +295,12 @@ duration_ms, created_at.
 3. LLM costs per onboarding task are under $0.10 (using the
    cost-effective model)
 4. Zero tasks are lost or stuck during normal service restarts
-5. Platform engineers can see task processing history and costs
-   without querying the database directly
+5. Platform engineers can see task processing history, LLM costs per task, and daily cost totals in the web UI
 6. The service processes a backlog of 10 pending tasks within
    60 minutes
 7. Product managers can create feature requests in plain language
    and receive a spec PR within 10 minutes
+8. Developers can delegate tasks from local Claude Code to the GKE pipeline without any infrastructure setup
 
 ## Assumptions
 
