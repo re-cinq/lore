@@ -15,7 +15,7 @@ set -euo pipefail
 # Usage: ./scripts/infra/setup-lore-db.sh [password]
 
 NAMESPACE="lore-db"
-DB_PASSWORD="${1:-${ALLOYDB_PASSWORD:-loredb123}}"
+DB_PASSWORD="${1:-${ALLOYDB_PASSWORD:?Set ALLOYDB_PASSWORD or pass password as first argument}}"
 
 # Check if CNPG operator is already installed
 if kubectl get crd clusters.postgresql.cnpg.io &>/dev/null; then

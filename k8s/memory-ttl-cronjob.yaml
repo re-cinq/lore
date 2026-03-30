@@ -24,7 +24,10 @@ spec:
             - "DELETE FROM memory.facts WHERE memory_id IN (SELECT id FROM memory.memories WHERE expires_at IS NOT NULL AND expires_at < now() - interval '24 hours'); DELETE FROM memory.memory_versions WHERE memory_id IN (SELECT id FROM memory.memories WHERE expires_at IS NOT NULL AND expires_at < now() - interval '24 hours'); DELETE FROM memory.memories WHERE expires_at IS NOT NULL AND expires_at < now() - interval '24 hours';"
             env:
             - name: PGPASSWORD
-              value: "loredb2026"
+              valueFrom:
+                secretKeyRef:
+                  name: lore-db-password
+                  key: password
           restartPolicy: OnFailure
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
