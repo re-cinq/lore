@@ -71,75 +71,16 @@ check "Agent ID configured" \
 echo ""
 echo "[lore] Results: $PASS passed, $FAIL failed"
 
-# Phase 1+ checks (optional — do not affect exit code)
-echo ""
-echo "Phase 1+ (optional):"
-
-echo -n "  PostgreSQL: "
-if [ -n "${LORE_DB_HOST:-}" ]; then
-  if pg_isready -h "$LORE_DB_HOST" -p 5432 -t 3 &>/dev/null; then
-    echo "reachable"
-  else
-    echo "unreachable at $LORE_DB_HOST"
-  fi
+# 8. Task delegation (proxy to GKE)
+LORE_API_URL="$(git config --global lore.api-url 2>/dev/null || true)"
+LORE_TOKEN="$(git config --global lore.ingest-token 2>/dev/null || true)"
+if [ -n "$LORE_API_URL" ] && [ -n "$LORE_TOKEN" ]; then
+  printf '  \xe2\x9c\x93  %s\n' "Task delegation configured ($LORE_API_URL)"
+  PASS=$((PASS + 1))
 else
-  echo "- not configured (LORE_DB_HOST not set)"
-fi
-
-echo -n "  Memory schema: "
-if [ -n "${LORE_DB_HOST:-}" ]; then
-  if kubectl exec -n alloydb lore-db-1 -- psql -U postgres -d lore -t -c "SELECT count(*) FROM memory.memories" 2>/dev/null | grep -q '[0-9]'; then
-    echo "accessible"
-  else
-    echo "not accessible"
-  fi
-else
-  echo "- not configured"
-fi
-
-echo -n "  MCP HTTP endpoint: "
-if [ -n "${LORE_MCP_ENDPOINT:-}" ]; then
-  if curl -sf --max-time 3 "$LORE_MCP_ENDPOINT/mcp" -X POST -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' -H 'Content-Type: application/json' &>/dev/null; then
-    echo "reachable"
-  else
-    echo "unreachable at $LORE_MCP_ENDPOINT"
-  fi
-else
-  echo "- not configured (LORE_MCP_ENDPOINT not set)"
-fi
-
-echo -n "  Klaus: "
-if [ -n "${LORE_KLAUS_ENDPOINT:-}" ]; then
-  if curl -sf --max-time 3 "$LORE_KLAUS_ENDPOINT/health" &>/dev/null; then
-    echo "reachable"
-  else
-    echo "unreachable at $LORE_KLAUS_ENDPOINT"
-  fi
-else
-  echo "- not configured (LORE_KLAUS_ENDPOINT not set)"
-fi
-
-echo -n "  Dolt remote: "
-if command -v bd &>/dev/null && bd remote -v 2>/dev/null | grep -q origin; then
-  echo "configured"
-else
-  echo "- not configured"
-fi
-
-echo -n "  Pipeline: "
-if kubectl get pods -n klaus -l app=lore-mcp 2>/dev/null | grep -q Running; then
-  PENDING=$(kubectl exec -n alloydb lore-db-1 -- psql -U postgres -d lore -t -c "SELECT count(*) FROM pipeline.tasks WHERE status='pending'" 2>/dev/null | tr -d ' ')
-  RUNNING=$(kubectl exec -n alloydb lore-db-1 -- psql -U postgres -d lore -t -c "SELECT count(*) FROM pipeline.tasks WHERE status='running'" 2>/dev/null | tr -d ' ')
-  echo "active (${PENDING:-0} pending, ${RUNNING:-0} running)"
-else
-  echo "- MCP server not running"
-fi
-
-echo -n "  Scheduled jobs: "
-if kubectl get cronjobs -n klaus 2>/dev/null | grep -q lore-; then
-  echo "configured ($(kubectl get cronjobs -n klaus --no-headers 2>/dev/null | wc -l | tr -d ' ') jobs)"
-else
-  echo "- not configured (run scripts/infra/setup-schedulers.sh)"
+  printf '  \xe2\x97\x8b  %s\n' "Task delegation not configured (optional)"
+  echo "     Set: git config --global lore.ingest-token <token>"
+  echo "     Set: git config --global lore.api-url https://lore-api.gcp.re-cinq.com"
 fi
 
 if [ "$FAIL" -gt 0 ]; then
