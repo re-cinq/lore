@@ -64,6 +64,20 @@ if (!hasHook(settings.hooks, "SessionStart", "re-cinq/lore")) {
   });
 }
 
+// Lore status cache (feeds the status line with pipeline metrics)
+if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
+  settings.hooks.SessionStart.push({
+    matcher: "",
+    hooks: [
+      {
+        type: "command",
+        command:
+          "bash ~/.re-cinq/lore/scripts/lore-status-cache.sh 2>/dev/null &",
+      },
+    ],
+  });
+}
+
 if (!hasHook(settings.hooks, "PostToolUse", "bd update")) {
   if (!Array.isArray(settings.hooks.PostToolUse))
     settings.hooks.PostToolUse = [];
