@@ -307,6 +307,12 @@ async function handleOnboard(
     ["lore-onboarding"],
   );
 
+  // Update lore.repos with the PR URL
+  await query(
+    `UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2`,
+    [pr.url, targetRepo],
+  );
+
   await setStatus(task.id, "pr-created", {
     pr_url: pr.url,
     pr_number: pr.number,
