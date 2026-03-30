@@ -1,5 +1,5 @@
 import { query } from "../db.js";
-import { getOctokit } from "../github.js";
+import { platform } from "../platform.js";
 
 interface PendingRepo {
   id: string;
@@ -20,12 +20,11 @@ export async function mergeCheckJob(): Promise<string> {
     return "Checked 0 repos, 0 merged";
   }
 
-  const octokit = await getOctokit();
   let mergedCount = 0;
 
   for (const repo of repos) {
     try {
-      // Extract owner, repoName, and PR number from URL
+      // Extract owner/repo and PR number from URL
       // e.g. https://github.com/org/repo/pull/42
       const match = repo.onboarding_pr_url.match(
         /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/,
@@ -38,14 +37,11 @@ export async function mergeCheckJob(): Promise<string> {
       }
 
       const [, owner, repoName, prNumber] = match;
+      const fullName = `${owner}/${repoName}`;
 
-      const { data: pr } = await octokit.rest.pulls.get({
-        owner,
-        repo: repoName,
-        pull_number: parseInt(prNumber, 10),
-      });
+      const merged = await platform().isPRMerged(fullName, parseInt(prNumber, 10));
 
-      if (pr.merged) {
+      if (merged) {
         await query(
           `UPDATE lore.repos
            SET onboarding_pr_merged = true, last_ingested_at = now()

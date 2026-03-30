@@ -1,5 +1,5 @@
 import { query } from "../db.js";
-import { getOctokit, commitFile, addIssueLabel, commentOnIssue } from "../github.js";
+import { platform } from "../platform.js";
 import { callLLM } from "../anthropic.js";
 
 interface PendingTask {
@@ -29,28 +29,17 @@ export async function reviewReactorJob(): Promise<string> {
     return "Checked 0 PRs, 0 had pending feedback";
   }
 
-  const octokit = await getOctokit();
   let feedbackCount = 0;
 
   for (const task of tasks) {
     try {
-      const [owner, repo] = task.target_repo.split("/");
-
       // Get reviews
-      const { data: reviews } = await octokit.rest.pulls.listReviews({
-        owner,
-        repo,
-        pull_number: task.pr_number,
-      });
+      const reviews = await platform().listPRReviews(task.target_repo, task.pr_number);
 
       // Get commits to determine last commit date
-      const { data: commits } = await octokit.rest.pulls.listCommits({
-        owner,
-        repo,
-        pull_number: task.pr_number,
-      });
+      const commits = await platform().listPRCommits(task.target_repo, task.pr_number);
       const lastCommitDate = new Date(
-        commits[commits.length - 1]?.commit?.committer?.date || 0,
+        commits[commits.length - 1]?.date || 0,
       );
 
       // Find "changes_requested" reviews submitted after the last commit
@@ -61,11 +50,7 @@ export async function reviewReactorJob(): Promise<string> {
       );
 
       // Get inline review comments
-      const { data: comments } = await octokit.rest.pulls.listReviewComments({
-        owner,
-        repo,
-        pull_number: task.pr_number,
-      });
+      const comments = await platform().listPRComments(task.target_repo, task.pr_number);
       const pendingComments = comments.filter(
         (c) => new Date(c.created_at) > lastCommitDate,
       );
@@ -92,28 +77,19 @@ async function processReviewFeedback(
   reviews: any[],
   comments: any[],
 ): Promise<void> {
-  const octokit = await getOctokit();
-  const [owner, repo] = task.target_repo.split("/");
-
   // Get the PR diff
-  const { data: diffData } = await octokit.rest.pulls.get({
-    owner,
-    repo,
-    pull_number: task.pr_number,
-    mediaType: { format: "diff" },
-  });
-  const diff = String(diffData);
+  const diff = await platform().getPRDiff(task.target_repo, task.pr_number);
 
   // Format review bodies
   const formattedReviews = reviews
-    .map((r) => `Review by @${r.user?.login || "unknown"}: "${r.body || "(no body)"}"`)
+    .map((r) => `Review by @${r.user || "unknown"}: "${r.body || "(no body)"}"`)
     .join("\n\n");
 
   // Format inline comments
   const formattedComments = comments
     .map(
       (c) =>
-        `Reviewer @${c.user?.login || "unknown"} said: "${c.body}" (on ${c.path}:${c.line || c.original_line || "?"})`,
+        `Reviewer @${c.user || "unknown"} said: "${c.body}" (on ${c.path}:${c.line || "?"})`,
     )
     .join("\n\n");
 
@@ -153,7 +129,7 @@ For each file that needs changes, output:
 
   // Commit each changed file
   for (const file of files) {
-    await commitFile(
+    await platform().commitFile(
       task.target_repo,
       task.target_branch,
       file.path,
@@ -174,16 +150,15 @@ For each file that needs changes, output:
 
   // Post summary comment on PR
   const fileList = files.map((f) => `- \`${f.path}\``).join("\n");
-  await octokit.rest.issues.createComment({
-    owner,
-    repo,
-    issue_number: task.pr_number,
-    body: `## Review Feedback Addressed\n\nFixed ${files.length} files based on reviewer feedback.\n\n**Iteration:** ${iteration}/3\n\nChanges:\n${fileList}`,
-  });
+  await platform().commentOnPR(
+    task.target_repo,
+    task.pr_number,
+    `## Review Feedback Addressed\n\nFixed ${files.length} files based on reviewer feedback.\n\n**Iteration:** ${iteration}/3\n\nChanges:\n${fileList}`,
+  );
 
   // Comment on the linked issue if it exists
   if (task.issue_number) {
-    await commentOnIssue(
+    await platform().commentOnIssue(
       task.target_repo,
       task.issue_number,
       `Review feedback addressed (iteration ${iteration}/3). See PR for details.`,
@@ -192,13 +167,12 @@ For each file that needs changes, output:
 
   // If max iterations reached, add needs-human label and notify
   if (iteration >= 3) {
-    await addIssueLabel(task.target_repo, task.pr_number, "needs-human");
-    await octokit.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: task.pr_number,
-      body: "This PR has reached the maximum of 3 review-react iterations. A human needs to take over.",
-    });
+    await platform().addPRLabel(task.target_repo, task.pr_number, "needs-human");
+    await platform().commentOnPR(
+      task.target_repo,
+      task.pr_number,
+      "This PR has reached the maximum of 3 review-react iterations. A human needs to take over.",
+    );
   }
 
   // Store review corrections in agent memory for future tasks

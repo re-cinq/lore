@@ -1,276 +1,251 @@
+/**
+ * GitHub implementation of the CodePlatform interface.
+ *
+ * Uses @octokit/auth-app for GitHub App authentication.
+ * This is the only file that imports Octokit — everything else
+ * goes through the platform() abstraction.
+ */
+
 import { Octokit } from "octokit";
 import { createAppAuth } from "@octokit/auth-app";
+import type {
+  CodePlatform,
+  PlatformPR,
+  PlatformIssue,
+  PullReview,
+  ReviewComment,
+  PullCommit,
+} from "./platform.js";
 
-// GitHub App credentials from env
+// ── Auth ─────────────────────────────────────────────────────────────
+
 const APP_ID = process.env.GITHUB_APP_ID || "";
 const PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY || "";
 const INSTALLATION_ID = process.env.GITHUB_APP_INSTALLATION_ID || "";
 
-export function isConfigured(): boolean {
-  return !!(APP_ID && PRIVATE_KEY && INSTALLATION_ID);
+function split(repo: string): [string, string] {
+  const [owner, name] = repo.split("/");
+  return [owner, name];
 }
 
-export async function getOctokit(): Promise<Octokit> {
-  if (!isConfigured()) {
-    throw new Error(
-      "GitHub App not configured. Set GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_APP_INSTALLATION_ID",
-    );
-  }
+async function octokit(): Promise<Octokit> {
   return new Octokit({
     authStrategy: createAppAuth,
-    auth: {
-      appId: APP_ID,
-      privateKey: PRIVATE_KEY,
-      installationId: INSTALLATION_ID,
-    },
+    auth: { appId: APP_ID, privateKey: PRIVATE_KEY, installationId: INSTALLATION_ID },
   });
 }
 
-export async function createBranch(
-  repo: string,
-  branchName: string,
-  baseBranch: string = "main",
-): Promise<void> {
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split("/");
+// ── Implementation ───────────────────────────────────────────────────
 
-  // Get the SHA of the base branch
-  const { data: ref } = await octokit.rest.git.getRef({
-    owner,
-    repo: repoName,
-    ref: `heads/${baseBranch}`,
-  });
+export class GitHubPlatform implements CodePlatform {
+  readonly name = "github";
 
-  // Create new branch (delete existing if stale from previous attempt)
-  try {
-    await octokit.rest.git.createRef({
-      owner,
-      repo: repoName,
-      ref: `refs/heads/${branchName}`,
-      sha: ref.object.sha,
-    });
-  } catch (err: any) {
-    if (err.status === 422 && err.message?.includes("Reference already exists")) {
-      await octokit.rest.git.deleteRef({ owner, repo: repoName, ref: `heads/${branchName}` });
-      await octokit.rest.git.createRef({
-        owner,
-        repo: repoName,
-        ref: `refs/heads/${branchName}`,
-        sha: ref.object.sha,
-      });
-    } else {
-      throw err;
-    }
+  isConfigured(): boolean {
+    return !!(APP_ID && PRIVATE_KEY && INSTALLATION_ID);
   }
-}
 
-export async function commitFile(
-  repo: string,
-  branch: string,
-  path: string,
-  content: string,
-  message: string,
-): Promise<void> {
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split("/");
+  // ── Branches & Commits ──
 
-  // Get current file SHA if it exists (check branch first, then main)
-  let sha: string | undefined;
-  for (const ref of [branch, "main"]) {
+  async createBranch(repo: string, branch: string, base = "main"): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data: ref } = await ok.rest.git.getRef({ owner, repo: repoName, ref: `heads/${base}` });
     try {
-      const { data } = await octokit.rest.repos.getContent({
-        owner,
-        repo: repoName,
-        path,
-        ref,
-      });
-      if ("sha" in data) {
-        sha = data.sha;
-        break;
+      await ok.rest.git.createRef({ owner, repo: repoName, ref: `refs/heads/${branch}`, sha: ref.object.sha });
+    } catch (err: any) {
+      if (err.status === 422 && err.message?.includes("Reference already exists")) {
+        await ok.rest.git.deleteRef({ owner, repo: repoName, ref: `heads/${branch}` });
+        await ok.rest.git.createRef({ owner, repo: repoName, ref: `refs/heads/${branch}`, sha: ref.object.sha });
+      } else {
+        throw err;
       }
-    } catch {
-      // file doesn't exist on this ref
     }
   }
 
-  await octokit.rest.repos.createOrUpdateFileContents({
-    owner,
-    repo: repoName,
-    path,
-    branch,
-    message,
-    content: Buffer.from(content).toString("base64"),
-    ...(sha ? { sha } : {}),
-  });
-}
-
-export async function createPR(
-  repo: string,
-  branch: string,
-  title: string,
-  body: string,
-  baseBranch: string = "main",
-  labels: string[] = ["agent-generated"],
-): Promise<{ url: string; number: number }> {
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split("/");
-
-  const { data: pr } = await octokit.rest.pulls.create({
-    owner,
-    repo: repoName,
-    title,
-    body,
-    head: branch,
-    base: baseBranch,
-  });
-
-  // Add labels
-  if (labels.length > 0) {
-    await octokit.rest.issues.addLabels({
-      owner,
-      repo: repoName,
-      issue_number: pr.number,
-      labels,
+  async commitFile(repo: string, branch: string, path: string, content: string, message: string): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    let sha: string | undefined;
+    for (const ref of [branch, "main"]) {
+      try {
+        const { data } = await ok.rest.repos.getContent({ owner, repo: repoName, path, ref });
+        if ("sha" in data) { sha = data.sha; break; }
+      } catch { /* not found */ }
+    }
+    await ok.rest.repos.createOrUpdateFileContents({
+      owner, repo: repoName, path, branch, message,
+      content: Buffer.from(content).toString("base64"),
+      ...(sha ? { sha } : {}),
     });
   }
 
-  return { url: pr.html_url, number: pr.number };
-}
+  // ── Pull Requests ──
 
-// ── GitHub Issues ─────────────────────────────────────────────────────
-
-/**
- * Create a GitHub Issue on the target repo for a pipeline task.
- */
-export async function createIssue(
-  repo: string,
-  title: string,
-  body: string,
-  labels: string[] = ["lore-managed"],
-): Promise<{ url: string; number: number }> {
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split("/");
-
-  const { data: issue } = await octokit.rest.issues.create({
-    owner,
-    repo: repoName,
-    title,
-    body,
-    labels,
-  });
-
-  return { url: issue.html_url, number: issue.number };
-}
-
-/**
- * Post a comment on a GitHub Issue.
- */
-export async function commentOnIssue(
-  repo: string,
-  issueNumber: number,
-  body: string,
-): Promise<void> {
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split("/");
-
-  await octokit.rest.issues.createComment({
-    owner,
-    repo: repoName,
-    issue_number: issueNumber,
-    body,
-  });
-}
-
-/**
- * Close a GitHub Issue.
- */
-export async function closeIssue(
-  repo: string,
-  issueNumber: number,
-  reason: "completed" | "not_planned" = "completed",
-): Promise<void> {
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split("/");
-
-  await octokit.rest.issues.update({
-    owner,
-    repo: repoName,
-    issue_number: issueNumber,
-    state: "closed",
-    state_reason: reason,
-  });
-}
-
-/**
- * Add a label to a GitHub Issue.
- */
-export async function addIssueLabel(
-  repo: string,
-  issueNumber: number,
-  label: string,
-): Promise<void> {
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split("/");
-
-  await octokit.rest.issues.addLabels({
-    owner,
-    repo: repoName,
-    issue_number: issueNumber,
-    labels: [label],
-  });
-}
-
-// ── Repo Actions ──────────────────────────────────────────────────────
-
-/**
- * Set a repository Actions variable. Creates or updates.
- */
-export async function setRepoVariable(
-  repo: string,
-  name: string,
-  value: string,
-): Promise<void> {
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split("/");
-  try {
-    await octokit.rest.actions.updateRepoVariable({ owner, repo: repoName, name, value });
-  } catch {
-    await octokit.rest.actions.createRepoVariable({ owner, repo: repoName, name, value });
+  async createPR(repo: string, branch: string, title: string, body: string, base = "main", labels: string[] = ["agent-generated"]): Promise<PlatformPR> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data: pr } = await ok.rest.pulls.create({ owner, repo: repoName, title, body, head: branch, base });
+    if (labels.length > 0) {
+      await ok.rest.issues.addLabels({ owner, repo: repoName, issue_number: pr.number, labels });
+    }
+    return { url: pr.html_url, number: pr.number };
   }
-}
 
-/**
- * Set a repository Actions secret via GitHub API.
- * Encrypts the value using libsodium sealed box (required by GitHub).
- */
-export async function setRepoSecret(
-  repo: string,
-  name: string,
-  value: string,
-): Promise<void> {
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split("/");
+  async getPRDiff(repo: string, prNumber: number): Promise<string> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data } = await ok.rest.pulls.get({ owner, repo: repoName, pull_number: prNumber, mediaType: { format: "diff" } });
+    return data as unknown as string;
+  }
 
-  const { data: pubKey } = await octokit.rest.actions.getRepoPublicKey({
-    owner, repo: repoName,
-  });
+  async listPRReviews(repo: string, prNumber: number): Promise<PullReview[]> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data } = await ok.rest.pulls.listReviews({ owner, repo: repoName, pull_number: prNumber });
+    return data.map(r => ({
+      id: r.id, state: r.state, body: r.body || "",
+      user: r.user?.login || "unknown", submitted_at: r.submitted_at || "",
+    }));
+  }
 
-  // Encrypt with libsodium sealed box (what GitHub expects)
-  const sodium = (await import("libsodium-wrappers")).default;
-  await sodium.ready;
-  const keyBytes = sodium.from_base64(pubKey.key, sodium.base64_variants.ORIGINAL);
-  const encrypted = sodium.crypto_box_seal(
-    sodium.from_string(value),
-    keyBytes,
-  );
-  const encryptedB64 = sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL);
+  async listPRComments(repo: string, prNumber: number): Promise<ReviewComment[]> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data } = await ok.rest.pulls.listReviewComments({ owner, repo: repoName, pull_number: prNumber });
+    return data.map(c => ({
+      id: c.id, path: c.path, line: c.line ?? c.original_line ?? null,
+      body: c.body, user: c.user?.login || "unknown", created_at: c.created_at,
+    }));
+  }
 
-  await octokit.rest.actions.createOrUpdateRepoSecret({
-    owner,
-    repo: repoName,
-    secret_name: name,
-    encrypted_value: encryptedB64,
-    key_id: pubKey.key_id,
-  });
-  console.log(`[agent] Set secret ${name} on ${repo}`);
+  async listPRCommits(repo: string, prNumber: number): Promise<PullCommit[]> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data } = await ok.rest.pulls.listCommits({ owner, repo: repoName, pull_number: prNumber });
+    return data.map(c => ({
+      sha: c.sha, message: c.commit.message,
+      date: c.commit.committer?.date || "",
+    }));
+  }
+
+  async commentOnPR(repo: string, prNumber: number, body: string): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    await ok.rest.issues.createComment({ owner, repo: repoName, issue_number: prNumber, body });
+  }
+
+  async addPRLabel(repo: string, prNumber: number, label: string): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    await ok.rest.issues.addLabels({ owner, repo: repoName, issue_number: prNumber, labels: [label] });
+  }
+
+  // ── Issues ──
+
+  async createIssue(repo: string, title: string, body: string, labels: string[] = ["lore-managed"]): Promise<PlatformIssue> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data: issue } = await ok.rest.issues.create({ owner, repo: repoName, title, body, labels });
+    return { url: issue.html_url, number: issue.number };
+  }
+
+  async commentOnIssue(repo: string, issueNumber: number, body: string): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    await ok.rest.issues.createComment({ owner, repo: repoName, issue_number: issueNumber, body });
+  }
+
+  async closeIssue(repo: string, issueNumber: number, reason: "completed" | "not_planned" = "completed"): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    await ok.rest.issues.update({ owner, repo: repoName, issue_number: issueNumber, state: "closed", state_reason: reason });
+  }
+
+  async addIssueLabel(repo: string, issueNumber: number, label: string): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    await ok.rest.issues.addLabels({ owner, repo: repoName, issue_number: issueNumber, labels: [label] });
+  }
+
+  // ── Merge status ──
+
+  async isPRMerged(repo: string, prNumber: number): Promise<boolean> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data: pr } = await ok.rest.pulls.get({ owner, repo: repoName, pull_number: prNumber });
+    return pr.merged;
+  }
+
+  // ── Repo Content ──
+
+  async getFileContent(repo: string, path: string, ref?: string): Promise<string | null> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    try {
+      const { data } = await ok.rest.repos.getContent({ owner, repo: repoName, path, ...(ref ? { ref } : {}) });
+      if (!Array.isArray(data) && data.type === "file" && data.content) {
+        return Buffer.from(data.content, "base64").toString("utf-8");
+      }
+      return null;
+    } catch { return null; }
+  }
+
+  async listDirectory(repo: string, path: string): Promise<string[]> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    try {
+      const { data } = await ok.rest.repos.getContent({ owner, repo: repoName, path });
+      if (Array.isArray(data)) return data.map((e: any) => e.name);
+      return [];
+    } catch { return []; }
+  }
+
+  async listCommitsSince(repo: string, since: string): Promise<Array<{ sha: string; files: string[] }>> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data: commits } = await ok.rest.repos.listCommits({ owner, repo: repoName, since, per_page: 100 });
+    const result: Array<{ sha: string; files: string[] }> = [];
+    for (const c of commits) {
+      try {
+        const { data: detail } = await ok.rest.repos.getCommit({ owner, repo: repoName, ref: c.sha });
+        result.push({ sha: c.sha, files: (detail.files || []).map((f: any) => f.filename) });
+      } catch { result.push({ sha: c.sha, files: [] }); }
+    }
+    return result;
+  }
+
+  // ── Repo Config ──
+
+  async setRepoVariable(repo: string, name: string, value: string): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    try {
+      await ok.rest.actions.updateRepoVariable({ owner, repo: repoName, name, value });
+    } catch {
+      await ok.rest.actions.createRepoVariable({ owner, repo: repoName, name, value });
+    }
+  }
+
+  async setRepoSecret(repo: string, name: string, value: string): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data: pubKey } = await ok.rest.actions.getRepoPublicKey({ owner, repo: repoName });
+    const sodium = (await import("libsodium-wrappers")).default;
+    await sodium.ready;
+    const keyBytes = sodium.from_base64(pubKey.key, sodium.base64_variants.ORIGINAL);
+    const encrypted = sodium.crypto_box_seal(sodium.from_string(value), keyBytes);
+    const encryptedB64 = sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL);
+    await ok.rest.actions.createOrUpdateRepoSecret({
+      owner, repo: repoName, secret_name: name, encrypted_value: encryptedB64, key_id: pubKey.key_id,
+    });
+    console.log(`[github] Set secret ${name} on ${repo}`);
+  }
+
+  // ── Git Token (for clone/push in Claude Code mode) ──
+
+  async getInstallationToken(): Promise<string> {
+    const ok = await octokit();
+    const auth = (await ok.auth({ type: "installation" })) as { token: string };
+    return auth.token;
+  }
 }

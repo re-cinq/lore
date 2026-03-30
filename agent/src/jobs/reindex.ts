@@ -1,5 +1,5 @@
 import { query, getPool } from "../db.js";
-import { getOctokit } from "../github.js";
+import { platform } from "../platform.js";
 
 interface OnboardedRepo {
   full_name: string;
@@ -120,31 +120,15 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
 // ── Collect changed files from commits ──────────────────────────────
 
 async function getChangedFiles(
-  owner: string,
-  repoName: string,
+  fullName: string,
   since: Date,
 ): Promise<string[]> {
-  const octokit = await getOctokit();
-  const { data: commits } = await octokit.rest.repos.listCommits({
-    owner,
-    repo: repoName,
-    since: since.toISOString(),
-    per_page: 100,
-  });
+  const commits = await platform().listCommitsSince(fullName, since.toISOString());
 
   const paths = new Set<string>();
   for (const commit of commits) {
-    try {
-      const { data: detail } = await octokit.rest.repos.getCommit({
-        owner,
-        repo: repoName,
-        ref: commit.sha,
-      });
-      for (const file of detail.files || []) {
-        if (file.filename) paths.add(file.filename);
-      }
-    } catch (err: any) {
-      console.error(`[job] Error fetching commit ${commit.sha}: ${err.message}`);
+    for (const file of commit.files) {
+      paths.add(file);
     }
   }
   return Array.from(paths);
@@ -152,28 +136,24 @@ async function getChangedFiles(
 
 // ── Seed files for first-time repos ─────────────────────────────────
 
-async function getSeedFiles(owner: string, repoName: string): Promise<string[]> {
-  const octokit = await getOctokit();
+async function getSeedFiles(fullName: string): Promise<string[]> {
   const paths: string[] = [];
 
   for (const seedPath of SEED_PATHS) {
     try {
       if (seedPath.endsWith("/")) {
-        // Directory — list contents recursively
-        const { data } = await octokit.rest.repos.getContent({
-          owner,
-          repo: repoName,
-          path: seedPath.replace(/\/$/, ""),
-        });
-        if (Array.isArray(data)) {
-          for (const item of data) {
-            if (item.type === "file") paths.push(item.path);
-          }
+        // Directory — list contents
+        const dirPath = seedPath.replace(/\/$/, "");
+        const entries = await platform().listDirectory(fullName, dirPath);
+        for (const entry of entries) {
+          paths.push(`${dirPath}/${entry}`);
         }
       } else {
         // Single file — check existence
-        await octokit.rest.repos.getContent({ owner, repo: repoName, path: seedPath });
-        paths.push(seedPath);
+        const content = await platform().getFileContent(fullName, seedPath);
+        if (content !== null) {
+          paths.push(seedPath);
+        }
       }
     } catch {
       // File/dir doesn't exist, skip
@@ -185,13 +165,10 @@ async function getSeedFiles(owner: string, repoName: string): Promise<string[]> 
 // ── Ingest a single file ────────────────────────────────────────────
 
 async function ingestFile(
-  owner: string,
-  repoName: string,
   filePath: string,
   fullName: string,
   schema: string,
 ): Promise<boolean> {
-  const octokit = await getOctokit();
   const pool = getPool();
 
   // Classify before fetching content
@@ -201,30 +178,16 @@ async function ingestFile(
     return false;
   }
 
-  // Fetch file content
-  let content: string;
-  try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo: repoName,
-      path: filePath,
-    });
-    if (!("content" in data) || !data.content) {
-      console.log(`[job] Skipping ${filePath} (not a file)`);
-      return false;
-    }
-    content = Buffer.from(data.content, "base64").toString("utf-8");
-  } catch (err: any) {
-    if (err.status === 404) {
-      // File was deleted — remove existing chunks
-      await pool.query(
-        `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-        [filePath, fullName],
-      );
-      console.log(`[job] Deleted chunks for removed file ${filePath}`);
-      return true;
-    }
-    throw err;
+  // Fetch file content via platform
+  const content = await platform().getFileContent(fullName, filePath);
+  if (content === null) {
+    // File was deleted or not found — remove existing chunks
+    await pool.query(
+      `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
+      [filePath, fullName],
+    );
+    console.log(`[job] Deleted chunks for removed file ${filePath}`);
+    return true;
   }
 
   // Delete existing chunk for this file
@@ -284,7 +247,6 @@ export async function reindexJob(): Promise<string> {
   let totalRepos = 0;
 
   for (const repo of repos) {
-    const [owner, repoName] = repo.full_name.split("/");
     console.log(
       `[job] Reindexing ${repo.full_name} (last ingested: ${repo.last_ingested_at?.toISOString() ?? "never"})`,
     );
@@ -300,9 +262,9 @@ export async function reindexJob(): Promise<string> {
       // Determine which files to process
       let filePaths: string[];
       if (repo.last_ingested_at) {
-        filePaths = await getChangedFiles(owner, repoName, repo.last_ingested_at);
+        filePaths = await getChangedFiles(repo.full_name, repo.last_ingested_at);
       } else {
-        filePaths = await getSeedFiles(owner, repoName);
+        filePaths = await getSeedFiles(repo.full_name);
       }
 
       if (filePaths.length === 0) {
@@ -320,7 +282,7 @@ export async function reindexJob(): Promise<string> {
       let repoFileCount = 0;
       for (const filePath of filePaths) {
         try {
-          const ingested = await ingestFile(owner, repoName, filePath, repo.full_name, schema);
+          const ingested = await ingestFile(filePath, repo.full_name, schema);
           if (ingested) repoFileCount++;
         } catch (err: any) {
           console.error(`[job] Error processing ${repo.full_name}:${filePath}: ${err.message}`);
