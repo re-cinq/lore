@@ -4,7 +4,7 @@
 |---------|----------------------|
 | Feature | Lore Agent Service   |
 | Branch  | 5-lore-agent         |
-| Tasks   | 45                   |
+| Tasks   | 52                   |
 | Phases  | 6                    |
 
 ---
@@ -83,6 +83,13 @@ Test criteria: GET /healthz returns JSON with uptime, task counts, job schedules
 - [x] T043 Add createIssue, commentOnIssue, closeIssue, addIssueLabel to agent/src/github.ts
 - [x] T044 Wire issue creation into processTask and link PR to issue in agent/src/worker.ts
 - [x] T045 Add issue_number, issue_url, actor columns to pipeline.tasks in scripts/infra/setup-agent-schema.sh
+- [x] T046 Create analytics dashboard page with cost/task/job visualizations in web-ui/src/app/analytics/page.tsx
+- [x] T047 Add get_analytics MCP tool for programmatic cost/task queries in mcp-server/src/index.ts
+- [x] T048 Implement review reactor job: detect reviews, call LLM, commit fixes in agent/src/jobs/review-reactor.ts
+- [x] T049 Extract CodePlatform interface and refactor all modules to use platform() in agent/src/platform.ts
+- [x] T050 Implement GitHubPlatform class with all CodePlatform operations in agent/src/github.ts
+- [x] T051 Create global settings page with API URL and ingest token in web-ui/src/app/settings/page.tsx
+- [x] T052 Create lore.settings DB table for platform configuration
 
 ---
 

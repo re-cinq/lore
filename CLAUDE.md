@@ -60,6 +60,8 @@ gcloud auth for local dev.
 - `specs/` — speckit artifacts (spec, plan, tasks, research, contracts)
 - `adrs/` — architecture decision records (MADR format)
 - `teams/` — per-team CLAUDE.md files
+- `agent/src/platform.ts` — CodePlatform interface (branch, commit, PR, issue, repo content)
+- `agent/src/github.ts` — GitHubPlatform implementation (only file importing Octokit)
 - `evals/` — PromptFoo eval configs per team
 
 ## Agent Memory

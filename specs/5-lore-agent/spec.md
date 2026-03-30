@@ -258,6 +258,14 @@ When processing a task, the service creates a GitHub Issue on the target repo to
 
 If the GitHub App lacks Issues permission on a repo, the task proceeds without an issue.
 
+### FR-14: Review Reactor
+
+The service monitors agent-generated PRs for human review feedback every 5 minutes. When "changes requested" reviews or new comments are detected after the last commit, the agent assembles context (PR diff + review comments + repo conventions), calls the LLM to generate fixes, and commits corrections to the existing branch. Maximum 3 iterations per PR before escalating with a `needs-human` label. Review corrections are stored in agent memory for future tasks on the same repo.
+
+### FR-15: Platform Abstraction
+
+All code platform operations (branches, commits, PRs, issues, repo content, secrets) go through a `CodePlatform` interface. GitHub is the only implementation today. Adding another platform (GitLab, Bitbucket) requires implementing the interface — no changes to the worker, jobs, or any other module.
+
 ## Non-Functional Requirements
 
 - **Availability:** Service should recover from crashes within 60
@@ -316,6 +324,7 @@ Additional fields on pipeline.tasks: issue_number (INT, nullable), issue_url (TE
 7. Product managers can create feature requests in plain language
    and receive a spec PR within 10 minutes
 8. Developers can delegate tasks from local Claude Code to the GKE pipeline without any infrastructure setup
+9. Human review feedback on agent PRs is addressed automatically within 10 minutes
 
 ## Assumptions
 
