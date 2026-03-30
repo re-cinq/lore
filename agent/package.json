@@ -12,10 +12,11 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@octokit/auth-app": "^7.1.0",
+    "cron-parser": "^4.9.0",
+    "libsodium-wrappers": "^0.8.2",
     "octokit": "^4.1.0",
     "pg": "^8.13.0",
-    "yaml": "^2.7.0",
-    "cron-parser": "^4.9.0"
+    "yaml": "^2.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

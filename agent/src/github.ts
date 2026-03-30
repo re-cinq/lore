@@ -136,3 +136,56 @@ export async function createPR(
 
   return { url: pr.html_url, number: pr.number };
 }
+
+/**
+ * Set a repository Actions variable. Creates or updates.
+ */
+export async function setRepoVariable(
+  repo: string,
+  name: string,
+  value: string,
+): Promise<void> {
+  const octokit = await getOctokit();
+  const [owner, repoName] = repo.split("/");
+  try {
+    await octokit.rest.actions.updateRepoVariable({ owner, repo: repoName, name, value });
+  } catch {
+    await octokit.rest.actions.createRepoVariable({ owner, repo: repoName, name, value });
+  }
+}
+
+/**
+ * Set a repository Actions secret via GitHub API.
+ * Encrypts the value using libsodium sealed box (required by GitHub).
+ */
+export async function setRepoSecret(
+  repo: string,
+  name: string,
+  value: string,
+): Promise<void> {
+  const octokit = await getOctokit();
+  const [owner, repoName] = repo.split("/");
+
+  const { data: pubKey } = await octokit.rest.actions.getRepoPublicKey({
+    owner, repo: repoName,
+  });
+
+  // Encrypt with libsodium sealed box (what GitHub expects)
+  const sodium = (await import("libsodium-wrappers")).default;
+  await sodium.ready;
+  const keyBytes = sodium.from_base64(pubKey.key, sodium.base64_variants.ORIGINAL);
+  const encrypted = sodium.crypto_box_seal(
+    sodium.from_string(value),
+    keyBytes,
+  );
+  const encryptedB64 = sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL);
+
+  await octokit.rest.actions.createOrUpdateRepoSecret({
+    owner,
+    repo: repoName,
+    secret_name: name,
+    encrypted_value: encryptedB64,
+    key_id: pubKey.key_id,
+  });
+  console.log(`[agent] Set secret ${name} on ${repo}`);
+}
