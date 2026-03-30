@@ -85,10 +85,31 @@ merge_settings() {
   # Register MCP server via CLI (the reliable way)
   if command -v claude &>/dev/null; then
     claude mcp remove lore-context 2>/dev/null || true
+
+    # Read API URL and token from config (set during first install or manually)
+    LORE_API_URL="$(git config --global lore.api-url 2>/dev/null || echo 'https://lore-api.gcp.re-cinq.com')"
+    LORE_TOKEN="$(git config --global lore.ingest-token 2>/dev/null || true)"
+
+    # Prompt for token if not set
+    if [ -z "$LORE_TOKEN" ]; then
+      echo ""
+      read -r -p "[lore] Enter your LORE_INGEST_TOKEN (ask platform team, or press Enter to skip): " LORE_TOKEN
+      if [ -n "$LORE_TOKEN" ]; then
+        git config --global lore.ingest-token "$LORE_TOKEN"
+      fi
+    fi
+
+    MCP_ENV_ARGS=(-e "CONTEXT_PATH=$LORE_DIR" -e "LORE_TEAM=$TEAM")
+    if [ -n "$LORE_API_URL" ]; then
+      MCP_ENV_ARGS+=(-e "LORE_API_URL=$LORE_API_URL")
+    fi
+    if [ -n "$LORE_TOKEN" ]; then
+      MCP_ENV_ARGS+=(-e "LORE_INGEST_TOKEN=$LORE_TOKEN")
+    fi
+
     claude mcp add lore-context node \
       "$LORE_DIR/mcp-server/dist/index.js" \
-      -e "CONTEXT_PATH=$LORE_DIR" \
-      -e "LORE_TEAM=$TEAM" \
+      "${MCP_ENV_ARGS[@]}" \
       2>/dev/null && echo "[lore] MCP server registered via claude CLI" || \
       echo "[lore] Warning: claude mcp add failed, falling back to settings.json"
   fi
