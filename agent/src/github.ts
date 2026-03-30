@@ -137,6 +137,91 @@ export async function createPR(
   return { url: pr.html_url, number: pr.number };
 }
 
+// ── GitHub Issues ─────────────────────────────────────────────────────
+
+/**
+ * Create a GitHub Issue on the target repo for a pipeline task.
+ */
+export async function createIssue(
+  repo: string,
+  title: string,
+  body: string,
+  labels: string[] = ["lore-managed"],
+): Promise<{ url: string; number: number }> {
+  const octokit = await getOctokit();
+  const [owner, repoName] = repo.split("/");
+
+  const { data: issue } = await octokit.rest.issues.create({
+    owner,
+    repo: repoName,
+    title,
+    body,
+    labels,
+  });
+
+  return { url: issue.html_url, number: issue.number };
+}
+
+/**
+ * Post a comment on a GitHub Issue.
+ */
+export async function commentOnIssue(
+  repo: string,
+  issueNumber: number,
+  body: string,
+): Promise<void> {
+  const octokit = await getOctokit();
+  const [owner, repoName] = repo.split("/");
+
+  await octokit.rest.issues.createComment({
+    owner,
+    repo: repoName,
+    issue_number: issueNumber,
+    body,
+  });
+}
+
+/**
+ * Close a GitHub Issue.
+ */
+export async function closeIssue(
+  repo: string,
+  issueNumber: number,
+  reason: "completed" | "not_planned" = "completed",
+): Promise<void> {
+  const octokit = await getOctokit();
+  const [owner, repoName] = repo.split("/");
+
+  await octokit.rest.issues.update({
+    owner,
+    repo: repoName,
+    issue_number: issueNumber,
+    state: "closed",
+    state_reason: reason,
+  });
+}
+
+/**
+ * Add a label to a GitHub Issue.
+ */
+export async function addIssueLabel(
+  repo: string,
+  issueNumber: number,
+  label: string,
+): Promise<void> {
+  const octokit = await getOctokit();
+  const [owner, repoName] = repo.split("/");
+
+  await octokit.rest.issues.addLabels({
+    owner,
+    repo: repoName,
+    issue_number: issueNumber,
+    labels: [label],
+  });
+}
+
+// ── Repo Actions ──────────────────────────────────────────────────────
+
 /**
  * Set a repository Actions variable. Creates or updates.
  */

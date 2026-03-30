@@ -4,7 +4,7 @@
 |---------|----------------------|
 | Feature | Lore Agent Service   |
 | Branch  | 5-lore-agent         |
-| Tasks   | 42                   |
+| Tasks   | 45                   |
 | Phases  | 6                    |
 
 ---
@@ -80,6 +80,9 @@ Test criteria: GET /healthz returns JSON with uptime, task counts, job schedules
 - [x] T040 Update create_pipeline_task to proxy to GKE when running locally in mcp-server/src/index.ts
 - [x] T041 Update install.sh to configure LORE_API_URL and LORE_INGEST_TOKEN for local proxy in scripts/install.sh
 - [x] T042 Auto-configure ingest secrets on target repos after onboarding PR creation in agent/src/worker.ts
+- [x] T043 Add createIssue, commentOnIssue, closeIssue, addIssueLabel to agent/src/github.ts
+- [x] T044 Wire issue creation into processTask and link PR to issue in agent/src/worker.ts
+- [x] T045 Add issue_number, issue_url, actor columns to pipeline.tasks in scripts/infra/setup-agent-schema.sh
 
 ---
 

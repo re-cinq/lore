@@ -144,3 +144,5 @@ scripts/task-types.yaml:
 Agent creates branch + PR when done. The Lore Agent service
 (agent/) processes tasks via direct Anthropic API calls or
 headless Claude Code for complex work.
+
+- Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created.

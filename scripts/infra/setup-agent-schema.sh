@@ -35,6 +35,11 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   );
   CREATE INDEX IF NOT EXISTS idx_job_runs_name ON pipeline.job_runs(job_name, started_at DESC);
   CREATE INDEX IF NOT EXISTS idx_job_runs_status ON pipeline.job_runs(status);
+
+  -- Issue sync columns
+  ALTER TABLE pipeline.tasks ADD COLUMN IF NOT EXISTS issue_number INT;
+  ALTER TABLE pipeline.tasks ADD COLUMN IF NOT EXISTS issue_url TEXT;
+  ALTER TABLE pipeline.tasks ADD COLUMN IF NOT EXISTS actor TEXT;
 "
 
 echo "[lore] Agent schema tables ready."
