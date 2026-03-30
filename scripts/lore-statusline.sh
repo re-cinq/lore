@@ -26,7 +26,7 @@ if [ -f "$CACHE" ]; then
   PARTS=""
   [ "$TASKS" != "0" ] && PARTS="${PARTS}tasks:${TASKS} "
   [ "$MEMORIES" != "0" ] && PARTS="${PARTS}mem:${MEMORIES} "
-  [ "$TODAY_COST" != "0.00" ] && PARTS="${PARTS}cost:${TODAY_COST} "
+  [ "$TODAY_COST" != "0.00" ] && PARTS="${PARTS}\$${TODAY_COST} "
   [ -n "$REPO_STATUS" ] && PARTS="${REPO_STATUS} ${PARTS}"
 
   [ -n "$PARTS" ] && LORE_INFO=" | lore: ${PARTS% }"
