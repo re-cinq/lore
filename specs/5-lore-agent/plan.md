@@ -282,6 +282,31 @@ Wire GitHub Issue lifecycle into the task worker:
 - `setup-agent-schema.sh`: add `issue_number`, `issue_url`, `actor` columns to pipeline.tasks
 - Non-fatal: if GitHub App lacks Issues permission, log warning and proceed
 
+### Task 3.11: Analytics Dashboard
+
+- Web UI page at /analytics with 6 sections (cost cards, task summary, by type, by repo, daily trend, job runs)
+- `get_analytics` MCP tool returning cost + task stats for any period
+
+### Task 3.12: Review Reactor
+
+- Scheduled job every 5 minutes polling agent PRs for human feedback
+- Context assembly: diff + comments + conventions
+- LLM call to generate fixes, commit to existing branch
+- Max 3 iterations, `needs-human` label escape hatch
+- Feedback stored in agent memory
+
+### Task 3.13: Platform Abstraction
+
+- `platform.ts`: CodePlatform interface with all operations
+- `github.ts`: GitHubPlatform implementation
+- All modules migrated to `platform()` singleton
+- Zero Octokit imports outside github.ts
+
+### Task 3.14: Global Settings
+
+- `lore.settings` table (key-value)
+- Settings page: API URL, ingest token, regenerate, dev install command
+
 ### Task 3.7: Deploy and Verify
 
 - Helm install agent chart
