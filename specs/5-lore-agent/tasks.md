@@ -4,7 +4,7 @@
 |---------|----------------------|
 | Feature | Lore Agent Service   |
 | Branch  | 5-lore-agent         |
-| Tasks   | 28                   |
+| Tasks   | 31                   |
 | Phases  | 6                    |
 
 ---
@@ -35,6 +35,9 @@ Test criteria: Insert a pending onboard task → agent picks it up → creates m
 - [x] T012 [US1] Implement general/runbook/implementation task handlers: call LLM, create single-file PR in agent/src/worker.ts
 - [x] T013 [US1] Implement retry logic: on JSON parse failure, retry once with simplified prompt, then fall through to single-file in agent/src/worker.ts
 - [x] T014 [US1] Implement entry point: init DB pool, run crash recovery, start worker, start health server in agent/src/index.ts
+- [x] T029 [US1] Implement feature-request handler: pre-fetch context, generate spec/data-model/tasks per-file, create PR in agent/src/worker.ts
+- [x] T030 [US1] Add feature-request task type to scripts/task-types.yaml
+- [x] T031 [US1] Add Feature Request option to task create UI in web-ui/src/app/repos/[owner]/[repo]/tasks/create/page.tsx
 
 ## Phase 4: Scheduled Jobs [US2]
 

@@ -142,6 +142,18 @@ Core task processing loop:
   8. On error: update status → failed with reason
 - Crash recovery on startup: reset stale running/queued tasks
 
+### Task 1.10: Feature Request Handler
+
+In `agent/src/worker.ts`, add `handleFeatureRequest()`:
+- Pre-fetches repo context (CLAUDE.md, existing specs as format examples, ADRs)
+- Generates 3 artifacts with per-file LLM calls:
+  1. `specs/{slug}/spec.md` — full spec matching repo conventions
+  2. `specs/{slug}/data-model.md` — data changes (or SKIP if none)
+  3. `specs/{slug}/tasks.md` — checklist task breakdown with file paths
+- Creates branch, commits each file, opens PR with labels [spec, needs-review]
+
+Also add to task-types.yaml config: `feature-request` type with model override to Haiku.
+
 ### Task 1.9: Entry Point (`index.ts`)
 
 Wire everything together:

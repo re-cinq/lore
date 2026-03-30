@@ -24,7 +24,7 @@ Lore is the shared context layer that makes Claude Code organization-aware. Deve
 
 Beyond context, Lore is an **agent operating system**. It runs background agents that onboard repos, detect documentation gaps, check for spec drift, and review PRs — all producing pull requests that humans review and merge.
 
-## Two Ways to Use Lore
+## Three Ways to Use Lore
 
 ### Flow 1: Developer with Claude Code (local)
 
@@ -76,6 +76,36 @@ Web UI (lore.gcp.re-cinq.com)
     └──────────────────────────────────┘
 ```
 
+### Flow 3: Product Manager → Spec (intent to implementation)
+
+A PM describes what they want in plain language. Lore translates it into engineering artifacts following the repo's conventions.
+
+```
+PM opens Lore UI → picks repo → "New Task" (Feature Request)
+         │
+    Types: "I want users to export timesheets as PDF"
+         │
+    ┌────▼─────────────────────────────────────────┐
+    │              Lore Agent                       │
+    │                                              │
+    │  1. Fetches repo context                     │
+    │     ├ CLAUDE.md (architecture)               │
+    │     ├ Existing specs (format examples)       │
+    │     └ ADRs (constraints, decisions)          │
+    │                                              │
+    │  2. Generates per-file (one LLM call each)   │
+    │     ├ specs/feature/spec.md                  │
+    │     ├ specs/feature/data-model.md            │
+    │     └ specs/feature/tasks.md                 │
+    │                                              │
+    │  3. Opens PR labeled [spec] [needs-review]   │
+    └──────────────────────────────────────────────┘
+         │
+    Engineer reviews spec PR
+         │
+    Merges → /speckit.plan → /speckit.implement
+```
+
 ### Agent Execution Modes
 
 | Mode | When | How |
@@ -83,6 +113,7 @@ Web UI (lore.gcp.re-cinq.com)
 | **API call** | Onboarding, runbooks, gap-fill, review | Direct `@anthropic-ai/sdk` call to Claude Haiku. Fast, cheap ($0.01-0.07/task). Plain text in, plain text out. |
 | **Claude Code (headless)** | Implementation, refactoring, complex analysis | Spawns a headless Claude Code process with full tool access (file read/write, bash, search). Can reason about code, run tests, iterate. |
 | **Multi-agent** | Large implementation tasks | Spawns multiple Claude Code instances in parallel. Each works on a different part of the task (e.g., one agent per file or module). Results merged into a single PR. |
+| **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
 
 The agent service decides which mode to use based on the task type configured in `task-types.yaml`.
 

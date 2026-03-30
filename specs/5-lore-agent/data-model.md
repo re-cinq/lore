@@ -130,3 +130,10 @@ CREATE TABLE IF NOT EXISTS pipeline.job_runs (
 CREATE INDEX IF NOT EXISTS idx_job_runs_name ON pipeline.job_runs(job_name, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_job_runs_status ON pipeline.job_runs(status);
 ```
+
+## Feature Request Task Type
+
+No schema changes needed. Feature requests use the existing
+`pipeline.tasks` table with `task_type = 'feature-request'`. The
+agent generates spec artifacts (spec.md, data-model.md, tasks.md)
+and commits them to a PR — no new columns or tables required.

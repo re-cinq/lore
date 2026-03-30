@@ -148,6 +148,27 @@ dumps). Expects tasks to complete on the first try.
 - GitHub API errors include the HTTP status and rate limit reset time
 - LLM errors include the model name and error message
 
+### Scenario 5: Feature Request (PM Intent → Spec)
+
+**Actor:** Product Manager
+
+**Flow:**
+1. PM opens the Lore UI and navigates to a repo
+2. Creates a new task with type "Feature Request"
+3. Describes the feature in plain language (e.g., "I want users to export timesheets as PDF")
+4. Agent fetches repo context (CLAUDE.md, existing specs, ADRs)
+5. Agent generates spec.md, data-model.md, and tasks.md matching the repo's conventions
+6. Agent opens a PR labeled [spec] [needs-review]
+7. Engineer reviews the spec, refines, and merges
+8. Engineer runs speckit workflow to plan and implement
+
+**Acceptance Criteria:**
+- PM can create a feature request using plain language without knowing speckit, MADR, or any engineering conventions
+- Generated spec follows the same format as existing specs in the repo
+- Generated tasks include file paths matching the actual project structure
+- PR is clearly labeled for engineer review before implementation begins
+- Each artifact (spec, data model, tasks) is committed as a separate file, not a single dump
+
 ## Functional Requirements
 
 ### FR-1: Task Polling and Processing
@@ -210,6 +231,10 @@ tasks processed (today/total), last scheduled job run times, and
 current task (if any). LLM calls are logged with model, tokens,
 cost, and duration.
 
+### FR-9: Feature Request Translation
+
+The service accepts plain-language feature descriptions from product managers and generates structured engineering artifacts: a specification (spec.md), data model changes (data-model.md), and task breakdown (tasks.md). The agent fetches the target repo's context to match existing conventions. Each artifact is generated with a separate focused LLM call and committed individually to a PR.
+
 ## Non-Functional Requirements
 
 - **Availability:** Service should recover from crashes within 60
@@ -263,6 +288,8 @@ duration_ms, created_at.
    without querying the database directly
 6. The service processes a backlog of 10 pending tasks within
    60 minutes
+7. Product managers can create feature requests in plain language
+   and receive a spec PR within 10 minutes
 
 ## Assumptions
 
