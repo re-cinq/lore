@@ -6,11 +6,6 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     external-dns.alpha.kubernetes.io/hostname: lore-api.gcp.re-cinq.com
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      # Only expose /api and /healthz — block /mcp from external access
-      if ($uri !~ ^/(api/|healthz)) {
-        return 404;
-      }
 spec:
   ingressClassName: nginx-ingress
   tls:
