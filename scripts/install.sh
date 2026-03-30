@@ -87,8 +87,14 @@ merge_settings() {
     claude mcp remove lore-context 2>/dev/null || true
 
     # Read API URL and token from config (set during first install or manually)
-    LORE_API_URL="$(git config --global lore.api-url 2>/dev/null || echo 'https://lore-api.gcp.re-cinq.com')"
+    LORE_API_URL="$(git config --global lore.api-url 2>/dev/null || true)"
     LORE_TOKEN="$(git config --global lore.ingest-token 2>/dev/null || true)"
+
+    # Set default API URL if not configured
+    if [ -z "$LORE_API_URL" ]; then
+      LORE_API_URL="https://lore-api.gcp.re-cinq.com"
+      git config --global lore.api-url "$LORE_API_URL"
+    fi
 
     # Prompt for token if not set
     if [ -z "$LORE_TOKEN" ]; then
