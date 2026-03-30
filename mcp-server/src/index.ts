@@ -753,7 +753,20 @@ async function main() {
         const health = await getHealthStatus();
         const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
         const code = status === "error" ? 503 : 200;
-        res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status, database: health }));
+        // Add task and cost stats if DB is available
+        let tasks = { processed_today: 0, pending: 0 };
+        let todayCost = "0.00";
+        if (health.connected && dbPoolRef) {
+          try {
+            const [taskStats, costStats] = await Promise.all([
+              dbPoolRef.query(`SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`),
+              dbPoolRef.query(`SELECT COALESCE(SUM(cost_usd), 0)::numeric(10,2) as cost FROM pipeline.llm_calls WHERE created_at > current_date`),
+            ]);
+            tasks = { processed_today: taskStats.rows[0]?.today || 0, pending: taskStats.rows[0]?.pending || 0 };
+            todayCost = costStats.rows[0]?.cost || "0.00";
+          } catch { /* non-fatal */ }
+        }
+        res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status, database: health, tasks, today_cost: todayCost }));
       } else if (req.url === "/api/ingest" && req.method === "POST") {
         // Bearer token auth
         const token = process.env.LORE_INGEST_TOKEN;

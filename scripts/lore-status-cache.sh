@@ -30,10 +30,15 @@ if [ -n "$API_URL" ] && [ -n "$TOKEN" ]; then
 
   if [ -n "$HEALTH" ] && [ "$HEALTH" != "{}" ]; then
     TASKS=$(echo "$HEALTH" | jq -r '.tasks.processed_today // 0' 2>/dev/null)
+    PENDING=$(echo "$HEALTH" | jq -r '.tasks.pending // 0' 2>/dev/null)
+    TODAY_COST=$(echo "$HEALTH" | jq -r '.today_cost // "0.00"' 2>/dev/null)
+    DB_STATUS=$(echo "$HEALTH" | jq -r '.status // "unknown"' 2>/dev/null)
+    [ "$DB_STATUS" = "ok" ] && REPO_STATUS="connected" || REPO_STATUS="disconnected"
+    [ "$PENDING" != "0" ] && TASKS="${TASKS}+${PENDING}p"
   fi
 
   # Check if current repo is onboarded
-  if [ -n "$REPO" ]; then
+  if [ -n "$REPO" ] && [ "$REPO_STATUS" = "connected" ]; then
     REPO_STATUS="onboarded"
   fi
 fi
