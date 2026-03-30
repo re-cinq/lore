@@ -259,6 +259,108 @@ Architecture decisions are documented as ADRs in `adrs/`.
 | Observability | OpenTelemetry traces + metrics |
 | Infrastructure | GKE, Helm, cert-manager, external-dns |
 
+## How To
+
+### For Developers: Get org context in Claude Code
+
+After running `install.sh`, Claude Code automatically loads org context for whatever repo you're in.
+
+```bash
+# Just use Claude Code normally — Lore is transparent
+claude "how do we handle auth in this repo?"
+# → Claude already knows from CLAUDE.md, ADRs, and team patterns
+
+claude "what was the decision on database migrations?"
+# → Returns relevant ADRs with rationale and alternatives rejected
+
+# Persistent memory across sessions
+claude "remember that we decided to use UUIDs for all new tables"
+# → Stored via write_memory, available next session
+
+# Delegate work to the agent pipeline
+claude "create a runbook for database failover in re-cinq/my-service"
+# → Creates a pipeline task, agent generates the runbook and opens a PR
+```
+
+No commands to memorize. No context to load. Claude Code just knows.
+
+### For Platform Engineers: Onboard a repo
+
+**Via UI:**
+1. Go to `lore.gcp.re-cinq.com/onboard`
+2. Enter `owner/repo` (e.g., `re-cinq/my-service`)
+3. Click "Onboard Repository"
+4. Agent inspects the repo, generates CLAUDE.md, ADRs, spec, CI workflows
+5. PR appears on the target repo — review and merge
+6. Ingest secrets are configured automatically
+
+**Via CLI:**
+```bash
+claude "onboard re-cinq/my-service to lore"
+```
+
+**What gets generated** (only files that don't already exist):
+- `AGENTS.md` — context loading, commands, conventions for AI agents
+- `adrs/ADR-001-*.md` — architectural decisions inferred from code
+- `.specify/spec.md` — system spec describing what the repo does
+- `.github/PULL_REQUEST_TEMPLATE.md` — structured PR template
+- `.github/workflows/pr-description-check.yml` — CI for PR quality
+- `.github/workflows/lore-ingest.yml` — push-triggered ingestion
+
+### For Product Managers: Describe a feature
+
+1. Open `lore.gcp.re-cinq.com` → pick your repo → "New Task"
+2. Select "Feature Request"
+3. Describe what you want in plain language:
+
+   > *"I want users to be able to export their approved timesheets as PDF,
+   > grouped by project, with the company logo. Should work for a single
+   > month or a custom date range. The export button should be on the
+   > time tracking page."*
+
+4. Click "Create Task"
+5. Within 10 minutes, a PR appears on the repo with:
+   - `specs/export-timesheets-pdf/spec.md` — proper engineering spec
+   - `specs/export-timesheets-pdf/data-model.md` — data changes needed
+   - `specs/export-timesheets-pdf/tasks.md` — implementation checklist
+
+6. Engineers review the spec PR, refine, merge
+7. Then: `/speckit.plan` → `/speckit.implement` to build it
+
+You don't need to know speckit, MADR, or any engineering convention. The agent matches the repo's existing style automatically.
+
+### For Engineers: Work from a spec
+
+After a spec is merged (from a PM feature request or manual creation):
+
+```bash
+# Plan the implementation
+/speckit.plan
+
+# Generate task breakdown
+/speckit.tasks
+
+# Implement (can use multiple agents in parallel)
+/speckit.implement
+```
+
+The speckit workflow produces: `research.md` (decisions), `data-model.md` (entities), `contracts/` (API schemas), `plan.md` (phased approach), `tasks.md` (checklist with file paths).
+
+### Monitoring
+
+**Web UI** (`lore.gcp.re-cinq.com`):
+- Pipeline page shows all tasks with status, cost, and PR links
+- Repo view shows context, active tasks, and memory for each repo
+- Search page queries across all onboarded repos
+
+**Agent health** endpoint:
+```bash
+curl https://lore-api.gcp.re-cinq.com/healthz
+# Returns: uptime, tasks processed, job schedules, DB status
+```
+
+**LLM costs** tracked per task in `pipeline.llm_calls` table — visible in the pipeline dashboard.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
