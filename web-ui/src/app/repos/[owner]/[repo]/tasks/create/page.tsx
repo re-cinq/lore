@@ -34,16 +34,17 @@ export default async function CreateRepoTask({ params }: { params: Promise<{ own
       <form action={createTask} className="task-form" style={{maxWidth:'600px'}}>
         <input type="hidden" name="target_repo" value={fullName} />
 
-        <label>Description</label>
-        <textarea name="description" rows={4} required placeholder="What should the agent do?" />
-
         <label>Task Type</label>
-        <select name="task_type">
+        <select name="task_type" id="task_type">
+          <option value="feature-request">Feature Request (PM intent → spec)</option>
           <option value="general">General</option>
           <option value="runbook">Runbook</option>
           <option value="implementation">Implementation</option>
           <option value="gap-fill">Gap Fill</option>
         </select>
+
+        <label>Description</label>
+        <textarea name="description" rows={5} required placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions." />
 
         <button type="submit">Create Task</button>
       </form>
