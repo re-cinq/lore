@@ -274,6 +274,14 @@ Write `adrs/ADR-XXX-lore-agent-replaces-klaus.md`:
 - Update `create_pipeline_task` MCP tool to proxy via fetch when LORE_DB_HOST not set
 - Update install.sh to prompt for LORE_INGEST_TOKEN and set LORE_API_URL env
 
+### Task 3.10: GitHub Issue Sync
+
+Wire GitHub Issue lifecycle into the task worker:
+- `github.ts`: add `createIssue`, `commentOnIssue`, `closeIssue`, `addIssueLabel`
+- `worker.ts`: create issue on task pickup, comment on status changes, link PR to issue, close on completion
+- `setup-agent-schema.sh`: add `issue_number`, `issue_url`, `actor` columns to pipeline.tasks
+- Non-fatal: if GitHub App lacks Issues permission, log warning and proceed
+
 ### Task 3.7: Deploy and Verify
 
 - Helm install agent chart

@@ -14,6 +14,10 @@ import {
   isConfigured,
   setRepoVariable,
   setRepoSecret,
+  createIssue,
+  commentOnIssue,
+  closeIssue,
+  addIssueLabel,
 } from "./github.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
@@ -121,6 +125,28 @@ async function pollOnce(): Promise<void> {
 
 async function processTask(task: any): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
+  const targetRepo = task.target_repo || "re-cinq/lore";
+
+  // Create GitHub Issue on the target repo
+  let issueNumber: number | null = null;
+  try {
+    const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
+    const issue = await createIssue(
+      targetRepo,
+      `[lore] ${task.task_type}: ${task.description.substring(0, 80)}`,
+      `## Lore Pipeline Task\n\n**Type:** \`${task.task_type}\`\n**Created by:** \`${task.created_by || "unknown"}\`\n**Task ID:** \`${task.id}\`\n\n---\n\n${task.description}\n\n---\n*This issue is managed by [Lore](https://github.com/re-cinq/lore). Status updates will be posted as comments.*`,
+      ["lore-managed", taskTypeLabel],
+    );
+    issueNumber = issue.number;
+    await query(
+      `UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`,
+      [issue.number, issue.url, task.id],
+    );
+    console.log(`[agent] Created issue #${issue.number} on ${targetRepo}`);
+  } catch (err: any) {
+    // Non-fatal — proceed without issue if GitHub App lacks permission
+    console.warn(`[agent] Could not create issue on ${targetRepo}: ${err.message}`);
+  }
 
   // pending → queued
   await setStatus(task.id, "queued", { agent_id: agentId });
@@ -129,13 +155,15 @@ async function processTask(task: any): Promise<void> {
   // queued → running
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
+  if (issueNumber) {
+    await commentOnIssue(targetRepo, issueNumber, `Agent \`${agentId}\` picked up this task.`).catch(() => {});
+  }
 
   try {
     // Build prompt
     let fullPrompt = buildPrompt(task.task_type, task.description);
 
-    // Determine target repo and branch
-    const targetRepo = task.target_repo || "re-cinq/lore";
+    // Determine branch
     const slug = slugify(task.description);
     const branchName = `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
 
@@ -148,11 +176,11 @@ async function processTask(task: any): Promise<void> {
       getTaskTypeConfig(task.task_type)?.model || undefined;
 
     if (task.task_type === "onboard") {
-      await handleOnboard(task, targetRepo, branchName, model);
+      await handleOnboard(task, targetRepo, branchName, model, issueNumber);
     } else if (task.task_type === "feature-request") {
-      await handleFeatureRequest(task, targetRepo, branchName, model);
+      await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
     } else if (task.task_type === "implementation" && isClaudeCodeAvailable()) {
-      await handleClaudeCodeTask(task, targetRepo, branchName, model);
+      await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber);
     } else {
       // Non-onboard task types
       const result = await callLLM({
@@ -168,6 +196,7 @@ async function processTask(task: any): Promise<void> {
         targetRepo,
         branchName,
         slug,
+        issueNumber,
       );
     }
   } catch (err: any) {
@@ -177,8 +206,34 @@ async function processTask(task: any): Promise<void> {
     await insertEvent(task.id, "running", "failed", {
       error: err.message,
     });
+    // Update issue with failure
+    if (issueNumber) {
+      await commentOnIssue(targetRepo, issueNumber, `Task failed: \`${err.message}\``).catch(() => {});
+      await addIssueLabel(targetRepo, issueNumber, "lore-failed").catch(() => {});
+    }
     console.error(`[agent] Task ${task.id} failed: ${err.message}`);
   }
+}
+
+/**
+ * After a PR is created, update the linked GitHub Issue with the PR reference.
+ */
+async function linkPrToIssue(
+  repo: string,
+  issueNumber: number | null,
+  prUrl: string,
+): Promise<void> {
+  if (!issueNumber) return;
+  try {
+    await commentOnIssue(repo, issueNumber, `PR created: ${prUrl}`);
+  } catch { /* best effort */ }
+}
+
+/**
+ * Get the issue reference suffix for PR bodies.
+ */
+function issueRef(issueNumber: number | null): string {
+  return issueNumber ? `\n\nRefs #${issueNumber}` : "";
 }
 
 // ── Feature request handler ───────────────────────────────────────────
@@ -198,6 +253,7 @@ async function handleFeatureRequest(
   targetRepo: string,
   branchName: string,
   model: string | undefined,
+  issueNumber: number | null,
 ): Promise<void> {
   console.log(`[agent] Feature request: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
@@ -310,10 +366,11 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
     targetRepo,
     branchName,
     `spec: ${featureSlug}`,
-    `## Feature Request → Spec\n\n**PM intent:** ${pmIntent}\n\n**Generated artifacts:**\n${fileList}\n\nThis spec was generated from a plain-language feature request. Engineers should review, refine, and merge before implementation.\n\nGenerated by Lore agent task \`${task.id}\`.`,
+    `## Feature Request → Spec\n\n**PM intent:** ${pmIntent}\n\n**Generated artifacts:**\n${fileList}\n\nThis spec was generated from a plain-language feature request. Engineers should review, refine, and merge before implementation.\n\nGenerated by Lore agent task \`${task.id}\`.${issueRef(issueNumber)}`,
     "main",
     ["spec", "needs-review"],
   );
+  await linkPrToIssue(targetRepo, issueNumber, pr.url);
 
   await setStatus(task.id, "pr-created", {
     pr_url: pr.url,
@@ -342,6 +399,7 @@ async function handleClaudeCodeTask(
   targetRepo: string,
   branchName: string,
   model: string | undefined,
+  issueNumber: number | null,
 ): Promise<void> {
   const { execFileSync } = await import("node:child_process");
   const { rmSync } = await import("node:fs");
@@ -428,8 +486,10 @@ async function handleClaudeCodeTask(
     targetRepo,
     branchName,
     `lore: ${task.task_type} — ${slug}`,
-    `## ${task.task_type}\n\n${task.description}\n\n**Execution mode:** Claude Code (headless)\n**Changed files:** ${changedFiles}\n**Duration:** ${Math.round(result.durationMs / 1000)}s\n\nGenerated by Lore agent task \`${task.id}\`.`,
+    `## ${task.task_type}\n\n${task.description}\n\n**Execution mode:** Claude Code (headless)\n**Changed files:** ${changedFiles}\n**Duration:** ${Math.round(result.durationMs / 1000)}s\n\nGenerated by Lore agent task \`${task.id}\`.${issueRef(issueNumber)}`,
   );
+
+  await linkPrToIssue(targetRepo, issueNumber, pr.url);
 
   // Cleanup temp directory
   try {
@@ -494,6 +554,7 @@ async function handleOnboard(
   targetRepo: string,
   branchName: string,
   model: string | undefined,
+  issueNumber: number | null,
 ): Promise<void> {
   // 1. Pre-fetch repo context
   console.log(`[agent] Onboard: fetching context for ${targetRepo}...`);
@@ -584,10 +645,11 @@ async function handleOnboard(
     targetRepo,
     branchName,
     `lore: onboard ${targetRepo}`,
-    `## Lore Onboarding\n\nThis PR adds Lore platform files for AI-powered development.\n\n**Files added:**\n${fileList}\n\nGenerated by Lore agent task \`${task.id}\`.`,
+    `## Lore Onboarding\n\nThis PR adds Lore platform files for AI-powered development.\n\n**Files added:**\n${fileList}\n\nGenerated by Lore agent task \`${task.id}\`.${issueRef(issueNumber)}`,
     "main",
     ["lore-onboarding"],
   );
+  await linkPrToIssue(targetRepo, issueNumber, pr.url);
 
   // Update lore.repos with the PR URL
   await query(
@@ -626,6 +688,7 @@ async function handleGenericOutput(
   targetRepo: string,
   branchName: string,
   slug: string,
+  issueNumber: number | null,
 ): Promise<void> {
   // Determine output file path based on task type
   let filePath: string;
@@ -654,8 +717,9 @@ async function handleGenericOutput(
     targetRepo,
     branchName,
     `lore: ${task.task_type} — ${slug}`,
-    `## ${task.task_type}\n\n${task.description}\n\nOutput: \`${filePath}\`\n\nGenerated by Lore agent task \`${task.id}\`.`,
+    `## ${task.task_type}\n\n${task.description}\n\nOutput: \`${filePath}\`\n\nGenerated by Lore agent task \`${task.id}\`.${issueRef(issueNumber)}`,
   );
+  await linkPrToIssue(targetRepo, issueNumber, pr.url);
 
   await setStatus(task.id, "pr-created", {
     pr_url: pr.url,

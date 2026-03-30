@@ -247,6 +247,17 @@ When the MCP server runs locally without database access, the `create_pipeline_t
 
 After creating an onboarding PR, the agent automatically sets `LORE_INGEST_TOKEN` (encrypted secret) and `LORE_INGEST_URL` (variable) on the target repo via the GitHub API. This ensures the `lore-ingest.yml` workflow works immediately after the onboarding PR is merged.
 
+### FR-13: GitHub Issue Sync
+
+When processing a task, the service creates a GitHub Issue on the target repo to make the work visible to developers. The issue:
+- Is created when the agent picks up the task, with description, type, and creator
+- Gets comments on status changes (agent assigned, PR created, failure)
+- References the PR via `Refs #issue` in the PR body
+- Is closed as completed when the PR is created, or left open with a `lore-failed` label on failure
+- Uses the `lore-managed` label for filtering
+
+If the GitHub App lacks Issues permission on a repo, the task proceeds without an issue.
+
 ## Non-Functional Requirements
 
 - **Availability:** Service should recover from crashes within 60
@@ -285,6 +296,10 @@ result_summary, error.
 Represents one call to the LLM API. Fields: task_id (nullable),
 job_name (nullable), model, input_tokens, output_tokens, cost_usd,
 duration_ms, created_at.
+
+### Issue Sync (added to existing Task entity)
+
+Additional fields on pipeline.tasks: issue_number (INT, nullable), issue_url (TEXT, nullable), actor (TEXT, nullable — tracks who/what created the task).
 
 ## Success Criteria
 

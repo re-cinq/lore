@@ -163,7 +163,7 @@ The agent service decides which mode to use based on the task type configured in
 | Component | What it does |
 |-----------|-------------|
 | **MCP Server** | Serves org context to Claude Code via MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. |
-| **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, spawns Claude Code for complex ones. Runs 5 scheduled maintenance jobs. Creates PRs via GitHub App. |
+| **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, spawns Claude Code for complex ones. Runs 5 scheduled maintenance jobs. Creates PRs via GitHub App. Every task automatically creates a GitHub Issue on the target repo, so developers see what Lore is doing without checking the dashboard. Issues are updated with status changes and closed when the PR is created. |
 | **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring with cost tracking. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector, GIN for keyword. |
 | **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets for ingest automation. |
@@ -312,6 +312,15 @@ When running locally without a database, task creation is **proxied** to the GKE
 | `cancel_task` | Pipeline | Cancel a running or pending task |
 | `list_repos` | Repos | All onboarded repos with activity stats |
 | `onboard_repo` | Repos | Onboard a new repo to Lore |
+
+### GitHub Issue Notifications
+
+Every pipeline task creates an issue on the target repo labeled `lore-managed`. You'll see it in your GitHub notifications when:
+- A task starts on your repo (issue opened)
+- The agent creates a PR (comment with PR link, issue closed)
+- A task fails (issue stays open with `lore-failed` label)
+
+Filter with `label:lore-managed` to see all Lore activity on any repo.
 
 ### For Platform Engineers: Onboard a repo
 
