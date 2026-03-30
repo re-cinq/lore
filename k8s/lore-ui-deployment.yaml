@@ -37,7 +37,10 @@ spec:
             - name: LORE_DB_USER
               value: "lore"
             - name: LORE_DB_PASSWORD
-              value: "loredb2026"
+              valueFrom:
+                secretKeyRef:
+                  name: lore-db-password
+                  key: password
             - name: GITHUB_OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
