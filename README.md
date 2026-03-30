@@ -263,26 +263,52 @@ Architecture decisions are documented as ADRs in `adrs/`.
 
 ### For Developers: Get org context in Claude Code
 
-After running `install.sh`, Claude Code automatically loads org context for whatever repo you're in.
+After running `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The MCP server runs locally via stdio — no infrastructure needed.
 
 ```bash
-# Just use Claude Code normally — Lore is transparent
+# Context retrieval — Claude Code just knows
 claude "how do we handle auth in this repo?"
-# → Claude already knows from CLAUDE.md, ADRs, and team patterns
+# → Pulls from CLAUDE.md, ADRs, team patterns via get_context / search_context
 
 claude "what was the decision on database migrations?"
 # → Returns relevant ADRs with rationale and alternatives rejected
 
 # Persistent memory across sessions
 claude "remember that we decided to use UUIDs for all new tables"
-# → Stored via write_memory, available next session
+# → Stored via write_memory, searchable next session via search_memory
 
-# Delegate work to the agent pipeline
+# Delegate work to the agent pipeline (proxied to GKE)
 claude "create a runbook for database failover in re-cinq/my-service"
-# → Creates a pipeline task, agent generates the runbook and opens a PR
+# → Calls create_pipeline_task → proxied to GKE → agent picks it up → PR created
+
+# Check task status
+claude "what's the status of my last pipeline task?"
+# → Returns status, PR link, cost, duration
 ```
 
-No commands to memorize. No context to load. Claude Code just knows.
+When running locally without a database, task creation is **proxied** to the GKE MCP server via `LORE_API_URL`. The install script configures this automatically.
+
+**All MCP tools available to Claude Code:**
+
+| Tool | Category | What it does |
+|------|----------|-------------|
+| `get_context` | Context | Merged CLAUDE.md for current repo (auto-detected from git remote) |
+| `get_adrs` | Context | ADRs filtered by domain and status |
+| `search_context` | Context | Hybrid search (vector + keyword) across all org context |
+| `write_memory` | Memory | Store a persistent memory with optional TTL and fact extraction |
+| `read_memory` | Memory | Retrieve by key, supports version history |
+| `search_memory` | Memory | Semantic search across all memories and extracted facts |
+| `list_memories` | Memory | Paginated listing of active memories |
+| `delete_memory` | Memory | Soft-delete (preserved in history) |
+| `shared_write` / `shared_read` | Memory | Cross-agent shared memory pools |
+| `create_snapshot` / `restore_snapshot` | Memory | Point-in-time backup and restore |
+| `agent_health` / `agent_stats` | Memory | Usage stats, daily breakdown |
+| `create_pipeline_task` | Pipeline | Create task (proxied to GKE when local) |
+| `get_pipeline_status` | Pipeline | Task status and event timeline |
+| `list_pipeline_tasks` | Pipeline | List tasks with status filter |
+| `cancel_task` | Pipeline | Cancel a running or pending task |
+| `list_repos` | Repos | All onboarded repos with activity stats |
+| `onboard_repo` | Repos | Onboard a new repo to Lore |
 
 ### For Platform Engineers: Onboard a repo
 

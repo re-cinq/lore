@@ -531,12 +531,30 @@ server.tool(
   },
   async ({ description: desc, task_type, target_repo, context }) => {
     try {
-      if (!process.env.LORE_DB_HOST) {
-        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
-      }
       if (!desc || !desc.trim()) {
         return { content: [{ type: "text" as const, text: "description is required and cannot be empty" }] };
       }
+
+      // When running locally (no DB), proxy to the GKE MCP server
+      if (!process.env.LORE_DB_HOST) {
+        const apiUrl = process.env.LORE_API_URL;
+        const apiToken = process.env.LORE_INGEST_TOKEN;
+        if (!apiUrl || !apiToken) {
+          return { content: [{ type: "text" as const, text: "Pipeline requires either LORE_DB_HOST (direct) or LORE_API_URL + LORE_INGEST_TOKEN (remote). Set one in your environment." }] };
+        }
+        const res = await fetch(`${apiUrl}/api/task`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ description: desc, task_type, target_repo, context }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          return { content: [{ type: "text" as const, text: `Remote task creation failed: ${(err as any).error || res.statusText}` }] };
+        }
+        const result = await res.json();
+        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      }
+
       const validTypes = getTaskTypes();
       const resolvedType = validTypes.includes(task_type) ? task_type : "general";
       const result = await createTask(desc, resolvedType, target_repo, "mcp", context || undefined);
@@ -789,6 +807,36 @@ async function main() {
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
           } catch (err: any) {
             console.error("[onboard] API error:", err.message);
+            res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+          }
+        });
+      } else if (req.url === "/api/task" && req.method === "POST") {
+        // Create pipeline task via REST — used by local MCP servers to delegate work
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) {
+          res.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+        if (!dbPoolRef) {
+          res.writeHead(503, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "database not available" }));
+          return;
+        }
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", async () => {
+          try {
+            const { description, task_type, target_repo, context } = JSON.parse(body);
+            if (!description?.trim()) {
+              res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "description is required" }));
+              return;
+            }
+            const validTypes = getTaskTypes();
+            const resolvedType = validTypes.includes(task_type || "") ? task_type : "general";
+            const result = await createTask(description, resolvedType, target_repo, "remote-mcp", context || undefined);
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
+          } catch (err: any) {
+            console.error("[api/task] error:", err.message);
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
           }
         });
