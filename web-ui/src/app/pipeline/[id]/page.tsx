@@ -26,6 +26,15 @@ interface TaskEvent {
   created_at: string;
 }
 
+interface LlmCall {
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  duration_ms: number;
+  created_at: string;
+}
+
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const task = await queryOne<Task>(`SELECT * FROM pipeline.tasks WHERE id = $1`, [id]);
@@ -35,6 +44,14 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     `SELECT * FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
     [id]
   );
+
+  const llmCalls = await query<LlmCall>(
+    `SELECT model, input_tokens, output_tokens, cost_usd, duration_ms, created_at
+     FROM pipeline.llm_calls WHERE task_id = $1 ORDER BY created_at`,
+    [id]
+  );
+
+  const totalLlmCost = llmCalls.reduce((sum, c) => sum + Number(c.cost_usd), 0);
 
   return (
     <div>
@@ -70,6 +87,28 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           </div>
         ))}
       </div>
+
+      <h2>LLM Calls {llmCalls.length > 0 && <span className="badge" style={{marginLeft:'8px', fontSize:'14px'}}>${totalLlmCost.toFixed(2)} total</span>}</h2>
+      {llmCalls.length > 0 ? (
+        <table>
+          <thead>
+            <tr><th>Model</th><th>Tokens (in/out)</th><th>Cost</th><th>Duration</th><th>Time</th></tr>
+          </thead>
+          <tbody>
+            {llmCalls.map((c, i) => (
+              <tr key={i}>
+                <td style={{fontFamily:'monospace', fontSize:'12px'}}>{c.model}</td>
+                <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
+                <td style={{fontFamily:'monospace', fontSize:'12px'}}>${Number(c.cost_usd).toFixed(4)}</td>
+                <td style={{fontFamily:'monospace', fontSize:'12px'}}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
+                <td className="meta">{new Date(c.created_at).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="meta">No LLM calls recorded for this task.</p>
+      )}
     </div>
   );
 }
