@@ -26,7 +26,6 @@ env:
   LORE_DB_PORT: "5432"
   LORE_DB_NAME: lore
   LORE_DB_USER: postgres
-  LORE_KLAUS_ENDPOINT: http://klaus-klaus.klaus.svc.cluster.local:8080
 
 dbPasswordSecret:
   name: lore-mcp-db-password

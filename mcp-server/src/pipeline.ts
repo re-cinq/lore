@@ -1,23 +1,12 @@
 /**
- * Core pipeline module.
- *
- * Provides task CRUD, status-event recording, a periodic poller that
- * picks up pending tasks, and an agent spawner that delegates work to
- * Klaus. Uses the same pool-injection pattern as memory.ts.
+ * Pipeline task CRUD. Task processing is handled by the lore-agent service.
  */
 
-import { resolveAgentId } from './agent-id.js';
-import { getTaskTypeConfig, buildPrompt, getDefaultRepo, loadTaskTypes } from './pipeline-config.js';
-import { submitTask as submitToKlaus, getTaskStatus as getKlausStatus, getTaskResult as getKlausResult, isKlausError, submitTaskAsync, pollKlausUntilDone } from './klaus-client.js';
-import { buildContextBundle } from './context-bundle.js';
-import { createBranch, commitFile, createPR, isConfigured as isGitHubConfigured } from './pipeline-github.js';
-import { fetchRepoContext } from './repo-onboard.js';
+import { getDefaultRepo } from './pipeline-config.js';
 
 // ── Pool management ──────────────────────────────────────────────────
 
 let pool: any = null;
-const MAX_CONCURRENT = parseInt(process.env.LORE_MAX_AGENTS || '5', 10);
-const POLL_INTERVAL = parseInt(process.env.LORE_POLL_INTERVAL || '10000', 10);
 
 export function setPipelinePool(p: any): void { pool = p; }
 
@@ -79,7 +68,6 @@ export async function cancelTask(taskId: string): Promise<any> {
     throw new Error(`Cannot cancel task in ${task.status} state`);
   }
   await updateTaskStatus(taskId, 'cancelled', { cancelled_by: 'user' });
-  // TODO: kill running Klaus agent if active
   return { task_id: taskId, status: 'cancelled' };
 }
 
@@ -99,7 +87,7 @@ export async function updateTaskStatus(taskId: string, newStatus: string, meta?:
   await recordEvent(taskId, oldStatus, newStatus, meta);
 }
 
-async function recordEvent(taskId: string, fromStatus: string | null, toStatus: string | null, meta?: any): Promise<void> {
+export async function recordEvent(taskId: string, fromStatus: string | null, toStatus: string | null, meta?: any): Promise<void> {
   try {
     await pool.query(
       `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
@@ -109,309 +97,6 @@ async function recordEvent(taskId: string, fromStatus: string | null, toStatus: 
   } catch {
     // Event recording failures must never block pipeline operations
   }
-}
-
-// ── Poller ────────────────────────────────────────────────────────────
-
-let pollerRunning = false;
-
-export function startPoller(): void {
-  if (pollerRunning) return;
-  pollerRunning = true;
-  console.log(`[pipeline] Poller started (interval: ${POLL_INTERVAL}ms, max concurrent: ${MAX_CONCURRENT})`);
-  setInterval(pollPendingTasks, POLL_INTERVAL);
-}
-
-async function pollPendingTasks(): Promise<void> {
-  if (!pool) return;
-  try {
-    // Check concurrent running agents
-    const { rows: running } = await pool.query(
-      `SELECT count(*)::int as count FROM pipeline.tasks WHERE status IN ('queued', 'running')`,
-    );
-    if (running[0].count >= MAX_CONCURRENT) return;
-
-    // Get next pending task
-    const { rows: pending } = await pool.query(
-      `SELECT id, description, task_type, target_repo, context_bundle
-       FROM pipeline.tasks
-       WHERE status = 'pending'
-       ORDER BY created_at ASC
-       LIMIT 1`,
-    );
-    if (pending.length === 0) return;
-
-    const task = pending[0];
-    await spawnAgent(task);
-  } catch (err: any) {
-    console.error('[pipeline] Poll error:', err.message);
-  }
-}
-
-// ── Agent spawner ────────────────────────────────────────────────────
-
-async function spawnAgent(task: any): Promise<void> {
-  const agentId = `pipeline-${task.id.substring(0, 8)}`;
-  await updateTaskStatus(task.id, 'queued', { agent_id: agentId });
-  await pool.query(
-    `UPDATE pipeline.tasks SET agent_id = $1 WHERE id = $2`,
-    [agentId, task.id],
-  );
-
-  try {
-    const prompt = buildPrompt(task.task_type, task.description);
-    let contextStr = task.context_bundle ? JSON.stringify(task.context_bundle) : '';
-
-    // For onboard tasks, pre-fetch repo content so Klaus doesn't need GitHub access
-    if (task.task_type === 'onboard' && task.target_repo) {
-      try {
-        console.log(`[pipeline] Pre-fetching repo context for ${task.target_repo}...`);
-        const repoContext = await fetchRepoContext(task.target_repo);
-        contextStr = JSON.stringify({ ...JSON.parse(contextStr || '{}'), repoContext });
-        console.log(`[pipeline] Fetched: ${repoContext.tree.length} tree entries, ${Object.keys(repoContext.files).length} files, ${Object.keys(repoContext.samples).length} samples`);
-      } catch (err: any) {
-        console.error(`[pipeline] Failed to pre-fetch repo context: ${err.message}`);
-      }
-    }
-
-    const fullPrompt = `${prompt}\n\n## Context\n${contextStr}`;
-
-    const config = getTaskTypeConfig(task.task_type);
-    await updateTaskStatus(task.id, 'running');
-
-    // Async dispatch — submit to Klaus and return immediately with session ID.
-    // Polling happens in the background so the pipeline poller is not blocked.
-    console.log(`[pipeline] Submitting task ${task.id} to Klaus (async)...`);
-    const submitResult = await submitTaskAsync(fullPrompt, contextStr, 'normal');
-    if (isKlausError(submitResult)) {
-      throw new Error(submitResult.message);
-    }
-
-    console.log(`[pipeline] Task ${task.id} dispatched, session: ${submitResult.session_id}`);
-
-    // Poll in background (don't block the poller)
-    pollKlausUntilDone(
-      (status) => console.log(`[pipeline] Task ${task.id}: ${status}`),
-      config?.timeout_minutes || 30
-    ).then(async ({ output, cost }) => {
-      if (output) {
-        await handleAgentCompletion(task.id, output);
-      } else {
-        await handleAgentCompletion(task.id, 'Agent completed but produced no output.');
-      }
-      if (cost) {
-        await recordEvent(task.id, null, null, { cost_usd: cost });
-      }
-    }).catch(async (err) => {
-      await handleAgentFailure(task.id, err.message);
-    });
-  } catch (err: any) {
-    await updateTaskStatus(task.id, 'failed', { error: err.message });
-    await pool.query(
-      `UPDATE pipeline.tasks SET failure_reason = $1 WHERE id = $2`,
-      [err.message, task.id],
-    );
-  }
-}
-
-// ── Output parsing ──────────────────────────────────────────────────
-
-function parseAgentOutput(raw: string): string {
-  // Try to parse as JSON and extract result_text
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed.result_text) return parsed.result_text;
-    if (parsed.output) return parsed.output;
-    if (typeof parsed === 'string') return parsed;
-  } catch {}
-
-  // It's raw text — return as-is
-  return raw;
-}
-
-/**
- * Extract a JSON object from agent output that may contain surrounding text.
- * Handles multiple wrapping layers:
- *  1. Klaus wraps output in {"result_text": "..."}
- *  2. Agent may put JSON inside ```json code fences
- *  3. Agent may add explanation text before/after the JSON
- */
-function extractJsonFromOutput(raw: string): any | null {
-  let text = raw;
-
-  // Layer 1: unwrap {"result_text": "..."} from Klaus
-  try {
-    const outer = JSON.parse(text);
-    if (outer.result_text) text = outer.result_text;
-    else if (outer.output) text = outer.output;
-    else if (outer.files) return outer; // already the target
-  } catch {}
-
-  // Try direct parse of the unwrapped text
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed.files) return parsed;
-  } catch {}
-
-  // Brace-match to find {"files": ...} — handles code fences,
-  // explanation text, and any other wrapping around the JSON.
-  // We search from the LAST occurrence of "files" key to get the
-  // outermost JSON object in case there are nested examples.
-  const markers = ['"files"', "'files'"];
-  let bestIdx = -1;
-  for (const marker of markers) {
-    let searchFrom = 0;
-    while (true) {
-      const pos = text.indexOf(marker, searchFrom);
-      if (pos === -1) break;
-      // Walk backwards to find the opening {
-      for (let j = pos - 1; j >= 0; j--) {
-        if (text[j] === '{') {
-          if (bestIdx === -1 || j < bestIdx) bestIdx = j;
-          break;
-        }
-        if (text[j] !== ' ' && text[j] !== '\n' && text[j] !== '\r' && text[j] !== '\t') break;
-      }
-      searchFrom = pos + 1;
-    }
-  }
-  if (bestIdx === -1) return null;
-
-  // Find matching closing brace, but handle escaped quotes inside strings
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = bestIdx; i < text.length; i++) {
-    const ch = text[i];
-    if (escaped) { escaped = false; continue; }
-    if (ch === '\\' && inString) { escaped = true; continue; }
-    if (ch === '"' && !escaped) { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) {
-        try {
-          return JSON.parse(text.substring(bestIdx, i + 1));
-        } catch {
-          return null;
-        }
-      }
-    }
-  }
-  return null;
-}
-
-// ── Agent completion (T014) ─────────────────────────────────────────
-
-export async function handleAgentCompletion(taskId: string, output: string): Promise<void> {
-  const task = await getTask(taskId);
-  if (!task) return;
-
-  const slug = task.description.substring(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const branchName = `agent/${taskId.substring(0, 8)}/${slug}`;
-  const repo = task.target_repo;
-
-  try {
-    // Parse agent output (may be JSON-wrapped)
-    const cleanOutput = parseAgentOutput(output);
-
-    // ── Onboard tasks return multi-file JSON ───────────────────────
-    if (task.task_type === 'onboard') {
-      const parsed = extractJsonFromOutput(output);
-      if (parsed && parsed.files && typeof parsed.files === 'object') {
-        const fileEntries = Object.entries(parsed.files).filter(([, v]) => typeof v === 'string' && (v as string).length > 0);
-        console.log(`[pipeline] Onboard: extracted ${fileEntries.length} files from agent output`);
-        await createBranch(repo, branchName);
-        for (const [filePath, content] of fileEntries) {
-          await commitFile(repo, branchName, filePath, content as string, `lore: add ${filePath}`);
-        }
-        const prBody = `## Lore Onboarding\n\nThis PR adds Lore platform files to enable AI-powered development.\n\n**Files added:**\n${fileEntries.map(([f]) => '- ' + f).join('\n')}\n\nReview and merge to complete onboarding.`;
-        const { url, number } = await createPR(repo, branchName, `lore: onboard ${repo}`, prBody, 'main', ['lore-onboarding']);
-        await pool.query(`UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2`, [url, repo]);
-        await pool.query(
-          `UPDATE pipeline.tasks SET pr_url = $1, pr_number = $2, target_branch = $3 WHERE id = $4`,
-          [url, number, branchName, taskId],
-        );
-        await updateTaskStatus(taskId, 'pr-created', { pr_url: url, pr_number: number });
-        return;
-      } else {
-        console.error(`[pipeline] Onboard: could not extract JSON files from output (${output.length} chars). First 200: ${output.substring(0, 200)}`);
-      }
-    }
-
-    // ── Default: single-file commit ────────────────────────────────
-    await createBranch(repo, branchName);
-
-    // Determine output file path based on task type
-    const filePath = getOutputPath(task.task_type, slug);
-    await commitFile(repo, branchName, filePath, cleanOutput, `agent: ${task.description.substring(0, 50)}`);
-
-    const prBody = `## Agent-Generated PR\n\n**Task:** ${task.description}\n**Type:** ${task.task_type}\n**Agent:** ${task.agent_id}\n\n---\n\n${cleanOutput.substring(0, 500)}...`;
-    const { url, number } = await createPR(repo, branchName, `agent: ${task.description.substring(0, 60)}`, prBody);
-
-    await pool.query(
-      `UPDATE pipeline.tasks SET pr_url = $1, pr_number = $2, target_branch = $3 WHERE id = $4`,
-      [url, number, branchName, taskId],
-    );
-    await updateTaskStatus(taskId, 'pr-created', { pr_url: url, pr_number: number });
-  } catch (err: any) {
-    await updateTaskStatus(taskId, 'failed', { error: `PR creation failed: ${err.message}` });
-    await pool.query(
-      `UPDATE pipeline.tasks SET failure_reason = $1 WHERE id = $2`,
-      [`PR creation failed: ${err.message}`, taskId],
-    );
-  }
-}
-
-function getOutputPath(taskType: string, slug: string): string {
-  switch (taskType) {
-    case 'runbook': return `runbooks/${slug}.md`;
-    case 'gap-fill': return `teams/platform/${slug}.md`;
-    case 'implementation': return `src/${slug}.ts`;
-    default: return `output/${slug}.md`;
-  }
-}
-
-// ── Agent monitoring (T015) ─────────────────────────────────────────
-
-async function monitorAgent(taskId: string, klausTaskId: string, taskType: string): Promise<void> {
-  const checkInterval = setInterval(async () => {
-    try {
-      const status = await getKlausStatus(klausTaskId);
-      if (isKlausError(status)) return; // transient error, retry next interval
-
-      if (status.status === 'completed') {
-        clearInterval(checkInterval);
-        const result = await getKlausResult(klausTaskId);
-        const output = (!isKlausError(result) && result.output) ? result.output : '';
-        await handleAgentCompletion(taskId, output);
-      } else if (status.status === 'failed') {
-        clearInterval(checkInterval);
-        await handleAgentFailure(taskId, status.failure_reason || 'Agent failed');
-      }
-    } catch {
-      // Swallow transient errors; next interval will retry
-    }
-  }, 30000);
-
-  // Safety timeout based on task-type configuration
-  const config = getTaskTypeConfig(taskType);
-  const timeout = (config?.timeout_minutes || 30) * 60 * 1000;
-  setTimeout(() => {
-    clearInterval(checkInterval);
-    handleAgentFailure(taskId, 'Task timed out').catch(() => {});
-  }, timeout);
-}
-
-// ── Agent failure (T016) ────────────────────────────────────────────
-
-export async function handleAgentFailure(taskId: string, reason: string): Promise<void> {
-  await pool.query(
-    `UPDATE pipeline.tasks SET failure_reason = $1 WHERE id = $2`,
-    [reason, taskId],
-  );
-  await updateTaskStatus(taskId, 'failed', { error: reason });
 }
 
 // ── Review iteration (T025) ─────────────────────────────────────────
@@ -462,24 +147,4 @@ export async function markTaskMerged(taskId: string): Promise<any> {
   }
   await updateTaskStatus(taskId, 'merged', { merged_by: 'manual' });
   return { task_id: taskId, status: 'merged' };
-}
-
-export function startMergeChecker(): void {
-  setInterval(async () => {
-    if (!pool) return;
-    try {
-      const { rows } = await pool.query(
-        `SELECT id, pr_url, pr_number, target_repo FROM pipeline.tasks
-         WHERE status = 'pr-created' AND pr_number IS NOT NULL`,
-      );
-      for (const task of rows) {
-        try {
-          if (!isGitHubConfigured()) continue;
-          const { Octokit } = await import('octokit');
-          // Simplified check — full implementation requires GitHub App auth per-repo.
-          // For now merge detection is manual via mark_task_merged tool.
-        } catch {}
-      }
-    } catch {}
-  }, 60000);
 }
