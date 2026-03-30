@@ -5,6 +5,9 @@ image:
   tag: latest
   pullPolicy: Always
 
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
 service:
   type: ClusterIP
   port: 3000
@@ -25,7 +28,7 @@ env:
   LORE_DB_HOST: lore-db-rw.alloydb.svc.cluster.local
   LORE_DB_PORT: "5432"
   LORE_DB_NAME: lore
-  LORE_DB_USER: postgres
+  LORE_DB_USER: lore
 
 dbPasswordSecret:
   name: lore-mcp-db-password
