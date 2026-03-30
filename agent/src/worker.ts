@@ -7,18 +7,8 @@
 
 import { query } from "./db.js";
 import { callLLM, callLLMWithTool } from "./anthropic.js";
-import {
-  createBranch,
-  commitFile,
-  createPR,
-  isConfigured,
-  setRepoVariable,
-  setRepoSecret,
-  createIssue,
-  commentOnIssue,
-  closeIssue,
-  addIssueLabel,
-} from "./github.js";
+import { platform } from "./platform.js";
+import { GitHubPlatform } from "./github.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
 import { isClaudeCodeAvailable, runClaudeCode } from "./claude-code.js";
@@ -131,7 +121,7 @@ async function processTask(task: any): Promise<void> {
   let issueNumber: number | null = null;
   try {
     const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
-    const issue = await createIssue(
+    const issue = await platform().createIssue(
       targetRepo,
       `[lore] ${task.task_type}: ${task.description.substring(0, 80)}`,
       `## Lore Pipeline Task\n\n**Type:** \`${task.task_type}\`\n**Created by:** \`${task.created_by || "unknown"}\`\n**Task ID:** \`${task.id}\`\n\n---\n\n${task.description}\n\n---\n*This issue is managed by [Lore](https://github.com/re-cinq/lore). Status updates will be posted as comments.*`,
@@ -156,7 +146,7 @@ async function processTask(task: any): Promise<void> {
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
   if (issueNumber) {
-    await commentOnIssue(targetRepo, issueNumber, `Agent \`${agentId}\` picked up this task.`).catch(() => {});
+    await platform().commentOnIssue(targetRepo, issueNumber, `Agent \`${agentId}\` picked up this task.`).catch(() => {});
   }
 
   try {
@@ -167,7 +157,7 @@ async function processTask(task: any): Promise<void> {
     const slug = slugify(task.description);
     const branchName = `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
 
-    if (!isConfigured()) {
+    if (!platform().isConfigured()) {
       throw new Error("GitHub App not configured — cannot create PR");
     }
 
@@ -208,8 +198,8 @@ async function processTask(task: any): Promise<void> {
     });
     // Update issue with failure
     if (issueNumber) {
-      await commentOnIssue(targetRepo, issueNumber, `Task failed: \`${err.message}\``).catch(() => {});
-      await addIssueLabel(targetRepo, issueNumber, "lore-failed").catch(() => {});
+      await platform().commentOnIssue(targetRepo, issueNumber, `Task failed: \`${err.message}\``).catch(() => {});
+      await platform().addIssueLabel(targetRepo, issueNumber, "lore-failed").catch(() => {});
     }
     console.error(`[agent] Task ${task.id} failed: ${err.message}`);
   }
@@ -225,7 +215,7 @@ async function linkPrToIssue(
 ): Promise<void> {
   if (!issueNumber) return;
   try {
-    await commentOnIssue(repo, issueNumber, `PR created: ${prUrl}`);
+    await platform().commentOnIssue(repo, issueNumber, `PR created: ${prUrl}`);
   } catch { /* best effort */ }
 }
 
@@ -330,7 +320,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
 
   console.log(`[agent] Feature request: generating ${SPEC_FILES.length} artifacts for "${featureSlug}"...`);
 
-  await createBranch(targetRepo, branchName);
+  await platform().createBranch(targetRepo, branchName);
 
   const committed: string[] = [];
   for (const file of SPEC_FILES) {
@@ -349,7 +339,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
         continue;
       }
 
-      await commitFile(targetRepo, branchName, file.path, text, `lore: add ${file.path}`);
+      await platform().commitFile(targetRepo, branchName, file.path, text, `lore: add ${file.path}`);
       committed.push(file.path);
       console.log(`[agent] Feature request: committed ${file.path} (${text.length} chars)`);
     } catch (err: any) {
@@ -362,7 +352,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
   }
 
   const fileList = committed.map((f) => `- \`${f}\``).join("\n");
-  const pr = await createPR(
+  const pr = await platform().createPR(
     targetRepo,
     branchName,
     `spec: ${featureSlug}`,
@@ -482,7 +472,7 @@ async function handleClaudeCodeTask(
 
   // Create PR
   const changedFiles = statusOutput.split("\n").length;
-  const pr = await createPR(
+  const pr = await platform().createPR(
     targetRepo,
     branchName,
     `lore: ${task.task_type} — ${slug}`,
@@ -507,13 +497,10 @@ async function handleClaudeCodeTask(
 
 /**
  * Get a GitHub App installation token for git operations.
+ * This is the one GitHub-specific escape hatch needed for git clone.
  */
 async function getGitToken(): Promise<string> {
-  const { getOctokit } = await import("./github.js");
-  const octokit = await getOctokit();
-  // The Octokit instance authenticated via App auth can retrieve the token
-  const auth = (await octokit.auth({ type: "installation" })) as { token: string };
-  return auth.token;
+  return new GitHubPlatform().getInstallationToken();
 }
 
 // ── Onboard handler (per-file LLM calls) ─────────────────────────────
@@ -605,7 +592,7 @@ async function handleOnboard(
   console.log(`[agent] Onboard: generating ${toGenerate.length} files...`);
 
   // 4. Create branch
-  await createBranch(targetRepo, branchName);
+  await platform().createBranch(targetRepo, branchName);
 
   // 5. Generate and commit each file
   const committed: string[] = [];
@@ -626,7 +613,7 @@ async function handleOnboard(
         continue;
       }
 
-      await commitFile(targetRepo, branchName, file.path, text, `lore: add ${file.path}`);
+      await platform().commitFile(targetRepo, branchName, file.path, text, `lore: add ${file.path}`);
       committed.push(file.path);
       console.log(`[agent] Onboard: committed ${file.path} (${text.length} chars)`);
     } catch (err: any) {
@@ -641,7 +628,7 @@ async function handleOnboard(
 
   // 6. Create PR
   const fileList = committed.map((f) => `- \`${f}\``).join("\n");
-  const pr = await createPR(
+  const pr = await platform().createPR(
     targetRepo,
     branchName,
     `lore: onboard ${targetRepo}`,
@@ -661,9 +648,9 @@ async function handleOnboard(
   const ingestUrl = process.env.LORE_INGEST_URL || "https://lore-api.gcp.re-cinq.com";
   const ingestToken = process.env.LORE_INGEST_TOKEN;
   try {
-    await setRepoVariable(targetRepo, "LORE_INGEST_URL", ingestUrl);
+    await platform().setRepoVariable(targetRepo, "LORE_INGEST_URL", ingestUrl);
     if (ingestToken) {
-      await setRepoSecret(targetRepo, "LORE_INGEST_TOKEN", ingestToken);
+      await platform().setRepoSecret(targetRepo, "LORE_INGEST_TOKEN", ingestToken);
     }
     console.log(`[agent] Configured ingest secrets on ${targetRepo}`);
   } catch (err: any) {
@@ -704,8 +691,8 @@ async function handleGenericOutput(
       break;
   }
 
-  await createBranch(targetRepo, branchName);
-  await commitFile(
+  await platform().createBranch(targetRepo, branchName);
+  await platform().commitFile(
     targetRepo,
     branchName,
     filePath,
@@ -713,7 +700,7 @@ async function handleGenericOutput(
     `lore: add ${filePath}`,
   );
 
-  const pr = await createPR(
+  const pr = await platform().createPR(
     targetRepo,
     branchName,
     `lore: ${task.task_type} — ${slug}`,
