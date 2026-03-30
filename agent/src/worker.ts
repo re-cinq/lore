@@ -12,6 +12,8 @@ import {
   commitFile,
   createPR,
   isConfigured,
+  setRepoVariable,
+  setRepoSecret,
 } from "./github.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
@@ -312,6 +314,20 @@ async function handleOnboard(
     `UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2`,
     [pr.url, targetRepo],
   );
+
+  // Configure ingest secrets on the repo so lore-ingest.yml can call back
+  const ingestUrl = process.env.LORE_INGEST_URL || "https://lore-api.gcp.re-cinq.com";
+  const ingestToken = process.env.LORE_INGEST_TOKEN;
+  try {
+    await setRepoVariable(targetRepo, "LORE_INGEST_URL", ingestUrl);
+    if (ingestToken) {
+      await setRepoSecret(targetRepo, "LORE_INGEST_TOKEN", ingestToken);
+    }
+    console.log(`[agent] Configured ingest secrets on ${targetRepo}`);
+  } catch (err: any) {
+    console.error(`[agent] Failed to set ingest secrets on ${targetRepo}: ${err.message}`);
+    // Non-fatal — PR still created, secrets can be set manually
+  }
 
   await setStatus(task.id, "pr-created", {
     pr_url: pr.url,

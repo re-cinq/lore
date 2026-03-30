@@ -57,6 +57,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.githubAppSecret.name }}
                   key: {{ .Values.githubAppSecret.installationIdKey }}
+            - name: LORE_INGEST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lore-ingest-token
+                  key: token
+                  optional: true
           volumeMounts:
             - name: config
               mountPath: /config
