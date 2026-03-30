@@ -127,11 +127,20 @@ up the repo's content. Repos table: lore.repos.
 
 ## Task Pipeline
 
-Tasks created via UI, MCP, or PR trigger Klaus agents on GKE.
+Tasks created via UI, MCP, or PR trigger agents on GKE.
 Pipeline tools: create_pipeline_task, get_pipeline_status,
 list_pipeline_tasks, cancel_task, mark_task_merged,
 submit_review_result. Task types configured in
-scripts/task-types.yaml. Agent creates branch + PR when done.
-Review agent optionally checks agent PRs (max 2 iterations).
-PR label `agent-generated` triggers the review workflow
-(.github/workflows/agent-review.yml).
+scripts/task-types.yaml:
+
+- **feature-request**: PM describes intent in plain language → agent generates spec.md, data-model.md, tasks.md following repo conventions. Opens a PR for engineer review.
+- **onboard**: inspects repo, generates CLAUDE.md, AGENTS.md, ADRs, spec, CI workflows
+- **general**: open-ended task with Lore context
+- **runbook**: generates incident runbook
+- **implementation**: implements from a spec file
+- **gap-fill**: drafts missing documentation
+- **review**: reviews a PR against conventions
+
+Agent creates branch + PR when done. The Lore Agent service
+(agent/) processes tasks via direct Anthropic API calls or
+headless Claude Code for complex work.
