@@ -114,6 +114,12 @@ merge_settings() {
       echo "[lore] Warning: claude mcp add failed, falling back to settings.json"
   fi
 
+  # Configure status line
+  if command -v claude &>/dev/null; then
+    claude config set statusLine "{\"type\":\"command\",\"command\":\"$LORE_DIR/scripts/lore-statusline.sh\"}" 2>/dev/null && \
+      echo "[lore] Status line configured" || true
+  fi
+
   # Merge env vars + hooks into settings.json (still needed for hooks and env)
   node "$LORE_DIR/scripts/lore-merge-settings.js" "$TEAM"
 }
