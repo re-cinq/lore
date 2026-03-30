@@ -30,6 +30,7 @@ task_types:
       Spec: {description}
     timeout_minutes: 45
     review_required: true
+    execution_mode: claude-code
 
   gap-fill:
     prompt_template: |

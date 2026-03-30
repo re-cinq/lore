@@ -1,3 +1,5 @@
+// DEPRECATED: Replaced by lore-agent service. See ADR-007.
+
 /**
  * Klaus MCP client.
  *

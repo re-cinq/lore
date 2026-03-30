@@ -1,6 +1,7 @@
 <!--
 Sync Impact Report
-- Version: 1.1.0 (MINOR — new principles added)
+- Version: 1.2.0 (MINOR — modified principles)
+- Modified: Principle 7, 9 — Klaus replaced with Lore Agent (ADR-007)
 - Added principles:
   1. DX-First Delivery
   2. Zero Stored Credentials
@@ -167,12 +168,12 @@ The following decisions have been made and MUST NOT be relitigated:
 | MCP deployment | Per-team containers on GKE |
 | Ingestion trigger | On-push (fast) + nightly (full) via K8s CronJobs |
 | Observability | OpenTelemetry → Cloud Monitoring + Graphiti (gap signal) |
-| Scheduling | K8s CronJobs in `klaus` namespace (not Cloud Scheduler) |
+| Scheduling | Lore Agent built-in scheduler with DB persistence |
 | GKE cluster | Existing shared `n8n-cluster` in `europe-west1` (not dedicated) |
 | Task tracking | Beads (agent) + GH Issues (platform) |
 | Governance | Distributed ownership + CI eval gate |
 | Build sequence | DX-first: Phase 0 before infra |
-| Multi-agent orchestration | Native Claude Code Agent Teams (local) + Klaus (cluster) |
+| Multi-agent orchestration | Native Claude Code Agent Teams (local) + Lore Agent (cluster) |
 | Context distribution format | Context Cores (versioned OCI bundles) |
 | Knowledge graph | Graphiti (temporal, MCP-native) |
 | Context ontology | Explicit 8-type schema (Phase 3) |
@@ -214,15 +215,15 @@ faster, and more auditable than API-level filtering.
 ### Principle 9: Intelligent Agents Over Mechanical Scripts
 
 Background and CI work that would traditionally be GitHub Actions
-Python scripts MUST run as Klaus agents in GKE. The critical
-difference: a Klaus agent running Claude Code can read code
-intelligently, understand PR context semantically, draft missing
+Python scripts MUST run as Lore Agent tasks in GKE. The critical
+difference: Lore Agent (direct API + Claude Code headless) can read
+code intelligently, understand PR context semantically, draft missing
 content, and open PRs — a Python script can only chunk and embed
 mechanically.
 
-Platform jobs running as Klaus agents:
+Platform jobs running as Lore Agent tasks:
 
-| Job | What Klaus does beyond a script |
+| Job | What Lore Agent does beyond a script |
 |---|---|
 | Incremental ingest | Understands PR context, not just chunks it |
 | Full re-index | Identifies stale chunks, drafts missing content |
@@ -254,7 +255,7 @@ depends on.
 | Vector index | HNSW (pgvector) |
 | Search | Hybrid: HNSW vector + BM25 keyword, Reciprocal Rank Fusion |
 | MCP server | TypeScript, per-team containers on GKE |
-| Cluster agents | Klaus in GKE (`klaus` namespace) |
+| Cluster agents | Lore Agent (`lore-agent` namespace, @anthropic-ai/sdk + Claude Code CLI) |
 | Local orchestration | Claude Code Agent Teams (native) |
 | Task tracking | Beads (`@beads/bd`) + GitHub Issues |
 | Feature workflow | Spec Kit (`specify-cli`) |

@@ -9,7 +9,7 @@ PR history, and task state.
 **MCP server** (`mcp-server/src/index.ts`): TypeScript, serves context
 to Claude Code via MCP protocol. Dual transport: stdio for local
 (Phase 0), Streamable HTTP for GKE (Phase 1). Three core tools:
-`get_context`, `get_adrs`, `search_context`. Phase 1 adds Klaus
+`get_context`, `get_adrs`, `search_context`. Phase 1 adds pipeline
 delegation tools.
 
 **Vector store**: PostgreSQL + pgvector via CloudNativePG on GKE.
@@ -17,10 +17,10 @@ Schema-per-team isolation. HNSW indexes for vector search, GIN for
 BM25 keyword search. Hybrid search via Reciprocal Rank Fusion.
 Embeddings from Vertex AI text-embedding-005 (768 dimensions).
 
-**Cluster agents**: Klaus on GKE runs headless Claude Code for
-background work — ingestion, gap detection, spec drift checks.
-Developers delegate to Klaus through the Lore MCP server, never
-directly.
+**Cluster agents**: Lore Agent service on GKE processes pipeline tasks
+via direct Anthropic API calls (simple tasks) or headless Claude Code
+(complex tasks). Developers delegate through the Lore MCP server,
+never directly.
 
 **Observability**: OpenTelemetry traces + metrics → Cloud Monitoring.
 Gap signal goes to Graphiti episodes in Phase 3.
@@ -42,7 +42,7 @@ clear error messages.
 idempotent — safe to re-run. Prefix output with `[lore]`. Exit 0 on
 success, 1 on failure.
 
-**Helm charts** for K8s deployments (Klaus, Dolt, MCP server).
+**Helm charts** for K8s deployments (Lore Agent, Dolt, MCP server).
 Values files should have sane defaults. No hardcoded secrets — use
 K8s Secrets.
 
@@ -54,7 +54,7 @@ gcloud auth for local dev.
 - `mcp-server/` — the MCP server (TypeScript)
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
-- `scripts/klaus-prompts/` — standing instructions for Klaus agents
+- `scripts/klaus-prompts/` — standing instructions for agents (legacy, migrating to lore-agent)
 - `.claude/skills/` — platform skills (lore-feature, lore-pr, lore-init)
 - `terraform/modules/` — K8s manifests, Helm charts (lore-db, gke-mcp)
 - `specs/` — speckit artifacts (spec, plan, tasks, research, contracts)
@@ -112,11 +112,11 @@ The MCP server runs locally via stdio. No infra needed for Phase 0.
 
 Four services in the `n8n-cluster` (europe-west1):
 - PostgreSQL + pgvector: `alloydb` namespace
-- Klaus: `klaus` namespace
+- Lore Agent: `lore-agent` namespace
 - Dolt: `dolt` namespace
 - Lore MCP server: `mcp-servers` namespace
 
-Deploy order: `setup-db.sh` → `setup-schedulers.sh` → Helm install Klaus + MCP.
+Deploy order: `setup-db.sh` → `setup-schedulers.sh` → Helm install Lore Agent + MCP.
 
 ## Repo Onboarding
 
