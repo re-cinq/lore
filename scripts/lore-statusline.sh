@@ -8,7 +8,8 @@ INPUT=$(cat)
 # ── Claude Code session data ──────────────────────────────────────────
 MODEL=$(echo "$INPUT" | jq -r '.model.display_name // "unknown"' 2>/dev/null)
 PCT=$(echo "$INPUT" | jq -r '.context_window.used_percentage // 0' 2>/dev/null | cut -d. -f1)
-COST=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0' 2>/dev/null)
+COST_RAW=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0' 2>/dev/null)
+COST=$(printf "%.2f" "$COST_RAW" 2>/dev/null || echo "$COST_RAW")
 
 # ── Git branch ────────────────────────────────────────────────────────
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
