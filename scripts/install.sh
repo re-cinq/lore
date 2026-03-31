@@ -49,7 +49,7 @@ install_context() {
 build_mcp_server() {
   CURRENT_STEP="build MCP server"
   echo "[lore] Building MCP server ..."
-  if ! (cd "$LORE_DIR/mcp-server" && npm install --silent 2>&1 && npm run build 2>&1); then
+  if ! (cd "$LORE_DIR/mcp-server" && rm -rf node_modules && npm ci --silent 2>&1 && npm run build 2>&1); then
     echo "[lore] Error: npm install/build failed in mcp-server."
     echo "  Check that Node.js >= 18 is installed: node --version"
     echo "  Try running manually: cd $LORE_DIR/mcp-server && npm install"
