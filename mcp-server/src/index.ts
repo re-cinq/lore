@@ -125,6 +125,23 @@ server.tool(
       }
     }
 
+    // Proxy to GKE: fetch repo context from the vector store
+    const apiUrl = process.env.LORE_API_URL;
+    const apiToken = process.env.LORE_INGEST_TOKEN;
+    if (apiUrl && apiToken && detectedRepo) {
+      try {
+        const res = await fetch(`${apiUrl}/api/context?repo=${encodeURIComponent(detectedRepo)}`, {
+          headers: { "Authorization": `Bearer ${apiToken}` },
+        });
+        if (res.ok) {
+          const data = await res.json() as any;
+          if (data.text) {
+            return { content: [{ type: "text" as const, text: data.text }] };
+          }
+        }
+      } catch {}
+    }
+
     // File-based fallback: read CLAUDE.md from the CURRENT working directory (the repo the dev is in)
     const cwdClaudeMd = readFileSafe(join(process.cwd(), "CLAUDE.md"));
     if (cwdClaudeMd) {
@@ -995,6 +1012,40 @@ async function main() {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
           }
         });
+      } else if (req.url?.startsWith("/api/context") && req.method === "GET") {
+        // Get repo context from the vector store
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
+        const url = new URL(req.url, "http://localhost");
+        const repo = url.searchParams.get("repo");
+        try {
+          const parts: string[] = [];
+          // Repo-specific docs
+          if (repo && dbPoolRef) {
+            const { rows } = await dbPoolRef.query(
+              `SELECT content FROM org_shared.chunks WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec') ORDER BY content_type, ingested_at DESC`,
+              [repo],
+            );
+            for (const r of rows) parts.push(r.content);
+          }
+          // Org-level docs
+          if (dbPoolRef) {
+            const { rows } = await dbPoolRef.query(
+              `SELECT content FROM org_shared.chunks WHERE content_type = 'doc' AND (repo IS NULL OR repo = 're-cinq/lore') ORDER BY ingested_at DESC LIMIT 5`,
+            );
+            for (const r of rows) {
+              if (!parts.includes(r.content)) parts.push(r.content);
+            }
+          }
+          if (parts.length > 0) {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ text: parts.join("\n\n---\n\n") }));
+          } else {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ text: null }));
+          }
+        } catch (err: any) {
+          res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+        }
       } else if (req.url?.startsWith("/api/task/") && req.method === "GET") {
         // Get single task by ID
         const token = process.env.LORE_INGEST_TOKEN;
