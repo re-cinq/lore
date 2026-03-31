@@ -291,7 +291,6 @@ When the MCP server runs locally without database access, all memory operations 
 - Interactive agent sessions (this is batch processing only)
 - Multi-model routing (all tasks use a single configured model per type)
 - Migration of existing Klaus-processed tasks
-- UI for configuring scheduled job times (config file only)
 
 ## Key Entities
 
@@ -333,6 +332,8 @@ Additional fields on pipeline.tasks: issue_number (INT, nullable), issue_url (TE
    and receive a spec PR within 10 minutes
 8. Developers can delegate tasks from local Claude Code to the GKE pipeline without any infrastructure setup
 9. Human review feedback on agent PRs is addressed automatically within 10 minutes
+10. Developers get repo-specific context automatically when opening Claude Code — no manual loading needed
+11. Any developer's memory writes are immediately searchable by every other developer in the org
 
 ## Assumptions
 

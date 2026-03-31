@@ -4,8 +4,8 @@
 |---------|----------------------|
 | Feature | Lore Agent Service   |
 | Branch  | 5-lore-agent         |
-| Tasks   | 61                   |
-| Phases  | 6                    |
+| Tasks   | 70                   |
+| Phases  | 7                    |
 
 ---
 
@@ -99,6 +99,18 @@ Test criteria: GET /healthz returns JSON with uptime, task counts, job schedules
 - [x] T059 Proxy all memory MCP tools to GKE when LORE_DB_HOST not set in mcp-server/src/index.ts
 - [x] T060 Add auto-deploy step to agent CI workflow in .github/workflows/build-agent.yml
 - [x] T061 Fix status line cost rounding and repo onboarded check via /api/repo-status in scripts/lore-statusline.sh
+
+## Phase 7: DX Polish
+
+- [x] T062 Fix get_context to return current repo CLAUDE.md instead of Lore's in mcp-server/src/index.ts
+- [x] T063 Add systemPromptSuffix for auto context loading in scripts/lore-merge-settings.js
+- [x] T064 Add task type listing and auto-detect repo in create_pipeline_task in mcp-server/src/index.ts
+- [x] T065 Add feedback message after task creation in mcp-server/src/index.ts
+- [x] T066 Proxy list_pipeline_tasks and get_pipeline_status to GKE in mcp-server/src/index.ts
+- [x] T067 Add /api/tasks and /api/task/:id REST endpoints in mcp-server/src/index.ts
+- [x] T068 Add ingest_files MCP tool for manual ingestion in mcp-server/src/index.ts
+- [x] T069 Simplify install.sh: clone --depth 1, conditional npm ci, remove prompts in scripts/install.sh
+- [x] T070 Remove Beads from install.sh, hooks, and lore-doctor in scripts/
 
 ---
 
