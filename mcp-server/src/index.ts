@@ -570,11 +570,11 @@ server.tool(
 
 server.tool(
   "create_pipeline_task",
-  "Create a new task in the pipeline. The task enters 'pending' status and will be picked up by the poller.",
+  "Delegate a task to the Lore Agent on GKE. The agent picks it up, calls an LLM, and creates a PR. Available types: feature-request (PM intent → spec + tasks), onboard (add repo to Lore), general (open-ended), runbook (write ops runbook), implementation (code from spec), gap-fill (draft missing docs), review (review a PR).",
   {
-    description: z.string().describe("Task description. What should the agent do? Be specific -- this is the primary instruction the agent receives."),
-    task_type: z.string().default("general").describe('Task type from task-types.yaml (e.g., "general", "runbook", "implementation", "gap-fill"). Determines prompt template, timeout, and review policy.'),
-    target_repo: z.string().optional().describe('Target GitHub repository in "owner/repo" format (e.g., "re-cinq/lore"). If omitted, uses the default from task type config.'),
+    description: z.string().describe("What should the agent do? Be specific — this is the primary instruction. For feature-request: describe the feature in plain language. For onboard: just the repo name."),
+    task_type: z.string().default("general").describe('Task type: "feature-request", "onboard", "general", "runbook", "implementation", "gap-fill", "review".'),
+    target_repo: z.string().optional().describe('Target GitHub repository in "owner/repo" format. Auto-detected from git remote if omitted.'),
     context: z.object({
       beads_task_id: z.string().optional(),
       spec_file: z.boolean().optional(),
@@ -588,17 +588,20 @@ server.tool(
         return { content: [{ type: "text" as const, text: "description is required and cannot be empty" }] };
       }
 
+      // Auto-detect repo from git remote if not specified
+      const resolvedRepo = target_repo || detectCurrentRepo() || undefined;
+
       // When running locally (no DB), proxy to the GKE MCP server
       if (!process.env.LORE_DB_HOST) {
         const apiUrl = process.env.LORE_API_URL;
         const apiToken = process.env.LORE_INGEST_TOKEN;
         if (!apiUrl || !apiToken) {
-          return { content: [{ type: "text" as const, text: "Pipeline requires either LORE_DB_HOST (direct) or LORE_API_URL + LORE_INGEST_TOKEN (remote). Set one in your environment." }] };
+          return { content: [{ type: "text" as const, text: "Task delegation requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh or set them manually." }] };
         }
         const res = await fetch(`${apiUrl}/api/task`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ description: desc, task_type, target_repo, context }),
+          body: JSON.stringify({ description: desc, task_type, target_repo: resolvedRepo, context }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: res.statusText }));
@@ -610,8 +613,8 @@ server.tool(
 
       const validTypes = getTaskTypes();
       const resolvedType = validTypes.includes(task_type) ? task_type : "general";
-      const result = await createTask(desc, resolvedType, target_repo, "mcp", context || undefined);
-      return { content: [{ type: "text" as const, text: JSON.stringify({ ...result, task_type: resolvedType, target_repo: target_repo || result.target_repo }) }] };
+      const result = await createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined);
+      return { content: [{ type: "text" as const, text: JSON.stringify({ ...result, task_type: resolvedType, target_repo: resolvedRepo || result.target_repo }) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error creating pipeline task: ${err.message}` }] };
     }
@@ -627,15 +630,18 @@ server.tool(
   async ({ task_id }) => {
     try {
       if (!process.env.LORE_DB_HOST) {
-        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
+        const apiUrl = process.env.LORE_API_URL;
+        const apiToken = process.env.LORE_INGEST_TOKEN;
+        if (!apiUrl || !apiToken) return { content: [{ type: "text" as const, text: "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access." }] };
+        const res = await fetch(`${apiUrl}/api/task/${task_id}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
+        if (!res.ok) return { content: [{ type: "text" as const, text: `Remote error: ${res.statusText}` }] };
+        return { content: [{ type: "text" as const, text: JSON.stringify(await res.json(), null, 2) }] };
       }
       const task = await getTask(task_id);
-      if (!task) {
-        return { content: [{ type: "text" as const, text: `task not found: ${task_id}` }] };
-      }
+      if (!task) return { content: [{ type: "text" as const, text: `task not found: ${task_id}` }] };
       return { content: [{ type: "text" as const, text: JSON.stringify(task, null, 2) }] };
     } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error fetching pipeline status: ${err.message}` }] };
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
     }
   }
 );
@@ -650,17 +656,24 @@ server.tool(
   async ({ status, limit }) => {
     try {
       if (!process.env.LORE_DB_HOST) {
-        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
+        const apiUrl = process.env.LORE_API_URL;
+        const apiToken = process.env.LORE_INGEST_TOKEN;
+        if (!apiUrl || !apiToken) return { content: [{ type: "text" as const, text: "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access." }] };
+        const params = new URLSearchParams();
+        if (status) params.set("status", status);
+        params.set("limit", String(Math.min(limit, 100)));
+        const res = await fetch(`${apiUrl}/api/tasks?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
+        if (!res.ok) return { content: [{ type: "text" as const, text: `Remote error: ${res.statusText}` }] };
+        return { content: [{ type: "text" as const, text: JSON.stringify(await res.json(), null, 2) }] };
       }
       const validStatuses = ["pending", "queued", "running", "pr-created", "review", "merged", "failed", "cancelled"];
       if (status && !validStatuses.includes(status)) {
         return { content: [{ type: "text" as const, text: `invalid status: ${status}. Valid values: ${validStatuses.join(", ")}` }] };
       }
-      const clampedLimit = Math.min(limit, 100);
-      const result = await listTasks(status, clampedLimit);
+      const result = await listTasks(status, Math.min(limit, 100));
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error listing pipeline tasks: ${err.message}` }] };
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
     }
   }
 );
@@ -929,8 +942,35 @@ async function main() {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
           }
         });
+      } else if (req.url?.startsWith("/api/task/") && req.method === "GET") {
+        // Get single task by ID
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
+        const taskId = req.url.replace("/api/task/", "");
+        try {
+          const task = await getTask(taskId);
+          if (!task) { res.writeHead(404, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "not found" })); return; }
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(task));
+        } catch (err: any) {
+          res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+        }
+      } else if (req.url?.startsWith("/api/tasks") && req.method === "GET") {
+        // List tasks with optional status filter
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
+        const url = new URL(req.url, `http://localhost`);
+        const status = url.searchParams.get("status") || undefined;
+        const limit = Math.min(parseInt(url.searchParams.get("limit") || "20"), 100);
+        try {
+          const result = await listTasks(status, limit);
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
+        } catch (err: any) {
+          res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+        }
       } else if (req.url === "/api/task" && req.method === "POST") {
-        // Create pipeline task via REST — used by local MCP servers to delegate work
+        // Create pipeline task via REST
         const token = process.env.LORE_INGEST_TOKEN;
         const auth = req.headers.authorization;
         if (!token || auth !== `Bearer ${token}`) {

@@ -36,11 +36,11 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 install_context() {
   CURRENT_STEP="install context directory"
   if [ ! -d "$LORE_DIR" ]; then
-    echo "[lore] Installing context to $LORE_DIR ..."
+    echo "[lore] Installing to $LORE_DIR ..."
     mkdir -p "$(dirname "$LORE_DIR")"
-    cp -r "$REPO_DIR" "$LORE_DIR"
+    git clone --depth 1 "$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || echo "$REPO_DIR")" "$LORE_DIR" 2>/dev/null || cp -r "$REPO_DIR" "$LORE_DIR"
   else
-    echo "[lore] Context directory exists, pulling latest ..."
+    echo "[lore] Updating ..."
     git -c http.timeout=10 -C "$LORE_DIR" pull --quiet --ff-only 2>/dev/null || true
   fi
 }
@@ -49,31 +49,23 @@ install_context() {
 build_mcp_server() {
   CURRENT_STEP="build MCP server"
   echo "[lore] Building MCP server ..."
-  if ! (cd "$LORE_DIR/mcp-server" && rm -rf node_modules && npm ci --silent 2>&1 && npm run build 2>&1); then
-    echo "[lore] Error: npm install/build failed in mcp-server."
-    echo "  Check that Node.js >= 18 is installed: node --version"
-    echo "  Try running manually: cd $LORE_DIR/mcp-server && npm install"
-    return 1
+  cd "$LORE_DIR/mcp-server"
+  # Only reinstall if node_modules is missing or package-lock changed
+  if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ] 2>/dev/null; then
+    rm -rf node_modules
+    npm ci --silent 2>&1 || { echo "[lore] Error: npm ci failed. Try: cd $LORE_DIR/mcp-server && npm install"; return 1; }
   fi
+  npm run build 2>&1 || { echo "[lore] Error: build failed."; return 1; }
+  cd - >/dev/null
 }
 
-# --- 3. Detect / prompt for team ---------------------------------------------
+# --- 3. Detect team -----------------------------------------------------------
 select_team() {
-  CURRENT_STEP="detect/prompt for team"
+  CURRENT_STEP="detect team"
   TEAM="$(git config --global lore.team 2>/dev/null || true)"
-
   if [ -z "$TEAM" ]; then
-    echo ""
-    echo "[lore] Available teams:"
-    echo "  1) platform"
-    echo ""
-    read -r -p "[lore] Select your team (1-1): " CHOICE
-    case "$CHOICE" in
-      1) TEAM="platform" ;;
-      *) echo "[lore] Invalid choice, defaulting to 'platform'"; TEAM="platform" ;;
-    esac
+    TEAM="platform"
     git config --global lore.team "$TEAM"
-    echo "[lore] Team set to '$TEAM' (stored in git config --global lore.team)"
   fi
 }
 
@@ -99,9 +91,16 @@ merge_settings() {
     # Prompt for token if not set
     if [ -z "$LORE_TOKEN" ]; then
       echo ""
-      read -r -p "[lore] Enter your LORE_INGEST_TOKEN (ask platform team, or press Enter to skip): " LORE_TOKEN
+      echo "[lore] To delegate tasks from Claude Code to agents, you need a token."
+      echo "  Get it from: kubectl get secret lore-ingest-token -n mcp-servers -o jsonpath='{.data.token}' | base64 -d"
+      echo "  Or ask the platform team."
+      echo ""
+      read -r -p "[lore] Paste token (or Enter to skip — you can set it later): " LORE_TOKEN
       if [ -n "$LORE_TOKEN" ]; then
         git config --global lore.ingest-token "$LORE_TOKEN"
+        echo "[lore] Token saved."
+      else
+        echo "[lore] Skipped. Set later: git config --global lore.ingest-token <token>"
       fi
     fi
 
@@ -169,38 +168,12 @@ generate_agent_id() {
   fi
 }
 
-# --- 9. Optional: AgentDB local cache ----------------------------------------
+# --- 8. Optional: AgentDB local cache ----------------------------------------
 install_agentdb() {
-  CURRENT_STEP="AgentDB local cache (optional)"
-  echo ""
-  echo -n "[lore] Install AgentDB local cache for sub-ms retrieval? (y/N) "
-  read -r USE_AGENTDB
-  if [[ "$USE_AGENTDB" == "y" || "$USE_AGENTDB" == "Y" ]]; then
-    if command -v npx &>/dev/null; then
-      if npm install -g agentdb --silent 2>/dev/null; then
-        echo "[lore] AgentDB installed"
-      else
-        echo "[lore] Warning: could not install agentdb"
-        echo "  Try manually: npm install -g agentdb"
-      fi
-      # Add to claude settings
-      node -e "
-        const fs = require('fs');
-        const p = require('path').join(process.env.HOME, '.claude', 'settings.json');
-        const s = JSON.parse(fs.readFileSync(p, 'utf8'));
-        s.mcpServers = s.mcpServers || {};
-        if (!s.mcpServers['local-cache']) {
-          s.mcpServers['local-cache'] = {
-            command: 'npx',
-            args: ['agentdb', 'mcp', 'start', '--db', process.env.HOME + '/.lore-cache.db']
-          };
-          fs.writeFileSync(p, JSON.stringify(s, null, 2));
-          console.log('[lore] AgentDB MCP server configured');
-        }
-      "
-    else
-      echo "[lore] Warning: npx not found, skipping AgentDB"
-    fi
+  CURRENT_STEP="AgentDB local cache"
+  # Auto-install if npm is available — no prompt needed
+  if command -v npx &>/dev/null && ! command -v agentdb &>/dev/null; then
+    npm install -g agentdb --silent 2>/dev/null || true
   fi
 }
 
