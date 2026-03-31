@@ -257,11 +257,28 @@ server.tool(
   }
 );
 
+// --- Memory proxy helper (for local mode without DB) ---
+
+async function proxyMemory(action: string, params: Record<string, any>): Promise<string | null> {
+  const apiUrl = process.env.LORE_API_URL;
+  const apiToken = process.env.LORE_INGEST_TOKEN;
+  if (!apiUrl || !apiToken) return null;
+  try {
+    const res = await fetch(`${apiUrl}/api/memory`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...params }),
+    });
+    if (!res.ok) return null;
+    return JSON.stringify(await res.json());
+  } catch { return null; }
+}
+
 // --- Memory tools ---
 
 server.tool(
   "write_memory",
-  "Store a new memory or update an existing one. Returns version number.",
+  "Store a new memory or update an existing one. Returns version number. Memories are shared across the org — every developer's learnings are available to everyone.",
   {
     key: z.string().describe("Memory key (e.g. 'user-preference', 'last-gap-run')"),
     value: z.string().describe("Memory value (text)"),
@@ -275,7 +292,6 @@ server.tool(
       if (isMemoryDbAvailable()) {
         const result = await writeMemory(key, value, agent_id, ttl, embedding || undefined);
         if (extract_facts) {
-          // Async fact extraction — fire and forget
           import("./memory.js").then(({ getMemoryPool }) => {
             const p = getMemoryPool();
             if (p) {
@@ -290,6 +306,10 @@ server.tool(
         }
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       }
+      // Proxy to GKE if available
+      const proxied = await proxyMemory("write", { key, value, agent_id: agent_id || resolveAgentId(), ttl });
+      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+      // File fallback (local only, not shared)
       const result = await writeMemoryFile(key, value, agent_id, ttl);
       return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
     } catch (err: any) {
@@ -309,9 +329,14 @@ server.tool(
   async ({ key, agent_id, version }) => {
     try {
       const ver = version === "all" ? "all" : version ? Number(version) : undefined;
-      const result = isMemoryDbAvailable()
-        ? await readMemory(key, agent_id, ver)
-        : await readMemoryFile(key, agent_id, ver);
+      if (isMemoryDbAvailable()) {
+        const result = await readMemory(key, agent_id, ver);
+        if (!result) return { content: [{ type: "text" as const, text: `Memory "${key}" not found.` }] };
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      }
+      const proxied = await proxyMemory("read", { key, agent_id: agent_id || resolveAgentId(), version });
+      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+      const result = await readMemoryFile(key, agent_id, ver);
       if (!result) return { content: [{ type: "text" as const, text: `Memory "${key}" not found.` }] };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err: any) {
@@ -329,9 +354,13 @@ server.tool(
   },
   async ({ key, agent_id }) => {
     try {
-      const result = isMemoryDbAvailable()
-        ? await deleteMemory(key, agent_id)
-        : await deleteMemoryFile(key, agent_id);
+      if (isMemoryDbAvailable()) {
+        const result = await deleteMemory(key, agent_id);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      }
+      const proxied = await proxyMemory("delete", { key, agent_id: agent_id || resolveAgentId() });
+      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+      const result = await deleteMemoryFile(key, agent_id);
       return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error deleting memory: ${err.message}` }] };
@@ -341,7 +370,7 @@ server.tool(
 
 server.tool(
   "list_memories",
-  "List all memories for an agent, paginated.",
+  "List all memories across the org, paginated.",
   {
     agent_id: z.string().optional(),
     limit: z.number().default(50).describe("Max results."),
@@ -349,9 +378,13 @@ server.tool(
   },
   async ({ agent_id, limit, offset }) => {
     try {
-      const result = isMemoryDbAvailable()
-        ? await listMemories(agent_id, limit, offset)
-        : await listMemoriesFile(agent_id, limit, offset);
+      if (isMemoryDbAvailable()) {
+        const result = await listMemories(agent_id, limit, offset);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      }
+      const proxied = await proxyMemory("list", { agent_id: agent_id || undefined, limit });
+      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+      const result = await listMemoriesFile(agent_id, limit, offset);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error listing memories: ${err.message}` }] };
@@ -361,7 +394,7 @@ server.tool(
 
 server.tool(
   "search_memory",
-  "Semantic search across agent memories. Returns results ranked by similarity.",
+  "Semantic search across all org memories. Returns results ranked by similarity.",
   {
     query: z.string().describe("Natural language search query."),
     agent_id: z.string().optional().describe("Scope to agent. Omit for cross-agent search."),
@@ -372,11 +405,13 @@ server.tool(
     try {
       if (isMemoryDbAvailable()) {
         const results = await searchMemories(
-          null, // pool is passed via the memory module's internal pool
+          null,
           query, agent_id, pool, limit
         );
         return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
       }
+      const proxied = await proxyMemory("search", { query, agent_id: agent_id || undefined, pool_name: pool, limit });
+      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
       const results = await searchMemoryFile(query, agent_id, limit);
       return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
     } catch (err: any) {
@@ -903,6 +938,62 @@ async function main() {
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
           } catch (err: any) {
             console.error("[api/task] error:", err.message);
+            res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+          }
+        });
+      } else if (req.url === "/api/memory" && req.method === "POST") {
+        // Memory API — write, read, search, delete memories via REST
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) {
+          res.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", async () => {
+          try {
+            const { action, key, value, agent_id, ttl, query: searchQuery, limit, version, pool_name } = JSON.parse(body);
+            let result: any;
+            const embedding = (action === "write" || action === "search") && value ? await getQueryEmbedding(value || searchQuery || "") : null;
+
+            switch (action) {
+              case "write":
+                if (!key || !value) { res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "key and value required" })); return; }
+                result = isMemoryDbAvailable()
+                  ? await writeMemory(key, value, agent_id, ttl, embedding || undefined)
+                  : await writeMemoryFile(key, value, agent_id, ttl);
+                break;
+              case "read":
+                if (!key) { res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "key required" })); return; }
+                const ver = version === "all" ? "all" : version ? Number(version) : undefined;
+                result = isMemoryDbAvailable()
+                  ? await readMemory(key, agent_id, ver)
+                  : await readMemoryFile(key, agent_id, ver);
+                break;
+              case "search":
+                if (!searchQuery) { res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "query required" })); return; }
+                result = isMemoryDbAvailable()
+                  ? await searchMemories(null, searchQuery, agent_id, pool_name, limit || 10)
+                  : await searchMemoryFile(searchQuery, agent_id, limit || 10);
+                break;
+              case "delete":
+                if (!key) { res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "key required" })); return; }
+                result = isMemoryDbAvailable()
+                  ? await deleteMemory(key, agent_id)
+                  : await deleteMemoryFile(key, agent_id);
+                break;
+              case "list":
+                result = isMemoryDbAvailable()
+                  ? await listMemories(agent_id, limit || 50, 0)
+                  : await listMemoriesFile(agent_id, limit || 50, 0);
+                break;
+              default:
+                res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "action must be: write, read, search, delete, list" }));
+                return;
+            }
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
+          } catch (err: any) {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
           }
         });
