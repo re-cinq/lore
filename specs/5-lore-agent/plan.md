@@ -326,6 +326,11 @@ Wire GitHub Issue lifecycle into the task worker:
 - All 3 CI workflows (MCP, agent, UI) now auto-deploy to GKE after successful build
 - Uses Workload Identity Federation for GKE auth
 
+### Task 3.18: DX Polish (AgentDB Caching)
+
+- AgentDB provides optional sub-ms local read caching for memory queries
+- Writes always go to the org database; reads check local cache first
+
 ### Task 3.7: Deploy and Verify
 
 - Helm install agent chart
@@ -333,6 +338,19 @@ Wire GitHub Issue lifecycle into the task worker:
 - Verify multi-file PR is created
 - Monitor health endpoint
 - Remove Klaus deployment after verification
+
+## Phase 4: DX Polish
+
+Tasks completed to fix developer experience flaws across all flows:
+
+- install.sh: git clone --depth 1, conditional npm ci, remove team prompt, clear token instructions, silent AgentDB
+- get_context: reads cwd CLAUDE.md, queries by repo in DB, merges org context
+- systemPromptSuffix: auto-load context on conversation start
+- create_pipeline_task: lists task types, auto-detects repo, returns feedback message
+- list_pipeline_tasks / get_pipeline_status: proxy to GKE when local
+- /api/tasks and /api/task/:id REST endpoints
+- ingest_files MCP tool for manual ingestion
+- Memory proxy already wired (write, read, search, delete, list → /api/memory)
 
 ## Quickstart (Verification Scenarios)
 

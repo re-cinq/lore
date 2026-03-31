@@ -272,6 +272,8 @@ Architecture decisions are documented as ADRs in `adrs/`.
 
 After running `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The MCP server runs locally via stdio — no infrastructure needed.
 
+Context loads automatically at the start of every conversation -- Claude calls `get_context` behind the scenes.
+
 ```bash
 # Context retrieval — Claude Code just knows
 claude "how do we handle auth in this repo?"
@@ -324,6 +326,7 @@ When running locally without a database, task creation and all memory operations
 | `cancel_task` | Pipeline | Cancel a running or pending task |
 | `list_repos` | Repos | All onboarded repos with activity stats |
 | `onboard_repo` | Repos | Onboard a new repo to Lore |
+| `ingest_files` | Ingest | Manually ingest files into Lore's context store |
 
 ### GitHub Issue Notifications
 
@@ -347,6 +350,11 @@ Filter with `label:lore-managed` to see all Lore activity on any repo.
 **Via CLI:**
 ```bash
 claude "onboard re-cinq/my-service to lore"
+```
+
+For repos not yet onboarded, developers can still ingest specific files manually:
+```bash
+claude "ingest CLAUDE.md and the ADRs into Lore"
 ```
 
 **What gets generated** (only files that don't already exist):
