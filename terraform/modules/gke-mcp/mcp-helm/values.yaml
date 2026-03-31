@@ -37,3 +37,9 @@ dbPasswordSecret:
 ingestTokenSecret:
   name: lore-ingest-token
   key: token
+
+githubAppSecret:
+  name: github-app-credentials
+  appIdKey: app-id
+  privateKeyKey: private-key
+  installationIdKey: installation-id
