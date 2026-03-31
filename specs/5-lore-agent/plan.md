@@ -307,6 +307,14 @@ Wire GitHub Issue lifecycle into the task worker:
 - `lore.settings` table (key-value)
 - Settings page: API URL, ingest token, regenerate, dev install command
 
+### Task 3.15: Approval Gates
+
+- `approval.ts`: config from lore.settings, requiresApproval() per task type and repo
+- `worker.ts`: gate at awaiting_approval, comment on issue
+- `jobs/approval-check.ts`: poll issues for approved label every 60s
+- `platform.ts` + `github.ts`: getIssueLabels, removeIssueLabel
+- Settings page: approval config UI
+
 ### Task 3.7: Deploy and Verify
 
 - Helm install agent chart

@@ -266,6 +266,10 @@ The service monitors agent-generated PRs for human review feedback every 5 minut
 
 All code platform operations (branches, commits, PRs, issues, repo content, secrets) go through a `CodePlatform` interface. GitHub is the only implementation today. Adding another platform (GitLab, Bitbucket) requires implementing the interface — no changes to the worker, jobs, or any other module.
 
+### FR-16: Optional Approval Gates
+
+The service supports an optional human approval step before processing tasks. When enabled (globally or per-repo), tasks enter an `awaiting_approval` status instead of `pending`. The agent comments on the GitHub Issue with instructions to add an `approved` label. A scheduled job checks for the label every minute and transitions approved tasks to `pending`. Task types listed as "auto-approve" (default: general, gap-fill) skip the gate. Configuration is managed via the settings UI.
+
 ## Non-Functional Requirements
 
 - **Availability:** Service should recover from crashes within 60
