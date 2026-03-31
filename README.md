@@ -127,7 +127,9 @@ The agent service decides which mode to use based on the task type configured in
 │                  ├── Context retrieval (CLAUDE.md, ADRs)     │
 │                  ├── Hybrid search (vector + keyword)        │
 │                  ├── Agent memory (persistent, searchable)   │
-│                  └── Task dispatch (pipeline)                │
+│                  ├── Task dispatch (pipeline)                │
+│                  └── Memory proxy to GKE (local learnings    │
+│                       become org knowledge)                  │
 └─────────────────────┬───────────────────────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────────────────────┐
@@ -174,7 +176,7 @@ Hybrid search combines vector similarity (Vertex AI `text-embedding-005`, 768 di
 
 ### Agent Memory
 
-11 MCP tools for persistent memory across sessions and restarts: `write_memory`, `read_memory`, `delete_memory`, `list_memories`, `search_memory`, `shared_write`, `shared_read`, `create_snapshot`, `restore_snapshot`, `agent_health`, `agent_stats`. Every memory is versioned, timestamped, and semantically searchable. File-backed fallback when DB is unavailable.
+11 MCP tools for persistent memory across sessions and restarts: `write_memory`, `read_memory`, `delete_memory`, `list_memories`, `search_memory`, `shared_write`, `shared_read`, `create_snapshot`, `restore_snapshot`, `agent_health`, `agent_stats`. Every memory is versioned, timestamped, and semantically searchable. When running locally, all memory operations are proxied to the GKE MCP server so learnings are shared org-wide. File-backed fallback only when the proxy is unreachable.
 
 ### Repo Onboarding
 
@@ -278,9 +280,17 @@ claude "how do we handle auth in this repo?"
 claude "what was the decision on database migrations?"
 # → Returns relevant ADRs with rationale and alternatives rejected
 
-# Persistent memory across sessions
+# Persistent memory across sessions — shared org-wide
 claude "remember that we decided to use UUIDs for all new tables"
 # → Stored via write_memory, searchable next session via search_memory
+
+# Memories are shared across the entire org
+claude "remember that we always use UTC timestamps in database columns"
+# → Stored in org-wide PostgreSQL, not just local files
+# → Every developer in the org can search for this via search_memory
+
+claude "what do we know about timestamp conventions?"
+# → Semantic search across ALL org memories — finds what others stored
 
 # Delegate work to the agent pipeline (proxied to GKE)
 claude "create a runbook for database failover in re-cinq/my-service"
@@ -291,7 +301,7 @@ claude "what's the status of my last pipeline task?"
 # → Returns status, PR link, cost, duration
 ```
 
-When running locally without a database, task creation is **proxied** to the GKE MCP server via `LORE_API_URL`. The install script configures this automatically.
+When running locally without a database, task creation and all memory operations are **proxied** to the GKE MCP server via `LORE_API_URL`. The install script configures this automatically. AgentDB provides optional sub-ms local caching for read queries. Writes always go to the org database.
 
 **All MCP tools available to Claude Code:**
 

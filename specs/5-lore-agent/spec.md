@@ -270,6 +270,10 @@ All code platform operations (branches, commits, PRs, issues, repo content, secr
 
 The service supports an optional human approval step before processing tasks. When enabled (globally or per-repo), tasks enter an `awaiting_approval` status instead of `pending`. The agent comments on the GitHub Issue with instructions to add an `approved` label. A scheduled job checks for the label every minute and transitions approved tasks to `pending`. Task types listed as "auto-approve" (default: general, gap-fill) skip the gate. Configuration is managed via the settings UI.
 
+### FR-17: Org-Wide Memory Sharing
+
+When the MCP server runs locally without database access, all memory operations (write, read, search, delete, list) are proxied to the GKE MCP server via HTTP. A developer's learnings stored via `write_memory` are immediately searchable by every other developer in the org. File-backed fallback is used only when the proxy is unreachable.
+
 ## Non-Functional Requirements
 
 - **Availability:** Service should recover from crashes within 60

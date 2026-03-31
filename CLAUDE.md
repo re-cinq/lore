@@ -91,6 +91,10 @@ searchable facts with embeddings.
 Agent ID resolved from: explicit parameter, `LORE_AGENT_ID` env,
 `~/.lore/agent-id` file, or auto-generated UUID.
 
+When the MCP server runs locally (stdio mode), all memory operations
+are proxied to the GKE MCP server via `LORE_API_URL`. Local learnings
+are shared across the org. AgentDB provides optional local read caching.
+
 ## Developer Setup
 
 `install.sh` runs once per machine. It configures:
