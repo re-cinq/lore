@@ -52,16 +52,19 @@ export async function writeMemory(
   agentId?: string,
   ttl?: number,
   embedding?: number[],
+  repo?: string,
 ): Promise<WriteResult> {
   const agent = resolveAgentId(agentId);
   const expiresAt = ttl ? `now() + interval '${ttl} seconds'` : null;
 
-  // Check if key already exists for this agent
+  // Check if key already exists for this repo (or agent if no repo)
+  const lookupField = repo ? "repo" : "agent_id";
+  const lookupValue = repo || agent;
   const existing = await pool.query(
     `SELECT id, version FROM memory.memories
-     WHERE agent_id = $1 AND key = $2 AND is_deleted = FALSE
+     WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
      ORDER BY version DESC LIMIT 1`,
-    [agent, key],
+    [lookupValue, key],
   );
 
   let version: number;
@@ -90,8 +93,8 @@ export async function writeMemory(
     // New memory
     version = 1;
     const result = await pool.query(
-      `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at)
-       VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : 'NULL'})
+      `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
+       VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : 'NULL'}, $6)
        RETURNING id, created_at`,
       [
         agent,
@@ -99,6 +102,7 @@ export async function writeMemory(
         value,
         embedding ? `[${embedding.join(',')}]` : null,
         ttl || null,
+        repo || null,
       ],
     );
     memoryId = result.rows[0].id;
@@ -195,28 +199,44 @@ export async function listMemories(
   agentId?: string,
   limit: number = 50,
   offset: number = 0,
+  repo?: string,
 ): Promise<{ memories: any[]; total: number }> {
-  const agent = resolveAgentId(agentId);
+  // Scope by repo (preferred) or agent_id
+  let filter = "";
+  let params: any[];
+  if (repo) {
+    filter = "repo = $1 AND";
+    params = [repo, limit, offset];
+  } else if (agentId) {
+    filter = "agent_id = $1 AND";
+    params = [resolveAgentId(agentId), limit, offset];
+  } else {
+    filter = "";
+    params = [limit, offset];
+  }
+  const limitIdx = params.length - 1;
+  const offsetIdx = params.length;
 
   const { rows } = await pool.query(
-    `SELECT key, version, created_at, ttl_seconds,
+    `SELECT key, agent_id, repo, version, created_at, ttl_seconds,
             EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
      FROM memory.memories m
-     WHERE agent_id = $1 AND is_deleted = FALSE
+     WHERE ${filter} is_deleted = FALSE
        AND (expires_at IS NULL OR expires_at > now())
      ORDER BY created_at DESC
-     LIMIT $2 OFFSET $3`,
-    [agent, limit, offset],
+     LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    params,
   );
 
+  const countParams = repo ? [repo] : agentId ? [resolveAgentId(agentId)] : [];
   const countResult = await pool.query(
     `SELECT count(*)::int as total FROM memory.memories
-     WHERE agent_id = $1 AND is_deleted = FALSE
+     WHERE ${filter} is_deleted = FALSE
        AND (expires_at IS NULL OR expires_at > now())`,
-    [agent],
+    countParams,
   );
 
-  await auditLog(agent, 'list', null);
+  await auditLog(agentId || 'org', 'list', null);
   return { memories: rows, total: countResult.rows[0].total };
 }
 
