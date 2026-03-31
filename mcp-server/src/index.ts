@@ -94,42 +94,55 @@ const server = new McpServer({ name: "@re-cinq/lore-mcp", version: "0.1.0" });
 // --- get_context ---
 server.tool(
   "get_context",
-  "Returns merged CLAUDE.md content for the org and optionally a specific team.",
-  { team: z.string().optional().describe('Team name (e.g., "payments"). If omitted, returns org-level context only.') },
+  "Returns context (CLAUDE.md, ADRs, conventions) for the current repo. Auto-detects which repo you're in from the git remote.",
+  { team: z.string().optional().describe('Team name (e.g., "payments"). Usually auto-detected — only set if you need a specific team.') },
   async ({ team }) => {
-    // Auto-detect repo from git remote when no team is specified.
-    // The MCP server runs locally via stdio, so cwd is the developer's repo.
-    const detectedRepo = !team ? detectCurrentRepo() : null;
+    const detectedRepo = detectCurrentRepo();
     if (detectedRepo) {
-      console.error(`[lore] Auto-detected repo: ${detectedRepo}`);
+      console.error(`[lore] get_context: auto-detected repo ${detectedRepo}`);
     }
 
+    // DB path: query by repo first, fall back to team schema
     if (await isAlloyDbAvailable()) {
-      const results = await getContextFromDb(team || "org_shared");
-      if (results.length === 0) {
-        return { content: [{ type: "text" as const, text: `No context documents found for "${team || "org_shared"}".` }] };
+      // Try repo-specific context first
+      if (detectedRepo) {
+        try {
+          const { rows } = await dbPoolRef.query(
+            `SELECT content FROM org_shared.chunks WHERE repo = $1 AND content_type = 'doc' ORDER BY ingested_at DESC`,
+            [detectedRepo],
+          );
+          if (rows.length > 0) {
+            const text = rows.map((r: any) => r.content).join("\n\n---\n\n");
+            return { content: [{ type: "text" as const, text }] };
+          }
+        } catch {}
       }
-      const text = results.map((r: any) => r.content).join("\n\n---\n\n");
+      // Fall back to team/org schema
+      const results = await getContextFromDb(team || "org_shared");
+      if (results.length > 0) {
+        const text = results.map((r: any) => r.content).join("\n\n---\n\n");
+        return { content: [{ type: "text" as const, text }] };
+      }
+    }
+
+    // File-based fallback: read CLAUDE.md from the CURRENT working directory (the repo the dev is in)
+    const cwdClaudeMd = readFileSafe(join(process.cwd(), "CLAUDE.md"));
+    if (cwdClaudeMd) {
+      let text = cwdClaudeMd;
+      // Also load org-level context from Lore
+      const orgContext = readFileSafe(join(CONTEXT_PATH, "CLAUDE.md"));
+      if (orgContext && CONTEXT_PATH !== process.cwd()) {
+        text = `# Org Context\n\n${orgContext}\n\n---\n\n# Repo Context\n\n${text}`;
+      }
       return { content: [{ type: "text" as const, text }] };
     }
 
-    // File-based fallback
-    const rootPath = join(CONTEXT_PATH, "CLAUDE.md");
-    const root = readFileSafe(rootPath);
+    // Last resort: Lore's own CLAUDE.md
+    const root = readFileSafe(join(CONTEXT_PATH, "CLAUDE.md"));
     if (!root) {
-      return { content: [{ type: "text" as const, text: `Error: CLAUDE.md not found at ${rootPath}. Ensure CONTEXT_PATH is set or run install.sh.` }] };
+      return { content: [{ type: "text" as const, text: "No CLAUDE.md found in current repo or Lore context directory." }] };
     }
-    let text = `# Org Context\n\n${root}`;
-    if (team) {
-      const teamPath = join(CONTEXT_PATH, "teams", team, "CLAUDE.md");
-      const teamContent = readFileSafe(teamPath);
-      if (teamContent) {
-        text += `\n\n---\n\n# Team: ${team}\n\n${teamContent}`;
-      } else {
-        text += `\n\n---\n\n_Note: No CLAUDE.md found for team "${team}" at ${teamPath}._`;
-      }
-    }
-    return { content: [{ type: "text" as const, text }] };
+    return { content: [{ type: "text" as const, text: root }] };
   }
 );
 
@@ -209,8 +222,13 @@ server.tool(
 
     if (await isAlloyDbAvailable()) {
       const schema = team || "org_shared";
-      const results = await hybridSearch(query, schema, limit);
-      // trace with actual RRF score
+      let results = await hybridSearch(query, schema, limit);
+
+      // If no results in team schema and we have a detected repo, also search org_shared
+      if (results.length === 0 && team && team !== "org_shared") {
+        results = await hybridSearch(query, "org_shared", limit);
+      }
+
       traceRetrieval({ query, namespace: schema, topScore: results[0]?.rrf_score || 0, resultCount: results.length });
       if (results.length === 0) return { content: [{ type: "text" as const, text: `No results for "${query}".` }] };
       const text = results.map((r: any) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`).join("\n\n---\n\n");
