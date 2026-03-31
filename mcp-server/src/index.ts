@@ -425,7 +425,7 @@ server.tool(
     try {
       if (isMemoryDbAvailable()) {
         const results = await searchMemories(
-          null,
+          dbPoolRef,
           query, agent_id, pool, limit
         );
         return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
