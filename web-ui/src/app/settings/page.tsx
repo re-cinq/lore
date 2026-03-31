@@ -20,6 +20,27 @@ async function saveSettings(formData: FormData) {
   revalidatePath('/settings');
 }
 
+async function saveApprovalConfig(formData: FormData) {
+  'use server';
+  const required = formData.get('approval_required') === 'on';
+  const label = (formData.get('approval_label') as string)?.trim() || 'approved';
+  const autoApproveRaw = (formData.get('auto_approve') as string) || '';
+  const auto_approve = autoApproveRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const reposRaw = (formData.get('approval_repos') as string) || '';
+  const repos: Record<string, { required: boolean }> = {};
+  for (const line of reposRaw.split('\n')) {
+    const repo = line.trim();
+    if (repo) repos[repo] = { required: true };
+  }
+  const config = { required, label, auto_approve, repos };
+  await query(
+    `INSERT INTO lore.settings (key, value) VALUES ('approval_config', $1)
+     ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
+    [JSON.stringify(config)]
+  );
+  revalidatePath('/settings');
+}
+
 async function regenerateToken() {
   'use server';
   const crypto = await import('crypto');
@@ -91,6 +112,48 @@ export default async function SettingsPage() {
         <button type="submit" style={{background:'#dc2626', fontSize:'12px', padding:'6px 12px'}}>Regenerate Token</button>
         <span className="meta" style={{marginLeft:'8px', fontSize:'12px'}}>Warning: invalidates all existing tokens. You&apos;ll need to update all repos and developer installs.</span>
       </form>
+
+      <h2 style={{marginTop:'32px'}}>Approval Gates</h2>
+      {(() => {
+        let approvalConfig = { required: false, label: 'approved', auto_approve: ['general', 'gap-fill'], repos: {} as Record<string, { required: boolean }> };
+        try {
+          if (settingsMap.approval_config) approvalConfig = { ...approvalConfig, ...JSON.parse(settingsMap.approval_config) };
+        } catch { /* use defaults */ }
+        const repoLines = Object.keys(approvalConfig.repos).join('\n');
+        return (
+          <form action={saveApprovalConfig} className="task-form" style={{maxWidth:'600px'}}>
+            <label style={{display:'flex', alignItems:'center', gap:'8px'}}>
+              <input type="checkbox" name="approval_required" defaultChecked={approvalConfig.required} />
+              Require approval for new tasks
+            </label>
+            <p className="meta" style={{fontSize:'12px', marginTop:'2px'}}>
+              When enabled, new pipeline tasks will wait for a human to add the approval label on the GitHub Issue before the agent processes them.
+            </p>
+
+            <label style={{marginTop:'16px'}}>Approval Label</label>
+            <input name="approval_label" defaultValue={approvalConfig.label} placeholder="approved" />
+            <p className="meta" style={{fontSize:'12px', marginTop:'2px'}}>
+              The GitHub Issue label that approves a task. The agent checks for this label every minute.
+            </p>
+
+            <label style={{marginTop:'16px'}}>Auto-approve Task Types (comma-separated)</label>
+            <input name="auto_approve" defaultValue={approvalConfig.auto_approve.join(', ')} placeholder="general, gap-fill" />
+            <p className="meta" style={{fontSize:'12px', marginTop:'2px'}}>
+              These task types skip the approval gate and are processed immediately, even when approval is required globally.
+            </p>
+
+            <label style={{marginTop:'16px'}}>Repos Requiring Approval (one per line, owner/repo)</label>
+            <textarea name="approval_repos" defaultValue={repoLines} rows={4} placeholder={'re-cinq/production-app\nre-cinq/billing-service'} style={{fontFamily:'monospace', fontSize:'13px'}} />
+            <p className="meta" style={{fontSize:'12px', marginTop:'2px'}}>
+              Per-repo overrides. Tasks targeting these repos always require approval, regardless of the global setting. Leave empty to use only the global toggle.
+            </p>
+
+            <div style={{display:'flex', gap:'8px', marginTop:'16px'}}>
+              <button type="submit">Save Approval Config</button>
+            </div>
+          </form>
+        );
+      })()}
 
       <h2 style={{marginTop:'32px'}}>Developer Install Command</h2>
       <div className="spec-card">

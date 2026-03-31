@@ -167,6 +167,21 @@ export class GitHubPlatform implements CodePlatform {
     await ok.rest.issues.addLabels({ owner, repo: repoName, issue_number: issueNumber, labels: [label] });
   }
 
+  async getIssueLabels(repo: string, issueNumber: number): Promise<string[]> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data: issue } = await ok.rest.issues.get({ owner, repo: repoName, issue_number: issueNumber });
+    return issue.labels.map((l: any) => typeof l === 'string' ? l : l.name || '');
+  }
+
+  async removeIssueLabel(repo: string, issueNumber: number, label: string): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    try {
+      await ok.rest.issues.removeLabel({ owner, repo: repoName, issue_number: issueNumber, name: label });
+    } catch { /* label might not exist */ }
+  }
+
   // ── Merge status ──
 
   async isPRMerged(repo: string, prNumber: number): Promise<boolean> {

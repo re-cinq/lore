@@ -6,6 +6,8 @@ import { recoverStaleTasks, startWorker } from "./worker.js";
 import { registerJob, startScheduler, getJobStatus } from "./scheduler.js";
 import { startHealthServer } from "./health.js";
 
+import { loadApprovalConfig } from "./approval.js";
+import { approvalCheckJob } from "./jobs/approval-check.js";
 import { mergeCheckJob } from "./jobs/merge-check.js";
 import { ttlCleanupJob } from "./jobs/ttl-cleanup.js";
 import { reindexJob } from "./jobs/reindex.js";
@@ -26,12 +28,15 @@ async function main(): Promise<void> {
     console.warn("[agent] Could not load task types:", err);
   }
 
+  await loadApprovalConfig();
+
   const recovered = await recoverStaleTasks();
   if (recovered > 0) {
     console.log(`[agent] Recovered ${recovered} stale tasks`);
   }
 
   registerJob("merge_check", "*/1 * * * *", mergeCheckJob);
+  registerJob("approval_check", "*/1 * * * *", approvalCheckJob);
   registerJob("review_reactor", "*/5 * * * *", reviewReactorJob);
   registerJob("memory_ttl", "0 * * * *", ttlCleanupJob);
   registerJob("context_reindex", "0 2 * * *", reindexJob);
