@@ -806,6 +806,20 @@ async function main() {
           } catch { /* non-fatal */ }
         }
         res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status, database: health, tasks, today_cost: todayCost }));
+      } else if (req.url?.startsWith("/api/repo-status") && req.method === "GET") {
+        // Check if a repo is onboarded — used by the status line cache
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const repo = url.searchParams.get("repo");
+        if (!repo || !dbPoolRef) {
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false }));
+          return;
+        }
+        try {
+          const { rows } = await dbPoolRef.query(`SELECT 1 FROM lore.repos WHERE full_name = $1`, [repo]);
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: rows.length > 0, repo }));
+        } catch {
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false }));
+        }
       } else if (req.url === "/api/ingest" && req.method === "POST") {
         // Bearer token auth
         const token = process.env.LORE_INGEST_TOKEN;

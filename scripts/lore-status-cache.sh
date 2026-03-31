@@ -37,9 +37,15 @@ if [ -n "$API_URL" ] && [ -n "$TOKEN" ]; then
     [ "$PENDING" != "0" ] && TASKS="${TASKS}+${PENDING}p"
   fi
 
-  # Check if current repo is onboarded
+  # Check if current repo is onboarded via API
   if [ -n "$REPO" ] && [ "$REPO_STATUS" = "connected" ]; then
-    REPO_STATUS="onboarded"
+    # Query the ingest endpoint with a dry-run to check if repo is known
+    REPO_CHECK=$(curl -sf --max-time 1 \
+      -H "Authorization: Bearer ${TOKEN}" \
+      "${API_URL}/api/repo-status?repo=${REPO}" 2>/dev/null || echo "")
+    if echo "$REPO_CHECK" | jq -r '.onboarded' 2>/dev/null | grep -q true; then
+      REPO_STATUS="onboarded"
+    fi
   fi
 fi
 
