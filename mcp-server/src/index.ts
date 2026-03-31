@@ -296,26 +296,27 @@ async function proxyMemory(action: string, params: Record<string, any>): Promise
 
 server.tool(
   "write_memory",
-  "Store a new memory or update an existing one. Returns version number. Memories are shared across the org — every developer's learnings are available to everyone.",
+  "Store a memory scoped to the current repo. Shared with every developer working in the same repo. Use for decisions, conventions, corrections, and session summaries.",
   {
-    key: z.string().describe("Memory key (e.g. 'user-preference', 'last-gap-run')"),
+    key: z.string().describe("Memory key (e.g. 'auth-pattern', 'session-summary/2026-03-30')"),
     value: z.string().describe("Memory value (text)"),
-    agent_id: z.string().optional().describe("Override agent ID. Defaults to ~/.lore/agent-id."),
+    agent_id: z.string().optional().describe("Override agent ID."),
     ttl: z.number().optional().describe("Time-to-live in seconds. Omit for permanent."),
     extract_facts: z.boolean().optional().describe("Extract individual facts from value (async)."),
   },
   async ({ key, value, agent_id, ttl, extract_facts }) => {
     try {
+      const repo = detectCurrentRepo() || undefined;
       const embedding = await getQueryEmbedding(value);
       if (isMemoryDbAvailable()) {
-        const result = await writeMemory(key, value, agent_id, ttl, embedding || undefined);
+        const result = await writeMemory(key, value, agent_id, ttl, embedding || undefined, repo);
         if (extract_facts) {
           import("./memory.js").then(({ getMemoryPool }) => {
             const p = getMemoryPool();
             if (p) {
               p.query(
-                `SELECT id FROM memory.memories WHERE agent_id = $1 AND key = $2 ORDER BY version DESC LIMIT 1`,
-                [resolveAgentId(agent_id), key]
+                `SELECT id FROM memory.memories WHERE key = $1 AND (repo = $2 OR agent_id = $3) ORDER BY version DESC LIMIT 1`,
+                [key, repo || '', resolveAgentId(agent_id)]
               ).then((r: any) => {
                 if (r.rows[0]?.id) extractFacts(r.rows[0].id, value, p).catch(() => {});
               });
@@ -325,7 +326,7 @@ server.tool(
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       }
       // Proxy to GKE if available
-      const proxied = await proxyMemory("write", { key, value, agent_id: agent_id || resolveAgentId(), ttl });
+      const proxied = await proxyMemory("write", { key, value, agent_id: agent_id || resolveAgentId(), ttl, repo });
       if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
       // File fallback (local only, not shared)
       const result = await writeMemoryFile(key, value, agent_id, ttl);
@@ -388,7 +389,7 @@ server.tool(
 
 server.tool(
   "list_memories",
-  "List all memories across the org, paginated.",
+  "List memories for the current repo. Auto-detects which repo you're in.",
   {
     agent_id: z.string().optional(),
     limit: z.number().default(50).describe("Max results."),
@@ -396,11 +397,12 @@ server.tool(
   },
   async ({ agent_id, limit, offset }) => {
     try {
+      const repo = detectCurrentRepo() || undefined;
       if (isMemoryDbAvailable()) {
-        const result = await listMemories(agent_id, limit, offset);
+        const result = await listMemories(agent_id, limit, offset, repo);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       }
-      const proxied = await proxyMemory("list", { agent_id: agent_id || undefined, limit });
+      const proxied = await proxyMemory("list", { agent_id: agent_id || undefined, limit, repo });
       if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
       const result = await listMemoriesFile(agent_id, limit, offset);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -1062,15 +1064,15 @@ async function main() {
         req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
         req.on("end", async () => {
           try {
-            const { action, key, value, agent_id, ttl, query: searchQuery, limit, version, pool_name } = JSON.parse(body);
+            const { action, key, value, agent_id, ttl, query: searchQuery, limit, version, pool_name, repo } = JSON.parse(body);
             let result: any;
-            const embedding = (action === "write" || action === "search") && value ? await getQueryEmbedding(value || searchQuery || "") : null;
+            const embedding = (action === "write" || action === "search") && (value || searchQuery) ? await getQueryEmbedding(value || searchQuery || "") : null;
 
             switch (action) {
               case "write":
                 if (!key || !value) { res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "key and value required" })); return; }
                 result = isMemoryDbAvailable()
-                  ? await writeMemory(key, value, agent_id, ttl, embedding || undefined)
+                  ? await writeMemory(key, value, agent_id, ttl, embedding || undefined, repo)
                   : await writeMemoryFile(key, value, agent_id, ttl);
                 break;
               case "read":
