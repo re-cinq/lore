@@ -76,6 +76,12 @@ if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
   });
 }
 
+// System prompt injection — tells Claude Code to load Lore context automatically
+if (!settings.systemPromptSuffix || !settings.systemPromptSuffix.includes("lore")) {
+  settings.systemPromptSuffix = (settings.systemPromptSuffix || "") +
+    "\n\nYou have access to the Lore MCP server (lore-context). At the start of each conversation, call get_context to load the current repo's conventions and architecture. Use search_context for questions about patterns, decisions, or history. Use create_pipeline_task to delegate work to agents.";
+}
+
 // 3. status line
 const loreDir = path.join(process.env.HOME || process.env.USERPROFILE, ".re-cinq", "lore");
 settings.statusLine = {

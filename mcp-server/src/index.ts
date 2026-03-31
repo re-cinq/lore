@@ -607,14 +607,16 @@ server.tool(
           const err = await res.json().catch(() => ({ error: res.statusText }));
           return { content: [{ type: "text" as const, text: `Remote task creation failed: ${(err as any).error || res.statusText}` }] };
         }
-        const result = await res.json();
-        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+        const result = await res.json() as any;
+        const msg = `Task created: ${result.task_id}\nType: ${task_type}\nRepo: ${resolvedRepo || 'default'}\n\nThe agent will pick this up within 30 seconds. A GitHub Issue will be created on the repo, and a PR will follow when the agent finishes. Check status with get_pipeline_status or list_pipeline_tasks.`;
+        return { content: [{ type: "text" as const, text: msg }] };
       }
 
       const validTypes = getTaskTypes();
       const resolvedType = validTypes.includes(task_type) ? task_type : "general";
       const result = await createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined);
-      return { content: [{ type: "text" as const, text: JSON.stringify({ ...result, task_type: resolvedType, target_repo: resolvedRepo || result.target_repo }) }] };
+      const msg = `Task created: ${result.task_id}\nType: ${resolvedType}\nRepo: ${resolvedRepo || 'default'}\n\nThe agent will pick this up within 30 seconds. A GitHub Issue will be created on the repo, and a PR will follow when the agent finishes. Check status with get_pipeline_status or list_pipeline_tasks.`;
+      return { content: [{ type: "text" as const, text: msg }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error creating pipeline task: ${err.message}` }] };
     }
@@ -813,6 +815,55 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error onboarding repo: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Ingest tool ---
+
+server.tool(
+  "ingest_files",
+  "Manually ingest files from a repo into Lore's context store. Use this to make specific files searchable via search_context. The files are fetched from GitHub and embedded.",
+  {
+    files: z.array(z.string()).describe('File paths to ingest (e.g., ["CLAUDE.md", "adrs/ADR-001.md", "src/auth.ts"])'),
+    repo: z.string().optional().describe('Repository in "owner/repo" format. Auto-detected from git remote if omitted.'),
+  },
+  async ({ files, repo }) => {
+    try {
+      const resolvedRepo = repo || detectCurrentRepo();
+      if (!resolvedRepo) {
+        return { content: [{ type: "text" as const, text: "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service')." }] };
+      }
+
+      // Proxy to GKE ingest API
+      const apiUrl = process.env.LORE_API_URL;
+      const apiToken = process.env.LORE_INGEST_TOKEN;
+      if (!apiUrl || !apiToken) {
+        return { content: [{ type: "text" as const, text: "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure." }] };
+      }
+
+      // Get the latest commit SHA for the repo
+      let commit = "HEAD";
+      try {
+        const { execSync } = await import("node:child_process");
+        commit = execSync("git rev-parse HEAD", { encoding: "utf-8", timeout: 5000 }).trim();
+      } catch {}
+
+      const res = await fetch(`${apiUrl}/api/ingest`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ files, repo: resolvedRepo, commit }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        return { content: [{ type: "text" as const, text: `Ingestion failed: ${(err as any).error || res.statusText}` }] };
+      }
+
+      const result = await res.json() as any;
+      return { content: [{ type: "text" as const, text: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
     }
   }
 );
