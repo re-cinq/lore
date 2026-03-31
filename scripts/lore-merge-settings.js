@@ -76,10 +76,29 @@ if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
   });
 }
 
-// System prompt injection — tells Claude Code to load Lore context automatically
-if (!settings.systemPromptSuffix || !settings.systemPromptSuffix.includes("lore")) {
+// System prompt injection — tells Claude Code to use Lore automatically
+if (!settings.systemPromptSuffix || !settings.systemPromptSuffix.includes("lore-context")) {
   settings.systemPromptSuffix = (settings.systemPromptSuffix || "") +
-    "\n\nYou have access to the Lore MCP server (lore-context). At the start of each conversation, call get_context to load the current repo's conventions and architecture. Use search_context for questions about patterns, decisions, or history. Use create_pipeline_task to delegate work to agents.";
+    `\n\nYou have access to the Lore MCP server (lore-context).
+
+On session start: call get_context to load the current repo's conventions.
+During work: use search_context for patterns, decisions, or history. Use create_pipeline_task to delegate work to agents.
+Before session ends: call write_memory with key "session-summary/{repo}/{date}" and a value summarizing what was done, decisions made, patterns learned, and any corrections the developer gave you. This is how org-wide learning works — your session knowledge becomes searchable by every other developer. Keep the summary concise (3-10 bullet points). Only include things that would be useful to someone else working in this repo.`;
+}
+
+// Session summary reminder on stop
+if (!hasHook(settings.hooks, "Stop", "session-summary")) {
+  if (!Array.isArray(settings.hooks.Stop)) settings.hooks.Stop = [];
+  settings.hooks.Stop.push({
+    matcher: "",
+    hooks: [
+      {
+        type: "command",
+        command:
+          "echo '[lore] Save session learnings: call write_memory with a summary of decisions, patterns, and corrections from this session.'",
+      },
+    ],
+  });
 }
 
 // 3. status line
