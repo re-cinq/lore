@@ -40,3 +40,4 @@ coverage/
 .dolt/
 *.db
 .beads-credential-key
+.beads/
