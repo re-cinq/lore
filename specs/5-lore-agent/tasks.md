@@ -4,7 +4,7 @@
 |---------|----------------------|
 | Feature | Lore Agent Service   |
 | Branch  | 5-lore-agent         |
-| Tasks   | 57                   |
+| Tasks   | 61                   |
 | Phases  | 6                    |
 
 ---
@@ -95,6 +95,10 @@ Test criteria: GET /healthz returns JSON with uptime, task counts, job schedules
 - [x] T055 Implement approval check job polling issues for approved label in agent/src/jobs/approval-check.ts
 - [x] T056 Add getIssueLabels and removeIssueLabel to CodePlatform interface and GitHubPlatform
 - [x] T057 Add approval gates configuration UI to settings page in web-ui/src/app/settings/page.tsx
+- [x] T058 Add /api/memory REST endpoint to MCP server for remote memory operations in mcp-server/src/index.ts
+- [x] T059 Proxy all memory MCP tools to GKE when LORE_DB_HOST not set in mcp-server/src/index.ts
+- [x] T060 Add auto-deploy step to agent CI workflow in .github/workflows/build-agent.yml
+- [x] T061 Fix status line cost rounding and repo onboarded check via /api/repo-status in scripts/lore-statusline.sh
 
 ---
 

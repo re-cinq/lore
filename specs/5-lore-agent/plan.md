@@ -315,6 +315,17 @@ Wire GitHub Issue lifecycle into the task worker:
 - `platform.ts` + `github.ts`: getIssueLabels, removeIssueLabel
 - Settings page: approval config UI
 
+### Task 3.16: Memory Proxy
+
+- `/api/memory` REST endpoint on MCP server (write, read, search, delete, list)
+- All memory MCP tools proxy via `LORE_API_URL` when `LORE_DB_HOST` not set
+- File-backed fallback only when proxy unreachable
+
+### Task 3.17: CI Auto-Deploy
+
+- All 3 CI workflows (MCP, agent, UI) now auto-deploy to GKE after successful build
+- Uses Workload Identity Federation for GKE auth
+
 ### Task 3.7: Deploy and Verify
 
 - Helm install agent chart
