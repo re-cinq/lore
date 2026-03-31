@@ -4,7 +4,7 @@
 |---------|----------------------|
 | Feature | Lore Agent Service   |
 | Branch  | 5-lore-agent         |
-| Tasks   | 52                   |
+| Tasks   | 57                   |
 | Phases  | 6                    |
 
 ---
@@ -90,6 +90,11 @@ Test criteria: GET /healthz returns JSON with uptime, task counts, job schedules
 - [x] T050 Implement GitHubPlatform class with all CodePlatform operations in agent/src/github.ts
 - [x] T051 Create global settings page with API URL and ingest token in web-ui/src/app/settings/page.tsx
 - [x] T052 Create lore.settings DB table for platform configuration
+- [x] T053 Implement approval config loader with org/repo overrides in agent/src/approval.ts
+- [x] T054 Add approval gate to worker processTask before queued transition in agent/src/worker.ts
+- [x] T055 Implement approval check job polling issues for approved label in agent/src/jobs/approval-check.ts
+- [x] T056 Add getIssueLabels and removeIssueLabel to CodePlatform interface and GitHubPlatform
+- [x] T057 Add approval gates configuration UI to settings page in web-ui/src/app/settings/page.tsx
 
 ---
 

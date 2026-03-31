@@ -148,3 +148,4 @@ Agent creates branch + PR when done. The Lore Agent service
 headless Claude Code for complex work.
 
 - Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created.
+- Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.

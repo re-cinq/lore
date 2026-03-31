@@ -200,6 +200,7 @@ After the PR is merged, the agent automatically configures ingest secrets so con
 | Spec drift | Monday 10 AM | Compare specs against actual code |
 | Merge check | Every 60s | Detect merged onboarding PRs, trigger ingestion |
 | Review reactor | Every 5 min | Detect human review feedback on agent PRs, generate fixes, commit to branch |
+| Approval check | Every 60s | Check for approved label on tasks awaiting approval |
 | Memory TTL | Every hour | Clean up expired memory entries |
 
 ## Getting Started
@@ -418,6 +419,7 @@ Platform configuration at `lore.gcp.re-cinq.com/settings`:
 - **Ingest Token** — shared auth token for API calls
 - **Regenerate Token** — rotates the token (invalidates all existing)
 - **Dev Install Command** — copy-paste for new developer onboarding
+- **Approval Gates** — require human approval before agents process tasks (per-repo or global)
 
 ## License
 
