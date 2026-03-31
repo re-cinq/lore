@@ -41,6 +41,21 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.ingestTokenSecret.name }}
                   key: {{ .Values.ingestTokenSecret.key }}
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.githubAppSecret.name }}
+                  key: {{ .Values.githubAppSecret.appIdKey }}
+            - name: GITHUB_APP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.githubAppSecret.name }}
+                  key: {{ .Values.githubAppSecret.privateKeyKey }}
+            - name: GITHUB_APP_INSTALLATION_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.githubAppSecret.name }}
+                  key: {{ .Values.githubAppSecret.installationIdKey }}
           livenessProbe:
             tcpSocket:
               port: http
