@@ -138,6 +138,22 @@ async function processTask(task: any): Promise<void> {
     console.warn(`[agent] Could not create issue on ${targetRepo}: ${err.message}`);
   }
 
+  // Check if this task requires approval
+  const { requiresApproval, getApprovalLabel } = await import("./approval.js");
+  if (requiresApproval(task.task_type, targetRepo)) {
+    await setStatus(task.id, "awaiting_approval");
+    await insertEvent(task.id, "pending", "awaiting_approval", { reason: "approval-required" });
+
+    if (issueNumber) {
+      await platform().commentOnIssue(targetRepo, issueNumber,
+        `This task requires approval before the agent can proceed.\n\nAdd the \`${getApprovalLabel()}\` label to this issue to approve.`);
+      await platform().addIssueLabel(targetRepo, issueNumber, "awaiting-approval");
+    }
+
+    console.log(`[agent] Task ${task.id} requires approval — waiting for label on issue #${issueNumber}`);
+    return; // Don't process yet
+  }
+
   // pending → queued
   await setStatus(task.id, "queued", { agent_id: agentId });
   await insertEvent(task.id, "pending", "queued");

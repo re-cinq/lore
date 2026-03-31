@@ -71,6 +71,8 @@ export interface CodePlatform {
   commentOnIssue(repo: string, issueNumber: number, body: string): Promise<void>;
   closeIssue(repo: string, issueNumber: number, reason?: "completed" | "not_planned"): Promise<void>;
   addIssueLabel(repo: string, issueNumber: number, label: string): Promise<void>;
+  getIssueLabels(repo: string, issueNumber: number): Promise<string[]>;
+  removeIssueLabel(repo: string, issueNumber: number, label: string): Promise<void>;
 
   // ── Repo Content ──
   getFileContent(repo: string, path: string, ref?: string): Promise<string | null>;
