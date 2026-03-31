@@ -27,12 +27,7 @@ check "MCP server built" \
   test -f "$LORE_DIR/mcp-server/dist/index.js" || \
   echo "     Fix: cd $LORE_DIR/mcp-server && npm install && npm run build"
 
-# 2. bd CLI
-check "bd CLI installed" \
-  command -v bd || \
-  echo "     Fix: npm install -g @beads/bd"
-
-# 3. specify CLI (optional — warn but don't count as failure)
+# 2. specify CLI (optional — warn but don't count as failure)
 if command -v specify >/dev/null 2>&1; then
   printf '  \xe2\x9c\x93  %s\n' "specify CLI installed"
   PASS=$((PASS + 1))

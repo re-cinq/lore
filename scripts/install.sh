@@ -142,23 +142,7 @@ install_skills() {
   done
 }
 
-# --- 6. Ensure bd is installed ------------------------------------------------
-install_bd() {
-  CURRENT_STEP="install bd CLI"
-  if ! command -v bd >/dev/null 2>&1; then
-    echo "[lore] Installing @beads/bd ..."
-    if ! command -v npm &>/dev/null; then
-      echo "[lore] Warning: npm not found, skipping @beads/bd"
-    elif ! npm install -g @beads/bd --silent 2>/dev/null; then
-      echo "[lore] Warning: could not install @beads/bd"
-      echo "  Try manually: npm install -g @beads/bd"
-    fi
-  else
-    echo "[lore] bd CLI already installed"
-  fi
-}
-
-# --- 7. Ensure specify is installed -------------------------------------------
+# --- 6. Ensure specify is installed -------------------------------------------
 install_specify() {
   CURRENT_STEP="install specify CLI"
   if ! command -v specify >/dev/null 2>&1; then
@@ -172,22 +156,7 @@ install_specify() {
   fi
 }
 
-# --- 8. Initialise beads -----------------------------------------------------
-init_beads() {
-  CURRENT_STEP="initialise beads"
-  if [ ! -d "$LORE_DIR/.beads" ]; then
-    echo "[lore] Initialising beads ..."
-    if command -v bd &>/dev/null; then
-      (cd "$LORE_DIR" && bd init 2>/dev/null) || true
-    else
-      echo "[lore] Warning: bd not found, skipping beads init"
-    fi
-  else
-    echo "[lore] Beads already initialised"
-  fi
-}
-
-# --- Generate agent ID ---
+# --- 7. Generate agent ID ---
 generate_agent_id() {
   CURRENT_STEP="generate agent ID"
   AGENT_ID_FILE="$HOME/.lore/agent-id"
@@ -241,9 +210,7 @@ build_mcp_server
 select_team
 merge_settings
 install_skills
-install_bd
 install_specify
-init_beads
 generate_agent_id
 install_agentdb
 

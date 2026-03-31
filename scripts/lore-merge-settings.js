@@ -43,12 +43,10 @@ const settings = readSettings();
 if (!settings.env) settings.env = {};
 settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
 
-// 2. mcpServers — registered via `claude mcp add` in install.sh (not here)
-//    The CLI writes to the correct location regardless of Claude Code version.
-
-// 3. hooks — Claude Code format: { matcher, hooks: [{ type, command }] }
+// 2. hooks — Claude Code format: { matcher, hooks: [{ type, command }] }
 if (!settings.hooks) settings.hooks = {};
 
+// Context sync on session start
 if (!hasHook(settings.hooks, "SessionStart", "re-cinq/lore")) {
   if (!Array.isArray(settings.hooks.SessionStart))
     settings.hooks.SessionStart = [];
@@ -58,13 +56,13 @@ if (!hasHook(settings.hooks, "SessionStart", "re-cinq/lore")) {
       {
         type: "command",
         command:
-          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; bd pull --quiet 2>/dev/null; [ ! -d .beads ] && command -v bd &>/dev/null && bd init --quiet 2>/dev/null; echo '[lore] Context and task state synced'",
+          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; echo '[lore] Context synced'",
       },
     ],
   });
 }
 
-// Lore status cache (feeds the status line with pipeline metrics)
+// Status cache (feeds the status line with pipeline metrics)
 if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
   settings.hooks.SessionStart.push({
     matcher: "",
@@ -78,42 +76,13 @@ if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
   });
 }
 
-if (!hasHook(settings.hooks, "PostToolUse", "bd update")) {
-  if (!Array.isArray(settings.hooks.PostToolUse))
-    settings.hooks.PostToolUse = [];
-  settings.hooks.PostToolUse.push({
-    matcher: "Write|Edit|MultiEdit",
-    hooks: [
-      {
-        type: "command",
-        command:
-          'TASK=$(bd list --claimed --json 2>/dev/null | jq -r \'.[0].id // empty\' 2>/dev/null) || true; [ -n "$TASK" ] && bd update $TASK --progress 2>/dev/null || true',
-      },
-    ],
-  });
-}
-
-if (!hasHook(settings.hooks, "Stop", "Active task")) {
-  if (!Array.isArray(settings.hooks.Stop)) settings.hooks.Stop = [];
-  settings.hooks.Stop.push({
-    matcher: "",
-    hooks: [
-      {
-        type: "command",
-        command:
-          'TASK=$(bd list --claimed --json 2>/dev/null | jq -r \'.[0].id // empty\' 2>/dev/null) || true; [ -n "$TASK" ] && echo "[lore] Active task: $TASK \u2014 run \'bd update $TASK --status done\' if finished" || true',
-      },
-    ],
-  });
-}
-
-// 4. status line
+// 3. status line
 const loreDir = path.join(process.env.HOME || process.env.USERPROFILE, ".re-cinq", "lore");
 settings.statusLine = {
   type: "command",
   command: path.join(loreDir, "scripts", "lore-statusline.sh"),
 };
 
-// 5. write
+// 4. write
 writeSettings(settings);
 console.log(`[lore] Settings merged for team "${TEAM}" -> ${SETTINGS_PATH}`);
