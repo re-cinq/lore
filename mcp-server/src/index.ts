@@ -1085,7 +1085,7 @@ async function main() {
               case "search":
                 if (!searchQuery) { res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "query required" })); return; }
                 result = isMemoryDbAvailable()
-                  ? await searchMemories(null, searchQuery, agent_id, pool_name, limit || 10)
+                  ? await searchMemories(dbPoolRef, searchQuery, agent_id, pool_name, limit || 10)
                   : await searchMemoryFile(searchQuery, agent_id, limit || 10);
                 break;
               case "delete":
