@@ -1021,22 +1021,15 @@ async function main() {
         const repo = url.searchParams.get("repo");
         try {
           const parts: string[] = [];
-          // Repo-specific docs
+          // Repo-specific docs only
           if (repo && dbPoolRef) {
             const { rows } = await dbPoolRef.query(
-              `SELECT content FROM org_shared.chunks WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec') ORDER BY content_type, ingested_at DESC`,
+              `SELECT content, content_type, file_path FROM org_shared.chunks
+               WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
+               ORDER BY content_type, ingested_at DESC`,
               [repo],
             );
             for (const r of rows) parts.push(r.content);
-          }
-          // Org-level docs
-          if (dbPoolRef) {
-            const { rows } = await dbPoolRef.query(
-              `SELECT content FROM org_shared.chunks WHERE content_type = 'doc' AND (repo IS NULL OR repo = 're-cinq/lore') ORDER BY ingested_at DESC LIMIT 5`,
-            );
-            for (const r of rows) {
-              if (!parts.includes(r.content)) parts.push(r.content);
-            }
           }
           if (parts.length > 0) {
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ text: parts.join("\n\n---\n\n") }));
