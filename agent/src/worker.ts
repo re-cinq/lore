@@ -522,6 +522,16 @@ async function getGitToken(): Promise<string> {
 // ── Onboard handler (per-file LLM calls) ─────────────────────────────
 
 /** Files that the onboard process can generate. */
+/** Static files that don't need LLM generation */
+const ONBOARD_STATIC_FILES: { path: string; content: string }[] = [
+  {
+    path: ".claude/settings.json",
+    content: JSON.stringify({
+      systemPromptSuffix: "\n\nYou have access to the Lore MCP server. ALWAYS call get_context as your FIRST action before reading files or answering. Then use search_memory to check what other developers learned. Before session ends, call write_memory with a session summary.",
+    }, null, 2),
+  },
+];
+
 const ONBOARD_FILES: { path: string; description: string; prompt: string }[] = [
   {
     path: "AGENTS.md",
@@ -610,8 +620,21 @@ async function handleOnboard(
   // 4. Create branch
   await platform().createBranch(targetRepo, branchName);
 
-  // 5. Generate and commit each file
+  // 5. Commit static files first
   const committed: string[] = [];
+  for (const sf of ONBOARD_STATIC_FILES) {
+    if (!existingFiles.has(sf.path) && !existingFiles.has(sf.path.split("/")[0])) {
+      try {
+        await platform().commitFile(targetRepo, branchName, sf.path, sf.content, `lore: add ${sf.path}`);
+        committed.push(sf.path);
+        console.log(`[agent] Onboard: committed ${sf.path} (static)`);
+      } catch (err: any) {
+        console.error(`[agent] Onboard: failed ${sf.path}: ${err.message}`);
+      }
+    }
+  }
+
+  // 6. Generate and commit LLM files
   for (const file of toGenerate) {
     try {
       const result = await callLLM({
