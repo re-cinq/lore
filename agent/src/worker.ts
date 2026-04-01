@@ -468,10 +468,11 @@ async function handleClaudeCodeTask(
     stdio: "pipe",
   });
 
-  // Build the prompt with full context
-  const fullPrompt = buildPrompt(task.task_type, task.description);
+  // Build the prompt — add explicit instruction to edit files
+  const fullPrompt = buildPrompt(task.task_type, task.description)
+    + "\n\nIMPORTANT: You MUST edit the actual source files in this repository using your tools. Do NOT just describe changes — use Read, Edit, and Write tools to modify files directly. Start by reading the spec file, then implement each change.";
 
-  console.log(`[agent] Claude Code task: running headless execution...`);
+  console.log(`[agent] Claude Code task: running headless execution (prompt ${fullPrompt.length} chars)...`);
 
   // Run Claude Code in the repo directory
   const result = await runClaudeCode({
