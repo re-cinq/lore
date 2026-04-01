@@ -129,13 +129,14 @@ async function patchStatus(
   name: string,
   status: Partial<LoreTaskStatus>,
 ): Promise<void> {
-  await customApi.patchNamespacedCustomObjectStatus({
-    group: GROUP,
-    version: VERSION,
-    namespace: NAMESPACE,
-    plural: PLURAL,
-    name,
-    body: { status },
+  // Read current, merge status, replace
+  const current = await customApi.getNamespacedCustomObjectStatus({
+    group: GROUP, version: VERSION, namespace: NAMESPACE, plural: PLURAL, name,
+  }) as any;
+  const merged = { ...current, status: { ...(current.status || {}), ...status } };
+  await customApi.replaceNamespacedCustomObjectStatus({
+    group: GROUP, version: VERSION, namespace: NAMESPACE, plural: PLURAL, name,
+    body: merged,
   });
 }
 
@@ -179,6 +180,7 @@ async function reconcile(lt: LoreTask): Promise<void> {
       template: {
         spec: {
           restartPolicy: "Never",
+          imagePullSecrets: [{ name: "ghcr-pull-secret" }],
           containers: [
             {
               name: "claude-runner",
