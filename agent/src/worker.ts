@@ -71,7 +71,16 @@ export async function recoverStaleTasks(): Promise<number> {
        AND updated_at < now() - interval '30 minutes'`,
   );
 
+  let recovered = 0;
   for (const row of stale) {
+    // Don't reset implementation tasks — they run in ephemeral Job pods
+    // managed by the LoreTask CRD. The loretask-watcher handles completion.
+    if (row.task_type === "implementation") {
+      console.log(
+        `[agent] Skipping stale implementation task ${row.id} — managed by LoreTask CRD`,
+      );
+      continue;
+    }
     await setStatus(row.id, "pending");
     await insertEvent(row.id, "running", "pending", {
       reason: "crash-recovery",
@@ -79,9 +88,10 @@ export async function recoverStaleTasks(): Promise<number> {
     console.log(
       `[agent] Recovered stale task ${row.id} (${row.task_type}) → pending`,
     );
+    recovered++;
   }
 
-  return stale.length;
+  return recovered;
 }
 
 // ── Worker loop ───────────────────────────────────────────────────────
