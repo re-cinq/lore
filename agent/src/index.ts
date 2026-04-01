@@ -17,6 +17,7 @@ import { reviewReactorJob } from "./jobs/review-reactor.js";
 import { evalRunnerJob } from "./jobs/eval-runner.js";
 import { autoresearchJob } from "./jobs/autoresearch.js";
 import { contextCoreBuilderJob } from "./jobs/context-core-builder.js";
+import { loretaskWatcherJob } from "./jobs/loretask-watcher.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
@@ -48,6 +49,7 @@ async function main(): Promise<void> {
   registerJob("eval_runner", "0 3 * * *", evalRunnerJob);
   registerJob("context_core_builder", "0 4 * * *", contextCoreBuilderJob);
   registerJob("autoresearch", "0 6 * * 1", autoresearchJob);
+  registerJob("loretask_watcher", "*/1 * * * *", loretaskWatcherJob);
 
   startScheduler();
   startWorker();

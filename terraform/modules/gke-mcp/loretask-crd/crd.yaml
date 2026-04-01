@@ -1,0 +1,116 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: loretasks.lore.re-cinq.com
+spec:
+  group: lore.re-cinq.com
+  names:
+    kind: LoreTask
+    listKind: LoreTaskList
+    plural: loretasks
+    singular: loretask
+    shortNames:
+      - lt
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - taskId
+                - taskType
+                - targetRepo
+              properties:
+                taskId:
+                  type: string
+                  description: Unique task identifier from the Lore pipeline.
+                taskType:
+                  type: string
+                  description: Type of task (e.g. feature-request, onboard, review).
+                description:
+                  type: string
+                  description: Human-readable description of the task.
+                prompt:
+                  type: string
+                  description: Full prompt to pass to the agent.
+                targetRepo:
+                  type: string
+                  description: "GitHub repo in owner/name format."
+                branch:
+                  type: string
+                  description: Git branch to work on.
+                model:
+                  type: string
+                  default: "claude-sonnet-4-6"
+                  description: Anthropic model to use for the task.
+                timeoutMinutes:
+                  type: integer
+                  default: 30
+                  description: Maximum runtime in minutes before the job is killed.
+                image:
+                  type: string
+                  default: "ghcr.io/re-cinq/lore-claude-runner:latest"
+                  description: Container image for the runner job.
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Running
+                    - Succeeded
+                    - Failed
+                  description: Current phase of the task.
+                jobName:
+                  type: string
+                  description: Name of the Kubernetes Job created for this task.
+                startedAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp when the job started running.
+                completedAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp when the job completed.
+                exitCode:
+                  type: integer
+                  description: Exit code of the runner container.
+                output:
+                  type: string
+                  description: Summary output from the agent run.
+                changedFiles:
+                  type: integer
+                  description: Number of files changed by the agent.
+                prUrl:
+                  type: string
+                  description: URL of the pull request created by the agent.
+                prNumber:
+                  type: integer
+                  description: PR number on the target repo.
+                failureReason:
+                  type: string
+                  description: Human-readable reason if the task failed.
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: TaskType
+          type: string
+          jsonPath: .spec.taskType
+        - name: Repo
+          type: string
+          jsonPath: .spec.targetRepo
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
