@@ -1,97 +1,66 @@
-# Data Model Changes for PR State Tracking
+# Data Model: PR State Visibility
 
-## New Table: `pull_requests`
+## No Schema Changes Required
 
-Tracks pull request state and metadata for display in the UI.
-
-```sql
-CREATE TABLE pull_requests (
-  id BIGSERIAL PRIMARY KEY,
-  repo_id BIGINT NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
-  github_pr_number INT NOT NULL,
-  github_pr_id BIGINT NOT NULL UNIQUE,
-  title TEXT NOT NULL,
-  state VARCHAR(20) NOT NULL, -- 'open', 'closed', 'merged'
-  merged_at TIMESTAMP,
-  closed_at TIMESTAMP,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  url TEXT NOT NULL,
-  
-  -- Link to the task that created this PR
-  pipeline_task_id BIGINT REFERENCES pipeline_tasks(id) ON DELETE SET NULL,
-  
-  UNIQUE(repo_id, github_pr_number)
-);
-
-CREATE INDEX idx_pull_requests_repo_id ON pull_requests(repo_id);
-CREATE INDEX idx_pull_requests_state ON pull_requests(state);
-CREATE INDEX idx_pull_requests_pipeline_task_id ON pull_requests(pipeline_task_id);
-```
-
-## New Table: `issues`
-
-Tracks linked GitHub Issues for PRs and tasks (already mentioned in README but needs explicit schema).
+The existing `pipeline.tasks` table already has the columns needed:
 
 ```sql
-CREATE TABLE issues (
-  id BIGSERIAL PRIMARY KEY,
-  repo_id BIGINT NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
-  github_issue_number INT NOT NULL,
-  github_issue_id BIGINT NOT NULL UNIQUE,
-  title TEXT NOT NULL,
-  state VARCHAR(20) NOT NULL, -- 'open', 'closed'
-  closed_at TIMESTAMP,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  url TEXT NOT NULL,
-  
-  -- Link to the task that created this issue
-  pipeline_task_id BIGINT REFERENCES pipeline_tasks(id) ON DELETE CASCADE,
-  
-  -- Link to the PR this issue tracks
-  pull_request_id BIGINT REFERENCES pull_requests(id) ON DELETE SET NULL,
-  
-  UNIQUE(repo_id, github_issue_number)
-);
-
-CREATE INDEX idx_issues_repo_id ON issues(repo_id);
-CREATE INDEX idx_issues_state ON issues(state);
-CREATE INDEX idx_issues_pipeline_task_id ON issues(pipeline_task_id);
-CREATE INDEX idx_issues_pull_request_id ON issues(pull_request_id);
+-- Already exists:
+pr_url     TEXT     -- GitHub PR URL
+pr_number  INTEGER  -- GitHub PR number
+target_repo TEXT    -- owner/repo (e.g. "re-cinq/my-service")
 ```
 
-## Modified Table: `pipeline_tasks`
+These three columns are sufficient to query GitHub's API for live PR
+state. No new tables, columns, or indexes needed.
 
-Add columns to track created PR and issue:
+## PR State is Computed, Not Stored
+
+The `PRDetails` type is returned by the GitHub API route and MCP tool,
+never persisted:
+
+```typescript
+interface PRDetails {
+  number: number;
+  title: string;
+  state: string;          // GitHub's raw state: open, closed
+  draft: boolean;
+  merged: boolean;
+  mergeable: boolean | null;
+  html_url: string;
+  checks: Array<{
+    name: string;
+    status: string;        // queued, in_progress, completed
+    conclusion: string | null; // success, failure, neutral, etc.
+  }>;
+  reviews: Array<{
+    user: string;
+    state: string;         // APPROVED, CHANGES_REQUESTED, COMMENTED
+    submitted_at: string;
+  }>;
+  computed_status: PRStatus;
+}
+
+type PRStatus =
+  | 'draft'
+  | 'open'
+  | 'checks-failing'
+  | 'changes-requested'
+  | 'approved'
+  | 'merged'
+  | 'closed';
+```
+
+## Future: Optional Caching (Phase 1)
+
+If we later need to filter/sort by PR state or track state history,
+add these columns to `pipeline.tasks`:
 
 ```sql
-ALTER TABLE pipeline_tasks
-ADD COLUMN pull_request_id BIGINT REFERENCES pull_requests(id) ON DELETE SET NULL,
-ADD COLUMN github_issue_id BIGINT REFERENCES issues(id) ON DELETE SET NULL;
-
-CREATE INDEX idx_pipeline_tasks_pull_request_id ON pipeline_tasks(pull_request_id);
-CREATE INDEX idx_pipeline_tasks_github_issue_id ON pipeline_tasks(github_issue_id);
+-- Phase 1 (not now):
+ALTER TABLE pipeline.tasks ADD COLUMN pr_status VARCHAR(30);
+ALTER TABLE pipeline.tasks ADD COLUMN pr_last_polled TIMESTAMPTZ;
+CREATE INDEX idx_tasks_pr_status ON pipeline.tasks(pr_status) WHERE pr_status IS NOT NULL;
 ```
 
-## Migration Notes
-
-1. **Backfill existing tasks**: For any existing pipeline tasks with a PR URL in their output/notes, parse the PR number and create corresponding entries in `pull_requests` and `issues` tables.
-
-2. **GitHub App integration**: Update the Lore Agent service (`agent/src/github.ts`) to:
-   - Create a `pull_requests` record when calling `gh pr create`
-   - Create an `issues` record when creating a GitHub Issue for task tracking
-   - Link them via `pull_request_id` and `pipeline_task_id`
-   - Update PR state weekly via GitHub API polling or webhook
-
-3. **UI layer**: The Web UI can now query PR state directly:
-   ```sql
-   SELECT pt.*, pr.state, pr.merged_at, pr.url, i.state as issue_state
-   FROM pipeline_tasks pt
-   LEFT JOIN pull_requests pr ON pt.pull_request_id = pr.id
-   LEFT JOIN issues i ON pt.github_issue_id = i.id
-   WHERE pt.repo_id = $1
-   ORDER BY pt.created_at DESC;
-   ```
-
-4. **State sync**: Add a scheduled job to the agent scheduler (every 6 hours) to fetch latest PR state from GitHub API and update the `state`, `merged_at`, `closed_at` columns.
+Plus a polling CronJob to keep them fresh. But that's a separate spec.

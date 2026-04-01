@@ -56,6 +56,10 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.githubAppSecret.name }}
                   key: {{ .Values.githubAppSecret.installationIdKey }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
           livenessProbe:
             tcpSocket:
               port: http
@@ -68,3 +72,7 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Values.configMap.name }}

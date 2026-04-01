@@ -24,6 +24,7 @@ env:
   MCP_TRANSPORT: http
   PORT: "3000"
   CONTEXT_PATH: /context
+  TASK_TYPES_PATH: /config/task-types.yaml
   LORE_TEAM: platform
   LORE_DB_HOST: lore-db-rw.alloydb.svc.cluster.local
   LORE_DB_PORT: "5432"
@@ -37,6 +38,9 @@ dbPasswordSecret:
 ingestTokenSecret:
   name: lore-ingest-token
   key: token
+
+configMap:
+  name: lore-mcp-config
 
 githubAppSecret:
   name: github-app-credentials
