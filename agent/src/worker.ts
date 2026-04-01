@@ -8,10 +8,8 @@
 import { query } from "./db.js";
 import { callLLM, callLLMWithTool } from "./anthropic.js";
 import { platform } from "./platform.js";
-import { GitHubPlatform } from "./github.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
-import { isClaudeCodeAvailable, runClaudeCode } from "./claude-code.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -220,7 +218,7 @@ async function processTask(task: any): Promise<void> {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);
     } else if (task.task_type === "feature-request") {
       await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
-    } else if (task.task_type === "implementation" && isClaudeCodeAvailable()) {
+    } else if (task.task_type === "implementation") {
       await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber);
     } else {
       // Non-onboard task types
@@ -422,136 +420,64 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
   console.log(`[agent] Task ${task.id} → PR ${pr.url} (${committed.length} spec artifacts)`);
 }
 
-// ── Claude Code handler (headless execution) ─────────────────────────
+// ── LoreTask CR handler ─────────────────────────────────────────────
 
 /**
- * Handle complex tasks (implementation, refactoring) by running Claude Code
- * in headless mode. Claude Code gets full file access, bash, and tool use
- * inside a cloned copy of the target repo.
- *
- * Flow:
- *  1. Clone the target repo to /tmp/lore-task-{id}
- *  2. Run `claude --print` with the task prompt in the repo directory
- *  3. Git add/commit/push any changes Claude Code made
- *  4. Create a PR from the branch
+ * Handle complex tasks (implementation, refactoring) by creating a
+ * LoreTask custom resource on the cluster. The loretask-controller
+ * provisions an ephemeral Job with Claude Code inside. When the Job
+ * completes, the loretask-watcher job picks up the result and creates
+ * a PR.
  */
 async function handleClaudeCodeTask(
   task: any,
   targetRepo: string,
   branchName: string,
   model: string | undefined,
-  issueNumber: number | null,
+  _issueNumber: number | null,
 ): Promise<void> {
-  const { execFileSync } = await import("node:child_process");
-  const { rmSync } = await import("node:fs");
+  const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
+  const kc = new KubeConfig();
+  kc.loadFromCluster();
+  const k8sApi = kc.makeApiClient(CustomObjectsApi);
 
-  const workDir = `/tmp/lore-task-${task.id}`;
-  const slug = slugify(task.description);
-
-  console.log(`[agent] Claude Code task: cloning ${targetRepo} → ${workDir}`);
-
-  // Clean up any previous attempt
-  try {
-    rmSync(workDir, { recursive: true, force: true });
-  } catch { /* doesn't exist yet */ }
-
-  // Clone the repo
-  const cloneUrl = `https://x-access-token:${await getGitToken()}@github.com/${targetRepo}.git`;
-  execFileSync("git", ["clone", "--depth=1", cloneUrl, workDir], {
-    stdio: "pipe",
-    timeout: 60_000,
-  });
-
-  // Create and checkout the branch
-  execFileSync("git", ["checkout", "-b", branchName], {
-    cwd: workDir,
-    stdio: "pipe",
-  });
-
-  // Build the prompt from task-types.yaml template
+  const namespace = process.env.NAMESPACE || "lore-agent";
   const fullPrompt = buildPrompt(task.task_type, task.description);
+  const crName = `loretask-${task.id.substring(0, 8)}`;
 
-  console.log(`[agent] Claude Code task: running headless execution (prompt ${fullPrompt.length} chars)...`);
-
-  // Run Claude Code in the repo directory
-  const result = await runClaudeCode({
-    prompt: fullPrompt,
-    workDir,
-    model: model || undefined,
-    maxTokens: 16384,
-    taskId: task.id,
-  });
-
-  if (result.exitCode !== 0 && !result.output) {
-    throw new Error(`Claude Code exited with code ${result.exitCode}`);
-  }
-
-  // Check if Claude Code made any changes
-  const statusOutput = execFileSync("git", ["status", "--porcelain"], {
-    cwd: workDir,
-    encoding: "utf-8",
-  }).trim();
-
-  if (!statusOutput) {
-    throw new Error("Claude Code completed but made no file changes");
-  }
-
-  console.log(`[agent] Claude Code task: committing changes...`);
-
-  // Stage all changes, commit, and push
-  execFileSync("git", ["add", "-A"], { cwd: workDir, stdio: "pipe" });
-  execFileSync(
-    "git",
-    ["commit", "-m", `lore: ${task.task_type} — ${slug}\n\nTask: ${task.id}`],
-    {
-      cwd: workDir,
-      stdio: "pipe",
-      env: {
-        ...process.env,
-        GIT_AUTHOR_NAME: "Lore Agent",
-        GIT_AUTHOR_EMAIL: "lore@re-cinq.com",
-        GIT_COMMITTER_NAME: "Lore Agent",
-        GIT_COMMITTER_EMAIL: "lore@re-cinq.com",
+  const cr = {
+    apiVersion: "lore.re-cinq.com/v1alpha1",
+    kind: "LoreTask",
+    metadata: {
+      name: crName,
+      namespace,
+      labels: {
+        "lore.re-cinq.com/task-id": task.id,
+        "lore.re-cinq.com/task-type": task.task_type,
       },
     },
-  );
-  execFileSync("git", ["push", "origin", branchName], {
-    cwd: workDir,
-    stdio: "pipe",
-    timeout: 60_000,
+    spec: {
+      taskId: task.id,
+      taskType: task.task_type,
+      description: task.description,
+      prompt: fullPrompt,
+      targetRepo,
+      branch: branchName,
+      model: model || "claude-sonnet-4-6",
+      timeoutMinutes: getTaskTypeConfig(task.task_type)?.timeout_minutes || 30,
+    },
+  };
+
+  await k8sApi.createNamespacedCustomObject({
+    group: "lore.re-cinq.com",
+    version: "v1alpha1",
+    namespace,
+    plural: "loretasks",
+    body: cr,
   });
 
-  // Create PR
-  const changedFiles = statusOutput.split("\n").length;
-  const pr = await platform().createPR(
-    targetRepo,
-    branchName,
-    `lore: ${task.task_type} — ${slug}`,
-    `## ${task.task_type}\n\n${task.description}\n\n**Execution mode:** Claude Code (headless)\n**Changed files:** ${changedFiles}\n**Duration:** ${Math.round(result.durationMs / 1000)}s\n\nGenerated by Lore agent task \`${task.id}\`.${issueRef(issueNumber)}`,
-  );
-
-  await linkPrToIssue(targetRepo, issueNumber, pr.url);
-
-  // Cleanup temp directory
-  try {
-    rmSync(workDir, { recursive: true, force: true });
-  } catch { /* best-effort cleanup */ }
-
-  await setStatus(task.id, "pr-created", {
-    pr_url: pr.url,
-    pr_number: pr.number,
-    target_branch: branchName,
-  });
-  await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
-  console.log(`[agent] Task ${task.id} → PR ${pr.url} (Claude Code, ${changedFiles} files)`);
-}
-
-/**
- * Get a GitHub App installation token for git operations.
- * This is the one GitHub-specific escape hatch needed for git clone.
- */
-async function getGitToken(): Promise<string> {
-  return new GitHubPlatform().getInstallationToken();
+  console.log(`[agent] Created LoreTask CR ${crName} for task ${task.id}`);
+  // Don't set pr-created — the loretask-watcher will do that when the Job completes
 }
 
 // ── Onboard handler (per-file LLM calls) ─────────────────────────────

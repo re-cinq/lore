@@ -7,15 +7,10 @@ COPY src/ ./src/
 RUN npm run build
 
 FROM node:22-slim
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-RUN npm install -g @anthropic-ai/claude-code
-RUN useradd -m -s /bin/bash lore
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
-RUN chown -R lore:lore /app
-USER lore
 EXPOSE 8080
 CMD ["node", "dist/index.js"]
