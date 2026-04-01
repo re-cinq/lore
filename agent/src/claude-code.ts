@@ -111,7 +111,8 @@ export async function runClaudeCode(params: {
 
       console.log(
         `[agent] Claude Code: model=${model} exit=${exitCode} ` +
-        `output=${stdout.length} chars ${durationMs}ms`,
+        `output=${stdout.length} chars ${durationMs}ms\n` +
+        `[agent] Claude Code stdout (first 2000): ${stdout.substring(0, 2000)}`,
       );
 
       if (exitCode !== 0 && !stdout) {
