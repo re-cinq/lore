@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface LogsResponse {
   logs: string | null;
@@ -49,7 +49,7 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     const url = lastTimestamp && TERMINAL_STATES.has(status)
       ? `/api/pipeline/${taskId}/logs?since=${encodeURIComponent(lastTimestamp)}`
       : `/api/pipeline/${taskId}/logs`;
@@ -67,19 +67,19 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
     } catch (e: any) {
       setError(e.message);
     }
-  };
+  }, [taskId, status, lastTimestamp]);
 
   // Initial fetch
   useEffect(() => {
     fetchLogs();
-  }, []);
+  }, [fetchLogs]);
 
   // Poll while running
   useEffect(() => {
     if (!TERMINAL_STATES.has(status)) return;
     const id = setInterval(fetchLogs, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [status, lastTimestamp]);
+  }, [fetchLogs, status]);
 
   // Auto-scroll to bottom when logs update
   useEffect(() => {
@@ -87,7 +87,8 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
   }, [logs]);
 
   const isRunning = TERMINAL_STATES.has(status);
-  const isDone = status === "succeeded" || status === "pr-created" || status === "review" || status === "merged";
+  const isInReview = status === "review";
+  const isDone = status === "succeeded" || status === "pr-created" || status === "merged";
   const isFailed = status === "failed" || status === "cancelled";
 
   return (
@@ -96,6 +97,7 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
         Agent Output
         {isRunning && <span style={PULSE_STYLE} />}
         {isDone && <span className="op-badge op-pr-created" style={{ fontSize: "12px" }}>Completed</span>}
+        {isInReview && <span className="op-badge op-running" style={{ fontSize: "12px" }}>In Review</span>}
         {isFailed && <span className="op-badge op-failed" style={{ fontSize: "12px" }}>Failed</span>}
       </h2>
 
