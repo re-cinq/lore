@@ -4,7 +4,7 @@
 |----------------|------------------------------------------|
 | Feature        | LoreTask CRD + Controller                |
 | Branch         | feat/loretask-crd                        |
-| Status         | Draft                                    |
+| Status         | Shipped                                  |
 | Created        | 2026-04-01                               |
 | Owner          | Platform Engineering                     |
 | Target         | 1 week                                   |
