@@ -31,7 +31,7 @@ if [ "$TASK_TYPE" = "review" ]; then
 
   # --- Configure gh auth ---
   echo "[runner] Authenticating GitHub CLI..."
-  echo "$GITHUB_TOKEN" | gh auth login --with-token
+  export GH_TOKEN="$GITHUB_TOKEN"
 
   # --- Clone repo and checkout PR branch ---
   echo "[runner] Cloning ${TARGET_REPO}..."
