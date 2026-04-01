@@ -47,6 +47,7 @@ export async function runClaudeCode(params: {
 
   const args = [
     "--print",
+    "--output-format", "json",
     "--dangerously-skip-permissions",
     "--model", model,
     "--verbose",
