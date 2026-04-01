@@ -47,10 +47,8 @@ export async function runClaudeCode(params: {
 
   const args = [
     "--print",
-    "--output-format", "json",
     "--dangerously-skip-permissions",
     "--model", model,
-    "--verbose",
   ];
 
   const start = Date.now();
@@ -66,8 +64,7 @@ export async function runClaudeCode(params: {
     });
 
     // Pipe prompt via stdin to avoid CLI arg length issues
-    proc.stdin.write(params.prompt);
-    proc.stdin.end();
+    proc.stdin.end(params.prompt);
 
     proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
     proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
