@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/lib/db';
 import Link from 'next/link';
+import PRStatusBadge from './PRStatusBadge';
 
 interface Task {
   id: string;
@@ -10,6 +11,7 @@ interface Task {
   target_repo: string;
   agent_id: string | null;
   pr_url: string | null;
+  pr_number: number | null;
   created_by: string;
   created_at: string;
   llm_cost: number;
@@ -25,7 +27,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   const where = status ? 'WHERE t.status = $1' : '';
   const params = status ? [status] : [];
   const tasks = await query<Task>(
-    `SELECT t.id, t.description, t.task_type, t.status, t.target_repo, t.agent_id, t.pr_url, t.created_by, t.created_at,
+    `SELECT t.id, t.description, t.task_type, t.status, t.target_repo, t.agent_id, t.pr_url, t.pr_number, t.created_by, t.created_at,
             COALESCE(lc.total_cost, 0) as llm_cost
      FROM pipeline.tasks t
      LEFT JOIN (
@@ -80,7 +82,14 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
                 ) : '—'}
               </td>
               <td>{t.agent_id ? t.agent_id.substring(0, 12) + '...' : '—'}</td>
-              <td>{t.pr_url ? <a href={t.pr_url} target="_blank">PR</a> : '—'}</td>
+              <td>
+                {t.pr_url ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <a href={t.pr_url} target="_blank">PR</a>
+                    {t.pr_number && <PRStatusBadge taskId={t.id} />}
+                  </span>
+                ) : '—'}
+              </td>
               <td className="meta">{new Date(t.created_at).toLocaleString()}</td>
             </tr>
           ))}

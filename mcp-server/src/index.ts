@@ -674,6 +674,70 @@ server.tool(
 );
 
 server.tool(
+  "get_pr_status",
+  "Fetch live PR state from GitHub for a given repo and PR number. Returns draft/open/checks-failing/changes-requested/approved/merged/closed status plus check results and review details.",
+  {
+    repo: z.string().describe('Repository in owner/name format, e.g. "re-cinq/lore".'),
+    pr_number: z.number().describe("Pull request number."),
+  },
+  async ({ repo, pr_number }) => {
+    try {
+      const token = process.env.GITHUB_TOKEN;
+      if (!token) return { content: [{ type: "text" as const, text: "GITHUB_TOKEN not configured." }] };
+
+      async function ghFetch(path: string): Promise<any> {
+        const res = await fetch(`https://api.github.com${path}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        });
+        if (!res.ok) throw new Error(`GitHub API ${path}: ${res.status} ${res.statusText}`);
+        return res.json();
+      }
+
+      const [pr, reviews] = await Promise.all([
+        ghFetch(`/repos/${repo}/pulls/${pr_number}`),
+        ghFetch(`/repos/${repo}/pulls/${pr_number}/reviews`).catch(() => []),
+      ]);
+
+      let checkRuns: any[] = [];
+      try {
+        const checksResp = await ghFetch(`/repos/${repo}/commits/${pr.head.sha}/check-runs`);
+        checkRuns = checksResp.check_runs || [];
+      } catch { /* no checks */ }
+
+      const checks = checkRuns.map((c: any) => ({ name: c.name, status: c.status, conclusion: c.conclusion ?? null }));
+      const reviewList = Array.isArray(reviews)
+        ? reviews.map((r: any) => ({ user: r.user?.login || "unknown", state: r.state, submitted_at: r.submitted_at || "" }))
+        : [];
+
+      let computed_status: string;
+      if (pr.merged) computed_status = "merged";
+      else if (pr.state === "closed") computed_status = "closed";
+      else if (pr.draft) computed_status = "draft";
+      else if (checks.some((c: any) => c.conclusion === "failure" || c.conclusion === "timed_out")) computed_status = "checks-failing";
+      else if (reviewList.some((r: any) => r.state === "CHANGES_REQUESTED")) computed_status = "changes-requested";
+      else if (
+        reviewList.some((r: any) => r.state === "APPROVED") &&
+        checks.every((c: any) => c.conclusion === "success" || c.conclusion === "skipped" || c.conclusion === null)
+      ) computed_status = "approved";
+      else computed_status = "open";
+
+      const result = {
+        number: pr.number, title: pr.title, state: pr.state, draft: pr.draft ?? false,
+        merged: pr.merged, mergeable: pr.mergeable ?? null, html_url: pr.html_url,
+        checks, reviews: reviewList, computed_status,
+      };
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
   "list_pipeline_tasks",
   "List pipeline tasks with optional filtering by status. Returns tasks ordered by creation time, newest first.",
   {

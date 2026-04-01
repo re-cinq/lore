@@ -15,6 +15,8 @@ import type {
   PullReview,
   ReviewComment,
   PullCommit,
+  PRDetails,
+  PRStatus,
 } from "./platform.js";
 
 // ── Auth ─────────────────────────────────────────────────────────────
@@ -180,6 +182,60 @@ export class GitHubPlatform implements CodePlatform {
     try {
       await ok.rest.issues.removeLabel({ owner, repo: repoName, issue_number: issueNumber, name: label });
     } catch { /* label might not exist */ }
+  }
+
+  // ── PR Details ──
+
+  async getPRDetails(repo: string, prNumber: number): Promise<PRDetails> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const [{ data: pr }, checksResult, reviewsResult] = await Promise.all([
+      ok.rest.pulls.get({ owner, repo: repoName, pull_number: prNumber }),
+      ok.rest.checks.listForRef({ owner, repo: repoName, ref: `refs/pull/${prNumber}/head` }).catch(() => ({ data: { check_runs: [] } })),
+      ok.rest.pulls.listReviews({ owner, repo: repoName, pull_number: prNumber }).catch(() => ({ data: [] })),
+    ]);
+
+    const checks = checksResult.data.check_runs.map((c: any) => ({
+      name: c.name,
+      status: c.status,
+      conclusion: c.conclusion ?? null,
+    }));
+
+    const reviews = reviewsResult.data.map((r: any) => ({
+      user: r.user?.login || "unknown",
+      state: r.state,
+      submitted_at: r.submitted_at || "",
+    }));
+
+    let computed_status: PRStatus;
+    if (pr.merged) {
+      computed_status = 'merged';
+    } else if (pr.state === 'closed') {
+      computed_status = 'closed';
+    } else if (pr.draft) {
+      computed_status = 'draft';
+    } else if (checks.some((c: any) => c.conclusion === 'failure' || c.conclusion === 'timed_out')) {
+      computed_status = 'checks-failing';
+    } else if (reviews.some((r: any) => r.state === 'CHANGES_REQUESTED')) {
+      computed_status = 'changes-requested';
+    } else if (reviews.some((r: any) => r.state === 'APPROVED') && checks.every((c: any) => c.conclusion === 'success' || c.conclusion === 'skipped' || c.status !== 'completed' || c.conclusion === null)) {
+      computed_status = 'approved';
+    } else {
+      computed_status = 'open';
+    }
+
+    return {
+      number: pr.number,
+      title: pr.title,
+      state: pr.state,
+      draft: pr.draft ?? false,
+      merged: pr.merged,
+      mergeable: pr.mergeable ?? null,
+      html_url: pr.html_url,
+      checks,
+      reviews,
+      computed_status,
+    };
   }
 
   // ── Merge status ──
