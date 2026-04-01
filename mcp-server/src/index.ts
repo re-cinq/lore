@@ -53,6 +53,13 @@ import {
 } from './pipeline.js';
 import { loadTaskTypes, getTaskTypes } from './pipeline-config.js';
 import {
+  parseTasks,
+  syncTasksToDb,
+  getReadyTasks,
+  claimTask,
+  completeTask,
+} from './tasks.js';
+import {
   getOnboardedReposWithCounts,
   getAvailableRepos,
   onboardRepo,
@@ -595,7 +602,6 @@ server.tool(
     task_type: z.string().default("general").describe('Task type: "feature-request", "onboard", "general", "runbook", "implementation", "gap-fill", "review".'),
     target_repo: z.string().optional().describe('Target GitHub repository in "owner/repo" format. Auto-detected from git remote if omitted.'),
     context: z.object({
-      beads_task_id: z.string().optional(),
       spec_file: z.boolean().optional(),
       branch: z.string().optional(),
       seed_query: z.string().optional(),
@@ -754,6 +760,117 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify({ task_id, approved, status: approved ? 'approved' : 'changes-requested' }) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error submitting review: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Spec-task tools ---
+
+server.tool(
+  "sync_tasks",
+  "Parse a tasks.md file and sync spec-tasks into the pipeline. Handles dependencies and parallelization markers.",
+  {
+    tasks_markdown: z.string().describe("Contents of tasks.md (the full markdown text)."),
+    repo: z.string().optional().describe('Target repo in "owner/repo" format. Auto-detected if omitted.'),
+    spec_slug: z.string().describe("Feature slug (e.g. 'auth-refactor'). Used to group tasks."),
+  },
+  async ({ tasks_markdown, repo, spec_slug }) => {
+    try {
+      const resolvedRepo = repo || detectCurrentRepo();
+      if (!resolvedRepo) {
+        return { content: [{ type: "text" as const, text: "Could not detect repo. Specify repo parameter." }] };
+      }
+      if (!dbPoolRef) {
+        return { content: [{ type: "text" as const, text: "sync_tasks requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const parsed = parseTasks(tasks_markdown);
+      if (parsed.length === 0) {
+        return { content: [{ type: "text" as const, text: "No tasks found in the provided markdown." }] };
+      }
+      const result = await syncTasksToDb(dbPoolRef, resolvedRepo, spec_slug, parsed);
+      const summary = `Synced ${result.synced} tasks (${result.created} new) for ${resolvedRepo} / ${spec_slug}.`;
+      return { content: [{ type: "text" as const, text: summary }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error syncing tasks: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "ready_tasks",
+  "List spec-tasks that are ready to work on (all dependencies satisfied).",
+  {
+    repo: z.string().optional().describe('Target repo in "owner/repo" format. Auto-detected if omitted.'),
+  },
+  async ({ repo }) => {
+    try {
+      const resolvedRepo = repo || detectCurrentRepo();
+      if (!resolvedRepo) {
+        return { content: [{ type: "text" as const, text: "Could not detect repo. Specify repo parameter." }] };
+      }
+      if (!dbPoolRef) {
+        return { content: [{ type: "text" as const, text: "ready_tasks requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const tasks = await getReadyTasks(dbPoolRef, resolvedRepo);
+      if (tasks.length === 0) {
+        return { content: [{ type: "text" as const, text: "No ready tasks. All tasks are either completed, claimed, or blocked by dependencies." }] };
+      }
+      const lines = tasks.map((t: any) =>
+        `- **${t.metadata?.spec_task_id}** (${t.id}): ${t.description}`
+      );
+      return { content: [{ type: "text" as const, text: `## Ready tasks\n\n${lines.join('\n')}` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error fetching ready tasks: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "claim_task",
+  "Atomically claim a spec-task so no other agent works on it.",
+  {
+    task_id: z.string().describe("UUID of the pipeline task to claim."),
+    agent_id: z.string().optional().describe("Agent ID. Auto-resolved if omitted."),
+  },
+  async ({ task_id, agent_id }) => {
+    try {
+      if (!dbPoolRef) {
+        return { content: [{ type: "text" as const, text: "claim_task requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const resolvedAgent = agent_id || resolveAgentId();
+      const claimed = await claimTask(dbPoolRef, task_id, resolvedAgent);
+      if (!claimed) {
+        return { content: [{ type: "text" as const, text: `Could not claim task ${task_id}. It may already be claimed or does not exist.` }] };
+      }
+      return { content: [{ type: "text" as const, text: `Task ${task_id} claimed by ${resolvedAgent}.` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error claiming task: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "complete_task",
+  "Mark a spec-task as completed and report any newly unblocked tasks.",
+  {
+    task_id: z.string().describe("UUID of the pipeline task to complete."),
+  },
+  async ({ task_id }) => {
+    try {
+      if (!dbPoolRef) {
+        return { content: [{ type: "text" as const, text: "complete_task requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await completeTask(dbPoolRef, task_id);
+      if (!result.completed) {
+        return { content: [{ type: "text" as const, text: `Could not complete task ${task_id}. It may not be in 'running' state.` }] };
+      }
+      let msg = `Task ${task_id} completed.`;
+      if (result.unblocked.length > 0) {
+        msg += `\n\nNewly unblocked tasks:\n${result.unblocked.map(u => `- ${u}`).join('\n')}`;
+      }
+      return { content: [{ type: "text" as const, text: msg }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error completing task: ${err.message}` }] };
     }
   }
 );

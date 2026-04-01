@@ -1,8 +1,7 @@
-import { execSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 
 interface DelegateContext {
-  beads_task_id?: string;
+  pipeline_task_id?: string;
   spec_file?: boolean;
   branch?: string;
   seed_query?: string;
@@ -11,11 +10,8 @@ interface DelegateContext {
 export async function buildContextBundle(context?: DelegateContext): Promise<string> {
   const parts: string[] = [];
 
-  if (context?.beads_task_id) {
-    try {
-      const task = execSync(`bd show ${context.beads_task_id}`, { encoding: 'utf8' });
-      parts.push(`## Beads task\n${task}`);
-    } catch { /* bd not available, skip */ }
+  if (context?.pipeline_task_id) {
+    parts.push(`## Pipeline task\nTask ID: ${context.pipeline_task_id}`);
   }
 
   if (context?.spec_file) {

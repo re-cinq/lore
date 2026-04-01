@@ -16,30 +16,29 @@
 | Layer              | Technology                       | Phase |
 |--------------------|----------------------------------|-------|
 | MCP Server         | TypeScript + `@modelcontextprotocol/sdk` | 0     |
-| Glue Scripts       | Python (lore-gen-constitution, lore-tasks-to-beads) | 0 |
+| Glue Scripts       | Python (lore-gen-constitution)   | 0     |
 | Settings Merge     | Node.js (lore-merge-settings.js) | 0     |
 | Health Check       | Bash (lore-doctor.sh)            | 0     |
 | Install            | Bash (install.sh)                | 0     |
 | Platform Skills    | Markdown (lore-feature.md, lore-pr.md) | 0  |
 | PR CI Check        | GitHub Actions YAML              | 0     |
 | Vector Store       | PostgreSQL + pgvector (CNPG on GKE, europe-west1) | 1 |
-| Cluster Agents     | Klaus on GKE                     | 1     |
+| Cluster Agents     | Lore Agent on GKE                | 1     |
 | Observability      | OpenTelemetry → Cloud Monitoring  | 1    |
 | CI Evals           | PromptFoo                        | 1     |
 | Infrastructure     | CNPG operator + K8s manifests + CronJobs | 1     |
-| Task Sync          | Dolt (self-hosted on GKE)        | 2     |
+| Task Sync          | Pipeline tasks via PostgreSQL    | 2     |
 | Knowledge Graph    | Graphiti + FalkorDB                | 3     |
 | Context Cores      | OCI bundles via Artifact Registry  | 3     |
-| Self-Improvement   | Autoresearch loop (Klaus agent)    | 3     |
+| Self-Improvement   | Autoresearch loop (Lore Agent job) -- IMPLEMENTED | 3     |
+| Code Parsing       | web-tree-sitter (WASM)           | 1     |
 
 ### Key Dependencies
 
 | Dependency              | Purpose                          | Risk |
 |-------------------------|----------------------------------|------|
 | `@modelcontextprotocol/sdk` | MCP server framework          | Low — stable, well-documented |
-| `@beads/bd`             | Agent task tracking CLI          | Medium — newer tool, API may evolve |
 | `specify-cli`           | Spec Kit CLI                     | Medium — newer tool |
-| Klaus (`giantswarm/klaus`) | Cluster agent runtime         | Medium — requires GKE, Phase 1 |
 | CloudNativePG (CNPG)    | PostgreSQL operator + pgvector   | Low — mature CNCF operator |
 | OpenTelemetry + Cloud Monitoring | Trace observability     | Low — native GCP, free tier |
 | PromptFoo               | CI eval framework                | Low — mature, good GH Actions support |
