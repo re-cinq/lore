@@ -25,6 +25,7 @@ rules:
     resources:
       - loretasks/status
     verbs:
+      - get
       - update
       - patch
   - apiGroups:
@@ -50,6 +51,16 @@ rules:
       - pods/log
     verbs:
       - get
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - create
+      - update
+      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
