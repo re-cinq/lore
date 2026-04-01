@@ -4,7 +4,7 @@
 
 Building and validating the Lore platform. Phase 0 is validated
 (install, MCP server, skills, hooks all working). Phase 1 infra
-is deployed (PostgreSQL, Klaus, Dolt, MCP server on GKE). Currently
+is deployed (PostgreSQL, Klaus, MCP server on GKE). Currently
 working on embedding pipeline and testing the full stack end-to-end.
 
 ## What We Own

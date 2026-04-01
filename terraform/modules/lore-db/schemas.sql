@@ -44,3 +44,37 @@ BEGIN
   END LOOP;
 END
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Pipeline extension tables for eval, autoresearch, and context core tracking
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS pipeline.eval_runs (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team       TEXT NOT NULL,
+  pass_rate  DOUBLE PRECISION NOT NULL,
+  total_tests INTEGER NOT NULL,
+  passed     INTEGER NOT NULL,
+  failed     INTEGER NOT NULL,
+  run_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS pipeline.research_attempts (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cluster_id   TEXT NOT NULL,
+  namespace    TEXT NOT NULL,
+  approach     TEXT NOT NULL,
+  content      TEXT NOT NULL,
+  eval_score   DOUBLE PRECISION,
+  delta        DOUBLE PRECISION,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS pipeline.context_core_history (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  version     TEXT NOT NULL,
+  namespace   TEXT NOT NULL,
+  eval_score  DOUBLE PRECISION NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'candidate',
+  promoted_at TIMESTAMPTZ DEFAULT NOW()
+);

@@ -1,7 +1,7 @@
 <!--
 Sync Impact Report
-- Version: 1.2.0 (MINOR — modified principles)
-- Modified: Principle 7, 9 — Klaus replaced with Lore Agent (ADR-007)
+- Version: 1.3.0 (MINOR — updated commands, agents, tech stack, phase milestones)
+- Modified: Principle 4, 9 — updated commands and agent jobs; Phase 1, 3 — removed Klaus, marked implementations
 - Added principles:
   1. DX-First Delivery
   2. Zero Stored Credentials
@@ -23,9 +23,9 @@ Sync Impact Report
 |---|---|
 | Project | Lore |
 | Subtitle | Shared context infrastructure for Claude Code |
-| Constitution Version | 1.0.0 |
+| Constitution Version | 1.3.0 |
 | Ratification Date | 2026-03-25 |
-| Last Amended Date | 2026-03-28 |
+| Last Amended Date | 2026-04-01 |
 
 ## Purpose
 
@@ -69,8 +69,6 @@ requirement with no exceptions.
 - PostgreSQL (CNPG) auth: Workload Identity for all GKE workloads.
 - GitHub Actions: Workload Identity Federation.
 - Cloud Monitoring: default GKE service account scoping.
-- Dolt remote: personal access tokens stored in 1Password, injected
-  via Workload Identity in CI.
 - MCP server keys: scoped per team via IAM.
 
 **Rationale:** Stored credentials rotate, leak, and become attack
@@ -105,13 +103,13 @@ the embedding model is.
 A developer MUST need to remember exactly three things:
 
 ```
-bd ready          -> what should I work on right now?
+ready_tasks (MCP) -> what should I work on right now?
 /lore-feature     -> I'm starting something new
 /lore-pr          -> I'm about to open a PR
 ```
 
 Everything else — context sync, task state updates, spec generation,
-Beads wiring, PR description drafting — happens automatically or is
+PR description drafting — happens automatically or is
 prompted by Claude Code. A developer MUST never need to read the full
 platform spec to use the system correctly.
 
@@ -170,7 +168,7 @@ The following decisions have been made and MUST NOT be relitigated:
 | Observability | OpenTelemetry → Cloud Monitoring + Graphiti (gap signal) |
 | Scheduling | Lore Agent built-in scheduler with DB persistence |
 | GKE cluster | Existing shared `n8n-cluster` in `europe-west1` (not dedicated) |
-| Task tracking | Beads (agent) + GH Issues (platform) |
+| Task tracking | Pipeline tasks via Lore MCP + GH Issues |
 | Governance | Distributed ownership + CI eval gate |
 | Build sequence | DX-first: Phase 0 before infra |
 | Multi-agent orchestration | Native Claude Code Agent Teams (local) + Lore Agent (cluster) |
@@ -229,6 +227,9 @@ Platform jobs running as Lore Agent tasks:
 | Full re-index | Identifies stale chunks, drafts missing content |
 | Gap detection | Drafts missing context and opens PRs |
 | Spec drift check | Reads code + spec, writes the update needed |
+| Eval runner | Runs PromptFoo nightly, detects regressions, creates tasks |
+| Autoresearch | Finds knowledge gaps from Langfuse traces, generates candidates, opens PRs |
+| Context core builder | Compares context quality to baseline, promotes improvements |
 
 **Rationale:** The value of Lore is not in storing chunks — it is in
 understanding context. Agents that can reason about what is missing,
@@ -257,13 +258,13 @@ depends on.
 | MCP server | TypeScript, per-team containers on GKE |
 | Cluster agents | Lore Agent (`lore-agent` namespace, @anthropic-ai/sdk + Claude Code CLI) |
 | Local orchestration | Claude Code Agent Teams (native) |
-| Task tracking | Beads (`@beads/bd`) + GitHub Issues |
+| Task tracking | Pipeline tasks via Lore MCP + GitHub Issues |
 | Feature workflow | Spec Kit (`specify-cli`) |
 | Observability | OpenTelemetry → Cloud Monitoring |
 | CI evals | PromptFoo |
 | Infrastructure | CNPG operator + K8s manifests + CronJobs (on existing shared GKE cluster `n8n-cluster`) |
 | Auth | Workload Identity (GKE), Workload Identity Federation (GHA) |
-| Code parsing | tree-sitter (TypeScript, Python, Go, Kotlin, Swift) |
+| Code parsing | web-tree-sitter (TypeScript, Python, Go) |
 | Document parsing | LlamaIndex readers (GitHub, Confluence) + unstructured |
 | Knowledge graph | Graphiti (temporal context graph) + FalkorDB |
 
@@ -275,20 +276,18 @@ Validate the workflow before investing in infrastructure. Deliverables:
 - `re-cinq/lore` repo with CLAUDE.md hierarchy + ADRs + runbooks.
 - MVP MCP server (file-backed, ~80 lines TypeScript).
 - `install.sh` (idempotent, one-command onboarding).
-- `lore-gen-constitution.py` + `lore-tasks-to-beads.py` glue scripts.
+- `lore-gen-constitution.py` glue script.
 - `lore-doctor.sh` health check.
 - `lore-merge-settings.js` for safe settings merging.
 - Platform hooks (SessionStart, PostToolUse, Stop).
 - Platform skills (`/lore-feature`, `/lore-pr`).
 - PR template + CI description check in all product repos.
-- Beads + AGENTS.md integration.
-
 **Gate:** Pilot team completes a full feature loop naturally before
 Phase 1 starts.
 
 ### Phase 1: Managed Infrastructure (~2 weeks) — DEPLOYED AND VERIFIED
 
-Replace file-backed MCP with PostgreSQL + pgvector (CNPG). Wire up ingestion via Klaus.
+Replace file-backed MCP with PostgreSQL + pgvector (CNPG). Wire up ingestion.
 Deployed onto existing shared GKE cluster `n8n-cluster` in `europe-west1`.
 Hybrid search verified end-to-end: Workload Identity → Vertex AI → PostgreSQL → RRF results.
 Deliverables:
@@ -299,11 +298,10 @@ Deliverables:
 - Embeddings via Vertex AI `text-embedding-005` (768 dimensions),
   generated by `scripts/infra/generate-embeddings.sh`. 46 chunks
   seeded from clean repo after `lore-init`.
-- Namespaces on shared cluster: `mcp-servers`, `alloydb`, `klaus`, `dolt`.
+- Namespaces on shared cluster: `mcp-servers`, `alloydb`, `lore-agent`.
 - Klaus (`ghcr.io/re-cinq/klaus:latest`) in `klaus` namespace, port 8080.
 - Lore MCP server (`ghcr.io/re-cinq/lore-mcp:latest`) in `mcp-servers`
   namespace, HTTP transport on `:3000/mcp`.
-- Dolt remote (`dolt-sql-server`) in `dolt` namespace for Beads sync.
 - 3 CronJobs in `klaus` namespace: nightly reindex (2am), weekly gap
   detection (Mon 9am), weekly spec drift (Mon 10am).
 - OpenTelemetry instrumentation built into MCP server → Cloud Monitoring.
@@ -316,7 +314,6 @@ Deliverables:
 
 Close the loop — system improves based on actual usage. Deliverables:
 - Gap detection as Klaus agent (drafts content, opens PRs).
-- Beads Dolt remote for multi-developer sync.
 - Spec file ingestion into PostgreSQL.
 - Spec evals in CI.
 
@@ -324,9 +321,9 @@ Close the loop — system improves based on actual usage. Deliverables:
 - Lore ontology definition (8 entity types, 15 relationships).
 - Graphiti deployment (GKE graphiti namespace + FalkorDB).
 - `graph_search` + `get_entity_history` Lore MCP tools (Graphiti proxy).
-- Context Core manifest format + builder Klaus agent (nightly eval + promote/discard).
+- Context Core builder (nightly Lore Agent job: eval + promote/discard) — IMPLEMENTED.
 - `research-charter.md` — standing instructions for the context research org.
-- Autoresearch loop (weekly Klaus agent: generate candidates, eval against PromptFoo, promote or discard).
+- Autoresearch loop (weekly Lore Agent job: query Langfuse for low-confidence traces, generate candidates, eval against PromptFoo, promote or discard) — IMPLEMENTED.
 - Spec drift detection with VIOLATES graph edges.
 - AgentDB optional local cache.
 

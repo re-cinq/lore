@@ -147,6 +147,8 @@ The agent service decides which mode to use based on the task type configured in
 │  │              │  │  ├ Reindex    │  │                  │ │
 │  │              │  │  ├ Gap detect │  │                  │ │
 │  │              │  │  ├ Spec drift │  │                  │ │
+│  │              │  │  ├ Eval runner│  │                  │ │
+│  │              │  │  ├ Autoresrch │  │                  │ │
 │  │              │  │  └ TTL/merge  │  │                  │ │
 │  └──────┬───────┘  └──────┬───────┘  └──────────────────┘ │
 │         │                 │                                 │
@@ -165,7 +167,7 @@ The agent service decides which mode to use based on the task type configured in
 | Component | What it does |
 |-----------|-------------|
 | **MCP Server** | Serves org context to Claude Code via MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. |
-| **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, spawns Claude Code for complex ones. Runs 5 scheduled maintenance jobs. Creates PRs via GitHub App. Every task automatically creates a GitHub Issue on the target repo, so developers see what Lore is doing without checking the dashboard. Issues are updated with status changes and closed when the PR is created. |
+| **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, spawns Claude Code for complex ones. Runs 10 scheduled maintenance jobs. Creates PRs via GitHub App. Every task automatically creates a GitHub Issue on the target repo, so developers see what Lore is doing without checking the dashboard. Issues are updated with status changes and closed when the PR is created. |
 | **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring with cost tracking. Analytics dashboard. Global settings. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector, GIN for keyword. |
 | **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets for ingest automation. |
@@ -204,6 +206,9 @@ After the PR is merged, the agent automatically configures ingest secrets so con
 | Review reactor | Every 5 min | Detect human review feedback on agent PRs, generate fixes, commit to branch |
 | Approval check | Every 60s | Check for approved label on tasks awaiting approval |
 | Memory TTL | Every hour | Clean up expired memory entries |
+| Eval runner | Daily 3 AM | Run PromptFoo evals for all teams, detect quality regressions |
+| Context core builder | Daily 4 AM | Compare context quality to baseline, promote improvements |
+| Autoresearch | Monday 6 AM | Find low-confidence queries from Langfuse, generate context candidates, open PRs |
 
 ## Getting Started
 
@@ -221,9 +226,6 @@ scripts/infra/setup-db.sh           # PostgreSQL + pgvector
 scripts/infra/setup-agent-schema.sh  # Pipeline + job tables
 helm install lore-mcp terraform/modules/gke-mcp/mcp-helm/ -n mcp-servers
 helm install lore-agent terraform/modules/gke-mcp/agent-helm/ -n lore-agent
-
-# Remove Klaus (replaced by lore-agent)
-helm uninstall klaus -n klaus  # if still running
 ```
 
 ## Project Structure
@@ -234,7 +236,7 @@ lore/
 ├── agent/               # Lore Agent service (TypeScript, task runner + scheduler)
 ├── web-ui/              # Next.js dashboard (repo-centric UI, GitHub OAuth)
 ├── scripts/             # install.sh, lore-doctor, infra setup scripts
-├── terraform/modules/   # Helm charts (mcp-helm, agent-helm, dolt-helm)
+├── terraform/modules/   # Helm charts (mcp-helm, agent-helm)
 ├── k8s/                 # Ingress manifests, CronJobs
 ├── adrs/                # Architecture decision records (MADR format)
 ├── specs/               # Feature specifications (speckit workflow)
@@ -261,7 +263,8 @@ Architecture decisions are documented as ADRs in `adrs/`.
 | Web UI | Next.js 15, NextAuth v4 (GitHub OAuth) |
 | Database | PostgreSQL 16 + pgvector (CloudNativePG) |
 | Embeddings | Vertex AI `text-embedding-005` (768 dim) |
-| Search | Hybrid: HNSW vector + BM25 keyword, RRF fusion |
+| Search | Hybrid: HNSW vector + BM25 keyword, RRF fusion. AST-based code chunking via tree-sitter |
+| Code parsing | web-tree-sitter (TypeScript, Python, Go) |
 | GitHub | Octokit + `@octokit/auth-app` (GitHub App) |
 | Observability | OpenTelemetry traces + metrics |
 | Infrastructure | GKE, Helm, cert-manager, external-dns |
@@ -324,6 +327,10 @@ When running locally without a database, task creation and all memory operations
 | `get_pipeline_status` | Pipeline | Task status and event timeline |
 | `list_pipeline_tasks` | Pipeline | List tasks with status filter |
 | `cancel_task` | Pipeline | Cancel a running or pending task |
+| `sync_tasks` | Tasks | Parse tasks.md and sync to pipeline database |
+| `ready_tasks` | Tasks | List unblocked tasks (all dependencies satisfied) |
+| `claim_task` | Tasks | Atomically claim a task to prevent double work |
+| `complete_task` | Tasks | Mark done, report newly unblocked dependents |
 | `list_repos` | Repos | All onboarded repos with activity stats |
 | `onboard_repo` | Repos | Onboard a new repo to Lore |
 | `ingest_files` | Ingest | Manually ingest files into Lore's context store |

@@ -80,10 +80,6 @@ resource "kubernetes_namespace" "graphiti" {
   metadata { name = "graphiti" }
 }
 
-resource "kubernetes_namespace" "dolt" {
-  metadata { name = "dolt" }
-}
-
 # --- PostgreSQL (CNPG) ------------------------------------------------------------
 
 module "lore-db" {

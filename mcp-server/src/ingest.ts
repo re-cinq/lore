@@ -8,6 +8,7 @@
 
 import { getOctokit, isConfigured } from './pipeline-github.js';
 import { getQueryEmbedding } from './db.js';
+import { chunkFile } from './chunker.js';
 
 export interface IngestResult {
   file: string;
@@ -115,41 +116,49 @@ export async function ingestFiles(
         continue;
       }
 
-      // Upsert: delete old chunk, insert new one
+      // Upsert: delete old chunks for this file
       await pool.query(
         `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
         [filePath, repo],
       );
 
-      const { rows } = await pool.query(
-        `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id`,
-        [
-          content,
-          contentType,
-          schema,
-          repo,
-          filePath,
-          JSON.stringify({ commit, file_path: filePath, ingested_by: 'api' }),
-        ],
-      );
+      // Chunk the file using AST-based chunking (code) or heading-based (docs)
+      const chunks = await chunkFile(content, filePath, contentType);
 
-      const chunkId = rows[0]?.id;
-
-      // Generate and store embedding
+      let firstChunkId: string | undefined;
       let embedded = false;
-      const embedding = await getQueryEmbedding(content.substring(0, 8000));
-      if (embedding && chunkId) {
-        const embeddingStr = `[${embedding.join(',')}]`;
-        await pool.query(
-          `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
-          [embeddingStr, chunkId],
+
+      for (const chunk of chunks) {
+        const { rows } = await pool.query(
+          `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id`,
+          [
+            chunk.content,
+            contentType,
+            schema,
+            repo,
+            filePath,
+            JSON.stringify({ ...chunk.metadata, commit, file_path: filePath, ingested_by: 'api' }),
+          ],
         );
-        embedded = true;
+
+        const chunkId = rows[0]?.id;
+        if (!firstChunkId) firstChunkId = chunkId;
+
+        // Generate and store embedding per chunk (cap input at 8k chars as safety net)
+        const embedding = await getQueryEmbedding(chunk.content.substring(0, 8000));
+        if (embedding && chunkId) {
+          const embeddingStr = `[${embedding.join(',')}]`;
+          await pool.query(
+            `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
+            [embeddingStr, chunkId],
+          );
+          embedded = true;
+        }
       }
 
-      results.push({ file: filePath, status: 'ingested', chunk_id: chunkId, embedded });
+      results.push({ file: filePath, status: 'ingested', chunk_id: firstChunkId, embedded });
       ingested++;
     } catch (err: any) {
       console.error(`[ingest] Error processing ${filePath}:`, err.message);

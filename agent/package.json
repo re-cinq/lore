@@ -16,6 +16,8 @@
     "libsodium-wrappers": "^0.8.2",
     "octokit": "^4.1.0",
     "pg": "^8.13.0",
+    "tree-sitter-wasms": "^0.1.11",
+    "web-tree-sitter": "^0.24.7",
     "yaml": "^2.7.0"
   },
   "devDependencies": {

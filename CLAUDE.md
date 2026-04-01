@@ -25,8 +25,7 @@ never directly.
 **Observability**: OpenTelemetry traces + metrics → Cloud Monitoring.
 Gap signal goes to Graphiti episodes in Phase 3.
 
-**Task tracking**: Beads for agent-native task tracking, Dolt for
-multi-developer sync.
+**Task tracking**: Pipeline tasks via Lore MCP + GitHub Issues.
 
 ## Code Conventions
 
@@ -34,7 +33,7 @@ multi-developer sync.
 target. Zod for input validation on all MCP tools. Return errors as
 text in MCP responses, never throw.
 
-**Python** for glue scripts (lore-gen-constitution, lore-tasks-to-beads).
+**Python** for glue scripts (lore-gen-constitution).
 Keep them short (<100 lines). Handle missing tools gracefully with
 clear error messages.
 
@@ -42,7 +41,7 @@ clear error messages.
 idempotent — safe to re-run. Prefix output with `[lore]`. Exit 0 on
 success, 1 on failure.
 
-**Helm charts** for K8s deployments (Lore Agent, Dolt, MCP server).
+**Helm charts** for K8s deployments (Lore Agent, MCP server).
 Values files should have sane defaults. No hardcoded secrets — use
 K8s Secrets.
 
@@ -116,10 +115,9 @@ The MCP server runs locally via stdio. No infra needed for Phase 0.
 
 ## GKE Deployment
 
-Four services in the `n8n-cluster` (europe-west1):
+Three services in the `n8n-cluster` (europe-west1):
 - PostgreSQL + pgvector: `alloydb` namespace
 - Lore Agent: `lore-agent` namespace
-- Dolt: `dolt` namespace
 - Lore MCP server: `mcp-servers` namespace
 
 Deploy order: `setup-db.sh` → `setup-schedulers.sh` → Helm install Lore Agent + MCP.

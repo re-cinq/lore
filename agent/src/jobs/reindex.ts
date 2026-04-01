@@ -1,5 +1,6 @@
 import { query, getPool } from "../db.js";
 import { platform } from "../platform.js";
+import { chunkFile } from "../chunker.js";
 
 interface OnboardedRepo {
   full_name: string;
@@ -190,40 +191,44 @@ async function ingestFile(
     return true;
   }
 
-  // Delete existing chunk for this file
+  // Delete existing chunks for this file
   await pool.query(
     `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
     [filePath, fullName],
   );
 
-  // Insert new chunk
-  const { rows } = await pool.query(
-    `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id`,
-    [
-      content,
-      contentType,
-      schema,
-      fullName,
-      filePath,
-      JSON.stringify({ file_path: filePath, ingested_by: "reindex-job" }),
-    ],
-  );
+  // Chunk the file using AST-based chunking (code) or heading-based (docs)
+  const chunks = await chunkFile(content, filePath, contentType);
 
-  const chunkId = rows[0]?.id;
-
-  // Generate and store embedding
-  const embedding = await generateEmbedding(content);
-  if (embedding && chunkId) {
-    const embeddingStr = `[${embedding.join(",")}]`;
-    await pool.query(
-      `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
-      [embeddingStr, chunkId],
+  for (const chunk of chunks) {
+    const { rows } = await pool.query(
+      `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [
+        chunk.content,
+        contentType,
+        schema,
+        fullName,
+        filePath,
+        JSON.stringify({ ...chunk.metadata, file_path: filePath, ingested_by: "reindex-job" }),
+      ],
     );
-    console.log(`[job] Embedded ${filePath} (chunk ${chunkId})`);
-  } else if (chunkId) {
-    console.log(`[job] Ingested ${filePath} without embedding (chunk ${chunkId})`);
+
+    const chunkId = rows[0]?.id;
+
+    // Generate and store embedding per chunk (input already capped at 8k in generateEmbedding)
+    const embedding = await generateEmbedding(chunk.content);
+    if (embedding && chunkId) {
+      const embeddingStr = `[${embedding.join(",")}]`;
+      await pool.query(
+        `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
+        [embeddingStr, chunkId],
+      );
+      console.log(`[job] Embedded ${filePath} chunk ${chunk.metadata.chunk_index} (id ${chunkId})`);
+    } else if (chunkId) {
+      console.log(`[job] Ingested ${filePath} chunk ${chunk.metadata.chunk_index} without embedding (id ${chunkId})`);
+    }
   }
 
   return true;
