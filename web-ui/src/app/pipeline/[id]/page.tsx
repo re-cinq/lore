@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/lib/db';
 import PRStatusCard from './PRStatusCard';
+import TaskLogs from './TaskLogs';
 
 interface Task {
   id: string;
@@ -78,6 +79,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           </form>
         )}
       </div>
+
+      <TaskLogs taskId={task.id} initialStatus={task.status} />
 
       <h2>Event Timeline</h2>
       <div className="memory-list">
