@@ -55,6 +55,9 @@ spec:
                   type: integer
                   default: 30
                   description: Maximum runtime in minutes before the job is killed.
+                prNumber:
+                  type: integer
+                  description: PR number for review tasks (optional).
                 image:
                   type: string
                   default: "ghcr.io/re-cinq/lore-claude-runner:latest"
@@ -96,6 +99,12 @@ spec:
                 prNumber:
                   type: integer
                   description: PR number on the target repo.
+                reviewResult:
+                  type: string
+                  description: Review outcome — "approved" or "changes-requested" or "".
+                parentTaskId:
+                  type: string
+                  description: Links a review task back to the implementation task.
                 failureReason:
                   type: string
                   description: Human-readable reason if the task failed.
@@ -111,6 +120,9 @@ spec:
         - name: Repo
           type: string
           jsonPath: .spec.targetRepo
+        - name: ReviewResult
+          type: string
+          jsonPath: .status.reviewResult
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp

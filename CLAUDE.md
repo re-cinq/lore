@@ -150,17 +150,26 @@ scripts/task-types.yaml:
 - **review**: reviews a PR against conventions
 
 Agent creates branch + PR when done. Simple tasks use direct
-Anthropic API calls. Implementation tasks use ephemeral K8s Job
-pods via the LoreTask CRD instead of running Claude Code inside
-the agent pod:
+Anthropic API calls. Implementation and review tasks use ephemeral
+K8s Job pods via the LoreTask CRD:
 
 1. Agent worker creates a LoreTask CR (custom resource)
 2. The loretask-controller watches CRs and creates Jobs with the
    claude-runner image
-3. Job pods: clone repo → run Claude Code → commit → push
+3. Job pods: clone repo → run Claude Code → commit → push (or review)
 4. A watcher job in the agent creates a PR when the Job completes
 5. Agent deploys do NOT affect running Job pods — tasks survive
    rollout restarts
+
+**Autonomous review loop** (opt-in per repo via `auto_review` setting):
+- After implementation PR is created, watcher auto-creates a review
+  LoreTask CR
+- Review Job pod clones the PR branch, reads spec + conventions,
+  posts PR comments via `gh`, outputs APPROVED or CHANGES_REQUESTED
+- Approved: task marked reviewed, PR ready for human merge
+- Changes requested (iteration < 2): new implementation LoreTask
+  with feedback on the same branch
+- Changes requested (iteration >= 2): escalate to human review
 
 - Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.

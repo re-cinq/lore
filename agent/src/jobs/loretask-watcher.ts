@@ -13,6 +13,13 @@ import { query } from "../db.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
+async function shouldAutoReview(repo: string): Promise<boolean> {
+  const rows = await query<{ settings: any }>(
+    `SELECT settings FROM lore.repos WHERE full_name = $1`, [repo],
+  );
+  return rows[0]?.settings?.auto_review === true;
+}
+
 async function getIssueNumber(taskId: string): Promise<{ issue_number: number | null; target_repo: string }> {
   const rows = await query<{ issue_number: number | null; target_repo: string }>(
     `SELECT issue_number, target_repo FROM pipeline.tasks WHERE id = $1`,
@@ -96,6 +103,63 @@ export async function watchLoreTasks(): Promise<void> {
         });
 
         console.log(`[loretask-watcher] Task ${taskId} → PR ${pr.url}`);
+
+        // Trigger auto-review if enabled for this repo
+        if (await shouldAutoReview(lt.spec.targetRepo)) {
+          const reviewTaskResult = await query<{ id: string }>(
+            `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle)
+             VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [
+              `Review PR #${pr.number} on ${lt.spec.targetRepo}`,
+              'review',
+              lt.spec.targetRepo,
+              'loretask-watcher',
+              JSON.stringify({ pr_number: pr.number, branch: lt.spec.branch, parent_task_id: taskId }),
+            ],
+          );
+          const reviewTaskId = reviewTaskResult[0].id;
+
+          // Create review LoreTask CR
+          const reviewCRName = `loretask-${reviewTaskId.substring(0, 8)}`;
+          await k8sApi.createNamespacedCustomObject({
+            group: GROUP, version: VERSION, namespace, plural: PLURAL,
+            body: {
+              apiVersion: `${GROUP}/${VERSION}`,
+              kind: "LoreTask",
+              metadata: {
+                name: reviewCRName,
+                namespace,
+                labels: {
+                  "lore.re-cinq.com/task-id": reviewTaskId,
+                  "lore.re-cinq.com/task-type": "review",
+                },
+              },
+              spec: {
+                taskId: reviewTaskId,
+                taskType: "review",
+                description: `Review PR #${pr.number} on ${lt.spec.targetRepo}`,
+                prompt: `Review PR #${pr.number} on this branch. Read the spec in specs/ for the feature requirements. Check all changes against CLAUDE.md conventions and ADRs in adrs/. Post specific review comments on the PR using 'gh pr review'. Then output exactly one of:\n- REVIEW_RESULT:APPROVED\n- REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>`,
+                targetRepo: lt.spec.targetRepo,
+                branch: lt.spec.branch,
+                prNumber: pr.number,
+                model: "claude-sonnet-4-6",
+                timeoutMinutes: 10,
+              },
+            },
+          });
+
+          // Update implementation task to review status
+          await query(
+            `UPDATE pipeline.tasks SET status = 'review', updated_at = now() WHERE id = $1`,
+            [taskId],
+          );
+          await query(
+            `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'pr-created', 'review', $2)`,
+            [taskId, JSON.stringify({ review_task_id: reviewTaskId, auto_review: true })],
+          );
+
+          console.log(`[loretask-watcher] Auto-review: created review task ${reviewTaskId} for PR #${pr.number}`);
+        }
       } catch (err: any) {
         console.error(`[loretask-watcher] Failed to create PR for ${taskId}: ${err.message}`);
       }
@@ -117,6 +181,115 @@ export async function watchLoreTasks(): Promise<void> {
         );
         await commentFailureOnIssue(rows[0].target_repo, rows[0].issue_number, lt.status.failureReason);
         console.log(`[loretask-watcher] Task ${taskId} failed: ${lt.status.failureReason}`);
+      }
+    }
+
+    // Handle completed review tasks
+    if (phase === "Succeeded" && lt.spec.taskType === "review" && lt.status?.reviewResult) {
+      const contextBundle = (await query<{ context_bundle: any }>(
+        `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
+      ))[0]?.context_bundle;
+      const parentTaskId: string | undefined =
+        lt.status?.parentTaskId || contextBundle?.parent_task_id;
+
+      if (!parentTaskId) {
+        console.log(`[loretask-watcher] Review ${taskId} has no parent task, skipping`);
+        continue;
+      }
+
+      if (lt.status.reviewResult === "approved") {
+        await query(
+          `UPDATE pipeline.tasks SET status = 'review', updated_at = now() WHERE id = $1`,
+          [parentTaskId],
+        );
+        await query(
+          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, $2, $3, $4)`,
+          [parentTaskId, 'review', 'review', JSON.stringify({ review_result: 'approved', review_task_id: taskId })],
+        );
+        // Comment on issue
+        const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
+        if (issue_number) {
+          await platform().commentOnIssue(target_repo, issue_number, "Agent review: **approved**. PR is ready for human merge.").catch(() => {});
+        }
+        console.log(`[loretask-watcher] Review approved for parent task ${parentTaskId}`);
+      } else {
+        // Changes requested — check iteration count
+        const parentRows = await query<{
+          review_iteration: number;
+          target_repo: string;
+          target_branch: string;
+          description: string;
+          issue_number: number | null;
+        }>(
+          `SELECT review_iteration, target_repo, target_branch, description, issue_number FROM pipeline.tasks WHERE id = $1`,
+          [parentTaskId],
+        );
+        const parent = parentRows[0];
+        if (!parent) continue;
+
+        const iteration = (parent.review_iteration || 0) + 1;
+        await query(`UPDATE pipeline.tasks SET review_iteration = $1, updated_at = now() WHERE id = $2`, [iteration, parentTaskId]);
+
+        if (iteration >= 2) {
+          // Escalate to human
+          await query(
+            `UPDATE pipeline.tasks SET status = 'review', updated_at = now() WHERE id = $1`,
+            [parentTaskId],
+          );
+          await query(
+            `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, $2, $3, $4)`,
+            [parentTaskId, 'review', 'review', JSON.stringify({ review_result: 'needs-human-review', iterations: iteration })],
+          );
+          if (parent.issue_number) {
+            await platform().commentOnIssue(parent.target_repo, parent.issue_number, `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`).catch(() => {});
+            await platform().addIssueLabel(parent.target_repo, parent.issue_number, "needs-human-review").catch(() => {});
+          }
+          console.log(`[loretask-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`);
+        } else {
+          // Create new implementation task with feedback on the same branch
+          const feedback = lt.status.output || "Review requested changes";
+          const fixTaskResult = await query<{ id: string }>(
+            `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle)
+             VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [
+              `Fix review feedback on PR: ${feedback.substring(0, 200)}`,
+              'implementation',
+              parent.target_repo,
+              'review-loop',
+              JSON.stringify({ branch: parent.target_branch, review_feedback: feedback, parent_task_id: parentTaskId }),
+            ],
+          );
+          const fixTaskId = fixTaskResult[0].id;
+
+          // Create implementation LoreTask CR on the same branch
+          await k8sApi.createNamespacedCustomObject({
+            group: GROUP, version: VERSION, namespace, plural: PLURAL,
+            body: {
+              apiVersion: `${GROUP}/${VERSION}`,
+              kind: "LoreTask",
+              metadata: {
+                name: `loretask-${fixTaskId.substring(0, 8)}`,
+                namespace,
+                labels: { "lore.re-cinq.com/task-id": fixTaskId, "lore.re-cinq.com/task-type": "implementation" },
+              },
+              spec: {
+                taskId: fixTaskId,
+                taskType: "implementation",
+                description: `Fix review feedback: ${feedback.substring(0, 200)}`,
+                prompt: `Address the following review feedback on this branch. The PR already exists — push fixes to the same branch.\n\nFeedback:\n${feedback}`,
+                targetRepo: parent.target_repo,
+                branch: parent.target_branch || lt.spec.branch,
+                model: "claude-sonnet-4-6",
+                timeoutMinutes: 30,
+              },
+            },
+          });
+
+          if (parent.issue_number) {
+            await platform().commentOnIssue(parent.target_repo, parent.issue_number, `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`).catch(() => {});
+          }
+          console.log(`[loretask-watcher] Review changes requested, created fix task ${fixTaskId} (iteration ${iteration})`);
+        }
       }
     }
 

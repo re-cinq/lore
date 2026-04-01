@@ -28,6 +28,7 @@ interface LoreTaskSpec {
   prompt: string;
   model?: string;
   taskType?: string;
+  prNumber?: number;
   image?: string;
   timeoutMinutes?: number;
 }
@@ -39,6 +40,8 @@ interface LoreTaskStatus {
   completedAt?: string;
   output?: string;
   changedFiles?: number;
+  reviewResult?: string;
+  parentTaskId?: string;
   failureReason?: string;
   exitCode?: number;
 }
@@ -191,6 +194,7 @@ async function reconcile(lt: LoreTask): Promise<void> {
                 { name: "TASK_PROMPT", value: lt.spec.prompt },
                 { name: "MODEL", value: lt.spec.model || "claude-sonnet-4-6" },
                 { name: "TASK_TYPE", value: lt.spec.taskType || "implementation" },
+                { name: "PR_NUMBER", value: String(lt.spec.prNumber || "") },
                 {
                   name: "ANTHROPIC_API_KEY",
                   valueFrom: {
@@ -282,12 +286,22 @@ async function checkJob(lt: LoreTask): Promise<void> {
     const logs = await readPodLogs(jobName);
     const changedFiles = parseChangedFiles(logs);
 
-    await patchStatus(ltName, {
+    const status: Partial<LoreTaskStatus> = {
       phase: "Succeeded",
       completedAt: new Date().toISOString(),
       output: logs.slice(-5000),
       changedFiles,
-    });
+    };
+
+    if (lt.spec.taskType === "review") {
+      const resultMatch = logs.match(/REVIEW_RESULT:(APPROVED|CHANGES_REQUESTED(?::[\s\S]*)?)/);
+      if (resultMatch) {
+        const isApproved = resultMatch[1].startsWith("APPROVED");
+        status.reviewResult = isApproved ? "approved" : "changes-requested";
+      }
+    }
+
+    await patchStatus(ltName, status);
 
     await deleteTokenSecret(taskIdShort);
     console.log(`[controller] Task ${lt.spec.taskId} succeeded (${changedFiles} files changed)`);

@@ -51,18 +51,20 @@ task_types:
 
   review:
     prompt_template: |
-      Review the following pull request. Check the code against:
-      1. The original task/spec requirements
-      2. Organization conventions from Lore context (ADRs, CLAUDE.md)
-      3. Code quality and correctness
+      Review PR #{pr_number} on this branch. Check the code against:
+      1. The spec in specs/ directory
+      2. Conventions in CLAUDE.md and ADRs in adrs/
+      3. Code quality, type safety, security
 
-      Post specific, actionable comments on the PR. If the code meets
-      all requirements, approve. If not, request changes with clear
-      explanations of what needs fixing.
+      Post specific review comments on the PR using gh pr review.
+      Then output exactly one of:
+      - REVIEW_RESULT:APPROVED
+      - REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>
 
       PR: {description}
-    timeout_minutes: 15
+    timeout_minutes: 10
     review_required: false
+    execution_mode: claude-code
 
   feature-request:
     prompt_template: |
