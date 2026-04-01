@@ -48,20 +48,20 @@ if [ "$TASK_TYPE" = "review" ]; then
 
   # --- Parse review result ---
   echo "[runner] Parsing review result..."
-  if echo "$CLAUDE_OUTPUT" | grep -q "REVIEW_APPROVED"; then
+  if echo "$CLAUDE_OUTPUT" | grep -qE "REVIEW_RESULT:APPROVED|REVIEW_APPROVED"; then
     RESULT="APPROVED"
     echo "$RESULT" > /tmp/review-result.txt
-  elif echo "$CLAUDE_OUTPUT" | grep -q "REVIEW_CHANGES_REQUESTED"; then
-    FEEDBACK=$(echo "$CLAUDE_OUTPUT" | grep "REVIEW_CHANGES_REQUESTED" | sed 's/.*REVIEW_CHANGES_REQUESTED[[:space:]]*//')
+  elif echo "$CLAUDE_OUTPUT" | grep -qE "REVIEW_RESULT:CHANGES_REQUESTED|REVIEW_CHANGES_REQUESTED"; then
+    FEEDBACK=$(echo "$CLAUDE_OUTPUT" | grep -oE "(REVIEW_RESULT:CHANGES_REQUESTED|REVIEW_CHANGES_REQUESTED)[: ]*(.*)" | head -1 | sed 's/.*CHANGES_REQUESTED[: ]*//')
     RESULT="CHANGES_REQUESTED:${FEEDBACK}"
     echo "$RESULT" > /tmp/review-result.txt
   else
-    echo "[runner] ERROR: Claude output did not contain REVIEW_APPROVED or REVIEW_CHANGES_REQUESTED"
-    echo "UNKNOWN" > /tmp/review-result.txt
-    exit 1
+    echo "[runner] WARNING: Could not parse structured result, treating as changes-requested"
+    RESULT="CHANGES_REQUESTED:${CLAUDE_OUTPUT: -500}"
+    echo "$RESULT" > /tmp/review-result.txt
   fi
 
-  echo "REVIEW_RESULT=${RESULT}"
+  echo "REVIEW_RESULT:${RESULT}"
   echo "[runner] Review done."
 
 else
