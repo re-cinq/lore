@@ -27,10 +27,11 @@ let config: Record<string, TaskTypeConfig> = {};
 export function loadTaskTypes(): void {
   // Look for task-types.yaml in several locations
   const paths = [
+    process.env.TASK_TYPES_PATH || '',
     join(process.cwd(), 'scripts', 'task-types.yaml'),
     join(process.env.CONTEXT_PATH || '', 'scripts', 'task-types.yaml'),
     join(process.env.HOME || '', '.re-cinq', 'lore', 'scripts', 'task-types.yaml'),
-  ];
+  ].filter(Boolean);
   for (const p of paths) {
     try {
       const raw = readFileSync(p, 'utf-8');

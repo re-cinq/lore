@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.configMap.name }}
+  labels:
+    app: lore-mcp
+data:
+  task-types.yaml: |
+    {{- .Values.taskTypesConfig | default "" | nindent 4 }}
