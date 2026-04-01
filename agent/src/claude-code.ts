@@ -40,7 +40,7 @@ export async function runClaudeCode(params: {
   taskId?: string;
 }): Promise<ClaudeCodeResult> {
   const workDir = params.workDir || "/tmp";
-  const model = params.model || "claude-sonnet-4-6-20250514";
+  const model = params.model || "claude-sonnet-4-6";
 
   // 15 min timeout — implementation tasks need time for multi-file edits
   const timeoutMs = 15 * 60_000;
