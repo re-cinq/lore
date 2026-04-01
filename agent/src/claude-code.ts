@@ -6,7 +6,7 @@
  * mode can't do.
  */
 
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { query } from "./db.js";
 
 export interface ClaudeCodeResult {
@@ -41,79 +41,81 @@ export async function runClaudeCode(params: {
 }): Promise<ClaudeCodeResult> {
   const workDir = params.workDir || "/tmp";
   const model = params.model || "claude-sonnet-4-20250514";
-  const maxTokens = params.maxTokens || 16384;
 
-  // Timeout: default 5 min, scale up for large maxTokens
-  const timeoutMs = Math.max(5 * 60_000, Math.ceil(maxTokens / 4096) * 60_000);
+  // 15 min timeout — implementation tasks need time for multi-file edits
+  const timeoutMs = 15 * 60_000;
 
   const args = [
     "--print",
     "--model", model,
-    params.prompt,
+    "--verbose",
+    "-p", params.prompt,
   ];
 
   const start = Date.now();
 
   return new Promise<ClaudeCodeResult>((resolve, reject) => {
-    execFile(
-      "claude",
-      args,
-      {
-        cwd: workDir,
-        timeout: timeoutMs,
-        maxBuffer: 50 * 1024 * 1024, // 50 MB
-        env: { ...process.env },
-      },
-      async (error, stdout, stderr) => {
-        const durationMs = Date.now() - start;
-        const exitCode = error?.code
-          ? typeof error.code === "number"
-            ? error.code
-            : 1
-          : 0;
+    let stdout = "";
+    let stderr = "";
 
-        if (stderr) {
-          console.error(`[agent] Claude Code stderr: ${stderr.substring(0, 500)}`);
-        }
+    const proc = spawn("claude", args, {
+      cwd: workDir,
+      env: { ...process.env },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
-        const output = stdout || "";
+    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
 
-        // Estimate tokens from output length (rough: ~4 chars per token)
-        const estimatedOutputTokens = Math.ceil(output.length / 4);
-        const estimatedInputTokens = Math.ceil(params.prompt.length / 4);
+    const timer = setTimeout(() => {
+      proc.kill("SIGTERM");
+      reject(new Error(`Claude Code timed out after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
 
-        // Log to pipeline.llm_calls
-        try {
-          await query(
-            `INSERT INTO pipeline.llm_calls
-               (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-              params.taskId || null,
-              "claude-code",
-              model,
-              estimatedInputTokens,
-              estimatedOutputTokens,
-              0, // actual cost tracked by Claude Code internally
-              durationMs,
-            ],
-          );
-        } catch (logErr: any) {
-          console.error(`[agent] Failed to log Claude Code call: ${logErr.message}`);
-        }
+    proc.on("close", async (code) => {
+      clearTimeout(timer);
+      const durationMs = Date.now() - start;
+      const exitCode = code ?? 1;
 
-        console.log(
-          `[agent] Claude Code: model=${model} exit=${exitCode} ` +
-          `output=${output.length} chars ${durationMs}ms`,
+      if (stderr) {
+        console.error(`[agent] Claude Code stderr: ${stderr.substring(0, 500)}`);
+      }
+
+      // Estimate tokens from output length (rough: ~4 chars per token)
+      const estimatedOutputTokens = Math.ceil(stdout.length / 4);
+      const estimatedInputTokens = Math.ceil(params.prompt.length / 4);
+
+      // Log to pipeline.llm_calls
+      try {
+        await query(
+          `INSERT INTO pipeline.llm_calls
+             (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            params.taskId || null,
+            "claude-code",
+            model,
+            estimatedInputTokens,
+            estimatedOutputTokens,
+            0, // actual cost tracked by Claude Code internally
+            durationMs,
+          ],
         );
+      } catch (logErr: any) {
+        console.error(`[agent] Failed to log Claude Code call: ${logErr.message}`);
+      }
 
-        if (error && !stdout) {
-          reject(new Error(`Claude Code failed (exit ${exitCode}): ${error.message}`));
-          return;
-        }
+      console.log(
+        `[agent] Claude Code: model=${model} exit=${exitCode} ` +
+        `output=${stdout.length} chars ${durationMs}ms`,
+      );
 
-        resolve({ output, exitCode, durationMs });
-      },
-    );
+      if (exitCode !== 0 && !stdout) {
+        reject(new Error(`Claude Code failed (exit ${exitCode}): ${stderr.substring(0, 500)}`));
+        return;
+      }
+
+      resolve({ output: stdout, exitCode, durationMs });
+    });
   });
 }
