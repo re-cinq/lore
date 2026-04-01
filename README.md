@@ -387,6 +387,38 @@ claude "ingest CLAUDE.md and the ADRs into Lore"
 
 You don't need to know speckit, MADR, or any engineering convention. The agent matches the repo's existing style automatically.
 
+### Full Flow: PM → Spec → Engineer → PR
+
+```
+PM types feature intent in plain language (Lore UI)
+         │
+    Lore Agent picks up the task
+    ├── Fetches repo context (CLAUDE.md, ADRs, memories)
+    ├── Generates specs/{feature}/spec.md
+    ├── Generates specs/{feature}/data-model.md
+    ├── Generates specs/{feature}/tasks.md
+    └── Opens PR + GitHub Issue on the repo
+         │
+    Engineer gets notification (GitHub Issue)
+    ├── Reviews spec PR, refines, merges
+    └── Opens Claude Code in the repo:
+         │
+    /lore-feature
+    ├── Claude shows available specs
+    ├── Engineer picks one
+    ├── Claude reads spec + tasks
+    ├── Creates feature branch
+    ├── Implements tasks one by one
+    ├── Marks [x] in tasks.md after each
+    ├── Commits atomically per task
+    └── When done:
+         │
+    /lore-pr
+    ├── Claude reads spec + diff + ADRs
+    ├── Drafts PR description
+    └── Creates PR via gh CLI
+```
+
 ### For Engineers: Work from a spec
 
 After a spec is merged (from a PM feature request or manual creation):
