@@ -36,7 +36,7 @@ task_types:
     timeout_minutes: 45
     review_required: true
     execution_mode: claude-code
-    model: claude-sonnet-4-6-20250627
+    model: claude-sonnet-4-6-20250514
 
   gap-fill:
     prompt_template: |
