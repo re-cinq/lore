@@ -24,7 +24,7 @@ spec:
           imagePullPolicy: Always
           command:
             - node
-            - dist/loretask-controller.js
+            - dist/loretask-controller-main.js
           env:
             - name: NAMESPACE
               value: lore-agent
