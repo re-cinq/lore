@@ -49,7 +49,6 @@ export async function runClaudeCode(params: {
   const args = [
     "--print",
     "--model", model,
-    "--max-tokens", String(maxTokens),
     params.prompt,
   ];
 
