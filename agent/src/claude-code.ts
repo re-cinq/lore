@@ -40,7 +40,7 @@ export async function runClaudeCode(params: {
   taskId?: string;
 }): Promise<ClaudeCodeResult> {
   const workDir = params.workDir || "/tmp";
-  const model = params.model || "claude-sonnet-4-20250514";
+  const model = params.model || "claude-sonnet-4-6-20250627";
 
   // 15 min timeout — implementation tasks need time for multi-file edits
   const timeoutMs = 15 * 60_000;
@@ -48,7 +48,10 @@ export async function runClaudeCode(params: {
   const args = [
     "--print",
     "--dangerously-skip-permissions",
+    "--verbose",
+    "--output-format", "stream-json",
     "--model", model,
+    "--", params.prompt,
   ];
 
   const start = Date.now();
@@ -60,11 +63,8 @@ export async function runClaudeCode(params: {
     const proc = spawn("claude", args, {
       cwd: workDir,
       env: { ...process.env },
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
-
-    // Pipe prompt via stdin to avoid CLI arg length issues
-    proc.stdin.end(params.prompt);
 
     proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
     proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
