@@ -48,6 +48,28 @@ export interface PullCommit {
   date: string;
 }
 
+export type PRStatus =
+  | 'draft'
+  | 'open'
+  | 'checks-failing'
+  | 'changes-requested'
+  | 'approved'
+  | 'merged'
+  | 'closed';
+
+export interface PRDetails {
+  number: number;
+  title: string;
+  state: string;
+  draft: boolean;
+  merged: boolean;
+  mergeable: boolean | null;
+  html_url: string;
+  checks: Array<{ name: string; status: string; conclusion: string | null }>;
+  reviews: Array<{ user: string; state: string; submitted_at: string }>;
+  computed_status: PRStatus;
+}
+
 export interface CodePlatform {
   readonly name: string;
 
@@ -78,6 +100,9 @@ export interface CodePlatform {
   getFileContent(repo: string, path: string, ref?: string): Promise<string | null>;
   listDirectory(repo: string, path: string): Promise<string[]>;
   listCommitsSince(repo: string, since: string): Promise<Array<{ sha: string; files: string[] }>>;
+
+  // ── PR Details ──
+  getPRDetails(repo: string, prNumber: number): Promise<PRDetails>;
 
   // ── Merge status ──
   isPRMerged(repo: string, prNumber: number): Promise<boolean>;
