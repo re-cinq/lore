@@ -169,6 +169,41 @@ async function processTask(task: any): Promise<void> {
     // Build prompt
     let fullPrompt = buildPrompt(task.task_type, task.description);
 
+    // Enrich with Lore context — search DB for relevant context and memory
+    try {
+      const contextParts: string[] = [];
+
+      // Repo-specific context (CLAUDE.md, ADRs, specs)
+      const repoCtx = await query(
+        `SELECT content, content_type, file_path FROM org_shared.chunks
+         WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
+         ORDER BY content_type, ingested_at DESC LIMIT 10`,
+        [targetRepo],
+      );
+      if (repoCtx.length > 0) {
+        contextParts.push("## Repo Context\n\n" + repoCtx.map((r: any) => r.content).join("\n\n---\n\n"));
+      }
+
+      // Relevant memories for this repo
+      const memories = await query(
+        `SELECT key, value FROM memory.memories
+         WHERE (repo = $1 OR repo IS NULL) AND is_deleted = FALSE
+           AND (expires_at IS NULL OR expires_at > now())
+         ORDER BY created_at DESC LIMIT 5`,
+        [targetRepo],
+      );
+      if (memories.length > 0) {
+        contextParts.push("## Org Learnings\n\n" + memories.map((m: any) => `**${m.key}:** ${m.value}`).join("\n\n"));
+      }
+
+      if (contextParts.length > 0) {
+        fullPrompt = contextParts.join("\n\n---\n\n") + "\n\n---\n\n" + fullPrompt;
+        console.log(`[agent] Enriched prompt with ${repoCtx.length} context chunks + ${memories.length} memories`);
+      }
+    } catch (err: any) {
+      console.warn(`[agent] Context enrichment failed (non-fatal): ${err.message}`);
+    }
+
     // Determine branch
     const slug = slugify(task.description);
     const branchName = `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
