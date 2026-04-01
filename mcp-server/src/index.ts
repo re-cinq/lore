@@ -1004,6 +1004,109 @@ server.tool(
   }
 );
 
+server.tool(
+  "get_pr_status",
+  "Gets the current status of a GitHub Pull Request, including review status, check results, and computed PR state. Returns structured PR details for agents to programmatically check PR state.",
+  {
+    repo: z.string().describe('Repository in "owner/repo" format.'),
+    pr_number: z.number().describe('Pull request number to check.'),
+  },
+  async ({ repo, pr_number }) => {
+    try {
+      const token = process.env.GITHUB_TOKEN;
+      if (!token) {
+        return { content: [{ type: "text" as const, text: "get_pr_status requires GITHUB_TOKEN environment variable." }] };
+      }
+
+      const [owner, repoName] = repo.split('/');
+      if (!owner || !repoName) {
+        return { content: [{ type: "text" as const, text: `Invalid repo format: ${repo}. Expected "owner/repo".` }] };
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
+
+      // First fetch PR details to get the head SHA
+      const prResponse = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pulls/${pr_number}`, { headers });
+
+      if (!prResponse.ok) {
+        if (prResponse.status === 404) {
+          return { content: [{ type: "text" as const, text: `PR #${pr_number} not found in ${repo}.` }] };
+        }
+        return { content: [{ type: "text" as const, text: `GitHub API error: ${prResponse.status} ${prResponse.statusText}` }] };
+      }
+
+      const pr = await prResponse.json();
+
+      // Fetch checks and reviews in parallel using the head SHA
+      const [checksResponse, reviewsResponse] = await Promise.allSettled([
+        fetch(`https://api.github.com/repos/${owner}/${repoName}/commits/${pr.head.sha}/check-runs`, { headers }),
+        fetch(`https://api.github.com/repos/${owner}/${repoName}/pulls/${pr_number}/reviews`, { headers }),
+      ]);
+
+      // Handle checks response
+      let checks: Array<{ name: string; status: string; conclusion: string | null }> = [];
+      if (checksResponse.status === 'fulfilled' && checksResponse.value.ok) {
+        const checksData = await checksResponse.value.json();
+        checks = checksData.check_runs?.map((check: any) => ({
+          name: check.name,
+          status: check.status,
+          conclusion: check.conclusion,
+        })) || [];
+      }
+
+      // Handle reviews response
+      let reviews: Array<{ user: string; state: string; submitted_at: string }> = [];
+      if (reviewsResponse.status === 'fulfilled' && reviewsResponse.value.ok) {
+        const reviewsData = await reviewsResponse.value.json();
+        reviews = reviewsData.map((review: any) => ({
+          user: review.user?.login || 'unknown',
+          state: review.state,
+          submitted_at: review.submitted_at || '',
+        }));
+      }
+
+      // Compute status according to the spec logic
+      let computed_status: string;
+      if (pr.merged) {
+        computed_status = 'merged';
+      } else if (pr.state === 'closed') {
+        computed_status = 'closed';
+      } else if (pr.draft) {
+        computed_status = 'draft';
+      } else if (checks.some(check => check.conclusion === 'failure')) {
+        computed_status = 'checks-failing';
+      } else if (reviews.some(review => review.state === 'CHANGES_REQUESTED')) {
+        computed_status = 'changes-requested';
+      } else if (reviews.some(review => review.state === 'APPROVED') && checks.every(check => check.conclusion !== 'failure')) {
+        computed_status = 'approved';
+      } else {
+        computed_status = 'open';
+      }
+
+      const prDetails = {
+        number: pr.number,
+        title: pr.title,
+        state: pr.state,
+        draft: pr.draft || false,
+        merged: pr.merged || false,
+        mergeable: pr.mergeable,
+        html_url: pr.html_url,
+        checks,
+        reviews,
+        computed_status,
+      };
+
+      return { content: [{ type: "text" as const, text: JSON.stringify(prDetails, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error fetching PR status: ${err.message}` }] };
+    }
+  }
+);
+
 // --- Start server ---
 async function main() {
   await initOtel();

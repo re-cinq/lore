@@ -48,6 +48,28 @@ export interface PullCommit {
   date: string;
 }
 
+export type PRStatus =
+  | 'draft'
+  | 'open'
+  | 'checks-failing'
+  | 'changes-requested'
+  | 'approved'
+  | 'merged'
+  | 'closed';
+
+export interface PRDetails {
+  number: number;
+  title: string;
+  state: string;          // open, closed
+  draft: boolean;
+  merged: boolean;
+  mergeable: boolean | null;
+  html_url: string;
+  checks: Array<{ name: string; status: string; conclusion: string | null }>;
+  reviews: Array<{ user: string; state: string; submitted_at: string }>;
+  computed_status: PRStatus;
+}
+
 export interface CodePlatform {
   readonly name: string;
 
@@ -59,6 +81,7 @@ export interface CodePlatform {
 
   // ── Pull Requests ──
   createPR(repo: string, branch: string, title: string, body: string, base?: string, labels?: string[]): Promise<PlatformPR>;
+  getPRDetails(repo: string, prNumber: number): Promise<PRDetails>;
   getPRDiff(repo: string, prNumber: number): Promise<string>;
   listPRReviews(repo: string, prNumber: number): Promise<PullReview[]>;
   listPRComments(repo: string, prNumber: number): Promise<ReviewComment[]>;

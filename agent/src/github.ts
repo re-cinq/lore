@@ -15,6 +15,8 @@ import type {
   PullReview,
   ReviewComment,
   PullCommit,
+  PRDetails,
+  PRStatus,
 } from "./platform.js";
 
 // ── Auth ─────────────────────────────────────────────────────────────
@@ -89,6 +91,61 @@ export class GitHubPlatform implements CodePlatform {
       await ok.rest.issues.addLabels({ owner, repo: repoName, issue_number: pr.number, labels });
     }
     return { url: pr.html_url, number: pr.number };
+  }
+
+  async getPRDetails(repo: string, prNumber: number): Promise<PRDetails> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+
+    // Fetch PR details, checks, and reviews in parallel
+    const [prResponse, checksResponse, reviewsResponse] = await Promise.all([
+      ok.rest.pulls.get({ owner, repo: repoName, pull_number: prNumber }),
+      ok.rest.checks.listForRef({ owner, repo: repoName, ref: `refs/pull/${prNumber}/head` }).catch(() => ({ data: { check_runs: [] } })),
+      ok.rest.pulls.listReviews({ owner, repo: repoName, pull_number: prNumber }),
+    ]);
+
+    const pr = prResponse.data;
+    const checks = checksResponse.data.check_runs.map(check => ({
+      name: check.name,
+      status: check.status,
+      conclusion: check.conclusion,
+    }));
+    const reviews = reviewsResponse.data.map(review => ({
+      user: review.user?.login || "unknown",
+      state: review.state,
+      submitted_at: review.submitted_at || "",
+    }));
+
+    // Compute status according to the spec logic
+    let computed_status: PRStatus;
+    if (pr.merged) {
+      computed_status = 'merged';
+    } else if (pr.state === 'closed') {
+      computed_status = 'closed';
+    } else if (pr.draft) {
+      computed_status = 'draft';
+    } else if (checks.some(check => check.conclusion === 'failure')) {
+      computed_status = 'checks-failing';
+    } else if (reviews.some(review => review.state === 'CHANGES_REQUESTED')) {
+      computed_status = 'changes-requested';
+    } else if (reviews.some(review => review.state === 'APPROVED') && checks.every(check => check.conclusion !== 'failure')) {
+      computed_status = 'approved';
+    } else {
+      computed_status = 'open';
+    }
+
+    return {
+      number: pr.number,
+      title: pr.title,
+      state: pr.state,
+      draft: pr.draft || false,
+      merged: pr.merged || false,
+      mergeable: pr.mergeable,
+      html_url: pr.html_url,
+      checks,
+      reviews,
+      computed_status,
+    };
   }
 
   async getPRDiff(repo: string, prNumber: number): Promise<string> {

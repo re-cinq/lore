@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/lib/db';
+import PRStatusCard from './PRStatusCard';
 
 interface Task {
   id: string;
@@ -61,7 +62,6 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         <p><strong>Status:</strong> <span className={`op-badge op-${task.status}`}>{task.status}</span></p>
         <p><strong>Repo:</strong> {task.target_repo}</p>
         {task.agent_id && <p><strong>Agent:</strong> {task.agent_id}</p>}
-        {task.pr_url && <p><strong>PR:</strong> <a href={task.pr_url} target="_blank">{task.pr_url}</a></p>}
         {task.failure_reason && <p><strong>Failure:</strong> <span style={{color:'#f87171'}}>{task.failure_reason}</span></p>}
         {task.review_iteration > 0 && <p><strong>Review iterations:</strong> {task.review_iteration}</p>}
         <p><strong>Created by:</strong> {task.created_by}</p>
@@ -74,6 +74,14 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           </form>
         )}
       </div>
+
+      {/* PR Status Card - only show if task has a PR */}
+      {task.pr_url && (
+        <PRStatusCard
+          taskId={task.id}
+          fallbackPrUrl={task.pr_url}
+        />
+      )}
 
       <h2>Event Timeline</h2>
       <div className="memory-list">
