@@ -7,6 +7,8 @@ COPY src/ ./src/
 RUN npm run build
 
 FROM node:22-slim
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN npm install -g @anthropic-ai/claude-code
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/dist ./dist
