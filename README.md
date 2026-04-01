@@ -365,76 +365,92 @@ claude "ingest CLAUDE.md and the ADRs into Lore"
 - `.github/workflows/pr-description-check.yml` — CI for PR quality
 - `.github/workflows/lore-ingest.yml` — push-triggered ingestion
 
-### For Product Managers: Describe a feature
+### Feature Lifecycle: From Idea to Merged PR
 
-1. Open `lore.gcp.re-cinq.com` → pick your repo → "New Task"
-2. Select "Feature Request"
-3. Describe what you want in plain language:
+This is how a feature goes from a product manager's idea to production code, step by step.
 
-   > *"I want users to be able to export their approved timesheets as PDF,
-   > grouped by project, with the company logo. Should work for a single
-   > month or a custom date range. The export button should be on the
-   > time tracking page."*
+#### Step 1: PM describes the feature (Lore UI)
 
-4. Click "Create Task"
-5. Within 10 minutes, a PR appears on the repo with:
-   - `specs/export-timesheets-pdf/spec.md` — proper engineering spec
-   - `specs/export-timesheets-pdf/data-model.md` — data changes needed
-   - `specs/export-timesheets-pdf/tasks.md` — implementation checklist
+Open `lore.gcp.re-cinq.com` → pick your repo → "New Task" → "Feature Request".
 
-6. Engineers review the spec PR, refine, merge
-7. Then: `/speckit.plan` → `/speckit.implement` to build it
+Describe what you want in plain language. No technical jargon needed:
 
-You don't need to know speckit, MADR, or any engineering convention. The agent matches the repo's existing style automatically.
+> *"I want users to be able to export their approved timesheets as PDF,
+> grouped by project, with the company logo. Should work for a single
+> month or a custom date range."*
 
-### Full Flow: PM → Spec → Engineer → PR
+Click "Create Task". That's it for the PM.
 
-```
-PM types feature intent in plain language (Lore UI)
-         │
-    Lore Agent picks up the task
-    ├── Fetches repo context (CLAUDE.md, ADRs, memories)
-    ├── Generates specs/{feature}/spec.md
-    ├── Generates specs/{feature}/data-model.md
-    ├── Generates specs/{feature}/tasks.md
-    └── Opens PR + GitHub Issue on the repo
-         │
-    Engineer gets notification (GitHub Issue)
-    ├── Reviews spec PR, refines, merges
-    └── Opens Claude Code in the repo:
-         │
-    /lore-feature
-    ├── Claude shows available specs
-    ├── Engineer picks one
-    ├── Claude reads spec + tasks
-    ├── Creates feature branch
-    ├── Implements tasks one by one
-    ├── Marks [x] in tasks.md after each
-    ├── Commits atomically per task
-    └── When done:
-         │
-    /lore-pr
-    ├── Claude reads spec + diff + ADRs
-    ├── Drafts PR description
-    └── Creates PR via gh CLI
-```
+#### Step 2: Agent generates the spec (automatic)
 
-### For Engineers: Work from a spec
+Within 10 minutes, the Lore Agent:
+- Fetches the repo's context (CLAUDE.md, ADRs, existing specs, org memories)
+- Generates `specs/export-timesheets-pdf/spec.md` — a proper engineering spec with problem statement, user scenarios, functional requirements, and success criteria
+- Generates `specs/export-timesheets-pdf/data-model.md` — database changes needed
+- Generates `specs/export-timesheets-pdf/tasks.md` — implementation checklist with file paths matching the actual project structure
+- Opens a PR on the repo labeled `spec` + `needs-review`
+- Creates a GitHub Issue linking everything together
 
-After a spec is merged (from a PM feature request or manual creation):
+The agent matches the repo's existing conventions automatically. The PM never needs to know speckit, MADR, or any engineering format.
+
+#### Step 3: Engineer reviews the spec (GitHub)
+
+The engineer sees the GitHub Issue notification. They:
+- Open the spec PR
+- Review the requirements — are the user scenarios right? Missing edge cases?
+- Refine anything the agent got wrong
+- Merge the PR
+
+The spec files (`spec.md`, `data-model.md`, `tasks.md`) now live on `main`.
+
+#### Step 4: Engineer implements with Claude Code
 
 ```bash
-# Plan the implementation
-/speckit.plan
-
-# Generate task breakdown
-/speckit.tasks
-
-# Implement (can use multiple agents in parallel)
-/speckit.implement
+cd ~/projects/re-cinq/re-plan
+claude
 ```
 
-The speckit workflow produces: `research.md` (decisions), `data-model.md` (entities), `contracts/` (API schemas), `plan.md` (phased approach), `tasks.md` (checklist with file paths).
+Then type:
+
+```
+/lore-feature
+```
+
+Claude will:
+1. List available specs in `specs/` — engineer picks `export-timesheets-pdf`
+2. Read the spec, data model, and task breakdown
+3. Create a feature branch: `feat/export-timesheets-pdf`
+4. Start working through tasks in order:
+   - Show: *"Working on T001: Create PDF export service in worker/src/services/pdf-export.service.ts"*
+   - Implement the code following the repo's conventions
+   - Mark `- [x] T001` in tasks.md
+   - Commit: `feat(time): add PDF export service`
+5. Ask: *"T001 done. Continue to T002?"*
+6. Repeat until all tasks are done or the engineer stops
+
+#### Step 5: Engineer opens the PR
+
+When implementation is done:
+
+```
+/lore-pr
+```
+
+Claude will:
+1. Read the spec, diff against main, find related ADRs
+2. Draft a complete PR description (Why, What Changed, Alternatives, Testing)
+3. Show the draft for review
+4. After confirmation: push the branch and create the PR via `gh pr create`
+
+#### Step 6: Review and merge
+
+The PR goes through normal code review. If the team uses Lore's review agent, it can auto-review against the spec.
+
+```
+PM idea → agent spec PR → engineer review → engineer implements → PR → merge
+```
+
+The entire flow from "I want X" to merged code, with proper specs, tracked tasks, and structured PRs at every step.
 
 ### Monitoring
 
