@@ -56,6 +56,8 @@ gcloud auth for local dev.
 - `scripts/klaus-prompts/` — standing instructions for agents (legacy, migrating to lore-agent)
 - `.claude/skills/` — platform skills (lore-feature, lore-pr, lore-init)
 - `terraform/modules/` — K8s manifests, Helm charts (lore-db, gke-mcp)
+- `docker/claude-runner/` — ephemeral container for Claude Code execution in K8s Jobs
+- `terraform/modules/gke-mcp/loretask-crd/` — LoreTask CRD, RBAC, controller deployment
 - `specs/` — speckit artifacts (spec, plan, tasks, research, contracts)
 - `adrs/` — architecture decision records (MADR format)
 - `teams/` — per-team CLAUDE.md files
@@ -115,10 +117,11 @@ The MCP server runs locally via stdio. No infra needed for Phase 0.
 
 ## GKE Deployment
 
-Three services in the `n8n-cluster` (europe-west1):
+Four services in the `n8n-cluster` (europe-west1):
 - PostgreSQL + pgvector: `alloydb` namespace
 - Lore Agent: `lore-agent` namespace
 - Lore MCP server: `mcp-servers` namespace
+- LoreTask controller: `lore-agent` namespace (watches LoreTask CRs, creates Job pods)
 
 Deploy order: `setup-db.sh` → `setup-schedulers.sh` → Helm install Lore Agent + MCP.
 
@@ -145,9 +148,18 @@ scripts/task-types.yaml:
 - **gap-fill**: drafts missing documentation
 - **review**: reviews a PR against conventions
 
-Agent creates branch + PR when done. The Lore Agent service
-(agent/) processes tasks via direct Anthropic API calls or
-headless Claude Code for complex work.
+Agent creates branch + PR when done. Simple tasks use direct
+Anthropic API calls. Implementation tasks use ephemeral K8s Job
+pods via the LoreTask CRD instead of running Claude Code inside
+the agent pod:
+
+1. Agent worker creates a LoreTask CR (custom resource)
+2. The loretask-controller watches CRs and creates Jobs with the
+   claude-runner image
+3. Job pods: clone repo → run Claude Code → commit → push
+4. A watcher job in the agent creates a PR when the Job completes
+5. Agent deploys do NOT affect running Job pods — tasks survive
+   rollout restarts
 
 - Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.

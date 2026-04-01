@@ -53,7 +53,7 @@ Developer types in terminal
 
 ### Flow 2: Tasks via Web UI or API
 
-A product owner or platform engineer creates a task through the dashboard. The Lore Agent processes it — either via direct API call (simple tasks) or by spawning Claude Code instances (complex tasks).
+A product owner or platform engineer creates a task through the dashboard. The Lore Agent processes it — either via direct API call (simple tasks) or by delegating to ephemeral Job pods via the LoreTask CRD (complex tasks).
 
 ```
 Web UI (lore.gcp.re-cinq.com)
@@ -69,10 +69,10 @@ Web UI (lore.gcp.re-cinq.com)
     │  ──► Create PR                   │
     │                                  │
     │  Complex task (implementation)   │
-    │  ──► Spawn Claude Code (headless)│
-    │  ──► Full tool access            │
-    │  ──► Multi-agent parallel work   │
-    │  ──► Create PR                   │
+    │  ──► Create LoreTask CR          │
+    │  ──► Controller spawns Job pod   │
+    │  ──► Clone, Claude Code, push    │
+    │  ──► Watcher creates PR          │
     └──────────────────────────────────┘
 ```
 
@@ -111,8 +111,8 @@ PM opens Lore UI → picks repo → "New Task" (Feature Request)
 | Mode | When | How |
 |------|------|-----|
 | **API call** | Onboarding, runbooks, gap-fill, review, review-reactor fixes | Direct `@anthropic-ai/sdk` call to Claude Haiku. Fast, cheap ($0.01-0.07/task). Plain text in, plain text out. |
-| **Claude Code (headless)** | Implementation, refactoring, complex analysis | Spawns a headless Claude Code process with full tool access (file read/write, bash, search). Can reason about code, run tests, iterate. |
-| **Multi-agent** | Large implementation tasks | Spawns multiple Claude Code instances in parallel. Each works on a different part of the task (e.g., one agent per file or module). Results merged into a single PR. |
+| **Claude Code (ephemeral Job)** | Implementation, refactoring, complex analysis | Creates a LoreTask CR → controller spawns an ephemeral K8s Job pod with claude-runner image. Full tool access, isolated resources, survives agent deploys. |
+| **Multi-agent** | Large implementation tasks | Multiple LoreTask Jobs run in parallel. Each works on a different part of the task (e.g., one agent per file or module). Results merged into a single PR. |
 | **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
 
 The agent service decides which mode to use based on the task type configured in `task-types.yaml`.
@@ -167,7 +167,8 @@ The agent service decides which mode to use based on the task type configured in
 | Component | What it does |
 |-----------|-------------|
 | **MCP Server** | Serves org context to Claude Code via MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. |
-| **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, spawns Claude Code for complex ones. Runs 10 scheduled maintenance jobs. Creates PRs via GitHub App. Every task automatically creates a GitHub Issue on the target repo, so developers see what Lore is doing without checking the dashboard. Issues are updated with status changes and closed when the PR is created. |
+| **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, delegates complex tasks (implementation) to ephemeral Job pods via LoreTask CRD. Runs 10 scheduled maintenance jobs. Creates PRs via GitHub App. Every task automatically creates a GitHub Issue on the target repo, so developers see what Lore is doing without checking the dashboard. Issues are updated with status changes and closed when the PR is created. |
+| **LoreTask Controller** | Watches LoreTask custom resources and spawns ephemeral K8s Job pods with the claude-runner image. Each Job pod clones the target repo, runs Claude Code, commits, and pushes. Tasks survive agent deploys and run in parallel with full isolation. |
 | **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring with cost tracking. Analytics dashboard. Global settings. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector, GIN for keyword. |
 | **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets for ingest automation. |
@@ -224,6 +225,7 @@ For the full platform (vector search, agent pipeline, web UI), deploy to GKE:
 ```bash
 scripts/infra/setup-db.sh           # PostgreSQL + pgvector
 scripts/infra/setup-agent-schema.sh  # Pipeline + job tables
+kubectl apply -f terraform/modules/gke-mcp/loretask-crd/  # LoreTask CRD + controller
 helm install lore-mcp terraform/modules/gke-mcp/mcp-helm/ -n mcp-servers
 helm install lore-agent terraform/modules/gke-mcp/agent-helm/ -n lore-agent
 ```
@@ -236,7 +238,8 @@ lore/
 ├── agent/               # Lore Agent service (TypeScript, task runner + scheduler)
 ├── web-ui/              # Next.js dashboard (repo-centric UI, GitHub OAuth)
 ├── scripts/             # install.sh, lore-doctor, infra setup scripts
-├── terraform/modules/   # Helm charts (mcp-helm, agent-helm)
+├── docker/claude-runner/ # Ephemeral container for Claude Code in K8s Jobs
+├── terraform/modules/   # Helm charts (mcp-helm, agent-helm), LoreTask CRD
 ├── k8s/                 # Ingress manifests, CronJobs
 ├── adrs/                # Architecture decision records (MADR format)
 ├── specs/               # Feature specifications (speckit workflow)
