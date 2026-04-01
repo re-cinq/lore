@@ -54,17 +54,13 @@ export async function watchLoreTasks(): Promise<void> {
           [taskId, JSON.stringify({ pr_url: pr.url })],
         );
 
-        // Patch LoreTask status with PR URL
-        await k8sApi.patchNamespacedCustomObjectStatus({
-          group: GROUP,
-          version: VERSION,
-          namespace,
-          plural: PLURAL,
-          name: lt.metadata.name,
-          body: [
-            { op: "add", path: "/status/prUrl", value: pr.url },
-            { op: "add", path: "/status/prNumber", value: pr.number },
-          ],
+        // Update LoreTask status with PR URL
+        const current = await k8sApi.getNamespacedCustomObjectStatus({
+          group: GROUP, version: VERSION, namespace, plural: PLURAL, name: lt.metadata.name,
+        }) as any;
+        await k8sApi.replaceNamespacedCustomObjectStatus({
+          group: GROUP, version: VERSION, namespace, plural: PLURAL, name: lt.metadata.name,
+          body: { ...current, status: { ...current.status, prUrl: pr.url, prNumber: pr.number } },
         });
 
         console.log(`[loretask-watcher] Task ${taskId} → PR ${pr.url}`);
