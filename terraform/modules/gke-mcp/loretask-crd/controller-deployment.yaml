@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loretask-controller
+  namespace: lore-agent
+  labels:
+    app: loretask-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loretask-controller
+  template:
+    metadata:
+      labels:
+        app: loretask-controller
+    spec:
+      serviceAccountName: loretask-controller
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: controller
+          image: ghcr.io/re-cinq/lore-agent:latest
+          imagePullPolicy: Always
+          command:
+            - node
+            - dist/loretask-controller.js
+          env:
+            - name: NAMESPACE
+              value: lore-agent
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lore-agent-anthropic-key
+                  key: anthropic-api-key
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: lore-agent-github-app
+                  key: app-id
+            - name: GITHUB_APP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lore-agent-github-app
+                  key: private-key
+            - name: GITHUB_APP_INSTALLATION_ID
+              valueFrom:
+                secretKeyRef:
+                  name: lore-agent-github-app
+                  key: installation-id
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
