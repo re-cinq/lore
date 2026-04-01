@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
-import { GitHubPlatform } from '@/lib/github';
+import { getPRDetails, isGitHubConfigured } from '@/lib/github';
 
 interface Task {
   target_repo: string;
@@ -19,12 +19,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     if (!task.pr_number) return NextResponse.json({ error: 'No PR for this task' }, { status: 404 });
 
-    const platform = new GitHubPlatform();
-    if (!platform.isConfigured()) {
+    if (!isGitHubConfigured()) {
       return NextResponse.json({ error: 'GitHub not configured' }, { status: 503 });
     }
 
-    const details = await platform.getPRDetails(task.target_repo, task.pr_number);
+    const details = await getPRDetails(task.target_repo, task.pr_number);
     return NextResponse.json(details);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

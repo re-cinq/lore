@@ -189,9 +189,9 @@ export class GitHubPlatform implements CodePlatform {
   async getPRDetails(repo: string, prNumber: number): Promise<PRDetails> {
     const ok = await octokit();
     const [owner, repoName] = split(repo);
-    const [{ data: pr }, checksResult, reviewsResult] = await Promise.all([
-      ok.rest.pulls.get({ owner, repo: repoName, pull_number: prNumber }),
-      ok.rest.checks.listForRef({ owner, repo: repoName, ref: `refs/pull/${prNumber}/head` }).catch(() => ({ data: { check_runs: [] } })),
+    const { data: pr } = await ok.rest.pulls.get({ owner, repo: repoName, pull_number: prNumber });
+    const [checksResult, reviewsResult] = await Promise.all([
+      ok.rest.checks.listForRef({ owner, repo: repoName, ref: pr.head.sha }).catch(() => ({ data: { check_runs: [] } })),
       ok.rest.pulls.listReviews({ owner, repo: repoName, pull_number: prNumber }).catch(() => ({ data: [] })),
     ]);
 
