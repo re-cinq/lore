@@ -4,7 +4,7 @@
 |-------------------|--------------------------------------------|
 | Feature           | PR State Visibility                        |
 | Branch            | feat/pr-state-visibility                   |
-| Status            | Draft                                      |
+| Status            | Shipped                                    |
 | Created           | 2026-03-26                                 |
 | Updated           | 2026-04-01                                 |
 | Owner             | Platform Engineering                       |
