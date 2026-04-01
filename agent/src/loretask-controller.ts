@@ -99,13 +99,10 @@ async function createTokenSecret(taskIdShort: string): Promise<string> {
   try {
     await coreApi.createNamespacedSecret({ namespace: NAMESPACE, body: secret });
   } catch (err: any) {
-    // Secret might already exist from a previous attempt — replace it
     if (err?.response?.statusCode === 409) {
-      await coreApi.replaceNamespacedSecret({
-        name: secretName,
-        namespace: NAMESPACE,
-        body: secret,
-      });
+      // Secret exists from previous attempt — delete and recreate with fresh token
+      try { await coreApi.deleteNamespacedSecret({ name: secretName, namespace: NAMESPACE }); } catch { /* gone */ }
+      await coreApi.createNamespacedSecret({ namespace: NAMESPACE, body: secret });
     } else {
       throw err;
     }
