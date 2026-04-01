@@ -23,14 +23,20 @@ task_types:
 
   implementation:
     prompt_template: |
-      Implement the following specification. Read the spec file carefully.
-      Follow the code conventions from Lore context. Write clean,
-      well-structured code with clear commit messages.
+      You are editing files in a git repository. Your job is to implement
+      the specification below by reading and editing the actual source files.
+
+      RULES:
+      - Use your Read tool to read files before editing
+      - Use your Edit or Write tool to modify files — do NOT just describe changes
+      - Work through files one at a time
+      - Start immediately with the first file edit
 
       Spec: {description}
     timeout_minutes: 45
     review_required: true
     execution_mode: claude-code
+    model: claude-sonnet-4-6-20250627
 
   gap-fill:
     prompt_template: |
