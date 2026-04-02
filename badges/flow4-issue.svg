@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 640" font-family="system-ui,-apple-system,sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" fill="#64748b"/></marker>
+    <filter id="shadow4"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity=".08"/></filter>
+  </defs>
+  <style>
+    .box{filter:url(#shadow4);rx:8}
+    .label{font-weight:600;fill:#1e293b}
+    .sub{fill:#64748b;font-size:12px}
+    .conn{stroke:#64748b;stroke-width:1.5;fill:none;marker-end:url(#arrow4)}
+    .step{font-size:11.5px;fill:#334155}
+    .mono{font-family:ui-monospace,monospace;font-size:11px;fill:#475569}
+  </style>
+
+  <!-- Developer -->
+  <rect class="box" x="120" y="20" width="440" height="44" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text class="label" x="340" y="40" text-anchor="middle">Developer creates issue</text>
+  <text class="sub" x="340" y="55" text-anchor="middle">(or labels existing one with "lore")</text>
+
+  <line class="conn" x1="340" y1="64" x2="340" y2="96"/>
+
+  <!-- Webhook -->
+  <rect class="box" x="190" y="96" width="300" height="36" fill="#faf5ff" stroke="#c084fc"/>
+  <text class="step" x="340" y="119" text-anchor="middle">GitHub webhook fires (issues.labeled)</text>
+
+  <line class="conn" x1="340" y1="132" x2="340" y2="166"/>
+
+  <!-- MCP Server webhook handler -->
+  <rect class="box" x="80" y="166" width="520" height="200" fill="#fff" stroke="#94a3b8"/>
+  <text class="label" x="340" y="192" text-anchor="middle">Lore MCP Server (webhook)</text>
+
+  <text class="label" x="110" y="220" font-size="12" fill="#6366f1">1. Validates label → dispatch</text>
+  <text class="mono" x="130" y="240">"lore:implementation" → implementation</text>
+  <text class="mono" x="130" y="256">"lore:review" → review</text>
+  <text class="mono" x="130" y="272">"lore" alone → general</text>
+
+  <text class="label" x="110" y="300" font-size="12" fill="#6366f1">2. Checks for duplicates (same issue)</text>
+  <text class="label" x="110" y="324" font-size="12" fill="#6366f1">3. Creates pipeline task linked to issue</text>
+  <text class="label" x="110" y="348" font-size="12" fill="#6366f1">4. Comments: "Lore is working on this"</text>
+
+  <line class="conn" x1="340" y1="366" x2="340" y2="398"/>
+
+  <!-- LoreTask Job -->
+  <rect class="box" x="80" y="398" width="520" height="140" fill="#fff" stroke="#94a3b8"/>
+  <text class="label" x="340" y="424" text-anchor="middle">LoreTask CRD → Job Pod</text>
+
+  <text class="step" x="110" y="450">Claude Code implements in ephemeral pod</text>
+  <text class="step" x="130" y="470">Commits + pushes to branch</text>
+  <text class="step" x="130" y="490">Watcher creates PR (refs original issue)</text>
+
+  <text class="sub" x="110" y="518" font-style="italic">Auto-review (if enabled): review Job checks PR, approved or iterate (max 2)</text>
+
+  <line class="conn" x1="340" y1="538" x2="340" y2="564"/>
+
+  <!-- Result -->
+  <rect class="box" x="100" y="564" width="480" height="56" fill="#ecfdf5" stroke="#34d399"/>
+  <text class="label" x="340" y="586" text-anchor="middle" fill="#065f46">PR appears on the repo, linked to the issue</text>
+  <text class="sub" x="340" y="604" text-anchor="middle">Issue gets comment: "PR created: #N" → Issue closed</text>
+</svg>

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 580" font-family="system-ui,-apple-system,sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" fill="#64748b"/></marker>
+    <filter id="shadow3"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity=".08"/></filter>
+  </defs>
+  <style>
+    .box{filter:url(#shadow3);rx:8}
+    .label{font-weight:600;fill:#1e293b}
+    .sub{fill:#64748b;font-size:12px}
+    .conn{stroke:#64748b;stroke-width:1.5;fill:none;marker-end:url(#arrow3)}
+    .step{font-size:11.5px;fill:#334155}
+    .mono{font-family:ui-monospace,monospace;font-size:11px;fill:#475569}
+  </style>
+
+  <!-- PM -->
+  <rect class="box" x="130" y="20" width="420" height="44" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text class="label" x="340" y="40" text-anchor="middle">PM opens Lore UI</text>
+  <text class="sub" x="340" y="55" text-anchor="middle">picks repo → "New Task" (Feature Request)</text>
+
+  <line class="conn" x1="340" y1="64" x2="340" y2="96"/>
+
+  <!-- Intent -->
+  <rect class="box" x="120" y="96" width="440" height="36" fill="#eff6ff" stroke="#93c5fd"/>
+  <text class="step" x="340" y="119" text-anchor="middle">"I want users to export timesheets as PDF"</text>
+
+  <line class="conn" x1="340" y1="132" x2="340" y2="166"/>
+
+  <!-- Agent box -->
+  <rect class="box" x="80" y="166" width="520" height="260" fill="#fff" stroke="#94a3b8"/>
+  <text class="label" x="340" y="192" text-anchor="middle">Lore Agent</text>
+
+  <!-- Step 1: Fetch context -->
+  <text class="label" x="110" y="220" font-size="12" fill="#6366f1">1. Fetches repo context</text>
+  <text class="mono" x="130" y="238">CLAUDE.md (architecture)</text>
+  <text class="mono" x="130" y="254">Existing specs (format examples)</text>
+  <text class="mono" x="130" y="270">ADRs (constraints, decisions)</text>
+
+  <!-- Step 2: Generate -->
+  <text class="label" x="110" y="298" font-size="12" fill="#6366f1">2. Generates per-file (one LLM call each)</text>
+  <text class="mono" x="130" y="316">specs/feature/spec.md</text>
+  <text class="mono" x="130" y="332">specs/feature/data-model.md</text>
+  <text class="mono" x="130" y="348">specs/feature/tasks.md</text>
+
+  <!-- Step 3: PR -->
+  <text class="label" x="110" y="376" font-size="12" fill="#6366f1">3. Opens PR</text>
+  <text class="step" x="130" y="394">labeled [spec] [needs-review]</text>
+
+  <line class="conn" x1="340" y1="426" x2="340" y2="458"/>
+
+  <!-- Engineer reviews -->
+  <rect class="box" x="180" y="458" width="320" height="36" fill="#fefce8" stroke="#fde047"/>
+  <text class="label" x="340" y="481" text-anchor="middle" fill="#854d0e">Engineer reviews spec PR</text>
+
+  <line class="conn" x1="340" y1="494" x2="340" y2="526"/>
+
+  <!-- Merge + implement -->
+  <rect class="box" x="140" y="526" width="400" height="36" fill="#ecfdf5" stroke="#34d399"/>
+  <text class="label" x="340" y="549" text-anchor="middle" fill="#065f46">Merges → /speckit.plan → /speckit.implement</text>
+</svg>

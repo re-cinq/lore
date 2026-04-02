@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 520" font-family="system-ui,-apple-system,sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" fill="#64748b"/></marker>
+    <filter id="shadow1"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity=".08"/></filter>
+  </defs>
+  <style>
+    .box{filter:url(#shadow1);rx:8}
+    .label{font-weight:600;fill:#1e293b}
+    .sub{fill:#64748b;font-size:12px}
+    .conn{stroke:#64748b;stroke-width:1.5;fill:none;marker-end:url(#arrow1)}
+    .tool{font-family:ui-monospace,monospace;font-size:11.5px;fill:#334155}
+    .desc{font-size:11.5px;fill:#64748b}
+  </style>
+
+  <!-- Developer -->
+  <rect class="box" x="220" y="20" width="240" height="44" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text class="label" x="340" y="47" text-anchor="middle">Developer types in terminal</text>
+
+  <line class="conn" x1="340" y1="64" x2="340" y2="96"/>
+
+  <!-- Claude Code -->
+  <rect class="box" x="250" y="96" width="180" height="44" fill="#f0f4ff" stroke="#818cf8"/>
+  <text class="label" x="340" y="123" text-anchor="middle" fill="#4338ca">Claude Code</text>
+
+  <line class="conn" x1="340" y1="140" x2="340" y2="172"/>
+
+  <!-- MCP Server -->
+  <rect class="box" x="120" y="172" width="440" height="160" fill="#fff" stroke="#94a3b8"/>
+  <text class="label" x="340" y="196" text-anchor="middle">Lore MCP Server</text>
+  <text class="sub" x="340" y="212" text-anchor="middle">(stdio, local)</text>
+
+  <!-- Tool rows -->
+  <text class="tool" x="148" y="242">get_context</text>
+  <text class="desc" x="280" y="242">"Here's how we do auth in this org"</text>
+
+  <text class="tool" x="148" y="264">search_context</text>
+  <text class="desc" x="280" y="264">"Found 3 ADRs about database migrations"</text>
+
+  <text class="tool" x="148" y="286">write_memory</text>
+  <text class="desc" x="280" y="286">persists across sessions</text>
+
+  <text class="tool" x="148" y="308">create_task</text>
+  <text class="desc" x="280" y="308">"onboard re-cinq/my-service"</text>
+
+  <!-- Arrow down from create_task -->
+  <line class="conn" x1="340" y1="332" x2="340" y2="380"/>
+
+  <!-- Lore Agent -->
+  <rect class="box" x="230" y="380" width="220" height="56" fill="#fef3c7" stroke="#f59e0b" rx="8"/>
+  <text class="label" x="340" y="404" text-anchor="middle" fill="#92400e">Lore Agent</text>
+  <text class="sub" x="340" y="420" text-anchor="middle">(GKE) picks up the task</text>
+
+  <line class="conn" x1="340" y1="436" x2="340" y2="472"/>
+
+  <!-- PR result -->
+  <rect class="box" x="210" y="472" width="260" height="40" fill="#ecfdf5" stroke="#34d399"/>
+  <text class="label" x="340" y="497" text-anchor="middle" fill="#065f46">Opens PR on re-cinq/my-service</text>
+</svg>
