@@ -77,6 +77,8 @@ a:hover {
   color: var(--text);
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .sidebar nav {
