@@ -30,120 +30,25 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 
 A developer works in their repo. Claude Code connects to the Lore MCP server (stdio, local) and gets org context automatically. The developer can also create tasks that the agent picks up.
 
-```
-Developer types in terminal
-         │
-    Claude Code
-         │
-    Lore MCP Server (stdio)
-    ├── get_context        → "Here's how we do auth in this org"
-    ├── search_context     → "Found 3 ADRs about database migrations"
-    ├── write_memory       → persists across sessions
-    └── create_task        → "onboard re-cinq/my-service"
-                                    │
-                              ┌─────▼──────┐
-                              │ Lore Agent  │  (GKE)
-                              │ picks up    │
-                              │ the task    │
-                              └─────┬──────┘
-                                    │
-                              Opens PR on
-                              re-cinq/my-service
-```
+<p align="center"><img src="badges/flow1-local.svg" width="600" alt="Flow 1: Developer with Claude Code" /></p>
 
 ### Flow 2: Tasks via Web UI or API
 
 A product owner or platform engineer creates a task through the dashboard. The Lore Agent processes it — either via direct API call (simple tasks) or by delegating to ephemeral Job pods via the LoreTask CRD (complex tasks).
 
-```
-Web UI (lore.gcp.re-cinq.com)
-         │
-    Create task: "write a runbook for incident response"
-         │
-    ┌────▼─────────────────────────────┐
-    │         Lore Agent (GKE)         │
-    │                                  │
-    │  Simple task (onboard, runbook)  │
-    │  ──► Claude API (Haiku)          │
-    │  ──► Parse output                │
-    │  ──► Create PR                   │
-    │                                  │
-    │  Complex task (implementation)   │
-    │  ──► Create LoreTask CR          │
-    │  ──► Controller spawns Job pod   │
-    │  ──► Clone, Claude Code, push    │
-    │  ──► Watcher creates PR          │
-    └──────────────────────────────────┘
-```
+<p align="center"><img src="badges/flow2-webui.svg" width="600" alt="Flow 2: Tasks via Web UI or API" /></p>
 
 ### Flow 3: Product Manager → Spec (intent to implementation)
 
 A PM describes what they want in plain language. Lore translates it into engineering artifacts following the repo's conventions.
 
-```
-PM opens Lore UI → picks repo → "New Task" (Feature Request)
-         │
-    Types: "I want users to export timesheets as PDF"
-         │
-    ┌────▼─────────────────────────────────────────┐
-    │              Lore Agent                       │
-    │                                              │
-    │  1. Fetches repo context                     │
-    │     ├ CLAUDE.md (architecture)               │
-    │     ├ Existing specs (format examples)       │
-    │     └ ADRs (constraints, decisions)          │
-    │                                              │
-    │  2. Generates per-file (one LLM call each)   │
-    │     ├ specs/feature/spec.md                  │
-    │     ├ specs/feature/data-model.md            │
-    │     └ specs/feature/tasks.md                 │
-    │                                              │
-    │  3. Opens PR labeled [spec] [needs-review]   │
-    └──────────────────────────────────────────────┘
-         │
-    Engineer reviews spec PR
-         │
-    Merges → /speckit.plan → /speckit.implement
-```
+<p align="center"><img src="badges/flow3-pm.svg" width="600" alt="Flow 3: PM describes feature → Agent generates spec" /></p>
 
 ### Flow 4: GitHub Issue → Agent (label dispatch)
 
 A developer creates a GitHub Issue using the Lore issue template — or adds a `lore` label to any existing issue. Lore picks it up, implements it, and opens a PR linked to the original issue. No UI, no CLI, no context switch.
 
-```
-Developer creates issue (or labels existing one with "lore")
-         │
-    GitHub webhook fires (issues.labeled)
-         │
-    ┌────▼─────────────────────────────────────────┐
-    │         Lore MCP Server (webhook)            │
-    │                                              │
-    │  1. Validates label: "lore" → dispatch       │
-    │     ├ "lore:implementation" → implementation │
-    │     ├ "lore:review" → review                 │
-    │     └ "lore" alone → general                 │
-    │                                              │
-    │  2. Checks for duplicates (same issue)       │
-    │  3. Creates pipeline task linked to issue     │
-    │  4. Comments: "Lore is working on this"       │
-    └──────────────────────────────────────────────┘
-         │
-    ┌────▼─────────────────────────────────────────┐
-    │         LoreTask CRD → Job Pod               │
-    │                                              │
-    │  Claude Code implements in ephemeral pod      │
-    │  ──► Commits + pushes to branch              │
-    │  ──► Watcher creates PR (refs original issue)│
-    │                                              │
-    │  Auto-review (if enabled):                   │
-    │  ──► Review Job checks PR vs conventions     │
-    │  ──► Approved or iterate (max 2 rounds)      │
-    └──────────────────────────────────────────────┘
-         │
-    PR appears on the repo, linked to the issue
-    Issue gets comment: "PR created: #N"
-    Issue closed automatically
-```
+<p align="center"><img src="badges/flow4-issue.svg" width="600" alt="Flow 4: GitHub Issue dispatch" /></p>
 
 Issue templates are added during onboarding — developers see "Lore: Implementation", "Lore: Review", and "Lore: General Task" when creating new issues.
 
@@ -160,48 +65,7 @@ The agent service decides which mode to use based on the task type configured in
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Developer Machine                                          │
-│                                                             │
-│  Claude Code ──► Lore MCP Server (stdio, no infra needed)   │
-│                  ├── Context retrieval (CLAUDE.md, ADRs)     │
-│                  ├── Hybrid search (vector + keyword)        │
-│                  ├── Agent memory (persistent, searchable)   │
-│                  ├── Task dispatch (pipeline)                │
-│                  └── Memory proxy to GKE (local learnings    │
-│                       become org knowledge)                  │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│  GKE Cluster                                                │
-│                                                             │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────┐ │
-│  │  MCP Server   │  │  Lore Agent   │  │  Web UI          │ │
-│  │              │  │               │  │                  │ │
-│  │  Context     │  │  Task worker  │  │  Repo dashboard  │ │
-│  │  Memory      │  │  ├ API calls  │  │  Onboarding      │ │
-│  │  Pipeline    │  │  ├ Claude Code│  │  Pipeline view   │ │
-│  │  Ingest      │  │  └ Multi-agent│  │  Cost tracking   │ │
-│  │              │  │               │  │                  │ │
-│  │              │  │  Scheduler    │  │                  │ │
-│  │              │  │  ├ Reindex    │  │                  │ │
-│  │              │  │  ├ Gap detect │  │                  │ │
-│  │              │  │  ├ Spec drift │  │                  │ │
-│  │              │  │  ├ Eval runner│  │                  │ │
-│  │              │  │  ├ Autoresrch │  │                  │ │
-│  │              │  │  └ TTL/merge  │  │                  │ │
-│  └──────┬───────┘  └──────┬───────┘  └──────────────────┘ │
-│         │                 │                                 │
-│  ┌──────▼─────────────────▼──────┐   ┌─────────────────┐  │
-│  │  PostgreSQL + pgvector (CNPG) │   │  GitHub App      │  │
-│  │  ├── org_shared (context)     │   │  ├ Read repos    │  │
-│  │  ├── memory (agent memory)    │   │  ├ Create PRs    │  │
-│  │  ├── pipeline (tasks, jobs)   │   │  └ Set secrets   │  │
-│  │  └── lore (repos registry)    │   └─────────────────┘  │
-│  └───────────────────────────────┘                         │
-└─────────────────────────────────────────────────────────────┘
-```
+<p align="center"><img src="badges/architecture.svg" width="680" alt="Architecture overview" /></p>
 
 ### Key Components
 
