@@ -52,17 +52,11 @@ resource "google_kms_crypto_key_iam_member" "gcs_encrypt" {
   member        = "serviceAccount:${data.google_storage_project_service_account.gcs_account.email_address}"
 }
 
-# --- Controller SA: write + read access to the bucket ---
+# --- Controller SA: admin access (create + overwrite for live log updates) ---
 
-resource "google_storage_bucket_iam_member" "controller_write" {
+resource "google_storage_bucket_iam_member" "controller_admin" {
   bucket = google_storage_bucket.task_logs.name
-  role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${google_service_account.loretask_controller.email}"
-}
-
-resource "google_storage_bucket_iam_member" "controller_read" {
-  bucket = google_storage_bucket.task_logs.name
-  role   = "roles/storage.objectViewer"
+  role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.loretask_controller.email}"
 }
 
