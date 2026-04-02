@@ -4,7 +4,7 @@
 |----------------|------------------------------------------|
 | Feature        | GitHub Issue Dispatch                    |
 | Branch         | feat/github-issue-dispatch               |
-| Status         | Draft                                    |
+| Status         | Shipped                                  |
 | Created        | 2026-04-01                               |
 | Owner          | Platform Engineering                     |
 | Target         | 2-3 days                                 |
