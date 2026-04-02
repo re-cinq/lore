@@ -45,6 +45,15 @@ a:hover {
 .app-layout {
   display: flex;
   height: 100vh;
+  overflow: hidden;
+}
+
+.main-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .sidebar {
@@ -104,6 +113,84 @@ a:hover {
   flex: 1;
   overflow-y: auto;
   padding: 24px 32px;
+}
+
+/* Mobile header — hidden on desktop */
+
+.mobile-header {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.mobile-brand {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+
+.hamburger-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  width: 32px;
+  height: 32px;
+}
+
+.hamburger-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+}
+
+.hamburger-btn:hover {
+  background: var(--bg-hover);
+  border-radius: 4px;
+}
+
+/* Close button inside sidebar — hidden on desktop */
+
+.sidebar-close-btn {
+  display: none;
+  align-self: flex-end;
+  margin: 0 12px 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.sidebar-close-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* Overlay behind mobile sidebar — rendered conditionally by AppShell */
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 40;
 }
 
 /* Tables */
@@ -648,4 +735,134 @@ button.danger {
 }
 button.danger:hover {
   background: #b91c1c;
+}
+
+/* --- Responsive design --- */
+
+/* Tablet (≤ 900px): narrow sidebar */
+@media (max-width: 900px) {
+  .sidebar {
+    width: 160px;
+  }
+
+  .main-content {
+    padding: 20px 20px;
+  }
+
+  .repo-grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+}
+
+/* Mobile (≤ 640px): sidebar drawer */
+@media (max-width: 640px) {
+  .app-layout {
+    height: 100dvh;
+  }
+
+  /* Show mobile header */
+  .mobile-header {
+    display: flex;
+  }
+
+  /* Show close button inside sidebar */
+  .sidebar-close-btn {
+    display: flex;
+  }
+
+  /* Sidebar becomes a fixed drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 260px;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    padding-top: 12px;
+    overflow-y: auto;
+  }
+
+  /* Slide open when sidebar-open class is on .app-layout */
+  .sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .main-content {
+    padding: 16px;
+  }
+
+  .main-content h1 {
+    font-size: 17px;
+  }
+
+  .main-content h2 {
+    font-size: 14px;
+  }
+
+  /* Tables scroll horizontally */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  thead,
+  tbody,
+  tr {
+    min-width: max-content;
+  }
+
+  /* Repo grid: single column */
+  .repo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Tab nav scrolls horizontally */
+  .tab-nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tab-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .tab-link {
+    white-space: nowrap;
+    padding: 10px 14px;
+  }
+
+  /* Search form stacks vertically */
+  .search-form {
+    flex-direction: column;
+  }
+
+  /* Filter form stacks */
+  .filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .filter-form input,
+  .filter-form select {
+    width: 100%;
+  }
+
+  /* Result headers stack */
+  .result-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  /* Widen task form submit button */
+  .task-form button[type='submit'] {
+    align-self: stretch;
+  }
+
+  /* Pagination wraps */
+  .pagination {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 }
