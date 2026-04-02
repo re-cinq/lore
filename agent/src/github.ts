@@ -238,6 +238,20 @@ export class GitHubPlatform implements CodePlatform {
     };
   }
 
+  // ── Labels ──
+
+  async createLabels(repo: string, labels: Array<{ name: string; color: string; description: string }>): Promise<void> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    for (const label of labels) {
+      try {
+        await ok.rest.issues.createLabel({ owner, repo: repoName, name: label.name, color: label.color, description: label.description });
+      } catch (err: any) {
+        if (err.status !== 422) throw err; // 422 = already exists
+      }
+    }
+  }
+
   // ── Merge status ──
 
   async isPRMerged(repo: string, prNumber: number): Promise<boolean> {
