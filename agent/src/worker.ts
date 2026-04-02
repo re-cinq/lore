@@ -466,15 +466,23 @@ async function handleClaudeCodeTask(
     },
   };
 
-  await k8sApi.createNamespacedCustomObject({
-    group: "lore.re-cinq.com",
-    version: "v1alpha1",
-    namespace,
-    plural: "loretasks",
-    body: cr,
-  });
-
-  console.log(`[agent] Created LoreTask CR ${crName} for task ${task.id}`);
+  try {
+    await k8sApi.createNamespacedCustomObject({
+      group: "lore.re-cinq.com",
+      version: "v1alpha1",
+      namespace,
+      plural: "loretasks",
+      body: cr,
+    });
+    console.log(`[agent] Created LoreTask CR ${crName} for task ${task.id}`);
+  } catch (err: any) {
+    if (err?.response?.statusCode === 409) {
+      // CR already exists — watcher or another process created it. That's fine.
+      console.log(`[agent] LoreTask CR ${crName} already exists, skipping`);
+    } else {
+      throw err;
+    }
+  }
   // Don't set pr-created — the loretask-watcher will do that when the Job completes
 }
 
