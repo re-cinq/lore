@@ -1070,8 +1070,24 @@ server.tool(
 
 // --- GitHub webhook helpers ---
 
+async function getGitHubToken(): Promise<string | null> {
+  // Prefer App auth (same as agent), fall back to GITHUB_TOKEN
+  const appId = process.env.GITHUB_APP_ID;
+  const pk = process.env.GITHUB_APP_PRIVATE_KEY;
+  const instId = process.env.GITHUB_APP_INSTALLATION_ID;
+  if (appId && pk && instId) {
+    try {
+      const { createAppAuth } = await import("@octokit/auth-app");
+      const auth = createAppAuth({ appId, privateKey: pk, installationId: instId });
+      const { token } = await auth({ type: "installation" });
+      return token;
+    } catch { /* fall through */ }
+  }
+  return process.env.GITHUB_TOKEN || null;
+}
+
 async function ghIssueComment(repo: string, issueNumber: number, body: string): Promise<void> {
-  const token = process.env.GITHUB_TOKEN;
+  const token = await getGitHubToken();
   if (!token) return;
   await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`, {
     method: "POST",
@@ -1081,7 +1097,7 @@ async function ghIssueComment(repo: string, issueNumber: number, body: string): 
 }
 
 async function ghAddLabel(repo: string, issueNumber: number, label: string): Promise<void> {
-  const token = process.env.GITHUB_TOKEN;
+  const token = await getGitHubToken();
   if (!token) return;
   await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/labels`, {
     method: "POST",
