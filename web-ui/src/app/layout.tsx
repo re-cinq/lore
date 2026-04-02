@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Link from 'next/link';
 import AppShell from './AppShell';
 import SidebarNav from './SidebarNav';
 import SessionWrapper from './SessionWrapper';
@@ -27,10 +28,10 @@ export default function RootLayout({
           <AppShell
             sidebar={
               <>
-                <div className="sidebar-brand">
+                <Link href="/" className="sidebar-brand">
                   <img src="/logo.svg" alt="Lore" width={28} height={28} />
                   LORE
-                </div>
+                </Link>
                 <SidebarNav />
                 <UserMenu />
               </>
