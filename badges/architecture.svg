@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 560" font-family="system-ui,-apple-system,sans-serif" font-size="12">
+  <defs>
+    <marker id="arrow5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" fill="#94a3b8"/></marker>
+    <filter id="shadow5"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity=".08"/></filter>
+  </defs>
+  <style>
+    .zone{filter:url(#shadow5);rx:10}
+    .svc{rx:6;filter:url(#shadow5)}
+    .title{font-weight:700;fill:#1e293b;font-size:14px}
+    .heading{font-weight:600;fill:#1e293b;font-size:13px}
+    .item{fill:#475569;font-size:11px}
+    .dim{fill:#94a3b8;font-size:10px}
+    .conn{stroke:#94a3b8;stroke-width:1.5;fill:none;marker-end:url(#arrow5)}
+    .connPlain{stroke:#94a3b8;stroke-width:1.5;fill:none;stroke-dasharray:4,3}
+  </style>
+
+  <!-- Developer Machine zone -->
+  <rect class="zone" x="20" y="16" width="680" height="140" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text class="title" x="40" y="40">Developer Machine</text>
+
+  <!-- Claude Code -->
+  <rect class="svc" x="40" y="56" width="120" height="40" fill="#eef2ff" stroke="#818cf8"/>
+  <text class="heading" x="100" y="81" text-anchor="middle" fill="#4338ca">Claude Code</text>
+
+  <line class="conn" x1="160" y1="76" x2="200" y2="76"/>
+
+  <!-- Lore MCP Server (local) -->
+  <rect class="svc" x="200" y="50" width="480" height="96" fill="#fff" stroke="#94a3b8"/>
+  <text class="heading" x="220" y="72">Lore MCP Server (stdio)</text>
+  <text class="item" x="220" y="90">Context retrieval (CLAUDE.md, ADRs)</text>
+  <text class="item" x="220" y="104">Hybrid search (vector + keyword)</text>
+  <text class="item" x="440" y="90">Agent memory (persistent)</text>
+  <text class="item" x="440" y="104">Task dispatch (pipeline)</text>
+  <text class="item" x="220" y="120">Memory proxy to GKE (local learnings become org knowledge)</text>
+
+  <!-- Arrow from local to GKE -->
+  <line class="conn" x1="360" y1="156" x2="360" y2="196"/>
+
+  <!-- GKE zone -->
+  <rect class="zone" x="20" y="196" width="680" height="348" fill="#f0f9ff" stroke="#7dd3fc"/>
+  <text class="title" x="40" y="220">GKE Cluster</text>
+
+  <!-- MCP Server (GKE) -->
+  <rect class="svc" x="40" y="236" width="160" height="120" fill="#fff" stroke="#94a3b8"/>
+  <text class="heading" x="120" y="258" text-anchor="middle">MCP Server</text>
+  <text class="item" x="56" y="278">Context</text>
+  <text class="item" x="56" y="294">Memory</text>
+  <text class="item" x="56" y="310">Pipeline</text>
+  <text class="item" x="56" y="326">Ingest</text>
+
+  <!-- Lore Agent -->
+  <rect class="svc" x="220" y="236" width="200" height="120" fill="#fff" stroke="#94a3b8"/>
+  <text class="heading" x="320" y="258" text-anchor="middle">Lore Agent</text>
+  <text class="item" x="236" y="278">Task worker</text>
+  <text class="item" x="250" y="294">API calls</text>
+  <text class="item" x="250" y="310">Claude Code (Jobs)</text>
+  <text class="item" x="250" y="326">Multi-agent</text>
+  <text class="item" x="340" y="278">Scheduler</text>
+  <text class="item" x="354" y="294">Reindex, Gap detect</text>
+  <text class="item" x="354" y="310">Spec drift, Evals</text>
+  <text class="item" x="354" y="326">TTL/merge, Watcher</text>
+
+  <!-- Web UI -->
+  <rect class="svc" x="440" y="236" width="160" height="120" fill="#fff" stroke="#94a3b8"/>
+  <text class="heading" x="520" y="258" text-anchor="middle">Web UI</text>
+  <text class="item" x="456" y="278">Repo dashboard</text>
+  <text class="item" x="456" y="294">Onboarding</text>
+  <text class="item" x="456" y="310">Pipeline view</text>
+  <text class="item" x="456" y="326">Cost tracking</text>
+
+  <!-- PostgreSQL -->
+  <rect class="svc" x="40" y="380" width="360" height="80" fill="#fff" stroke="#94a3b8"/>
+  <text class="heading" x="220" y="402" text-anchor="middle">PostgreSQL + pgvector (CNPG)</text>
+  <text class="item" x="56" y="422">org_shared (context)</text>
+  <text class="item" x="56" y="438">memory (agent memory)</text>
+  <text class="item" x="230" y="422">pipeline (tasks, jobs)</text>
+  <text class="item" x="230" y="438">lore (repos registry)</text>
+
+  <!-- GitHub App -->
+  <rect class="svc" x="440" y="380" width="160" height="80" fill="#fff" stroke="#94a3b8"/>
+  <text class="heading" x="520" y="402" text-anchor="middle">GitHub App</text>
+  <text class="item" x="456" y="422">Read repos</text>
+  <text class="item" x="456" y="438">Create PRs</text>
+  <text class="item" x="456" y="454">Set secrets</text>
+
+  <!-- Connections inside GKE -->
+  <line class="connPlain" x1="120" y1="356" x2="120" y2="380"/>
+  <line class="connPlain" x1="320" y1="356" x2="320" y2="380"/>
+  <line class="connPlain" x1="320" y1="356" x2="520" y2="380" marker-end=""/>
+  <line class="connPlain" x1="520" y1="356" x2="520" y2="380"/>
+</svg>
