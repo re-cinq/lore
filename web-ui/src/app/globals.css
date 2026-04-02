@@ -184,10 +184,9 @@ a:hover {
   color: var(--text);
 }
 
-/* Overlay behind mobile sidebar */
+/* Overlay behind mobile sidebar — rendered conditionally by AppShell */
 
 .sidebar-overlay {
-  display: none;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
@@ -790,20 +789,15 @@ button.danger:hover {
     transform: translateX(0);
   }
 
-  /* Show overlay when open */
-  .sidebar-open .sidebar-overlay {
-    display: block;
-  }
-
   .main-content {
     padding: 16px;
   }
 
-  h1 {
+  .main-content h1 {
     font-size: 17px;
   }
 
-  h2 {
+  .main-content h2 {
     font-size: 14px;
   }
 
