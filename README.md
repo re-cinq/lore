@@ -209,6 +209,7 @@ After the PR is merged, the agent automatically configures ingest secrets so con
 | Memory TTL | Every hour | Clean up expired memory entries |
 | Eval runner | Daily 3 AM | Run PromptFoo evals for all teams, detect quality regressions |
 | Context core builder | Daily 4 AM | Compare context quality to baseline, promote improvements |
+| LoreTask watcher | Every 60s | Poll completed LoreTasks: create PRs, trigger auto-review, handle review results, clean up |
 | Autoresearch | Monday 6 AM | Find low-confidence queries from Langfuse, generate context candidates, open PRs |
 
 ## Getting Started
@@ -338,6 +339,23 @@ When running locally without a database, task creation and all memory operations
 | `onboard_repo` | Repos | Onboard a new repo to Lore |
 | `ingest_files` | Ingest | Manually ingest files into Lore's context store |
 
+### GitHub Issue Dispatch
+
+Add a `lore` label to any GitHub Issue on an onboarded repo and Lore
+automatically creates a pipeline task from it. No context switch needed —
+developers stay in their GitHub workflow.
+
+- `lore` label → general task
+- `lore:implementation` → implementation task (ephemeral Job)
+- `lore:review` → review task
+- `lore:runbook` → runbook task
+
+Duplicate prevention: if an active task already exists for the issue,
+Lore comments with the existing task ID instead of creating a new one.
+
+Requires a webhook on the repo: `POST https://lore-api.gcp.re-cinq.com/api/webhook/github`
+with events `Issues` and HMAC secret from `LORE_WEBHOOK_SECRET`.
+
 ### GitHub Issue Notifications
 
 Every pipeline task creates an issue on the target repo labeled `lore-managed`. You'll see it in your GitHub notifications when:
@@ -454,7 +472,11 @@ Claude will:
 
 #### Step 6: Review and merge
 
-The PR goes through normal code review. If the team uses Lore's review agent, it can auto-review against the spec.
+The PR goes through normal code review. If the repo has `auto_review: true`
+in settings, Lore automatically reviews the PR against the spec and
+conventions — no human needed for the first pass. If changes are
+requested, a fix task is created automatically (up to 2 iterations
+before escalating to a human).
 
 ```
 PM idea → agent spec PR → engineer review → engineer implements → PR → merge
@@ -465,7 +487,8 @@ The entire flow from "I want X" to merged code, with proper specs, tracked tasks
 ### Monitoring
 
 **Web UI** (`lore.gcp.re-cinq.com`):
-- Pipeline page shows all tasks with status, cost, and PR links
+- Pipeline page shows all tasks with status, cost, PR links, and live PR state badges
+- Task detail page shows live agent output in a terminal-style log viewer (polls every 5s while running)
 - Repo view shows context, active tasks, and memory for each repo
 - Search page queries across all onboarded repos
 

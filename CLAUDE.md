@@ -64,6 +64,9 @@ gcloud auth for local dev.
 - `agent/src/platform.ts` — CodePlatform interface (branch, commit, PR, issue, repo content, PR details)
 - `agent/src/github.ts` — GitHubPlatform implementation (only file importing Octokit)
 - `web-ui/src/lib/github.ts` — GitHub App client for web-ui (PR status fetching)
+- `web-ui/src/app/pipeline/[id]/TaskLogs.tsx` — live Job log viewer (polls every 5s)
+- `web-ui/src/app/pipeline/[id]/PRStatusCard.tsx` — live PR status card
+- `agent/src/jobs/loretask-watcher.ts` — polls LoreTasks, creates PRs, triggers auto-review
 - `evals/` — PromptFoo eval configs per team
 
 ## Agent Memory
