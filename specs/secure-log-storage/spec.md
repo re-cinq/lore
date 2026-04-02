@@ -4,7 +4,7 @@
 |----------------|------------------------------------------|
 | Feature        | Secure Persistent Log Storage            |
 | Branch         | feat/secure-logs                         |
-| Status         | Draft                                    |
+| Status         | Shipped                                  |
 | Created        | 2026-04-02                               |
 | Owner          | Platform Engineering                     |
 | Target         | 1 week                                   |
