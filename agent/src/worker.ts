@@ -125,25 +125,29 @@ async function processTask(task: any): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
 
-  // Create GitHub Issue on the target repo
-  let issueNumber: number | null = null;
-  try {
-    const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
-    const issue = await platform().createIssue(
-      targetRepo,
-      `[lore] ${task.task_type}: ${task.description.substring(0, 80)}`,
-      `## Lore Pipeline Task\n\n**Type:** \`${task.task_type}\`\n**Created by:** \`${task.created_by || "unknown"}\`\n**Task ID:** \`${task.id}\`\n\n---\n\n${task.description}\n\n---\n*This issue is managed by [Lore](https://github.com/re-cinq/lore). Status updates will be posted as comments.*`,
-      ["lore-managed", taskTypeLabel],
-    );
-    issueNumber = issue.number;
-    await query(
-      `UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`,
-      [issue.number, issue.url, task.id],
-    );
-    console.log(`[agent] Created issue #${issue.number} on ${targetRepo}`);
-  } catch (err: any) {
-    // Non-fatal — proceed without issue if GitHub App lacks permission
+  // Create GitHub Issue on the target repo (skip if already set by webhook dispatch)
+  let issueNumber: number | null = task.issue_number || null;
+  if (!issueNumber) {
+    try {
+      const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
+      const issue = await platform().createIssue(
+        targetRepo,
+        `[lore] ${task.task_type}: ${task.description.substring(0, 80)}`,
+        `## Lore Pipeline Task\n\n**Type:** \`${task.task_type}\`\n**Created by:** \`${task.created_by || "unknown"}\`\n**Task ID:** \`${task.id}\`\n\n---\n\n${task.description}\n\n---\n*This issue is managed by [Lore](https://github.com/re-cinq/lore). Status updates will be posted as comments.*`,
+        ["lore-managed", taskTypeLabel],
+      );
+      issueNumber = issue.number;
+      await query(
+        `UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`,
+        [issue.number, issue.url, task.id],
+      );
+      console.log(`[agent] Created issue #${issue.number} on ${targetRepo}`);
+    } catch (err: any) {
+      // Non-fatal — proceed without issue if GitHub App lacks permission
     console.warn(`[agent] Could not create issue on ${targetRepo}: ${err.message}`);
+    }
+  } else {
+    console.log(`[agent] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`);
   }
 
   // Check if this task requires approval
