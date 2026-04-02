@@ -67,8 +67,8 @@ export async function watchLoreTasks(): Promise<void> {
     const taskId = lt.spec?.taskId;
     if (!taskId) continue;
 
-    if (phase === "Succeeded" && !lt.status?.prUrl) {
-      // Create PR from the pushed branch
+    if (phase === "Succeeded" && !lt.status?.prUrl && lt.spec?.taskType !== "review") {
+      // Create PR from the pushed branch (skip review tasks — they don't push code)
       try {
         const { issue_number, target_repo } = await getIssueNumber(taskId);
         const issueRef = issue_number ? `\n\nRefs #${issue_number}` : "";
@@ -227,7 +227,7 @@ export async function watchLoreTasks(): Promise<void> {
         const parent = parentRows[0];
         if (!parent) continue;
 
-        const iteration = (parent.review_iteration || 0) + 1;
+        const iteration = (Number(parent.review_iteration) || 0) + 1;
         await query(`UPDATE pipeline.tasks SET review_iteration = $1, updated_at = now() WHERE id = $2`, [iteration, parentTaskId]);
 
         if (iteration >= 2) {
