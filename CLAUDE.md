@@ -127,7 +127,11 @@ Four services in the `n8n-cluster` (europe-west1):
 - Lore MCP server: `mcp-servers` namespace
 - LoreTask controller: `lore-agent` namespace (watches LoreTask CRs, creates Job pods)
 
-Deploy order: `setup-db.sh` → `setup-schedulers.sh` → Helm install Lore Agent + MCP.
+All secrets managed by External Secrets Operator (ESO) pulling from
+GCP Secret Manager. Single `terraform apply` deploys everything.
+See `terraform/` for the full configuration.
+
+Deploy: `cd terraform && terraform apply -var-file=secrets.tfvars`
 
 ## Repo Onboarding
 

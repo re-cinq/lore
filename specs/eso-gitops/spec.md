@@ -4,7 +4,7 @@
 |----------------|------------------------------------------|
 | Feature        | ESO + Terraform GitOps                   |
 | Branch         | feat/eso-gitops                          |
-| Status         | Draft                                    |
+| Status         | Shipped                                  |
 | Created        | 2026-04-02                               |
 | Owner          | Platform Engineering                     |
 | Target         | 1 week                                   |
