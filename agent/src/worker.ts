@@ -476,7 +476,8 @@ async function handleClaudeCodeTask(
     });
     console.log(`[agent] Created LoreTask CR ${crName} for task ${task.id}`);
   } catch (err: any) {
-    if (err?.response?.statusCode === 409) {
+    const is409 = err?.code === 409 || err?.response?.statusCode === 409 || String(err?.message).includes("already exists");
+    if (is409) {
       // CR already exists — watcher or another process created it. That's fine.
       console.log(`[agent] LoreTask CR ${crName} already exists, skipping`);
     } else {
