@@ -14,7 +14,7 @@ export default async function RepoTasks({ params }: { params: Promise<{ owner: s
 
   return (
     <div>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+      <div className="page-header">
         <h2>Tasks</h2>
         <Link href={`/repos/${owner}/${repo}/tasks/create`}><button>+ New Task</button></Link>
       </div>

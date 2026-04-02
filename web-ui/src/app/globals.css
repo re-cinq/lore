@@ -649,3 +649,225 @@ button.danger {
 button.danger:hover {
   background: #b91c1c;
 }
+
+/* =========================================================
+   Page header utility — h1 + action button side by side
+   ========================================================= */
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.page-header h1 {
+  margin-bottom: 0;
+}
+
+/* =========================================================
+   Responsive Design
+   ========================================================= */
+
+/* Mobile top bar — hidden on desktop */
+.mobile-topbar {
+  display: none;
+}
+
+/* Sidebar overlay — hidden on desktop */
+.sidebar-overlay {
+  display: none;
+}
+
+/* Hamburger button */
+.hamburger-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hamburger-btn span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: var(--text);
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.hamburger-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* Table wrapper — horizontal scroll on small screens */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---- Tablet (≤ 1024px) ---- */
+@media (max-width: 1024px) {
+  .main-content {
+    padding: 20px 24px;
+  }
+}
+
+/* ---- Mobile (≤ 768px) ---- */
+@media (max-width: 768px) {
+  /* App shell: stack vertically */
+  .app-layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  /* Mobile top bar */
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    height: 52px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    flex-shrink: 0;
+  }
+
+  .mobile-brand {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--text);
+  }
+
+  /* Sidebar: hidden off-screen by default, slides in */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 240px;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    padding-top: 16px;
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  /* Overlay backdrop */
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 199;
+  }
+
+  /* Main content: full width, reduced padding */
+  .main-content {
+    padding: 16px;
+    width: 100%;
+    min-height: calc(100vh - 52px);
+  }
+
+  /* Make tables horizontally scrollable.
+     display:block + overflow-x:auto on the table itself is the safest
+     CSS-only approach without requiring JSX changes. */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  /* Page header rows (h1 + button side by side) — allow wrapping */
+  h1 {
+    font-size: 18px;
+  }
+
+  h2 {
+    font-size: 15px;
+  }
+
+  /* Repo grid: single column on mobile */
+  .repo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Tab nav: allow horizontal scroll */
+  .tab-nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+  }
+
+  .tab-link {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  /* Filter form: stack on narrow screens */
+  .filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-form input,
+  .filter-form select {
+    width: 100%;
+  }
+
+  /* Search form: stack query + button */
+  .search-form {
+    flex-direction: column;
+  }
+
+  /* Analytics stat cards: single column */
+  .stat-cards {
+    flex-direction: column;
+  }
+
+  /* Pagination: wrap controls */
+  .pagination {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* ---- Very small screens (≤ 480px) ---- */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 12px;
+  }
+
+  .spec-card,
+  .search-result,
+  .memory-card,
+  .content-viewer {
+    padding: 12px;
+  }
+
+  button,
+  .filter-buttons a {
+    font-size: 12px;
+  }
+}

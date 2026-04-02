@@ -44,7 +44,7 @@ export default async function HomePage() {
 
   return (
     <div>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+      <div className="page-header">
         <h1>Repositories</h1>
         <Link href="/onboard"><button>+ Add Repo</button></Link>
       </div>
