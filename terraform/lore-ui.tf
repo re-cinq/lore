@@ -139,6 +139,11 @@ resource "kubernetes_deployment" "lore_ui" {
             }
           }
 
+          env {
+            name  = "LORE_LOG_BUCKET"
+            value = "lore-task-logs-re5-n8n-platform"
+          }
+
           resources {
             requests = {
               cpu    = "100m"
