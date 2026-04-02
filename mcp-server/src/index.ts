@@ -1068,6 +1068,28 @@ server.tool(
   }
 );
 
+// --- GitHub webhook helpers ---
+
+async function ghIssueComment(repo: string, issueNumber: number, body: string): Promise<void> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return;
+  await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Accept": "application/vnd.github+json" },
+    body: JSON.stringify({ body }),
+  });
+}
+
+async function ghAddLabel(repo: string, issueNumber: number, label: string): Promise<void> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return;
+  await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/labels`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Accept": "application/vnd.github+json" },
+    body: JSON.stringify({ labels: [label] }),
+  });
+}
+
 // --- Start server ---
 async function main() {
   await initOtel();
@@ -1332,6 +1354,145 @@ async function main() {
           } catch (err: any) {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
           }
+        });
+      } else if (req.url === "/api/webhook/github" && req.method === "POST") {
+        // GitHub webhook — issues.labeled event dispatch
+        const webhookSecret = process.env.LORE_WEBHOOK_SECRET;
+        const signature = req.headers["x-hub-signature-256"] as string | undefined;
+        const ghEvent = req.headers["x-github-event"] as string | undefined;
+
+        let rawBody = "";
+        req.on("data", (chunk: Buffer) => { rawBody += chunk.toString(); });
+        req.on("end", async () => {
+          // Validate HMAC SHA-256 signature
+          if (webhookSecret) {
+            if (!signature) {
+              res.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "missing signature" }));
+              return;
+            }
+            const { createHmac, timingSafeEqual } = await import("node:crypto");
+            const expected = "sha256=" + createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
+            const sigBuf = Buffer.from(signature);
+            const expBuf = Buffer.from(expected);
+            if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+              res.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "invalid signature" }));
+              return;
+            }
+          }
+
+          if (ghEvent !== "issues") {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ skipped: true, reason: "not an issues event" }));
+            return;
+          }
+
+          let payload: any;
+          try {
+            payload = JSON.parse(rawBody);
+          } catch {
+            res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "invalid JSON" }));
+            return;
+          }
+
+          if (payload.action !== "labeled") {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ skipped: true, reason: "not a labeled action" }));
+            return;
+          }
+
+          const repoFullName: string = payload.repository?.full_name;
+          const issue = payload.issue;
+          const addedLabel: string = payload.label?.name;
+
+          if (!repoFullName || !issue || !addedLabel) {
+            res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "missing required fields" }));
+            return;
+          }
+
+          // Fetch per-repo settings from lore.repos
+          let dispatchLabel = "lore";
+          let dispatchDefaultType = "general";
+          if (dbPoolRef) {
+            try {
+              const { rows } = await dbPoolRef.query(
+                `SELECT settings FROM lore.repos WHERE full_name = $1`,
+                [repoFullName],
+              );
+              if (rows.length > 0 && rows[0].settings) {
+                const settings = typeof rows[0].settings === "string" ? JSON.parse(rows[0].settings) : rows[0].settings;
+                if (settings.dispatch_label) dispatchLabel = settings.dispatch_label;
+                if (settings.dispatch_default_type) dispatchDefaultType = settings.dispatch_default_type;
+              }
+            } catch { /* use defaults */ }
+          }
+
+          if (addedLabel !== dispatchLabel) {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ skipped: true, reason: "label does not match dispatch_label" }));
+            return;
+          }
+
+          if (!dbPoolRef) {
+            res.writeHead(503, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "database not available" }));
+            return;
+          }
+
+          const issueNumber: number = issue.number;
+          const issueTitle: string = issue.title || "";
+          const issueBody: string = issue.body || "";
+          const issueUrl: string = issue.html_url || "";
+          const issueLabels: string[] = (issue.labels || []).map((l: any) => l.name as string);
+
+          // Determine task type from labels
+          let taskType = dispatchDefaultType;
+          if (issueLabels.includes("lore:implementation")) taskType = "implementation";
+          else if (issueLabels.includes("lore:review")) taskType = "review";
+          else if (issueLabels.includes("lore:runbook")) taskType = "runbook";
+
+          // Duplicate prevention
+          try {
+            const { rows: existing } = await dbPoolRef.query(
+              `SELECT id FROM pipeline.tasks
+               WHERE issue_number = $1 AND target_repo = $2
+                 AND status NOT IN ('failed', 'cancelled')`,
+              [issueNumber, repoFullName],
+            );
+            if (existing.length > 0) {
+              const existingId = existing[0].id;
+              await ghIssueComment(repoFullName, issueNumber, `Already being worked on: task \`${existingId}\``);
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ skipped: true, reason: "duplicate", task_id: existingId }));
+              return;
+            }
+          } catch (err: any) {
+            console.error("[webhook] duplicate check error:", err.message);
+          }
+
+          // Create pipeline task
+          const description = `${issueTitle}\n\n${issueBody}`.trim();
+          const contextBundle = {
+            github_issue_number: issueNumber,
+            github_issue_url: issueUrl,
+            github_issue_body: issueBody,
+          };
+
+          let taskResult: any;
+          try {
+            taskResult = await createTask(description, taskType, repoFullName, "github-webhook", contextBundle);
+            // Persist issue_number and issue_url on the task row
+            await dbPoolRef.query(
+              `UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`,
+              [issueNumber, issueUrl, taskResult.task_id],
+            );
+          } catch (err: any) {
+            console.error("[webhook] createTask error:", err.message);
+            res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+            return;
+          }
+
+          // Comment on the issue and add lore-managed label (best-effort)
+          await Promise.allSettled([
+            ghIssueComment(repoFullName, issueNumber, `Lore agent is working on this. Task: \`${taskResult.task_id}\``),
+            ghAddLabel(repoFullName, issueNumber, "lore-managed"),
+          ]);
+
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ task_id: taskResult.task_id, status: taskResult.status }));
         });
       } else {
         res.writeHead(404).end();
