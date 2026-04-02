@@ -106,6 +106,47 @@ PM opens Lore UI → picks repo → "New Task" (Feature Request)
     Merges → /speckit.plan → /speckit.implement
 ```
 
+### Flow 4: GitHub Issue → Agent (label dispatch)
+
+A developer creates a GitHub Issue using the Lore issue template — or adds a `lore` label to any existing issue. Lore picks it up, implements it, and opens a PR linked to the original issue. No UI, no CLI, no context switch.
+
+```
+Developer creates issue (or labels existing one with "lore")
+         │
+    GitHub webhook fires (issues.labeled)
+         │
+    ┌────▼─────────────────────────────────────────┐
+    │         Lore MCP Server (webhook)            │
+    │                                              │
+    │  1. Validates label: "lore" → dispatch       │
+    │     ├ "lore:implementation" → implementation │
+    │     ├ "lore:review" → review                 │
+    │     └ "lore" alone → general                 │
+    │                                              │
+    │  2. Checks for duplicates (same issue)       │
+    │  3. Creates pipeline task linked to issue     │
+    │  4. Comments: "Lore is working on this"       │
+    └──────────────────────────────────────────────┘
+         │
+    ┌────▼─────────────────────────────────────────┐
+    │         LoreTask CRD → Job Pod               │
+    │                                              │
+    │  Claude Code implements in ephemeral pod      │
+    │  ──► Commits + pushes to branch              │
+    │  ──► Watcher creates PR (refs original issue)│
+    │                                              │
+    │  Auto-review (if enabled):                   │
+    │  ──► Review Job checks PR vs conventions     │
+    │  ──► Approved or iterate (max 2 rounds)      │
+    └──────────────────────────────────────────────┘
+         │
+    PR appears on the repo, linked to the issue
+    Issue gets comment: "PR created: #N"
+    Issue closed automatically
+```
+
+Issue templates are added during onboarding — developers see "Lore: Implementation", "Lore: Review", and "Lore: General Task" when creating new issues.
+
 ### Agent Execution Modes
 
 | Mode | When | How |
