@@ -70,6 +70,23 @@ a:hover {
   margin-bottom: 8px;
 }
 
+.sidebar-close {
+  display: none;
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sidebar-close:hover {
+  color: var(--text);
+  background: transparent;
+}
+
 .sidebar nav {
   display: flex;
   flex-direction: column;
@@ -98,6 +115,18 @@ a:hover {
 .sidebar nav a.active {
   background: var(--bg-hover);
   color: var(--accent);
+}
+
+.main-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.mobile-header {
+  display: none;
 }
 
 .main-content {
@@ -648,4 +677,135 @@ button.danger {
 }
 button.danger:hover {
   background: #b91c1c;
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+  /* Sidebar: hidden off-screen by default, slides in on toggle */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    width: 220px;
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-close {
+    display: block;
+  }
+
+  /* Semi-transparent backdrop when sidebar is open */
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 99;
+  }
+
+  /* Mobile top bar with hamburger */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+
+  .hamburger {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 20px;
+    padding: 2px 6px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .hamburger:hover {
+    background: transparent;
+    color: var(--text);
+  }
+
+  .mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--text);
+  }
+
+  /* Reduce main padding on small screens */
+  .main-content {
+    padding: 16px;
+  }
+
+  /* Tables: scrollable block on mobile */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Tab nav: scrollable without visible scrollbar */
+  .tab-nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+  }
+
+  .tab-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-link {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Repo grid: single column on very small screens */
+  .repo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Search/filter forms: stack vertically */
+  .search-form {
+    flex-direction: column;
+  }
+
+  .filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-form input,
+  .filter-form select,
+  .filter-form button {
+    width: 100%;
+  }
+
+  /* Task form submit button: full width on mobile */
+  .task-form button[type="submit"] {
+    align-self: stretch;
+  }
+
+  /* Headings */
+  h1 {
+    font-size: 18px;
+  }
 }

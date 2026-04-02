@@ -1,12 +1,16 @@
-import type { Metadata } from 'next';
-import SidebarNav from './SidebarNav';
+import type { Metadata, Viewport } from 'next';
 import SessionWrapper from './SessionWrapper';
-import UserMenu from './UserMenu';
+import AppShell from './AppShell';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Lore',
   description: 'Research coordination platform',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -18,17 +22,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <SessionWrapper>
-          <div className="app-layout">
-            <aside className="sidebar">
-              <div className="sidebar-brand">
-                <img src="/logo.svg" alt="Lore" width={28} height={28} />
-                LORE
-              </div>
-              <SidebarNav />
-              <UserMenu />
-            </aside>
-            <main className="main-content">{children}</main>
-          </div>
+          <AppShell>{children}</AppShell>
         </SessionWrapper>
       </body>
     </html>
