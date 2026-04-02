@@ -202,8 +202,13 @@ export async function watchLoreTasks(): Promise<void> {
       }
     }
 
-    // Handle completed review tasks
+    // Handle completed review tasks (only if this review task hasn't been processed yet)
     if (phase === "Succeeded" && lt.spec.taskType === "review" && lt.status?.reviewResult) {
+      // Skip if this review task is already in a terminal state in the DB
+      const reviewTaskRow = (await query<{ status: string }>(`SELECT status FROM pipeline.tasks WHERE id = $1`, [taskId]))[0];
+      if (reviewTaskRow && reviewTaskRow.status !== "running") {
+        continue; // Already processed
+      }
       const contextBundle = (await query<{ context_bundle: any }>(
         `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
       ))[0]?.context_bundle;
