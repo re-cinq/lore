@@ -1,0 +1,24 @@
+name: "Lore: General Task"
+description: "Ask Lore to do something (docs, runbook, analysis)"
+labels: ["lore"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What should Lore do?
+      description: Describe the task. Lore will use the repo's context to understand conventions and structure.
+      placeholder: |
+        Write a runbook for handling database connection pool exhaustion.
+        Include: symptoms, diagnosis steps, mitigation, and prevention.
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Task type
+      description: Helps Lore choose the right approach
+      options:
+        - General
+        - Runbook
+        - Gap-fill (missing docs)
+      default: 0

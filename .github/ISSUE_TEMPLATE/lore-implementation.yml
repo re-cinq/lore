@@ -1,0 +1,30 @@
+name: "Lore: Implementation"
+description: "Ask Lore to implement something in this repo"
+labels: ["lore", "lore:implementation"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What should Lore implement?
+      description: Describe what you want built. Be specific about files, behavior, and acceptance criteria. Lore will read the repo's CLAUDE.md and specs for context.
+      placeholder: |
+        Add a health check endpoint at /healthz that returns:
+        - 200 with { status: "ok", uptime: <seconds> } when healthy
+        - 503 when the database connection is down
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec file (optional)
+      description: Path to a spec file in the repo for Lore to follow
+      placeholder: "specs/my-feature/spec.md"
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Normal
+        - High
+        - Low
+      default: 0
