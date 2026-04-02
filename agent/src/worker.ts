@@ -232,25 +232,9 @@ async function processTask(task: any): Promise<void> {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);
     } else if (task.task_type === "feature-request") {
       await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
-    } else if (task.task_type === "implementation" || task.task_type === "review") {
-      await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber);
     } else {
-      // Non-onboard task types
-      const result = await callLLM({
-        prompt: fullPrompt,
-        model,
-        maxTokens: 16384,
-        taskId: task.id,
-      });
-
-      await handleGenericOutput(
-        task,
-        result.text,
-        targetRepo,
-        branchName,
-        slug,
-        issueNumber,
-      );
+      // All other task types run as ephemeral Job pods via LoreTask CRD
+      await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber);
     }
   } catch (err: any) {
     await setStatus(task.id, "failed", {
