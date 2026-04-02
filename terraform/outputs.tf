@@ -9,3 +9,7 @@ output "ui_url" {
 output "webhook_url" {
   value = "https://lore-api.gcp.re-cinq.com/api/webhook/github"
 }
+
+output "log_bucket" {
+  value = google_storage_bucket.task_logs.name
+}

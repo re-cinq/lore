@@ -67,16 +67,7 @@ export async function watchLoreTasks(): Promise<void> {
     const taskId = lt.spec?.taskId;
     if (!taskId) continue;
 
-    // Persist live log output for running tasks so the UI can display progress
-    if (phase === "Running" && lt.status?.output) {
-      try {
-        await query(
-          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
-           VALUES ($1, 'running', 'log', $2)`,
-          [taskId, JSON.stringify({ output: lt.status.output, captured_at: new Date().toISOString() })],
-        );
-      } catch { /* best effort — don't interrupt the watcher loop */ }
-    }
+    // Logs are now stored in GCS by the controller — no DB persistence needed
 
     if (phase === "Succeeded" && !lt.status?.prUrl && lt.spec?.taskType !== "review") {
       // Create PR from the pushed branch (skip review tasks — they don't push code)
@@ -96,6 +87,14 @@ export async function watchLoreTasks(): Promise<void> {
           `UPDATE pipeline.tasks SET status = 'pr-created', pr_url = $1, pr_number = $2, target_branch = $3, updated_at = now() WHERE id = $4`,
           [pr.url, pr.number, lt.spec.branch, taskId],
         );
+
+        // After updating pipeline.tasks with pr_url, also set log_url
+        const logUrl = `gs://${process.env.LORE_LOG_BUCKET || "lore-task-logs"}/${lt.spec.targetRepo}/${taskId}/output.log`;
+        await query(
+          `UPDATE pipeline.tasks SET log_url = $1 WHERE id = $2`,
+          [logUrl, taskId],
+        );
+
         await query(
           `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'pr-created', $2)`,
           [taskId, JSON.stringify({ pr_url: pr.url })],
@@ -186,6 +185,14 @@ export async function watchLoreTasks(): Promise<void> {
           `UPDATE pipeline.tasks SET status = 'failed', failure_reason = $1, updated_at = now() WHERE id = $2`,
           [lt.status.failureReason, taskId],
         );
+
+        // Set log_url for failed tasks so logs are still accessible
+        const logUrl = `gs://${process.env.LORE_LOG_BUCKET || "lore-task-logs"}/${lt.spec.targetRepo}/${taskId}/output.log`;
+        await query(
+          `UPDATE pipeline.tasks SET log_url = $1 WHERE id = $2`,
+          [logUrl, taskId],
+        );
+
         await query(
           `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'failed', $2)`,
           [taskId, JSON.stringify({ error: lt.status.failureReason })],

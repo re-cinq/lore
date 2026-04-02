@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 interface LogsResponse {
   logs: string | null;
   status: string;
-  timestamp: string | null;
+  totalSize: number;
+  error?: string;
 }
 
 const TERMINAL_STYLE: React.CSSProperties = {
@@ -39,35 +40,61 @@ const PULSE_STYLE: React.CSSProperties = {
   animation: "pulse 1.5s ease-in-out infinite",
 };
 
-const TERMINAL_STATES = new Set(["running"]);
+const ACTIVE_STATES = new Set(["running"]);
 const POLL_INTERVAL_MS = 5_000;
 
 export default function TaskLogs({ taskId, initialStatus }: { taskId: string; initialStatus: string }) {
   const [logs, setLogs] = useState<string | null>(null);
   const [status, setStatus] = useState(initialStatus);
-  const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
+  const [totalSize, setTotalSize] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const fetchLogs = useCallback(async () => {
-    const url = lastTimestamp && TERMINAL_STATES.has(status)
-      ? `/api/pipeline/${taskId}/logs?since=${encodeURIComponent(lastTimestamp)}`
+    // Don't keep polling if access was denied
+    if (accessDenied) return;
+
+    const useOffset = totalSize > 0 && ACTIVE_STATES.has(status);
+    const url = useOffset
+      ? `/api/pipeline/${taskId}/logs?offset=${totalSize}`
       : `/api/pipeline/${taskId}/logs`;
 
     try {
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: LogsResponse = await res.json();
-      if (data.logs !== null) {
-        setLogs(data.logs);
+
+      if (res.status === 403) {
+        setAccessDenied(true);
+        setError(null);
+        return;
       }
+
+      if (res.status === 401) {
+        setError("You must be signed in to view logs.");
+        return;
+      }
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data: LogsResponse = await res.json();
+
+      if (data.logs !== null) {
+        if (useOffset && data.logs.length > 0) {
+          // Append new content to existing logs
+          setLogs((prev) => (prev ?? "") + data.logs);
+        } else if (!useOffset) {
+          // Full fetch — replace logs
+          setLogs(data.logs);
+        }
+      }
+
       setStatus(data.status);
-      if (data.timestamp) setLastTimestamp(data.timestamp);
+      setTotalSize(data.totalSize);
       setError(null);
     } catch (e: any) {
       setError(e.message);
     }
-  }, [taskId, status, lastTimestamp]);
+  }, [taskId, status, totalSize, accessDenied]);
 
   // Initial fetch
   useEffect(() => {
@@ -76,17 +103,17 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
 
   // Poll while running
   useEffect(() => {
-    if (!TERMINAL_STATES.has(status)) return;
+    if (!ACTIVE_STATES.has(status) || accessDenied) return;
     const id = setInterval(fetchLogs, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [fetchLogs, status]);
+  }, [fetchLogs, status, accessDenied]);
 
   // Auto-scroll to bottom when logs update
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  const isRunning = TERMINAL_STATES.has(status);
+  const isRunning = ACTIVE_STATES.has(status);
   const isInReview = status === "review";
   const isDone = status === "succeeded" || status === "pr-created" || status === "merged";
   const isFailed = status === "failed" || status === "cancelled";
@@ -101,22 +128,30 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
         {isFailed && <span className="op-badge op-failed" style={{ fontSize: "12px" }}>Failed</span>}
       </h2>
 
-      {error && (
+      {accessDenied && (
+        <p style={{ color: "#f87171", fontSize: "13px" }}>
+          Access denied — you do not have access to this repository.
+        </p>
+      )}
+
+      {error && !accessDenied && (
         <p style={{ color: "#f87171", fontSize: "13px" }}>Failed to load logs: {error}</p>
       )}
 
-      {logs === null && !error ? (
-        <p className="meta" style={{ fontStyle: "italic" }}>No logs available yet.</p>
-      ) : logs !== null ? (
+      {!accessDenied && logs === null && !error ? (
+        <p className="meta" style={{ fontStyle: "italic" }}>
+          Logs will appear when the agent starts.
+        </p>
+      ) : !accessDenied && logs !== null ? (
         <div style={TERMINAL_STYLE}>
           {logs}
           <div ref={bottomRef} />
         </div>
       ) : null}
 
-      {isRunning && (
+      {isRunning && !accessDenied && (
         <p className="meta" style={{ marginTop: "6px", fontSize: "12px" }}>
-          Polling every 5s{lastTimestamp ? ` — last updated ${new Date(lastTimestamp).toLocaleTimeString()}` : ""}
+          Polling every 5s{totalSize > 0 ? ` — ${(totalSize / 1024).toFixed(1)} KB received` : ""}
         </p>
       )}
 
