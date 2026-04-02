@@ -317,7 +317,9 @@ async function checkJob(lt: LoreTask): Promise<void> {
     await deleteTokenSecret(taskIdShort);
     console.error(`[controller] Task ${lt.spec.taskId} failed: ${failureReason}`);
   }
-  // If neither complete nor failed, the Job is still running — do nothing
+  // Job is still running — read current logs and update status.output
+  const liveLogs = await readPodLogs(jobName);
+  await patchStatus(ltName, { output: liveLogs.slice(-5000) });
 }
 
 // ── Pod log helpers ─────────────────────────────────────────────────
