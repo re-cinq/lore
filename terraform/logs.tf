@@ -95,5 +95,5 @@ resource "google_service_account" "lore_ui" {
 resource "google_service_account_iam_member" "ui_wi" {
   service_account_id = google_service_account.lore_ui.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-ui/default]"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-ui/lore-ui]"
 }

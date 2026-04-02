@@ -2,6 +2,16 @@
 # Lore UI — Deployment, Service, and Ingress
 # --------------------------------------------------------------------------
 
+resource "kubernetes_service_account" "lore_ui" {
+  metadata {
+    name      = "lore-ui"
+    namespace = "lore-ui"
+    annotations = {
+      "iam.gke.io/gcp-service-account" = "lore-ui@re5-n8n-platform.iam.gserviceaccount.com"
+    }
+  }
+}
+
 resource "kubernetes_deployment" "lore_ui" {
   metadata {
     name      = "lore-ui"
@@ -22,6 +32,8 @@ resource "kubernetes_deployment" "lore_ui" {
       }
 
       spec {
+        service_account_name = "lore-ui"
+
         image_pull_secrets {
           name = "ghcr-pull-secret"
         }
