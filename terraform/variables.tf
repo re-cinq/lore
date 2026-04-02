@@ -68,3 +68,9 @@ variable "ghcr_pull_secret_dockerconfigjson" {
   sensitive   = true
   description = "Base64-encoded .dockerconfigjson for GHCR"
 }
+
+variable "log_retention_days" {
+  description = "Number of days to retain task logs in GCS"
+  type        = number
+  default     = 30
+}

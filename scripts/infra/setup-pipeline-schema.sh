@@ -58,6 +58,24 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     FOR EACH ROW
     EXECUTE FUNCTION pipeline.update_timestamp();
 
+  -- Log access audit trail
+  CREATE TABLE IF NOT EXISTS pipeline.log_access (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id     UUID NOT NULL REFERENCES pipeline.tasks(id),
+    user_id     TEXT NOT NULL,
+    accessed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ip_address  TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_log_access_task_id ON pipeline.log_access(task_id);
+  CREATE INDEX IF NOT EXISTS idx_log_access_user_id ON pipeline.log_access(user_id);
+
+  -- Add log_url to tasks
+  DO \$\$ BEGIN
+    ALTER TABLE pipeline.tasks ADD COLUMN log_url TEXT;
+  EXCEPTION WHEN duplicate_column THEN NULL;
+  END \$\$;
+
   GRANT USAGE ON SCHEMA pipeline TO lore;
   GRANT ALL ON ALL TABLES IN SCHEMA pipeline TO lore;
   ALTER DEFAULT PRIVILEGES IN SCHEMA pipeline GRANT ALL ON TABLES TO lore;
