@@ -501,6 +501,74 @@ const ONBOARD_STATIC_FILES: { path: string; content: string }[] = [
       systemPromptSuffix: "\n\nYou have access to the Lore MCP server. ALWAYS call get_context as your FIRST action before reading files or answering. Then use search_memory to check what other developers learned. Before session ends, call write_memory with a session summary.",
     }, null, 2),
   },
+  {
+    path: ".github/ISSUE_TEMPLATE/lore-implementation.yml",
+    content: `name: "Lore: Implementation"
+description: "Ask Lore to implement something in this repo"
+labels: ["lore", "lore:implementation"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What should Lore implement?
+      description: Describe what you want built. Be specific about files, behavior, and acceptance criteria.
+      placeholder: "Add a health check endpoint at /healthz..."
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec file (optional)
+      description: Path to a spec file in the repo for Lore to follow
+      placeholder: "specs/my-feature/spec.md"
+`,
+  },
+  {
+    path: ".github/ISSUE_TEMPLATE/lore-review.yml",
+    content: `name: "Lore: Review"
+description: "Ask Lore to review a PR against conventions"
+labels: ["lore", "lore:review"]
+body:
+  - type: input
+    id: pr_number
+    attributes:
+      label: PR number
+      description: The pull request number to review
+      placeholder: "42"
+    validations:
+      required: true
+  - type: textarea
+    id: focus
+    attributes:
+      label: Review focus (optional)
+      description: Any specific areas to pay attention to
+`,
+  },
+  {
+    path: ".github/ISSUE_TEMPLATE/lore-general.yml",
+    content: `name: "Lore: General Task"
+description: "Ask Lore to do something (docs, runbook, analysis)"
+labels: ["lore"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What should Lore do?
+      description: Describe the task. Lore will use the repo's context.
+      placeholder: "Write a runbook for handling database failover..."
+    validations:
+      required: true
+`,
+  },
+  {
+    path: ".github/ISSUE_TEMPLATE/config.yml",
+    content: `blank_issues_enabled: true
+contact_links:
+  - name: Lore Dashboard
+    url: https://lore.gcp.re-cinq.com
+    about: Create tasks directly in the Lore UI
+`,
+  },
 ];
 
 const ONBOARD_FILES: { path: string; description: string; prompt: string }[] = [
