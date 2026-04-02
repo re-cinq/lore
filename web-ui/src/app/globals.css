@@ -137,13 +137,13 @@ tbody tr:hover {
 
 /* Headings */
 
-h1 {
+.main-content h1 {
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 16px;
 }
 
-h2 {
+.main-content h2 {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 12px;
@@ -424,7 +424,7 @@ pre {
   font-weight: 500;
   background: #1e293b;
   color: #94a3b8;
-  transition: all 0.15s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .filter-buttons a:hover {
@@ -457,7 +457,7 @@ pre {
   font-weight: 500;
   background: #1e293b;
   color: #e2e8f0;
-  transition: all 0.15s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .pagination a:hover {
@@ -694,7 +694,7 @@ button.danger:hover {
   height: 2px;
   background: var(--text);
   border-radius: 2px;
-  transition: all 0.2s;
+  transition: background-color 0.2s;
 }
 
 .sidebar-close-btn {
@@ -761,11 +761,11 @@ button.danger:hover {
     margin-top: 48px;
   }
 
-  h1 {
+  .main-content h1 {
     font-size: 17px;
   }
 
-  h2 {
+  .main-content h2 {
     font-size: 15px;
   }
 
@@ -773,13 +773,11 @@ button.danger:hover {
   table {
     display: block;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   /* Tab nav: scrollable */
   .tab-nav {
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   .tab-link {
@@ -806,7 +804,6 @@ button.danger:hover {
   /* Filter buttons: scrollable row */
   .filter-buttons {
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     flex-wrap: nowrap;
     padding-bottom: 4px;
   }

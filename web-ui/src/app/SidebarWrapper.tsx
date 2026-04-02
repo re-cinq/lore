@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import SidebarNav from './SidebarNav';
 import UserMenu from './UserMenu';
@@ -8,6 +8,7 @@ import UserMenu from './UserMenu';
 export default function SidebarWrapper() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const sidebarRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     setIsOpen(false);
@@ -18,13 +19,34 @@ export default function SidebarWrapper() {
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && sidebarRef.current) {
+      const firstFocusable = sidebarRef.current.querySelector<HTMLElement>(
+        'a, button, [tabindex]:not([tabindex="-1"])'
+      );
+      firstFocusable?.focus();
+    }
+  }, [isOpen]);
+
   return (
     <>
       <header className="mobile-header">
         <button
           className="hamburger-btn"
-          onClick={() => setIsOpen(true)}
-          aria-label="Open menu"
+          onClick={() => setIsOpen((prev) => !prev)}
+          aria-label="Toggle menu"
+          aria-expanded={isOpen}
+          aria-controls="sidebar"
         >
           <span />
           <span />
@@ -44,7 +66,12 @@ export default function SidebarWrapper() {
         />
       )}
 
-      <aside className={`sidebar${isOpen ? ' sidebar-open' : ''}`}>
+      <aside
+        id="sidebar"
+        className={`sidebar${isOpen ? ' sidebar-open' : ''}`}
+        ref={sidebarRef}
+        aria-label="Main navigation"
+      >
         <div className="sidebar-brand">
           <img src="/logo.svg" alt="Lore" width={28} height={28} />
           LORE
