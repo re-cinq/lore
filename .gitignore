@@ -36,3 +36,7 @@ Thumbs.db
 # Coverage
 coverage/
 
+# Claude Code
+.claude/worktrees/
+.claude/tsc-cache/
+
