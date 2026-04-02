@@ -67,6 +67,17 @@ export async function watchLoreTasks(): Promise<void> {
     const taskId = lt.spec?.taskId;
     if (!taskId) continue;
 
+    // Persist live log output for running tasks so the UI can display progress
+    if (phase === "Running" && lt.status?.output) {
+      try {
+        await query(
+          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
+           VALUES ($1, 'running', 'log', $2)`,
+          [taskId, JSON.stringify({ output: lt.status.output, captured_at: new Date().toISOString() })],
+        );
+      } catch { /* best effort — don't interrupt the watcher loop */ }
+    }
+
     if (phase === "Succeeded" && !lt.status?.prUrl && lt.spec?.taskType !== "review") {
       // Create PR from the pushed branch (skip review tasks — they don't push code)
       try {
