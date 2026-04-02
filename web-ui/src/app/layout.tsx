@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
-import SidebarNav from './SidebarNav';
+import SidebarWrapper from './SidebarWrapper';
 import SessionWrapper from './SessionWrapper';
-import UserMenu from './UserMenu';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -19,14 +18,7 @@ export default function RootLayout({
       <body>
         <SessionWrapper>
           <div className="app-layout">
-            <aside className="sidebar">
-              <div className="sidebar-brand">
-                <img src="/logo.svg" alt="Lore" width={28} height={28} />
-                LORE
-              </div>
-              <SidebarNav />
-              <UserMenu />
-            </aside>
+            <SidebarWrapper />
             <main className="main-content">{children}</main>
           </div>
         </SessionWrapper>
