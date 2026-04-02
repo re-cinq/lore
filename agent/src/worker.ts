@@ -232,7 +232,7 @@ async function processTask(task: any): Promise<void> {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);
     } else if (task.task_type === "feature-request") {
       await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
-    } else if (task.task_type === "implementation") {
+    } else if (task.task_type === "implementation" || task.task_type === "review") {
       await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber);
     } else {
       // Non-onboard task types
