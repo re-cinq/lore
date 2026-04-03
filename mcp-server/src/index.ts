@@ -448,13 +448,14 @@ server.tool(
     pool: z.string().optional().describe("Search within a shared pool."),
     limit: z.number().default(10),
     include_invalidated: z.boolean().default(false).describe("Include facts that have been superseded by newer facts. Useful for historical queries."),
+    graph_augment: z.boolean().default(false).describe("Enrich results with 1-hop knowledge graph neighbors of detected entities."),
   },
-  async ({ query, agent_id, pool, limit, include_invalidated }) => {
+  async ({ query, agent_id, pool, limit, include_invalidated, graph_augment }) => {
     try {
       if (isMemoryDbAvailable()) {
         const results = await searchMemories(
           dbPoolRef,
-          query, agent_id, pool, limit, include_invalidated
+          query, agent_id, pool, limit, include_invalidated, graph_augment
         );
         return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
       }
@@ -1365,8 +1366,9 @@ async function main() {
             memories: Number(memories.rows[0]?.c || 0),
             auto_review: settings.auto_review === true,
           }));
-        } catch {
-          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false }));
+        } catch (err: any) {
+          console.error("[repo-status] Error:", err.message);
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false, error: err.message }));
         }
       } else if (req.url === "/api/ingest" && req.method === "POST") {
         // Bearer token auth
