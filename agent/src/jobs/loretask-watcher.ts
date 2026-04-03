@@ -116,9 +116,8 @@ export async function watchLoreTasks(): Promise<void> {
             await platform().commentOnIssue(target_repo, issue_number, body).catch(() => {});
           }
 
-          if (issue_number) {
-            await platform().closeIssue(target_repo, issue_number, "completed").catch(() => {});
-          }
+          // Don't close the issue — it's the deliverable for general tasks.
+          // User may want to read the result and comment with follow-ups.
 
           await query(
             `UPDATE pipeline.tasks SET status = 'completed', log_url = $1, updated_at = now() WHERE id = $2`,
