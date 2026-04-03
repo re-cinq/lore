@@ -265,8 +265,14 @@ export async function reindexJob(): Promise<string> {
       }
 
       // Determine which files to process
+      // If repo has zero chunks, always do a full seed (handles failed first ingestion)
+      const chunkCount = await query<{ c: string }>(
+        `SELECT count(*)::text as c FROM ${schema}.chunks WHERE repo = $1`, [repo.full_name],
+      );
+      const hasChunks = Number(chunkCount[0]?.c || 0) > 0;
+
       let filePaths: string[];
-      if (repo.last_ingested_at) {
+      if (repo.last_ingested_at && hasChunks) {
         filePaths = await getChangedFiles(repo.full_name, repo.last_ingested_at);
       } else {
         filePaths = await getSeedFiles(repo.full_name);
