@@ -84,7 +84,13 @@ Hybrid search combines vector similarity (Vertex AI `text-embedding-005`, 768 di
 
 ### Agent Memory
 
-11 MCP tools for persistent memory across sessions and restarts: `write_memory`, `read_memory`, `delete_memory`, `list_memories`, `search_memory`, `shared_write`, `shared_read`, `create_snapshot`, `restore_snapshot`, `agent_health`, `agent_stats`. Every memory is versioned, timestamped, and semantically searchable. When running locally, all memory operations are proxied to the GKE MCP server so learnings are shared org-wide. File-backed fallback only when the proxy is unreachable.
+15 MCP tools for persistent memory across sessions and restarts. Every memory is versioned, timestamped, and semantically searchable. When running locally, all memory operations are proxied to the GKE MCP server so learnings are shared org-wide.
+
+Key capabilities:
+- **Temporal fact invalidation** — facts have validity windows; contradictory facts are automatically invalidated via embedding similarity
+- **Passive episode ingestion** — `write_episode` accepts raw text (conversations, reviews, observations); facts and knowledge graph entities are extracted automatically
+- **Live knowledge graph** — entities (services, teams, technologies) and relationships tracked in PostgreSQL, updated incrementally on every episode
+- **Context assembly** — `assemble_context` retrieves from all sources and formats into a token-budgeted block using configurable YAML templates (default, review, implementation, research)
 
 ### Repo Onboarding
 
@@ -218,12 +224,16 @@ When running locally without a database, task creation and all memory operations
 | `search_context` | Context | Hybrid search (vector + keyword) across all org context |
 | `write_memory` | Memory | Store a persistent memory with optional TTL and fact extraction |
 | `read_memory` | Memory | Retrieve by key, supports version history |
-| `search_memory` | Memory | Semantic search across all memories and extracted facts |
+| `search_memory` | Memory | Semantic search across all memories and extracted facts (supports `include_invalidated` for history) |
 | `list_memories` | Memory | Paginated listing of active memories |
 | `delete_memory` | Memory | Soft-delete (preserved in history) |
+| `write_episode` | Memory | Ingest raw text; auto-extracts facts and updates knowledge graph |
+| `list_episodes` | Memory | List recent episodes with extracted fact counts |
+| `query_graph` | Memory | Query live knowledge graph for entities and relationships |
+| `assemble_context` | Memory | Retrieve + assemble context from all sources into a structured, token-budgeted block |
 | `shared_write` / `shared_read` | Memory | Cross-agent shared memory pools |
 | `create_snapshot` / `restore_snapshot` | Memory | Point-in-time backup and restore |
-| `agent_health` / `agent_stats` | Memory | Usage stats, daily breakdown |
+| `agent_health` / `agent_stats` | Memory | Usage stats, active/invalidated facts, daily breakdown |
 | `create_pipeline_task` | Pipeline | Create task (proxied to GKE when local) |
 | `get_pipeline_status` | Pipeline | Task status and event timeline |
 | `list_pipeline_tasks` | Pipeline | List tasks with status filter |

@@ -41,7 +41,10 @@ import {
   searchMemoryFile,
 } from "./memory-file.js";
 import { searchMemories } from "./memory-search.js";
-import { extractFacts } from "./facts.js";
+import { extractFacts, extractFactsFromEpisode } from "./facts.js";
+import { extractAndUpdateGraph, queryLiveGraph } from "./graph.js";
+import { assembleContext, loadTemplates } from "./context-assembly.js";
+import { createHash } from "node:crypto";
 import {
   createTask,
   getTask,
@@ -438,19 +441,20 @@ server.tool(
 
 server.tool(
   "search_memory",
-  "Semantic search across all org memories. Returns results ranked by similarity.",
+  "Semantic search across all org memories and facts. Returns results ranked by similarity. Facts include temporal validity — only currently valid facts are returned by default.",
   {
     query: z.string().describe("Natural language search query."),
     agent_id: z.string().optional().describe("Scope to agent. Omit for cross-agent search."),
     pool: z.string().optional().describe("Search within a shared pool."),
     limit: z.number().default(10),
+    include_invalidated: z.boolean().default(false).describe("Include facts that have been superseded by newer facts. Useful for historical queries."),
   },
-  async ({ query, agent_id, pool, limit }) => {
+  async ({ query, agent_id, pool, limit, include_invalidated }) => {
     try {
       if (isMemoryDbAvailable()) {
         const results = await searchMemories(
           dbPoolRef,
-          query, agent_id, pool, limit
+          query, agent_id, pool, limit, include_invalidated
         );
         return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
       }
@@ -460,6 +464,175 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error searching memories: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Episode tools ---
+
+server.tool(
+  "write_episode",
+  "Ingest raw, unstructured text (conversation turn, code review, observation). The system stores it as an episode and automatically extracts searchable facts. Use this for passive knowledge capture — no need to curate what's important.",
+  {
+    content: z.string().min(1).max(50000).describe("Raw text to ingest (conversation, review, observation)."),
+    source: z.string().default("manual").describe('Source tag: "session", "pr-review", "ci", "manual".'),
+    ref: z.string().optional().describe('External reference (e.g. "owner/repo#42").'),
+    agent_id: z.string().optional().describe("Override agent ID."),
+  },
+  async ({ content, source, ref, agent_id }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const agent = resolveAgentId(agent_id);
+      const contentHash = createHash("sha256").update(content).digest("hex");
+      const embedding = await getQueryEmbedding(content);
+      const embeddingStr = embedding ? `[${embedding.join(",")}]` : null;
+
+      const { rows } = await dbPoolRef.query(
+        `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref, embedding)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (agent_id, content_hash) DO NOTHING
+         RETURNING id`,
+        [agent, content, contentHash, source, ref || null, embeddingStr],
+      );
+
+      if (rows.length === 0) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ status: "duplicate", message: "Episode already ingested." }) }] };
+      }
+
+      const episodeId = rows[0].id;
+
+      // Trigger async fact extraction and graph update (don't block the response)
+      extractFactsFromEpisode(episodeId, content, agent, dbPoolRef).catch((err) =>
+        console.warn(`[episode] Fact extraction failed for ${episodeId}: ${err.message}`),
+      );
+
+      // Graph extraction (async, best-effort, requires ANTHROPIC_API_KEY)
+      if (process.env.ANTHROPIC_API_KEY) {
+        const graphLlmCall = async (prompt: string) => {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'x-api-key': process.env.ANTHROPIC_API_KEY!,
+              'anthropic-version': '2023-06-01',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: process.env.LORE_FACT_MODEL || 'claude-sonnet-4-20250514',
+              max_tokens: 1024,
+              messages: [{ role: 'user', content: prompt }],
+            }),
+          });
+          const json = await res.json() as any;
+          return json.content[0].text;
+        };
+        // Determine repo from ref (e.g. "owner/repo#42" -> "owner/repo")
+        const repoFromRef = ref?.match(/^([^#]+)/)?.[1] || null;
+        extractAndUpdateGraph(dbPoolRef, content, repoFromRef, episodeId, null, graphLlmCall).catch((err) =>
+          console.warn(`[episode] Graph extraction failed for ${episodeId}: ${err.message}`),
+        );
+      }
+
+      // Audit log
+      await dbPoolRef.query(
+        `INSERT INTO memory.audit_log (agent_id, operation, metadata)
+         VALUES ($1, 'write_episode', $2)`,
+        [agent, JSON.stringify({ episode_id: episodeId, source, ref })],
+      ).catch(() => {});
+
+      return { content: [{ type: "text" as const, text: JSON.stringify({ status: "ok", episode_id: episodeId, source, ref }) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error writing episode: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "list_episodes",
+  "List recent episodes ingested by an agent. Returns episodes with their extracted fact count.",
+  {
+    agent_id: z.string().optional().describe("Override agent ID."),
+    source: z.string().optional().describe('Filter by source tag (e.g. "pr-review").'),
+    limit: z.number().default(20),
+  },
+  async ({ agent_id, source, limit }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const agent = resolveAgentId(agent_id);
+      const { rows } = await dbPoolRef.query(
+        `SELECT e.id, e.source, e.ref, e.created_at,
+                LEFT(e.content, 200) as content_preview,
+                (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count
+         FROM memory.episodes e
+         WHERE e.agent_id = $1
+           AND ($2::text IS NULL OR e.source = $2)
+         ORDER BY e.created_at DESC
+         LIMIT $3`,
+        [agent, source || null, limit],
+      );
+      return { content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error listing episodes: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Knowledge graph tools ---
+
+server.tool(
+  "query_graph",
+  "Query the live knowledge graph for entities and their relationships. Returns entities connected by typed edges (uses, owns, depends-on, etc.) with temporal validity.",
+  {
+    entity: z.string().optional().describe("Entity name to query (e.g. 'auth-service', 'postgres'). Omit to browse recent edges."),
+    relation_type: z.string().optional().describe('Filter by relation type: "uses", "owns", "depends-on", "replaced-by", "part-of", "implements".'),
+    repo: z.string().optional().describe("Scope to a specific repo."),
+    include_invalidated: z.boolean().default(false).describe("Include invalidated (historical) relationships."),
+  },
+  async ({ entity, relation_type, repo, include_invalidated }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const results = await queryLiveGraph(dbPoolRef, entity, relation_type, repo, include_invalidated);
+      if (results.length === 0) {
+        return { content: [{ type: "text" as const, text: entity ? `No relationships found for "${entity}".` : "Knowledge graph is empty. Write episodes or memories to populate it." }] };
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error querying graph: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Context assembly tools ---
+
+server.tool(
+  "assemble_context",
+  "Retrieve and assemble context from all sources (repo, ADRs, memories, facts, episodes, graph) into a single structured block optimized for LLM consumption. Replaces multiple get_context + search_memory + get_adrs calls. Uses configurable templates for task-type-specific context ordering.",
+  {
+    query: z.string().describe("What context is needed (e.g. 'implement auth middleware', 'review PR #42')."),
+    template: z.string().default("default").describe('Template name: "default", "review", "implementation", "research".'),
+    max_tokens: z.number().default(16000).describe("Maximum token budget for assembled context (min 2000)."),
+    repo: z.string().optional().describe("Target repo (e.g. 'owner/repo'). Auto-detected if omitted."),
+    agent_id: z.string().optional().describe("Override agent ID."),
+  },
+  async ({ query, template, max_tokens, repo, agent_id }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id);
+      if (!result.text) {
+        return { content: [{ type: "text" as const, text: "No relevant context found for this query." }] };
+      }
+      // Include section metadata as a JSON comment at the top
+      const meta = `<!-- context: template=${template}, sections=${result.sections.length}, tokens=${result.sections.reduce((s, r) => s + r.tokens, 0)} -->\n\n`;
+      return { content: [{ type: "text" as const, text: meta + result.text }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error assembling context: ${err.message}` }] };
     }
   }
 );
@@ -1129,8 +1302,9 @@ async function main() {
     console.error("[lore] Database mode: local files (LORE_DB_HOST not set)");
   }
 
-  // Initialize pipeline config (task CRUD only — processing moved to lore-agent service)
+  // Initialize pipeline config and context assembly templates
   loadTaskTypes();
+  loadTemplates();
   if (process.env.LORE_DB_HOST) {
     console.error('[lore] Pipeline task CRUD ready (processing handled by lore-agent)');
   }

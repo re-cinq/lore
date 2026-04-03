@@ -161,6 +161,80 @@ function parseFacts(raw: string): string[] {
     .slice(0, 10);
 }
 
+// ── Contradiction detection ─────────────────────────────────────────
+
+const SIMILARITY_THRESHOLD = parseFloat(
+  process.env.LORE_FACT_SIMILARITY_THRESHOLD || '0.92',
+);
+
+/**
+ * Find existing valid facts that are semantically similar to a new fact
+ * and invalidate them (set valid_to, invalidated_by). Fail-open: if
+ * anything goes wrong, the new fact is still inserted.
+ */
+async function invalidateContradictions(
+  pool: any,
+  newFactId: string,
+  embeddingStr: string,
+  agentId: string | null,
+): Promise<number> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, fact_text, 1 - (embedding <=> $1::vector) AS similarity
+       FROM memory.facts f
+       WHERE f.valid_to IS NULL
+         AND f.id != $2
+         AND f.embedding IS NOT NULL
+         AND 1 - (f.embedding <=> $1::vector) >= $3
+       ORDER BY similarity DESC
+       LIMIT 5`,
+      [embeddingStr, newFactId, SIMILARITY_THRESHOLD],
+    );
+
+    if (rows.length === 0) return 0;
+
+    for (const row of rows) {
+      await pool.query(
+        `UPDATE memory.facts
+         SET valid_to = now(), invalidated_by = $1
+         WHERE id = $2 AND valid_to IS NULL`,
+        [newFactId, row.id],
+      );
+    }
+
+    if (agentId) {
+      await pool.query(
+        `INSERT INTO memory.audit_log (agent_id, operation, metadata)
+         VALUES ($1, 'fact_invalidation', $2)`,
+        [agentId, JSON.stringify({
+          new_fact_id: newFactId,
+          invalidated: rows.map((r: any) => ({ id: r.id, similarity: r.similarity })),
+        })],
+      ).catch(() => {});
+    }
+
+    return rows.length;
+  } catch (err) {
+    console.warn('[facts] Contradiction detection failed (non-fatal):', err);
+    return 0;
+  }
+}
+
+async function getAgentIdForMemory(
+  pool: any,
+  memoryId: string,
+): Promise<string | null> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT agent_id FROM memory.memories WHERE id = $1`,
+      [memoryId],
+    );
+    return rows[0]?.agent_id || null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Main entry point ────────────────────────────────────────────────
 
 export async function extractFacts(
@@ -171,7 +245,6 @@ export async function extractFacts(
   try {
     const { provider, model } = getLlmConfig();
 
-    // Call the LLM with retry (3 attempts, exponential backoff)
     let rawResponse: string;
     try {
       rawResponse = await withRetry(() => {
@@ -194,26 +267,97 @@ export async function extractFacts(
       return;
     }
 
-    // Insert each fact with its embedding
+    const agentId = await getAgentIdForMemory(pool, memoryId);
+    let totalInvalidated = 0;
+
     for (const factText of facts) {
       try {
         const embedding = await getQueryEmbedding(factText);
         const embeddingStr = embedding ? `[${embedding.join(',')}]` : null;
 
-        await pool.query(
-          `INSERT INTO memory.facts (memory_id, fact_text, embedding)
-           VALUES ($1, $2, $3)`,
+        const { rows } = await pool.query(
+          `INSERT INTO memory.facts (memory_id, fact_text, embedding, valid_from)
+           VALUES ($1, $2, $3, now())
+           RETURNING id`,
           [memoryId, factText, embeddingStr],
         );
+
+        if (embeddingStr && rows[0]?.id) {
+          const invalidated = await invalidateContradictions(
+            pool, rows[0].id, embeddingStr, agentId,
+          );
+          totalInvalidated += invalidated;
+        }
       } catch (err) {
         console.warn(`[facts] Failed to insert fact "${factText.substring(0, 50)}...":`, err);
-        // Continue with remaining facts
       }
     }
 
-    console.log(`[facts] Extracted and stored ${facts.length} facts for memory ${memoryId}`);
+    const invalidMsg = totalInvalidated > 0 ? `, invalidated ${totalInvalidated} stale facts` : '';
+    console.log(`[facts] Extracted and stored ${facts.length} facts for memory ${memoryId}${invalidMsg}`);
   } catch (err) {
-    // Top-level catch: never throw from this function
     console.warn('[facts] Unexpected error during fact extraction:', err);
+  }
+}
+
+/**
+ * Extract facts from an episode (same pipeline, different source column).
+ */
+export async function extractFactsFromEpisode(
+  episodeId: string,
+  content: string,
+  agentId: string,
+  pool: any,
+): Promise<void> {
+  try {
+    const { provider, model } = getLlmConfig();
+
+    let rawResponse: string;
+    try {
+      rawResponse = await withRetry(() => {
+        switch (provider) {
+          case 'claude':  return callClaude(model, content);
+          case 'openai':  return callOpenAI(model, content);
+          case 'ollama':  return callOllama(model, content);
+          default:        return callClaude(model, content);
+        }
+      });
+    } catch (err) {
+      console.warn('[facts] LLM unreachable for episode extraction:', err);
+      return;
+    }
+
+    const facts = parseFacts(rawResponse);
+    if (facts.length === 0) return;
+
+    let totalInvalidated = 0;
+
+    for (const factText of facts) {
+      try {
+        const embedding = await getQueryEmbedding(factText);
+        const embeddingStr = embedding ? `[${embedding.join(',')}]` : null;
+
+        const { rows } = await pool.query(
+          `INSERT INTO memory.facts (episode_id, fact_text, embedding, valid_from)
+           VALUES ($1, $2, $3, now())
+           RETURNING id`,
+          [episodeId, factText, embeddingStr],
+        );
+
+        if (embeddingStr && rows[0]?.id) {
+          const invalidated = await invalidateContradictions(
+            pool, rows[0].id, embeddingStr, agentId,
+          );
+          totalInvalidated += invalidated;
+        }
+      } catch (err) {
+        console.warn(`[facts] Failed to insert episode fact "${factText.substring(0, 50)}...":`, err);
+      }
+    }
+
+    const invalidMsg = totalInvalidated > 0 ? `, invalidated ${totalInvalidated} stale facts` : '';
+    console.log(`[facts] Extracted ${facts.length} facts from episode ${episodeId}${invalidMsg}`);
+  } catch (err) {
+    console.warn('[facts] Unexpected error during episode fact extraction:', err);
   }
 }
