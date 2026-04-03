@@ -59,3 +59,11 @@ Zep is a generic agent memory platform. Lore's differentiation is **code-context
 | 2 | Passive episode ingestion | Lower | `specs/episode-ingestion/` |
 | 3 | Live knowledge graph | Higher | `specs/live-knowledge-graph/` |
 | 4 | Context assembly templates | Higher | `specs/context-assembly/` |
+
+## Follow-ups (not yet specced)
+
+| # | Follow-up | Effort | Why |
+|---|-----------|--------|-----|
+| 5 | Auto-episode hooks | Lower | `write_episode` exists but requires explicit calls. Hooks on SessionStart/PostToolUse should auto-capture session summaries and PR reviews — makes ingestion truly passive. |
+| 6 | Graph-augmented search | Lower | `search_memory` should gain `graph_augment: boolean` to enrich results with 1-hop graph neighbors. Specced in live-knowledge-graph FR-5 but not built. |
+| 7 | Retrieval benchmarks | Lower | Measure p95 latency for `search_memory` and `assemble_context`. Zep targets <200ms — we don't know our actual numbers. |
