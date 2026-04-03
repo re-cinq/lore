@@ -82,7 +82,7 @@ if (!hasHook(settings.hooks, "SessionStart", "Context synced")) {
       {
         type: "command",
         command:
-          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; echo '[lore] Context synced'",
+          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; echo '[lore] Context and task state synced'",
       },
     ],
   });
@@ -103,12 +103,27 @@ if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
 }
 
 // System prompt injection — tells Claude Code to use Lore automatically
-if (!settings.systemPromptSuffix || !settings.systemPromptSuffix.includes("lore-context")) {
-  settings.systemPromptSuffix = (settings.systemPromptSuffix || "") +
-    `\n\nIMPORTANT: You have the Lore MCP server (lore-context). You MUST call get_context as your FIRST action in every conversation — before reading any files or answering questions. This loads org-wide conventions, ADRs, and patterns that are not in local files. Do not skip this step.
+// Always overwrite to keep instructions current
+const lorePrompt = `
+IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules strictly:
 
-During work: use search_context for patterns, decisions, or history. Use search_memory to find what other developers learned. Use create_pipeline_task to delegate work to agents.
-Before session ends: call write_memory with key "session-summary/{repo}/{date}" summarizing decisions, patterns, and corrections from this session (3-10 bullet points, only non-obvious things useful to others).`;
+1. FIRST ACTION: Call assemble_context with a query describing what the user wants. This loads conventions, ADRs, memories, facts, and graph relationships in one call. Do not skip this.
+
+2. BEFORE PLANNING OR BUILDING: Call search_memory to check if this problem was already solved, if there are known gotchas, or if a previous session left relevant learnings. Search with multiple queries if needed — try exact terms, likely key names (e.g. "deployment-gotchas-{date}"), and broader descriptions. Never assume "no memory exists" after one failed search.
+
+3. DURING WORK: Use search_context for patterns and history. Use query_graph to understand entity relationships. Use create_pipeline_task to delegate work to agents.
+
+4. BEFORE SESSION ENDS: Call write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call write_episode with raw session observations for passive fact extraction.`;
+
+if (!settings.systemPromptSuffix || !settings.systemPromptSuffix.includes("assemble_context")) {
+  // Replace old lore-context prompt if present
+  if (settings.systemPromptSuffix && settings.systemPromptSuffix.includes("lore-context")) {
+    settings.systemPromptSuffix = settings.systemPromptSuffix.replace(
+      /\n\nIMPORTANT: You have the Lore MCP server[\s\S]*?useful to others\)\.?/,
+      '',
+    );
+  }
+  settings.systemPromptSuffix = (settings.systemPromptSuffix || "") + lorePrompt;
 }
 
 // Session summary reminder on stop
