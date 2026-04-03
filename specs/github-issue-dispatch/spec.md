@@ -75,7 +75,7 @@ For webhook-dispatched tasks, the originating issue IS the task's issue
 **3. Webhook registration**
 
 During `onboard_repo`, configure the GitHub webhook on the target repo:
-- URL: `https://lore-api.gcp.re-cinq.com/api/webhook/github`
+- URL: `https://LORE_API_DOMAIN/api/webhook/github`
 - Events: `issues`
 - Secret: from `LORE_WEBHOOK_SECRET` env var
 - Content type: `application/json`

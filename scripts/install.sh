@@ -84,7 +84,7 @@ merge_settings() {
 
     # Set default API URL if not configured
     if [ -z "$LORE_API_URL" ]; then
-      LORE_API_URL="https://lore-api.gcp.re-cinq.com"
+      LORE_API_URL="${LORE_API_URL:-}"
       git config --global lore.api-url "$LORE_API_URL"
     fi
 

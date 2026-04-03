@@ -15,7 +15,7 @@ spec:
       labels:
         app: loretask-controller
       annotations:
-        iam.gke.io/gcp-service-account: loretask-controller@re5-n8n-platform.iam.gserviceaccount.com
+        iam.gke.io/gcp-service-account: loretask-controller@PROJECT_ID.iam.gserviceaccount.com
     spec:
       serviceAccountName: loretask-controller
       imagePullSecrets:
@@ -51,7 +51,7 @@ spec:
                   name: lore-agent-github-app
                   key: installation-id
             - name: LORE_LOG_BUCKET
-              value: lore-task-logs-re5-n8n-platform
+              value: lore-task-logs-PROJECT_ID
           ports:
             - name: health
               containerPort: 8081

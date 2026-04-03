@@ -28,8 +28,8 @@ env:
   ANTHROPIC_MODEL: claude-haiku-4-5-20251001
   TASK_TYPES_PATH: /config/task-types.yaml
   PORT: "8080"
-  LORE_INGEST_URL: "https://lore-api.gcp.re-cinq.com"
-  LORE_LOG_BUCKET: "lore-task-logs-re5-n8n-platform"
+  LORE_INGEST_URL: ""
+  LORE_LOG_BUCKET: ""
 
 dbPasswordSecret:
   name: lore-agent-db-password
@@ -48,4 +48,4 @@ githubAppSecret:
 configMap:
   name: lore-agent-config
 
-gcpProject: re5-n8n-platform
+gcpProject: ""

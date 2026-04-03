@@ -58,7 +58,7 @@ jobs:
         with:
           cluster_name: n8n-cluster
           location: europe-west1
-          project_id: re5-n8n-platform
+          project_id: ${{ vars.GCP_PROJECT_ID }}
 
       - name: Restart deployment
         run: kubectl rollout restart deployment/lore-mcp -n mcp-servers
