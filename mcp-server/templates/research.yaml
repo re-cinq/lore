@@ -1,0 +1,22 @@
+name: research
+description: Context optimized for research and analysis tasks.
+sections:
+  - header: "Agent Memory"
+    source: memories
+    priority: 1
+    max_tokens: 5000
+
+  - header: "Recent Episodes"
+    source: episodes
+    priority: 1
+    max_tokens: 4000
+
+  - header: "Related Entities"
+    source: graph
+    priority: 2
+    max_tokens: 3000
+
+  - header: "Conventions"
+    source: repo
+    priority: 3
+    max_tokens: 2000

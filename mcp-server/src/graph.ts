@@ -2,6 +2,244 @@ import { z } from "zod";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
+// ══════════════════════════════════════════════════════════════════════
+// Live knowledge graph (PostgreSQL-backed)
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Types ───────────────────────────────────────────────────────────
+
+interface ExtractedGraphEntity {
+  name: string;
+  type: string;
+}
+
+interface ExtractedGraphEdge {
+  source: string;
+  target: string;
+  relation: string;
+}
+
+interface GraphExtractionResult {
+  entities: ExtractedGraphEntity[];
+  edges: ExtractedGraphEdge[];
+}
+
+export interface LiveGraphResult {
+  entity: string;
+  entity_type: string;
+  relation: string;
+  related_entity: string;
+  related_type: string;
+  direction: 'outgoing' | 'incoming';
+  valid_from: string;
+}
+
+// ── LLM entity extraction ──────────────────────────────────────────
+
+const GRAPH_EXTRACTION_PROMPT =
+  'Extract entities and relationships from the following text about a software project. ' +
+  'Return a JSON object with two arrays:\n' +
+  '- "entities": [{name: string, type: "service"|"team"|"technology"|"concept"|"person"}]\n' +
+  '- "edges": [{source: string, target: string, relation: "uses"|"owns"|"depends-on"|"replaced-by"|"part-of"|"implements"}]\n' +
+  'Only include clearly stated relationships. Maximum 10 entities and 10 edges. ' +
+  'Normalize entity names to lowercase. Return only the JSON object.';
+
+function parseGraphExtraction(raw: string): GraphExtractionResult {
+  try {
+    const cleaned = raw.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    const entities: ExtractedGraphEntity[] = (parsed.entities || [])
+      .filter((e: any) => e.name && e.type)
+      .map((e: any) => ({ name: String(e.name).toLowerCase().trim(), type: String(e.type).toLowerCase().trim() }))
+      .slice(0, 10);
+    const edges: ExtractedGraphEdge[] = (parsed.edges || [])
+      .filter((e: any) => e.source && e.target && e.relation)
+      .map((e: any) => ({
+        source: String(e.source).toLowerCase().trim(),
+        target: String(e.target).toLowerCase().trim(),
+        relation: String(e.relation).toLowerCase().trim(),
+      }))
+      .slice(0, 10);
+    return { entities, edges };
+  } catch {
+    return { entities: [], edges: [] };
+  }
+}
+
+// ── Entity upsert ──────────────────────────────────────────────────
+
+async function upsertEntity(
+  pool: any,
+  name: string,
+  entityType: string,
+  repo: string | null,
+): Promise<string> {
+  const { rows } = await pool.query(
+    `INSERT INTO memory.entities (name, entity_type, repo)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (name, entity_type, COALESCE(repo, ''))
+     DO UPDATE SET updated_at = now()
+     RETURNING id`,
+    [name, entityType, repo],
+  );
+  return rows[0].id;
+}
+
+// ── Edge upsert with temporal invalidation ─────────────────────────
+
+async function upsertEdge(
+  pool: any,
+  sourceId: string,
+  targetId: string,
+  relationType: string,
+  sourceEpisodeId: string | null,
+  sourceMemoryId: string | null,
+): Promise<void> {
+  // Check if this exact edge already exists and is valid
+  const { rows: existing } = await pool.query(
+    `SELECT id FROM memory.edges
+     WHERE source_id = $1 AND target_id = $2 AND relation_type = $3 AND valid_to IS NULL`,
+    [sourceId, targetId, relationType],
+  );
+  if (existing.length > 0) return;
+
+  // Invalidate contradictory edges (same source + relation, different target)
+  await pool.query(
+    `UPDATE memory.edges
+     SET valid_to = now()
+     WHERE source_id = $1 AND relation_type = $2 AND target_id != $3 AND valid_to IS NULL`,
+    [sourceId, relationType, targetId],
+  );
+
+  await pool.query(
+    `INSERT INTO memory.edges (source_id, target_id, relation_type, source_episode_id, source_memory_id)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [sourceId, targetId, relationType, sourceEpisodeId, sourceMemoryId],
+  );
+}
+
+// ── Main extraction entry point ────────────────────────────────────
+
+/**
+ * Extract entities and relationships from text and update the graph.
+ * Called after fact extraction in the ingestion pipeline.
+ */
+export async function extractAndUpdateGraph(
+  pool: any,
+  text: string,
+  repo: string | null,
+  sourceEpisodeId: string | null,
+  sourceMemoryId: string | null,
+  llmCall: (prompt: string) => Promise<string>,
+): Promise<void> {
+  try {
+    const raw = await llmCall(`${GRAPH_EXTRACTION_PROMPT}\n\n${text}`);
+    const { entities, edges } = parseGraphExtraction(raw);
+
+    if (entities.length === 0) return;
+
+    const entityIds = new Map<string, string>();
+    for (const entity of entities) {
+      try {
+        const id = await upsertEntity(pool, entity.name, entity.type, repo);
+        entityIds.set(entity.name, id);
+      } catch (err) {
+        console.warn(`[graph] Failed to upsert entity "${entity.name}":`, err);
+      }
+    }
+
+    let edgeCount = 0;
+    for (const edge of edges) {
+      const sourceId = entityIds.get(edge.source);
+      const targetId = entityIds.get(edge.target);
+      if (!sourceId || !targetId) continue;
+
+      try {
+        await upsertEdge(pool, sourceId, targetId, edge.relation, sourceEpisodeId, sourceMemoryId);
+        edgeCount++;
+      } catch (err) {
+        console.warn(`[graph] Failed to upsert edge "${edge.source}" -${edge.relation}-> "${edge.target}":`, err);
+      }
+    }
+
+    console.log(`[graph] Updated graph: ${entities.length} entities, ${edgeCount} edges`);
+  } catch (err) {
+    console.warn('[graph] Entity extraction failed (non-fatal):', err);
+  }
+}
+
+// ── Live graph query ────────────────────────────────────────────────
+
+export async function queryLiveGraph(
+  pool: any,
+  entity?: string,
+  relationType?: string,
+  repo?: string,
+  includeInvalidated: boolean = false,
+): Promise<LiveGraphResult[]> {
+  const validFilter = includeInvalidated ? '' : 'AND e.valid_to IS NULL';
+
+  if (entity) {
+    const { rows } = await pool.query(
+      `SELECT
+         s.name as entity, s.entity_type,
+         e.relation_type as relation,
+         t.name as related_entity, t.entity_type as related_type,
+         'outgoing' as direction,
+         e.valid_from
+       FROM memory.edges e
+       JOIN memory.entities s ON s.id = e.source_id
+       JOIN memory.entities t ON t.id = e.target_id
+       WHERE LOWER(s.name) = LOWER($1)
+         ${validFilter}
+         AND ($2::text IS NULL OR e.relation_type = $2)
+         AND ($3::text IS NULL OR s.repo = $3 OR s.repo IS NULL)
+       UNION ALL
+       SELECT
+         t.name as entity, t.entity_type,
+         e.relation_type as relation,
+         s.name as related_entity, s.entity_type as related_type,
+         'incoming' as direction,
+         e.valid_from
+       FROM memory.edges e
+       JOIN memory.entities s ON s.id = e.source_id
+       JOIN memory.entities t ON t.id = e.target_id
+       WHERE LOWER(t.name) = LOWER($1)
+         ${validFilter}
+         AND ($2::text IS NULL OR e.relation_type = $2)
+         AND ($3::text IS NULL OR t.repo = $3 OR t.repo IS NULL)
+       ORDER BY valid_from DESC
+       LIMIT 50`,
+      [entity, relationType || null, repo || null],
+    );
+    return rows;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       s.name as entity, s.entity_type,
+       e.relation_type as relation,
+       t.name as related_entity, t.entity_type as related_type,
+       'outgoing' as direction,
+       e.valid_from
+     FROM memory.edges e
+     JOIN memory.entities s ON s.id = e.source_id
+     JOIN memory.entities t ON t.id = e.target_id
+     WHERE 1=1
+       ${validFilter}
+       AND ($1::text IS NULL OR e.relation_type = $1)
+       AND ($2::text IS NULL OR s.repo = $2 OR s.repo IS NULL)
+     ORDER BY e.created_at DESC
+     LIMIT 50`,
+    [relationType || null, repo || null],
+  );
+  return rows;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Static graph (legacy file-based, fallback when DB is unavailable)
+// ══════════════════════════════════════════════════════════════════════
+
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
 const GRAPHRAG_NOT_BUILT =

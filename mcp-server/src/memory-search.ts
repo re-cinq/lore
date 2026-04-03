@@ -17,7 +17,7 @@ export interface MemorySearchResult {
   value: string;
   score: number;
   agent_id: string;
-  source: 'memory' | 'fact';
+  source: 'memory' | 'fact' | 'episode';
 }
 
 // ── RRF constant (matches db.ts hybrid search) ─────────────────────
@@ -32,6 +32,7 @@ export async function searchMemories(
   agentId?: string,
   poolName?: string,
   limit: number = 10,
+  includeInvalidated: boolean = false,
 ): Promise<MemorySearchResult[]> {
   const agent = agentId ? resolveAgentId(agentId) : null;
 
@@ -63,7 +64,7 @@ export async function searchMemories(
     const embeddingStr = `[${embedding.join(',')}]`;
     [vectorMemories, vectorFacts] = await Promise.all([
       vectorSearchMemories(pool, embeddingStr, agent, poolId),
-      vectorSearchFacts(pool, embeddingStr, agent),
+      vectorSearchFacts(pool, embeddingStr, agent, includeInvalidated),
     ]);
   }
 
@@ -71,7 +72,7 @@ export async function searchMemories(
   // and boosts relevant keyword matches via RRF when embedding is available)
   [keywordMemories, keywordFacts] = await Promise.all([
     keywordSearchMemories(pool, query, agent, poolId),
-    keywordSearchFacts(pool, query, agent),
+    keywordSearchFacts(pool, query, agent, includeInvalidated),
   ]);
 
   // Merge via RRF
@@ -94,7 +95,7 @@ interface RankedRow {
   key: string;
   value: string;
   agent_id: string;
-  source: 'memory' | 'fact';
+  source: 'memory' | 'fact' | 'episode';
   rank: number;
 }
 
@@ -134,17 +135,22 @@ async function vectorSearchFacts(
   pool: any,
   embeddingStr: string,
   agentId: string | null,
+  includeInvalidated: boolean = false,
 ): Promise<RankedRow[]> {
   const sql = `
-    SELECT m.key, f.fact_text as value, m.agent_id, 'fact' as source,
+    SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
+           f.fact_text as value,
+           COALESCE(m.agent_id, e.agent_id) as agent_id,
+           CASE WHEN f.episode_id IS NOT NULL THEN 'episode' ELSE 'fact' END as source,
            ROW_NUMBER() OVER (ORDER BY f.embedding <=> $1::vector) as vec_rank
     FROM memory.facts f
-    JOIN memory.memories m ON m.id = f.memory_id
-    WHERE m.is_deleted = FALSE
-      AND (m.expires_at IS NULL OR m.expires_at > now())
-      AND ($2::text IS NULL OR m.agent_id = $2)
+    LEFT JOIN memory.memories m ON m.id = f.memory_id
+    LEFT JOIN memory.episodes e ON e.id = f.episode_id
+    WHERE (m.id IS NULL OR (m.is_deleted = FALSE AND (m.expires_at IS NULL OR m.expires_at > now())))
+      AND ($2::text IS NULL OR COALESCE(m.agent_id, e.agent_id) = $2)
+      AND ($3::boolean OR f.valid_to IS NULL)
     LIMIT 20`;
-  const { rows } = await pool.query(sql, [embeddingStr, agentId]);
+  const { rows } = await pool.query(sql, [embeddingStr, agentId, includeInvalidated]);
   return rows.map((r: any) => ({
     key: r.key,
     value: r.value,
@@ -187,19 +193,24 @@ async function keywordSearchFacts(
   pool: any,
   query: string,
   agentId: string | null,
+  includeInvalidated: boolean = false,
 ): Promise<RankedRow[]> {
   const pattern = `%${query}%`;
   const sql = `
-    SELECT m.key, f.fact_text as value, m.agent_id, 'fact' as source,
+    SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
+           f.fact_text as value,
+           COALESCE(m.agent_id, e.agent_id) as agent_id,
+           CASE WHEN f.episode_id IS NOT NULL THEN 'episode' ELSE 'fact' END as source,
            ROW_NUMBER() OVER (ORDER BY f.created_at DESC) as kw_rank
     FROM memory.facts f
-    JOIN memory.memories m ON m.id = f.memory_id
-    WHERE m.is_deleted = FALSE
-      AND (m.expires_at IS NULL OR m.expires_at > now())
+    LEFT JOIN memory.memories m ON m.id = f.memory_id
+    LEFT JOIN memory.episodes e ON e.id = f.episode_id
+    WHERE (m.id IS NULL OR (m.is_deleted = FALSE AND (m.expires_at IS NULL OR m.expires_at > now())))
       AND f.fact_text ILIKE $1
-      AND ($2::text IS NULL OR m.agent_id = $2)
+      AND ($2::text IS NULL OR COALESCE(m.agent_id, e.agent_id) = $2)
+      AND ($3::boolean OR f.valid_to IS NULL)
     LIMIT 20`;
-  const { rows } = await pool.query(sql, [pattern, agentId]);
+  const { rows } = await pool.query(sql, [pattern, agentId, includeInvalidated]);
   return rows.map((r: any) => ({
     key: r.key,
     value: r.value,
