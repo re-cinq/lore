@@ -8,7 +8,7 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
   const specs = await query(
     `SELECT id, file_path, substring(content, 1, 400) as content, ingested_at
      FROM org_shared.chunks
-     WHERE content_type = 'spec' AND (repo = $1 OR file_path LIKE 'specs/%')
+     WHERE content_type = 'spec' AND repo = $1
      ORDER BY ingested_at DESC LIMIT 30`,
     [fullName]
   );
