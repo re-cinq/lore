@@ -5,15 +5,15 @@ metadata:
   namespace: lore-ui
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    external-dns.alpha.kubernetes.io/hostname: lore.gcp.re-cinq.com
+    external-dns.alpha.kubernetes.io/hostname: LORE_UI_HOSTNAME
 spec:
   ingressClassName: nginx-ingress
   tls:
     - hosts:
-        - lore.gcp.re-cinq.com
+        - LORE_UI_HOSTNAME
       secretName: lore-ui-tls
   rules:
-    - host: lore.gcp.re-cinq.com
+    - host: LORE_UI_HOSTNAME
       http:
         paths:
           - path: /

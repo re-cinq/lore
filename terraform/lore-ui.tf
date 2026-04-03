@@ -67,11 +67,11 @@ resource "kubernetes_deployment" "lore_ui" {
           }
           env {
             name  = "GITHUB_ALLOWED_ORG"
-            value = "re-cinq"
+            value = var.github_org
           }
           env {
             name  = "NEXTAUTH_URL"
-            value = "https://lore.gcp.re-cinq.com"
+            value = var.lore_ui_url
           }
 
           # Secrets — ESO-managed
@@ -209,7 +209,7 @@ resource "kubernetes_ingress_v1" "lore_ui" {
 
     annotations = {
       "cert-manager.io/cluster-issuer"            = "letsencrypt-prod"
-      "external-dns.alpha.kubernetes.io/hostname" = "lore.gcp.re-cinq.com"
+      "external-dns.alpha.kubernetes.io/hostname" = var.lore_ui_hostname
     }
   }
 
@@ -217,12 +217,12 @@ resource "kubernetes_ingress_v1" "lore_ui" {
     ingress_class_name = "nginx-ingress"
 
     tls {
-      hosts       = ["lore.gcp.re-cinq.com"]
+      hosts       = [var.lore_ui_hostname]
       secret_name = "lore-ui-tls"
     }
 
     rule {
-      host = "lore.gcp.re-cinq.com"
+      host = var.lore_ui_hostname
 
       http {
         path {

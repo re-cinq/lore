@@ -1,13 +1,13 @@
 output "mcp_api_url" {
-  value = "https://lore-api.gcp.re-cinq.com"
+  value = var.lore_api_url
 }
 
 output "ui_url" {
-  value = "https://lore.gcp.re-cinq.com"
+  value = var.lore_ui_url
 }
 
 output "webhook_url" {
-  value = "https://lore-api.gcp.re-cinq.com/api/webhook/github"
+  value = "${var.lore_api_url}/api/webhook/github"
 }
 
 output "log_bucket" {

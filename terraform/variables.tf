@@ -74,3 +74,27 @@ variable "log_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "lore_api_url" {
+  description = "External URL for the Lore MCP API server"
+  type        = string
+  default     = ""
+}
+
+variable "lore_ui_url" {
+  description = "External URL for the Lore Web UI (e.g. https://lore.example.com)"
+  type        = string
+  default     = ""
+}
+
+variable "lore_ui_hostname" {
+  description = "Hostname for the Lore Web UI ingress (e.g. lore.example.com)"
+  type        = string
+  default     = ""
+}
+
+variable "github_org" {
+  description = "GitHub organization name for OAuth access control"
+  type        = string
+  default     = ""
+}

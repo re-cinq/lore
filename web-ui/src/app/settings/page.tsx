@@ -92,7 +92,7 @@ export default async function SettingsPage() {
       <h2>Platform Configuration</h2>
       <form action={saveSettings} className="task-form" style={{maxWidth:'600px'}}>
         <label>Lore API URL</label>
-        <input name="api_url" defaultValue={settingsMap.api_url || ''} placeholder="https://lore-api.gcp.re-cinq.com" />
+        <input name="api_url" defaultValue={settingsMap.api_url || ''} placeholder="https://your-lore-api.example.com" />
         <p className="meta" style={{fontSize:'12px', marginTop:'2px'}}>
           The external URL for the MCP server API. Used by GitHub Actions workflows and local Claude Code for task delegation.
         </p>
@@ -162,7 +162,7 @@ cd lore && scripts/install.sh
 
 # After install, set the token:
 git config --global lore.ingest-token ${settingsMap.ingest_token || '<token>'}
-git config --global lore.api-url ${settingsMap.api_url || 'https://lore-api.gcp.re-cinq.com'}`}</pre>
+git config --global lore.api-url ${settingsMap.api_url || 'https://your-lore-api.example.com'}`}</pre>
       </div>
     </div>
   );
