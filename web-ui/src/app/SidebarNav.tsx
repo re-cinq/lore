@@ -8,6 +8,8 @@ const links = [
   { href: '/pipeline', label: 'Pipeline' },
   { href: '/analytics', label: 'Analytics' },
   { href: '/search', label: 'Search' },
+  { href: '/episodes', label: 'Episodes' },
+  { href: '/graph', label: 'Graph' },
   { href: '/audit', label: 'Audit' },
   { href: '/settings', label: 'Settings' },
 ];

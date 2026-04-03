@@ -6,7 +6,7 @@ interface SearchResult {
   value: string;
   agent_id: string;
   score: number;
-  source: 'memory' | 'fact' | 'chunk';
+  source: 'memory' | 'fact' | 'chunk' | 'episode';
   repo: string | null;
 }
 
@@ -36,16 +36,19 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       LIMIT 20
     `, [q]);
 
-    // Search facts table and merge results
+    // Search facts table (includes episode-derived facts, excludes invalidated by default)
     const factResults = await query<SearchResult>(`
-      SELECT m.key, substring(f.fact_text, 1, 300) as value, m.agent_id,
+      SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
+             substring(f.fact_text, 1, 300) as value,
+             COALESCE(m.agent_id, e.agent_id) as agent_id,
              ts_rank(to_tsvector('english', f.fact_text), plainto_tsquery($1)) as score,
-             'fact' as source,
+             CASE WHEN f.episode_id IS NOT NULL THEN 'episode' ELSE 'fact' END as source,
              NULL as repo
       FROM memory.facts f
-      JOIN memory.memories m ON m.id = f.memory_id
-      WHERE m.is_deleted = FALSE
-        AND (m.expires_at IS NULL OR m.expires_at > now())
+      LEFT JOIN memory.memories m ON m.id = f.memory_id
+      LEFT JOIN memory.episodes e ON e.id = f.episode_id
+      WHERE (m.id IS NULL OR (m.is_deleted = FALSE AND (m.expires_at IS NULL OR m.expires_at > now())))
+        AND f.valid_to IS NULL
         AND to_tsvector('english', f.fact_text) @@ plainto_tsquery($1)
       ORDER BY score DESC
       LIMIT 20
