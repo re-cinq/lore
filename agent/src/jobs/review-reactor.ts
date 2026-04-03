@@ -20,7 +20,7 @@ export async function reviewReactorJob(): Promise<string> {
     `SELECT id, description, task_type, target_repo, pr_number, pr_url,
             issue_number, review_iteration, target_branch
      FROM pipeline.tasks
-     WHERE status = 'pr-created'
+     WHERE status IN ('pr-created', 'review', 'revision-requested')
        AND pr_number IS NOT NULL
        AND (review_iteration IS NULL OR review_iteration < 3)`,
   );
@@ -56,11 +56,26 @@ export async function reviewReactorJob(): Promise<string> {
         (c) => new Date(c.created_at) > lastCommitDate,
       );
 
-      if (pendingReviews.length === 0 && pendingComments.length === 0) {
+      // Get regular PR comments (issue-style — what users type from mobile)
+      const issueComments = await platform().listPRIssueComments(task.target_repo, task.pr_number);
+      const pendingIssueComments = issueComments.filter(
+        (c) => new Date(c.created_at) > lastCommitDate,
+      );
+
+      if (pendingReviews.length === 0 && pendingComments.length === 0 && pendingIssueComments.length === 0) {
         continue; // no pending feedback
       }
 
-      await processReviewFeedback(task, pendingReviews, pendingComments);
+      // Merge issue comments into the inline comments format for processing
+      const allComments = [
+        ...pendingComments,
+        ...pendingIssueComments.map(c => ({
+          id: 0, path: '(general)', line: null,
+          body: c.body, user: c.user, created_at: c.created_at,
+        })),
+      ];
+
+      await processReviewFeedback(task, pendingReviews, allComments);
       feedbackCount++;
     } catch (err) {
       console.error(
