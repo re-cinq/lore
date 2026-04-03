@@ -35,9 +35,35 @@ function hasHook(hooks, event, needle) {
   );
 }
 
+function removeHooksMatching(hooks, event, pattern) {
+  if (!Array.isArray(hooks[event])) return;
+  hooks[event] = hooks[event].filter((entry) => {
+    if (!Array.isArray(entry.hooks)) return true;
+    return !entry.hooks.some((h) => h.command && pattern.test(h.command));
+  });
+}
+
+function deduplicateHooks(hooks, event) {
+  if (!Array.isArray(hooks[event])) return;
+  const seen = new Set();
+  hooks[event] = hooks[event].filter((entry) => {
+    const key = JSON.stringify(entry);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 // --- main -------------------------------------------------------------------
 
 const settings = readSettings();
+
+// Clean out legacy beads/bd hooks from all events
+const BEADS_PATTERN = /\bbd\b|\.beads|beads/;
+for (const event of Object.keys(settings.hooks || {})) {
+  removeHooksMatching(settings.hooks, event, BEADS_PATTERN);
+  deduplicateHooks(settings.hooks, event);
+}
 
 // 1. env
 if (!settings.env) settings.env = {};
@@ -47,7 +73,7 @@ settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
 if (!settings.hooks) settings.hooks = {};
 
 // Context sync on session start
-if (!hasHook(settings.hooks, "SessionStart", "re-cinq/lore")) {
+if (!hasHook(settings.hooks, "SessionStart", "Context synced")) {
   if (!Array.isArray(settings.hooks.SessionStart))
     settings.hooks.SessionStart = [];
   settings.hooks.SessionStart.push({
