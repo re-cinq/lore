@@ -165,7 +165,10 @@ you're in from the git remote and serves that repo's context.
 git clone git@github.com:re-cinq/lore.git && lore/scripts/install.sh
 ```
 
-The MCP server runs locally via stdio. No infra needed for Phase 0.
+The MCP server runs locally via stdio but proxies all operations
+(context, memory, pipeline, search) to the GKE backend via
+`LORE_API_URL`. The backend must be running for any functionality
+beyond the initial install. There is no offline or local-only mode.
 
 ## GKE Deployment
 

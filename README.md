@@ -28,7 +28,7 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 
 ### Flow 1: Developer with Claude Code (local)
 
-A developer works in their repo. Claude Code connects to the Lore MCP server (stdio, local) and gets org context automatically. The developer can also create tasks that the agent picks up.
+A developer works in their repo. Claude Code connects to the Lore MCP server (stdio, proxied to GKE) and gets org context automatically. The developer can also create tasks that the agent picks up.
 
 <p align="center"><img src="badges/flow1-local.svg" width="600" alt="Flow 1: Developer with Claude Code" /></p>
 
@@ -132,9 +132,7 @@ git clone git@github.com:re-cinq/lore.git
 cd lore && scripts/install.sh
 ```
 
-This configures the MCP server, skills, hooks, and agent ID. No infrastructure needed — the MCP server runs locally via stdio with file-based search.
-
-For the full platform (vector search, agent pipeline, web UI), see [`docs/INSTALL.md`](docs/INSTALL.md) for the complete deployment guide.
+This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP server runs locally via stdio but proxies all operations to the GKE backend — the backend must be deployed first. See [`docs/INSTALL.md`](docs/INSTALL.md) for the complete deployment guide.
 
 ## Project Structure
 
@@ -182,7 +180,7 @@ Architecture decisions are documented as ADRs in `adrs/`.
 
 ### For Developers: Get org context in Claude Code
 
-After running `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The MCP server runs locally via stdio — no infrastructure needed.
+After running `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The MCP server runs locally via stdio and proxies all operations to the GKE backend.
 
 Every session follows an enforced workflow:
 
@@ -219,7 +217,7 @@ claude "what's the status of my last pipeline task?"
 # → Returns status, PR link, cost, duration
 ```
 
-When running locally without a database, task creation and all memory operations are **proxied** to the GKE MCP server via `LORE_API_URL`. The install script configures this automatically. AgentDB provides optional sub-ms local caching for read queries. Writes always go to the org database.
+The MCP server runs locally via stdio and proxies all operations (context, memory, search, pipeline) to the GKE backend via `LORE_API_URL`. There is no offline mode — the backend must be running. The install script configures the API URL automatically.
 
 **All MCP tools available to Claude Code:**
 
@@ -240,7 +238,7 @@ When running locally without a database, task creation and all memory operations
 | `shared_write` / `shared_read` | Memory | Cross-agent shared memory pools |
 | `create_snapshot` / `restore_snapshot` | Memory | Point-in-time backup and restore |
 | `agent_health` / `agent_stats` | Memory | Usage stats, active/invalidated facts, daily breakdown |
-| `create_pipeline_task` | Pipeline | Create task (proxied to GKE when local) |
+| `create_pipeline_task` | Pipeline | Create task (proxied to GKE) |
 | `get_pipeline_status` | Pipeline | Task status and event timeline |
 | `list_pipeline_tasks` | Pipeline | List tasks with status filter |
 | `cancel_task` | Pipeline | Cancel a running or pending task |
