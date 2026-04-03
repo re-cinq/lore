@@ -9,9 +9,9 @@ export default async function RepoContext({ params }: { params: Promise<{ owner:
   const chunks = await query(
     `SELECT id, file_path, content_type, substring(content, 1, 500) as content, ingested_at
      FROM org_shared.chunks
-     WHERE repo = $1 OR file_path LIKE '%' || $2 || '%'
+     WHERE repo = $1
      ORDER BY content_type, file_path`,
-    [fullName, repo]
+    [fullName]
   );
 
   const types = [...new Set(chunks.map((c: any) => c.content_type))];
