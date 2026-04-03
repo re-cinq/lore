@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/lib/db';
+import { redirect } from 'next/navigation';
 import PRStatusCard from './PRStatusCard';
 import TaskLogs from './TaskLogs';
 
@@ -35,6 +36,46 @@ interface LlmCall {
   cost_usd: number;
   duration_ms: number;
   created_at: string;
+}
+
+async function submitFeedback(formData: FormData) {
+  'use server';
+  const taskId = formData.get('task_id') as string;
+  const feedback = formData.get('feedback') as string;
+  if (!taskId || !feedback?.trim()) return;
+
+  const task = await queryOne<Task>(`SELECT * FROM pipeline.tasks WHERE id = $1`, [taskId]);
+  if (!task) return;
+
+  // Create a revision task on the same branch with the feedback
+  const result = await query<{ id: string }>(
+    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [
+      `Revise based on feedback: ${feedback.substring(0, 200)}`,
+      task.task_type === 'feature-request' ? 'feature-request' : 'implementation',
+      task.target_repo,
+      'ui-feedback',
+      JSON.stringify({
+        parent_task_id: taskId,
+        branch: task.target_branch,
+        pr_number: task.pr_number,
+        feedback,
+      }),
+    ],
+  );
+
+  // Log the feedback event on the original task
+  await query(
+    `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, $2, $3, $4)`,
+    [taskId, task.status, 'revision-requested', JSON.stringify({ feedback, revision_task_id: result[0].id })],
+  );
+  await query(
+    `UPDATE pipeline.tasks SET status = 'revision-requested', updated_at = now() WHERE id = $1`,
+    [taskId],
+  );
+
+  redirect(`/pipeline/${taskId}`);
 }
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +120,29 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           </form>
         )}
       </div>
+
+      {/* Feedback form — visible when task has a PR and isn't in a terminal state */}
+      {task.pr_url && !['merged', 'cancelled'].includes(task.status) && (
+        <div className="spec-card" style={{ marginTop: '16px' }}>
+          <h3 style={{ margin: '0 0 8px 0' }}>Give Feedback</h3>
+          <p className="meta" style={{ marginBottom: '8px' }}>
+            Tell the agent what to change. A revision task will be created on the same branch.
+          </p>
+          <form action={submitFeedback}>
+            <input type="hidden" name="task_id" value={task.id} />
+            <textarea
+              name="feedback"
+              rows={3}
+              required
+              placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
+              style={{ width: '100%', marginBottom: '8px' }}
+            />
+            <button type="submit" style={{ background: '#2563eb', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '4px', cursor: 'pointer' }}>
+              Request Revision
+            </button>
+          </form>
+        </div>
+      )}
 
       <TaskLogs taskId={task.id} initialStatus={task.status} />
 
