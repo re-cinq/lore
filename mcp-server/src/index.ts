@@ -101,6 +101,20 @@ function parseFrontmatter(content: string): { meta: Record<string, unknown>; bod
 
 const server = new McpServer({ name: "@re-cinq/lore-mcp", version: "0.1.0" });
 
+// --- Latency tracking helper ---
+async function trackLatency(tool: string, fn: () => Promise<any>): Promise<any> {
+  const start = Date.now();
+  const result = await fn();
+  const latencyMs = Date.now() - start;
+  if (dbPoolRef) {
+    dbPoolRef.query(
+      `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ($1, $2, $3)`,
+      ['system', tool, JSON.stringify({ latency_ms: latencyMs })],
+    ).catch(() => {});
+  }
+  return result;
+}
+
 // --- get_context ---
 server.tool(
   "get_context",
@@ -1340,6 +1354,7 @@ async function main() {
         // Statusline cache endpoint — returns onboarded, tasks, memories, auto_review
         const url = new URL(req.url, `http://${req.headers.host}`);
         const repo = url.searchParams.get("repo");
+        console.log(`[repo-status] repo=${repo} dbPoolRef=${!!dbPoolRef}`);
         if (!repo || !dbPoolRef) {
           res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false }));
           return;
