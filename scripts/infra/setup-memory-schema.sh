@@ -65,6 +65,16 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     CONSTRAINT facts_source_check CHECK (memory_id IS NOT NULL OR episode_id IS NOT NULL)
   );
 
+  -- Migrate existing facts table: add new columns if missing
+  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS valid_from TIMESTAMPTZ NOT NULL DEFAULT now();
+  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS valid_to TIMESTAMPTZ;
+  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS invalidated_by UUID;
+  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS episode_id UUID;
+  ALTER TABLE memory.facts ALTER COLUMN memory_id DROP NOT NULL;
+
+  -- Backfill valid_from from created_at for existing facts
+  UPDATE memory.facts SET valid_from = created_at WHERE valid_from = created_at;
+
   CREATE INDEX IF NOT EXISTS facts_embedding_idx
     ON memory.facts USING hnsw (embedding vector_cosine_ops);
   CREATE INDEX IF NOT EXISTS facts_active_embedding_idx
@@ -72,10 +82,6 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     WHERE valid_to IS NULL;
   CREATE INDEX IF NOT EXISTS facts_valid_idx
     ON memory.facts (valid_to) WHERE valid_to IS NULL;
-
-  -- Backfill existing facts: set valid_from from created_at
-  UPDATE memory.facts SET valid_from = created_at
-    WHERE valid_from IS NOT NULL AND valid_from = created_at;
 
   -- Episodes: raw ingestion blobs
   CREATE TABLE IF NOT EXISTS memory.episodes (
@@ -159,10 +165,13 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
   );
 
-  ALTER TABLE memory.memories
-    ADD CONSTRAINT memories_pool_fk
-    FOREIGN KEY (pool_id) REFERENCES memory.shared_pools(id)
-    NOT VALID;
+  DO \$\$ BEGIN
+    ALTER TABLE memory.memories
+      ADD CONSTRAINT memories_pool_fk
+      FOREIGN KEY (pool_id) REFERENCES memory.shared_pools(id)
+      NOT VALID;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END \$\$;
 
   -- Audit log: append-only
   CREATE TABLE IF NOT EXISTS memory.audit_log (
@@ -177,22 +186,6 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
 
   CREATE INDEX IF NOT EXISTS audit_agent_time_idx
     ON memory.audit_log (agent_id, created_at DESC);
-
-  -- ── Migrations for existing deployments ──────────────────────────
-  -- These are idempotent (ADD COLUMN IF NOT EXISTS).
-  -- Safe to run on both fresh and existing databases.
-
-  -- Temporal fact invalidation columns
-  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS valid_from TIMESTAMPTZ NOT NULL DEFAULT now();
-  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS valid_to TIMESTAMPTZ;
-  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS invalidated_by UUID;
-  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS episode_id UUID;
-
-  -- Make memory_id nullable (facts can come from episodes)
-  ALTER TABLE memory.facts ALTER COLUMN memory_id DROP NOT NULL;
-
-  -- Backfill valid_from from created_at for existing facts
-  UPDATE memory.facts SET valid_from = created_at WHERE valid_from = created_at;
 
   -- Add FK and CHECK constraints (idempotent via DO blocks)
   DO \$\$ BEGIN
