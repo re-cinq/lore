@@ -69,6 +69,17 @@ export async function watchLoreTasks(): Promise<void> {
 
     // Logs are now stored in GCS by the controller — no DB persistence needed
 
+    // Skip already-processed tasks (DB-level guard against re-entry)
+    if (phase === "Succeeded" || phase === "Failed") {
+      const dbRows = await query<{ status: string }>(
+        `SELECT status FROM pipeline.tasks WHERE id = $1`, [taskId],
+      );
+      const dbStatus = dbRows[0]?.status;
+      if (dbStatus && !['running', 'queued'].includes(dbStatus)) {
+        continue; // Already processed in a previous cycle
+      }
+    }
+
     if (phase === "Succeeded" && !lt.status?.prUrl && lt.spec?.taskType !== "review") {
       // Skip PR creation for tasks that produced no changes (e.g. general/research tasks)
       if (lt.status?.changedFiles === 0) {
@@ -117,6 +128,17 @@ export async function watchLoreTasks(): Promise<void> {
             `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'completed', $2)`,
             [taskId, JSON.stringify({ no_changes: true, issue_number })],
           );
+          // Mark the LoreTask CR as handled so the watcher doesn't re-process it
+          try {
+            const current = await k8sApi.getNamespacedCustomObjectStatus({
+              group: GROUP, version: VERSION, namespace, plural: PLURAL, name: lt.metadata.name,
+            }) as any;
+            await k8sApi.replaceNamespacedCustomObjectStatus({
+              group: GROUP, version: VERSION, namespace, plural: PLURAL, name: lt.metadata.name,
+              body: { ...current, status: { ...current.status, prUrl: 'no-changes', issueNumber: issue_number } },
+            });
+          } catch { /* best effort — CR may already be cleaned up */ }
+
           console.log(`[loretask-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`);
         } catch (err: any) {
           console.error(`[loretask-watcher] Failed to complete no-change task ${taskId}: ${err.message}`);
