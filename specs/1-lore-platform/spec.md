@@ -4,7 +4,7 @@
 |-------------------|--------------------------------------------|
 | Feature           | Lore Platform                              |
 | Branch            | 1-lore-platform                            |
-| Status            | Draft                                      |
+| Status            | Shipped                                    |
 | Created           | 2026-03-25                                 |
 | Owner             | Platform Engineering                       |
 | Phase 0 Target    | 3-4 working days                           |

@@ -24,7 +24,7 @@ Lore is the shared context layer that makes Claude Code organization-aware. Deve
 
 Beyond context, Lore is an **agent operating system**. It runs background agents that onboard repos, detect documentation gaps, check for spec drift, and review PRs — all producing pull requests that humans review and merge.
 
-## Three Ways to Use Lore
+## Four Ways to Use Lore
 
 ### Flow 1: Developer with Claude Code (local)
 
@@ -126,15 +126,7 @@ cd lore && scripts/install.sh
 
 This configures the MCP server, skills, hooks, and agent ID. No infrastructure needed — the MCP server runs locally via stdio with file-based search.
 
-For the full platform (vector search, agent pipeline, web UI), deploy to GKE:
-
-```bash
-scripts/infra/setup-db.sh           # PostgreSQL + pgvector
-scripts/infra/setup-agent-schema.sh  # Pipeline + job tables
-kubectl apply -f terraform/modules/gke-mcp/loretask-crd/  # LoreTask CRD + controller
-helm install lore-mcp terraform/modules/gke-mcp/mcp-helm/ -n mcp-servers
-helm install lore-agent terraform/modules/gke-mcp/agent-helm/ -n lore-agent
-```
+For the full platform (vector search, agent pipeline, web UI), see [`docs/INSTALL.md`](docs/INSTALL.md) for the complete deployment guide.
 
 ## Project Structure
 

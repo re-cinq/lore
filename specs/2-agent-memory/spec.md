@@ -4,7 +4,7 @@
 |----------------|---------------------------------------------|
 | Feature        | Agent Runtime Memory                        |
 | Branch         | 2-agent-memory                              |
-| Status         | Draft                                       |
+| Status         | Shipped                                     |
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 
