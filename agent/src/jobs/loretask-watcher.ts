@@ -308,18 +308,20 @@ export async function watchLoreTasks(): Promise<void> {
 
       if (lt.status.reviewResult === "approved") {
         await query(
-          `UPDATE pipeline.tasks SET status = 'review', updated_at = now() WHERE id = $1`,
+          `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`,
           [parentTaskId],
         );
         await query(
           `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, $2, $3, $4)`,
-          [parentTaskId, 'review', 'review', JSON.stringify({ review_result: 'approved', review_task_id: taskId })],
+          [parentTaskId, 'review', 'completed', JSON.stringify({ review_result: 'approved', review_task_id: taskId })],
         );
         // Comment on issue
         const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
         if (issue_number) {
           await platform().commentOnIssue(target_repo, issue_number, "Agent review: **approved**. PR is ready for human merge.").catch(() => {});
         }
+        // Mark the review task itself as completed
+        await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [taskId]);
         console.log(`[loretask-watcher] Review approved for parent task ${parentTaskId}`);
       } else {
         // Changes requested — check iteration count
