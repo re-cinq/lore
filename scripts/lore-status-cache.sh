@@ -1,51 +1,62 @@
 #!/usr/bin/env bash
-# Lore status cache updater — runs on Claude Code SessionStart
-# Queries the Lore API for pipeline and memory metrics, caches to ~/.lore/status-cache.json
-# Fast (<500ms) with timeouts — never blocks Claude Code startup
-
-CACHE="$HOME/.lore/status-cache.json"
-mkdir -p "$HOME/.lore"
+# Lore status cache — runs on Claude Code SessionStart (background)
+# Queries the Lore API for repo status, writes cache for the statusline.
+# Fast (<2s) with timeouts — never blocks Claude Code startup.
 
 API_URL="$(git config --global lore.api-url 2>/dev/null || echo '')"
 TOKEN="$(git config --global lore.ingest-token 2>/dev/null || echo '')"
 
 # Detect current repo from git remote
-REPO=""
 REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
-if [ -n "$REMOTE" ]; then
-  REPO=$(echo "$REMOTE" | sed -E 's|.*github\.com[:/](.+/.+?)(\.git)?$|\1|' | sed 's/\.git$//')
-fi
+[ -z "$REMOTE" ] && exit 0
 
-# Default values
-TASKS=0
+REPO=$(echo "$REMOTE" | sed -E 's|.*github\.com[:/](.+/.+?)(\.git)?$|\1|' | sed 's/\.git$//')
+[ -z "$REPO" ] && exit 0
+
+# Cache file keyed by repo hash (macOS: md5, Linux: md5sum)
+HASH=$(echo -n "$REPO" | md5 2>/dev/null || echo -n "$REPO" | md5sum 2>/dev/null | cut -d' ' -f1)
+CACHE="/tmp/lore-status-${HASH}.json"
+
+# Defaults
+ONBOARDED="false"
+RUNNING=0
+PR_READY=0
 MEMORIES=0
-TODAY_COST="0.00"
-REPO_STATUS=""
+AUTO_REVIEW="false"
 
-# Query Lore health endpoint for task and cost data
-if [ -n "$API_URL" ] && [ -n "$TOKEN" ]; then
-  HEALTH=$(curl -sf --max-time 1 \
+# Helper: call MCP tool via HTTP
+mcp_call() {
+  local tool="$1" args="$2"
+  curl -sf --max-time 2 \
     -H "Authorization: Bearer ${TOKEN}" \
-    "${API_URL}/healthz" 2>/dev/null || echo "{}")
+    -H "Content-Type: application/json" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"call_tool\",\"params\":{\"name\":\"${tool}\",\"arguments\":${args}}}" \
+    "${API_URL}/mcp" 2>/dev/null || echo ""
+}
 
-  if [ -n "$HEALTH" ] && [ "$HEALTH" != "{}" ]; then
-    TASKS=$(echo "$HEALTH" | jq -r '.tasks.processed_today // 0' 2>/dev/null)
-    PENDING=$(echo "$HEALTH" | jq -r '.tasks.pending // 0' 2>/dev/null)
-    TODAY_COST=$(echo "$HEALTH" | jq -r '.today_cost // "0.00"' 2>/dev/null)
-    DB_STATUS=$(echo "$HEALTH" | jq -r '.status // "unknown"' 2>/dev/null)
-    [ "$DB_STATUS" = "ok" ] && REPO_STATUS="connected" || REPO_STATUS="disconnected"
-    [ "$PENDING" != "0" ] && TASKS="${TASKS}+${PENDING}p"
+if [ -n "$API_URL" ] && [ -n "$TOKEN" ]; then
+  # Check if repo is onboarded + get settings
+  REPOS_RESP=$(mcp_call "list_repos" "{}")
+  if [ -n "$REPOS_RESP" ]; then
+    FOUND=$(echo "$REPOS_RESP" | jq -r ".result.content[]?.text // \"\" | fromjson? | .repos[]? | select(.full_name == \"${REPO}\") | .full_name" 2>/dev/null || echo "")
+    [ -n "$FOUND" ] && ONBOARDED="true"
+
+    AR=$(echo "$REPOS_RESP" | jq -r ".result.content[]?.text // \"\" | fromjson? | .repos[]? | select(.full_name == \"${REPO}\") | .settings.auto_review // false" 2>/dev/null || echo "false")
+    [ "$AR" = "true" ] && AUTO_REVIEW="true"
   fi
 
-  # Check if current repo is onboarded via API
-  if [ -n "$REPO" ] && [ "$REPO_STATUS" = "connected" ]; then
-    # Query the ingest endpoint with a dry-run to check if repo is known
-    REPO_CHECK=$(curl -sf --max-time 1 \
-      -H "Authorization: Bearer ${TOKEN}" \
-      "${API_URL}/api/repo-status?repo=${REPO}" 2>/dev/null || echo "")
-    if echo "$REPO_CHECK" | jq -r '.onboarded' 2>/dev/null | grep -q true; then
-      REPO_STATUS="onboarded"
-    fi
+  if [ "$ONBOARDED" = "true" ]; then
+    # Count running tasks for this repo
+    RUN_RESP=$(mcp_call "list_pipeline_tasks" "{\"status\":\"running\"}")
+    [ -n "$RUN_RESP" ] && RUNNING=$(echo "$RUN_RESP" | jq -r "[.result.content[]?.text // \"\" | fromjson? | .tasks[]? | select(.target_repo == \"${REPO}\")] | length" 2>/dev/null || echo 0)
+
+    # Count PR-ready tasks
+    PR_RESP=$(mcp_call "list_pipeline_tasks" "{\"status\":\"pr-created\"}")
+    [ -n "$PR_RESP" ] && PR_READY=$(echo "$PR_RESP" | jq -r "[.result.content[]?.text // \"\" | fromjson? | .tasks[]? | select(.target_repo == \"${REPO}\")] | length" 2>/dev/null || echo 0)
+
+    # Memory count
+    MEM_RESP=$(mcp_call "agent_stats" "{}")
+    [ -n "$MEM_RESP" ] && MEMORIES=$(echo "$MEM_RESP" | jq -r '.result.content[]?.text // "" | fromjson? | .total_memories // 0' 2>/dev/null || echo 0)
   fi
 fi
 
@@ -53,10 +64,11 @@ fi
 cat > "$CACHE" <<EOF
 {
   "repo": "${REPO}",
-  "repo_status": "${REPO_STATUS}",
-  "active_tasks": ${TASKS},
-  "memory_count": ${MEMORIES},
-  "today_cost": "${TODAY_COST}",
+  "onboarded": ${ONBOARDED},
+  "running": ${RUNNING},
+  "pr_ready": ${PR_READY},
+  "memories": ${MEMORIES},
+  "auto_review": ${AUTO_REVIEW},
   "updated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
