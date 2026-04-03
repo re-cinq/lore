@@ -131,7 +131,25 @@ All secrets managed by External Secrets Operator (ESO) pulling from
 GCP Secret Manager. Single `terraform apply` deploys everything.
 See `terraform/` for the full configuration.
 
-Deploy: `cd terraform && terraform apply -var-file=secrets.tfvars`
+Deploy requires `secrets.tfvars` (copy from `secrets.tfvars.example`)
+plus four variables passed on the command line or in the file:
+
+- `lore_api_url` — external URL for the MCP server API
+- `lore_ui_url` — external URL for the web UI
+- `lore_ui_hostname` — hostname for the UI ingress
+- `github_org` — GitHub organization name
+
+```bash
+cd terraform && terraform apply \
+  -var-file=secrets.tfvars \
+  -var='lore_api_url=https://lore-api.example.com' \
+  -var='lore_ui_url=https://lore.example.com' \
+  -var='lore_ui_hostname=lore.example.com' \
+  -var='github_org=your-github-org'
+```
+
+CI workflows also require the GitHub Actions variable `GCP_PROJECT_ID`
+(`gh variable set GCP_PROJECT_ID --body "your-gcp-project-id"`).
 
 ## Repo Onboarding
 

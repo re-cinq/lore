@@ -4,7 +4,7 @@
 |----------------|---------------------------------------------|
 | Feature        | Lore Agent Service                          |
 | Branch         | 5-lore-agent                                |
-| Status         | Draft                                       |
+| Status         | Shipped                                     |
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 

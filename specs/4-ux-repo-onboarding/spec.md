@@ -4,7 +4,7 @@
 |----------------|---------------------------------------------|
 | Feature        | UX Redesign + Repo Onboarding               |
 | Branch         | 4-ux-repo-onboarding                        |
-| Status         | Draft                                       |
+| Status         | Shipped                                     |
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 
