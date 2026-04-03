@@ -1336,7 +1336,7 @@ async function main() {
         }
         res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status, database: health, tasks, today_cost: todayCost }));
       } else if (req.url?.startsWith("/api/repo-status") && req.method === "GET") {
-        // Check if a repo is onboarded — used by the status line cache
+        // Statusline cache endpoint — returns onboarded, tasks, memories, auto_review
         const url = new URL(req.url, `http://${req.headers.host}`);
         const repo = url.searchParams.get("repo");
         if (!repo || !dbPoolRef) {
@@ -1344,8 +1344,27 @@ async function main() {
           return;
         }
         try {
-          const { rows } = await dbPoolRef.query(`SELECT 1 FROM lore.repos WHERE full_name = $1`, [repo]);
-          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: rows.length > 0, repo }));
+          const repoRow = await dbPoolRef.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
+          if (repoRow.rows.length === 0) {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false, repo }));
+            return;
+          }
+          const settings = repoRow.rows[0].settings || {};
+          const running = await dbPoolRef.query(
+            `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status = 'running'`, [repo],
+          );
+          const prReady = await dbPoolRef.query(
+            `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status IN ('pr-created', 'review')`, [repo],
+          );
+          const memories = await dbPoolRef.query(`SELECT count(*) as c FROM memory.memories WHERE deleted_at IS NULL`);
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+            onboarded: true,
+            repo,
+            running: Number(running.rows[0]?.c || 0),
+            pr_ready: Number(prReady.rows[0]?.c || 0),
+            memories: Number(memories.rows[0]?.c || 0),
+            auto_review: settings.auto_review === true,
+          }));
         } catch {
           res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false }));
         }
