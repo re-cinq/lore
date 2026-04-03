@@ -87,10 +87,12 @@ Hybrid search combines vector similarity (Vertex AI `text-embedding-005`, 768 di
 15 MCP tools for persistent memory across sessions and restarts. Every memory is versioned, timestamped, and semantically searchable. When running locally, all memory operations are proxied to the GKE MCP server so learnings are shared org-wide.
 
 Key capabilities:
-- **Temporal fact invalidation** — facts have validity windows; contradictory facts are automatically invalidated via embedding similarity
-- **Passive episode ingestion** — `write_episode` accepts raw text (conversations, reviews, observations); facts and knowledge graph entities are extracted automatically
-- **Live knowledge graph** — entities (services, teams, technologies) and relationships tracked in PostgreSQL, updated incrementally on every episode
+- **Temporal fact invalidation** — facts have validity windows; contradictory facts are automatically invalidated via embedding similarity (threshold 0.92)
+- **Passive episode ingestion** — `write_episode` accepts raw text (conversations, reviews, observations); facts and knowledge graph entities are extracted automatically. PR review feedback is auto-captured by the review-reactor job. Session summaries are captured via a Stop hook.
+- **Live knowledge graph** — entities (services, teams, technologies) and relationships tracked in PostgreSQL, updated incrementally on every episode. Query with `query_graph`.
+- **Graph-augmented search** — `search_memory(graph_augment=true)` enriches results with 1-hop knowledge graph neighbors of detected entities
 - **Context assembly** — `assemble_context` retrieves from all sources and formats into a token-budgeted block using configurable YAML templates (default, review, implementation, research)
+- **Retrieval benchmarks** — p50/p95/p99 latency tracked per tool in the audit log, visible in the analytics dashboard
 
 ### Repo Onboarding
 
@@ -224,7 +226,7 @@ When running locally without a database, task creation and all memory operations
 | `search_context` | Context | Hybrid search (vector + keyword) across all org context |
 | `write_memory` | Memory | Store a persistent memory with optional TTL and fact extraction |
 | `read_memory` | Memory | Retrieve by key, supports version history |
-| `search_memory` | Memory | Semantic search across all memories and extracted facts (supports `include_invalidated` for history) |
+| `search_memory` | Memory | Semantic search across memories and facts. Supports `include_invalidated` for history, `graph_augment` for 1-hop graph enrichment |
 | `list_memories` | Memory | Paginated listing of active memories |
 | `delete_memory` | Memory | Soft-delete (preserved in history) |
 | `write_episode` | Memory | Ingest raw text; auto-extracts facts and updates knowledge graph |
@@ -412,9 +414,14 @@ curl https://LORE_API_DOMAIN/healthz
 The analytics dashboard at `LORE_UI_DOMAIN/analytics` shows:
 - Cost overview cards (today, 7-day, 30-day)
 - Task summary by status
+- Retrieval performance (p50/p95/p99 latency per MCP tool, 200ms threshold)
 - Cost breakdown by task type and by repo
 - Daily cost trend chart
 - Scheduled job run history
+
+Additional pages:
+- `/episodes` — browse ingested episodes with source filter and fact counts
+- `/graph` — explore knowledge graph entities, relationships, and temporal validity
 
 Also available programmatically via the `get_analytics` MCP tool.
 
