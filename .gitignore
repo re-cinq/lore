@@ -36,6 +36,11 @@ Thumbs.db
 # Coverage
 coverage/
 
+# Next.js
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
 # Claude Code
 .claude/worktrees/
 .claude/tsc-cache/
