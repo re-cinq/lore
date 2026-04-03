@@ -11,7 +11,9 @@ resource "kubectl_manifest" "loretask_crd" {
 # --- Controller RBAC (multi-document: ServiceAccount, ClusterRole, ClusterRoleBinding) ---
 
 data "kubectl_file_documents" "controller_rbac" {
-  content = file("${path.module}/modules/gke-mcp/loretask-crd/rbac.yaml")
+  content = templatefile("${path.module}/modules/gke-mcp/loretask-crd/rbac.yaml", {
+    project_id = var.project_id
+  })
 }
 
 resource "kubectl_manifest" "controller_rbac" {
@@ -27,7 +29,9 @@ resource "kubectl_manifest" "controller_rbac" {
 # --- Controller Deployment ---
 
 resource "kubectl_manifest" "loretask_controller" {
-  yaml_body = file("${path.module}/modules/gke-mcp/loretask-crd/controller-deployment.yaml")
+  yaml_body = templatefile("${path.module}/modules/gke-mcp/loretask-crd/controller-deployment.yaml", {
+    project_id = var.project_id
+  })
 
   depends_on = [
     kubectl_manifest.controller_rbac,

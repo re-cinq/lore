@@ -5,15 +5,15 @@ metadata:
   namespace: mcp-servers
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    external-dns.alpha.kubernetes.io/hostname: lore-api.gcp.re-cinq.com
+    external-dns.alpha.kubernetes.io/hostname: LORE_API_HOSTNAME
 spec:
   ingressClassName: nginx-ingress
   tls:
     - hosts:
-        - lore-api.gcp.re-cinq.com
+        - LORE_API_HOSTNAME
       secretName: lore-mcp-api-tls
   rules:
-    - host: lore-api.gcp.re-cinq.com
+    - host: LORE_API_HOSTNAME
       http:
         paths:
           - path: /api

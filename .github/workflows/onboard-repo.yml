@@ -22,7 +22,7 @@ jobs:
       - name: Trigger onboarding via Lore API
         env:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_API_URL: ${{ vars.LORE_API_URL || 'https://lore-api.gcp.re-cinq.com' }}
+          LORE_API_URL: ${{ vars.LORE_API_URL || 'https://your-lore-api.example.com' }}
         run: |
           RESPONSE=$(curl -sf -X POST \
             -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \

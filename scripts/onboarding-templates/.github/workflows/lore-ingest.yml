@@ -39,7 +39,7 @@ jobs:
               \"repo\": \"${{ github.repository }}\",
               \"commit\": \"${{ github.sha }}\"
             }" \
-            "${LORE_INGEST_URL:-https://lore-api.gcp.re-cinq.com}/api/ingest" \
+            "${LORE_INGEST_URL:-${LORE_INGEST_URL}}/api/ingest" \
             || echo "::warning::Could not reach Lore ingest endpoint"
           env:
             FILES: ${{ steps.changes.outputs.files }}
