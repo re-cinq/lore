@@ -125,9 +125,10 @@ async function processTask(task: any): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
 
-  // Create GitHub Issue on the target repo (skip if already set by webhook dispatch)
+  // Create GitHub Issue on the target repo
+  // Skip upfront issue for general tasks — the watcher creates the issue with the result
   let issueNumber: number | null = task.issue_number || null;
-  if (!issueNumber) {
+  if (!issueNumber && task.task_type !== "general") {
     try {
       const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
       const issue = await platform().createIssue(
@@ -146,7 +147,7 @@ async function processTask(task: any): Promise<void> {
       // Non-fatal — proceed without issue if GitHub App lacks permission
     console.warn(`[agent] Could not create issue on ${targetRepo}: ${err.message}`);
     }
-  } else {
+  } else if (issueNumber) {
     console.log(`[agent] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`);
   }
 
@@ -562,7 +563,7 @@ body:
     content: `blank_issues_enabled: true
 contact_links:
   - name: Lore Dashboard
-    url: https://lore.gcp.re-cinq.com
+    url: https://LORE_UI_DOMAIN
     about: Create tasks directly in the Lore UI
 `,
   },
@@ -735,7 +736,7 @@ async function handleOnboard(
   }
 
   // Configure ingest secrets on the repo so lore-ingest.yml can call back
-  const ingestUrl = process.env.LORE_INGEST_URL || "https://lore-api.gcp.re-cinq.com";
+  const ingestUrl = process.env.LORE_INGEST_URL || "";
   const ingestToken = process.env.LORE_INGEST_TOKEN;
   try {
     await platform().setRepoVariable(targetRepo, "LORE_INGEST_URL", ingestUrl);

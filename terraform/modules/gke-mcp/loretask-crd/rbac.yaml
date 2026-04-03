@@ -4,7 +4,7 @@ metadata:
   name: loretask-controller
   namespace: lore-agent
   annotations:
-    iam.gke.io/gcp-service-account: loretask-controller@re5-n8n-platform.iam.gserviceaccount.com
+    iam.gke.io/gcp-service-account: loretask-controller@PROJECT_ID.iam.gserviceaccount.com
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

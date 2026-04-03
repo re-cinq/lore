@@ -7,7 +7,7 @@ resource "kubernetes_service_account" "lore_ui" {
     name      = "lore-ui"
     namespace = "lore-ui"
     annotations = {
-      "iam.gke.io/gcp-service-account" = "lore-ui@re5-n8n-platform.iam.gserviceaccount.com"
+      "iam.gke.io/gcp-service-account" = "lore-ui@${var.project_id}.iam.gserviceaccount.com"
     }
   }
 }
@@ -141,7 +141,7 @@ resource "kubernetes_deployment" "lore_ui" {
 
           env {
             name  = "LORE_LOG_BUCKET"
-            value = "lore-task-logs-re5-n8n-platform"
+            value = "lore-task-logs-${var.project_id}"
           }
 
           resources {

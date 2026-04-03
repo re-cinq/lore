@@ -9,7 +9,7 @@
 
 let pool: any = null;
 
-const VERTEX_PROJECT = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "re5-n8n-platform";
+const VERTEX_PROJECT = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
 const VERTEX_REGION = process.env.GCP_REGION || "europe-west1";
 const VERTEX_MODEL = "text-embedding-005";
 

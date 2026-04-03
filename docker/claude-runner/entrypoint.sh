@@ -105,6 +105,10 @@ else
   echo "[runner] Checking for changes..."
   if [ -z "$(git status --porcelain)" ]; then
     echo "NO_CHANGES"
+    # General tasks are informational (research, analysis) — no file changes expected
+    if [ "$TASK_TYPE" = "general" ]; then
+      exit 0
+    fi
     exit 1
   fi
 

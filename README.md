@@ -258,7 +258,7 @@ developers stay in their GitHub workflow.
 Duplicate prevention: if an active task already exists for the issue,
 Lore comments with the existing task ID instead of creating a new one.
 
-Requires a webhook on the repo: `POST https://lore-api.gcp.re-cinq.com/api/webhook/github`
+Requires a webhook on the repo: `POST https://LORE_API_DOMAIN/api/webhook/github`
 with events `Issues` and HMAC secret from `LORE_WEBHOOK_SECRET`.
 
 ### GitHub Issue Notifications
@@ -273,7 +273,7 @@ Filter with `label:lore-managed` to see all Lore activity on any repo.
 ### For Platform Engineers: Onboard a repo
 
 **Via UI:**
-1. Go to `lore.gcp.re-cinq.com/onboard`
+1. Go to `LORE_UI_DOMAIN/onboard`
 2. Enter `owner/repo` (e.g., `re-cinq/my-service`)
 3. Click "Onboard Repository"
 4. Agent inspects the repo, generates CLAUDE.md, ADRs, spec, CI workflows
@@ -304,7 +304,7 @@ This is how a feature goes from a product manager's idea to production code, ste
 
 #### Step 1: PM describes the feature (Lore UI)
 
-Open `lore.gcp.re-cinq.com` → pick your repo → "New Task" → "Feature Request".
+Open `LORE_UI_DOMAIN` → pick your repo → "New Task" → "Feature Request".
 
 Describe what you want in plain language. No technical jargon needed:
 
@@ -391,7 +391,7 @@ The entire flow from "I want X" to merged code, with proper specs, tracked tasks
 
 ### Monitoring
 
-**Web UI** (`lore.gcp.re-cinq.com`):
+**Web UI** (`LORE_UI_DOMAIN`):
 - Pipeline page shows all tasks with status, cost, PR links, and live PR state badges
 - Task detail page shows live agent output in a terminal-style log viewer (polls every 5s while running)
 - Repo view shows context, active tasks, and memory for each repo
@@ -399,7 +399,7 @@ The entire flow from "I want X" to merged code, with proper specs, tracked tasks
 
 **Agent health** endpoint:
 ```bash
-curl https://lore-api.gcp.re-cinq.com/healthz
+curl https://LORE_API_DOMAIN/healthz
 # Returns: uptime, tasks processed, job schedules, DB status
 ```
 
@@ -407,7 +407,7 @@ curl https://lore-api.gcp.re-cinq.com/healthz
 
 ### Analytics
 
-The analytics dashboard at `lore.gcp.re-cinq.com/analytics` shows:
+The analytics dashboard at `LORE_UI_DOMAIN/analytics` shows:
 - Cost overview cards (today, 7-day, 30-day)
 - Task summary by status
 - Cost breakdown by task type and by repo
@@ -418,7 +418,7 @@ Also available programmatically via the `get_analytics` MCP tool.
 
 ### Global Settings
 
-Platform configuration at `lore.gcp.re-cinq.com/settings`:
+Platform configuration at `LORE_UI_DOMAIN/settings`:
 - **API URL** — the external MCP server endpoint
 - **Ingest Token** — shared auth token for API calls
 - **Regenerate Token** — rotates the token (invalidates all existing)

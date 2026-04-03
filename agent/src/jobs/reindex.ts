@@ -13,7 +13,7 @@ interface RepoTeam {
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
-const GCP_PROJECT = process.env.GCP_PROJECT || "re5-n8n-platform";
+const GCP_PROJECT = process.env.GCP_PROJECT || "";
 const GCP_REGION = process.env.GCP_REGION || "europe-west1";
 const VERTEX_MODEL = "text-embedding-005";
 
