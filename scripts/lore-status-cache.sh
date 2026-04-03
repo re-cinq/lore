@@ -10,7 +10,7 @@ TOKEN="$(git config --global lore.ingest-token 2>/dev/null || echo '')"
 REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
 [ -z "$REMOTE" ] && exit 0
 
-REPO=$(echo "$REMOTE" | sed -E 's|.*github\.com[:/](.+/.+?)(\.git)?$|\1|' | sed 's/\.git$//')
+REPO=$(echo "$REMOTE" | sed 's|.*github\.com[:/]||' | sed 's|\.git$||')
 [ -z "$REPO" ] && exit 0
 
 # Cache file keyed by repo hash (macOS: md5, Linux: md5sum)
