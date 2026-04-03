@@ -120,12 +120,40 @@ When the MCP server runs locally (stdio mode), all memory operations
 are proxied to the GKE MCP server via `LORE_API_URL`. Local learnings
 are shared across the org. AgentDB provides optional local read caching.
 
+## Required Workflow
+
+Every Claude Code session connected to Lore MUST follow this order:
+
+1. **First action**: Call `assemble_context` with a query describing
+   the task. This loads conventions, ADRs, memories, facts, and
+   graph relationships in one call. Do not skip this.
+
+2. **Before planning or building**: Call `search_memory` to check
+   if the problem was already solved or if previous sessions left
+   relevant learnings. Search with multiple queries — exact terms,
+   likely key names (e.g. `deployment-gotchas-{date}`), and broader
+   descriptions. Never assume "no memory exists" after one search.
+
+3. **During work**: Use `search_context` for patterns and history.
+   Use `query_graph` to understand entity relationships. Use
+   `create_pipeline_task` to delegate work to agents.
+
+4. **Before session ends**: Call `write_memory` with a session
+   summary of decisions, corrections, and non-obvious learnings.
+   Call `write_episode` with raw observations for passive fact
+   extraction.
+
+This workflow is enforced via the system prompt injected by
+`install.sh`. The install script configures hooks that remind
+agents to follow this order.
+
 ## Developer Setup
 
 `install.sh` runs once per machine. It configures:
 - MCP server (serves context for ALL onboarded repos)
 - Skills (/lore-feature, /lore-pr)
-- Hooks (SessionStart syncs context, PostToolUse tracks tasks)
+- Hooks (SessionStart syncs context, Stop captures episode)
+- System prompt (enforces assemble_context + search_memory workflow)
 - Agent ID (~/.lore/agent-id)
 
 No per-repo install needed. The MCP server auto-detects which repo
