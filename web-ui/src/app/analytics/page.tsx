@@ -12,6 +12,14 @@ interface TaskSummary {
   active: number;
 }
 
+interface LatencyStats {
+  tool: string;
+  call_count: number;
+  p50_ms: number;
+  p95_ms: number;
+  p99_ms: number;
+}
+
 interface CostByTaskType {
   task_type: string;
   task_count: number;
@@ -117,6 +125,21 @@ export default async function AnalyticsPage() {
     ORDER BY 1 DESC`
   );
 
+  // Retrieval latency stats from audit_log (last 7 days)
+  const latencyStats = await query<LatencyStats>(
+    `SELECT
+      operation as tool,
+      count(*)::int as call_count,
+      percentile_cont(0.50) WITHIN GROUP (ORDER BY (metadata->>'latency_ms')::numeric) as p50_ms,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY (metadata->>'latency_ms')::numeric) as p95_ms,
+      percentile_cont(0.99) WITHIN GROUP (ORDER BY (metadata->>'latency_ms')::numeric) as p99_ms
+    FROM memory.audit_log
+    WHERE metadata->>'latency_ms' IS NOT NULL
+      AND created_at > now() - interval '7 days'
+    GROUP BY operation
+    ORDER BY call_count DESC`
+  );
+
   const jobRuns = await query<JobRun>(
     `SELECT job_name, started_at, completed_at, status, result_summary, error
     FROM pipeline.job_runs
@@ -169,6 +192,37 @@ export default async function AnalyticsPage() {
           <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--warning, #f59e0b)'}}>{Number(taskSummary?.active ?? 0).toLocaleString()}</div>
         </div>
       </div>
+
+      {/* Retrieval Performance */}
+      <h2>Retrieval Performance (Last 7 Days)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Tool</th>
+            <th>Calls</th>
+            <th>p50</th>
+            <th>p95</th>
+            <th>p99</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {latencyStats.map(r => (
+            <tr key={r.tool}>
+              <td><span className="badge">{r.tool}</span></td>
+              <td>{Number(r.call_count).toLocaleString()}</td>
+              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.p50_ms).toFixed(0)}ms</td>
+              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.p95_ms).toFixed(0)}ms</td>
+              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.p99_ms).toFixed(0)}ms</td>
+              <td>{Number(r.p95_ms) > 200
+                ? <span className="op-badge op-delete">&gt;200ms</span>
+                : <span className="op-badge op-write">OK</span>
+              }</td>
+            </tr>
+          ))}
+          {latencyStats.length === 0 && <tr><td colSpan={6} className="meta" style={{textAlign:'center'}}>No latency data yet. Use search_memory, query_graph, or assemble_context to generate data.</td></tr>}
+        </tbody>
+      </table>
 
       {/* Cost by Task Type */}
       <h2>Cost by Task Type</h2>

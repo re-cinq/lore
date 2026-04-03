@@ -126,6 +126,20 @@ if (!hasHook(settings.hooks, "Stop", "session-summary")) {
   });
 }
 
+// Auto-episode: capture session summary on stop via API
+if (!hasHook(settings.hooks, "Stop", "write_episode")) {
+  settings.hooks.Stop.push({
+    matcher: "",
+    hooks: [
+      {
+        type: "command",
+        command:
+          `LORE_URL=\${LORE_API_URL:-}; LORE_TOKEN=\${LORE_INGEST_TOKEN:-}; AGENT_ID=$(cat ~/.lore/agent-id 2>/dev/null || echo 'unknown'); REPO=$(git remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\\.git$||' || echo 'unknown'); if [ -n "$LORE_URL" ] && [ -n "$LORE_TOKEN" ]; then curl -s -X POST "$LORE_URL/api/episode" -H "Authorization: Bearer $LORE_TOKEN" -H "Content-Type: application/json" -d "{\\"content\\":\\"Session ended in $REPO by agent $AGENT_ID\\",\\"source\\":\\"session\\",\\"ref\\":\\"$REPO\\",\\"agent_id\\":\\"$AGENT_ID\\"}" >/dev/null 2>&1 && echo '[lore] Session episode captured' || true; fi`,
+      },
+    ],
+  });
+}
+
 // 3. status line
 const loreDir = path.join(process.env.HOME || process.env.USERPROFILE, ".re-cinq", "lore");
 settings.statusLine = {

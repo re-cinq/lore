@@ -1,6 +1,7 @@
 import { query } from "../db.js";
 import { platform } from "../platform.js";
 import { callLLM } from "../anthropic.js";
+import { createHash } from "node:crypto";
 
 interface PendingTask {
   id: string;
@@ -92,6 +93,18 @@ async function processReviewFeedback(
         `Reviewer @${c.user || "unknown"} said: "${c.body}" (on ${c.path}:${c.line || "?"})`,
     )
     .join("\n\n");
+
+  // Capture review feedback as an episode for org-wide learning
+  const episodeContent = `PR #${task.pr_number} on ${task.target_repo}\n\n${formattedReviews}\n\n${formattedComments}`;
+  const contentHash = createHash("sha256").update(episodeContent).digest("hex");
+  try {
+    await query(
+      `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (agent_id, content_hash) DO NOTHING`,
+      ['review-reactor', episodeContent, contentHash, 'pr-review', `${task.target_repo}#${task.pr_number}`],
+    );
+  } catch { /* best effort */ }
 
   const prompt = `You are fixing review feedback on a pull request.
 
