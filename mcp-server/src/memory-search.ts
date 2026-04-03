@@ -17,7 +17,7 @@ export interface MemorySearchResult {
   value: string;
   score: number;
   agent_id: string;
-  source: 'memory' | 'fact' | 'episode';
+  source: 'memory' | 'fact' | 'episode' | 'graph';
 }
 
 // ── RRF constant (matches db.ts hybrid search) ─────────────────────
@@ -33,7 +33,9 @@ export async function searchMemories(
   poolName?: string,
   limit: number = 10,
   includeInvalidated: boolean = false,
+  graphAugmentEnabled: boolean = false,
 ): Promise<MemorySearchResult[]> {
+  const searchStartTime = Date.now();
   const agent = agentId ? resolveAgentId(agentId) : null;
 
   // Resolve pool name to pool_id when provided
@@ -79,12 +81,29 @@ export async function searchMemories(
   const merged = rrfMerge(vectorMemories, vectorFacts, keywordMemories, keywordFacts);
 
   // Sort descending by score and apply limit
-  const results = merged
+  let results = merged
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 
-  // Audit log
-  await auditLog(pool, agent, query, results.length);
+  // Graph augmentation: enrich results with 1-hop graph neighbors
+  if (graphAugmentEnabled && results.length > 0) {
+    await refreshEntityCache(pool);
+    const entities = detectEntities(results);
+    if (entities.length > 0) {
+      const graphResults = await graphAugment(pool, entities);
+      // Give graph results a lower score than the worst direct result
+      const minScore = results.length > 0 ? results[results.length - 1].score * 0.5 : 0.001;
+      const graphWithScores = graphResults.map((r, i) => ({
+        ...r,
+        score: minScore * (1 - i * 0.05), // Decreasing scores
+      }));
+      results = [...results, ...graphWithScores].slice(0, limit);
+    }
+  }
+
+  // Audit log with latency
+  const latencyMs = Date.now() - searchStartTime;
+  await auditLog(pool, agent, query, results.length, latencyMs);
 
   return results;
 }
@@ -95,7 +114,7 @@ interface RankedRow {
   key: string;
   value: string;
   agent_id: string;
-  source: 'memory' | 'fact' | 'episode';
+  source: 'memory' | 'fact' | 'episode' | 'graph';
   rank: number;
 }
 
@@ -259,11 +278,87 @@ function rrfMerge(
 
 // ── Audit helper ────────────────────────────────────────────────────
 
+// ── Entity cache for graph augmentation ─────────────────────────────
+
+let entityNameCache: Set<string> = new Set();
+let entityCacheUpdatedAt = 0;
+const ENTITY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function refreshEntityCache(pool: any): Promise<void> {
+  if (Date.now() - entityCacheUpdatedAt < ENTITY_CACHE_TTL_MS && entityNameCache.size > 0) return;
+  try {
+    const { rows } = await pool.query(`SELECT LOWER(name) as name FROM memory.entities`);
+    entityNameCache = new Set(rows.map((r: any) => r.name));
+    entityCacheUpdatedAt = Date.now();
+  } catch {
+    // Keep stale cache on error
+  }
+}
+
+function detectEntities(results: MemorySearchResult[]): string[] {
+  const found = new Set<string>();
+  for (const r of results) {
+    const text = `${r.key} ${r.value}`.toLowerCase();
+    for (const entity of entityNameCache) {
+      if (entity.length >= 3 && text.includes(entity)) {
+        found.add(entity);
+      }
+    }
+  }
+  return [...found].slice(0, 5); // Max 5 entities to augment
+}
+
+async function graphAugment(
+  pool: any,
+  entities: string[],
+): Promise<MemorySearchResult[]> {
+  if (entities.length === 0) return [];
+
+  const results: MemorySearchResult[] = [];
+  const seen = new Set<string>();
+
+  for (const entity of entities) {
+    try {
+      const { rows } = await pool.query(
+        `SELECT s.name as source_name, s.entity_type as source_type,
+                e.relation_type, t.name as target_name, t.entity_type as target_type
+         FROM memory.edges e
+         JOIN memory.entities s ON s.id = e.source_id
+         JOIN memory.entities t ON t.id = e.target_id
+         WHERE (LOWER(s.name) = $1 OR LOWER(t.name) = $1)
+           AND e.valid_to IS NULL
+         LIMIT 10`,
+        [entity],
+      );
+
+      for (const row of rows) {
+        const desc = `${row.source_name} (${row.source_type}) --${row.relation_type}--> ${row.target_name} (${row.target_type})`;
+        if (seen.has(desc)) continue;
+        seen.add(desc);
+        results.push({
+          key: entity,
+          value: desc,
+          score: 0, // Will be set by caller
+          agent_id: 'graph',
+          source: 'graph',
+        });
+      }
+    } catch {
+      // Skip this entity on error
+    }
+  }
+
+  return results.slice(0, 10);
+}
+
+// ── Audit helper ────────────────────────────────────────────────────
+
 async function auditLog(
   pool: any,
   agentId: string | null,
   query: string,
   resultCount: number,
+  latencyMs?: number,
 ): Promise<void> {
   try {
     await pool.query(
@@ -272,7 +367,7 @@ async function auditLog(
       [
         agentId || 'anonymous',
         'search',
-        JSON.stringify({ query, result_count: resultCount }),
+        JSON.stringify({ query, result_count: resultCount, latency_ms: latencyMs }),
       ],
     );
   } catch {

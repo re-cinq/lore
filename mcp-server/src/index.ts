@@ -607,18 +607,20 @@ server.tool(
     include_invalidated: z.boolean().default(false).describe("Include invalidated (historical) relationships."),
   },
   async ({ entity, relation_type, repo, include_invalidated }) => {
-    try {
-      if (!isMemoryDbAvailable()) {
-        return { content: [{ type: "text" as const, text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST not set)." }] };
+    return trackLatency('query_graph', async () => {
+      try {
+        if (!isMemoryDbAvailable()) {
+          return { content: [{ type: "text" as const, text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST not set)." }] };
+        }
+        const results = await queryLiveGraph(dbPoolRef, entity, relation_type, repo, include_invalidated);
+        if (results.length === 0) {
+          return { content: [{ type: "text" as const, text: entity ? `No relationships found for "${entity}".` : "Knowledge graph is empty. Write episodes or memories to populate it." }] };
+        }
+        return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: `Error querying graph: ${err.message}` }] };
       }
-      const results = await queryLiveGraph(dbPoolRef, entity, relation_type, repo, include_invalidated);
-      if (results.length === 0) {
-        return { content: [{ type: "text" as const, text: entity ? `No relationships found for "${entity}".` : "Knowledge graph is empty. Write episodes or memories to populate it." }] };
-      }
-      return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error querying graph: ${err.message}` }] };
-    }
+    });
   }
 );
 
@@ -635,20 +637,21 @@ server.tool(
     agent_id: z.string().optional().describe("Override agent ID."),
   },
   async ({ query, template, max_tokens, repo, agent_id }) => {
-    try {
-      if (!isMemoryDbAvailable()) {
-        return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL (LORE_DB_HOST not set)." }] };
+    return trackLatency('assemble_context', async () => {
+      try {
+        if (!isMemoryDbAvailable()) {
+          return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL (LORE_DB_HOST not set)." }] };
+        }
+        const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id);
+        if (!result.text) {
+          return { content: [{ type: "text" as const, text: "No relevant context found for this query." }] };
+        }
+        const meta = `<!-- context: template=${template}, sections=${result.sections.length}, tokens=${result.sections.reduce((s, r) => s + r.tokens, 0)} -->\n\n`;
+        return { content: [{ type: "text" as const, text: meta + result.text }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: `Error assembling context: ${err.message}` }] };
       }
-      const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id);
-      if (!result.text) {
-        return { content: [{ type: "text" as const, text: "No relevant context found for this query." }] };
-      }
-      // Include section metadata as a JSON comment at the top
-      const meta = `<!-- context: template=${template}, sections=${result.sections.length}, tokens=${result.sections.reduce((s, r) => s + r.tokens, 0)} -->\n\n`;
-      return { content: [{ type: "text" as const, text: meta + result.text }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error assembling context: ${err.message}` }] };
-    }
+    });
   }
 );
 
@@ -1577,6 +1580,37 @@ async function main() {
                 return;
             }
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
+          } catch (err: any) {
+            res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+          }
+        });
+      } else if (req.url === "/api/episode" && req.method === "POST") {
+        // Write episode via REST — used by session summary hook
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (token && auth !== `Bearer ${token}`) { res.writeHead(401).end("Unauthorized"); return; }
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", async () => {
+          try {
+            const { content, source, ref, agent_id } = JSON.parse(body);
+            if (!content) { res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "content required" })); return; }
+            const agent = agent_id || 'unknown';
+            const contentHash = createHash("sha256").update(content).digest("hex");
+            const { rows } = await dbPoolRef.query(
+              `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (agent_id, content_hash) DO NOTHING
+               RETURNING id`,
+              [agent, content, contentHash, source || 'session', ref || null],
+            );
+            if (rows.length === 0) {
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "duplicate" }));
+              return;
+            }
+            // Trigger async fact extraction
+            extractFactsFromEpisode(rows[0].id, content, agent, dbPoolRef).catch(() => {});
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "ok", episode_id: rows[0].id }));
           } catch (err: any) {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
           }
