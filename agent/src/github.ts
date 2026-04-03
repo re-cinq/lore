@@ -120,6 +120,15 @@ export class GitHubPlatform implements CodePlatform {
     }));
   }
 
+  async listPRIssueComments(repo: string, prNumber: number): Promise<{ body: string; user: string; created_at: string }[]> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data } = await ok.rest.issues.listComments({ owner, repo: repoName, issue_number: prNumber });
+    return data
+      .filter(c => !c.body?.startsWith('PR created:') && !c.body?.startsWith('Agent ') && !c.body?.startsWith('Task '))
+      .map(c => ({ body: c.body || '', user: c.user?.login || 'unknown', created_at: c.created_at }));
+  }
+
   async listPRCommits(repo: string, prNumber: number): Promise<PullCommit[]> {
     const ok = await octokit();
     const [owner, repoName] = split(repo);
