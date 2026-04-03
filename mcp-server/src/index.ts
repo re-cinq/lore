@@ -1375,7 +1375,7 @@ async function main() {
           const prReady = await dbPoolRef.query(
             `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status IN ('pr-created', 'review')`, [repo],
           );
-          const memories = await dbPoolRef.query(`SELECT count(*) as c FROM memory.memories WHERE deleted_at IS NULL`);
+          const memories = await dbPoolRef.query(`SELECT count(*) as c FROM memory.memories WHERE is_deleted = false`);
           res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
             onboarded: true,
             repo,
