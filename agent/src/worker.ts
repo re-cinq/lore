@@ -184,9 +184,15 @@ async function processTask(task: any): Promise<void> {
     // No server-side enrichment needed — avoids duplicate context and stale queries.
     const fullPrompt = buildPrompt(task.task_type, task.description);
 
-    // Determine branch
+    // Determine branch — use existing branch for revision tasks
+    const contextBundle = task.context_bundle || {};
     const slug = slugify(task.description);
-    const branchName = `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
+    const branchName = contextBundle.branch || `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
+
+    // If this is a revision task, prepend feedback to the description
+    if (contextBundle.feedback) {
+      task.description = `REVISION FEEDBACK: ${contextBundle.feedback}\n\nOriginal task: ${task.description}`;
+    }
 
     if (!platform().isConfigured()) {
       throw new Error("GitHub App not configured — cannot create PR");
