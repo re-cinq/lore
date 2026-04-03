@@ -273,6 +273,17 @@ export async function watchLoreTasks(): Promise<void> {
           [taskId, JSON.stringify({ error: lt.status.failureReason })],
         );
         await commentFailureOnIssue(rows[0].target_repo, rows[0].issue_number, lt.status.failureReason);
+
+        // Capture failure as an episode for org-wide learning
+        const failureContent = `Task failed on ${lt.spec.targetRepo}: ${lt.spec.taskType}\n\nDescription: ${lt.spec.description}\n\nFailure: ${lt.status.failureReason}\n\nOutput:\n${(lt.status?.output || '').slice(-2000)}`;
+        const failureHash = require('node:crypto').createHash('sha256').update(failureContent).digest('hex');
+        await query(
+          `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
+           VALUES ($1, $2, $3, 'ci', $4)
+           ON CONFLICT (agent_id, content_hash) DO NOTHING`,
+          ['loretask-watcher', failureContent, failureHash, `${lt.spec.targetRepo}/${taskId}`],
+        ).catch(() => {});
+
         console.log(`[loretask-watcher] Task ${taskId} failed: ${lt.status.failureReason}`);
       }
     }

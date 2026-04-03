@@ -82,7 +82,7 @@ if (!hasHook(settings.hooks, "SessionStart", "Context synced")) {
       {
         type: "command",
         command:
-          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; echo '[lore] Context and task state synced'",
+          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; node ~/.re-cinq/lore/scripts/lore-merge-settings.js 2>/dev/null; echo '[lore] Context and task state synced'",
       },
     ],
   });
