@@ -184,12 +184,19 @@ Architecture decisions are documented as ADRs in `adrs/`.
 
 After running `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The MCP server runs locally via stdio — no infrastructure needed.
 
-Context loads automatically at the start of every conversation -- Claude calls `get_context` behind the scenes.
+Every session follows an enforced workflow:
+
+1. **`assemble_context`** runs first — loads conventions, ADRs, memories, facts, and graph in one call
+2. **`search_memory`** runs before planning or building — checks if the problem was already solved, with multiple search queries
+3. **During work** — `search_context`, `query_graph`, `create_pipeline_task` as needed
+4. **Session end** — `write_memory` with session summary, `write_episode` for passive fact extraction
+
+This prevents agents from re-debugging problems that were already solved and ensures org knowledge is always consulted.
 
 ```bash
-# Context retrieval — Claude Code just knows
+# Context + memory loaded automatically — Claude just knows
 claude "how do we handle auth in this repo?"
-# → Pulls from CLAUDE.md, ADRs, team patterns via get_context / search_context
+# → assemble_context pulls CLAUDE.md, ADRs, team patterns, relevant memories
 
 claude "what was the decision on database migrations?"
 # → Returns relevant ADRs with rationale and alternatives rejected
@@ -197,14 +204,11 @@ claude "what was the decision on database migrations?"
 # Persistent memory across sessions — shared org-wide
 claude "remember that we decided to use UUIDs for all new tables"
 # → Stored via write_memory, searchable next session via search_memory
+# → Every developer in the org finds this via search_memory
 
-# Memories are shared across the entire org
-claude "remember that we always use UTC timestamps in database columns"
-# → Stored in org-wide PostgreSQL, not just local files
-# → Every developer in the org can search for this via search_memory
-
-claude "what do we know about timestamp conventions?"
-# → Semantic search across ALL org memories — finds what others stored
+# Knowledge graph — entity relationships
+claude "what uses PostgreSQL in our infrastructure?"
+# → query_graph returns: auth-service, lore-agent, etc.
 
 # Delegate work to the agent pipeline (proxied to GKE)
 claude "create a runbook for database failover in re-cinq/my-service"
