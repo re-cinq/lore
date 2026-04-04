@@ -76,6 +76,16 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   EXCEPTION WHEN duplicate_column THEN NULL;
   END \$\$;
 
+  -- Local task runner: claim tracking
+  DO \$\$ BEGIN
+    ALTER TABLE pipeline.tasks ADD COLUMN claimed_by TEXT;
+  EXCEPTION WHEN duplicate_column THEN NULL;
+  END \$\$;
+  DO \$\$ BEGIN
+    ALTER TABLE pipeline.tasks ADD COLUMN claimed_at TIMESTAMPTZ;
+  EXCEPTION WHEN duplicate_column THEN NULL;
+  END \$\$;
+
   GRANT USAGE ON SCHEMA pipeline TO lore;
   GRANT ALL ON ALL TABLES IN SCHEMA pipeline TO lore;
   ALTER DEFAULT PRIVILEGES IN SCHEMA pipeline GRANT ALL ON TABLES TO lore;
