@@ -1505,6 +1505,39 @@ server.tool(
   }
 );
 
+server.tool(
+  "configure_local_runner",
+  "View or update local task runner settings. Controls which repos and task types the runner watches, concurrency limits, and default model.",
+  {
+    max_concurrent: z.number().optional().describe("Max concurrent local tasks (default: 2)"),
+    repos: z.array(z.string()).optional().describe("Repos to watch (e.g. ['re-cinq/lore'])"),
+    task_types: z.array(z.string()).optional().describe("Task types to run locally"),
+    model: z.string().optional().describe("Default model for local tasks"),
+  },
+  async (args) => {
+    try {
+      const { readConfig, writeConfig } = await import("./local-runner.js");
+      const config = readConfig();
+
+      // If no args provided, return current config
+      if (!args.max_concurrent && !args.repos && !args.task_types && !args.model) {
+        return { content: [{ type: "text" as const, text: JSON.stringify(config, null, 2) }] };
+      }
+
+      // Update provided fields
+      if (args.max_concurrent !== undefined) config.max_concurrent = args.max_concurrent;
+      if (args.repos) config.repos = args.repos;
+      if (args.task_types) config.task_types = args.task_types;
+      if (args.model) config.model = args.model;
+
+      writeConfig(config);
+      return { content: [{ type: "text" as const, text: `Config updated:\n${JSON.stringify(config, null, 2)}` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
 // --- GitHub webhook helpers ---
 
 async function getGitHubToken(): Promise<string | null> {
@@ -1999,6 +2032,31 @@ async function main() {
           ]);
 
           res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ task_id: taskResult.task_id, status: taskResult.status }));
+        });
+      } else if (req.url === "/api/task-logs" && req.method === "POST") {
+        // Receive logs from local runner and write to GCS
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) {
+          res.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", async () => {
+          try {
+            const { task_id, repo, logs } = JSON.parse(body);
+            if (!task_id || !repo || !logs) {
+              res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "missing fields" }));
+              return;
+            }
+            const { Storage } = await import("@google-cloud/storage");
+            const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
+            await bucket.file(`${repo}/${task_id}/output.log`).save(logs, { resumable: false, contentType: "text/plain" });
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ ok: true }));
+          } catch (err: any) {
+            res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+          }
         });
       } else {
         res.writeHead(404).end();
