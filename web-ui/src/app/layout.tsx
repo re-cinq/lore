@@ -29,8 +29,7 @@ export default function RootLayout({
             sidebar={
               <>
                 <Link href="/" className="sidebar-brand">
-                  <img src="/logo.svg" alt="Lore" width={28} height={28} />
-                  LORE
+                  <img src="/logo.svg" alt="Lore" width={80} height={80} />
                 </Link>
                 <SidebarNav />
                 <UserMenu />
