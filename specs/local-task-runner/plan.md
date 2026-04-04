@@ -44,32 +44,62 @@ task runs in background, PR created.
 
 ---
 
-## Phase 2: Polling — Auto-Claim Tasks
+## Phase 2: Task Notification + Interactive Claim
 
-Local runner polls pipeline and claims tasks before GKE.
+Local runner notifies developer of pending tasks. Developer decides
+whether to run locally or let GKE handle it. No auto-claiming.
 
-### P2.1 GKE Grace Period
-- `agent/src/worker.ts` — add 30s delay before claiming pending tasks
-- Only claims tasks where `created_at < now() - 30s`
-- Local runners claim immediately (no delay)
+### P2.1 GKE Grace Period ✅ (shipped)
+- `agent/src/worker.ts` — 30s delay before claiming pending tasks
+- Gives developer time to claim interactively
 
-### P2.2 Task Poller
-- `mcp-server/src/local-runner.ts` — add `startPoller(repos, taskTypes, maxConcurrent)`
-- Polls every 30s via `setInterval`
-- Claims tasks atomically: `UPDATE ... SET status = 'running-local', claimed_by = $1 WHERE status = 'pending' ... FOR UPDATE SKIP LOCKED`
-- Respects `max_concurrent` — skips if at limit
-- Spawns `spawnLocalTask` for each claimed task
+### P2.2 Task Notifier
+- `mcp-server/src/local-runner.ts` — add `startNotifier(repos, taskTypes)`
+- Polls pipeline.tasks API every 30s for pending tasks matching the
+  developer's repos
+- Does NOT auto-claim — surfaces a notification instead
+- Writes pending tasks to `~/.lore/pending-tasks.json`
+- Statusline reads this file and shows:
+  ```
+  ◉ Lore 1 new task · 36 memories
+  ```
+- Notification details available via `list_pending_tasks` MCP tool
 
-### P2.3 MCP Tools for Polling
-- `enable_local_runner` — starts poller, saves config to `~/.lore/local-runner.json`
-- `disable_local_runner` — stops poller, removes config
+### P2.3 Interactive Claim
+- New MCP tool: `claim_and_run_locally(task_id)` — claims the
+  pending task (sets status to `running-local`) and spawns
+  `spawnLocalTask`. Developer explicitly decides.
+- New MCP tool: `skip_task(task_id)` — marks task as skipped locally
+  so the notification goes away. GKE picks it up after 30s.
+- New MCP tool: `enable_task_notifications` — starts the notifier
+- New MCP tool: `disable_task_notifications` — stops the notifier
 
-### P2.4 Test
-- Create a GitHub Issue with `lore:implementation` label
-- Verify: webhook creates task → local runner claims within 30s → implements → PR
-- Verify: GKE does NOT pick it up (grace period)
+### P2.4 Developer Flow
+```
+Statusline: ◉ Lore 1 new task · auto-review · 36 memories
 
-**Deliverable**: Tasks from Issues, UI, and MCP auto-claimed locally.
+Developer: "what tasks are pending?"
+Claude: calls list_pending_tasks
+  → "Issue #150: Add rate limiting to API (implementation, re-cinq/lore)"
+
+Developer: "run that locally"
+Claude: calls claim_and_run_locally(task_id)
+  → "Task claimed, running in background on branch lore/..."
+
+-- OR --
+
+Developer ignores it
+  → After 30s, GKE worker picks it up (grace period expired)
+```
+
+### P2.5 Test
+- Enable notifications, create a GitHub Issue with `lore:implementation`
+- Verify: statusline shows "1 new task"
+- Verify: developer can claim and run locally
+- Verify: if ignored, GKE picks it up after 30s
+
+**Deliverable**: Developer gets notified of new tasks and decides
+where to run them.
 
 ---
 
