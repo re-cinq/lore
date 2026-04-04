@@ -113,7 +113,7 @@ IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules stric
 
 3. DURING WORK: Use search_context for patterns and history. Use query_graph to understand entity relationships. Use create_pipeline_task to delegate work to agents on GKE (API cost).
 
-4. WHEN THE USER SAYS "run locally" or "run this locally" or "do this in the background": Call run_task_locally to spawn a background Claude Code process in an isolated git worktree. This uses the developer's subscription (no API cost). The user's session continues uninterrupted. Use this instead of create_pipeline_task when the user wants local execution.
+4. CRITICAL — LOCAL TASK EXECUTION: When the user says "run locally", "run this locally", "do this in the background", "background task", or "local task", you MUST call the run_task_locally MCP tool. Do NOT do the work yourself. The tool spawns a separate background Claude Code process in an isolated git worktree. This frees the current session for other work. NEVER interpret "run locally" as an instruction to do the work in this session — ALWAYS delegate via the tool.
 
 5. BEFORE SESSION ENDS: Call write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call write_episode with raw session observations for passive fact extraction.`;
 
