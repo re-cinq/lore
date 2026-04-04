@@ -38,13 +38,17 @@ TASK=$(curl -sf --max-time 10 -X POST \
 TASK_ID=$(echo "$TASK" | jq -r '.task_id // empty' 2>/dev/null)
 if [ -n "$TASK_ID" ]; then
   pass "create-task ($TASK_ID)"
-  # Cancel immediately (best effort cleanup — not a test failure if cancel endpoint isn't implemented)
-  curl -sf --max-time 5 -X POST \
+  # Cancel immediately
+  CANCEL=$(curl -sf --max-time 5 -X POST \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"task_id\":\"$TASK_ID\",\"action\":\"cancel\"}" \
-    "$API_URL/api/task" 2>/dev/null || true
-  pass "task-lifecycle"
+    "$API_URL/api/task" 2>/dev/null || echo "")
+  if echo "$CANCEL" | jq -e '.ok == true' >/dev/null 2>&1; then
+    pass "cancel-task"
+  else
+    fail "cancel-task: $CANCEL"
+  fi
 else
   fail "create-task: $TASK"
 fi
