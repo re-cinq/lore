@@ -111,11 +111,13 @@ IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules stric
 
 2. BEFORE PLANNING OR BUILDING: Call search_memory to check if this problem was already solved, if there are known gotchas, or if a previous session left relevant learnings. Search with multiple queries if needed — try exact terms, likely key names (e.g. "deployment-gotchas-{date}"), and broader descriptions. Never assume "no memory exists" after one failed search.
 
-3. DURING WORK: Use search_context for patterns and history. Use query_graph to understand entity relationships. Use create_pipeline_task to delegate work to agents.
+3. DURING WORK: Use search_context for patterns and history. Use query_graph to understand entity relationships. Use create_pipeline_task to delegate work to agents on GKE (API cost).
 
-4. BEFORE SESSION ENDS: Call write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call write_episode with raw session observations for passive fact extraction.`;
+4. WHEN THE USER SAYS "run locally" or "run this locally" or "do this in the background": Call run_task_locally to spawn a background Claude Code process in an isolated git worktree. This uses the developer's subscription (no API cost). The user's session continues uninterrupted. Use this instead of create_pipeline_task when the user wants local execution.
 
-if (!settings.systemPromptSuffix || !settings.systemPromptSuffix.includes("assemble_context")) {
+5. BEFORE SESSION ENDS: Call write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call write_episode with raw session observations for passive fact extraction.`;
+
+if (!settings.systemPromptSuffix || !settings.systemPromptSuffix.includes("run_task_locally")) {
   // Replace old lore-context prompt if present
   if (settings.systemPromptSuffix && settings.systemPromptSuffix.includes("lore-context")) {
     settings.systemPromptSuffix = settings.systemPromptSuffix.replace(
