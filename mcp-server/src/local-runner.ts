@@ -28,6 +28,27 @@ const CONFIG_FILE = path.join(LORE_DIR, "local-runner.json");
 // Types
 // ---------------------------------------------------------------------------
 
+export interface LocalRunnerConfig {
+  enabled: boolean;
+  max_concurrent: number;
+  repos: string[];
+  task_types: string[];
+  model: string;
+}
+
+export function readConfig(): LocalRunnerConfig {
+  try {
+    return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
+  } catch {
+    return { enabled: false, max_concurrent: 2, repos: [], task_types: ["implementation", "general", "runbook", "gap-fill"], model: "claude-sonnet-4-6" };
+  }
+}
+
+export function writeConfig(config: LocalRunnerConfig): void {
+  fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true });
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+}
+
 export interface LocalTask {
   taskId: string;
   pid: number;
@@ -78,20 +99,6 @@ function readTasks(): LocalTask[] {
 
 function writeTasks(tasks: LocalTask[]): void {
   fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2));
-}
-
-function readConfig(): LocalRunnerConfig {
-  try {
-    return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
-  } catch {
-    return {
-      enabled: false,
-      max_concurrent: 2,
-      repos: [],
-      task_types: ["implementation", "general", "runbook", "gap-fill"],
-      model: "claude-sonnet-4-6",
-    };
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -314,7 +321,38 @@ async function monitorTask(task: LocalTask): Promise<void> {
     console.error(`[lore] local-runner: task ${task.taskId} failed: ${errMsg}`);
   }
 
+  // Upload redacted logs to GCS via API (best effort)
+  try {
+    const rawLogs = fs.readFileSync(task.logFile, "utf-8");
+    const redacted = redactLogs(rawLogs);
+    const apiUrl = getApiUrl();
+    const tkn = getToken();
+    if (apiUrl && tkn) {
+      await fetch(`${apiUrl}/api/task-logs`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${tkn}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ task_id: task.taskId, repo: task.repo, logs: redacted }),
+      });
+    }
+  } catch { /* best effort — local logs still at task.logFile */ }
+
   writeTasks(tasks);
+}
+
+function redactLogs(text: string): string {
+  const patterns: Array<{ name: string; re: RegExp }> = [
+    { name: "api-key", re: /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_\-]{20,}/g },
+    { name: "jwt", re: /eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}/g },
+    { name: "private-key", re: /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g },
+    { name: "connection-string", re: /(?:postgres|mysql|mongodb|redis|amqp):\/\/[^\s"'`]+/g },
+    { name: "bearer-token", re: /Bearer\s+[A-Za-z0-9_\-.]{20,}/g },
+    { name: "base64-blob", re: /[A-Za-z0-9+\/]{100,}={0,2}/g },
+  ];
+  let result = text;
+  for (const p of patterns) {
+    result = result.replace(p.re, `[REDACTED:${p.name}]`);
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -503,6 +541,92 @@ export function cancelLocalTask(
 }
 
 // ---------------------------------------------------------------------------
+// Stale Task Cleanup — Phase 3.1
+// Detects running tasks whose PID has died. If the task is older than 30
+// minutes it's considered stale (e.g. machine slept) and re-queued for GKE.
+// Otherwise it's marked as failed (process crashed).
+// ---------------------------------------------------------------------------
+
+const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Scans the local task registry for tasks with status "running" whose
+ * process is no longer alive.
+ *
+ * - If the task ran for more than 30 minutes: re-queue to GKE as "pending"
+ *   so the cluster agent picks it up, then mark local status "failed".
+ * - If less than 30 minutes: mark as "failed" (process crashed).
+ *
+ * In both cases the orphaned git worktree is cleaned up (best effort).
+ */
+export async function cleanupStaleTasks(): Promise<void> {
+  const tasks = readTasks();
+  let changed = false;
+
+  for (const task of tasks) {
+    if (task.status !== "running") continue;
+
+    if (isProcessAlive(task.pid)) continue;
+
+    const ageMs = Date.now() - new Date(task.startedAt).getTime();
+
+    task.status = "failed";
+    task.error = "Process exited unexpectedly";
+    changed = true;
+
+    // Clean up orphaned worktree (best effort)
+    try {
+      if (fs.existsSync(task.worktreePath)) {
+        const gitFile = path.join(task.worktreePath, ".git");
+        if (fs.existsSync(gitFile)) {
+          const gitContent = fs.readFileSync(gitFile, "utf-8");
+          const mainRepo = gitContent.match(
+            /gitdir:\s*(.+)\/\.git\/worktrees/,
+          )?.[1];
+          if (mainRepo) {
+            execSync(
+              `git worktree remove "${task.worktreePath}" --force`,
+              { cwd: mainRepo, stdio: "pipe", timeout: 10000 },
+            );
+          }
+        }
+      }
+    } catch {
+      /* best effort */
+    }
+
+    // Re-queue for GKE if stale (> 30 min — likely machine slept)
+    if (ageMs > STALE_THRESHOLD_MS) {
+      const apiUrl = getApiUrl();
+      const token = getToken();
+      if (apiUrl && token) {
+        try {
+          await fetch(`${apiUrl}/api/task`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              task_id: task.taskId,
+              action: "requeue",
+            }),
+          });
+          task.error = "Stale — re-queued for GKE";
+          console.log(
+            `[lore] Stale local task ${task.taskId} re-queued for GKE`,
+          );
+        } catch {
+          /* best effort */
+        }
+      }
+    }
+  }
+
+  if (changed) writeTasks(tasks);
+}
+
+// ---------------------------------------------------------------------------
 // Task Notifier — polls for pending tasks and writes to ~/.lore/pending-tasks.json
 // Phase 2.2: surfaces notifications, does NOT claim anything.
 // ---------------------------------------------------------------------------
@@ -597,12 +721,20 @@ export function startNotifier(
 ): void {
   if (notifierInterval) return; // Already running
 
+  let pollCount = 0;
+
   const poll = async () => {
     try {
       const tasks = await fetchPendingTasks(repos, taskTypes, dbPool);
       fs.writeFileSync(PENDING_FILE, JSON.stringify(tasks, null, 2));
     } catch {
       // Best effort — never crash the MCP server
+    }
+
+    // Run stale task cleanup every 5th cycle (~2.5 min at 30 s interval)
+    pollCount++;
+    if (pollCount % 5 === 0) {
+      await cleanupStaleTasks().catch(() => {});
     }
   };
 
