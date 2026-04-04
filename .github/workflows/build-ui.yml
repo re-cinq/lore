@@ -62,3 +62,17 @@ jobs:
 
       - name: Restart deployment
         run: kubectl rollout restart deployment/lore-ui -n lore-ui
+
+  smoke:
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Wait for rollout
+        run: sleep 30
+      - name: Run smoke tests
+        run: bash scripts/smoke-test.sh
+        env:
+          LORE_API_URL: ${{ vars.LORE_API_URL }}
+          LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}

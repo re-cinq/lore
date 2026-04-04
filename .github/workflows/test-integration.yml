@@ -1,0 +1,145 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: lore_test
+          POSTGRES_USER: lore
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install MCP server deps
+        working-directory: mcp-server
+        run: npm ci
+
+      - name: Set up test database
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lore
+          PGPASSWORD: test
+          PGDATABASE: lore_test
+        run: |
+          # Create schemas
+          psql -c "CREATE SCHEMA IF NOT EXISTS org_shared"
+          psql -c "CREATE SCHEMA IF NOT EXISTS pipeline"
+          psql -c "CREATE SCHEMA IF NOT EXISTS memory"
+          psql -c "CREATE SCHEMA IF NOT EXISTS lore"
+
+          # Pipeline tables (mirrors setup-pipeline-schema.sh)
+          psql -c "
+            CREATE TABLE IF NOT EXISTS pipeline.tasks (
+              id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              description      TEXT NOT NULL,
+              task_type        TEXT NOT NULL DEFAULT 'general',
+              status           TEXT NOT NULL DEFAULT 'pending',
+              target_repo      TEXT NOT NULL,
+              target_branch    TEXT,
+              agent_id         TEXT,
+              pr_url           TEXT,
+              pr_number        INTEGER,
+              review_iteration INTEGER NOT NULL DEFAULT 0,
+              context_bundle   JSONB,
+              failure_reason   TEXT,
+              created_by       TEXT NOT NULL DEFAULT 'ui',
+              created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+              updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+              log_url          TEXT,
+              claimed_by       TEXT,
+              claimed_at       TIMESTAMPTZ,
+              issue_number     INT,
+              issue_url        TEXT,
+              actor            TEXT
+            );
+            CREATE INDEX IF NOT EXISTS tasks_status_idx ON pipeline.tasks (status);
+            CREATE INDEX IF NOT EXISTS tasks_created_idx ON pipeline.tasks (created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS pipeline.task_events (
+              id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              task_id     UUID NOT NULL REFERENCES pipeline.tasks(id),
+              from_status TEXT,
+              to_status   TEXT NOT NULL,
+              metadata    JSONB,
+              created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+          "
+
+          # Repos table (mirrors setup-repos-schema.sh)
+          psql -c "
+            CREATE TABLE IF NOT EXISTS lore.repos (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              owner TEXT NOT NULL,
+              name TEXT NOT NULL,
+              full_name TEXT UNIQUE NOT NULL,
+              team TEXT,
+              onboarded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+              last_ingested_at TIMESTAMPTZ,
+              onboarding_pr_url TEXT,
+              onboarding_pr_merged BOOLEAN NOT NULL DEFAULT false,
+              settings JSONB
+            );
+          "
+
+          # Chunks table for context search
+          psql -c "
+            CREATE TABLE IF NOT EXISTS org_shared.chunks (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              repo TEXT NOT NULL,
+              file_path TEXT NOT NULL,
+              content TEXT NOT NULL,
+              content_type TEXT NOT NULL,
+              ingested_at TIMESTAMPTZ DEFAULT now()
+            );
+          "
+
+          # Memory tables (minimal subset for testing)
+          psql -c "
+            CREATE TABLE IF NOT EXISTS memory.memories (
+              id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              agent_id     TEXT NOT NULL,
+              key          TEXT NOT NULL,
+              value        TEXT NOT NULL,
+              version      INTEGER NOT NULL DEFAULT 1,
+              is_deleted   BOOLEAN NOT NULL DEFAULT FALSE,
+              pool_id      UUID,
+              ttl_seconds  INTEGER,
+              expires_at   TIMESTAMPTZ,
+              created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+              metadata     JSONB
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS memories_agent_key_version_idx
+              ON memory.memories (agent_id, key, version);
+          "
+
+      - name: Run integration tests
+        working-directory: mcp-server
+        env:
+          LORE_DB_HOST: localhost
+          LORE_DB_PORT: 5432
+          LORE_DB_NAME: lore_test
+          LORE_DB_USER: lore
+          LORE_DB_PASSWORD: test
+        run: npx vitest run --config vitest.integration.config.ts
