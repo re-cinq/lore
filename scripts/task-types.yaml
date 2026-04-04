@@ -1,25 +1,28 @@
 task_types:
   general:
     prompt_template: |
-      Complete the following task using Lore context.
-      Search the Lore MCP for relevant conventions, ADRs, and existing
-      patterns before starting. Write your output to files and commit.
+      You are editing files in a git repository. Complete the following
+      task. Read relevant files first, then make changes using your tools.
 
       Task: {description}
     target_repo: "re-cinq/lore"
     timeout_minutes: 30
     review_required: true
+    execution_mode: claude-code
+    model: claude-sonnet-4-6
 
   runbook:
     prompt_template: |
-      Write a runbook for the following incident type. Follow the existing
-      runbook format in the repo (YAML frontmatter + steps). Search Lore
-      for related ADRs, existing runbooks, and team conventions.
+      You are editing files in a git repository. Write a runbook for the
+      following incident type. Read existing runbooks in the repo for
+      format conventions. Create the file and commit.
 
       Task: {description}
     target_repo: "re-cinq/lore"
     timeout_minutes: 20
     review_required: true
+    execution_mode: claude-code
+    model: claude-sonnet-4-6
 
   implementation:
     prompt_template: |
@@ -40,14 +43,16 @@ task_types:
 
   gap-fill:
     prompt_template: |
-      Draft missing context for the following knowledge gap detected by
-      Lore. Write the content as a CLAUDE.md addition, ADR, or runbook
-      as appropriate. Be specific and factual.
+      You are editing files in a git repository. Draft missing context
+      for the following knowledge gap. Write it as a CLAUDE.md addition,
+      ADR, or runbook as appropriate. Read existing files for format.
 
       Gap: {description}
     target_repo: "re-cinq/lore"
     timeout_minutes: 15
     review_required: false
+    execution_mode: claude-code
+    model: claude-sonnet-4-6
 
   review:
     prompt_template: |

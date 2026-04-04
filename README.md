@@ -24,11 +24,11 @@ Lore is the shared context layer that makes Claude Code organization-aware. Deve
 
 Beyond context, Lore is an **agent operating system**. It runs background agents that onboard repos, detect documentation gaps, check for spec drift, and review PRs — all producing pull requests that humans review and merge.
 
-## Three Ways to Use Lore
+## Five Ways to Use Lore
 
 ### Flow 1: Developer with Claude Code (local)
 
-A developer works in their repo. Claude Code connects to the Lore MCP server (stdio, local) and gets org context automatically. The developer can also create tasks that the agent picks up.
+A developer works in their repo. Claude Code connects to the Lore MCP server (stdio, proxied to GKE) and gets org context automatically. The developer can also create tasks that the agent picks up.
 
 <p align="center"><img src="badges/flow1-local.svg" width="600" alt="Flow 1: Developer with Claude Code" /></p>
 
@@ -72,6 +72,14 @@ Same context flow as GKE tasks — the background process has its own MCP server
 
 The agent service decides which mode to use based on the task type configured in `task-types.yaml`.
 
+### Flow 5: Local Task Runner (background, zero API cost)
+
+A developer says "run locally" and Claude Code spawns a background process in an isolated git worktree on the developer's machine. Uses the Claude Code subscription — no API credits consumed. The developer's session continues uninterrupted.
+
+<p align="center"><img src="badges/architecture.svg" width="680" alt="Architecture overview" /></p>
+
+Same context flow as GKE tasks — the background process has its own MCP server instance, calls `assemble_context` and `search_memory` before coding.
+
 ## Architecture
 
 <p align="center"><img src="badges/architecture.svg" width="680" alt="Architecture overview" /></p>
@@ -93,7 +101,15 @@ Hybrid search combines vector similarity (Vertex AI `text-embedding-005`, 768 di
 
 ### Agent Memory
 
-11 MCP tools for persistent memory across sessions and restarts: `write_memory`, `read_memory`, `delete_memory`, `list_memories`, `search_memory`, `shared_write`, `shared_read`, `create_snapshot`, `restore_snapshot`, `agent_health`, `agent_stats`. Every memory is versioned, timestamped, and semantically searchable. When running locally, all memory operations are proxied to the GKE MCP server so learnings are shared org-wide. File-backed fallback only when the proxy is unreachable.
+15 MCP tools for persistent memory across sessions and restarts. Every memory is versioned, timestamped, and semantically searchable. When running locally, all memory operations are proxied to the GKE MCP server so learnings are shared org-wide.
+
+Key capabilities:
+- **Temporal fact invalidation** — facts have validity windows; contradictory facts are automatically invalidated via embedding similarity (threshold 0.92)
+- **Passive episode ingestion** — `write_episode` accepts raw text (conversations, reviews, observations); facts and knowledge graph entities are extracted automatically. PR review feedback is auto-captured by the review-reactor job. Session summaries are captured via a Stop hook.
+- **Live knowledge graph** — entities (services, teams, technologies) and relationships tracked in PostgreSQL, updated incrementally on every episode. Query with `query_graph`.
+- **Graph-augmented search** — `search_memory(graph_augment=true)` enriches results with 1-hop knowledge graph neighbors of detected entities
+- **Context assembly** — `assemble_context` retrieves from all sources and formats into a token-budgeted block using configurable YAML templates (default, review, implementation, research)
+- **Retrieval benchmarks** — p50/p95/p99 latency tracked per tool in the audit log, visible in the analytics dashboard
 
 ### Repo Onboarding
 
@@ -133,17 +149,7 @@ git clone git@github.com:re-cinq/lore.git
 cd lore && scripts/install.sh
 ```
 
-This configures the MCP server, skills, hooks, and agent ID. No infrastructure needed — the MCP server runs locally via stdio with file-based search.
-
-For the full platform (vector search, agent pipeline, web UI), deploy to GKE:
-
-```bash
-scripts/infra/setup-db.sh           # PostgreSQL + pgvector
-scripts/infra/setup-agent-schema.sh  # Pipeline + job tables
-kubectl apply -f terraform/modules/gke-mcp/loretask-crd/  # LoreTask CRD + controller
-helm install lore-mcp terraform/modules/gke-mcp/mcp-helm/ -n mcp-servers
-helm install lore-agent terraform/modules/gke-mcp/agent-helm/ -n lore-agent
-```
+This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP server runs locally via stdio but proxies all operations to the GKE backend — the backend must be deployed first. See [`docs/INSTALL.md`](docs/INSTALL.md) for the complete deployment guide.
 
 ## Project Structure
 
@@ -191,14 +197,21 @@ Architecture decisions are documented as ADRs in `adrs/`.
 
 ### For Developers: Get org context in Claude Code
 
-After running `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The MCP server runs locally via stdio — no infrastructure needed.
+After running `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The MCP server runs locally via stdio and proxies all operations to the GKE backend.
 
-Context loads automatically at the start of every conversation -- Claude calls `get_context` behind the scenes.
+Every session follows an enforced workflow:
+
+1. **`assemble_context`** runs first — loads conventions, ADRs, memories, facts, and graph in one call
+2. **`search_memory`** runs before planning or building — checks if the problem was already solved, with multiple search queries
+3. **During work** — `search_context`, `query_graph`, `create_pipeline_task` as needed
+4. **Session end** — `write_memory` with session summary, `write_episode` for passive fact extraction
+
+This prevents agents from re-debugging problems that were already solved and ensures org knowledge is always consulted.
 
 ```bash
-# Context retrieval — Claude Code just knows
+# Context + memory loaded automatically — Claude just knows
 claude "how do we handle auth in this repo?"
-# → Pulls from CLAUDE.md, ADRs, team patterns via get_context / search_context
+# → assemble_context pulls CLAUDE.md, ADRs, team patterns, relevant memories
 
 claude "what was the decision on database migrations?"
 # → Returns relevant ADRs with rationale and alternatives rejected
@@ -206,14 +219,11 @@ claude "what was the decision on database migrations?"
 # Persistent memory across sessions — shared org-wide
 claude "remember that we decided to use UUIDs for all new tables"
 # → Stored via write_memory, searchable next session via search_memory
+# → Every developer in the org finds this via search_memory
 
-# Memories are shared across the entire org
-claude "remember that we always use UTC timestamps in database columns"
-# → Stored in org-wide PostgreSQL, not just local files
-# → Every developer in the org can search for this via search_memory
-
-claude "what do we know about timestamp conventions?"
-# → Semantic search across ALL org memories — finds what others stored
+# Knowledge graph — entity relationships
+claude "what uses PostgreSQL in our infrastructure?"
+# → query_graph returns: auth-service, lore-agent, etc.
 
 # Delegate work to the agent pipeline (proxied to GKE)
 claude "create a runbook for database failover in re-cinq/my-service"
@@ -224,7 +234,7 @@ claude "what's the status of my last pipeline task?"
 # → Returns status, PR link, cost, duration
 ```
 
-When running locally without a database, task creation and all memory operations are **proxied** to the GKE MCP server via `LORE_API_URL`. The install script configures this automatically. AgentDB provides optional sub-ms local caching for read queries. Writes always go to the org database.
+The MCP server runs locally via stdio and proxies all operations (context, memory, search, pipeline) to the GKE backend via `LORE_API_URL`. There is no offline mode — the backend must be running. The install script configures the API URL automatically.
 
 **All MCP tools available to Claude Code:**
 
@@ -235,13 +245,20 @@ When running locally without a database, task creation and all memory operations
 | `search_context` | Context | Hybrid search (vector + keyword) across all org context |
 | `write_memory` | Memory | Store a persistent memory with optional TTL and fact extraction |
 | `read_memory` | Memory | Retrieve by key, supports version history |
-| `search_memory` | Memory | Semantic search across all memories and extracted facts |
+| `search_memory` | Memory | Semantic search across memories and facts. Supports `include_invalidated` for history, `graph_augment` for 1-hop graph enrichment |
 | `list_memories` | Memory | Paginated listing of active memories |
 | `delete_memory` | Memory | Soft-delete (preserved in history) |
+| `write_episode` | Memory | Ingest raw text; auto-extracts facts and updates knowledge graph |
+| `list_episodes` | Memory | List recent episodes with extracted fact counts |
+| `query_graph` | Memory | Query live knowledge graph for entities and relationships |
+| `assemble_context` | Memory | Retrieve + assemble context from all sources into a structured, token-budgeted block |
 | `shared_write` / `shared_read` | Memory | Cross-agent shared memory pools |
 | `create_snapshot` / `restore_snapshot` | Memory | Point-in-time backup and restore |
-| `agent_health` / `agent_stats` | Memory | Usage stats, daily breakdown |
-| `create_pipeline_task` | Pipeline | Create task (proxied to GKE when local) |
+| `agent_health` / `agent_stats` | Memory | Usage stats, active/invalidated facts, daily breakdown |
+| `create_pipeline_task` | Pipeline | Create task on GKE (API cost) |
+| `run_task_locally` | Pipeline | Run task in background on dev machine (subscription, zero API cost) |
+| `list_local_tasks` | Pipeline | Show running/completed local background tasks |
+| `cancel_local_task` | Pipeline | Cancel a local background task |
 | `get_pipeline_status` | Pipeline | Task status and event timeline |
 | `list_pipeline_tasks` | Pipeline | List tasks with status filter |
 | `cancel_task` | Pipeline | Cancel a running or pending task |
@@ -267,7 +284,7 @@ developers stay in their GitHub workflow.
 Duplicate prevention: if an active task already exists for the issue,
 Lore comments with the existing task ID instead of creating a new one.
 
-Requires a webhook on the repo: `POST https://lore-api.gcp.re-cinq.com/api/webhook/github`
+Requires a webhook on the repo: `POST https://LORE_API_DOMAIN/api/webhook/github`
 with events `Issues` and HMAC secret from `LORE_WEBHOOK_SECRET`.
 
 ### GitHub Issue Notifications
@@ -282,7 +299,7 @@ Filter with `label:lore-managed` to see all Lore activity on any repo.
 ### For Platform Engineers: Onboard a repo
 
 **Via UI:**
-1. Go to `lore.gcp.re-cinq.com/onboard`
+1. Go to `LORE_UI_DOMAIN/onboard`
 2. Enter `owner/repo` (e.g., `re-cinq/my-service`)
 3. Click "Onboard Repository"
 4. Agent inspects the repo, generates CLAUDE.md, ADRs, spec, CI workflows
@@ -313,7 +330,7 @@ This is how a feature goes from a product manager's idea to production code, ste
 
 #### Step 1: PM describes the feature (Lore UI)
 
-Open `lore.gcp.re-cinq.com` → pick your repo → "New Task" → "Feature Request".
+Open `LORE_UI_DOMAIN` → pick your repo → "New Task" → "Feature Request".
 
 Describe what you want in plain language. No technical jargon needed:
 
@@ -400,7 +417,7 @@ The entire flow from "I want X" to merged code, with proper specs, tracked tasks
 
 ### Monitoring
 
-**Web UI** (`lore.gcp.re-cinq.com`):
+**Web UI** (`LORE_UI_DOMAIN`):
 - Pipeline page shows all tasks with status, cost, PR links, and live PR state badges
 - Task detail page shows live agent output in a terminal-style log viewer (polls every 5s while running)
 - Repo view shows context, active tasks, and memory for each repo
@@ -408,7 +425,7 @@ The entire flow from "I want X" to merged code, with proper specs, tracked tasks
 
 **Agent health** endpoint:
 ```bash
-curl https://lore-api.gcp.re-cinq.com/healthz
+curl https://LORE_API_DOMAIN/healthz
 # Returns: uptime, tasks processed, job schedules, DB status
 ```
 
@@ -416,18 +433,23 @@ curl https://lore-api.gcp.re-cinq.com/healthz
 
 ### Analytics
 
-The analytics dashboard at `lore.gcp.re-cinq.com/analytics` shows:
+The analytics dashboard at `LORE_UI_DOMAIN/analytics` shows:
 - Cost overview cards (today, 7-day, 30-day)
 - Task summary by status
+- Retrieval performance (p50/p95/p99 latency per MCP tool, 200ms threshold)
 - Cost breakdown by task type and by repo
 - Daily cost trend chart
 - Scheduled job run history
+
+Additional pages:
+- `/episodes` — browse ingested episodes with source filter and fact counts
+- `/graph` — explore knowledge graph entities, relationships, and temporal validity
 
 Also available programmatically via the `get_analytics` MCP tool.
 
 ### Global Settings
 
-Platform configuration at `lore.gcp.re-cinq.com/settings`:
+Platform configuration at `LORE_UI_DOMAIN/settings`:
 - **API URL** — the external MCP server endpoint
 - **Ingest Token** — shared auth token for API calls
 - **Regenerate Token** — rotates the token (invalidates all existing)

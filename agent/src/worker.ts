@@ -107,9 +107,15 @@ export async function startWorker(): Promise<void> {
 }
 
 async function pollOnce(): Promise<void> {
+  // 30-second grace period: local runners claim tasks immediately,
+  // so we only pick up tasks that have been pending long enough for
+  // a local runner to claim first.  Also skip running-local tasks
+  // (already claimed by a local runner).
   const task = await query<any>(
     `SELECT * FROM pipeline.tasks
      WHERE status = 'pending'
+       AND status != 'running-local'
+       AND created_at < now() - interval '30 seconds'
      ORDER BY created_at ASC
      LIMIT 1`,
   ).then((rows) => rows[0] ?? null);
@@ -125,9 +131,10 @@ async function processTask(task: any): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
 
-  // Create GitHub Issue on the target repo (skip if already set by webhook dispatch)
+  // Create GitHub Issue on the target repo
+  // Skip upfront issue for general tasks — the watcher creates the issue with the result
   let issueNumber: number | null = task.issue_number || null;
-  if (!issueNumber) {
+  if (!issueNumber && task.task_type !== "general") {
     try {
       const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
       const issue = await platform().createIssue(
@@ -146,7 +153,7 @@ async function processTask(task: any): Promise<void> {
       // Non-fatal — proceed without issue if GitHub App lacks permission
     console.warn(`[agent] Could not create issue on ${targetRepo}: ${err.message}`);
     }
-  } else {
+  } else if (issueNumber) {
     console.log(`[agent] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`);
   }
 
@@ -178,47 +185,20 @@ async function processTask(task: any): Promise<void> {
   }
 
   try {
-    // Build prompt
-    let fullPrompt = buildPrompt(task.task_type, task.description);
+    // Build prompt — context loading is handled by Claude Code in the Job pod
+    // via the Lore workflow preamble (assemble_context + search_memory).
+    // No server-side enrichment needed — avoids duplicate context and stale queries.
+    const fullPrompt = buildPrompt(task.task_type, task.description);
 
-    // Enrich with Lore context — search DB for relevant context and memory
-    try {
-      const contextParts: string[] = [];
-
-      // Repo-specific context (CLAUDE.md, ADRs, specs)
-      const repoCtx = await query(
-        `SELECT content, content_type, file_path FROM org_shared.chunks
-         WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
-         ORDER BY content_type, ingested_at DESC LIMIT 10`,
-        [targetRepo],
-      );
-      if (repoCtx.length > 0) {
-        contextParts.push("## Repo Context\n\n" + repoCtx.map((r: any) => r.content).join("\n\n---\n\n"));
-      }
-
-      // Relevant memories for this repo
-      const memories = await query(
-        `SELECT key, value FROM memory.memories
-         WHERE (repo = $1 OR repo IS NULL) AND is_deleted = FALSE
-           AND (expires_at IS NULL OR expires_at > now())
-         ORDER BY created_at DESC LIMIT 5`,
-        [targetRepo],
-      );
-      if (memories.length > 0) {
-        contextParts.push("## Org Learnings\n\n" + memories.map((m: any) => `**${m.key}:** ${m.value}`).join("\n\n"));
-      }
-
-      if (contextParts.length > 0) {
-        fullPrompt = contextParts.join("\n\n---\n\n") + "\n\n---\n\n" + fullPrompt;
-        console.log(`[agent] Enriched prompt with ${repoCtx.length} context chunks + ${memories.length} memories`);
-      }
-    } catch (err: any) {
-      console.warn(`[agent] Context enrichment failed (non-fatal): ${err.message}`);
-    }
-
-    // Determine branch
+    // Determine branch — use existing branch for revision tasks
+    const contextBundle = task.context_bundle || {};
     const slug = slugify(task.description);
-    const branchName = `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
+    const branchName = contextBundle.branch || `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
+
+    // If this is a revision task, prepend feedback to the description
+    if (contextBundle.feedback) {
+      task.description = `REVISION FEEDBACK: ${contextBundle.feedback}\n\nOriginal task: ${task.description}`;
+    }
 
     if (!platform().isConfigured()) {
       throw new Error("GitHub App not configured — cannot create PR");
@@ -232,25 +212,9 @@ async function processTask(task: any): Promise<void> {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);
     } else if (task.task_type === "feature-request") {
       await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
-    } else if (task.task_type === "implementation") {
-      await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber);
     } else {
-      // Non-onboard task types
-      const result = await callLLM({
-        prompt: fullPrompt,
-        model,
-        maxTokens: 16384,
-        taskId: task.id,
-      });
-
-      await handleGenericOutput(
-        task,
-        result.text,
-        targetRepo,
-        branchName,
-        slug,
-        issueNumber,
-      );
+      // All other task types run as ephemeral Job pods via LoreTask CRD
+      await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber);
     }
   } catch (err: any) {
     await setStatus(task.id, "failed", {
@@ -482,15 +446,24 @@ async function handleClaudeCodeTask(
     },
   };
 
-  await k8sApi.createNamespacedCustomObject({
-    group: "lore.re-cinq.com",
-    version: "v1alpha1",
-    namespace,
-    plural: "loretasks",
-    body: cr,
-  });
-
-  console.log(`[agent] Created LoreTask CR ${crName} for task ${task.id}`);
+  try {
+    await k8sApi.createNamespacedCustomObject({
+      group: "lore.re-cinq.com",
+      version: "v1alpha1",
+      namespace,
+      plural: "loretasks",
+      body: cr,
+    });
+    console.log(`[agent] Created LoreTask CR ${crName} for task ${task.id}`);
+  } catch (err: any) {
+    const is409 = err?.code === 409 || err?.response?.statusCode === 409 || String(err?.message).includes("already exists");
+    if (is409) {
+      // CR already exists — watcher or another process created it. That's fine.
+      console.log(`[agent] LoreTask CR ${crName} already exists, skipping`);
+    } else {
+      throw err;
+    }
+  }
   // Don't set pr-created — the loretask-watcher will do that when the Job completes
 }
 
@@ -569,7 +542,7 @@ body:
     content: `blank_issues_enabled: true
 contact_links:
   - name: Lore Dashboard
-    url: https://lore.gcp.re-cinq.com
+    url: https://LORE_UI_DOMAIN
     about: Create tasks directly in the Lore UI
 `,
   },
@@ -742,7 +715,7 @@ async function handleOnboard(
   }
 
   // Configure ingest secrets on the repo so lore-ingest.yml can call back
-  const ingestUrl = process.env.LORE_INGEST_URL || "https://lore-api.gcp.re-cinq.com";
+  const ingestUrl = process.env.LORE_INGEST_URL || "";
   const ingestToken = process.env.LORE_INGEST_TOKEN;
   try {
     await platform().setRepoVariable(targetRepo, "LORE_INGEST_URL", ingestUrl);

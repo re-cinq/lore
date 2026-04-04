@@ -1,6 +1,7 @@
 import { query } from "../db.js";
 import { platform } from "../platform.js";
 import { callLLM } from "../anthropic.js";
+import { createHash } from "node:crypto";
 
 interface PendingTask {
   id: string;
@@ -19,7 +20,7 @@ export async function reviewReactorJob(): Promise<string> {
     `SELECT id, description, task_type, target_repo, pr_number, pr_url,
             issue_number, review_iteration, target_branch
      FROM pipeline.tasks
-     WHERE status = 'pr-created'
+     WHERE status IN ('pr-created', 'review', 'revision-requested')
        AND pr_number IS NOT NULL
        AND (review_iteration IS NULL OR review_iteration < 3)`,
   );
@@ -55,11 +56,26 @@ export async function reviewReactorJob(): Promise<string> {
         (c) => new Date(c.created_at) > lastCommitDate,
       );
 
-      if (pendingReviews.length === 0 && pendingComments.length === 0) {
+      // Get regular PR comments (issue-style — what users type from mobile)
+      const issueComments = await platform().listPRIssueComments(task.target_repo, task.pr_number);
+      const pendingIssueComments = issueComments.filter(
+        (c) => new Date(c.created_at) > lastCommitDate,
+      );
+
+      if (pendingReviews.length === 0 && pendingComments.length === 0 && pendingIssueComments.length === 0) {
         continue; // no pending feedback
       }
 
-      await processReviewFeedback(task, pendingReviews, pendingComments);
+      // Merge issue comments into the inline comments format for processing
+      const allComments = [
+        ...pendingComments,
+        ...pendingIssueComments.map(c => ({
+          id: 0, path: '(general)', line: null,
+          body: c.body, user: c.user, created_at: c.created_at,
+        })),
+      ];
+
+      await processReviewFeedback(task, pendingReviews, allComments);
       feedbackCount++;
     } catch (err) {
       console.error(
@@ -92,6 +108,18 @@ async function processReviewFeedback(
         `Reviewer @${c.user || "unknown"} said: "${c.body}" (on ${c.path}:${c.line || "?"})`,
     )
     .join("\n\n");
+
+  // Capture review feedback as an episode for org-wide learning
+  const episodeContent = `PR #${task.pr_number} on ${task.target_repo}\n\n${formattedReviews}\n\n${formattedComments}`;
+  const contentHash = createHash("sha256").update(episodeContent).digest("hex");
+  try {
+    await query(
+      `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (agent_id, content_hash) DO NOTHING`,
+      ['review-reactor', episodeContent, contentHash, 'pr-review', `${task.target_repo}#${task.pr_number}`],
+    );
+  } catch { /* best effort */ }
 
   const prompt = `You are fixing review feedback on a pull request.
 

@@ -44,7 +44,15 @@ resource "helm_release" "lore_agent" {
   }
   set {
     name  = "env.LORE_INGEST_URL"
-    value = "https://lore-api.gcp.re-cinq.com"
+    value = var.lore_api_url
+  }
+  set {
+    name  = "env.LORE_LOG_BUCKET"
+    value = "lore-task-logs-${var.project_id}"
+  }
+  set {
+    name  = "gcpProject"
+    value = var.project_id
   }
 
   # Secrets — reference ESO-managed K8s Secrets

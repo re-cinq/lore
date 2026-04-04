@@ -8,7 +8,7 @@ set -euo pipefail
 #
 # Usage: ./scripts/infra/generate-embeddings.sh [--schema org_shared] [--batch-size 5]
 
-PROJECT="${GCP_PROJECT:-re5-n8n-platform}"
+PROJECT="${GCP_PROJECT:?GCP_PROJECT must be set}"
 REGION="${GCP_REGION:-europe-west1}"
 SCHEMA="${1:-all}"
 BATCH_SIZE="${2:-5}"

@@ -10,6 +10,7 @@
 
 import * as k8s from "@kubernetes/client-node";
 import { GitHubPlatform } from "./github.js";
+import { writeLogs } from "./lib/log-storage.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ interface LoreTaskStatus {
   parentTaskId?: string;
   failureReason?: string;
   exitCode?: number;
+  logUrl?: string;
 }
 
 interface LoreTask {
@@ -282,12 +284,14 @@ async function checkJob(lt: LoreTask): Promise<void> {
   if (complete) {
     const logs = await readPodLogs(jobName);
     const changedFiles = parseChangedFiles(logs);
+    const logUrl = `gs://${process.env.LORE_LOG_BUCKET || "lore-task-logs"}/${lt.spec.targetRepo}/${lt.spec.taskId}/output.log`;
 
     const status: Partial<LoreTaskStatus> = {
       phase: "Succeeded",
       completedAt: new Date().toISOString(),
       output: logs.slice(-5000),
       changedFiles,
+      logUrl,
     };
 
     if (lt.spec.taskType === "review") {
@@ -300,26 +304,47 @@ async function checkJob(lt: LoreTask): Promise<void> {
 
     await patchStatus(ltName, status);
 
+    try {
+      await writeLogs(lt.spec.targetRepo, lt.spec.taskId, logs);
+    } catch (err: any) {
+      console.warn(`[controller] Failed to write final logs to GCS for ${lt.spec.taskId}: ${err.message}`);
+    }
+
     await deleteTokenSecret(taskIdShort);
     console.log(`[controller] Task ${lt.spec.taskId} succeeded (${changedFiles} files changed)`);
   } else if (failed) {
     const logs = await readPodLogs(jobName);
     const failureReason = parseFailureReason(logs, conditions);
     const exitCode = job.status?.failed ?? undefined;
+    const logUrl = `gs://${process.env.LORE_LOG_BUCKET || "lore-task-logs"}/${lt.spec.targetRepo}/${lt.spec.taskId}/output.log`;
 
     await patchStatus(ltName, {
       phase: "Failed",
       completedAt: new Date().toISOString(),
       failureReason,
       exitCode: exitCode ? Number(exitCode) : undefined,
+      logUrl,
     });
+
+    try {
+      await writeLogs(lt.spec.targetRepo, lt.spec.taskId, logs);
+    } catch (err: any) {
+      console.warn(`[controller] Failed to write failure logs to GCS for ${lt.spec.taskId}: ${err.message}`);
+    }
 
     await deleteTokenSecret(taskIdShort);
     console.error(`[controller] Task ${lt.spec.taskId} failed: ${failureReason}`);
   }
-  // Job is still running — read current logs and update status.output
+  // Job is still running — stream logs to GCS
   const liveLogs = await readPodLogs(jobName);
-  await patchStatus(ltName, { output: liveLogs.slice(-5000) });
+  if (liveLogs) {
+    await patchStatus(ltName, { output: liveLogs.slice(-5000) });
+    try {
+      await writeLogs(lt.spec.targetRepo, lt.spec.taskId, liveLogs);
+    } catch (err: any) {
+      console.warn(`[controller] Failed to write logs to GCS for ${lt.spec.taskId}: ${err.message}`);
+    }
+  }
 }
 
 // ── Pod log helpers ─────────────────────────────────────────────────

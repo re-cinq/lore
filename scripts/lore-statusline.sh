@@ -1,43 +1,65 @@
-#!/usr/bin/env bash
-# Lore status line for Claude Code
-# Reads session data from stdin (JSON), enriches with Lore metrics
-# Configured via: claude config set statusLine '{"type":"command","command":"~/.re-cinq/lore/scripts/lore-statusline.sh"}'
+#!/bin/bash
+# Lore statusline for Claude Code
+# Line 1: model, dir, git branch, context bar, duration
+# Line 2: Lore repo status (conditional on onboarded repo)
+#
+# Configure: add to ~/.claude/settings.json:
+#   "statusLine": { "type": "command", "command": "~/.re-cinq/lore/scripts/lore-statusline.sh" }
+#
+# Cache file is written by the SessionStart hook in install.sh
 
-INPUT=$(cat)
+input=$(cat)
 
-# ── Claude Code session data ──────────────────────────────────────────
-MODEL=$(echo "$INPUT" | jq -r '.model.display_name // "unknown"' 2>/dev/null)
-PCT=$(echo "$INPUT" | jq -r '.context_window.used_percentage // 0' 2>/dev/null | cut -d. -f1)
-COST_RAW=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0' 2>/dev/null)
-COST=$(printf "%.2f" "$COST_RAW" 2>/dev/null || echo "$COST_RAW")
+MODEL=$(echo "$input" | jq -r '.model.display_name')
+DIR=$(echo "$input" | jq -r '.workspace.current_dir')
+PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
+DURATION_MS=$(echo "$input" | jq -r '.cost.total_duration_ms // 0')
 
-# ── Git branch ────────────────────────────────────────────────────────
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'; RED='\033[31m'
+DIM='\033[2m'; PURPLE='\033[35m'; RESET='\033[0m'
 
-# ── Lore data (from cache, updated by SessionStart hook) ──────────────
-CACHE="$HOME/.lore/status-cache.json"
-LORE_INFO=""
+# Context bar color
+if [ "$PCT" -ge 90 ]; then BAR_COLOR="$RED"
+elif [ "$PCT" -ge 70 ]; then BAR_COLOR="$YELLOW"
+else BAR_COLOR="$GREEN"; fi
+
+FILLED=$((PCT / 10)); EMPTY=$((10 - FILLED))
+printf -v FILL "%${FILLED}s"; printf -v PAD "%${EMPTY}s"
+BAR="${FILL// /█}${PAD// /░}"
+
+MINS=$((DURATION_MS / 60000)); SECS=$(((DURATION_MS % 60000) / 1000))
+
+BRANCH=""
+git rev-parse --git-dir > /dev/null 2>&1 && BRANCH=" │ 🌿 $(git branch --show-current 2>/dev/null)"
+
+# --- Line 1: Model + dir + git + context ---
+echo -e "${CYAN}[$MODEL]${RESET} 📁 ${DIR##*/}${BRANCH} │ ${BAR_COLOR}${BAR}${RESET} ${PCT}% │ ⏱️ ${MINS}m ${SECS}s"
+
+# --- Line 2: Lore status (conditional on cache from SessionStart hook) ---
+REPO=$(cd "$DIR" 2>/dev/null && git remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\.git$||')
+[ -z "$REPO" ] && exit 0
+
+# Use md5 hash of repo name for cache file (macOS: md5, Linux: md5sum)
+HASH=$(echo -n "$REPO" | md5 2>/dev/null || echo -n "$REPO" | md5sum 2>/dev/null | cut -d' ' -f1)
+CACHE="/tmp/lore-status-${HASH}.json"
 
 if [ -f "$CACHE" ]; then
-  TASKS=$(jq -r '.active_tasks // 0' "$CACHE" 2>/dev/null)
-  MEMORIES=$(jq -r '.memory_count // 0' "$CACHE" 2>/dev/null)
-  TODAY_COST=$(jq -r '.today_cost // "0.00"' "$CACHE" 2>/dev/null)
-  REPO_STATUS=$(jq -r '.repo_status // ""' "$CACHE" 2>/dev/null)
+  ONBOARDED=$(jq -r '.onboarded // false' "$CACHE" 2>/dev/null)
 
-  PARTS=""
-  [ "$TASKS" != "0" ] && PARTS="${PARTS}tasks:${TASKS} "
-  [ "$MEMORIES" != "0" ] && PARTS="${PARTS}mem:${MEMORIES} "
-  [ "$TODAY_COST" != "0.00" ] && PARTS="${PARTS}\$${TODAY_COST} "
-  [ -n "$REPO_STATUS" ] && PARTS="${REPO_STATUS} ${PARTS}"
+  if [ "$ONBOARDED" = "true" ]; then
+    RUNNING=$(jq -r '.running // 0' "$CACHE")
+    PR_READY=$(jq -r '.pr_ready // 0' "$CACHE")
+    MEMORIES=$(jq -r '.memories // 0' "$CACHE")
+    AUTO_REVIEW=$(jq -r '.auto_review // false' "$CACHE")
 
-  [ -n "$PARTS" ] && LORE_INFO=" | lore: ${PARTS% }"
+    PARTS=""
+    [ "$RUNNING" -gt 0 ] && PARTS="${YELLOW}${RUNNING} running${RESET}"
+    [ "$PR_READY" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${GREEN}${PR_READY} PR ready${RESET}"
+    [ "$AUTO_REVIEW" = "true" ] && PARTS="${PARTS:+$PARTS · }auto-review"
+    PARTS="${PARTS:+$PARTS · }${DIM}${MEMORIES} memories${RESET}"
+
+    echo -e "${PURPLE}◉ Lore${RESET} ${PARTS}"
+  else
+    echo -e "${DIM}○ Lore: not onboarded${RESET}"
+  fi
 fi
-
-# ── Build output ──────────────────────────────────────────────────────
-LINE="${MODEL}"
-[ -n "$BRANCH" ] && LINE="${LINE} ${BRANCH}"
-LINE="${LINE} ${PCT}%"
-[ "$COST" != "0" ] && LINE="${LINE} \$${COST}"
-LINE="${LINE}${LORE_INFO}"
-
-echo "$LINE"

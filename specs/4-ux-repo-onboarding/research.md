@@ -194,7 +194,7 @@ for correctness.
 
 ### Authentication
 
-The GitHub App (lore-agent, App ID 3216440) authenticates as an
+The GitHub App (lore-agent, App ID GITHUB_APP_ID) authenticates as an
 installation. The installation token is already managed by
 `pipeline-github.ts`. Re-use that token generation logic.
 

@@ -84,6 +84,7 @@ export interface CodePlatform {
   getPRDiff(repo: string, prNumber: number): Promise<string>;
   listPRReviews(repo: string, prNumber: number): Promise<PullReview[]>;
   listPRComments(repo: string, prNumber: number): Promise<ReviewComment[]>;
+  listPRIssueComments(repo: string, prNumber: number): Promise<{ body: string; user: string; created_at: string }[]>;
   listPRCommits(repo: string, prNumber: number): Promise<PullCommit[]>;
   commentOnPR(repo: string, prNumber: number, body: string): Promise<void>;
   addPRLabel(repo: string, prNumber: number, label: string): Promise<void>;

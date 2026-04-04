@@ -75,7 +75,7 @@ if [ -n "$LORE_API_URL" ] && [ -n "$LORE_TOKEN" ]; then
 else
   printf '  \xe2\x97\x8b  %s\n' "Task delegation not configured (optional)"
   echo "     Set: git config --global lore.ingest-token <token>"
-  echo "     Set: git config --global lore.api-url https://lore-api.gcp.re-cinq.com"
+  echo "     Set: git config --global lore.api-url https://LORE_API_DOMAIN"
 fi
 
 if [ "$FAIL" -gt 0 ]; then

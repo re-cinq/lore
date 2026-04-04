@@ -51,6 +51,7 @@ gcloud auth for local dev.
 ## Key Components
 
 - `mcp-server/` — the MCP server (TypeScript)
+- `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code)
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
 - `scripts/klaus-prompts/` — standing instructions for agents (legacy, migrating to lore-agent)
@@ -67,27 +68,47 @@ gcloud auth for local dev.
 - `web-ui/src/app/pipeline/[id]/TaskLogs.tsx` — live Job log viewer (polls every 5s)
 - `web-ui/src/app/pipeline/[id]/PRStatusCard.tsx` — live PR status card
 - `agent/src/jobs/loretask-watcher.ts` — polls LoreTasks, creates PRs, triggers auto-review
+- `mcp-server/src/context-assembly.ts` — context assembly with YAML templates
+- `mcp-server/templates/` — YAML context assembly templates (default, review, implementation, research)
 - `evals/` — PromptFoo eval configs per team
 
 ## Agent Memory
 
-11 MCP memory tools for persistent agent memory:
+15 MCP memory tools for persistent agent memory:
 - **write_memory** — store a key-value memory with optional TTL
 - **read_memory** — retrieve a memory by key (supports version history)
 - **delete_memory** — soft-delete a memory
 - **list_memories** — paginated listing of active memories
-- **search_memory** — semantic search across memories and facts
+- **search_memory** — semantic search across memories and facts (supports `include_invalidated` for historical queries)
+- **write_episode** — ingest raw text (conversation, review, observation); auto-extracts facts and updates knowledge graph
+- **list_episodes** — list recent episodes with extracted fact counts
+- **query_graph** — query the live knowledge graph for entities and relationships
+- **assemble_context** — retrieve and assemble context from all sources into a structured, token-budgeted block (replaces multiple get_context + search_memory + get_adrs calls)
 - **shared_write** — write to a named shared pool (cross-agent)
 - **shared_read** — read from a shared pool
 - **create_snapshot** — snapshot all current memories for crash recovery
 - **restore_snapshot** — restore memories from a snapshot
 - **agent_health** — memory count, last active, snapshot count
-- **agent_stats** — total memories, facts, searches, daily breakdown
+- **agent_stats** — total memories, active/invalidated facts, searches, daily breakdown
 
 Memory is stored in the PostgreSQL `memory` schema (tables:
-`memories`, `memory_versions`, `facts`, `snapshots`, `shared_pools`,
-`audit_log`). File-backed fallback to `~/.lore/memory/` when DB is
-unavailable.
+`memories`, `memory_versions`, `facts`, `episodes`, `entities`,
+`edges`, `snapshots`, `shared_pools`, `audit_log`). File-backed
+fallback to `~/.lore/memory/` when DB is unavailable.
+
+Facts have temporal validity (`valid_from`/`valid_to`). When a new
+fact contradicts an existing one (cosine similarity >= 0.92), the
+old fact is automatically invalidated. Search returns only valid
+facts by default.
+
+Episodes are raw text blobs (conversation turns, code reviews,
+observations) that are passively ingested. Facts and knowledge
+graph entities are automatically extracted from episodes.
+
+The live knowledge graph (`memory.entities` + `memory.edges`)
+tracks entities (services, teams, technologies) and their
+relationships. Updated incrementally on every write_episode call.
+Replaces the static `graphrag/graph.json` for new deployments.
 
 Fact extraction via configurable LLM (`LORE_FACT_LLM` env:
 claude/openai/ollama) breaks unstructured text into individually
@@ -100,12 +121,40 @@ When the MCP server runs locally (stdio mode), all memory operations
 are proxied to the GKE MCP server via `LORE_API_URL`. Local learnings
 are shared across the org. AgentDB provides optional local read caching.
 
+## Required Workflow
+
+Every Claude Code session connected to Lore MUST follow this order:
+
+1. **First action**: Call `assemble_context` with a query describing
+   the task. This loads conventions, ADRs, memories, facts, and
+   graph relationships in one call. Do not skip this.
+
+2. **Before planning or building**: Call `search_memory` to check
+   if the problem was already solved or if previous sessions left
+   relevant learnings. Search with multiple queries — exact terms,
+   likely key names (e.g. `deployment-gotchas-{date}`), and broader
+   descriptions. Never assume "no memory exists" after one search.
+
+3. **During work**: Use `search_context` for patterns and history.
+   Use `query_graph` to understand entity relationships. Use
+   `create_pipeline_task` to delegate work to agents.
+
+4. **Before session ends**: Call `write_memory` with a session
+   summary of decisions, corrections, and non-obvious learnings.
+   Call `write_episode` with raw observations for passive fact
+   extraction.
+
+This workflow is enforced via the system prompt injected by
+`install.sh`. The install script configures hooks that remind
+agents to follow this order.
+
 ## Developer Setup
 
 `install.sh` runs once per machine. It configures:
 - MCP server (serves context for ALL onboarded repos)
 - Skills (/lore-feature, /lore-pr)
-- Hooks (SessionStart syncs context, PostToolUse tracks tasks)
+- Hooks (SessionStart syncs context, Stop captures episode)
+- System prompt (enforces assemble_context + search_memory workflow)
 - Agent ID (~/.lore/agent-id)
 
 No per-repo install needed. The MCP server auto-detects which repo
@@ -117,7 +166,10 @@ you're in from the git remote and serves that repo's context.
 git clone git@github.com:re-cinq/lore.git && lore/scripts/install.sh
 ```
 
-The MCP server runs locally via stdio. No infra needed for Phase 0.
+The MCP server runs locally via stdio but proxies all operations
+(context, memory, pipeline, search) to the GKE backend via
+`LORE_API_URL`. The backend must be running for any functionality
+beyond the initial install. There is no offline or local-only mode.
 
 ## GKE Deployment
 
@@ -131,7 +183,25 @@ All secrets managed by External Secrets Operator (ESO) pulling from
 GCP Secret Manager. Single `terraform apply` deploys everything.
 See `terraform/` for the full configuration.
 
-Deploy: `cd terraform && terraform apply -var-file=secrets.tfvars`
+Deploy requires `secrets.tfvars` (copy from `secrets.tfvars.example`)
+plus four variables passed on the command line or in the file:
+
+- `lore_api_url` — external URL for the MCP server API
+- `lore_ui_url` — external URL for the web UI
+- `lore_ui_hostname` — hostname for the UI ingress
+- `github_org` — GitHub organization name
+
+```bash
+cd terraform && terraform apply \
+  -var-file=secrets.tfvars \
+  -var='lore_api_url=https://lore-api.example.com' \
+  -var='lore_ui_url=https://lore.example.com' \
+  -var='lore_ui_hostname=lore.example.com' \
+  -var='github_org=your-github-org'
+```
+
+CI workflows also require the GitHub Actions variable `GCP_PROJECT_ID`
+(`gh variable set GCP_PROJECT_ID --body "your-gcp-project-id"`).
 
 ## Repo Onboarding
 

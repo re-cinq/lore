@@ -1,83 +1,77 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/db';
+import { queryOne } from '@/lib/db';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
+import { Storage } from '@google-cloud/storage';
+
+const BUCKET = process.env.LORE_LOG_BUCKET || "lore-task-logs";
 
 interface Task {
   id: string;
   status: string;
+  target_repo: string;
 }
 
-interface LogEvent {
-  metadata: { output?: string; captured_at?: string } | null;
-  created_at: string;
+async function checkRepoAccess(accessToken: string, repo: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}`, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
-/**
- * GET /api/pipeline/[id]/logs
- *
- * Returns the latest log output for a task.
- *
- * Query params:
- *   since=<ISO timestamp> — only return log events newer than this timestamp
- *
- * Response JSON:
- *   { logs: string, status: string, timestamp: string }
- *
- * Sources:
- *   - Running tasks: latest 'log' event in task_events (written by loretask-watcher every ~60s)
- *   - Completed tasks: output from the final status event metadata
- */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { searchParams } = new URL(req.url);
-  const since = searchParams.get('since');
+  const offset = parseInt(searchParams.get('offset') || '0', 10);
 
   try {
+    // Auth check
+    const session = await getServerSession(authOptions) as any;
+    if (!session?.accessToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const task = await queryOne<Task>(
-      `SELECT id, status FROM pipeline.tasks WHERE id = $1`,
+      `SELECT id, status, target_repo FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
-    if (!task) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+
+    // Repo access check
+    const hasAccess = await checkRepoAccess(session.accessToken, task.target_repo);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Access denied — you do not have access to this repo' }, { status: 403 });
     }
 
-    // For running tasks: return the most recent log snapshot
-    if (task.status === 'running') {
-      const sinceClause = since ? `AND created_at > $2` : '';
-      const sinceParam = since ? [id, since] : [id];
+    // Read from GCS
+    const storage = new Storage();
+    const file = storage.bucket(BUCKET).file(`${task.target_repo}/${task.id}/output.log`);
 
-      const rows = await query<LogEvent>(
-        `SELECT metadata, created_at
-         FROM pipeline.task_events
-         WHERE task_id = $1 AND to_status = 'log' ${sinceClause}
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        sinceParam,
-      );
-
-      const latest = rows[0];
-      return NextResponse.json({
-        logs: latest?.metadata?.output ?? null,
-        status: task.status,
-        timestamp: latest?.created_at ?? null,
-      });
+    const [exists] = await file.exists();
+    if (!exists) {
+      return NextResponse.json({ logs: null, status: task.status, totalSize: 0 });
     }
 
-    // For completed/failed tasks: return the output stored in the final event
-    const rows = await query<LogEvent>(
-      `SELECT metadata, created_at
-       FROM pipeline.task_events
-       WHERE task_id = $1 AND to_status = 'log'
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [id],
-    );
+    if (offset > 0) {
+      const [metadata] = await file.getMetadata();
+      const totalSize = Number(metadata.size || 0);
+      if (offset >= totalSize) {
+        return NextResponse.json({ logs: "", status: task.status, totalSize });
+      }
+      const [content] = await file.download({ start: offset, end: totalSize - 1 });
+      return NextResponse.json({ logs: content.toString("utf-8"), status: task.status, totalSize });
+    }
 
-    const latest = rows[0];
+    const [content] = await file.download();
     return NextResponse.json({
-      logs: latest?.metadata?.output ?? null,
+      logs: content.toString("utf-8"),
       status: task.status,
-      timestamp: latest?.created_at ?? null,
+      totalSize: content.length,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

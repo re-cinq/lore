@@ -63,7 +63,7 @@ New module that handles the full onboarding flow:
    d. Insert row into `lore.repos` with `onboarding_pr_url`.
    e. Return PR URL.
 
-GitHub App: `lore-agent` (App ID 3216440), already configured with
+GitHub App: `lore-agent` (App ID GITHUB_APP_ID), already configured with
 repo contents + pull request permissions.
 
 **Task 1.4: Onboarding templates — `scripts/onboarding-templates/`**
@@ -285,7 +285,7 @@ fixes can be parallelized with the onboard page work.
 
 | Dependency | Status | Owner |
 |------------|--------|-------|
-| GitHub App (lore-agent, App ID 3216440) | Configured | Platform Engineering |
+| GitHub App (lore-agent, App ID GITHUB_APP_ID) | Configured | Platform Engineering |
 | PostgreSQL (CNPG) | Running (schemas: org_shared, memory, pipeline) | Platform Engineering |
 | Pipeline module (pipeline-github.ts) | Existing | Platform Engineering |
 | Web UI (Next.js App Router, lore-ui namespace) | Deployed on GKE | Platform Engineering |

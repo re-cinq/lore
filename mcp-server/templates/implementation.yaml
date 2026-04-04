@@ -1,0 +1,27 @@
+name: implementation
+description: Context optimized for implementation tasks.
+sections:
+  - header: "Conventions"
+    source: repo
+    priority: 1
+    max_tokens: 4000
+
+  - header: "Architecture Decisions"
+    source: adrs
+    priority: 1
+    max_tokens: 3000
+
+  - header: "Related Entities"
+    source: graph
+    priority: 2
+    max_tokens: 2000
+
+  - header: "Agent Memory"
+    source: memories
+    priority: 2
+    max_tokens: 3000
+
+  - header: "Recent Episodes"
+    source: episodes
+    priority: 3
+    max_tokens: 2000

@@ -1,7 +1,8 @@
 import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-options";
 
 export async function getSession() {
-  return getServerSession();
+  return getServerSession(authOptions);
 }
 
 export async function getUserRepos(accessToken: string): Promise<string[]> {

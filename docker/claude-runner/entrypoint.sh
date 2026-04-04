@@ -43,7 +43,14 @@ if [ "$TASK_TYPE" = "review" ]; then
 
   # --- Run Claude Code for review ---
   echo "[runner] Running Claude Code review (model=${MODEL})..."
-  CLAUDE_OUTPUT=$(claude --print --dangerously-skip-permissions --verbose --model "${MODEL}" -- "${TASK_PROMPT}" 2>&1) || true
+  REVIEW_PREAMBLE="IMPORTANT: You have the Lore MCP server. Before reviewing:
+1. Call assemble_context with template 'review' to load conventions, ADRs, and review patterns.
+2. Call search_memory to check for known patterns and past review feedback on this repo.
+Then proceed with the review task:"
+
+  CLAUDE_OUTPUT=$(claude --print --dangerously-skip-permissions --verbose --model "${MODEL}" -- "${REVIEW_PREAMBLE}
+
+${TASK_PROMPT}" 2>&1) || true
   echo "$CLAUDE_OUTPUT"
 
   # --- Parse review result ---
@@ -97,14 +104,33 @@ else
   echo "[runner] Creating branch ${BRANCH_NAME}..."
   git checkout -b "${BRANCH_NAME}"
 
+  # --- Build prompt with Lore workflow preamble ---
+  # Job pods get the same required workflow as local sessions:
+  # 1. assemble_context first, 2. search_memory before building
+  LORE_PREAMBLE="IMPORTANT: You have the Lore MCP server. Follow this workflow:
+1. FIRST: Call assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.
+2. BEFORE CODING: Call search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.
+3. DURING WORK: Use search_context for patterns. Use query_graph for entity relationships.
+4. WHEN DONE: Call write_episode with a summary of what you did and any non-obvious decisions.
+
+Now execute the following task:"
+
+  FULL_PROMPT="${LORE_PREAMBLE}
+
+${TASK_PROMPT}"
+
   # --- Run Claude Code ---
   echo "[runner] Running Claude Code (model=${MODEL}, task_type=${TASK_TYPE})..."
-  claude --print --dangerously-skip-permissions --verbose --model "${MODEL}" -- "${TASK_PROMPT}"
+  claude --print --dangerously-skip-permissions --verbose --model "${MODEL}" -- "${FULL_PROMPT}"
 
   # --- Check for changes ---
   echo "[runner] Checking for changes..."
   if [ -z "$(git status --porcelain)" ]; then
     echo "NO_CHANGES"
+    # General tasks are informational (research, analysis) — no file changes expected
+    if [ "$TASK_TYPE" = "general" ]; then
+      exit 0
+    fi
     exit 1
   fi
 

@@ -41,7 +41,10 @@ import {
   searchMemoryFile,
 } from "./memory-file.js";
 import { searchMemories } from "./memory-search.js";
-import { extractFacts } from "./facts.js";
+import { extractFacts, extractFactsFromEpisode } from "./facts.js";
+import { extractAndUpdateGraph, queryLiveGraph } from "./graph.js";
+import { assembleContext, loadTemplates } from "./context-assembly.js";
+import { createHash } from "node:crypto";
 import {
   createTask,
   getTask,
@@ -97,6 +100,20 @@ function parseFrontmatter(content: string): { meta: Record<string, unknown>; bod
 }
 
 const server = new McpServer({ name: "@re-cinq/lore-mcp", version: "0.1.0" });
+
+// --- Latency tracking helper ---
+async function trackLatency(tool: string, fn: () => Promise<any>): Promise<any> {
+  const start = Date.now();
+  const result = await fn();
+  const latencyMs = Date.now() - start;
+  if (dbPoolRef) {
+    dbPoolRef.query(
+      `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ($1, $2, $3)`,
+      ['system', tool, JSON.stringify({ latency_ms: latencyMs })],
+    ).catch(() => {});
+  }
+  return result;
+}
 
 // --- get_context ---
 server.tool(
@@ -438,19 +455,21 @@ server.tool(
 
 server.tool(
   "search_memory",
-  "Semantic search across all org memories. Returns results ranked by similarity.",
+  "Semantic search across all org memories and facts. Returns results ranked by similarity. Facts include temporal validity — only currently valid facts are returned by default.",
   {
     query: z.string().describe("Natural language search query."),
     agent_id: z.string().optional().describe("Scope to agent. Omit for cross-agent search."),
     pool: z.string().optional().describe("Search within a shared pool."),
     limit: z.number().default(10),
+    include_invalidated: z.boolean().default(false).describe("Include facts that have been superseded by newer facts. Useful for historical queries."),
+    graph_augment: z.boolean().default(false).describe("Enrich results with 1-hop knowledge graph neighbors of detected entities."),
   },
-  async ({ query, agent_id, pool, limit }) => {
+  async ({ query, agent_id, pool, limit, include_invalidated, graph_augment }) => {
     try {
       if (isMemoryDbAvailable()) {
         const results = await searchMemories(
           dbPoolRef,
-          query, agent_id, pool, limit
+          query, agent_id, pool, limit, include_invalidated, graph_augment
         );
         return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
       }
@@ -461,6 +480,178 @@ server.tool(
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error searching memories: ${err.message}` }] };
     }
+  }
+);
+
+// --- Episode tools ---
+
+server.tool(
+  "write_episode",
+  "Ingest raw, unstructured text (conversation turn, code review, observation). The system stores it as an episode and automatically extracts searchable facts. Use this for passive knowledge capture — no need to curate what's important.",
+  {
+    content: z.string().min(1).max(50000).describe("Raw text to ingest (conversation, review, observation)."),
+    source: z.string().default("manual").describe('Source tag: "session", "pr-review", "ci", "manual".'),
+    ref: z.string().optional().describe('External reference (e.g. "owner/repo#42").'),
+    agent_id: z.string().optional().describe("Override agent ID."),
+  },
+  async ({ content, source, ref, agent_id }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const agent = resolveAgentId(agent_id);
+      const contentHash = createHash("sha256").update(content).digest("hex");
+      const embedding = await getQueryEmbedding(content);
+      const embeddingStr = embedding ? `[${embedding.join(",")}]` : null;
+
+      const { rows } = await dbPoolRef.query(
+        `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref, embedding)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (agent_id, content_hash) DO NOTHING
+         RETURNING id`,
+        [agent, content, contentHash, source, ref || null, embeddingStr],
+      );
+
+      if (rows.length === 0) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ status: "duplicate", message: "Episode already ingested." }) }] };
+      }
+
+      const episodeId = rows[0].id;
+
+      // Trigger async fact extraction and graph update (don't block the response)
+      extractFactsFromEpisode(episodeId, content, agent, dbPoolRef).catch((err) =>
+        console.warn(`[episode] Fact extraction failed for ${episodeId}: ${err.message}`),
+      );
+
+      // Graph extraction (async, best-effort, requires ANTHROPIC_API_KEY)
+      if (process.env.ANTHROPIC_API_KEY) {
+        const graphLlmCall = async (prompt: string) => {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'x-api-key': process.env.ANTHROPIC_API_KEY!,
+              'anthropic-version': '2023-06-01',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: process.env.LORE_FACT_MODEL || 'claude-sonnet-4-20250514',
+              max_tokens: 1024,
+              messages: [{ role: 'user', content: prompt }],
+            }),
+          });
+          const json = await res.json() as any;
+          return json.content[0].text;
+        };
+        // Determine repo from ref (e.g. "owner/repo#42" -> "owner/repo")
+        const repoFromRef = ref?.match(/^([^#]+)/)?.[1] || null;
+        extractAndUpdateGraph(dbPoolRef, content, repoFromRef, episodeId, null, graphLlmCall).catch((err) =>
+          console.warn(`[episode] Graph extraction failed for ${episodeId}: ${err.message}`),
+        );
+      }
+
+      // Audit log
+      await dbPoolRef.query(
+        `INSERT INTO memory.audit_log (agent_id, operation, metadata)
+         VALUES ($1, 'write_episode', $2)`,
+        [agent, JSON.stringify({ episode_id: episodeId, source, ref })],
+      ).catch(() => {});
+
+      return { content: [{ type: "text" as const, text: JSON.stringify({ status: "ok", episode_id: episodeId, source, ref }) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error writing episode: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "list_episodes",
+  "List recent episodes ingested by an agent. Returns episodes with their extracted fact count.",
+  {
+    agent_id: z.string().optional().describe("Override agent ID."),
+    source: z.string().optional().describe('Filter by source tag (e.g. "pr-review").'),
+    limit: z.number().default(20),
+  },
+  async ({ agent_id, source, limit }) => {
+    try {
+      if (!isMemoryDbAvailable()) {
+        return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const agent = resolveAgentId(agent_id);
+      const { rows } = await dbPoolRef.query(
+        `SELECT e.id, e.source, e.ref, e.created_at,
+                LEFT(e.content, 200) as content_preview,
+                (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count
+         FROM memory.episodes e
+         WHERE e.agent_id = $1
+           AND ($2::text IS NULL OR e.source = $2)
+         ORDER BY e.created_at DESC
+         LIMIT $3`,
+        [agent, source || null, limit],
+      );
+      return { content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error listing episodes: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Knowledge graph tools ---
+
+server.tool(
+  "query_graph",
+  "Query the live knowledge graph for entities and their relationships. Returns entities connected by typed edges (uses, owns, depends-on, etc.) with temporal validity.",
+  {
+    entity: z.string().optional().describe("Entity name to query (e.g. 'auth-service', 'postgres'). Omit to browse recent edges."),
+    relation_type: z.string().optional().describe('Filter by relation type: "uses", "owns", "depends-on", "replaced-by", "part-of", "implements".'),
+    repo: z.string().optional().describe("Scope to a specific repo."),
+    include_invalidated: z.boolean().default(false).describe("Include invalidated (historical) relationships."),
+  },
+  async ({ entity, relation_type, repo, include_invalidated }) => {
+    return trackLatency('query_graph', async () => {
+      try {
+        if (!isMemoryDbAvailable()) {
+          return { content: [{ type: "text" as const, text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST not set)." }] };
+        }
+        const results = await queryLiveGraph(dbPoolRef, entity, relation_type, repo, include_invalidated);
+        if (results.length === 0) {
+          return { content: [{ type: "text" as const, text: entity ? `No relationships found for "${entity}".` : "Knowledge graph is empty. Write episodes or memories to populate it." }] };
+        }
+        return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: `Error querying graph: ${err.message}` }] };
+      }
+    });
+  }
+);
+
+// --- Context assembly tools ---
+
+server.tool(
+  "assemble_context",
+  "Retrieve and assemble context from all sources (repo, ADRs, memories, facts, episodes, graph) into a single structured block optimized for LLM consumption. Replaces multiple get_context + search_memory + get_adrs calls. Uses configurable templates for task-type-specific context ordering.",
+  {
+    query: z.string().describe("What context is needed (e.g. 'implement auth middleware', 'review PR #42')."),
+    template: z.string().default("default").describe('Template name: "default", "review", "implementation", "research".'),
+    max_tokens: z.number().default(16000).describe("Maximum token budget for assembled context (min 2000)."),
+    repo: z.string().optional().describe("Target repo (e.g. 'owner/repo'). Auto-detected if omitted."),
+    agent_id: z.string().optional().describe("Override agent ID."),
+  },
+  async ({ query, template, max_tokens, repo, agent_id }) => {
+    return trackLatency('assemble_context', async () => {
+      try {
+        if (!isMemoryDbAvailable()) {
+          return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL (LORE_DB_HOST not set)." }] };
+        }
+        const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id);
+        if (!result.text) {
+          return { content: [{ type: "text" as const, text: "No relevant context found for this query." }] };
+        }
+        const meta = `<!-- context: template=${template}, sections=${result.sections.length}, tokens=${result.sections.reduce((s, r) => s + r.tokens, 0)} -->\n\n`;
+        return { content: [{ type: "text" as const, text: meta + result.text }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: `Error assembling context: ${err.message}` }] };
+      }
+    });
   }
 );
 
@@ -1068,6 +1259,110 @@ server.tool(
   }
 );
 
+// --- Local task runner tools (stdio-only, no-op on GKE) ---
+
+server.tool(
+  "run_task_locally",
+  "Run a task in the background on your local machine using Claude Code in a git worktree. Returns immediately — your session continues normally while the task runs.",
+  {
+    description: z.string().describe("What to implement or do"),
+    task_type: z.enum(["implementation", "general", "runbook", "gap-fill"]).default("implementation"),
+    model: z.string().optional().describe("Model override (default: claude-sonnet-4-6)"),
+  },
+  async (args) => {
+    try {
+      const { spawnLocalTask, detectRepo, getRepoRoot } = await import("./local-runner.js");
+      const repo = detectRepo();
+      if (!repo) return { content: [{ type: "text" as const, text: "Error: not in a git repository with a GitHub remote" }] };
+
+      // Create pipeline task via API
+      const apiUrl = process.env.LORE_API_URL || "";
+      const token = process.env.LORE_INGEST_TOKEN || "";
+      let taskId = crypto.randomUUID();
+
+      if (apiUrl && token) {
+        try {
+          const resp = await fetch(`${apiUrl}/api/task`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              description: args.description,
+              task_type: args.task_type,
+              target_repo: repo,
+              created_by: "local-runner",
+            }),
+          });
+          const data = await resp.json() as any;
+          if (data.task_id) taskId = data.task_id;
+        } catch { /* use generated UUID */ }
+      }
+
+      const task = spawnLocalTask({
+        taskId,
+        prompt: args.description,
+        repo,
+        taskType: args.task_type,
+        model: args.model,
+        repoRoot: getRepoRoot() || undefined,
+      });
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Task running locally in background.\n\nTask ID: ${task.taskId}\nBranch: ${task.branch}\nWorktree: ${task.worktreePath}\nLogs: ${task.logFile}\nPID: ${task.pid}\n\nYour session continues normally. Watch progress in the statusline.`,
+        }],
+      };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "list_local_tasks",
+  "List all local background tasks (running, completed, failed).",
+  {},
+  async () => {
+    try {
+      const { listLocalTasks } = await import("./local-runner.js");
+      const tasks = listLocalTasks();
+      if (tasks.length === 0) {
+        return { content: [{ type: "text" as const, text: "No local tasks." }] };
+      }
+      const lines = tasks.map((t: any) =>
+        `${t.taskId.substring(0, 8)} ${t.status} ${t.repo} ${t.branch}${t.prUrl ? " → " + t.prUrl : ""}${t.error ? " ✗ " + t.error : ""}`
+      );
+      return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "cancel_local_task",
+  "Cancel a running local background task and clean up its worktree.",
+  {
+    task_id: z.string().describe("Task ID to cancel"),
+  },
+  async (args) => {
+    try {
+      const { cancelLocalTask } = await import("./local-runner.js");
+      const result = cancelLocalTask(args.task_id);
+      return {
+        content: [{
+          type: "text" as const,
+          text: result.cancelled
+            ? `Task ${args.task_id} cancelled. Worktree cleaned up.`
+            : `Could not cancel: ${result.error}`,
+        }],
+      };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
 // --- GitHub webhook helpers ---
 
 async function getGitHubToken(): Promise<string | null> {
@@ -1129,8 +1424,9 @@ async function main() {
     console.error("[lore] Database mode: local files (LORE_DB_HOST not set)");
   }
 
-  // Initialize pipeline config (task CRUD only — processing moved to lore-agent service)
+  // Initialize pipeline config and context assembly templates
   loadTaskTypes();
+  loadTemplates();
   if (process.env.LORE_DB_HOST) {
     console.error('[lore] Pipeline task CRUD ready (processing handled by lore-agent)');
   }
@@ -1162,18 +1458,39 @@ async function main() {
         }
         res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status, database: health, tasks, today_cost: todayCost }));
       } else if (req.url?.startsWith("/api/repo-status") && req.method === "GET") {
-        // Check if a repo is onboarded — used by the status line cache
+        // Statusline cache endpoint — returns onboarded, tasks, memories, auto_review
         const url = new URL(req.url, `http://${req.headers.host}`);
         const repo = url.searchParams.get("repo");
+        console.log(`[repo-status] repo=${repo} dbPoolRef=${!!dbPoolRef}`);
         if (!repo || !dbPoolRef) {
           res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false }));
           return;
         }
         try {
-          const { rows } = await dbPoolRef.query(`SELECT 1 FROM lore.repos WHERE full_name = $1`, [repo]);
-          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: rows.length > 0, repo }));
-        } catch {
-          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false }));
+          const repoRow = await dbPoolRef.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
+          if (repoRow.rows.length === 0) {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false, repo }));
+            return;
+          }
+          const settings = repoRow.rows[0].settings || {};
+          const running = await dbPoolRef.query(
+            `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status = 'running'`, [repo],
+          );
+          const prReady = await dbPoolRef.query(
+            `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status IN ('pr-created', 'review')`, [repo],
+          );
+          const memories = await dbPoolRef.query(`SELECT count(*) as c FROM memory.memories WHERE is_deleted = false`);
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+            onboarded: true,
+            repo,
+            running: Number(running.rows[0]?.c || 0),
+            pr_ready: Number(prReady.rows[0]?.c || 0),
+            memories: Number(memories.rows[0]?.c || 0),
+            auto_review: settings.auto_review === true,
+          }));
+        } catch (err: any) {
+          console.error("[repo-status] Error:", err.message);
+          res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ onboarded: false, error: err.message }));
         }
       } else if (req.url === "/api/ingest" && req.method === "POST") {
         // Bearer token auth
@@ -1367,6 +1684,37 @@ async function main() {
                 return;
             }
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
+          } catch (err: any) {
+            res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+          }
+        });
+      } else if (req.url === "/api/episode" && req.method === "POST") {
+        // Write episode via REST — used by session summary hook
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (token && auth !== `Bearer ${token}`) { res.writeHead(401).end("Unauthorized"); return; }
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", async () => {
+          try {
+            const { content, source, ref, agent_id } = JSON.parse(body);
+            if (!content) { res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "content required" })); return; }
+            const agent = agent_id || 'unknown';
+            const contentHash = createHash("sha256").update(content).digest("hex");
+            const { rows } = await dbPoolRef.query(
+              `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (agent_id, content_hash) DO NOTHING
+               RETURNING id`,
+              [agent, content, contentHash, source || 'session', ref || null],
+            );
+            if (rows.length === 0) {
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "duplicate" }));
+              return;
+            }
+            // Trigger async fact extraction
+            extractFactsFromEpisode(rows[0].id, content, agent, dbPoolRef).catch(() => {});
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "ok", episode_id: rows[0].id }));
           } catch (err: any) {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
           }
