@@ -52,6 +52,14 @@ A developer creates a GitHub Issue using the Lore issue template — or adds a `
 
 Issue templates are added during onboarding — developers see "Lore: Implementation", "Lore: Review", and "Lore: General Task" when creating new issues.
 
+### Flow 5: Local Task Runner (background, zero API cost)
+
+A developer says "run locally" and Claude Code spawns a background process in an isolated git worktree on the developer's machine. Uses the Claude Code subscription — no API credits consumed. The developer's session continues uninterrupted.
+
+<p align="center"><img src="badges/flow5-local-runner.svg" width="600" alt="Flow 5: Local task runner" /></p>
+
+Same context flow as GKE tasks — the background process has its own MCP server instance, calls `assemble_context` and `search_memory` before coding.
+
 ### Agent Execution Modes
 
 | Mode | When | How |
@@ -60,6 +68,7 @@ Issue templates are added during onboarding — developers see "Lore: Implementa
 | **Claude Code (ephemeral Job)** | Implementation, refactoring, complex analysis | Creates a LoreTask CR → controller spawns an ephemeral K8s Job pod with claude-runner image. Full tool access, isolated resources, survives agent deploys. |
 | **Multi-agent** | Large implementation tasks | Multiple LoreTask Jobs run in parallel. Each works on a different part of the task (e.g., one agent per file or module). Results merged into a single PR. |
 | **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
+| **Local runner** | Developer says "run locally" | Background `claude --print` in an isolated git worktree on the developer's machine. Uses Claude Code subscription — zero API cost. Non-blocking, PR created via `gh`. |
 
 The agent service decides which mode to use based on the task type configured in `task-types.yaml`.
 
