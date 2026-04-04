@@ -117,16 +117,16 @@ IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules stric
 
 5. BEFORE SESSION ENDS: Call write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call write_episode with raw session observations for passive fact extraction.`;
 
-if (!settings.systemPromptSuffix || !settings.systemPromptSuffix.includes("run_task_locally")) {
-  // Replace old lore-context prompt if present
-  if (settings.systemPromptSuffix && settings.systemPromptSuffix.includes("lore-context")) {
-    settings.systemPromptSuffix = settings.systemPromptSuffix.replace(
-      /\n\nIMPORTANT: You have the Lore MCP server[\s\S]*?useful to others\)\.?/,
-      '',
-    );
-  }
-  settings.systemPromptSuffix = (settings.systemPromptSuffix || "") + lorePrompt;
+// Always replace — strip ALL old Lore prompts and write fresh
+if (settings.systemPromptSuffix) {
+  // Remove all Lore-injected blocks (may be stacked from multiple installs)
+  settings.systemPromptSuffix = settings.systemPromptSuffix
+    .replace(/\n*IMPORTANT: You have (access to )?the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g, '')
+    .replace(/\n*You have access to the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
+settings.systemPromptSuffix = (settings.systemPromptSuffix || "") + lorePrompt;
 
 // Session summary reminder on stop
 if (!hasHook(settings.hooks, "Stop", "session-summary")) {
