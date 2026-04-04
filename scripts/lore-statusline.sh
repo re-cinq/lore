@@ -52,8 +52,23 @@ if [ -f "$CACHE" ]; then
     MEMORIES=$(jq -r '.memories // 0' "$CACHE")
     AUTO_REVIEW=$(jq -r '.auto_review // false' "$CACHE")
 
+    # Pending tasks from notifier
+    PENDING_FILE="$HOME/.lore/pending-tasks.json"
+    PENDING=0
+    if [ -f "$PENDING_FILE" ]; then
+      PENDING=$(jq 'length' "$PENDING_FILE" 2>/dev/null || echo 0)
+    fi
+
+    # Local tasks running in worktrees
+    LOCAL=0
+    if [ -d "$HOME/.lore/worktrees" ]; then
+      LOCAL=$(find "$HOME/.lore/worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+    fi
+
     PARTS=""
-    [ "$RUNNING" -gt 0 ] && PARTS="${YELLOW}${RUNNING} running${RESET}"
+    [ "$PENDING" -gt 0 ] && PARTS="${RED}${PENDING} new${RESET}"
+    [ "$LOCAL" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${CYAN}${LOCAL} local${RESET}"
+    [ "$RUNNING" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${YELLOW}${RUNNING} running${RESET}"
     [ "$PR_READY" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${GREEN}${PR_READY} PR ready${RESET}"
     [ "$AUTO_REVIEW" = "true" ] && PARTS="${PARTS:+$PARTS · }auto-review"
     PARTS="${PARTS:+$PARTS · }${DIM}${MEMORIES} memories${RESET}"

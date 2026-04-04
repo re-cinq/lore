@@ -1363,6 +1363,148 @@ server.tool(
   }
 );
 
+// --- Task notification + interactive claim tools (Phase 2) ---
+
+server.tool(
+  "enable_task_notifications",
+  "Start watching for pending pipeline tasks on repos you work with. Shows new tasks in the statusline so you can decide to run them locally or let GKE handle them.",
+  {
+    repos: z.array(z.string()).optional().describe("Repos to watch (e.g. ['re-cinq/lore']). Defaults to current repo."),
+    task_types: z.array(z.string()).optional().describe("Task types to watch. Defaults to implementation, general, runbook, gap-fill."),
+  },
+  async (args) => {
+    try {
+      const { startNotifier, detectRepo, isNotifierRunning } = await import("./local-runner.js");
+      if (isNotifierRunning()) {
+        return { content: [{ type: "text" as const, text: "Task notifications already active." }] };
+      }
+      const repos = args.repos || [detectRepo()].filter(Boolean) as string[];
+      if (repos.length === 0) {
+        return { content: [{ type: "text" as const, text: "Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote." }] };
+      }
+      const taskTypes = args.task_types || ["implementation", "general", "runbook", "gap-fill"];
+      startNotifier(repos, taskTypes);
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Watching for pending tasks on ${repos.join(", ")}.\nTypes: ${taskTypes.join(", ")}\nCheck the statusline for new tasks.`,
+        }],
+      };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "disable_task_notifications",
+  "Stop watching for pending pipeline tasks.",
+  {},
+  async () => {
+    try {
+      const { stopNotifier } = await import("./local-runner.js");
+      stopNotifier();
+      return { content: [{ type: "text" as const, text: "Task notifications stopped." }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "list_pending_tasks",
+  "Show pending pipeline tasks that can be claimed and run locally.",
+  {},
+  async () => {
+    try {
+      const { listPendingTasks } = await import("./local-runner.js");
+      const tasks = listPendingTasks();
+      if (tasks.length === 0) {
+        return { content: [{ type: "text" as const, text: "No pending tasks." }] };
+      }
+      const lines = tasks.map((t: any) =>
+        `${t.id.substring(0, 8)} ${t.task_type} ${t.target_repo}${t.issue_number ? " #" + t.issue_number : ""}\n  ${t.description}`
+      );
+      return { content: [{ type: "text" as const, text: lines.join("\n\n") }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "claim_and_run_locally",
+  "Claim a pending pipeline task and run it locally in the background. The task runs in a git worktree using your Claude Code subscription (zero API cost).",
+  {
+    task_id: z.string().describe("Task ID to claim (from list_pending_tasks)"),
+    model: z.string().optional().describe("Model override"),
+  },
+  async (args) => {
+    try {
+      const { spawnLocalTask, getRepoRoot, skipTask, listPendingTasks } = await import("./local-runner.js");
+
+      // Find the task in pending list
+      const pending = listPendingTasks();
+      const task = pending.find((t: any) => t.id === args.task_id || t.id.startsWith(args.task_id));
+      if (!task) {
+        return { content: [{ type: "text" as const, text: `Task ${args.task_id} not found in pending tasks. Run list_pending_tasks first.` }] };
+      }
+
+      // Claim via API (best effort)
+      const apiUrl = process.env.LORE_API_URL || "";
+      const token = process.env.LORE_INGEST_TOKEN || "";
+      if (apiUrl && token) {
+        try {
+          await fetch(`${apiUrl}/api/task`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ task_id: task.id, action: "claim", claimed_by: "local-runner" }),
+          });
+        } catch { /* best effort */ }
+      }
+
+      // Spawn locally
+      const localTask = spawnLocalTask({
+        taskId: task.id,
+        prompt: task.description,
+        repo: task.target_repo,
+        taskType: task.task_type,
+        model: args.model,
+        repoRoot: getRepoRoot() || undefined,
+      });
+
+      // Remove from pending
+      skipTask(task.id);
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
+        }],
+      };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "skip_task",
+  "Dismiss a pending task notification. GKE will pick it up instead.",
+  {
+    task_id: z.string().describe("Task ID to skip"),
+  },
+  async (args) => {
+    try {
+      const { skipTask } = await import("./local-runner.js");
+      skipTask(args.task_id);
+      return { content: [{ type: "text" as const, text: `Task ${args.task_id} skipped. GKE will handle it.` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
 // --- GitHub webhook helpers ---
 
 async function getGitHubToken(): Promise<string | null> {
