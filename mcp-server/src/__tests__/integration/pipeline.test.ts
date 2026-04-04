@@ -17,6 +17,10 @@ describe("Pipeline Task Lifecycle", () => {
   });
 
   afterAll(async () => {
+    // Delete events first (FK constraint), then tasks
+    await pool.query(
+      "DELETE FROM pipeline.task_events WHERE task_id IN (SELECT id FROM pipeline.tasks WHERE created_by = 'integration-test')",
+    );
     await pool.query(
       "DELETE FROM pipeline.tasks WHERE created_by = 'integration-test'",
     );
