@@ -1793,7 +1793,20 @@ async function main() {
         req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
         req.on("end", async () => {
           try {
-            const { description, task_type, target_repo, context } = JSON.parse(body);
+            const parsed = JSON.parse(body);
+
+            // Cancel action
+            if (parsed.action === "cancel" && parsed.task_id) {
+              await dbPoolRef.query(
+                `UPDATE pipeline.tasks SET status = 'cancelled', updated_at = now() WHERE id = $1 AND status NOT IN ('completed', 'failed', 'cancelled', 'merged')`,
+                [parsed.task_id],
+              );
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ ok: true, task_id: parsed.task_id }));
+              return;
+            }
+
+            // Create action (default)
+            const { description, task_type, target_repo, context } = parsed;
             if (!description?.trim()) {
               res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "description is required" }));
               return;
