@@ -24,7 +24,7 @@ Lore is the shared context layer that makes Claude Code organization-aware. Deve
 
 Beyond context, Lore is an **agent operating system**. It runs background agents that onboard repos, detect documentation gaps, check for spec drift, and review PRs — all producing pull requests that humans review and merge.
 
-## Four Ways to Use Lore
+## Five Ways to Use Lore
 
 ### Flow 1: Developer with Claude Code (local)
 
@@ -62,6 +62,33 @@ Issue templates are added during onboarding — developers see "Lore: Implementa
 | **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
 
 The agent service decides which mode to use based on the task type configured in `task-types.yaml`.
+
+### Flow 5: Local Task Runner (background, zero API cost)
+
+A developer says "run locally" and Claude Code spawns a background process in an isolated git worktree on the developer's machine. Uses the Claude Code subscription — no API credits consumed. The developer's session continues uninterrupted.
+
+```
+Developer: "run locally: add rate limiting to the API"
+         │
+    Claude Code calls run_task_locally (MCP tool)
+         │
+    ┌────▼──────────────────────────────────────────┐
+    │  Background Claude Code (developer's machine)  │
+    │                                                │
+    │  1. Creates git worktree (~/.lore/worktrees/)  │
+    │  2. Spawns claude --print in background        │
+    │  3. Returns immediately (non-blocking)         │
+    │  4. Background: implements, commits, pushes    │
+    │  5. Creates PR via gh CLI                      │
+    │  6. Cleans up worktree                         │
+    └────────────────────────────────────────────────┘
+         │
+    Developer keeps working in main session
+    Statusline shows: ◉ Lore 1 local
+    PR appears when done
+```
+
+Same context flow as GKE tasks — the background process has its own MCP server instance, calls `assemble_context` and `search_memory` before coding.
 
 ## Architecture
 
@@ -238,7 +265,10 @@ The MCP server runs locally via stdio and proxies all operations (context, memor
 | `shared_write` / `shared_read` | Memory | Cross-agent shared memory pools |
 | `create_snapshot` / `restore_snapshot` | Memory | Point-in-time backup and restore |
 | `agent_health` / `agent_stats` | Memory | Usage stats, active/invalidated facts, daily breakdown |
-| `create_pipeline_task` | Pipeline | Create task (proxied to GKE) |
+| `create_pipeline_task` | Pipeline | Create task on GKE (API cost) |
+| `run_task_locally` | Pipeline | Run task in background on dev machine (subscription, zero API cost) |
+| `list_local_tasks` | Pipeline | Show running/completed local background tasks |
+| `cancel_local_task` | Pipeline | Cancel a local background task |
 | `get_pipeline_status` | Pipeline | Task status and event timeline |
 | `list_pipeline_tasks` | Pipeline | List tasks with status filter |
 | `cancel_task` | Pipeline | Cancel a running or pending task |

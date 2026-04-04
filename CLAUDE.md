@@ -51,6 +51,7 @@ gcloud auth for local dev.
 ## Key Components
 
 - `mcp-server/` — the MCP server (TypeScript)
+- `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code)
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
 - `scripts/klaus-prompts/` — standing instructions for agents (legacy, migrating to lore-agent)
