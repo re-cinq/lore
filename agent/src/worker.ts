@@ -107,9 +107,15 @@ export async function startWorker(): Promise<void> {
 }
 
 async function pollOnce(): Promise<void> {
+  // 30-second grace period: local runners claim tasks immediately,
+  // so we only pick up tasks that have been pending long enough for
+  // a local runner to claim first.  Also skip running-local tasks
+  // (already claimed by a local runner).
   const task = await query<any>(
     `SELECT * FROM pipeline.tasks
      WHERE status = 'pending'
+       AND status != 'running-local'
+       AND created_at < now() - interval '30 seconds'
      ORDER BY created_at ASC
      LIMIT 1`,
   ).then((rows) => rows[0] ?? null);

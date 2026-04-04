@@ -1259,6 +1259,110 @@ server.tool(
   }
 );
 
+// --- Local task runner tools (stdio-only, no-op on GKE) ---
+
+server.tool(
+  "run_task_locally",
+  "Run a task in the background on your local machine using Claude Code in a git worktree. Returns immediately — your session continues normally while the task runs.",
+  {
+    description: z.string().describe("What to implement or do"),
+    task_type: z.enum(["implementation", "general", "runbook", "gap-fill"]).default("implementation"),
+    model: z.string().optional().describe("Model override (default: claude-sonnet-4-6)"),
+  },
+  async (args) => {
+    try {
+      const { spawnLocalTask, detectRepo, getRepoRoot } = await import("./local-runner.js");
+      const repo = detectRepo();
+      if (!repo) return { content: [{ type: "text" as const, text: "Error: not in a git repository with a GitHub remote" }] };
+
+      // Create pipeline task via API
+      const apiUrl = process.env.LORE_API_URL || "";
+      const token = process.env.LORE_INGEST_TOKEN || "";
+      let taskId = crypto.randomUUID();
+
+      if (apiUrl && token) {
+        try {
+          const resp = await fetch(`${apiUrl}/api/task`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              description: args.description,
+              task_type: args.task_type,
+              target_repo: repo,
+              created_by: "local-runner",
+            }),
+          });
+          const data = await resp.json() as any;
+          if (data.task_id) taskId = data.task_id;
+        } catch { /* use generated UUID */ }
+      }
+
+      const task = spawnLocalTask({
+        taskId,
+        prompt: args.description,
+        repo,
+        taskType: args.task_type,
+        model: args.model,
+        repoRoot: getRepoRoot() || undefined,
+      });
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Task running locally in background.\n\nTask ID: ${task.taskId}\nBranch: ${task.branch}\nWorktree: ${task.worktreePath}\nLogs: ${task.logFile}\nPID: ${task.pid}\n\nYour session continues normally. Watch progress in the statusline.`,
+        }],
+      };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "list_local_tasks",
+  "List all local background tasks (running, completed, failed).",
+  {},
+  async () => {
+    try {
+      const { listLocalTasks } = await import("./local-runner.js");
+      const tasks = listLocalTasks();
+      if (tasks.length === 0) {
+        return { content: [{ type: "text" as const, text: "No local tasks." }] };
+      }
+      const lines = tasks.map((t: any) =>
+        `${t.taskId.substring(0, 8)} ${t.status} ${t.repo} ${t.branch}${t.prUrl ? " → " + t.prUrl : ""}${t.error ? " ✗ " + t.error : ""}`
+      );
+      return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
+  "cancel_local_task",
+  "Cancel a running local background task and clean up its worktree.",
+  {
+    task_id: z.string().describe("Task ID to cancel"),
+  },
+  async (args) => {
+    try {
+      const { cancelLocalTask } = await import("./local-runner.js");
+      const result = cancelLocalTask(args.task_id);
+      return {
+        content: [{
+          type: "text" as const,
+          text: result.cancelled
+            ? `Task ${args.task_id} cancelled. Worktree cleaned up.`
+            : `Could not cancel: ${result.error}`,
+        }],
+      };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
 // --- GitHub webhook helpers ---
 
 async function getGitHubToken(): Promise<string | null> {
