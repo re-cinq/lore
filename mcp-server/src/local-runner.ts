@@ -6,7 +6,7 @@
  * developer's machine using their subscription (zero API cost).
  *
  * Phase 1: explicit execution via spawnLocalTask
- * Phase 2: polling mode via startPoller / stopPoller (future)
+ * Phase 2: task notifier (startNotifier / stopNotifier) + interactive claim
  */
 import { spawn, execSync } from "node:child_process";
 import * as fs from "node:fs";
@@ -21,6 +21,7 @@ const LORE_DIR = path.join(os.homedir(), ".lore");
 const WORKTREES_DIR = path.join(LORE_DIR, "worktrees");
 const LOGS_DIR = path.join(LORE_DIR, "task-logs");
 const TASKS_FILE = path.join(LORE_DIR, "local-tasks.json");
+const PENDING_FILE = path.join(LORE_DIR, "pending-tasks.json");
 const CONFIG_FILE = path.join(LORE_DIR, "local-runner.json");
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,15 @@ export interface LocalRunnerConfig {
   repos: string[];
   task_types: string[];
   model: string;
+}
+
+export interface PendingTask {
+  id: string;
+  description: string;
+  task_type: string;
+  target_repo: string;
+  created_at: string;
+  issue_number?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -490,4 +500,154 @@ export function cancelLocalTask(
   updateTaskViaAPI(taskId, "cancelled", {}).catch(() => {});
 
   return { cancelled: true };
+}
+
+// ---------------------------------------------------------------------------
+// Task Notifier — polls for pending tasks and writes to ~/.lore/pending-tasks.json
+// Phase 2.2: surfaces notifications, does NOT claim anything.
+// ---------------------------------------------------------------------------
+
+let notifierInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Fetches pending pipeline tasks matching the given repos and task types.
+ * Prefers a direct DB query when a pool is available; falls back to the
+ * Lore API otherwise.
+ */
+export async function fetchPendingTasks(
+  repos: string[],
+  taskTypes: string[],
+  dbPool?: any,
+): Promise<PendingTask[]> {
+  if (repos.length === 0 || taskTypes.length === 0) return [];
+
+  // ── Direct DB path (MCP server process has a pool) ──
+  if (dbPool) {
+    try {
+      const { rows } = await dbPool.query(
+        `SELECT id, description, task_type, target_repo, created_at, issue_number
+         FROM pipeline.tasks
+         WHERE status = 'pending'
+           AND target_repo = ANY($1)
+           AND task_type = ANY($2)
+         ORDER BY created_at ASC
+         LIMIT 10`,
+        [repos, taskTypes],
+      );
+      return rows.map((r: any) => ({
+        id: r.id,
+        description: (r.description || "").substring(0, 200),
+        task_type: r.task_type,
+        target_repo: r.target_repo,
+        created_at: r.created_at,
+        issue_number: r.issue_number ?? undefined,
+      }));
+    } catch {
+      // Fall through to API path
+    }
+  }
+
+  // ── API fallback ──
+  const apiUrl = getApiUrl();
+  const token = getToken();
+  if (!apiUrl || !token) return [];
+
+  try {
+    const resp = await fetch(`${apiUrl}/api/task`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "list", status: "pending" }),
+    });
+    if (!resp.ok) return [];
+    const data = (await resp.json()) as any;
+    const tasks: PendingTask[] = (data.tasks || [])
+      .filter(
+        (t: any) =>
+          repos.includes(t.target_repo) && taskTypes.includes(t.task_type),
+      )
+      .map((t: any) => ({
+        id: t.id,
+        description: (t.description || "").substring(0, 200),
+        task_type: t.task_type,
+        target_repo: t.target_repo,
+        created_at: t.created_at,
+        issue_number: t.issue_number ?? undefined,
+      }));
+    return tasks;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Starts the background task notifier. Polls every 30 s for pending
+ * pipeline tasks matching the given repos/taskTypes and writes them to
+ * `~/.lore/pending-tasks.json`. Does NOT claim or modify any task —
+ * this is a read-only notification mechanism.
+ *
+ * The statusline reads pending-tasks.json to show "N new task(s)".
+ */
+export function startNotifier(
+  repos: string[],
+  taskTypes: string[],
+  dbPool?: any,
+): void {
+  if (notifierInterval) return; // Already running
+
+  const poll = async () => {
+    try {
+      const tasks = await fetchPendingTasks(repos, taskTypes, dbPool);
+      fs.writeFileSync(PENDING_FILE, JSON.stringify(tasks, null, 2));
+    } catch {
+      // Best effort — never crash the MCP server
+    }
+  };
+
+  // Run immediately, then on interval
+  poll();
+  notifierInterval = setInterval(poll, 30_000);
+}
+
+/** Stops the background notifier and removes the pending-tasks file. */
+export function stopNotifier(): void {
+  if (notifierInterval) {
+    clearInterval(notifierInterval);
+    notifierInterval = null;
+  }
+  try {
+    fs.unlinkSync(PENDING_FILE);
+  } catch {
+    // File may not exist
+  }
+}
+
+/** Returns true if the notifier polling loop is active. */
+export function isNotifierRunning(): boolean {
+  return notifierInterval !== null;
+}
+
+/**
+ * Returns the current list of pending tasks from the cached JSON file.
+ * Returns an empty array if the file doesn't exist or is unreadable.
+ */
+export function listPendingTasks(): PendingTask[] {
+  try {
+    return JSON.parse(fs.readFileSync(PENDING_FILE, "utf-8"));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Removes a task from the local pending-tasks.json so the notification
+ * disappears. The task remains pending on the server — GKE will pick it
+ * up after its 30 s grace period unless claimed first.
+ */
+export function skipTask(taskId: string): void {
+  const tasks = listPendingTasks();
+  const filtered = tasks.filter((t) => t.id !== taskId);
+  fs.writeFileSync(PENDING_FILE, JSON.stringify(filtered, null, 2));
 }
