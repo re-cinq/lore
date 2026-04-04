@@ -72,14 +72,6 @@ Same context flow as GKE tasks — the background process has its own MCP server
 
 The agent service decides which mode to use based on the task type configured in `task-types.yaml`.
 
-### Flow 5: Local Task Runner (background, zero API cost)
-
-A developer says "run locally" and Claude Code spawns a background process in an isolated git worktree on the developer's machine. Uses the Claude Code subscription — no API credits consumed. The developer's session continues uninterrupted.
-
-<p align="center"><img src="badges/architecture.svg" width="680" alt="Architecture overview" /></p>
-
-Same context flow as GKE tasks — the background process has its own MCP server instance, calls `assemble_context` and `search_memory` before coding.
-
 ## Architecture
 
 <p align="center"><img src="badges/architecture.svg" width="680" alt="Architecture overview" /></p>
