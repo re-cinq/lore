@@ -48,12 +48,14 @@ if [ -f "$CACHE" ]; then
 
   if [ "$ONBOARDED" = "true" ]; then
     RUNNING=$(jq -r '.running // 0' "$CACHE")
+    LOCAL_TASKS=$(jq -r '.local_tasks // 0' "$CACHE")
     PR_READY=$(jq -r '.pr_ready // 0' "$CACHE")
     MEMORIES=$(jq -r '.memories // 0' "$CACHE")
     AUTO_REVIEW=$(jq -r '.auto_review // false' "$CACHE")
 
     PARTS=""
     [ "$RUNNING" -gt 0 ] && PARTS="${YELLOW}${RUNNING} running${RESET}"
+    [ "$LOCAL_TASKS" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${CYAN}${LOCAL_TASKS} local${RESET}"
     [ "$PR_READY" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${GREEN}${PR_READY} PR ready${RESET}"
     [ "$AUTO_REVIEW" = "true" ] && PARTS="${PARTS:+$PARTS · }auto-review"
     PARTS="${PARTS:+$PARTS · }${DIM}${MEMORIES} memories${RESET}"

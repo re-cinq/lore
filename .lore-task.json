@@ -1,0 +1,10 @@
+{
+  "taskId": "a74db9e3-40b2-4893-8fe1-9f2a90be57f6",
+  "pid": 64893,
+  "branch": "lore/implementation/read-specs-local-task-runner-plan-md-and-a74db9e3",
+  "repo": "re-cinq/lore",
+  "worktreePath": "/Users/michaelmueller/.lore/worktrees/a74db9e3-40b2-4893-8fe1-9f2a90be57f6",
+  "logFile": "/Users/michaelmueller/.lore/task-logs/a74db9e3-40b2-4893-8fe1-9f2a90be57f6.log",
+  "startedAt": "2026-04-04T10:02:53.877Z",
+  "status": "running"
+}
