@@ -47,3 +47,12 @@ githubAppSecret:
   appIdKey: app-id
   privateKeyKey: private-key
   installationIdKey: installation-id
+
+# Slack integration (optional — leave empty to disable)
+slackSigningSecret:
+  name: lore-slack-credentials
+  key: signing-secret
+
+slackBotTokenSecret:
+  name: lore-slack-credentials
+  key: bot-token

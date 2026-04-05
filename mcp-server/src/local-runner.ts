@@ -12,6 +12,7 @@ import { spawn, execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { detectTooling, runValidation, formatValidationOutput } from "./repo-validation.js";
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -239,6 +240,64 @@ async function monitorTask(task: LocalTask): Promise<void> {
     }).trim();
 
     if (status) {
+      // ── Deterministic validation (Minions-inspired) ──
+      // Run lint/typecheck as mandatory pipeline stages before commit.
+      const changedFiles = status.split("\n")
+        .map((line) => line.substring(3).trim())
+        .filter(Boolean);
+      const tooling = detectTooling(task.worktreePath);
+
+      if (tooling.quickChecks.length > 0) {
+        console.log(`[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`);
+        const validation = runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
+
+        if (!validation.passed) {
+          // Attempt one retry: spawn Claude Code with fix prompt
+          const fixOutput = formatValidationOutput(validation);
+          console.log(`[lore] local-runner: validation failed, attempting fix retry for ${task.taskId}`);
+          fs.appendFileSync(task.logFile, `\n\n--- VALIDATION FAILED ---\n${fixOutput}\n`);
+
+          const fixPrompt = [
+            "Validation checks failed after your changes. Fix ONLY these errors.",
+            "Do not re-implement the original task. Only fix the validation errors.",
+            "",
+            fixOutput,
+          ].join("\n");
+
+          const config = readConfig();
+          const fixModel = config.model || "claude-sonnet-4-6";
+          const fixLogFd = fs.openSync(task.logFile, "a");
+          const fixChild = spawn(
+            "claude",
+            ["--print", "--dangerously-skip-permissions", "--model", fixModel, "--", fixPrompt],
+            { cwd: task.worktreePath, detached: true, stdio: ["ignore", fixLogFd, fixLogFd], env: { ...process.env, HOME: os.homedir() } },
+          );
+          fixChild.unref();
+          fs.closeSync(fixLogFd);
+
+          if (fixChild.pid) {
+            await waitForExit(fixChild.pid);
+
+            // Re-validate after fix attempt
+            const retryValidation = runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
+            if (!retryValidation.passed) {
+              const retryOutput = formatValidationOutput(retryValidation);
+              fs.appendFileSync(task.logFile, `\n\n--- RETRY VALIDATION FAILED ---\n${retryOutput}\n`);
+              if (idx >= 0) {
+                tasks[idx].status = "failed";
+                tasks[idx].error = `Validation failed after retry: ${retryValidation.steps.filter((s) => !s.passed).map((s) => s.name).join(", ")}`;
+              }
+              await updateTaskViaAPI(task.taskId, "needs-human-help", {
+                failure_reason: retryOutput.substring(0, 2000),
+              });
+              writeTasks(tasks);
+              return;
+            }
+            console.log(`[lore] local-runner: fix retry succeeded for ${task.taskId}`);
+          }
+        }
+      }
+
       // Stage, commit, push, create PR
       execSync("git add -A", {
         cwd: task.worktreePath,
@@ -362,15 +421,18 @@ function redactLogs(text: string): string {
 /**
  * Spawns a local task in a git worktree with a background Claude Code process.
  * Returns immediately — the task runs asynchronously.
+ *
+ * Pre-fetches assembled context from the Lore API before spawning the agent,
+ * so the LLM starts with rich context on turn 1 (Minions-inspired hydration).
  */
-export function spawnLocalTask(opts: {
+export async function spawnLocalTask(opts: {
   taskId: string;
   prompt: string;
   repo: string;
   taskType: string;
   model?: string;
   repoRoot?: string;
-}): LocalTask {
+}): Promise<LocalTask> {
   ensureDirs();
 
   const { taskId, prompt, repo, taskType, model } = opts;
@@ -398,10 +460,39 @@ export function spawnLocalTask(opts: {
     timeout: 30000,
   });
 
+  // ── Pre-run context hydration (Minions-inspired) ──
+  // Fetch assembled context BEFORE spawning Claude Code so the agent
+  // starts with conventions, ADRs, memories, and graph on turn 1.
+  let preContext = "";
+  const apiUrl = getApiUrl();
+  const token = getToken();
+  if (apiUrl && token) {
+    try {
+      const template = taskType === "review" ? "review" : "implementation";
+      const contextUrl = `${apiUrl}/api/context?repo=${encodeURIComponent(repo)}&template=${template}&query=${encodeURIComponent(prompt.substring(0, 200))}`;
+      const resp = await fetch(contextUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (resp.ok) {
+        const data = (await resp.json()) as { text?: string };
+        if (data.text) preContext = data.text;
+      }
+    } catch {
+      // Proceed without pre-hydration — agent will call assemble_context itself
+    }
+  }
+
   // Build the full prompt with Lore workflow preamble
-  const fullPrompt = [
-    "IMPORTANT: You have the Lore MCP server. Follow this workflow:",
-    "1. FIRST: Call assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.",
+  const preambleParts: string[] = [];
+  if (preContext) {
+    preambleParts.push("## Pre-loaded Context\n\n" + preContext + "\n\n---\n");
+    preambleParts.push("Context was pre-loaded above. You may call assemble_context for fresh data during long tasks.");
+  } else {
+    preambleParts.push("IMPORTANT: You have the Lore MCP server. Follow this workflow:");
+    preambleParts.push("1. FIRST: Call assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.");
+  }
+  preambleParts.push(
     "2. BEFORE CODING: Call search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.",
     "3. DURING WORK: Use search_context for patterns. Use query_graph for entity relationships.",
     "4. WHEN DONE: Call write_episode with a summary of what you did and any non-obvious decisions.",
@@ -409,7 +500,8 @@ export function spawnLocalTask(opts: {
     "Now execute the following task:",
     "",
     prompt,
-  ].join("\n");
+  );
+  const fullPrompt = preambleParts.join("\n");
 
   // Open log file for stdout/stderr capture
   const logFd = fs.openSync(logFile, "w");

@@ -1,6 +1,11 @@
 name: review
 description: Context optimized for code review tasks.
 sections:
+  - header: "Directory Rules"
+    source: rules
+    priority: 1
+    max_tokens: 2000
+
   - header: "Conventions & Code Standards"
     source: repo
     priority: 1
