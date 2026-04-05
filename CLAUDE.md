@@ -9,8 +9,8 @@ PR history, and task state.
 **MCP server** (`mcp-server/src/index.ts`): TypeScript, serves context
 to Claude Code via MCP protocol. Dual transport: stdio for local
 (Phase 0), Streamable HTTP for GKE (Phase 1). Three core tools:
-`get_context`, `get_adrs`, `search_context`. Phase 1 adds pipeline
-delegation tools.
+`assemble_context`, `search_context`, `search_memory`. Pipeline
+delegation, local task runner, and 30+ tools total.
 
 **Vector store**: PostgreSQL + pgvector via CloudNativePG on GKE.
 Schema-per-team isolation. HNSW indexes for vector search, GIN for
@@ -74,22 +74,16 @@ gcloud auth for local dev.
 
 ## Agent Memory
 
-15 MCP memory tools for persistent agent memory:
+MCP memory tools for persistent agent memory:
 - **write_memory** — store a key-value memory with optional TTL
 - **read_memory** — retrieve a memory by key (supports version history)
 - **delete_memory** — soft-delete a memory
 - **list_memories** — paginated listing of active memories
 - **search_memory** — semantic search across memories and facts (supports `include_invalidated` for historical queries)
 - **write_episode** — ingest raw text (conversation, review, observation); auto-extracts facts and updates knowledge graph
-- **list_episodes** — list recent episodes with extracted fact counts
 - **query_graph** — query the live knowledge graph for entities and relationships
-- **assemble_context** — retrieve and assemble context from all sources into a structured, token-budgeted block (replaces multiple get_context + search_memory + get_adrs calls)
-- **shared_write** — write to a named shared pool (cross-agent)
-- **shared_read** — read from a shared pool
-- **create_snapshot** — snapshot all current memories for crash recovery
-- **restore_snapshot** — restore memories from a snapshot
-- **agent_health** — memory count, last active, snapshot count
-- **agent_stats** — total memories, active/invalidated facts, searches, daily breakdown
+- **assemble_context** — retrieve and assemble context from all sources into a structured, token-budgeted block
+- **agent_stats** — health, memory count, episode count, facts, searches, daily breakdown
 
 Memory is stored in the PostgreSQL `memory` schema (tables:
 `memories`, `memory_versions`, `facts`, `episodes`, `entities`,
@@ -214,8 +208,9 @@ up the repo's content. Repos table: lore.repos.
 
 Tasks created via UI, MCP, or PR trigger agents on GKE.
 Pipeline tools: create_pipeline_task, get_pipeline_status,
-list_pipeline_tasks, cancel_task, mark_task_merged,
-submit_review_result. Task types configured in
+list_pipeline_tasks, cancel_task. Local runner tools:
+run_task_locally, list_local_tasks, cancel_local_task.
+Task types configured in
 scripts/task-types.yaml:
 
 - **feature-request**: PM describes intent in plain language → agent generates spec.md, data-model.md, tasks.md following repo conventions. Opens a PR for engineer review.
