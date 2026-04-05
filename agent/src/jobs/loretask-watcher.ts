@@ -138,6 +138,29 @@ export async function watchLoreTasks(): Promise<void> {
             });
           } catch { /* best effort — CR may already be cleaned up */ }
 
+          // Notify Slack if task originated from Slack
+          const slackBotTokenGeneral = process.env.LORE_SLACK_BOT_TOKEN;
+          if (slackBotTokenGeneral) {
+            const generalBundle = (await query<{ context_bundle: any }>(
+              `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
+            ))[0]?.context_bundle;
+            const slackChGeneral = generalBundle?.slack_channel_id;
+            if (slackChGeneral && issue_number) {
+              const issueUrl = `https://github.com/${target_repo}/issues/${issue_number}`;
+              try {
+                await fetch("https://slack.com/api/chat.postMessage", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${slackBotTokenGeneral}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    channel: slackChGeneral,
+                    text: `Task completed: ${issueUrl}`,
+                    unfurl_links: true,
+                  }),
+                });
+              } catch { /* best effort */ }
+            }
+          }
+
           console.log(`[loretask-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`);
         } catch (err: any) {
           console.error(`[loretask-watcher] Failed to complete no-change task ${taskId}: ${err.message}`);
