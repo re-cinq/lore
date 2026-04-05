@@ -63,6 +63,18 @@ variable "nextauth_secret" {
   sensitive = true
 }
 
+variable "slack_signing_secret" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "slack_bot_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
 variable "ghcr_pull_secret_dockerconfigjson" {
   type        = string
   sensitive   = true
