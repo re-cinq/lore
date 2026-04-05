@@ -7,7 +7,7 @@ RUN npm install -g @anthropic-ai/claude-code
 
 # Validation CLI — deterministic lint/typecheck before commit
 COPY validation/ /tmp/validation/
-RUN cd /tmp/validation && npm ci --ignore-scripts && npx tsc \
+RUN cd /tmp/validation && npm install --ignore-scripts && npx tsc \
     && cp dist/repo-validation-cli.js /validation.js \
     && cp dist/repo-validation.js /repo-validation.js \
     && rm -rf /tmp/validation
