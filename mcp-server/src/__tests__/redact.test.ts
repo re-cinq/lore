@@ -196,7 +196,7 @@ describe("redactSecrets", () => {
   });
 
   it("redacts secrets embedded in JSON", () => {
-    const input = '{"token":"${"ghp_"}ABCDEFghijklmnop1234567890","url":"https://api.example.com"}';
+    const input = `{"token":"${"ghp_"}ABCDEFghijklmnop1234567890","url":"https://api.example.com"}`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).toContain("https://api.example.com");

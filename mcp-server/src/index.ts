@@ -4,15 +4,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "node:http";
 import { z } from "zod";
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { globSync } from "glob";
 import pg from "pg";
 import {
   hybridSearch,
-  getContextFromDb,
-  getAdrsFromDb,
-  getFilePrHistory,
   isAlloyDbAvailable,
   setPool,
   getHealthStatus,
@@ -26,10 +23,6 @@ import {
   listMemories,
   setMemoryPool,
   isMemoryDbAvailable,
-  sharedWrite,
-  sharedRead,
-  createSnapshot,
-  restoreSnapshot,
   agentHealth,
   agentStats,
 } from "./memory.js";
@@ -50,8 +43,6 @@ import {
   getTask,
   listTasks,
   cancelTask,
-  markTaskMerged,
-  handleReviewResult,
   setPipelinePool,
 } from './pipeline.js';
 import { loadTaskTypes, getTaskTypes } from './pipeline-config.js';
@@ -80,25 +71,6 @@ function readFileSafe(path: string): string | null {
   try { return readFileSync(path, "utf-8"); } catch { return null; }
 }
 
-function parseFrontmatter(content: string): { meta: Record<string, unknown>; body: string } {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (!match) return { meta: {}, body: content };
-  const meta: Record<string, unknown> = {};
-  for (const line of match[1].split("\n")) {
-    const kv = line.match(/^(\w[\w_]*):\s*(.+)$/);
-    if (kv) {
-      const val = kv[2].trim();
-      // Handle YAML arrays: [a, b] or bare value
-      if (val.startsWith("[") && val.endsWith("]")) {
-        meta[kv[1]] = val.slice(1, -1).split(",").map(s => s.trim().replace(/^['"]|['"]$/g, ""));
-      } else {
-        meta[kv[1]] = val.replace(/^['"]|['"]$/g, "");
-      }
-    }
-  }
-  return { meta, body: match[2] };
-}
-
 const server = new McpServer({ name: "@re-cinq/lore-mcp", version: "0.1.0" });
 
 // --- Latency tracking helper ---
@@ -114,135 +86,6 @@ async function trackLatency(tool: string, fn: () => Promise<any>): Promise<any> 
   }
   return result;
 }
-
-// --- get_context ---
-server.tool(
-  "get_context",
-  "Returns context (CLAUDE.md, ADRs, conventions) for the current repo. Auto-detects which repo you're in from the git remote.",
-  { team: z.string().optional().describe('Team name (e.g., "payments"). Usually auto-detected — only set if you need a specific team.') },
-  async ({ team }) => {
-    const detectedRepo = detectCurrentRepo();
-    if (detectedRepo) {
-      console.error(`[lore] get_context: auto-detected repo ${detectedRepo}`);
-    }
-
-    // DB path: query by repo first, fall back to team schema
-    if (await isAlloyDbAvailable()) {
-      // Try repo-specific context first
-      if (detectedRepo) {
-        try {
-          const { rows } = await dbPoolRef.query(
-            `SELECT content FROM org_shared.chunks WHERE repo = $1 AND content_type = 'doc' ORDER BY ingested_at DESC`,
-            [detectedRepo],
-          );
-          if (rows.length > 0) {
-            const text = rows.map((r: any) => r.content).join("\n\n---\n\n");
-            return { content: [{ type: "text" as const, text }] };
-          }
-        } catch {}
-      }
-      // Fall back to team/org schema
-      const results = await getContextFromDb(team || "org_shared");
-      if (results.length > 0) {
-        const text = results.map((r: any) => r.content).join("\n\n---\n\n");
-        return { content: [{ type: "text" as const, text }] };
-      }
-    }
-
-    // Proxy to GKE: fetch repo context from the vector store
-    const apiUrl = process.env.LORE_API_URL;
-    const apiToken = process.env.LORE_INGEST_TOKEN;
-    if (apiUrl && apiToken && detectedRepo) {
-      try {
-        const res = await fetch(`${apiUrl}/api/context?repo=${encodeURIComponent(detectedRepo)}`, {
-          headers: { "Authorization": `Bearer ${apiToken}` },
-        });
-        if (res.ok) {
-          const data = await res.json() as any;
-          if (data.text) {
-            return { content: [{ type: "text" as const, text: data.text }] };
-          }
-        }
-      } catch {}
-    }
-
-    // File-based fallback: read CLAUDE.md from the CURRENT working directory (the repo the dev is in)
-    const cwdClaudeMd = readFileSafe(join(process.cwd(), "CLAUDE.md"));
-    if (cwdClaudeMd) {
-      let text = cwdClaudeMd;
-      // Also load org-level context from Lore
-      const orgContext = readFileSafe(join(CONTEXT_PATH, "CLAUDE.md"));
-      if (orgContext && CONTEXT_PATH !== process.cwd()) {
-        text = `# Org Context\n\n${orgContext}\n\n---\n\n# Repo Context\n\n${text}`;
-      }
-      return { content: [{ type: "text" as const, text }] };
-    }
-
-    // Last resort: Lore's own CLAUDE.md
-    const root = readFileSafe(join(CONTEXT_PATH, "CLAUDE.md"));
-    if (!root) {
-      return { content: [{ type: "text" as const, text: "No CLAUDE.md found in current repo or Lore context directory." }] };
-    }
-    return { content: [{ type: "text" as const, text: root }] };
-  }
-);
-
-// --- get_adrs ---
-server.tool(
-  "get_adrs",
-  "Returns ADRs filtered by domain and/or status, sorted by adr_number descending.",
-  {
-    domain: z.string().optional().describe('Filter by domain (e.g., "payments"). Matches ADR frontmatter domains array.'),
-    status: z.enum(["proposed", "accepted", "deprecated", "superseded"]).default("accepted").describe("ADR status filter. Defaults to accepted."),
-  },
-  async ({ domain, status }) => {
-    if (await isAlloyDbAvailable()) {
-      const results = await getAdrsFromDb(domain || "", status);
-      if (results.length === 0) {
-        return { content: [{ type: "text" as const, text: domain ? `No ADRs found for domain "${domain}" with status "${status}".` : `No ADRs found with status "${status}".` }] };
-      }
-      const text = results.map((r: any) => r.content).join("\n\n---\n\n");
-      return { content: [{ type: "text" as const, text }] };
-    }
-
-    // File-based fallback
-    const adrsDir = join(CONTEXT_PATH, "adrs");
-    if (!existsSync(adrsDir)) {
-      return { content: [{ type: "text" as const, text: `Error: adrs/ directory not found at ${adrsDir}.` }] };
-    }
-    let files: string[];
-    try { files = readdirSync(adrsDir).filter(f => f.endsWith(".md")); } catch {
-      return { content: [{ type: "text" as const, text: `Error: could not read adrs/ directory.` }] };
-    }
-
-    const adrs: { num: number; content: string }[] = [];
-    const allDomains = new Set<string>();
-
-    for (const file of files) {
-      const raw = readFileSafe(join(adrsDir, file));
-      if (!raw) continue;
-      const { meta } = parseFrontmatter(raw);
-      const metaStatus = (meta.status as string || "").toLowerCase();
-      const metaDomains: string[] = Array.isArray(meta.domains) ? meta.domains.map(String) : [];
-      metaDomains.forEach(d => allDomains.add(d));
-
-      if (metaStatus !== status) continue;
-      if (domain && !metaDomains.some(d => d.toLowerCase() === domain.toLowerCase())) continue;
-      const num = typeof meta.adr_number === "string" ? parseInt(meta.adr_number, 10) : (meta.adr_number as number ?? 0);
-      adrs.push({ num, content: raw });
-    }
-
-    adrs.sort((a, b) => b.num - a.num);
-
-    if (adrs.length === 0) {
-      const note = domain
-        ? `No ADRs found for domain "${domain}" with status "${status}". Available domains: ${[...allDomains].join(", ") || "none"}.`
-        : `No ADRs found with status "${status}".`;
-      return { content: [{ type: "text" as const, text: note }] };
-    }
-    return { content: [{ type: "text" as const, text: adrs.map(a => a.content).join("\n\n---\n\n") }] };
-  }
-);
 
 // --- search_context ---
 server.tool(
@@ -563,38 +406,6 @@ server.tool(
   }
 );
 
-server.tool(
-  "list_episodes",
-  "List recent episodes ingested by an agent. Returns episodes with their extracted fact count.",
-  {
-    agent_id: z.string().optional().describe("Override agent ID."),
-    source: z.string().optional().describe('Filter by source tag (e.g. "pr-review").'),
-    limit: z.number().default(20),
-  },
-  async ({ agent_id, source, limit }) => {
-    try {
-      if (!isMemoryDbAvailable()) {
-        return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL (LORE_DB_HOST not set)." }] };
-      }
-      const agent = resolveAgentId(agent_id);
-      const { rows } = await dbPoolRef.query(
-        `SELECT e.id, e.source, e.ref, e.created_at,
-                LEFT(e.content, 200) as content_preview,
-                (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count
-         FROM memory.episodes e
-         WHERE e.agent_id = $1
-           AND ($2::text IS NULL OR e.source = $2)
-         ORDER BY e.created_at DESC
-         LIMIT $3`,
-        [agent, source || null, limit],
-      );
-      return { content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error listing episodes: ${err.message}` }] };
-    }
-  }
-);
-
 // --- Knowledge graph tools ---
 
 server.tool(
@@ -655,118 +466,11 @@ server.tool(
   }
 );
 
-// --- Shared pool tools ---
-
-server.tool(
-  "shared_write",
-  "Write a memory to a shared pool visible to all agents in that pool.",
-  {
-    pool_name: z.string().describe("Name of the shared pool (e.g. 'team-decisions')."),
-    key: z.string().describe("Memory key."),
-    value: z.string().describe("Memory value (text)."),
-    agent_id: z.string().optional().describe("Override agent ID."),
-  },
-  async ({ pool_name, key, value, agent_id }) => {
-    try {
-      if (!isMemoryDbAvailable()) {
-        return { content: [{ type: "text" as const, text: "Shared pools require PostgreSQL (LORE_DB_HOST not set)." }] };
-      }
-      const embedding = await getQueryEmbedding(value);
-      const result = await sharedWrite(pool_name, key, value, agent_id, embedding || undefined);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error writing to shared pool: ${err.message}` }] };
-    }
-  }
-);
-
-server.tool(
-  "shared_read",
-  "Read memories from a shared pool. Returns a specific key or lists all pool entries.",
-  {
-    pool_name: z.string().describe("Name of the shared pool."),
-    key: z.string().optional().describe("Specific key to read. Omit to list all entries."),
-  },
-  async ({ pool_name, key }) => {
-    try {
-      if (!isMemoryDbAvailable()) {
-        return { content: [{ type: "text" as const, text: "Shared pools require PostgreSQL (LORE_DB_HOST not set)." }] };
-      }
-      const result = await sharedRead(pool_name, key);
-      if (!result || (Array.isArray(result) && result.length === 0)) {
-        return { content: [{ type: "text" as const, text: key ? `Key "${key}" not found in pool "${pool_name}".` : `Pool "${pool_name}" is empty or does not exist.` }] };
-      }
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error reading shared pool: ${err.message}` }] };
-    }
-  }
-);
-
-// --- Snapshot tools ---
-
-server.tool(
-  "create_snapshot",
-  "Create a point-in-time snapshot of all agent memories for later restoration.",
-  {
-    agent_id: z.string().optional().describe("Override agent ID."),
-  },
-  async ({ agent_id }) => {
-    try {
-      if (!isMemoryDbAvailable()) {
-        return { content: [{ type: "text" as const, text: "Snapshots require PostgreSQL (LORE_DB_HOST not set)." }] };
-      }
-      const result = await createSnapshot(agent_id);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error creating snapshot: ${err.message}` }] };
-    }
-  }
-);
-
-server.tool(
-  "restore_snapshot",
-  "Restore agent memories to a previous snapshot state.",
-  {
-    snapshot_id: z.string().describe("UUID of the snapshot to restore."),
-  },
-  async ({ snapshot_id }) => {
-    try {
-      if (!isMemoryDbAvailable()) {
-        return { content: [{ type: "text" as const, text: "Snapshots require PostgreSQL (LORE_DB_HOST not set)." }] };
-      }
-      const result = await restoreSnapshot(snapshot_id);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error restoring snapshot: ${err.message}` }] };
-    }
-  }
-);
-
-// --- Health & stats tools ---
-
-server.tool(
-  "agent_health",
-  "Returns health summary for an agent: memory count, last activity, snapshot count.",
-  {
-    agent_id: z.string().optional().describe("Override agent ID."),
-  },
-  async ({ agent_id }) => {
-    try {
-      if (!isMemoryDbAvailable()) {
-        return { content: [{ type: "text" as const, text: "Agent health requires PostgreSQL (LORE_DB_HOST not set)." }] };
-      }
-      const result = await agentHealth(agent_id);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error fetching agent health: ${err.message}` }] };
-    }
-  }
-);
+// --- Agent stats tool (merged: health + stats + recent episodes) ---
 
 server.tool(
   "agent_stats",
-  "Returns usage statistics: total memories, facts, searches, and shared pools created.",
+  "Returns comprehensive agent statistics: memory count, last activity, snapshot count, total memories, active/invalidated facts, searches, shared pools, and recent episodes.",
   {
     agent_id: z.string().optional().describe("Override agent ID."),
   },
@@ -775,7 +479,42 @@ server.tool(
       if (!isMemoryDbAvailable()) {
         return { content: [{ type: "text" as const, text: "Agent stats requires PostgreSQL (LORE_DB_HOST not set)." }] };
       }
-      const result = await agentStats(agent_id);
+      const agent = resolveAgentId(agent_id);
+
+      // Fetch health, stats, and recent episodes in parallel
+      const [healthResult, statsResult, episodesResult] = await Promise.all([
+        agentHealth(agent_id),
+        agentStats(agent_id),
+        dbPoolRef.query(
+          `SELECT e.id, e.source, e.ref, e.created_at,
+                  LEFT(e.content, 200) as content_preview,
+                  (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count
+           FROM memory.episodes e
+           WHERE e.agent_id = $1
+           ORDER BY e.created_at DESC
+           LIMIT 5`,
+          [agent],
+        ).catch(() => ({ rows: [] })),
+      ]);
+
+      // Get total episode count
+      let episodeCount = 0;
+      try {
+        const { rows } = await dbPoolRef.query(
+          `SELECT count(*)::int as total FROM memory.episodes WHERE agent_id = $1`,
+          [agent],
+        );
+        episodeCount = rows[0]?.total || 0;
+      } catch {}
+
+      const result = {
+        ...healthResult,
+        ...statsResult,
+        recent_episodes: {
+          total_count: episodeCount,
+          latest: episodesResult.rows,
+        },
+      };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error fetching agent stats: ${err.message}` }] };
@@ -975,46 +714,6 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error cancelling task: ${err.message}` }] };
-    }
-  }
-);
-
-server.tool(
-  "mark_task_merged",
-  "Manually mark a pipeline task as merged. Use this after a PR has been merged on GitHub.",
-  {
-    task_id: z.string().describe("UUID of the pipeline task whose PR was merged."),
-  },
-  async ({ task_id }) => {
-    try {
-      if (!process.env.LORE_DB_HOST) {
-        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
-      }
-      const result = await markTaskMerged(task_id);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error marking task merged: ${err.message}` }] };
-    }
-  }
-);
-
-server.tool(
-  "submit_review_result",
-  "Submit a review result for a pipeline task. Approved tasks await human merge; rejected tasks get re-iterated (max 2 iterations) or escalated.",
-  {
-    task_id: z.string().describe("UUID of the pipeline task being reviewed."),
-    approved: z.boolean().describe("Whether the review approves the changes."),
-    comments: z.string().describe("Review comments. For rejections, explain what needs fixing."),
-  },
-  async ({ task_id, approved, comments }) => {
-    try {
-      if (!process.env.LORE_DB_HOST) {
-        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
-      }
-      await handleReviewResult(task_id, approved, comments);
-      return { content: [{ type: "text" as const, text: JSON.stringify({ task_id, approved, status: approved ? 'approved' : 'changes-requested' }) }] };
-    } catch (err: any) {
-      return { content: [{ type: "text" as const, text: `Error submitting review: ${err.message}` }] };
     }
   }
 );
