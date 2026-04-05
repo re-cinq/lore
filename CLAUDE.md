@@ -70,6 +70,9 @@ gcloud auth for local dev.
 - `agent/src/jobs/loretask-watcher.ts` — polls LoreTasks, creates PRs, triggers auto-review
 - `mcp-server/src/context-assembly.ts` — context assembly with YAML templates
 - `mcp-server/templates/` — YAML context assembly templates (default, review, implementation, research)
+- `mcp-server/src/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)
+- `mcp-server/src/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
+- `scripts/slack-app-manifest.yaml` — Slack app manifest for /lore slash command
 - `evals/` — PromptFoo eval configs per team
 
 ## Agent Memory
@@ -228,10 +231,36 @@ K8s Job pods via the LoreTask CRD:
 1. Agent worker creates a LoreTask CR (custom resource)
 2. The loretask-controller watches CRs and creates Jobs with the
    claude-runner image
-3. Job pods: clone repo → run Claude Code → commit → push (or review)
-4. A watcher job in the agent creates a PR when the Job completes
-5. Agent deploys do NOT affect running Job pods — tasks survive
+3. Job pods: pre-load context via API → run Claude Code → run
+   deterministic validation (lint/typecheck) → commit → push
+4. If validation fails: one retry with fix prompt → if still fails,
+   mark `needs-human-help` (no PR created)
+5. A watcher job in the agent creates a PR when the Job completes
+6. Agent deploys do NOT affect running Job pods — tasks survive
    rollout restarts
+
+**Deterministic validation** (Minions-inspired): After the agent
+edits code, the runner detects repo tooling (package.json, go.mod,
+pyproject.toml, Cargo.toml) and runs lint/typecheck as mandatory
+pipeline stages. This happens in both local runner (`monitorTask`)
+and GKE runner (`entrypoint.sh`). Validation is scoped to changed
+files to avoid false positives from pre-existing issues.
+
+**Pre-run context hydration**: Before spawning Claude Code, both
+runners fetch assembled context from the Lore API (`/api/context`
+with `query` param). The agent starts with conventions, ADRs,
+memories, and graph on turn 1 instead of spending its first action
+calling `assemble_context`.
+
+**Subdirectory convention rules**: `.claude/rules/*.md` files are
+loaded conditionally during context assembly based on task query
+keywords. All four templates include a `rules` source at priority 1.
+
+**Slack integration**: `/lore [task_type] description` slash command
+creates pipeline tasks. Channel-to-repo mapping in
+`lore.repos.settings.slack_channel_id`. Watcher posts PR links,
+issue links, and failure messages back to the originating channel
+via `LORE_SLACK_BOT_TOKEN`.
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
 - After implementation PR is created, watcher auto-creates a review

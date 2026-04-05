@@ -60,6 +60,10 @@ A developer says "run locally" and Claude Code spawns a background process in an
 
 Same context flow as GKE tasks — the background process has its own MCP server instance, calls `assemble_context` and `search_memory` before coding.
 
+### Flow 6: Slack → Agent (slash command)
+
+A developer types `/lore implementation add retry logic to the webhook handler` in a Slack channel mapped to a repo. Lore creates the task, runs the agent, and posts the PR link back to the same channel. No context switch — stay in Slack.
+
 ### Agent Execution Modes
 
 | Mode | When | How |
@@ -69,6 +73,8 @@ Same context flow as GKE tasks — the background process has its own MCP server
 | **Multi-agent** | Large implementation tasks | Multiple LoreTask Jobs run in parallel. Each works on a different part of the task (e.g., one agent per file or module). Results merged into a single PR. |
 | **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
 | **Local runner** | Developer says "run locally" | Background `claude --print` in an isolated git worktree on the developer's machine. Uses Claude Code subscription — zero API cost. Non-blocking, PR created via `gh`. |
+
+All execution modes include **deterministic validation** — after the agent edits code, lint and typecheck run as mandatory pipeline stages (detected from package.json, go.mod, pyproject.toml, or Cargo.toml). If validation fails, one automatic fix retry runs before escalating to human review.
 
 The agent service decides which mode to use based on the task type configured in `task-types.yaml`.
 
@@ -100,7 +106,8 @@ Key capabilities:
 - **Passive episode ingestion** — `write_episode` accepts raw text (conversations, reviews, observations); facts and knowledge graph entities are extracted automatically. PR review feedback is auto-captured by the review-reactor job. Session summaries are captured via a Stop hook.
 - **Live knowledge graph** — entities (services, teams, technologies) and relationships tracked in PostgreSQL, updated incrementally on every episode. Query with `query_graph`.
 - **Graph-augmented search** — `search_memory(graph_augment=true)` enriches results with 1-hop knowledge graph neighbors of detected entities
-- **Context assembly** — `assemble_context` retrieves from all sources and formats into a token-budgeted block using configurable YAML templates (default, review, implementation, research)
+- **Context assembly** — `assemble_context` retrieves from all sources and formats into a token-budgeted block using configurable YAML templates (default, review, implementation, research). Supports **subdirectory convention rules** — `.claude/rules/*.md` files loaded conditionally based on task keywords
+- **Pre-run hydration** — both local runner and GKE entrypoint fetch assembled context before spawning Claude Code, so agents start with rich context on turn 1
 - **Retrieval benchmarks** — p50/p95/p99 latency tracked per tool in the audit log, visible in the analytics dashboard
 
 ### Repo Onboarding
@@ -183,7 +190,8 @@ Architecture decisions are documented as ADRs in `adrs/`.
 | Code parsing | web-tree-sitter (TypeScript, Python, Go) |
 | GitHub | Octokit + `@octokit/auth-app` (GitHub App) |
 | Observability | OpenTelemetry traces + metrics |
-| Infrastructure | GKE, Helm, cert-manager, external-dns |
+| Slack | Slack Web API (`chat.postMessage`), HMAC-SHA256 verification |
+| Infrastructure | GKE, Helm, cert-manager, external-dns, ESO |
 
 ## How To
 
@@ -278,6 +286,28 @@ Lore comments with the existing task ID instead of creating a new one.
 
 Requires a webhook on the repo: `POST https://LORE_API_DOMAIN/api/webhook/github`
 with events `Issues` and HMAC secret from `LORE_WEBHOOK_SECRET`.
+
+### Slack Integration
+
+Type `/lore` in any mapped Slack channel to create tasks:
+
+```
+/lore implementation add rate limiting to the API
+/lore general analyze our test coverage gaps
+/lore runbook database failover procedure
+```
+
+Lore posts back to the channel when:
+- A PR is created (with link)
+- A task completes with a GitHub issue (with link)
+- A task fails (with error summary)
+
+**Setup:**
+1. Create a Slack app from `scripts/slack-app-manifest.yaml`
+2. Store signing secret and bot token in `secrets.tfvars` (`slack_signing_secret`, `slack_bot_token`)
+3. `terraform apply` to sync secrets via ESO
+4. Map channels to repos: `UPDATE lore.repos SET settings = settings || '{"slack_channel_id":"C..."}'`
+5. Invite the bot to each channel
 
 ### GitHub Issue Notifications
 
