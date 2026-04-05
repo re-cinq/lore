@@ -63,6 +63,14 @@ spec:
                   name: lore-ingest-token
                   key: token
                   optional: true
+            {{- if .Values.slackBotTokenSecret }}
+            - name: LORE_SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.slackBotTokenSecret.name }}
+                  key: {{ .Values.slackBotTokenSecret.key }}
+                  optional: true
+            {{- end }}
           volumeMounts:
             - name: config
               mountPath: /config
