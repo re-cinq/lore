@@ -52,6 +52,8 @@ spec:
                   key: installation-id
             - name: LORE_LOG_BUCKET
               value: lore-task-logs-${project_id}
+            - name: LORE_INGEST_URL
+              value: ${lore_api_url}
           ports:
             - name: health
               containerPort: 8081
