@@ -33,6 +33,8 @@ resource "kubectl_manifest" "loretask_controller" {
     project_id = var.project_id
   })
 
+  wait_for_rollout = false
+
   depends_on = [
     kubectl_manifest.controller_rbac,
     kubernetes_namespace.lore_agent,
