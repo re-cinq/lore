@@ -1,6 +1,11 @@
 name: implementation
 description: Context optimized for implementation tasks.
 sections:
+  - header: "Directory Rules"
+    source: rules
+    priority: 1
+    max_tokens: 2000
+
   - header: "Conventions"
     source: repo
     priority: 1

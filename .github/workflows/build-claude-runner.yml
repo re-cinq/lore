@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'docker/claude-runner/**'
+      - 'mcp-server/src/repo-validation.ts'
+      - 'mcp-server/src/repo-validation-cli.ts'
   workflow_dispatch:
 
 env:
@@ -27,6 +29,11 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy validation source into Docker context
+        run: |
+          cp mcp-server/src/repo-validation.ts docker/claude-runner/validation/src/
+          cp mcp-server/src/repo-validation-cli.ts docker/claude-runner/validation/src/
 
       - name: Build and push
         uses: docker/build-push-action@v7

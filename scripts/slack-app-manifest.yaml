@@ -1,0 +1,35 @@
+# Slack App Manifest for Lore
+# Install: https://api.slack.com/apps → Create New App → From an app manifest
+# Replace YOUR_LORE_API_URL with your Lore MCP server URL.
+#
+# After installing:
+# 1. Copy the Bot Token (xoxb-...) to LORE_SLACK_BOT_TOKEN secret
+# 2. Copy the Signing Secret to LORE_SLACK_SIGNING_SECRET secret
+# 3. Map channels to repos: UPDATE lore.repos SET settings = settings || '{"slack_channel_id":"C0123ABCDEF"}' WHERE full_name = 'owner/repo';
+
+display_information:
+  name: Lore
+  description: Shared context infrastructure for Claude Code agents
+  background_color: "#1a1a2e"
+
+features:
+  bot_user:
+    display_name: Lore
+    always_online: true
+  slash_commands:
+    - command: /lore
+      url: YOUR_LORE_API_URL/api/webhook/slack
+      description: Create a task for Lore agents
+      usage_hint: "[task_type] description"
+      should_escape: false
+
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - commands
+
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

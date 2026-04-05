@@ -48,4 +48,9 @@ githubAppSecret:
 configMap:
   name: lore-agent-config
 
+# Slack integration (optional — for PR/failure notifications back to Slack)
+slackBotTokenSecret:
+  name: lore-slack-credentials
+  key: bot-token
+
 gcpProject: ""

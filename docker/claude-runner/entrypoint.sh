@@ -104,16 +104,51 @@ else
   echo "[runner] Creating branch ${BRANCH_NAME}..."
   git checkout -b "${BRANCH_NAME}"
 
+  # --- Pre-run context hydration (Minions-inspired) ---
+  # Fetch assembled context BEFORE running Claude Code so the agent starts
+  # with conventions, ADRs, memories, and graph on turn 1.
+  LORE_API_URL="${LORE_API_URL:-}"
+  LORE_TOKEN="${LORE_INGEST_TOKEN:-}"
+  PRE_CONTEXT=""
+  if [ -n "$LORE_API_URL" ] && [ -n "$LORE_TOKEN" ]; then
+    echo "[runner] Fetching pre-run context..."
+    TEMPLATE="implementation"
+    if [ "$TASK_TYPE" = "review" ]; then TEMPLATE="review"; fi
+    QUERY=$(echo "$TASK_PROMPT" | head -c 200 | jq -sRr @uri)
+    PRE_CONTEXT=$(curl -sf --max-time 10 \
+      -H "Authorization: Bearer $LORE_TOKEN" \
+      "${LORE_API_URL}/api/context?repo=${TARGET_REPO}&template=${TEMPLATE}&query=${QUERY}" \
+      | jq -r '.text // empty' 2>/dev/null) || true
+    if [ -n "$PRE_CONTEXT" ]; then
+      echo "[runner] Pre-loaded $(echo "$PRE_CONTEXT" | wc -c | tr -d ' ') bytes of context."
+    else
+      echo "[runner] No pre-loaded context available."
+    fi
+  fi
+
   # --- Build prompt with Lore workflow preamble ---
-  # Job pods get the same required workflow as local sessions:
-  # 1. assemble_context first, 2. search_memory before building
-  LORE_PREAMBLE="IMPORTANT: You have the Lore MCP server. Follow this workflow:
+  if [ -n "$PRE_CONTEXT" ]; then
+    LORE_PREAMBLE="## Pre-loaded Context
+
+${PRE_CONTEXT}
+
+---
+
+Context was pre-loaded above. You may call assemble_context for fresh data during long tasks.
+2. BEFORE CODING: Call search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.
+3. DURING WORK: Use search_context for patterns. Use query_graph for entity relationships.
+4. WHEN DONE: Call write_episode with a summary of what you did and any non-obvious decisions.
+
+Now execute the following task:"
+  else
+    LORE_PREAMBLE="IMPORTANT: You have the Lore MCP server. Follow this workflow:
 1. FIRST: Call assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.
 2. BEFORE CODING: Call search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.
 3. DURING WORK: Use search_context for patterns. Use query_graph for entity relationships.
 4. WHEN DONE: Call write_episode with a summary of what you did and any non-obvious decisions.
 
 Now execute the following task:"
+  fi
 
   FULL_PROMPT="${LORE_PREAMBLE}
 
@@ -132,6 +167,47 @@ ${TASK_PROMPT}"
       exit 0
     fi
     exit 1
+  fi
+
+  # --- Deterministic validation (Minions-inspired) ---
+  # Run lint/typecheck as mandatory pipeline stages before commit.
+  CHANGED_FILES=$(git diff --name-only)
+  VALIDATION_SCRIPT="/validation.js"
+  MAX_RETRIES=1
+  RETRY_COUNT=0
+
+  if [ -f "$VALIDATION_SCRIPT" ]; then
+    echo "[runner] Running pre-flight validation..."
+    VALIDATION_OUTPUT=$(node "$VALIDATION_SCRIPT" --quick --repo /workspace/repo --files "$CHANGED_FILES" 2>&1) || {
+      VALIDATION_EXIT=$?
+      echo "[runner] Validation failed (attempt 1):"
+      echo "$VALIDATION_OUTPUT"
+
+      if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        echo "[runner] Attempting fix retry..."
+
+        # Extract just the error lines for the fix prompt
+        FIX_ERRORS=$(echo "$VALIDATION_OUTPUT" | grep -A 100 "^\[FAIL\]" || echo "$VALIDATION_OUTPUT")
+
+        FIX_PROMPT="Validation checks failed after your changes. Fix ONLY these errors.
+Do not re-implement the original task. Only fix the validation errors.
+
+${FIX_ERRORS}"
+
+        claude --print --dangerously-skip-permissions --model "${MODEL}" -- "${FIX_PROMPT}" || true
+
+        # Re-validate
+        echo "[runner] Re-validating after fix..."
+        CHANGED_FILES=$(git diff --name-only)
+        node "$VALIDATION_SCRIPT" --quick --repo /workspace/repo --files "$CHANGED_FILES" 2>&1 || {
+          echo "NEEDS_HUMAN_HELP"
+          echo "[runner] Validation still failing after retry. Pushing for human review."
+        }
+      fi
+    }
+  else
+    echo "[runner] No validation script found, skipping pre-flight checks."
   fi
 
   # --- Commit and push ---

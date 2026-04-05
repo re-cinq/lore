@@ -16,6 +16,11 @@ sections:
     priority: 2
     max_tokens: 3000
 
+  - header: "Directory Rules"
+    source: rules
+    priority: 2
+    max_tokens: 2000
+
   - header: "Conventions"
     source: repo
     priority: 3

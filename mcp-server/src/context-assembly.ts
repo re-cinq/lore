@@ -15,7 +15,7 @@ import { queryLiveGraph } from './graph.js';
 
 interface TemplateSection {
   header: string;
-  source: 'repo' | 'adrs' | 'memories' | 'graph' | 'episodes';
+  source: 'repo' | 'adrs' | 'memories' | 'graph' | 'episodes' | 'rules';
   priority: number;
   max_tokens?: number;
 }
@@ -151,6 +151,38 @@ const fetchers: Record<string, SourceFetcher> = {
       const episodeResults = results.filter(r => r.source === 'episode');
       if (episodeResults.length === 0) return '';
       return episodeResults.map(r => `**${r.key}**: ${r.value}`).join('\n\n');
+    } catch {
+      return '';
+    }
+  },
+
+  async rules(pool, query, repo) {
+    // Load .claude/rules/*.md files that match the task query.
+    // Rules are ingested with content_type = 'rule' and file_path preserving
+    // the original path (e.g., ".claude/rules/api.md").
+    if (!repo) return '';
+    try {
+      const { rows } = await pool.query(
+        `SELECT content, file_path FROM org_shared.chunks
+         WHERE repo = $1 AND content_type = 'rule'
+         ORDER BY file_path`,
+        [repo],
+      );
+      if (rows.length === 0) return '';
+
+      // Match rule filenames against words in the query (simple keyword match)
+      const queryWords = query.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+      const matched = rows.filter((r: any) => {
+        const ruleName = r.file_path.replace(/.*\//, '').replace(/\.md$/, '').toLowerCase();
+        return queryWords.some((w: string) => ruleName.includes(w) || w.includes(ruleName));
+      });
+
+      // If no keyword matches, skip (don't load all rules for every query)
+      if (matched.length === 0) return '';
+
+      return matched
+        .map((r: any) => `### ${r.file_path}\n\n${r.content}`)
+        .join('\n\n---\n\n');
     } catch {
       return '';
     }

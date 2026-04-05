@@ -189,6 +189,31 @@ export async function watchLoreTasks(): Promise<void> {
 
         console.log(`[loretask-watcher] Task ${taskId} → PR ${pr.url}`);
 
+        // Post PR link back to Slack if task originated from Slack
+        const slackBotToken = process.env.LORE_SLACK_BOT_TOKEN;
+        if (slackBotToken) {
+          const taskBundle = (await query<{ context_bundle: any }>(
+            `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
+          ))[0]?.context_bundle;
+          const slackChannel = taskBundle?.slack_channel_id;
+          if (slackChannel) {
+            try {
+              await fetch("https://slack.com/api/chat.postMessage", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${slackBotToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  channel: slackChannel,
+                  text: `PR ready for review: ${pr.url}`,
+                  unfurl_links: true,
+                }),
+              });
+            } catch { /* best effort */ }
+          }
+        }
+
         // Trigger auto-review if enabled for this repo
         if (await shouldAutoReview(lt.spec.targetRepo)) {
           const reviewTaskResult = await query<{ id: string }>(
@@ -273,6 +298,27 @@ export async function watchLoreTasks(): Promise<void> {
           [taskId, JSON.stringify({ error: lt.status.failureReason })],
         );
         await commentFailureOnIssue(rows[0].target_repo, rows[0].issue_number, lt.status.failureReason);
+
+        // Notify Slack if task originated from Slack
+        const slackBotToken2 = process.env.LORE_SLACK_BOT_TOKEN;
+        if (slackBotToken2) {
+          const failBundle = (await query<{ context_bundle: any }>(
+            `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
+          ))[0]?.context_bundle;
+          const slackCh = failBundle?.slack_channel_id;
+          if (slackCh) {
+            try {
+              await fetch("https://slack.com/api/chat.postMessage", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${slackBotToken2}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  channel: slackCh,
+                  text: `Task failed: ${lt.status.failureReason?.substring(0, 200)}`,
+                }),
+              });
+            } catch { /* best effort */ }
+          }
+        }
 
         // Capture failure as an episode for org-wide learning
         const failureContent = `Task failed on ${lt.spec.targetRepo}: ${lt.spec.taskType}\n\nDescription: ${lt.spec.description}\n\nFailure: ${lt.status.failureReason}\n\nOutput:\n${(lt.status?.output || '').slice(-2000)}`;

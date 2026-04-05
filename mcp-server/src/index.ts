@@ -996,7 +996,7 @@ server.tool(
         } catch { /* use generated UUID */ }
       }
 
-      const task = spawnLocalTask({
+      const task = await spawnLocalTask({
         taskId,
         prompt: args.description,
         repo,
@@ -1163,7 +1163,7 @@ server.tool(
       }
 
       // Spawn locally
-      const localTask = spawnLocalTask({
+      const localTask = await spawnLocalTask({
         taskId: task.id,
         prompt: task.description,
         repo: task.target_repo,
@@ -1423,28 +1423,39 @@ async function main() {
           }
         });
       } else if (req.url?.startsWith("/api/context") && req.method === "GET") {
-        // Get repo context from the vector store
+        // Get repo context — full assembly when query param present, raw chunks otherwise
         const token = process.env.LORE_INGEST_TOKEN;
         const auth = req.headers.authorization;
         if (!token || auth !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
         const url = new URL(req.url, "http://localhost");
         const repo = url.searchParams.get("repo");
+        const query = url.searchParams.get("query");
+        const template = url.searchParams.get("template") || "default";
         try {
-          const parts: string[] = [];
-          // Repo-specific docs only
-          if (repo && dbPoolRef) {
-            const { rows } = await dbPoolRef.query(
-              `SELECT content, content_type, file_path FROM org_shared.chunks
-               WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
-               ORDER BY content_type, ingested_at DESC`,
-              [repo],
-            );
-            for (const r of rows) parts.push(r.content);
-          }
-          if (parts.length > 0) {
-            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ text: parts.join("\n\n---\n\n") }));
+          // When query param is present, use full assembleContext (pre-run hydration)
+          if (query && dbPoolRef) {
+            const result = await assembleContext(dbPoolRef, query, template, 8000, repo || undefined);
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+              text: result.text || null,
+              sections: result.sections,
+            }));
           } else {
-            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ text: null }));
+            // Legacy: raw chunk fetch
+            const parts: string[] = [];
+            if (repo && dbPoolRef) {
+              const { rows } = await dbPoolRef.query(
+                `SELECT content, content_type, file_path FROM org_shared.chunks
+                 WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
+                 ORDER BY content_type, ingested_at DESC`,
+                [repo],
+              );
+              for (const r of rows) parts.push(r.content);
+            }
+            if (parts.length > 0) {
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ text: parts.join("\n\n---\n\n") }));
+            } else {
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ text: null }));
+            }
           }
         } catch (err: any) {
           res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
@@ -1744,6 +1755,110 @@ async function main() {
           ]);
 
           res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ task_id: taskResult.task_id, status: taskResult.status }));
+        });
+      } else if (req.url === "/api/webhook/slack" && req.method === "POST") {
+        // Slack slash command — /lore [task_type] <description>
+        let rawBody = "";
+        req.on("data", (chunk: Buffer) => { rawBody += chunk.toString(); });
+        req.on("end", async () => {
+          // Verify Slack signing secret (HMAC-SHA256)
+          const slackSecret = process.env.LORE_SLACK_SIGNING_SECRET;
+          if (slackSecret) {
+            const timestamp = req.headers["x-slack-request-timestamp"] as string;
+            const slackSig = req.headers["x-slack-signature"] as string;
+            if (!timestamp || !slackSig) {
+              res.writeHead(401).end("Unauthorized");
+              return;
+            }
+            // Reject requests older than 5 minutes (replay attack protection)
+            if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
+              res.writeHead(401).end("Request too old");
+              return;
+            }
+            const { createHmac, timingSafeEqual } = await import("node:crypto");
+            const sigBase = `v0:${timestamp}:${rawBody}`;
+            const expected = "v0=" + createHmac("sha256", slackSecret).update(sigBase).digest("hex");
+            const sigBuf = Buffer.from(slackSig);
+            const expBuf = Buffer.from(expected);
+            if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+              res.writeHead(401).end("Invalid signature");
+              return;
+            }
+          }
+
+          const params = new URLSearchParams(rawBody);
+
+          // Handle Slack URL verification challenge
+          if (params.get("type") === "url_verification") {
+            res.writeHead(200, { "Content-Type": "text/plain" }).end(params.get("challenge") || "");
+            return;
+          }
+
+          const commandText = (params.get("text") || "").trim();
+          const channelId = params.get("channel_id") || "";
+          const userName = params.get("user_name") || "unknown";
+
+          if (!commandText) {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+              response_type: "ephemeral",
+              text: "Usage: `/lore [task_type] <description>`\nTask types: general, implementation, runbook, gap-fill, review",
+            }));
+            return;
+          }
+
+          // Parse task type from first word if it matches a known type
+          const knownTypes = ["general", "implementation", "runbook", "gap-fill", "review", "feature-request"];
+          const words = commandText.split(/\s+/);
+          let taskType = "general";
+          let description = commandText;
+          if (words.length > 1 && knownTypes.includes(words[0])) {
+            taskType = words[0];
+            description = words.slice(1).join(" ");
+          }
+
+          // Look up target repo from channel → repo mapping in lore.repos.settings
+          let targetRepo = "";
+          if (dbPoolRef) {
+            try {
+              const { rows } = await dbPoolRef.query(
+                `SELECT full_name FROM lore.repos WHERE settings->>'slack_channel_id' = $1`,
+                [channelId],
+              );
+              if (rows.length > 0) targetRepo = rows[0].full_name;
+            } catch { /* fall through */ }
+          }
+
+          if (!targetRepo) {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+              response_type: "ephemeral",
+              text: "No repo mapped to this channel. Set `slack_channel_id` in repo settings.",
+            }));
+            return;
+          }
+
+          if (!dbPoolRef) {
+            res.writeHead(503, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "database not available" }));
+            return;
+          }
+
+          // Create pipeline task with Slack metadata for callback
+          const contextBundle = {
+            slack_channel_id: channelId,
+            slack_user: userName,
+          };
+
+          try {
+            const taskResult = await createTask(description, taskType, targetRepo, `slack:${userName}`, contextBundle);
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+              response_type: "in_channel",
+              text: `Task created on \`${targetRepo}\`:\n> ${description}\n\nType: \`${taskType}\` | ID: \`${taskResult.task_id}\`\nI'll post the PR here when it's ready.`,
+            }));
+          } catch (err: any) {
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+              response_type: "ephemeral",
+              text: `Failed to create task: ${err.message}`,
+            }));
+          }
         });
       } else if (req.url === "/api/task-logs" && req.method === "POST") {
         // Receive logs from local runner and write to GCS
