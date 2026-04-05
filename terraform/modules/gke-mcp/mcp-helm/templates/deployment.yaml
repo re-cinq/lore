@@ -56,6 +56,22 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.githubAppSecret.name }}
                   key: {{ .Values.githubAppSecret.installationIdKey }}
+            {{- if .Values.slackSigningSecret }}
+            - name: LORE_SLACK_SIGNING_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.slackSigningSecret.name }}
+                  key: {{ .Values.slackSigningSecret.key }}
+                  optional: true
+            {{- end }}
+            {{- if .Values.slackBotTokenSecret }}
+            - name: LORE_SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.slackBotTokenSecret.name }}
+                  key: {{ .Values.slackBotTokenSecret.key }}
+                  optional: true
+            {{- end }}
           volumeMounts:
             - name: config
               mountPath: /config

@@ -352,6 +352,75 @@ resource "kubectl_manifest" "es_mcp_ghcr" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+# Slack credentials — shared by both mcp-servers and lore-agent namespaces
+resource "kubectl_manifest" "es_mcp_slack" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-slack-credentials"
+      namespace = "mcp-servers"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-slack-credentials"
+      }
+      data = [
+        {
+          secretKey = "signing-secret"
+          remoteRef = {
+            key = "lore-slack-signing-secret"
+          }
+        },
+        {
+          secretKey = "bot-token"
+          remoteRef = {
+            key = "lore-slack-bot-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
+resource "kubectl_manifest" "es_agent_slack" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-slack-credentials"
+      namespace = "lore-agent"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-slack-credentials"
+      }
+      data = [
+        {
+          secretKey = "bot-token"
+          remoteRef = {
+            key = "lore-slack-bot-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 # ===== lore-ui namespace ====================================================
 
 resource "kubectl_manifest" "es_ui_github_app" {
