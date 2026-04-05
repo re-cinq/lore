@@ -232,8 +232,7 @@ The MCP server runs locally via stdio and proxies all operations (context, memor
 
 | Tool | Category | What it does |
 |------|----------|-------------|
-| `get_context` | Context | Merged CLAUDE.md for current repo (auto-detected from git remote) |
-| `get_adrs` | Context | ADRs filtered by domain and status |
+| `assemble_context` | Context | Retrieve + assemble context from all sources (CLAUDE.md, ADRs, memories, facts, graph) into a token-budgeted block |
 | `search_context` | Context | Hybrid search (vector + keyword) across all org context |
 | `write_memory` | Memory | Store a persistent memory with optional TTL and fact extraction |
 | `read_memory` | Memory | Retrieve by key, supports version history |
@@ -241,23 +240,24 @@ The MCP server runs locally via stdio and proxies all operations (context, memor
 | `list_memories` | Memory | Paginated listing of active memories |
 | `delete_memory` | Memory | Soft-delete (preserved in history) |
 | `write_episode` | Memory | Ingest raw text; auto-extracts facts and updates knowledge graph |
-| `list_episodes` | Memory | List recent episodes with extracted fact counts |
 | `query_graph` | Memory | Query live knowledge graph for entities and relationships |
-| `assemble_context` | Memory | Retrieve + assemble context from all sources into a structured, token-budgeted block |
-| `shared_write` / `shared_read` | Memory | Cross-agent shared memory pools |
-| `create_snapshot` / `restore_snapshot` | Memory | Point-in-time backup and restore |
-| `agent_health` / `agent_stats` | Memory | Usage stats, active/invalidated facts, daily breakdown |
+| `agent_stats` | Memory | Health, memory count, episode count, facts, searches, daily breakdown |
 | `create_pipeline_task` | Pipeline | Create task on GKE (API cost) |
 | `run_task_locally` | Pipeline | Run task in background on dev machine (subscription, zero API cost) |
 | `list_local_tasks` | Pipeline | Show running/completed local background tasks |
 | `cancel_local_task` | Pipeline | Cancel a local background task |
+| `enable_task_notifications` | Pipeline | Start watching for pending tasks (statusline indicator) |
+| `list_pending_tasks` | Pipeline | Show tasks available to claim locally |
+| `claim_and_run_locally` | Pipeline | Claim a pending task and run in background |
 | `get_pipeline_status` | Pipeline | Task status and event timeline |
 | `list_pipeline_tasks` | Pipeline | List tasks with status filter |
 | `cancel_task` | Pipeline | Cancel a running or pending task |
+| `get_pr_status` | Pipeline | Live GitHub PR state (checks, reviews, merge status) |
 | `sync_tasks` | Tasks | Parse tasks.md and sync to pipeline database |
 | `ready_tasks` | Tasks | List unblocked tasks (all dependencies satisfied) |
 | `claim_task` | Tasks | Atomically claim a task to prevent double work |
 | `complete_task` | Tasks | Mark done, report newly unblocked dependents |
+| `get_analytics` | Repos | Cost/usage tracking by period |
 | `list_repos` | Repos | All onboarded repos with activity stats |
 | `onboard_repo` | Repos | Onboard a new repo to Lore |
 | `ingest_files` | Ingest | Manually ingest files into Lore's context store |
