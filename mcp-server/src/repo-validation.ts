@@ -1,3 +1,4 @@
+// validated
 /**
  * Repo Validation — polyglot tooling detection and deterministic validation.
  *
