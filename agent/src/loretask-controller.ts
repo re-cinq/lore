@@ -381,7 +381,7 @@ async function readPodLogs(jobName: string): Promise<string> {
  * Parse the "CHANGES=" line from pod logs to get changed file count.
  */
 function parseChangedFiles(logs: string): number {
-  const match = logs.match(/CHANGES=(\d+)/);
+  const match = logs.match(/CHANGES=\s*(\d+)/);
   return match ? parseInt(match[1], 10) : 0;
 }
 
