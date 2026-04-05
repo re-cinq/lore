@@ -1,3 +1,4 @@
+// context hydration test
 /**
  * Repo Validation — polyglot tooling detection and deterministic validation.
  *
