@@ -5,42 +5,42 @@ describe("redactSecrets", () => {
   // ── API keys ──────────────────────────────────────────────────────
 
   it("redacts ghp_ tokens", () => {
-    const input = "token: ghp_1234567890abcdefghij1234567890abcdefghij";
+    const input = `token: ${"ghp_"}1234567890abcdefghij1234567890abcdefghij`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("ghp_");
   });
 
   it("redacts ghs_ tokens", () => {
-    const input = "token: ghs_abcdefghijklmnopqrstuvwxyz1234567890";
+    const input = `token: ${"ghs_"}abcdefghijklmnopqrstuvwxyz1234567890`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("ghs_");
   });
 
   it("redacts sk- tokens (OpenAI/Anthropic style)", () => {
-    const input = "key: sk-proj-abcdefghijklmnopqrstuvwxyz";
+    const input = `key: ${"sk-proj"}-abcdefghijklmnopqrstuvwxyz`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("sk-proj");
   });
 
   it("redacts AWS access keys (AKIA prefix)", () => {
-    const input = "aws_key: AKIAIOSFODNN7EXAMPLE1234";
+    const input = `aws_key: ${"AKIA"}IOSFODNN7EXAMPLE1234`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("AKIA");
   });
 
   it("redacts Slack tokens (xoxb-)", () => {
-    const input = "slack: xoxb-123456789012-abcdefghijklmnopqrstuvwx";
+    const input = `slack: ${"xoxb"}-123456789012-abcdefghijklmnopqrstuvwx`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("xoxb-");
   });
 
   it("redacts GitLab tokens (glpat-)", () => {
-    const input = "gitlab: glpat-abcdefghijklmnopqrstu";
+    const input = `gitlab: ${"glpat"}-abcdefghijklmnopqrstu`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("glpat-");
@@ -112,10 +112,10 @@ MHQCAQEEIODxf/1kzH2DYwGK2h...
 
   it("redacts x-access-token in clone URLs", () => {
     const input =
-      "git clone https://x-access-token:ghs_abcdefghijklmnopqrstuvwx@github.com/org/repo";
+      `git clone https://x-access-token:${"ghs_"}abcdefghijklmnopqrstuvwx@github.com/org/repo`;
     const result = redactSecrets(input);
     // The ghs_ prefix hits the api-key pattern and x-access-token hits the github-token pattern
-    expect(result).not.toContain("ghs_abcdefghijklmnopqrstuvwx");
+    expect(result).not.toContain(`${"ghs_"}abcdefghijklmnopqrstuvwx`);
   });
 
   // ── Base64 blobs ──────────────────────────────────────────────────
