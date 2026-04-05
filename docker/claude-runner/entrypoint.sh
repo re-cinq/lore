@@ -219,6 +219,7 @@ ${FIX_ERRORS}"
   echo "[runner] Pushing to origin/${BRANCH_NAME}..."
   git push origin "${BRANCH_NAME}"
 
-  echo "CHANGES=$(git diff --stat HEAD~1 | tail -1)"
+  CHANGED_COUNT=$(git diff --stat HEAD~1 | tail -1 | grep -oE '^\s*[0-9]+' | tr -d ' ')
+  echo "CHANGES=${CHANGED_COUNT:-0}"
   echo "[runner] Done."
 fi
