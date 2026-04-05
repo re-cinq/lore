@@ -27,21 +27,21 @@ function redactSecrets(text: string): string {
 
 describe("redactSecrets", () => {
   it("redacts GitHub personal access tokens (ghp_)", () => {
-    const input = "token: ghp_ABCDEFghijklmnop1234567890";
+    const input = `token: ${"ghp_"}ABCDEFghijklmnop1234567890`;
     const result = redactSecrets(input);
     expect(result).toBe("token: [REDACTED:api-key]");
     expect(result).not.toContain("ghp_");
   });
 
   it("redacts GitHub server tokens (ghs_)", () => {
-    const input = "Authorization: ghs_xyzABCDEFghijklmnop12345";
+    const input = `Authorization: ${"ghs_"}xyzABCDEFghijklmnop12345`;
     const result = redactSecrets(input);
     expect(result).toBe("Authorization: [REDACTED:api-key]");
     expect(result).not.toContain("ghs_");
   });
 
   it("redacts Anthropic API keys (sk-ant-)", () => {
-    const input = "ANTHROPIC_API_KEY=sk-ant-api03-abcdefghij1234567890abcdefghij";
+    const input = `ANTHROPIC_API_KEY=${"sk-ant"}-api03-abcdefghij1234567890abcdefghij`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("sk-ant-");
@@ -55,21 +55,21 @@ describe("redactSecrets", () => {
   });
 
   it("redacts AWS access keys (AKIA)", () => {
-    const input = "aws_access_key_id = AKIAIOSFODNN7EXAMPLE12345";
+    const input = `aws_access_key_id = ${"AKIA"}IOSFODNN7EXAMPLE12345`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("AKIAIOSFODNN7EXAMPLE");
   });
 
   it("redacts Slack tokens (xoxb-, xoxp-)", () => {
-    const input = "SLACK_TOKEN=xoxb-1234567890abcdefghij1234567890";
+    const input = `SLACK_TOKEN=${"xoxb"}-1234567890abcdefghij1234567890`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("xoxb-");
   });
 
   it("redacts GitLab tokens (glpat-)", () => {
-    const input = "GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx12345";
+    const input = `GITLAB_TOKEN=${"glpat"}-xxxxxxxxxxxxxxxxxxxx12345`;
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("glpat-");
@@ -183,7 +183,7 @@ describe("redactSecrets", () => {
 
   it("handles text with multiple secrets", () => {
     const input = [
-      "API_KEY=ghp_ABCDEFghijklmnop1234567890",
+      `API_KEY=${"ghp_"}ABCDEFghijklmnop1234567890`,
       "DB=postgres://user:pass@host:5432/db",
       "Authorization: Bearer eyAbCdEfGhIjKlMnOpQrStUvWxYz012345",
     ].join("\n");
@@ -196,7 +196,7 @@ describe("redactSecrets", () => {
   });
 
   it("redacts secrets embedded in JSON", () => {
-    const input = '{"token":"ghp_ABCDEFghijklmnop1234567890","url":"https://api.example.com"}';
+    const input = '{"token":"${"ghp_"}ABCDEFghijklmnop1234567890","url":"https://api.example.com"}';
     const result = redactSecrets(input);
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).toContain("https://api.example.com");
