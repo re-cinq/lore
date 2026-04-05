@@ -212,6 +212,20 @@ async function reconcile(lt: LoreTask): Promise<void> {
                     },
                   },
                 },
+                {
+                  name: "LORE_API_URL",
+                  value: process.env.LORE_INGEST_URL || "",
+                },
+                {
+                  name: "LORE_INGEST_TOKEN",
+                  valueFrom: {
+                    secretKeyRef: {
+                      name: "lore-ingest-token",
+                      key: "token",
+                      optional: true,
+                    },
+                  },
+                },
               ],
               resources: {
                 requests: { cpu: "500m", memory: "1Gi" },
