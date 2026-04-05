@@ -54,7 +54,7 @@ resource "helm_release" "lore_mcp" {
   # Secrets — reference ESO-managed K8s Secrets
   set {
     name  = "dbPasswordSecret.name"
-    value = "lore-db-password"
+    value = "lore-mcp-db-password"
   }
   set {
     name  = "dbPasswordSecret.key"
@@ -87,6 +87,5 @@ resource "helm_release" "lore_mcp" {
 
   depends_on = [
     kubernetes_namespace.mcp_servers,
-    kubernetes_config_map.mcp_config,
   ]
 }

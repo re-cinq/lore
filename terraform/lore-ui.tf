@@ -116,7 +116,7 @@ resource "kubernetes_deployment" "lore_ui" {
             value_from {
               secret_key_ref {
                 name = "lore-ui-oauth"
-                key  = "github-oauth-client-id"
+                key  = "client-id"
               }
             }
           }
@@ -125,7 +125,7 @@ resource "kubernetes_deployment" "lore_ui" {
             value_from {
               secret_key_ref {
                 name = "lore-ui-oauth"
-                key  = "github-oauth-client-secret"
+                key  = "client-secret"
               }
             }
           }
