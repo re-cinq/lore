@@ -1,3 +1,4 @@
+// hydration verified
 #!/usr/bin/env node
 /**
  * CLI wrapper for repo-validation — called by entrypoint.sh in K8s Job pods.
