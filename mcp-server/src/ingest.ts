@@ -6,7 +6,7 @@
  * Called by the /api/ingest HTTP endpoint when GitHub Actions pushes.
  */
 
-import { getOctokit, isConfigured } from './pipeline-github.js';
+import { getOctokit, isAppConfigured as isConfigured } from './github-client.js';
 import { getQueryEmbedding } from './db.js';
 import { chunkFile } from '@re-cinq/lore-shared';
 

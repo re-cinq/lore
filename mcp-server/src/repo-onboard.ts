@@ -6,9 +6,7 @@
  * inspect the repo and generate customized CLAUDE.md / onboarding PRs.
  */
 
-import { createBranch, commitFile, createPR, isConfigured as isGitHubConfigured, getOctokit } from './pipeline-github.js';
-import { Octokit } from 'octokit';
-import { createAppAuth } from '@octokit/auth-app';
+import { createBranch, commitFile, createPR, isGitHubConfigured, getOctokit } from './github-client.js';
 
 // ── Installation repos ──────────────────────────────────────────────
 
