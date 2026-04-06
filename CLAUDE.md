@@ -73,6 +73,8 @@ gcloud auth for local dev.
 - `mcp-server/src/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)
 - `mcp-server/src/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
 - `scripts/slack-app-manifest.yaml` — Slack app manifest for /lore slash command
+- `agent/src/lib/episode-writer.ts` — shared episode writer with Haiku-driven auto-curation
+- `mcp-server/src/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
 - `evals/` — PromptFoo eval configs per team
 
 ## Agent Memory
@@ -261,6 +263,18 @@ creates pipeline tasks. Channel-to-repo mapping in
 `lore.repos.settings.slack_channel_id`. Watcher posts PR links,
 issue links, and failure messages back to the originating channel
 via `LORE_SLACK_BOT_TOKEN`.
+
+**Passive memory capture**: MCP server tracks all tool calls in
+memory (session-tracker.ts). On exit, dumps to
+`~/.lore/last-session.json`. Stop hook POSTs to
+`/api/session-summary` for automatic episode + fact extraction.
+No agent cooperation needed.
+
+**Post-task auto-curation**: After every task completion (PR created,
+no-changes, failure), an episode is automatically written via
+`episode-writer.ts`. For high-signal events (PRs, failures), Haiku
+extracts a "lesson learned" and stores it as a memory entry
+(`auto-curation/{ref}`).
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
 - After implementation PR is created, watcher auto-creates a review
