@@ -8,6 +8,7 @@ interface Task {
   description: string;
   task_type: string;
   status: string;
+  priority: string;
   target_repo: string;
   agent_id: string | null;
   pr_url: string | null;
@@ -27,7 +28,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   const where = status ? 'WHERE t.status = $1' : '';
   const params = status ? [status] : [];
   const tasks = await query<Task>(
-    `SELECT t.id, t.description, t.task_type, t.status, t.target_repo, t.agent_id, t.pr_url, t.pr_number, t.created_by, t.created_at,
+    `SELECT t.id, t.description, t.task_type, t.status, COALESCE(t.priority, 'normal') as priority, t.target_repo, t.agent_id, t.pr_url, t.pr_number, t.created_by, t.created_at,
             COALESCE(lc.total_cost, 0) as llm_cost
      FROM pipeline.tasks t
      LEFT JOIN (
@@ -67,7 +68,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
 
       <table>
         <thead>
-          <tr><th>Task</th><th>Type</th><th>Status</th><th>Cost</th><th>Repo</th><th>Agent</th><th>PR</th><th>Created</th></tr>
+          <tr><th>Task</th><th>Type</th><th>Status</th><th>Priority</th><th>Cost</th><th>Repo</th><th>Agent</th><th>PR</th><th>Created</th></tr>
         </thead>
         <tbody>
           {tasks.map(t => (
@@ -75,6 +76,17 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
               <td><Link href={`/pipeline/${t.id}`}>{t.description.substring(0, 60)}...</Link></td>
               <td><span className="badge">{t.task_type}</span></td>
               <td><span className={`op-badge op-${t.status}`}>{t.status}</span></td>
+              <td>
+                {t.status === 'pending' && t.priority === 'normal' ? (
+                  <form action={`/api/pipeline/${t.id}/run-now`} method="POST" style={{display:'inline'}}>
+                    <button type="submit" style={{background:'#7c3aed',color:'white',border:'none',padding:'2px 10px',borderRadius:'4px',cursor:'pointer',fontSize:'12px'}}>
+                      Run Now
+                    </button>
+                  </form>
+                ) : (
+                  <span className={t.priority === 'immediate' ? 'badge' : 'meta'} style={t.priority === 'immediate' ? {background:'#7c3aed',color:'white'} : {}}>{t.priority}</span>
+                )}
+              </td>
               <td style={{fontFamily:'monospace', fontSize:'12px'}}>${Number(t.llm_cost).toFixed(2)}</td>
               <td style={{fontFamily:'monospace', fontSize:'12px'}}>
                 {t.target_repo ? (
@@ -93,7 +105,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
               <td className="meta">{new Date(t.created_at).toLocaleString()}</td>
             </tr>
           ))}
-          {tasks.length === 0 && <tr><td colSpan={8} className="meta" style={{textAlign:'center'}}>No tasks</td></tr>}
+          {tasks.length === 0 && <tr><td colSpan={9} className="meta" style={{textAlign:'center'}}>No tasks</td></tr>}
         </tbody>
       </table>
     </div>
