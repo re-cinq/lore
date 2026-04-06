@@ -62,29 +62,19 @@ resource "google_service_account_iam_member" "db_backup_wi" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-db/lore-db]"
 }
 
-# ── Barman Cloud plugin ─────────────────────────────────────────────
-
-resource "kubectl_manifest" "barman_cloud_plugin" {
-  yaml_body = <<-YAML
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: barman-cloud-plugin-placeholder
-      namespace: lore-db
-      labels:
-        note: "Plugin installed via kubectl apply from upstream manifest"
-  YAML
-
-  # The actual plugin is installed via:
-  #   kubectl apply -f https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.11.0/manifest.yaml
-  # This cannot be managed by Terraform because the manifest contains
-  # multiple resource types including CRDs, RBAC, certs, and a deployment.
-  # We track it here as documentation.
-
-  lifecycle {
-    ignore_changes = all
-  }
-}
+# ── Barman Cloud plugin (manual install) ────────────────────────────
+# The barman-cloud plugin is installed manually because the upstream
+# manifest contains CRDs, RBAC, certs, and a deployment that can't
+# be managed as a single Terraform resource.
+#
+# Install/upgrade:
+#   kubectl apply -f https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.11.0/manifest.yaml
+#
+# Once installed, migrate from barman to plugin by:
+# 1. Creating an ObjectStore CR (barmancloud.cnpg.io/v1)
+# 2. Updating the Cluster spec to use plugins instead of backup.barmanObjectStore
+# 3. Updating ScheduledBackup to method: plugin
+# See: https://cloudnative-pg.io/plugin-barman-cloud/docs/next/migration/
 
 # ── CNPG Cluster ────────────────────────────────────────────────────
 
