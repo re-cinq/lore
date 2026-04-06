@@ -1,14 +1,9 @@
-# Feature Specification: LoreTask CRD — Ephemeral Claude Code Execution
-
-| Field          | Value                                    |
-|----------------|------------------------------------------|
-| Feature        | LoreTask CRD + Controller                |
 | Branch         | feat/loretask-crd                        |
 | Status         | Shipped                                  |
 | Created        | 2026-04-01                               |
 | Last Updated   | 2026-04-06 (post-ship reconciliation)    |
 | Owner          | Platform Engineering                     |
-| ADRs           | ADR-011, ADR-012, ADR-013               |
+| ADRs           | ADR-011, ADR-012, ADR-013, ADR-014      |
 
 > **Note:** This spec was reconciled against the shipped implementation on 2026-04-06.
 > The original spec had significant drift in auth model, CRD schema, and entrypoint
@@ -37,13 +32,13 @@ Agent Worker                    K8s API                     Job Pod
 ─────────────                   ───────                     ─────────
 detects pending task ──────►  creates LoreTask CR
                               controller watches ──────►  creates Job + token Secret
-                                                          clone repo
+                                                           clone repo
                                                           fetch pre-run context
-                                                          claude --print ...
+                                                           claude --print ...
                                                           deterministic validation
-                                                          git add/commit/push
-                              Job completes ◄──────────   exit 0
-controller reads Job logs ◄─  updates LoreTask status
+                                                           git add/commit/push
+                               Job completes ◄──────────   exit 0
+ controller reads Job logs ◄─  updates LoreTask status
 agent watcher reads status ─► creates PR, updates DB
                               deletes Job + token Secret
 ```
@@ -54,10 +49,10 @@ agent watcher reads status ─► creates PR, updates DB
 apiVersion: lore.re-cinq.com/v1alpha1
 kind: LoreTask
 metadata:
-  name: loretask-{task-id-short}
+  name: loretask-{taskIdShort}
   namespace: lore-agent
   labels:
-    lore.re-cinq.com/task-id: {full-uuid}
+    lore.re-cinq.com/task-id: {taskId}
     lore.re-cinq.com/task-type: implementation
 spec:
   taskId: {uuid}                    # pipeline.tasks.id
@@ -72,7 +67,7 @@ spec:
   image: "ghcr.io/re-cinq/lore-claude-runner:latest"
 status:
   phase: Pending | Running | Succeeded | Failed
-  jobName: ""                       # created Job name
+  jobName: ""
   startedAt: null
   completedAt: null
   exitCode: null
@@ -80,7 +75,7 @@ status:
   changedFiles: 0
   prUrl: ""                         # set by loretask-watcher after PR creation
   prNumber: 0                       # PR number (set by watcher)
-  reviewResult: ""                  # APPROVED | CHANGES_REQUESTED:... (review tasks)
+  reviewResult: ""                  # "approved" | "changes-requested" | "" (review tasks)
   parentTaskId: ""                  # originating implementation task (review tasks)
   failureReason: ""
   logUrl: ""                        # GCS URL for full structured logs
@@ -147,7 +142,7 @@ Two execution modes selected by `TASK_TYPE` env var:
 3. Inject review preamble: call `assemble_context` with `template=review`.
 4. Run `claude --print --dangerously-skip-permissions --model ${MODEL}`.
 5. Parse output for `REVIEW_RESULT:APPROVED` or `REVIEW_RESULT:CHANGES_REQUESTED`.
-6. Print structured result; controller stores in `LoreTask.status.reviewResult`.
+6. Print structured result; controller stores in `LoreTask.status.reviewResult` as lowercase.
 
 ### Watcher (`agent/src/jobs/loretask-watcher.ts`)
 
@@ -155,8 +150,8 @@ Scheduled every 15 seconds. For each completed LoreTask:
 
 - **Succeeded (implementation)**: Create PR via `platform().createPR()`, update
   `pipeline.tasks`, post PR link to GitHub Issue, close Issue.
-- **Succeeded (review)**: Parse `reviewResult`. If APPROVED, mark task reviewed.
-  If CHANGES_REQUESTED, create a new implementation LoreTask on the same branch
+- **Succeeded (review)**: Parse `reviewResult`. If `"approved"`, mark task reviewed.
+  If `"changes-requested"`, create a new implementation LoreTask on the same branch
   (see ADR-012 autonomous review loop).
 - **Failed**: Update `pipeline.tasks.failure_reason`, post failure comment to Issue,
   add `lore-failed` label.
@@ -174,11 +169,16 @@ After every terminal outcome (PR created, no-changes, failure), the watcher call
 | GitHub auth | `GITHUB_TOKEN` env var | Per-task K8s Secret with App installation token |
 | CRD spec fields | taskId, taskType, description, prompt, targetRepo, branch, model, timeoutMinutes, image | + `prNumber` (for review tasks) |
 | CRD status fields | phase, jobName, startedAt, completedAt, exitCode, output, changedFiles, prUrl, failureReason | + `reviewResult`, `parentTaskId`, `logUrl` |
+| reviewResult values | APPROVED \| CHANGES_REQUESTED (uppercase) | "approved" \| "changes-requested" (lowercase) |
 | Runner modes | Implementation only | Implementation + Review (ADR-012) |
 | Pre-run context | Not in spec | Fetches from `/api/context` before running Claude Code (ADR-013) |
 | Deterministic validation | Not in spec | lint/typecheck + one-shot fix retry (ADR-013) |
 | Post-task curation | Not in spec | Episode + Haiku lesson extraction (ADR-014) |
 | Controller location | `agent/src/loretask-controller.ts` | Same, but runs as separate process via `loretask-controller-main.ts` |
+
+**Note on `logUrl`:** While `logUrl` is set by the controller and stored in the CRD at runtime,
+it is not formally defined in `crd.yaml` OpenAPI schema. The field is stored as part of the
+status but is not validated by the schema. Consider adding it to the CRD schema for consistency.
 
 ## File Index
 
