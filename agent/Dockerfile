@@ -23,7 +23,6 @@ ENV NODE_ENV=production
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/agent/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/agent/node_modules ./agent/node_modules
 COPY --from=builder /app/agent/package.json ./
 EXPOSE 8080
 CMD ["node", "dist/index.js"]

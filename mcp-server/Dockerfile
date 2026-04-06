@@ -23,7 +23,6 @@ ENV NODE_ENV=production
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/mcp-server/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/mcp-server/node_modules ./mcp-server/node_modules
 COPY --from=builder /app/mcp-server/dist ./dist
 COPY mcp-server/templates ./templates
 ENTRYPOINT ["node", "dist/index.js"]
