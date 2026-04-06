@@ -6,9 +6,16 @@ import { getDefaultRepo } from './pipeline-config.js';
 
 // ── Pool management ──────────────────────────────────────────────────
 
-let pool: any = null;
+import type { Pool } from "pg";
 
-export function setPipelinePool(p: any): void { pool = p; }
+let pool: Pool | null = null;
+
+function getPool(): Pool {
+  if (!pool) throw new Error("Pipeline database not configured");
+  return pool;
+}
+
+export function setPipelinePool(p: Pool): void { pool = p; }
 
 // ── Task CRUD ────────────────────────────────────────────────────────
 
@@ -23,7 +30,7 @@ export async function createTask(
   const repo = targetRepo || getDefaultRepo(taskType);
   if (description.length > 10000) throw new Error('Description too long (max 10000 chars)');
   const resolvedPriority = priority === 'immediate' ? 'immediate' : 'normal';
-  const { rows } = await pool.query(
+  const { rows } = await getPool().query(
     `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
      VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id, status, priority, created_at`,
@@ -35,12 +42,12 @@ export async function createTask(
 }
 
 export async function getTask(taskId: string): Promise<any> {
-  const { rows: tasks } = await pool.query(
+  const { rows: tasks } = await getPool().query(
     `SELECT * FROM pipeline.tasks WHERE id = $1`,
     [taskId],
   );
   if (tasks.length === 0) return null;
-  const { rows: events } = await pool.query(
+  const { rows: events } = await getPool().query(
     `SELECT * FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
     [taskId],
   );
@@ -50,14 +57,14 @@ export async function getTask(taskId: string): Promise<any> {
 export async function listTasks(status?: string, limit: number = 50): Promise<any> {
   const where = status ? 'WHERE status = $1' : '';
   const params = status ? [status, limit] : [limit];
-  const { rows } = await pool.query(
+  const { rows } = await getPool().query(
     `SELECT id, description, task_type, status, target_repo, agent_id, pr_url, created_by, created_at, updated_at
      FROM pipeline.tasks ${where}
      ORDER BY created_at DESC
      LIMIT $${status ? '2' : '1'}`,
     params,
   );
-  const { rows: countRows } = await pool.query(
+  const { rows: countRows } = await getPool().query(
     `SELECT count(*)::int as total FROM pipeline.tasks ${where}`,
     status ? [status] : [],
   );
@@ -77,13 +84,13 @@ export async function cancelTask(taskId: string): Promise<any> {
 // ── Status management ────────────────────────────────────────────────
 
 export async function updateTaskStatus(taskId: string, newStatus: string, meta?: any): Promise<void> {
-  const { rows } = await pool.query(
+  const { rows } = await getPool().query(
     `SELECT status FROM pipeline.tasks WHERE id = $1`,
     [taskId],
   );
   if (rows.length === 0) return;
   const oldStatus = rows[0].status;
-  await pool.query(
+  await getPool().query(
     `UPDATE pipeline.tasks SET status = $1 WHERE id = $2`,
     [newStatus, taskId],
   );
@@ -92,7 +99,7 @@ export async function updateTaskStatus(taskId: string, newStatus: string, meta?:
 
 export async function recordEvent(taskId: string, fromStatus: string | null, toStatus: string | null, meta?: any): Promise<void> {
   try {
-    await pool.query(
+    await getPool().query(
       `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
        VALUES ($1, $2, $3, $4)`,
       [taskId, fromStatus, toStatus, meta ? JSON.stringify(meta) : null],
@@ -114,7 +121,7 @@ export async function handleReviewResult(taskId: string, approved: boolean, comm
   } else {
     // Check iteration count
     const iteration = (task.review_iteration || 0) + 1;
-    await pool.query(
+    await getPool().query(
       `UPDATE pipeline.tasks SET review_iteration = $1 WHERE id = $2`,
       [iteration, taskId],
     );
