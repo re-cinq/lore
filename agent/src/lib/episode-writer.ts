@@ -10,7 +10,7 @@
 import { createHash } from "node:crypto";
 import { query } from "../db.js";
 import { callLLM } from "../anthropic.js";
-import { redactSecrets } from "./redact.js";
+import { redactSecrets } from "@re-cinq/lore-shared";
 
 /**
  * Write an episode to memory.episodes. Fire-and-forget — never throws.

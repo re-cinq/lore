@@ -8,7 +8,7 @@
 
 import { getOctokit, isConfigured } from './pipeline-github.js';
 import { getQueryEmbedding } from './db.js';
-import { chunkFile } from './chunker.js';
+import { chunkFile } from '@re-cinq/lore-shared';
 
 export interface IngestResult {
   file: string;

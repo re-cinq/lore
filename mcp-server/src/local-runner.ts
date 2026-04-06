@@ -13,7 +13,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { detectTooling, runValidation, formatValidationOutput } from "./repo-validation.js";
-import { redactSecrets } from "./redact.js";
+import { redactSecrets } from "@re-cinq/lore-shared";
 
 // ---------------------------------------------------------------------------
 // Paths

@@ -1,6 +1,6 @@
 import { query, getPool } from "../db.js";
 import { platform } from "../platform.js";
-import { chunkFile } from "../chunker.js";
+import { chunkFile } from "@re-cinq/lore-shared";
 
 interface OnboardedRepo {
   full_name: string;

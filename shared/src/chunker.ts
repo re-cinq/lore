@@ -5,9 +5,6 @@
  * - Code files: parsed via tree-sitter, each top-level declaration becomes a chunk
  * - Doc/spec/ADR files: split on ## heading boundaries
  * - Fallback: sliding-window (400 lines, 50-line overlap)
- *
- * NOTE: This is a copy of mcp-server/src/chunker.ts — keep them in sync
- * until a shared package is extracted.
  */
 
 import Parser from 'web-tree-sitter';
@@ -118,19 +115,22 @@ function inferSymbolType(nodeType: string): string {
   if (nodeType.includes('type_alias') || nodeType === 'type_declaration') return 'type';
   if (nodeType.includes('enum')) return 'type';
   if (nodeType === 'export_statement') return 'export';
-  if (nodeType === 'decorated_definition') return 'function';
+  if (nodeType === 'decorated_definition') return 'function'; // could be class too, refined below
   return 'export';
 }
 
 function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
+  // Direct name child
   const nameNode = node.childForFieldName('name');
   if (nameNode) return nameNode.text;
 
+  // export_statement wraps a declaration
   if (node.type === 'export_statement') {
     const decl = node.childForFieldName('declaration') ?? node.namedChildren[0];
     if (decl) return extractSymbolName(decl);
   }
 
+  // Python decorated_definition wraps a function_definition or class_definition
   if (node.type === 'decorated_definition') {
     const def = node.namedChildren.find(
       c => c.type === 'function_definition' || c.type === 'class_definition',
@@ -162,6 +162,7 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
   const declTypes = DECLARATION_TYPES[ext] ?? new Set<string>();
   const root = tree.rootNode;
 
+  // Collect top-level declaration nodes
   interface DeclInfo {
     node: Parser.SyntaxNode;
     startRow: number;
@@ -176,12 +177,14 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
   }
 
   if (decls.length === 0) {
+    // No declarations found -- return whole file as one chunk
     return [{ content, metadata: { chunk_index: 0 } }];
   }
 
   const chunks: Chunk[] = [];
   let chunkIndex = 0;
 
+  // Preamble: everything before first declaration (imports, comments, etc.)
   const firstDeclStart = decls[0].startRow;
   if (firstDeclStart > 0) {
     const preamble = lines.slice(0, firstDeclStart).join('\n').trimEnd();
@@ -197,10 +200,12 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
     }
   }
 
+  // Each declaration becomes a chunk. Include leading comments.
   for (let i = 0; i < decls.length; i++) {
     const decl = decls[i];
     const prevEnd = i > 0 ? decls[i - 1].endRow + 1 : firstDeclStart;
 
+    // Look for leading comments/docstrings between prevEnd and decl start
     let startLine = decl.startRow;
     for (let row = decl.startRow - 1; row >= prevEnd; row--) {
       const line = lines[row].trim();
@@ -215,6 +220,7 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
       }
     }
 
+    // Trim leading blank lines from the comment block
     while (startLine < decl.startRow && lines[startLine].trim() === '') {
       startLine++;
     }
@@ -229,8 +235,8 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
       metadata: {
         symbol_name: symbolName,
         symbol_type: symbolType,
-        start_line: startLine + 1,
-        end_line: decl.endRow + 1,
+        start_line: startLine + 1, // 1-based
+        end_line: decl.endRow + 1, // 1-based
         chunk_index: chunkIndex++,
       },
     });
@@ -257,6 +263,7 @@ function chunkMarkdown(content: string): Chunk[] {
   const chunks: Chunk[] = [];
   let chunkIndex = 0;
 
+  // Content before first ## heading
   if (matches[0].index > 0) {
     const preamble = content.slice(0, matches[0].index).trimEnd();
     if (preamble.length > 0) {
@@ -300,8 +307,8 @@ function chunkSlidingWindow(content: string): Chunk[] {
       content: lines.slice(start, end).join('\n'),
       metadata: {
         chunk_index: chunkIndex++,
-        start_line: start + 1,
-        end_line: end,
+        start_line: start + 1, // 1-based
+        end_line: end,         // 1-based
       },
     });
     if (end >= lines.length) break;
@@ -318,12 +325,15 @@ export async function chunkFile(
   filePath: string,
   contentType: string,
 ): Promise<Chunk[]> {
+  // Doc / spec / ADR files: split on ## headings
   if (contentType !== 'code') {
     return chunkMarkdown(content);
   }
 
+  // Code files: try AST-based chunking
   const ext = extname(filePath).toLowerCase();
   if (!EXT_TO_GRAMMAR[ext]) {
+    // Unsupported language -- sliding window
     return chunkSlidingWindow(content);
   }
 
