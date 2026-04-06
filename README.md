@@ -86,9 +86,9 @@ The agent service decides which mode to use based on the task type configured in
 
 | Component | What it does |
 |-----------|-------------|
-| **MCP Server** | Serves org context to Claude Code via MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. |
+| **MCP Server** | Serves org context to Claude Code via MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. Per-client scoped tokens. Rate-limited. |
 | **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, delegates complex tasks (implementation) to ephemeral Job pods via LoreTask CRD. Runs 10 scheduled maintenance jobs. Creates PRs via GitHub App. Every task automatically creates a GitHub Issue on the target repo, so developers see what Lore is doing without checking the dashboard. Issues are updated with status changes and closed when the PR is created. |
-| **LoreTask Controller** | Watches LoreTask custom resources and spawns ephemeral K8s Job pods with the claude-runner image. Each Job pod clones the target repo, runs Claude Code, commits, and pushes. Tasks survive agent deploys and run in parallel with full isolation. |
+| **LoreTask Controller** | Watches LoreTask custom resources and spawns ephemeral K8s Job pods with the claude-runner image. Each Job pod clones the target repo, runs Claude Code, commits, and pushes. Tasks survive agent deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and egress-restricted NetworkPolicy. |
 | **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring with cost tracking. Analytics dashboard. Global settings. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector, GIN for keyword. |
 | **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets for ingest automation. |
@@ -163,15 +163,16 @@ This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP
 lore/
 ├── mcp-server/          # MCP server (TypeScript, serves context + memory + pipeline)
 ├── agent/               # Lore Agent service (TypeScript, task runner + scheduler)
+├── shared/              # @re-cinq/lore-shared — npm workspace package (chunker, redact, types)
 ├── web-ui/              # Next.js dashboard (repo-centric UI, GitHub OAuth)
 ├── scripts/             # install.sh, lore-doctor, infra setup scripts
 ├── docker/claude-runner/ # Ephemeral container for Claude Code in K8s Jobs
-├── terraform/modules/   # Helm charts (mcp-helm, agent-helm), LoreTask CRD
+├── terraform/modules/   # Helm charts (mcp-helm, agent-helm, ui-helm), LoreTask CRD
 ├── k8s/                 # Ingress manifests, CronJobs
 ├── adrs/                # Architecture decision records (MADR format)
 ├── specs/               # Feature specifications (speckit workflow)
 ├── teams/               # Per-team CLAUDE.md overrides
-└── .github/workflows/   # CI: build + push containers for MCP, agent, UI
+└── .github/workflows/   # CI: build + push containers for MCP, agent, UI, runner
 ```
 
 ## Design Principles
@@ -457,7 +458,8 @@ The entire flow from "I want X" to merged code, with proper specs, tracked tasks
 **Agent health** endpoint:
 ```bash
 curl https://LORE_API_DOMAIN/healthz
-# Returns: uptime, tasks processed, job schedules, DB status
+# Unauthenticated: returns {"status":"ok"}
+# Authenticated: adds database status, task counts, today's LLM cost
 ```
 
 **LLM costs** tracked per task in `pipeline.llm_calls` table — visible in the pipeline dashboard.
@@ -478,11 +480,22 @@ Additional pages:
 
 Also available programmatically via the `get_analytics` MCP tool.
 
+### API Security
+
+All `/api/*` endpoints require bearer token auth (centralized in the router). Two token types:
+
+| Type | Format | Scope | Use case |
+|------|--------|-------|----------|
+| **Legacy token** | `LORE_INGEST_TOKEN` env var | Full access | Backward compat, install.sh setup |
+| **Per-client token** | `lore_<64 hex chars>` | Scoped (read/write/task/webhook/admin) | CI, integrations, per-developer |
+
+Manage per-client tokens via `/api/tokens` (admin-only). Rate limiting: 30/min webhooks, 60/min task ops, 200/min other.
+
 ### Global Settings
 
 Platform configuration at `LORE_UI_DOMAIN/settings`:
 - **API URL** — the external MCP server endpoint
-- **Ingest Token** — shared auth token for API calls
+- **Ingest Token** — shared auth token for API calls (legacy single-token mode)
 - **Regenerate Token** — rotates the token (invalidates all existing)
 - **Dev Install Command** — copy-paste for new developer onboarding
 - **Approval Gates** — require human approval before agents process tasks (per-repo or global)
