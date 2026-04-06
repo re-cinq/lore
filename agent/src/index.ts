@@ -18,6 +18,7 @@ import { evalRunnerJob } from "./jobs/eval-runner.js";
 import { autoresearchJob } from "./jobs/autoresearch.js";
 import { contextCoreBuilderJob } from "./jobs/context-core-builder.js";
 import { loretaskWatcherJob } from "./jobs/loretask-watcher.js";
+import { importanceDecayJob, consolidationJob } from "./jobs/memory-lifecycle.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
@@ -50,6 +51,8 @@ async function main(): Promise<void> {
   registerJob("context_core_builder", "0 4 * * *", contextCoreBuilderJob);
   registerJob("autoresearch", "0 6 * * 1", autoresearchJob);
   registerJob("loretask_watcher", "*/1 * * * *", loretaskWatcherJob);
+  registerJob("importance_decay", "0 5 * * *", importanceDecayJob);    // daily 5 AM
+  registerJob("consolidation", "30 5 * * *", consolidationJob);        // daily 5:30 AM
 
   startScheduler();
   startWorker();
