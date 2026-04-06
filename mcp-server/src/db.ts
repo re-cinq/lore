@@ -22,7 +22,7 @@ export function setPool(pgPool: any): void {
 
 // ── Health check ──────────────────────────────────────────────────────
 
-export async function isAlloyDbAvailable(): Promise<boolean> {
+export async function isDbAvailable(): Promise<boolean> {
   if (!pool) return false;
   try {
     await pool.query("SELECT 1");
@@ -162,7 +162,7 @@ export async function hybridSearch(
   schema: string,
   limit: number = 8,
 ): Promise<SearchResult[]> {
-  if (!(await isAlloyDbAvailable())) return [];
+  if (!(await isDbAvailable())) return [];
 
   // Get query embedding from Vertex AI
   const embedding = await getQueryEmbedding(query);
@@ -191,7 +191,7 @@ export async function hybridSearch(
 // ── Team context docs ────────────────────────────────────────────────
 
 export async function getContextFromDb(team: string): Promise<DocResult[]> {
-  if (!(await isAlloyDbAvailable())) return [];
+  if (!(await isDbAvailable())) return [];
   if (!VALID_SCHEMAS.has(team)) team = "org_shared";
 
   const sql = `
@@ -214,7 +214,7 @@ export async function getAdrsFromDb(
   domain: string,
   status: string,
 ): Promise<AdrResult[]> {
-  if (!(await isAlloyDbAvailable())) return [];
+  if (!(await isDbAvailable())) return [];
 
   const sql = `
     SELECT id, content, metadata->>'domain' AS domain, metadata->>'status' AS status, metadata
@@ -232,7 +232,7 @@ export async function getAdrsFromDb(
 export async function getFilePrHistory(
   filePath: string,
 ): Promise<PrHistoryResult[]> {
-  if (!(await isAlloyDbAvailable())) return [];
+  if (!(await isDbAvailable())) return [];
 
   const sql = `
     SELECT id, content, $1 AS file_path, metadata

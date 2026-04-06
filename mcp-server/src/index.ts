@@ -10,7 +10,7 @@ import { globSync } from "glob";
 import pg from "pg";
 import {
   hybridSearch,
-  isAlloyDbAvailable,
+  isDbAvailable,
   setPool,
   getHealthStatus,
   getQueryEmbedding,
@@ -64,22 +64,8 @@ function makeGraphLlmCall(): ((prompt: string) => Promise<string>) | undefined {
   };
 }
 
-/** Strip secrets/keys from text before storing in org-wide memory. */
-function sanitizeContent(text: string): string {
-  const patterns: RegExp[] = [
-    /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_\-]{20,}/g,
-    /eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}/g,
-    /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g,
-    /(?:postgres|mysql|mongodb|redis|amqp):\/\/[^\s"'`]+/g,
-    /Bearer\s+[A-Za-z0-9_\-.]{20,}/g,
-    /x-access-token:[A-Za-z0-9_\-]{20,}/g,
-  ];
-  let result = text;
-  for (const re of patterns) {
-    result = result.replace(re, "[REDACTED]");
-  }
-  return result;
-}
+// Secret redaction — shared canonical implementation
+import { redactSecrets as sanitizeContent } from "./redact.js";
 import { createHash } from "node:crypto";
 import {
   createTask,
@@ -155,7 +141,7 @@ server.tool(
       console.error(`[lore] search_context: auto-detected repo ${detectedRepo}`);
     }
 
-    if (await isAlloyDbAvailable()) {
+    if (await isDbAvailable()) {
       const schema = team || "org_shared";
       let results = await hybridSearch(query, schema, limit);
 
