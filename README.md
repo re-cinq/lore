@@ -248,7 +248,7 @@ The MCP server runs locally via stdio and proxies all operations (context, memor
 
 | Tool | Category | What it does |
 |------|----------|-------------|
-| `assemble_context` | Context | Retrieve + assemble context from all sources (CLAUDE.md, ADRs, memories, facts, graph) into a token-budgeted block |
+| `assemble_context` | Context | Retrieve + assemble context from all sources (CLAUDE.md, ADRs, memories, facts, graph) into a token-budgeted block. Supports `cross_repo` for multi-repo context |
 | `search_context` | Context | Hybrid search (vector + keyword) across all org context |
 | `write_memory` | Memory | Store a persistent memory with optional TTL and fact extraction |
 | `read_memory` | Memory | Retrieve by key, supports version history |
@@ -258,7 +258,7 @@ The MCP server runs locally via stdio and proxies all operations (context, memor
 | `write_episode` | Memory | Ingest raw text; auto-extracts facts and updates knowledge graph |
 | `query_graph` | Memory | Query live knowledge graph for entities and relationships |
 | `agent_stats` | Memory | Health, memory count, episode count, facts, searches, daily breakdown |
-| `create_pipeline_task` | Pipeline | Create task on GKE (API cost) |
+| `create_pipeline_task` | Pipeline | Create task on GKE (API cost). Supports `group_id` for multi-repo coordination |
 | `run_task_locally` | Pipeline | Run task in background on dev machine (subscription, zero API cost) |
 | `list_local_tasks` | Pipeline | Show running/completed local background tasks |
 | `cancel_local_task` | Pipeline | Cancel a local background task |
@@ -277,6 +277,9 @@ The MCP server runs locally via stdio and proxies all operations (context, memor
 | `get_analytics` | Repos | Cost/usage tracking by period |
 | `list_repos` | Repos | All onboarded repos with activity stats |
 | `onboard_repo` | Repos | Onboard a new repo to Lore |
+| `get_task_logs` | Pipeline | Fetch task execution logs from GCS (no UI needed) |
+| `list_task_group` | Pipeline | List all tasks in a multi-repo task group |
+| `my_usage` | Pipeline | Per-developer cost breakdown (today, 7-day, 30-day) |
 | `ingest_files` | Ingest | Manually ingest files into Lore's context store |
 
 ### GitHub Issue Dispatch
@@ -490,6 +493,21 @@ All `/api/*` endpoints require bearer token auth (centralized in the router). Tw
 | **Per-client token** | `lore_<64 hex chars>` | Scoped (read/write/task/webhook/admin) | CI, integrations, per-developer |
 
 Manage per-client tokens via `/api/tokens` (admin-only). Rate limiting: 30/min webhooks, 60/min task ops, 200/min other.
+
+### Per-Repo Settings
+
+Each onboarded repo has configurable settings at `LORE_UI_DOMAIN/repos/{owner}/{repo}/settings`:
+
+| Setting | What it does |
+|---------|-------------|
+| **Team** | Groups repos for schema-level context isolation |
+| **Task Types** | Allowed task types (comma-separated) |
+| **Slack Channel** | Maps a Slack channel for `/lore` command dispatch |
+| **Dispatch Label** | GitHub label that triggers task creation (default: `lore`) |
+| **Trust Level** | Controls which task types agents can run: docs → tests → implementation → full. Auto-promotes after 3 successful merges |
+| **Auto-review** | Automatically review agent PRs against conventions |
+| **Cross-repo context** | Multi-select: which other repos to include in context assembly. Links are bidirectional |
+| **Task overrides** | Per-task-type: model, timeout, system_prompt_suffix, review_required (via API/DB) |
 
 ### Global Settings
 
