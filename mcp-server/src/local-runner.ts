@@ -13,6 +13,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { detectTooling, runValidation, formatValidationOutput } from "./repo-validation.js";
+import { redactSecrets } from "./redact.js";
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -398,21 +399,8 @@ async function monitorTask(task: LocalTask): Promise<void> {
   writeTasks(tasks);
 }
 
-function redactLogs(text: string): string {
-  const patterns: Array<{ name: string; re: RegExp }> = [
-    { name: "api-key", re: /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_\-]{20,}/g },
-    { name: "jwt", re: /eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}/g },
-    { name: "private-key", re: /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g },
-    { name: "connection-string", re: /(?:postgres|mysql|mongodb|redis|amqp):\/\/[^\s"'`]+/g },
-    { name: "bearer-token", re: /Bearer\s+[A-Za-z0-9_\-.]{20,}/g },
-    { name: "base64-blob", re: /[A-Za-z0-9+\/]{100,}={0,2}/g },
-  ];
-  let result = text;
-  for (const p of patterns) {
-    result = result.replace(p.re, `[REDACTED:${p.name}]`);
-  }
-  return result;
-}
+// Use shared redaction (alias for backward compatibility)
+const redactLogs = redactSecrets;
 
 // ---------------------------------------------------------------------------
 // Public API

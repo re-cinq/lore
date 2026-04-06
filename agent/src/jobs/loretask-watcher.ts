@@ -14,6 +14,37 @@ import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Post a message to the Slack channel associated with a task.
+ * Checks task's context_bundle first, falls back to repo's mapped channel.
+ */
+async function notifySlack(taskId: string, repo: string, message: string): Promise<void> {
+  const botToken = process.env.LORE_SLACK_BOT_TOKEN;
+  if (!botToken) return;
+
+  const bundle = (await query<{ context_bundle: any }>(
+    `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
+  ))[0]?.context_bundle;
+  let channel = bundle?.slack_channel_id;
+
+  if (!channel) {
+    const repoRows = await query<{ settings: any }>(
+      `SELECT settings FROM lore.repos WHERE full_name = $1`, [repo],
+    );
+    channel = repoRows[0]?.settings?.slack_channel_id;
+  }
+
+  if (!channel) return;
+
+  try {
+    await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${botToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, text: message, unfurl_links: true }),
+    });
+  } catch { /* best effort */ }
+}
+
 async function shouldAutoReview(repo: string): Promise<boolean> {
   const rows = await query<{ settings: any }>(
     `SELECT settings FROM lore.repos WHERE full_name = $1`, [repo],
@@ -139,27 +170,10 @@ export async function watchLoreTasks(): Promise<void> {
             });
           } catch { /* best effort — CR may already be cleaned up */ }
 
-          // Notify Slack if task originated from Slack
-          const slackBotTokenGeneral = process.env.LORE_SLACK_BOT_TOKEN;
-          if (slackBotTokenGeneral) {
-            const generalBundle = (await query<{ context_bundle: any }>(
-              `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
-            ))[0]?.context_bundle;
-            const slackChGeneral = generalBundle?.slack_channel_id;
-            if (slackChGeneral && issue_number) {
-              const issueUrl = `https://github.com/${target_repo}/issues/${issue_number}`;
-              try {
-                await fetch("https://slack.com/api/chat.postMessage", {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${slackBotTokenGeneral}`, "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    channel: slackChGeneral,
-                    text: `Task completed: ${issueUrl}`,
-                    unfurl_links: true,
-                  }),
-                });
-              } catch { /* best effort */ }
-            }
+          // Notify Slack
+          if (issue_number) {
+            const issueUrl = `https://github.com/${target_repo}/issues/${issue_number}`;
+            notifySlack(taskId, target_repo, `Task completed: ${issueUrl}`).catch(() => {});
           }
 
           // Auto-capture episode for no-changes completion
@@ -220,38 +234,8 @@ export async function watchLoreTasks(): Promise<void> {
 
         console.log(`[loretask-watcher] Task ${taskId} → PR ${pr.url}`);
 
-        // Post PR link to Slack — originating channel or repo's mapped channel
-        const slackBotToken = process.env.LORE_SLACK_BOT_TOKEN;
-        if (slackBotToken) {
-          const taskBundle = (await query<{ context_bundle: any }>(
-            `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
-          ))[0]?.context_bundle;
-          let slackChannel = taskBundle?.slack_channel_id;
-
-          if (!slackChannel) {
-            const repoRows = await query<{ settings: any }>(
-              `SELECT settings FROM lore.repos WHERE full_name = $1`, [lt.spec.targetRepo],
-            );
-            slackChannel = repoRows[0]?.settings?.slack_channel_id;
-          }
-
-          if (slackChannel) {
-            try {
-              await fetch("https://slack.com/api/chat.postMessage", {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${slackBotToken}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  channel: slackChannel,
-                  text: `PR ready for review: ${pr.url}`,
-                  unfurl_links: true,
-                }),
-              });
-            } catch { /* best effort */ }
-          }
-        }
+        // Post PR link to Slack
+        notifySlack(taskId, lt.spec.targetRepo, `PR ready for review: ${pr.url}`).catch(() => {});
 
         // Auto-capture episode for successful PR creation
         writeEpisodeWithCuration(
@@ -347,35 +331,8 @@ export async function watchLoreTasks(): Promise<void> {
         );
         await commentFailureOnIssue(rows[0].target_repo, rows[0].issue_number, lt.status.failureReason);
 
-        // Notify Slack on failure — originating channel or repo's mapped channel
-        const slackBotToken2 = process.env.LORE_SLACK_BOT_TOKEN;
-        if (slackBotToken2) {
-          const failBundle = (await query<{ context_bundle: any }>(
-            `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
-          ))[0]?.context_bundle;
-          let slackCh = failBundle?.slack_channel_id;
-
-          // Fall back to repo's mapped channel if task didn't come from Slack
-          if (!slackCh) {
-            const repoRows = await query<{ settings: any }>(
-              `SELECT settings FROM lore.repos WHERE full_name = $1`, [rows[0].target_repo],
-            );
-            slackCh = repoRows[0]?.settings?.slack_channel_id;
-          }
-
-          if (slackCh) {
-            try {
-              await fetch("https://slack.com/api/chat.postMessage", {
-                method: "POST",
-                headers: { Authorization: `Bearer ${slackBotToken2}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  channel: slackCh,
-                  text: `Task failed on \`${rows[0].target_repo}\`: ${lt.spec.taskType}\n> ${lt.status.failureReason?.substring(0, 200)}`,
-                }),
-              });
-            } catch { /* best effort */ }
-          }
-        }
+        // Notify Slack on failure
+        notifySlack(taskId, rows[0].target_repo, `Task failed on \`${rows[0].target_repo}\`: ${lt.spec.taskType}\n> ${lt.status.failureReason?.substring(0, 200)}`).catch(() => {});
 
         // Auto-capture failure as episode with curation (lesson extraction)
         const failureContent = `Task failed on ${lt.spec.targetRepo}: ${lt.spec.taskType}\n\nDescription: ${lt.spec.description}\n\nFailure: ${lt.status.failureReason}\n\nOutput:\n${(lt.status?.output || '').slice(-2000)}`;
