@@ -2,16 +2,22 @@ export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
+interface Repo { full_name: string }
+
 async function saveSettings(formData: FormData) {
   'use server';
   const fullName = formData.get('full_name') as string;
   const team = formData.get('team') as string;
 
+  // Parse selected cross-repo repos
+  const selectedRepos = formData.getAll('cross_repo_repos') as string[];
+
   // Merge new values into existing settings (never overwrite unrelated keys)
   const updates: Record<string, any> = {
     task_types: (formData.get('task_types') as string || '').split(',').map(s => s.trim()).filter(Boolean),
     auto_review: formData.get('auto_review') === 'on',
-    cross_repo: formData.get('cross_repo') === 'on',
+    cross_repo: selectedRepos.length > 0,
+    cross_repo_repos: selectedRepos,
     slack_channel_id: (formData.get('slack_channel_id') as string || '').trim() || undefined,
     dispatch_label: (formData.get('dispatch_label') as string || '').trim() || undefined,
   };
@@ -31,6 +37,24 @@ async function saveSettings(formData: FormData) {
     `UPDATE lore.repos SET team = $1, settings = COALESCE(settings, '{}') || $2::jsonb WHERE full_name = $3`,
     [team || null, JSON.stringify(updates), fullName]
   );
+
+  // Update linked repos: add this repo to their cross_repo_repos if not already there
+  for (const linkedRepo of selectedRepos) {
+    await query(
+      `UPDATE lore.repos
+       SET settings = jsonb_set(
+         jsonb_set(COALESCE(settings, '{}'), '{cross_repo}', 'true'),
+         '{cross_repo_repos}',
+         (SELECT COALESCE(jsonb_agg(DISTINCT val), '[]') FROM (
+           SELECT val FROM jsonb_array_elements_text(COALESCE(settings->'cross_repo_repos', '[]')) val
+           UNION SELECT $1
+         ) sub)
+       )
+       WHERE full_name = $2`,
+      [fullName, linkedRepo],
+    );
+  }
+
   revalidatePath(`/repos/${fullName}/settings`);
 }
 
@@ -40,6 +64,12 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
   const repoData = await queryOne(`SELECT * FROM lore.repos WHERE full_name = $1`, [fullName]);
   if (!repoData) return <div>Repo not found</div>;
   const settings = (repoData as any).settings || {};
+
+  // Fetch all onboarded repos for the multi-select
+  const allRepos = await query<Repo>(
+    `SELECT full_name FROM lore.repos WHERE full_name != $1 ORDER BY full_name`, [fullName]
+  );
+  const selectedRepos: string[] = settings.cross_repo_repos || [];
 
   return (
     <div>
@@ -72,10 +102,14 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
           Auto-review PRs
         </label>
 
-        <label style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
-          <input type="checkbox" name="cross_repo" defaultChecked={settings.cross_repo === true} />
-          Cross-repo context (include context from other repos)
-        </label>
+        <label>Cross-repo context (select repos to include)</label>
+        <select name="cross_repo_repos" multiple size={Math.min(allRepos.length, 6)} defaultValue={selectedRepos}
+          style={{width:'100%',padding:'0.25rem'}}>
+          {allRepos.map((r) => (
+            <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
+          ))}
+        </select>
+        <span style={{fontSize:'0.8rem',opacity:0.6}}>Hold Cmd/Ctrl to select multiple. Linked repos will automatically get this repo added to their cross-repo list.</span>
 
         <button type="submit">Save Settings</button>
       </form>
