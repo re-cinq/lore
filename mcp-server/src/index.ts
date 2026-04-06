@@ -34,7 +34,7 @@ import {
   searchMemoryFile,
 } from "./memory-file.js";
 import { searchMemories } from "./memory-search.js";
-import { extractFacts, extractFactsFromEpisode } from "./facts.js";
+import { extractFacts, extractFactsFromEpisode, setFactsCostPool } from "./facts.js";
 import { extractAndUpdateGraph, queryLiveGraph } from "./graph.js";
 import { assembleContext, loadTemplates } from "./context-assembly.js";
 import { trackToolCall, dumpSessionLog, formatSessionSummary } from "./session-tracker.js";
@@ -394,23 +394,49 @@ server.tool(
         console.warn(`[episode] Fact extraction failed for ${episodeId}: ${err.message}`),
       );
 
-      // Graph extraction (async, best-effort, requires ANTHROPIC_API_KEY)
-      if (process.env.ANTHROPIC_API_KEY) {
+      // Graph extraction (async, best-effort)
+      {
+        const graphModel = process.env.LORE_FACT_MODEL || 'claude-haiku-4-5-20251001';
         const graphLlmCall = async (prompt: string) => {
+          const apiKey = process.env.ANTHROPIC_API_KEY;
+          if (!apiKey) {
+            // Fall back to Claude CLI (uses subscription, no API credits)
+            const { execFile } = await import('node:child_process');
+            const { promisify } = await import('node:util');
+            const execFileAsync = promisify(execFile);
+            const { stdout } = await execFileAsync('claude', ['-p', prompt, '--output-format', 'text'], {
+              timeout: 30_000,
+              env: { ...process.env },
+            });
+            return stdout.trim();
+          }
+          const start = Date.now();
           const res = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
-              'x-api-key': process.env.ANTHROPIC_API_KEY!,
+              'x-api-key': apiKey,
               'anthropic-version': '2023-06-01',
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              model: process.env.LORE_FACT_MODEL || 'claude-sonnet-4-20250514',
+              model: graphModel,
               max_tokens: 1024,
               messages: [{ role: 'user', content: prompt }],
             }),
           });
           const json = await res.json() as any;
+          const durationMs = Date.now() - start;
+          // Track cost
+          if (json.usage && dbPoolRef) {
+            const inputCost = 0.8 / 1_000_000;
+            const outputCost = 4.0 / 1_000_000;
+            const costUsd = json.usage.input_tokens * inputCost + json.usage.output_tokens * outputCost;
+            dbPoolRef.query(
+              `INSERT INTO pipeline.llm_calls (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
+               VALUES (NULL, 'graph-extraction', $1, $2, $3, $4, $5)`,
+              [graphModel, json.usage.input_tokens, json.usage.output_tokens, costUsd, durationMs],
+            ).catch(() => {});
+          }
           return json.content[0].text;
         };
         // Determine repo from ref (e.g. "owner/repo#42" -> "owner/repo")
@@ -1351,6 +1377,7 @@ async function main() {
     setPool(dbPool);
     setMemoryPool(dbPool);
     setPipelinePool(dbPool);
+    setFactsCostPool(dbPool);
     dbPoolRef = dbPool;
     console.error(`[lore] Database mode: PostgreSQL at ${dbHost}`);
   } else {

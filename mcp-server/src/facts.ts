@@ -22,11 +22,15 @@ function getLlmConfig(): { provider: LlmProvider; model: string } {
 
 function defaultModel(provider: LlmProvider): string {
   switch (provider) {
-    case 'claude':  return 'claude-sonnet-4-20250514';
+    case 'claude':  return 'claude-haiku-4-5-20251001';
     case 'openai':  return 'gpt-4o-mini';
     case 'ollama':  return 'llama3';
   }
 }
+
+// Haiku pricing: $0.80 per million input, $4.00 per million output
+const HAIKU_INPUT_COST = 0.8 / 1_000_000;
+const HAIKU_OUTPUT_COST = 4.0 / 1_000_000;
 
 const EXTRACTION_PROMPT =
   'Extract individual factual statements from the following text. ' +
@@ -53,12 +57,36 @@ async function withRetry<T>(
   throw new Error('retry exhausted');
 }
 
+// ── Cost tracking ──────────────────────────────────────────────────
+
+let costTrackingPool: any = null;
+
+export function setFactsCostPool(pool: any): void {
+  costTrackingPool = pool;
+}
+
+async function trackCost(model: string, inputTokens: number, outputTokens: number, durationMs: number, jobName: string): Promise<void> {
+  if (!costTrackingPool) return;
+  const costUsd = inputTokens * HAIKU_INPUT_COST + outputTokens * HAIKU_OUTPUT_COST;
+  try {
+    await costTrackingPool.query(
+      `INSERT INTO pipeline.llm_calls (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
+       VALUES (NULL, $1, $2, $3, $4, $5, $6)`,
+      [jobName, model, inputTokens, outputTokens, costUsd, durationMs],
+    );
+  } catch { /* non-fatal */ }
+}
+
 // ── LLM provider implementations ────────────────────────────────────
 
 async function callClaude(model: string, text: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+  if (!apiKey) {
+    // Fall back to Claude CLI (uses Claude Code subscription, no API credits)
+    return callClaudeCli(text);
+  }
 
+  const start = Date.now();
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -81,8 +109,33 @@ async function callClaude(model: string, text: string): Promise<string> {
 
   const json = await res.json() as {
     content: Array<{ type: string; text: string }>;
+    usage?: { input_tokens: number; output_tokens: number };
   };
+  const durationMs = Date.now() - start;
+
+  // Track cost
+  if (json.usage) {
+    trackCost(model, json.usage.input_tokens, json.usage.output_tokens, durationMs, 'fact-extraction').catch(() => {});
+  }
+
   return json.content[0].text;
+}
+
+/**
+ * Use the Claude Code CLI for LLM calls when no API key is set.
+ * This uses the developer's Claude Code subscription instead of API credits.
+ */
+async function callClaudeCli(text: string): Promise<string> {
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const execFileAsync = promisify(execFile);
+
+  const prompt = `${EXTRACTION_PROMPT}\n\n${text}`;
+  const { stdout } = await execFileAsync('claude', ['-p', prompt, '--output-format', 'text'], {
+    timeout: 30_000,
+    env: { ...process.env },
+  });
+  return stdout.trim();
 }
 
 async function callOpenAI(model: string, text: string): Promise<string> {
