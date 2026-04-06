@@ -18,6 +18,12 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   );
   CREATE INDEX IF NOT EXISTS repos_owner_idx ON lore.repos (owner);
   CREATE INDEX IF NOT EXISTS repos_team_idx ON lore.repos (team);
+  -- PR outcome stats (Feature 1)
+  DO \$\$ BEGIN
+    ALTER TABLE lore.repos ADD COLUMN outcome_stats JSONB DEFAULT '{}';
+  EXCEPTION WHEN duplicate_column THEN NULL;
+  END \$\$;
+
   GRANT USAGE ON SCHEMA lore TO lore;
   GRANT ALL ON ALL TABLES IN SCHEMA lore TO lore;
   ALTER DEFAULT PRIVILEGES IN SCHEMA lore GRANT ALL ON TABLES TO lore;

@@ -19,6 +19,14 @@ export function setPipelinePool(p: Pool): void { pool = p; }
 
 // ── Task CRUD ────────────────────────────────────────────────────────
 
+// Trust level hierarchy — what task types each level allows
+const TRUST_LEVELS: Record<string, string[]> = {
+  docs: ['gap-fill', 'runbook'],
+  tests: ['gap-fill', 'runbook', 'review'],
+  implementation: ['gap-fill', 'runbook', 'review', 'implementation', 'feature-request', 'general'],
+  full: ['gap-fill', 'runbook', 'review', 'implementation', 'feature-request', 'general', 'onboard'],
+};
+
 export async function createTask(
   description: string,
   taskType: string = 'general',
@@ -26,15 +34,39 @@ export async function createTask(
   createdBy: string = 'ui',
   contextBundle?: any,
   priority: string = 'normal',
+  taskGroupId?: string,
 ): Promise<any> {
   const repo = targetRepo || getDefaultRepo(taskType);
   if (description.length > 10000) throw new Error('Description too long (max 10000 chars)');
+
+  // Check trust level for the target repo
+  if (repo) {
+    try {
+      const { rows: repoRows } = await getPool().query(
+        `SELECT settings FROM lore.repos WHERE full_name = $1`, [repo],
+      );
+      if (repoRows.length > 0) {
+        const settings = repoRows[0].settings || {};
+        const trustLevel = settings.trust?.level;
+        if (trustLevel && TRUST_LEVELS[trustLevel]) {
+          const allowed = TRUST_LEVELS[trustLevel];
+          if (!allowed.includes(taskType)) {
+            throw new Error(`Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(', ')}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.message.includes('not allowed at trust level')) throw err;
+      // Non-trust errors are non-fatal
+    }
+  }
+
   const resolvedPriority = priority === 'immediate' ? 'immediate' : 'normal';
   const { rows } = await getPool().query(
-    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id, status, priority, created_at`,
-    [description, taskType, repo, createdBy, contextBundle ? JSON.stringify(contextBundle) : null, resolvedPriority],
+    [description, taskType, repo, createdBy, contextBundle ? JSON.stringify(contextBundle) : null, resolvedPriority, taskGroupId || null],
   );
   const task = rows[0];
   await recordEvent(task.id, null, 'pending', { created_by: createdBy, priority: resolvedPriority });

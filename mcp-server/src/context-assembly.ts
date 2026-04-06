@@ -15,7 +15,7 @@ import { queryLiveGraph } from './graph.js';
 
 interface TemplateSection {
   header: string;
-  source: 'repo' | 'adrs' | 'memories' | 'graph' | 'episodes' | 'rules';
+  source: 'repo' | 'adrs' | 'memories' | 'graph' | 'episodes' | 'rules' | 'cross_repo' | 'incidents';
   priority: number;
   max_tokens?: number;
 }
@@ -187,6 +187,41 @@ const fetchers: Record<string, SourceFetcher> = {
       return '';
     }
   },
+  async cross_repo(pool, query, repo) {
+    if (!repo) return '';
+    try {
+      const { rows } = await pool.query(
+        `SELECT content, repo, file_path FROM org_shared.chunks
+         WHERE repo != $1 AND search_tsv @@ plainto_tsquery($2)
+         ORDER BY ts_rank(search_tsv, plainto_tsquery($2)) DESC LIMIT 5`,
+        [repo, query],
+      );
+      if (rows.length === 0) return '';
+      return rows.map((r: any) => `**[${r.repo}] ${r.file_path}**\n${r.content}`).join('\n\n---\n\n');
+    } catch {
+      return '';
+    }
+  },
+
+  async incidents(pool, _query, repo) {
+    if (!repo) return '';
+    try {
+      const { rows } = await pool.query(
+        `SELECT settings FROM lore.repos WHERE full_name = $1`, [repo],
+      );
+      const settings = rows[0]?.settings;
+      if (!settings?.incidents || !Array.isArray(settings.incidents) || settings.incidents.length === 0) return '';
+      // Filter to incidents from last 30 days
+      const cutoff = Date.now() - 30 * 86400000;
+      const recent = settings.incidents.filter((i: any) => new Date(i.date).getTime() > cutoff);
+      if (recent.length === 0) return '';
+      return recent.map((i: any) =>
+        `- **${i.severity || 'unknown'}**: ${i.title}${i.resolved ? ' (resolved)' : ''} — ${i.date}${i.url ? ` [link](${i.url})` : ''}`
+      ).join('\n');
+    } catch {
+      return '';
+    }
+  },
 };
 
 // ── Main assembly ───────────────────────────────────────────────────
@@ -198,13 +233,41 @@ export async function assembleContext(
   maxTokens: number = 16000,
   repo?: string,
   agentId?: string,
+  crossRepo?: boolean,
 ): Promise<{ text: string; sections: { header: string; tokens: number; truncated: boolean }[] }> {
   const template = getTemplate(templateName);
   const minTokens = Math.max(maxTokens, 2000);
 
+  // Check context freshness + first-run status
+  let freshnessWarning = '';
+  if (repo) {
+    try {
+      const { rows } = await pool.query(
+        `SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`, [repo],
+      );
+      if (rows.length === 0) {
+        // Repo not in DB at all — first-run
+        freshnessWarning = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`ingest_files\` to manually add specific files\n> 3. Call \`search_memory\` to check if others have left learnings\n\n`;
+      } else if (!rows[0].last_ingested_at) {
+        freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`ingest_files\` or wait for the nightly reindex.\n\n`;
+      } else {
+        const age = Date.now() - new Date(rows[0].last_ingested_at).getTime();
+        if (age > 7 * 86400000) {
+          const days = Math.floor(age / 86400000);
+          freshnessWarning = `> ⚠ **Context may be stale** — last ingested ${days} days ago.\n\n`;
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  // Filter out cross_repo source unless explicitly requested
+  const activeSections = template.sections.filter(s =>
+    s.source !== 'cross_repo' || crossRepo,
+  );
+
   // Fetch all sections in parallel
   const sectionResults = await Promise.all(
-    template.sections.map(async (section) => {
+    activeSections.map(async (section) => {
       const fetcher = fetchers[section.source];
       if (!fetcher) return { section, content: '' };
       try {
@@ -258,9 +321,10 @@ export async function assembleContext(
   }
 
   // Build the final text
-  const text = assembled
+  const body = assembled
     .map(s => `## ${s.header}\n\n${s.content}`)
     .join('\n\n---\n\n');
+  const text = freshnessWarning + body;
 
   const sections = assembled.map(s => ({
     header: s.header,

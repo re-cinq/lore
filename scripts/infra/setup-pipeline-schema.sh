@@ -109,6 +109,13 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
 
   CREATE INDEX IF NOT EXISTS api_tokens_hash_idx ON pipeline.api_tokens (token_hash) WHERE revoked_at IS NULL;
 
+  -- Task groups for multi-repo tasks (Feature 5)
+  DO \$\$ BEGIN
+    ALTER TABLE pipeline.tasks ADD COLUMN task_group_id UUID;
+  EXCEPTION WHEN duplicate_column THEN NULL;
+  END \$\$;
+  CREATE INDEX IF NOT EXISTS tasks_group_idx ON pipeline.tasks (task_group_id) WHERE task_group_id IS NOT NULL;
+
   GRANT USAGE ON SCHEMA pipeline TO lore;
   GRANT ALL ON ALL TABLES IN SCHEMA pipeline TO lore;
   ALTER DEFAULT PRIVILEGES IN SCHEMA pipeline GRANT ALL ON TABLES TO lore;

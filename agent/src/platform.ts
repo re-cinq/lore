@@ -107,6 +107,8 @@ export interface CodePlatform {
 
   // ── Merge status ──
   isPRMerged(repo: string, prNumber: number): Promise<boolean>;
+  isPRClosed(repo: string, prNumber: number): Promise<boolean>;
+  getPRStats(repo: string, prNumber: number): Promise<{ files_changed: number; additions: number; deletions: number; comments: number; merged_at: string | null; created_at: string }>;
 
   // ── Repo Config ──
   setRepoVariable(repo: string, name: string, value: string): Promise<void>;
