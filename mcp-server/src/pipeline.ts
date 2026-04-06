@@ -62,12 +62,26 @@ export async function createTask(
   }
 
   const resolvedPriority = priority === 'immediate' ? 'immediate' : 'normal';
-  const { rows } = await getPool().query(
-    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, status, priority, created_at`,
-    [description, taskType, repo, createdBy, contextBundle ? JSON.stringify(contextBundle) : null, resolvedPriority, taskGroupId || null],
-  );
+  const contextJson = contextBundle ? JSON.stringify(contextBundle) : null;
+  let rows: any[];
+  if (taskGroupId) {
+    // Only reference task_group_id column when a group is specified (column may not exist on older schemas)
+    const result = await getPool().query(
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, status, priority, created_at`,
+      [description, taskType, repo, createdBy, contextJson, resolvedPriority, taskGroupId],
+    );
+    rows = result.rows;
+  } else {
+    const result = await getPool().query(
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, status, priority, created_at`,
+      [description, taskType, repo, createdBy, contextJson, resolvedPriority],
+    );
+    rows = result.rows;
+  }
   const task = rows[0];
   await recordEvent(task.id, null, 'pending', { created_by: createdBy, priority: resolvedPriority });
   return { task_id: task.id, status: task.status, priority: task.priority, created_at: task.created_at };
