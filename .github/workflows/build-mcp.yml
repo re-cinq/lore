@@ -45,7 +45,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: mcp-server
+          context: .
+          file: mcp-server/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
