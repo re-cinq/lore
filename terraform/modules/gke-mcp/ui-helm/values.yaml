@@ -1,0 +1,43 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/re-cinq/lore-ui
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+service:
+  type: ClusterIP
+  port: 3000
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: 512Mi
+  requests:
+    cpu: "100m"
+    memory: 256Mi
+
+env:
+  LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
+  LORE_DB_PORT: "5432"
+  LORE_DB_NAME: lore
+  LORE_DB_USER: lore
+
+dbPasswordSecret:
+  name: lore-db-password
+  key: password
+
+githubAppSecret:
+  name: github-app-credentials
+  appIdKey: app-id
+  privateKeyKey: private-key
+  installationIdKey: installation-id
+
+oauthSecret:
+  name: lore-ui-oauth
+  clientIdKey: client-id
+  clientSecretKey: client-secret
+  nextauthSecretKey: nextauth-secret
