@@ -7,7 +7,9 @@
  * Degrades gracefully when PostgreSQL is unavailable.
  */
 
-let pool: any = null;
+import type { Pool } from "pg";
+
+let pool: Pool | null = null;
 
 const VERTEX_PROJECT = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
 const VERTEX_REGION = process.env.GCP_REGION || "europe-west1";
@@ -16,7 +18,12 @@ const VERTEX_MODEL = "text-embedding-005";
 // Schema allow-list to prevent SQL injection
 const VALID_SCHEMAS = new Set(["org_shared", "payments", "platform", "mobile", "data"]);
 
-export function setPool(pgPool: any): void {
+function getPool(): Pool {
+  if (!pool) throw new Error("Database not configured");
+  return pool;
+}
+
+export function setPool(pgPool: Pool): void {
   pool = pgPool;
 }
 
@@ -171,7 +178,7 @@ export async function hybridSearch(
     // Full hybrid search (vector + keyword)
     const embeddingStr = `[${embedding.join(",")}]`;
     const sql = buildHybridSearchSQL(schema);
-    const { rows } = await pool.query(sql, [embeddingStr, query, limit]);
+    const { rows } = await getPool().query(sql, [embeddingStr, query, limit]);
     return rows as SearchResult[];
   } else {
     // Fallback: keyword-only search (no embedding available)
@@ -183,7 +190,7 @@ export async function hybridSearch(
       WHERE search_tsv @@ plainto_tsquery($1)
       ORDER BY rrf_score DESC
       LIMIT $2;`;
-    const { rows } = await pool.query(sql, [query, limit]);
+    const { rows } = await getPool().query(sql, [query, limit]);
     return rows as SearchResult[];
   }
 }
@@ -204,7 +211,7 @@ export async function getContextFromDb(team: string): Promise<DocResult[]> {
     WHERE content_type IN ('doc')
     ${team !== "org_shared" ? "" : "AND FALSE"}
     ORDER BY 1;`;
-  const { rows } = await pool.query(sql);
+  const { rows } = await getPool().query(sql);
   return rows as DocResult[];
 }
 
@@ -223,7 +230,7 @@ export async function getAdrsFromDb(
       AND ($1 = '' OR content ILIKE '%' || $1 || '%')
       AND ($2 = '' OR content ILIKE '%' || $2 || '%')
     ORDER BY 1;`;
-  const { rows } = await pool.query(sql, [domain, status]);
+  const { rows } = await getPool().query(sql, [domain, status]);
   return rows as AdrResult[];
 }
 
@@ -240,6 +247,6 @@ export async function getFilePrHistory(
     WHERE content_type = 'pull_request'
       AND metadata->>'file_path' ILIKE '%' || $1 || '%'
     ORDER BY 1 DESC;`;
-  const { rows } = await pool.query(sql, [filePath]);
+  const { rows } = await getPool().query(sql, [filePath]);
   return rows as PrHistoryResult[];
 }

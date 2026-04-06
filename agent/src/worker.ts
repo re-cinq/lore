@@ -11,6 +11,7 @@ import { platform } from "./platform.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
 import { writeEpisode } from "./lib/episode-writer.js";
+import type { PipelineTask } from "@re-cinq/lore-shared";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -119,7 +120,7 @@ async function pollOnce(): Promise<void> {
   // Pick up tasks by priority:
   // - 'immediate': no grace period, executed right away
   // - 'normal': 30-second grace period for local runners to claim first
-  const task = await query<any>(
+  const task = await query<PipelineTask>(
     `SELECT * FROM pipeline.tasks
      WHERE status = 'pending'
        AND status != 'running-local'
