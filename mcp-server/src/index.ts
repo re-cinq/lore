@@ -932,11 +932,15 @@ server.tool(
         return { content: [{ type: "text" as const, text: "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure." }] };
       }
 
-      // Get the latest commit SHA for the repo
+      // Get the latest commit SHA — only use local HEAD if repo matches
       let commit = "HEAD";
       try {
         const { execSync } = await import("node:child_process");
-        commit = execSync("git rev-parse HEAD", { encoding: "utf-8", timeout: 5000 }).trim();
+        const localRepo = detectCurrentRepo();
+        if (localRepo === resolvedRepo) {
+          commit = execSync("git rev-parse HEAD", { encoding: "utf-8", timeout: 5000 }).trim();
+        }
+        // For other repos, "HEAD" tells GitHub to use the default branch
       } catch {}
 
       const res = await fetch(`${apiUrl}/api/ingest`, {
@@ -1383,11 +1387,12 @@ async function main() {
         req.on("end", async () => {
           try {
             const { files, repo, commit } = JSON.parse(body);
-            if (!Array.isArray(files) || !repo || !commit) {
-              res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "required: files (array), repo (string), commit (string)" }));
+            if (!Array.isArray(files) || !repo) {
+              res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "required: files (array of paths or {path,content}), repo (string)" }));
               return;
             }
-            const result = await ingestFiles(dbPoolRef, files, repo, commit);
+            // Default commit to HEAD if not provided (lets GitHub resolve default branch)
+            const result = await ingestFiles(dbPoolRef, files, repo, commit || "HEAD");
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
           } catch (err: any) {
             console.error("[ingest] API error:", err.message);

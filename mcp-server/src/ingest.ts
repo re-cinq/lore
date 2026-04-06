@@ -54,22 +54,31 @@ async function resolveSchema(pool: any, repo: string): Promise<string> {
   return 'org_shared';
 }
 
+export type IngestFile = string | { path: string; content: string };
+
 export async function ingestFiles(
   pool: any,
-  files: string[],
+  files: IngestFile[],
   repo: string,
   commit: string,
 ): Promise<{ ingested: number; deleted: number; errors: number; schema: string; results: IngestResult[] }> {
-  if (!isConfigured()) {
-    throw new Error('GitHub App not configured — cannot fetch file content');
-  }
-
-  const octokit = await getOctokit();
-  const [owner, repoName] = repo.split('/');
   const schema = await resolveSchema(pool, repo);
 
   if (!SCHEMA_RE.test(schema)) {
     throw new Error(`Invalid schema name: ${schema}`);
+  }
+
+  // Determine if we need GitHub access (only for path-based files)
+  const needsGitHub = files.some((f) => typeof f === 'string');
+  let octokit: any;
+  let owner = '';
+  let repoName = '';
+  if (needsGitHub) {
+    if (!isConfigured()) {
+      throw new Error('GitHub App not configured — cannot fetch file content');
+    }
+    octokit = await getOctokit();
+    [owner, repoName] = repo.split('/');
   }
 
   const results: IngestResult[] = [];
@@ -77,32 +86,39 @@ export async function ingestFiles(
   let deleted = 0;
   let errors = 0;
 
-  for (const filePath of files) {
+  for (const fileEntry of files) {
+    const filePath = typeof fileEntry === 'string' ? fileEntry : fileEntry.path;
     try {
-      // Check if file was deleted in this commit
       let content: string | null = null;
-      try {
-        const { data } = await octokit.rest.repos.getContent({
-          owner,
-          repo: repoName,
-          path: filePath,
-          ref: commit,
-        });
-        if ('content' in data) {
-          content = Buffer.from(data.content, 'base64').toString('utf-8');
+
+      if (typeof fileEntry !== 'string' && fileEntry.content) {
+        // Content provided directly — no GitHub fetch needed
+        content = fileEntry.content;
+      } else {
+        // Fetch from GitHub
+        try {
+          const { data } = await octokit.rest.repos.getContent({
+            owner,
+            repo: repoName,
+            path: filePath,
+            ref: commit,
+          });
+          if ('content' in data) {
+            content = Buffer.from(data.content, 'base64').toString('utf-8');
+          }
+        } catch (err: any) {
+          if (err.status === 404) {
+            // File was deleted — remove from chunks
+            await pool.query(
+              `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
+              [filePath, repo],
+            );
+            results.push({ file: filePath, status: 'deleted' });
+            deleted++;
+            continue;
+          }
+          throw err;
         }
-      } catch (err: any) {
-        if (err.status === 404) {
-          // File was deleted — remove from chunks
-          await pool.query(
-            `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-            [filePath, repo],
-          );
-          results.push({ file: filePath, status: 'deleted' });
-          deleted++;
-          continue;
-        }
-        throw err;
       }
 
       if (!content) {
