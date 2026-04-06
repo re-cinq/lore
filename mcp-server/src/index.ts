@@ -170,19 +170,25 @@ server.tool(
 
 // --- Memory proxy helper (for local mode without DB) ---
 
-async function proxyMemory(action: string, params: Record<string, any>): Promise<string | null> {
+// --- API proxy helper (for local mode without DB) ---
+
+async function proxyToApi(endpoint: string, body: Record<string, any>): Promise<string | null> {
   const apiUrl = process.env.LORE_API_URL;
   const apiToken = process.env.LORE_INGEST_TOKEN;
   if (!apiUrl || !apiToken) return null;
   try {
-    const res = await fetch(`${apiUrl}/api/memory`, {
+    const res = await fetch(`${apiUrl}${endpoint}`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ action, ...params }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) return null;
     return JSON.stringify(await res.json());
   } catch { return null; }
+}
+
+function proxyMemory(action: string, params: Record<string, any>): Promise<string | null> {
+  return proxyToApi("/api/memory", { action, ...params });
 }
 
 // --- Memory tools ---
@@ -349,7 +355,12 @@ server.tool(
   async ({ content, source, ref, agent_id }) => {
     try {
       if (!isMemoryDbAvailable()) {
-        return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL (LORE_DB_HOST not set)." }] };
+        // Proxy to GKE
+        const proxied = await proxyToApi("/api/episode", {
+          content, source, ref, agent_id: agent_id || resolveAgentId(),
+        });
+        if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+        return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL or LORE_API_URL. Neither is configured." }] };
       }
       const agent = resolveAgentId(agent_id);
       // Privacy filter: strip secrets before storing in org-wide memory
@@ -488,7 +499,26 @@ server.tool(
     return trackLatency('assemble_context', async () => {
       try {
         if (!isMemoryDbAvailable()) {
-          return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL (LORE_DB_HOST not set)." }] };
+          // Proxy to GKE
+          const apiUrl = process.env.LORE_API_URL;
+          const apiToken = process.env.LORE_INGEST_TOKEN;
+          if (apiUrl && apiToken) {
+            try {
+              const resolvedRepo = repo || detectCurrentRepo() || "";
+              const params = new URLSearchParams({ query, template, repo: resolvedRepo });
+              const res = await fetch(`${apiUrl}/api/context?${params}`, {
+                headers: { "Authorization": `Bearer ${apiToken}` },
+              });
+              if (res.ok) {
+                const data = await res.json() as any;
+                if (data.text) {
+                  const meta = `<!-- context: proxied from GKE, template=${template} -->\n\n`;
+                  return { content: [{ type: "text" as const, text: meta + data.text }] };
+                }
+              }
+            } catch { /* fall through */ }
+          }
+          return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
         }
         const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id);
         if (!result.text) {
