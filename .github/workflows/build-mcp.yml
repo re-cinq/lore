@@ -59,6 +59,8 @@ jobs:
       id-token: write
 
     steps:
+      - uses: actions/checkout@v5
+
       - name: Auth to GCP
         uses: google-github-actions/auth@v3
         with:
@@ -72,11 +74,16 @@ jobs:
           location: europe-west1
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
-      - name: Deploy with SHA tag
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm upgrade
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}"
-          kubectl set image deployment/lore-mcp mcp=$IMAGE -n mcp-servers
-          kubectl rollout status deployment/lore-mcp -n mcp-servers --timeout=120s
+          helm upgrade --install lore-mcp ./terraform/modules/gke-mcp/mcp-helm \
+            --namespace mcp-servers \
+            --set image.tag=${{ needs.build.outputs.image_tag }} \
+            --reuse-values \
+            --wait --timeout 2m
 
   smoke:
     needs: deploy

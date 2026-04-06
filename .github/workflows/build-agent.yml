@@ -56,6 +56,8 @@ jobs:
       id-token: write
 
     steps:
+      - uses: actions/checkout@v5
+
       - name: Auth to GCP
         uses: google-github-actions/auth@v3
         with:
@@ -69,12 +71,22 @@ jobs:
           location: europe-west1
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
-      - name: Deploy with SHA tag
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm upgrade agent
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}"
-          kubectl set image deployment/lore-agent agent=$IMAGE -n lore-agent
-          kubectl set image deployment/loretask-controller controller=$IMAGE -n lore-agent
-          kubectl rollout status deployment/lore-agent -n lore-agent --timeout=120s
+          helm upgrade --install lore-agent ./terraform/modules/gke-mcp/agent-helm \
+            --namespace lore-agent \
+            --set image.tag=${{ needs.build.outputs.image_tag }} \
+            --reuse-values \
+            --wait --timeout 2m
+
+      - name: Update controller image
+        run: |
+          kubectl set image deployment/loretask-controller \
+            controller=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }} \
+            -n lore-agent
           kubectl rollout status deployment/loretask-controller -n lore-agent --timeout=60s
 
   smoke:
