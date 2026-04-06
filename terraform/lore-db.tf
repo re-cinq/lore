@@ -1,14 +1,16 @@
 # ---------------------------------------------------------------------------
-# PostgreSQL (CNPG) — database, backup, plugin, scheduled backup
+# PostgreSQL (CNPG) — database, backup plugin, scheduled backup
 #
-# The CNPG operator is shared with the n8n namespace (installed separately).
-# This file manages:
+# The CNPG operator runs in the n8n namespace (shared). This file manages:
 #   - lore-db namespace
-#   - CNPG Cluster CR (PostgreSQL + pgvector)
-#   - Barman Cloud plugin for backups
+#   - CNPG Cluster CR (PostgreSQL 16 + pgvector)
+#   - ObjectStore CR (GCS via Workload Identity, barman-cloud plugin)
 #   - GCS backup bucket + service account + Workload Identity
-#   - ScheduledBackup CR (daily, 7d retention)
-#   - ObjectStore CR (GCS via Workload Identity)
+#   - ScheduledBackup CR (daily 2AM, 7d retention, plugin method)
+#
+# The barman-cloud plugin is installed manually in the operator namespace:
+#   curl -sL https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.11.0/manifest.yaml | \
+#     sed 's/namespace: cnpg-system/namespace: n8n/g' | kubectl apply -f -
 # ---------------------------------------------------------------------------
 
 # ── Namespace ───────────────────────────────────────────────────────
@@ -62,19 +64,29 @@ resource "google_service_account_iam_member" "db_backup_wi" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-db/lore-db]"
 }
 
-# ── Barman Cloud plugin (manual install) ────────────────────────────
-# The barman-cloud plugin is installed manually because the upstream
-# manifest contains CRDs, RBAC, certs, and a deployment that can't
-# be managed as a single Terraform resource.
-#
-# Install/upgrade:
-#   kubectl apply -f https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.11.0/manifest.yaml
-#
-# Once installed, migrate from barman to plugin by:
-# 1. Creating an ObjectStore CR (barmancloud.cnpg.io/v1)
-# 2. Updating the Cluster spec to use plugins instead of backup.barmanObjectStore
-# 3. Updating ScheduledBackup to method: plugin
-# See: https://cloudnative-pg.io/plugin-barman-cloud/docs/next/migration/
+# ── ObjectStore (barman-cloud plugin) ───────────────────────────────
+
+resource "kubectl_manifest" "lore_db_objectstore" {
+  yaml_body = yamlencode({
+    apiVersion = "barmancloud.cnpg.io/v1"
+    kind       = "ObjectStore"
+    metadata = {
+      name      = "lore-db-backup"
+      namespace = "lore-db"
+    }
+    spec = {
+      configuration = {
+        destinationPath = "gs://${google_storage_bucket.db_backups.name}/lore-db"
+        googleCredentials = {
+          gkeEnvironment = true
+        }
+      }
+      retentionPolicy = "7d"
+    }
+  })
+
+  depends_on = [kubernetes_namespace.lore_db]
+}
 
 # ── CNPG Cluster ────────────────────────────────────────────────────
 
@@ -147,6 +159,14 @@ resource "kubectl_manifest" "lore_db_cluster" {
         }
       }
 
+      plugins = [{
+        name          = "barman-cloud.cloudnative-pg.io"
+        isWALArchiver = true
+        parameters = {
+          barmanObjectName = "lore-db-backup"
+        }
+      }]
+
       storage = {
         size = "50Gi"
       }
@@ -165,16 +185,6 @@ resource "kubectl_manifest" "lore_db_cluster" {
       postgresql = {
         shared_preload_libraries = ["vector"]
       }
-
-      backup = {
-        barmanObjectStore = {
-          destinationPath = "gs://${google_storage_bucket.db_backups.name}/lore-db"
-          googleCredentials = {
-            gkeEnvironment = true
-          }
-        }
-        retentionPolicy = "7d"
-      }
     }
   })
 
@@ -183,10 +193,11 @@ resource "kubectl_manifest" "lore_db_cluster" {
   depends_on = [
     kubernetes_namespace.lore_db,
     kubectl_manifest.lore_db_credentials,
+    kubectl_manifest.lore_db_objectstore,
   ]
 }
 
-# ── Scheduled backup ────────────────────────────────────────────────
+# ── Scheduled backup (plugin method) ───────────────────────────────
 
 resource "kubectl_manifest" "lore_db_scheduled_backup" {
   yaml_body = yamlencode({
@@ -202,7 +213,10 @@ resource "kubectl_manifest" "lore_db_scheduled_backup" {
       cluster = {
         name = "lore-db"
       }
-      method = "barmanObjectStore"
+      method = "plugin"
+      pluginConfiguration = {
+        name = "barman-cloud.cloudnative-pg.io"
+      }
     }
   })
 

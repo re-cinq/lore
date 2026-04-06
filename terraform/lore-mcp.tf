@@ -35,6 +35,10 @@ resource "helm_release" "lore_mcp" {
     value = "platform"
   }
   set {
+    name  = "env.GCP_PROJECT"
+    value = var.project_id
+  }
+  set {
     name  = "env.LORE_DB_HOST"
     value = "lore-db-rw.lore-db.svc.cluster.local"
   }
