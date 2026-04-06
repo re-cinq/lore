@@ -110,6 +110,9 @@ Key capabilities:
 - **Pre-run hydration** — both local runner and GKE entrypoint fetch assembled context before spawning Claude Code, so agents start with rich context on turn 1
 - **Passive session capture** — MCP server tracks all tool calls; on session exit, dumps and POSTs a summary as an episode with automatic fact extraction. No explicit `write_episode` needed.
 - **Post-task auto-curation** — every task completion (PR, no-changes, failure) automatically captures an episode. High-signal events get Haiku-driven lesson extraction stored as searchable memories.
+- **Importance-based decay** — memories scored 0-10 by recency, content quality, and key pattern. Low-value entries auto-evicted when agent exceeds 500 memories. Old invalidated facts cleaned up beyond 2000 cap.
+- **Automatic consolidation** — groups recent facts by repo and synthesizes higher-level patterns via Haiku. Turns noisy raw facts into actionable insights.
+- **Privacy filtering** — secrets, API keys, JWTs, and connection strings automatically stripped before storing in org-wide memory.
 - **Retrieval benchmarks** — p50/p95/p99 latency tracked per tool in the audit log, visible in the analytics dashboard
 
 ### Repo Onboarding
@@ -141,6 +144,8 @@ After the PR is merged, the agent automatically configures ingest secrets so con
 | Eval runner | Daily 3 AM | Run PromptFoo evals for all teams, detect quality regressions |
 | Context core builder | Daily 4 AM | Compare context quality to baseline, promote improvements |
 | LoreTask watcher | Every 60s | Poll completed LoreTasks: create PRs, trigger auto-review, handle review results, clean up |
+| Importance decay | Daily 5 AM | Score memories by importance, evict low-value entries above cap, clean up old invalidated facts |
+| Consolidation | Daily 5:30 AM | Group recent facts by repo, extract higher-level patterns via Haiku, store as consolidated memories |
 | Autoresearch | Monday 6 AM | Find low-confidence queries from Langfuse, generate context candidates, open PRs |
 
 ## Getting Started

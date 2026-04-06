@@ -74,6 +74,7 @@ gcloud auth for local dev.
 - `mcp-server/src/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
 - `scripts/slack-app-manifest.yaml` — Slack app manifest for /lore slash command
 - `agent/src/lib/episode-writer.ts` — shared episode writer with Haiku-driven auto-curation
+- `agent/src/jobs/memory-lifecycle.ts` — importance decay (eviction) + fact consolidation (pattern extraction)
 - `mcp-server/src/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
 - `evals/` — PromptFoo eval configs per team
 
@@ -275,6 +276,20 @@ no-changes, failure), an episode is automatically written via
 `episode-writer.ts`. For high-signal events (PRs, failures), Haiku
 extracts a "lesson learned" and stores it as a memory entry
 (`auto-curation/{ref}`).
+
+**Importance-based memory decay**: Daily job scores memories 0-10
+based on recency, content length, and key pattern. Evicts lowest-
+scoring when agent exceeds 500 memories. Also cleans up invalidated
+facts older than 30 days beyond 2000 cap.
+
+**Automatic consolidation**: Daily job groups recent facts (7-day
+lookback) by repo and calls Haiku to extract higher-level patterns.
+Stored as `consolidated/{repo}/{timestamp}` memories.
+
+**Privacy filtering**: All memory writes (episodes, memories) pass
+through `sanitizeContent()` / `redactSecrets()` to strip API keys,
+JWTs, private keys, connection strings, and bearer tokens before
+storage in the org-wide database.
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
 - After implementation PR is created, watcher auto-creates a review
