@@ -80,10 +80,22 @@ export async function searchMemories(
   // Merge via RRF
   const merged = rrfMerge(vectorMemories, vectorFacts, keywordMemories, keywordFacts);
 
-  // Sort descending by score and apply limit
-  let results = merged
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+  // Sort descending by score, apply session diversification, then limit.
+  // Session diversification: cap at MAX_PER_SOURCE results from any single
+  // source key (agent_id + source combo) to prevent one verbose session
+  // from dominating search results. Inspired by agentmemory.
+  const MAX_PER_SOURCE = 3;
+  const sorted = merged.sort((a, b) => b.score - a.score);
+  const sourceCounts = new Map<string, number>();
+  let results: MemorySearchResult[] = [];
+  for (const r of sorted) {
+    const sourceKey = `${r.agent_id}::${r.source}`;
+    const count = sourceCounts.get(sourceKey) || 0;
+    if (count >= MAX_PER_SOURCE) continue;
+    sourceCounts.set(sourceKey, count + 1);
+    results.push(r);
+    if (results.length >= limit) break;
+  }
 
   // Graph augmentation: enrich results with 1-hop graph neighbors
   if (graphAugmentEnabled && results.length > 0) {

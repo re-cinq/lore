@@ -10,6 +10,7 @@
 import { createHash } from "node:crypto";
 import { query } from "../db.js";
 import { callLLM } from "../anthropic.js";
+import { redactSecrets } from "./redact.js";
 
 /**
  * Write an episode to memory.episodes. Fire-and-forget — never throws.
@@ -22,13 +23,15 @@ export async function writeEpisode(
   agentId: string = "loretask-watcher",
 ): Promise<string | null> {
   try {
-    const contentHash = createHash("sha256").update(content).digest("hex");
+    // Privacy filter: strip secrets/keys before storing in org-wide memory
+    const safeContent = redactSecrets(content);
+    const contentHash = createHash("sha256").update(safeContent).digest("hex");
     const rows = await query<{ id: string }>(
       `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (agent_id, content_hash) DO NOTHING
        RETURNING id`,
-      [agentId, content, contentHash, source, ref],
+      [agentId, safeContent, contentHash, source, ref],
     );
     return rows[0]?.id || null;
   } catch {
