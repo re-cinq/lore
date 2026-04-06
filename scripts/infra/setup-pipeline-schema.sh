@@ -24,7 +24,8 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     failure_reason   TEXT,
     created_by       TEXT NOT NULL DEFAULT 'ui',
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    priority         TEXT NOT NULL DEFAULT 'normal'
   );
 
   CREATE INDEX IF NOT EXISTS tasks_status_idx ON pipeline.tasks (status);

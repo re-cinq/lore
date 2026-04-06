@@ -72,7 +72,8 @@ jobs:
               claimed_at       TIMESTAMPTZ,
               issue_number     INT,
               issue_url        TEXT,
-              actor            TEXT
+              actor            TEXT,
+              priority         TEXT NOT NULL DEFAULT 'normal'
             );
             CREATE INDEX IF NOT EXISTS tasks_status_idx ON pipeline.tasks (status);
             CREATE INDEX IF NOT EXISTS tasks_created_idx ON pipeline.tasks (created_at DESC);
