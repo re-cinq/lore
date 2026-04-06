@@ -1,4 +1,4 @@
-# Feature Specification: LoreTask CRD — Ephemeral Claude Code Execution
+# LoreTask CRD + Controller: Ephemeral Claude Code Execution
 
 | Field          | Value                                    |
 |----------------|------------------------------------------|
