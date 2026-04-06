@@ -554,18 +554,19 @@ server.tool(
 
 server.tool(
   "create_pipeline_task",
-  "Delegate a task to the Lore Agent on GKE. The agent picks it up, calls an LLM, and creates a PR. Available types: feature-request (PM intent → spec + tasks), onboard (add repo to Lore), general (open-ended), runbook (write ops runbook), implementation (code from spec), gap-fill (draft missing docs), review (review a PR).",
+  "Create a pipeline task. By default tasks go to the backlog (priority=normal) for developers to pick up locally. Set priority=immediate to have the GKE agent auto-execute it. Available types: feature-request (PM intent → spec + tasks), onboard (add repo to Lore), general (open-ended), runbook (write ops runbook), implementation (code from spec), gap-fill (draft missing docs), review (review a PR).",
   {
     description: z.string().describe("What should the agent do? Be specific — this is the primary instruction. For feature-request: describe the feature in plain language. For onboard: just the repo name."),
     task_type: z.string().default("general").describe('Task type: "feature-request", "onboard", "general", "runbook", "implementation", "gap-fill", "review".'),
     target_repo: z.string().optional().describe('Target GitHub repository in "owner/repo" format. Auto-detected from git remote if omitted.'),
+    priority: z.enum(["normal", "immediate"]).default("normal").describe('Task priority. "normal" = backlog (developers pick up locally). "immediate" = GKE agent auto-executes.'),
     context: z.object({
       spec_file: z.boolean().optional(),
       branch: z.string().optional(),
       seed_query: z.string().optional(),
     }).optional().describe("Additional context to pass to the agent."),
   },
-  async ({ description: desc, task_type, target_repo, context }) => {
+  async ({ description: desc, task_type, target_repo, priority, context }) => {
     try {
       if (!desc || !desc.trim()) {
         return { content: [{ type: "text" as const, text: "description is required and cannot be empty" }] };
@@ -584,21 +585,27 @@ server.tool(
         const res = await fetch(`${apiUrl}/api/task`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ description: desc, task_type, target_repo: resolvedRepo, context }),
+          body: JSON.stringify({ description: desc, task_type, target_repo: resolvedRepo, priority, context }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: res.statusText }));
           return { content: [{ type: "text" as const, text: `Remote task creation failed: ${(err as any).error || res.statusText}` }] };
         }
         const result = await res.json() as any;
-        const msg = `Task created: ${result.task_id}\nType: ${task_type}\nRepo: ${resolvedRepo || 'default'}\n\nThe agent will pick this up within 30 seconds. A GitHub Issue will be created on the repo, and a PR will follow when the agent finishes. Check status with get_pipeline_status or list_pipeline_tasks.`;
+        const pickupMsg = priority === "immediate"
+          ? "The GKE agent will pick this up within 30 seconds."
+          : "Task added to backlog. Claim it locally with claim_and_run_locally, or set priority to immediate via the UI.";
+        const msg = `Task created: ${result.task_id}\nType: ${task_type}\nPriority: ${priority}\nRepo: ${resolvedRepo || 'default'}\n\n${pickupMsg}`;
         return { content: [{ type: "text" as const, text: msg }] };
       }
 
       const validTypes = getTaskTypes();
       const resolvedType = validTypes.includes(task_type) ? task_type : "general";
-      const result = await createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined);
-      const msg = `Task created: ${result.task_id}\nType: ${resolvedType}\nRepo: ${resolvedRepo || 'default'}\n\nThe agent will pick this up within 30 seconds. A GitHub Issue will be created on the repo, and a PR will follow when the agent finishes. Check status with get_pipeline_status or list_pipeline_tasks.`;
+      const result = await createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority);
+      const pickupMsg = priority === "immediate"
+        ? "The GKE agent will pick this up within 30 seconds."
+        : "Task added to backlog. Claim it locally with claim_and_run_locally, or set priority to immediate via the UI.";
+      const msg = `Task created: ${result.task_id}\nType: ${resolvedType}\nPriority: ${priority}\nRepo: ${resolvedRepo || 'default'}\n\n${pickupMsg}`;
       return { content: [{ type: "text" as const, text: msg }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error creating pipeline task: ${err.message}` }] };
@@ -1576,15 +1583,26 @@ async function main() {
               return;
             }
 
+            // Set priority action
+            if (parsed.action === "set-priority" && parsed.task_id && parsed.priority) {
+              const resolvedPriority = parsed.priority === "immediate" ? "immediate" : "normal";
+              await dbPoolRef.query(
+                `UPDATE pipeline.tasks SET priority = $1, updated_at = now() WHERE id = $2 AND status = 'pending'`,
+                [resolvedPriority, parsed.task_id],
+              );
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ ok: true, task_id: parsed.task_id, priority: resolvedPriority }));
+              return;
+            }
+
             // Create action (default)
-            const { description, task_type, target_repo, context } = parsed;
+            const { description, task_type, target_repo, priority, context } = parsed;
             if (!description?.trim()) {
               res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "description is required" }));
               return;
             }
             const validTypes = getTaskTypes();
             const resolvedType = validTypes.includes(task_type || "") ? task_type : "general";
-            const result = await createTask(description, resolvedType, target_repo, "remote-mcp", context || undefined);
+            const result = await createTask(description, resolvedType, target_repo, "remote-mcp", context || undefined, priority || "normal");
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
           } catch (err: any) {
             console.error("[api/task] error:", err.message);
@@ -1917,14 +1935,33 @@ async function main() {
           if (!commandText) {
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
               response_type: "ephemeral",
-              text: "Usage: `/lore [task_type] <description>`\nTask types: general, implementation, runbook, gap-fill, review",
+              text: "Usage: `/lore [task_type] <description>`\nTask types: general, implementation, runbook, gap-fill, review\n\nRetry a failed task: `/lore retry <task_id>`",
             }));
+            return;
+          }
+
+          // Handle retry command: /lore retry <task_id>
+          const words = commandText.split(/\s+/);
+          if (words[0] === "retry" && words[1]) {
+            const retryTaskId = words[1];
+            try {
+              const { retryTask } = await import('./pipeline.js');
+              const retryResult = await retryTask(retryTaskId);
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+                response_type: "in_channel",
+                text: `Retrying task \`${retryTaskId}\`\nNew task: \`${retryResult.task_id}\``,
+              }));
+            } catch (err: any) {
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+                response_type: "ephemeral",
+                text: `Retry failed: ${err.message}`,
+              }));
+            }
             return;
           }
 
           // Parse task type from first word if it matches a known type
           const knownTypes = ["general", "implementation", "runbook", "gap-fill", "review", "feature-request"];
-          const words = commandText.split(/\s+/);
           let taskType = "general";
           let description = commandText;
           if (words.length > 1 && knownTypes.includes(words[0])) {
