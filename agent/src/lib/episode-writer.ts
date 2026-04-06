@@ -67,7 +67,7 @@ export async function writeEpisodeWithCuration(
     });
 
     const lesson = result.text.trim();
-    if (!lesson || lesson === "SKIP" || lesson.length < 10) return;
+    if (!lesson || lesson.startsWith("SKIP") || lesson.length < 10) return;
 
     // Store as a memory entry
     const key = `auto-curation/${ref.replace(/[^a-zA-Z0-9\-\/]/g, "_")}`;
