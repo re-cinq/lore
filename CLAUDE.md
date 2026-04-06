@@ -216,8 +216,9 @@ up the repo's content. Repos table: lore.repos.
 
 Tasks created via UI, MCP, or PR trigger agents on GKE.
 Pipeline tools: create_pipeline_task, get_pipeline_status,
-list_pipeline_tasks, cancel_task, retry_task. Local runner tools:
-run_task_locally, list_local_tasks, cancel_local_task.
+list_pipeline_tasks, cancel_task, retry_task, list_task_group,
+get_task_logs, my_usage. Local runner tools: run_task_locally,
+list_local_tasks, cancel_local_task.
 Task types configured in
 scripts/task-types.yaml:
 
@@ -305,6 +306,46 @@ ops, 200/min other (in-memory sliding window). 1MB body size limit.
 **Job pod security**: Pods run as non-root (uid 1000), drop all
 Linux capabilities, disallow privilege escalation. NetworkPolicy
 restricts egress to DNS + HTTPS + internal Lore API only.
+
+**Context freshness**: `assemble_context` warns when repo context
+is stale (>7 days since last ingest) or missing (first-run welcome
+with suggested actions). Statusline shows `⚠ stale` indicator.
+`/api/repo-status` includes `last_ingested_at` and `stale` flag.
+
+**Cross-repo context**: Repos can link to specific other repos via
+`settings.cross_repo_repos` (configured in settings UI). When
+enabled, `assemble_context` searches the linked repos for relevant
+context. Links are bidirectional — adding repo B from repo A's
+settings auto-adds repo A to repo B's list.
+
+**Per-repo customization**: `settings.task_overrides` allows per-repo
+overrides for any task type: `model`, `timeout_minutes`,
+`system_prompt_suffix`, `review_required`. Merged with global
+`task-types.yaml` at task creation time. Repo overrides win.
+
+**Progressive trust**: `settings.trust.level` controls which task
+types are allowed per repo: docs (gap-fill/runbook), tests (+review),
+implementation (+implementation/feature-request/general), full (all).
+Auto-promotes after 3 successful merges at current level. Defaults
+to `implementation` for backward compatibility.
+
+**Task groups**: `task_group_id` on pipeline tasks coordinates
+multi-repo features. `create_pipeline_task` accepts `group_id`.
+`list_task_group` tool shows all tasks in a group with completion
+status. When all tasks in a group merge, a summary episode is written.
+
+**PR outcome feedback**: `merge-check` job captures PR stats on
+merge (files changed, time to merge, review comments) and writes
+curated episodes. Detects closed-without-merge as rejection signal.
+Tracks aggregate `outcome_stats` per repo.
+
+**Production awareness**: `settings.incidents` array (populated via
+`/api/webhook/incident` for PagerDuty/Opsgenie) surfaces recent
+incidents in `assemble_context` at priority 1.
+
+**Developer tools**: `get_task_logs` MCP tool reads task logs from
+GCS (no UI needed). `my_usage` shows per-developer cost breakdown
+(today/7-day/30-day).
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
 - After implementation PR is created, watcher auto-creates a review
