@@ -20,6 +20,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
 
     steps:
       - uses: actions/checkout@v5
@@ -31,12 +33,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
           context: web-ui
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   deploy:
     needs: build
@@ -60,8 +72,11 @@ jobs:
           location: europe-west1
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
-      - name: Restart deployment
-        run: kubectl rollout restart deployment/lore-ui -n lore-ui
+      - name: Deploy with SHA tag
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}"
+          kubectl set image deployment/lore-ui ui=$IMAGE -n lore-ui
+          kubectl rollout status deployment/lore-ui -n lore-ui --timeout=120s
 
   smoke:
     needs: deploy
