@@ -1,5 +1,6 @@
 import { query } from "../db.js";
 import { platform } from "../platform.js";
+import { writeEpisodeWithCuration } from "../lib/episode-writer.js";
 
 interface PendingRepo {
   id: string;
@@ -60,15 +61,16 @@ export async function mergeCheckJob(): Promise<string> {
   }
 
   // Also check pipeline tasks with PRs that might have been merged
-  const tasks = await query<{ id: string; target_repo: string; pr_url: string; pr_number: number; issue_number: number | null }>(
-    `SELECT id, target_repo, pr_url, pr_number, issue_number
+  const tasks = await query<{ id: string; target_repo: string; pr_url: string; pr_number: number; issue_number: number | null; task_type: string; description: string; created_at: string }>(
+    `SELECT id, target_repo, pr_url, pr_number, issue_number, task_type, description, created_at
      FROM pipeline.tasks
-     WHERE status = 'pr-created'
+     WHERE status IN ('pr-created', 'review')
        AND pr_number IS NOT NULL
        AND pr_url IS NOT NULL`,
   );
 
   let tasksMerged = 0;
+  let tasksClosed = 0;
   for (const task of tasks) {
     try {
       const merged = await platform().isPRMerged(task.target_repo, task.pr_number);
@@ -88,13 +90,78 @@ export async function mergeCheckJob(): Promise<string> {
             await platform().closeIssue(task.target_repo, task.issue_number, "completed");
           } catch { /* best effort */ }
         }
+        // Capture PR outcome as episode for learning
+        try {
+          const stats = await platform().getPRStats(task.target_repo, task.pr_number);
+          const timeToMerge = stats.merged_at
+            ? Math.round((new Date(stats.merged_at).getTime() - new Date(stats.created_at).getTime()) / 3600000)
+            : null;
+          const episode = `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.\nFiles changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}\nReview comments: ${stats.comments}\nTime to merge: ${timeToMerge}h\nDescription: ${task.description.substring(0, 200)}`;
+          await writeEpisodeWithCuration(episode, "ci", `${task.target_repo}/${task.id}`, "merge-check", task.id);
+          // Update repo outcome_stats
+          await query(
+            `UPDATE lore.repos SET outcome_stats = jsonb_set(
+               jsonb_set(
+                 jsonb_set(COALESCE(outcome_stats, '{}'), '{merged_count}', to_jsonb(COALESCE((outcome_stats->>'merged_count')::int, 0) + 1)),
+                 '{total_files_changed}', to_jsonb(COALESCE((outcome_stats->>'total_files_changed')::int, 0) + $2)),
+               '{total_hours_to_merge}', to_jsonb(COALESCE((outcome_stats->>'total_hours_to_merge')::int, 0) + $3))
+             WHERE full_name = $1`,
+            [task.target_repo, stats.files_changed, timeToMerge || 0],
+          );
+        } catch { /* outcome capture is best-effort */ }
+        // Progressive trust: auto-promote after N successful merges
+        try {
+          const trustLevels = ["docs", "tests", "implementation", "full"];
+          const repoRows = await query<{ settings: any }>(
+            `SELECT settings FROM lore.repos WHERE full_name = $1`, [task.target_repo],
+          );
+          if (repoRows.length > 0) {
+            const settings = repoRows[0].settings || {};
+            const trust = settings.trust;
+            if (trust?.level && trust.level !== "full") {
+              const threshold = trust.auto_promote_threshold || 3;
+              const count = (trust.successful_tasks || 0) + 1;
+              if (count >= threshold) {
+                const nextIdx = Math.min(trustLevels.indexOf(trust.level) + 1, trustLevels.length - 1);
+                const nextLevel = trustLevels[nextIdx];
+                await query(
+                  `UPDATE lore.repos SET settings = jsonb_set(settings, '{trust}', $2::jsonb) WHERE full_name = $1`,
+                  [task.target_repo, JSON.stringify({ ...trust, level: nextLevel, successful_tasks: 0, promoted_at: new Date().toISOString() })],
+                );
+                console.log(`[job] merge-check: ${task.target_repo} trust promoted to ${nextLevel}`);
+              } else {
+                await query(
+                  `UPDATE lore.repos SET settings = jsonb_set(settings, '{trust,successful_tasks}', to_jsonb($2)) WHERE full_name = $1`,
+                  [task.target_repo, count],
+                );
+              }
+            }
+          }
+        } catch { /* trust promotion is best-effort */ }
         tasksMerged++;
         console.log(`[job] merge-check: task ${task.id} PR #${task.pr_number} merged`);
+        continue;
+      }
+
+      // Check for closed-without-merge (PR rejection)
+      const closed = await platform().isPRClosed(task.target_repo, task.pr_number);
+      if (closed) {
+        await query(`UPDATE pipeline.tasks SET status = 'failed', failure_reason = 'PR closed without merge' WHERE id = $1`, [task.id]);
+        await query(
+          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'pr-created', 'failed', $2)`,
+          [task.id, JSON.stringify({ reason: "pr-rejected", detected_by: "merge-check" })],
+        );
+        await writeEpisodeWithCuration(
+          `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} was closed without merge (rejected).\nDescription: ${task.description.substring(0, 200)}`,
+          "ci", `${task.target_repo}/${task.id}`, "merge-check", task.id,
+        );
+        tasksClosed++;
+        console.log(`[job] merge-check: task ${task.id} PR #${task.pr_number} closed (rejected)`);
       }
     } catch (err) {
       console.error(`[job] merge-check: error checking task ${task.id}:`, err);
     }
   }
 
-  return `Checked ${repos.length} repos (${mergedCount} merged), ${tasks.length} tasks (${tasksMerged} merged)`;
+  return `Checked ${repos.length} repos (${mergedCount} merged), ${tasks.length} tasks (${tasksMerged} merged, ${tasksClosed} rejected)`;
 }

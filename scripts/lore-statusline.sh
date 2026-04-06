@@ -65,8 +65,11 @@ if [ -f "$CACHE" ]; then
       LOCAL=$(find "$HOME/.lore/worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
     fi
 
+    STALE=$(jq -r '.stale // false' "$CACHE")
+
     PARTS=""
-    [ "$PENDING" -gt 0 ] && PARTS="${RED}${PENDING} new${RESET}"
+    [ "$STALE" = "true" ] && PARTS="${YELLOW}⚠ stale${RESET}"
+    [ "$PENDING" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${RED}${PENDING} new${RESET}"
     [ "$LOCAL" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${CYAN}${LOCAL} local${RESET}"
     [ "$RUNNING" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${YELLOW}${RUNNING} running${RESET}"
     [ "$PR_READY" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${GREEN}${PR_READY} PR ready${RESET}"

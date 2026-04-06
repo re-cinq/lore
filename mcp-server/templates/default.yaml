@@ -30,3 +30,9 @@ sections:
     source: episodes
     priority: 4
     max_tokens: 2000
+
+  - header: "Recent Incidents"
+    source: incidents
+    priority: 1
+    max_tokens: 1000
+

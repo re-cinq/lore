@@ -60,3 +60,18 @@ export function buildPrompt(type: string, description: string): string {
   const tmpl = config[type]?.prompt_template || 'Complete the following task: {description}';
   return tmpl.replace('{description}', description);
 }
+
+/**
+ * Merge global task type config with per-repo overrides from lore.repos.settings.task_overrides.
+ * Repo overrides win for any field they specify.
+ */
+export function getTaskTypeConfigForRepo(type: string, repoSettings: any): TaskTypeConfig & { model?: string; system_prompt_suffix?: string } {
+  const base = config[type] || { prompt_template: 'Complete the following task: {description}', timeout_minutes: 30, review_required: false };
+  const overrides = repoSettings?.task_overrides?.[type] || {};
+  return {
+    ...base,
+    ...overrides,
+    // Always use base prompt_template unless explicitly overridden
+    prompt_template: overrides.prompt_template || base.prompt_template,
+  };
+}

@@ -270,6 +270,27 @@ export class GitHubPlatform implements CodePlatform {
     return pr.merged;
   }
 
+  async isPRClosed(repo: string, prNumber: number): Promise<boolean> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data: pr } = await ok.rest.pulls.get({ owner, repo: repoName, pull_number: prNumber });
+    return pr.state === 'closed' && !pr.merged;
+  }
+
+  async getPRStats(repo: string, prNumber: number): Promise<{ files_changed: number; additions: number; deletions: number; comments: number; merged_at: string | null; created_at: string }> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data: pr } = await ok.rest.pulls.get({ owner, repo: repoName, pull_number: prNumber });
+    return {
+      files_changed: pr.changed_files,
+      additions: pr.additions,
+      deletions: pr.deletions,
+      comments: pr.comments + pr.review_comments,
+      merged_at: pr.merged_at,
+      created_at: pr.created_at,
+    };
+  }
+
   // ── Repo Content ──
 
   async getFileContent(repo: string, path: string, ref?: string): Promise<string | null> {

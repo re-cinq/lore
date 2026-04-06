@@ -199,10 +199,21 @@ async function processTask(task: any): Promise<void> {
   }
 
   try {
-    // Build prompt — context loading is handled by Claude Code in the Job pod
-    // via the Lore workflow preamble (assemble_context + search_memory).
-    // No server-side enrichment needed — avoids duplicate context and stale queries.
-    const fullPrompt = buildPrompt(task.task_type, task.description);
+    // Fetch per-repo settings for prompt customization
+    let repoSettings: any = {};
+    try {
+      const settingsRows = await query<{ settings: any }>(
+        `SELECT settings FROM lore.repos WHERE full_name = $1`, [targetRepo],
+      );
+      if (settingsRows.length > 0) repoSettings = settingsRows[0].settings || {};
+    } catch { /* non-fatal */ }
+
+    // Build prompt with optional per-repo suffix
+    let fullPrompt = buildPrompt(task.task_type, task.description);
+    const repoOverrides = repoSettings.task_overrides?.[task.task_type];
+    if (repoOverrides?.system_prompt_suffix) {
+      fullPrompt += `\n\n${repoOverrides.system_prompt_suffix}`;
+    }
 
     // Determine branch — use existing branch for revision tasks
     const contextBundle = task.context_bundle || {};
@@ -218,9 +229,9 @@ async function processTask(task: any): Promise<void> {
       throw new Error("GitHub App not configured — cannot create PR");
     }
 
-    // Resolve model
+    // Resolve model — per-repo override takes priority
     const model =
-      getTaskTypeConfig(task.task_type)?.model || undefined;
+      repoOverrides?.model || getTaskTypeConfig(task.task_type)?.model || undefined;
 
     if (task.task_type === "onboard") {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);
@@ -228,7 +239,7 @@ async function processTask(task: any): Promise<void> {
       await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
     } else {
       // All other task types run as ephemeral Job pods via LoreTask CRD
-      await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber);
+      await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber, repoOverrides);
     }
   } catch (err: any) {
     await setStatus(task.id, "failed", {
@@ -435,6 +446,7 @@ async function handleClaudeCodeTask(
   branchName: string,
   model: string | undefined,
   _issueNumber: number | null,
+  repoOverrides?: any,
 ): Promise<void> {
   const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
   const kc = new KubeConfig();
@@ -464,7 +476,7 @@ async function handleClaudeCodeTask(
       targetRepo,
       branch: branchName,
       model: model || "claude-sonnet-4-6",
-      timeoutMinutes: getTaskTypeConfig(task.task_type)?.timeout_minutes || 30,
+      timeoutMinutes: repoOverrides?.timeout_minutes || getTaskTypeConfig(task.task_type)?.timeout_minutes || 30,
     },
   };
 

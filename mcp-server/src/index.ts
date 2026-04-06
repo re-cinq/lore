@@ -494,8 +494,9 @@ server.tool(
     max_tokens: z.number().default(16000).describe("Maximum token budget for assembled context (min 2000)."),
     repo: z.string().optional().describe("Target repo (e.g. 'owner/repo'). Auto-detected if omitted."),
     agent_id: z.string().optional().describe("Override agent ID."),
+    cross_repo: z.boolean().default(false).describe("Include context from other repos in the org."),
   },
-  async ({ query, template, max_tokens, repo, agent_id }) => {
+  async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
     return trackLatency('assemble_context', async () => {
       try {
         if (!isMemoryDbAvailable()) {
@@ -520,8 +521,8 @@ server.tool(
           }
           return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
         }
-        const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id);
-        if (!result.text) {
+        const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id, cross_repo);
+        if (!result.text || result.text.trim().length === 0) {
           return { content: [{ type: "text" as const, text: "No relevant context found for this query." }] };
         }
         const meta = `<!-- context: template=${template}, sections=${result.sections.length}, tokens=${result.sections.reduce((s, r) => s + r.tokens, 0)} -->\n\n`;
@@ -530,6 +531,102 @@ server.tool(
         return { content: [{ type: "text" as const, text: `Error assembling context: ${err.message}` }] };
       }
     });
+  }
+);
+
+// --- Task logs tool ---
+
+server.tool(
+  "get_task_logs",
+  "Fetch execution logs for a pipeline task. Returns the latest output from the task's log file.",
+  {
+    task_id: z.string().describe("UUID of the pipeline task."),
+    offset: z.number().default(0).describe("Byte offset for incremental reads (for polling)."),
+  },
+  async ({ task_id, offset }) => {
+    try {
+      // Get task to find repo and log_url
+      const task = await getTask(task_id);
+      if (!task) return { content: [{ type: "text" as const, text: `Task not found: ${task_id}` }] };
+      const repo = task.target_repo;
+
+      // Try local proxy first (GCS via API)
+      if (!process.env.LORE_DB_HOST) {
+        const apiUrl = process.env.LORE_API_URL;
+        const apiToken = process.env.LORE_INGEST_TOKEN;
+        if (apiUrl && apiToken) {
+          const params = new URLSearchParams({ task_id, repo, offset: String(offset) });
+          const res = await fetch(`${apiUrl}/api/task-logs?${params}`, {
+            headers: { "Authorization": `Bearer ${apiToken}` },
+          });
+          if (res.ok) return { content: [{ type: "text" as const, text: JSON.stringify(await res.json()) }] };
+        }
+        return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
+      }
+
+      // Direct GCS read (GKE mode)
+      try {
+        const { Storage } = await import("@google-cloud/storage");
+        const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
+        const file = bucket.file(`${repo}/${task_id}/output.log`);
+        const [exists] = await file.exists();
+        if (!exists) return { content: [{ type: "text" as const, text: JSON.stringify({ logs: "", next_offset: 0, complete: task.status !== 'running' }) }] };
+        const [content] = await file.download();
+        const full = content.toString("utf-8");
+        const sliced = full.substring(offset);
+        return { content: [{ type: "text" as const, text: JSON.stringify({ logs: sliced, next_offset: full.length, complete: task.status !== 'running' }) }] };
+      } catch (err: any) {
+        return { content: [{ type: "text" as const, text: `Error reading logs: ${err.message}` }] };
+      }
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Developer cost visibility tool ---
+
+server.tool(
+  "my_usage",
+  "Show your personal LLM cost and task usage. Breaks down by today, 7-day, and 30-day periods.",
+  {
+    agent_id: z.string().optional().describe("Override agent ID. Auto-detected if omitted."),
+  },
+  async ({ agent_id }) => {
+    try {
+      if (!dbPoolRef) {
+        return { content: [{ type: "text" as const, text: "Usage tracking requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const agent = resolveAgentId(agent_id);
+      const periods = [
+        { name: "today", filter: "t.created_at > current_date" },
+        { name: "7_day", filter: "t.created_at > current_date - interval '7 days'" },
+        { name: "30_day", filter: "t.created_at > current_date - interval '30 days'" },
+      ];
+      const results: any = {};
+      for (const period of periods) {
+        const { rows } = await dbPoolRef.query(
+          `SELECT COALESCE(SUM(lc.cost_usd), 0)::numeric(10,4) as cost,
+                  COUNT(DISTINCT t.id)::int as tasks,
+                  COALESCE(SUM(lc.input_tokens), 0)::bigint as input_tokens,
+                  COALESCE(SUM(lc.output_tokens), 0)::bigint as output_tokens
+           FROM pipeline.tasks t
+           LEFT JOIN pipeline.llm_calls lc ON lc.task_id = t.id
+           WHERE (t.created_by = $1 OR t.created_by LIKE $2 OR t.agent_id = $1)
+             AND ${period.filter}`,
+          [agent, `%${agent.substring(0, 8)}%`],
+        );
+        results[period.name] = {
+          cost_usd: rows[0].cost,
+          tasks: rows[0].tasks,
+          input_tokens: Number(rows[0].input_tokens),
+          output_tokens: Number(rows[0].output_tokens),
+        };
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify({ agent_id: agent, usage: results }, null, 2) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
   }
 );
 
@@ -599,13 +696,14 @@ server.tool(
     task_type: z.string().default("general").describe('Task type: "feature-request", "onboard", "general", "runbook", "implementation", "gap-fill", "review".'),
     target_repo: z.string().optional().describe('Target GitHub repository in "owner/repo" format. Auto-detected from git remote if omitted.'),
     priority: z.enum(["normal", "immediate"]).default("normal").describe('Task priority. "normal" = backlog (developers pick up locally). "immediate" = GKE agent auto-executes.'),
+    group_id: z.string().optional().describe("Task group UUID for multi-repo task coordination. Tasks in the same group are tracked together."),
     context: z.object({
       spec_file: z.boolean().optional(),
       branch: z.string().optional(),
       seed_query: z.string().optional(),
     }).optional().describe("Additional context to pass to the agent."),
   },
-  async ({ description: desc, task_type, target_repo, priority, context }) => {
+  async ({ description: desc, task_type, target_repo, priority, group_id, context }) => {
     try {
       if (!desc || !desc.trim()) {
         return { content: [{ type: "text" as const, text: "description is required and cannot be empty" }] };
@@ -640,7 +738,7 @@ server.tool(
 
       const validTypes = getTaskTypes();
       const resolvedType = validTypes.includes(task_type) ? task_type : "general";
-      const result = await createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority);
+      const result = await createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id);
       const pickupMsg = priority === "immediate"
         ? "The GKE agent will pick this up within 30 seconds."
         : "Task added to backlog. Claim it locally with claim_and_run_locally, or set priority to immediate via the UI.";
@@ -809,6 +907,36 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
     } catch (err: any) {
       return { content: [{ type: "text" as const, text: `Error retrying task: ${err.message}` }] };
+    }
+  }
+);
+
+// --- Task group tool ---
+
+server.tool(
+  "list_task_group",
+  "List all tasks in a task group. Task groups coordinate multi-repo features.",
+  {
+    group_id: z.string().describe("Task group UUID."),
+  },
+  async ({ group_id }) => {
+    try {
+      if (!dbPoolRef) {
+        return { content: [{ type: "text" as const, text: "Task groups require PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const { rows } = await dbPoolRef.query(
+        `SELECT id, description, task_type, status, target_repo, pr_url, created_at
+         FROM pipeline.tasks WHERE task_group_id = $1 ORDER BY created_at`,
+        [group_id],
+      );
+      if (rows.length === 0) {
+        return { content: [{ type: "text" as const, text: `No tasks found for group ${group_id}` }] };
+      }
+      const completed = rows.filter((t: any) => ['merged', 'completed'].includes(t.status)).length;
+      const summary = `Group ${group_id}: ${completed}/${rows.length} completed`;
+      return { content: [{ type: "text" as const, text: `${summary}\n\n${JSON.stringify(rows, null, 2)}` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
     }
   }
 );
