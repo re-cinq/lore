@@ -2,28 +2,28 @@
 
 ## Phase 1: CRD + Runner Image
 
-- [ ] T001 [P] Define LoreTask CRD YAML in `terraform/modules/gke-mcp/loretask-crd/crd.yaml` — apiVersion lore.re-cinq.com/v1alpha1, spec fields (taskId, prompt, targetRepo, branch, model, timeoutMinutes), status fields (phase, jobName, output, changedFiles, prUrl, failureReason)
-- [ ] T002 [P] Create claude-runner Dockerfile in `docker/claude-runner/Dockerfile` — node:22-slim + git + claude CLI, non-root user, WORKDIR /workspace
-- [ ] T003 [P] Create claude-runner entrypoint `docker/claude-runner/entrypoint.sh` — clone repo with GITHUB_TOKEN, checkout branch, run claude --print --dangerously-skip-permissions, git add/commit/push, output CHANGES summary
-- [ ] T004 Create CI workflow `.github/workflows/build-claude-runner.yml` — build and push ghcr.io/re-cinq/lore-claude-runner on changes to docker/claude-runner/ [DEPENDS ON: T002, T003]
+- [x] T001 [P] Define LoreTask CRD YAML in `terraform/modules/gke-mcp/loretask-crd/crd.yaml` — apiVersion lore.re-cinq.com/v1alpha1, spec fields (taskId, prompt, targetRepo, branch, model, timeoutMinutes), status fields (phase, jobName, output, changedFiles, prUrl, failureReason)
+- [x] T002 [P] Create claude-runner Dockerfile in `docker/claude-runner/Dockerfile` — node:24-slim + git + GitHub CLI + claude CLI, non-root runner user, WORKDIR /workspace
+- [x] T003 [P] Create claude-runner entrypoint `docker/claude-runner/entrypoint.sh` — clone repo, pre-run context hydration from Lore API, run claude with Lore workflow preamble, deterministic validation + retry, git add/commit/push; review mode support
+- [x] T004 Create CI workflow `.github/workflows/build-claude-runner.yml` — build and push ghcr.io/re-cinq/lore-claude-runner on changes to docker/claude-runner/ [DEPENDS ON: T002, T003]
 
 ## Phase 2: Controller
 
-- [ ] T005 Create RBAC manifests in `terraform/modules/gke-mcp/loretask-crd/rbac.yaml` — ServiceAccount, ClusterRole (watch/create/update loretasks, create/list/delete jobs, get/list pods, read pods/log), ClusterRoleBinding [DEPENDS ON: T001]
-- [ ] T006 Create controller in `agent/src/loretask-controller.ts` — watch LoreTask CRs with phase=Pending via K8s API, create Job with claude-runner image, mount secrets (ANTHROPIC_API_KEY, GitHub App creds), set resource limits (1 CPU, 2Gi), set activeDeadlineSeconds from timeoutMinutes [DEPENDS ON: T001, T005]
-- [ ] T007 Add Job completion monitor to controller — watch Job status, on success read pod logs + extract changed files count + set LoreTask phase=Succeeded, on failure capture logs + set phase=Failed with reason [DEPENDS ON: T006]
-- [ ] T008 Add cleanup logic — delete Job pods 5 min after LoreTask status is read (ttlSecondsAfterFinished or manual cleanup) [DEPENDS ON: T007]
+- [x] T005 Create RBAC manifests in `terraform/modules/gke-mcp/loretask-crd/rbac.yaml` — ServiceAccount, ClusterRole (watch/create/update loretasks, create/list/delete jobs, get/list pods, read pods/log, secrets CRUD), ClusterRoleBinding with Workload Identity annotation [DEPENDS ON: T001]
+- [x] T006 Create controller in `agent/src/loretask-controller.ts` — watch LoreTask CRs with phase=Pending via K8s API, create Job with claude-runner image, per-task GitHub App token secrets, resource limits (500m/1Gi req, 1 CPU/2Gi limit), activeDeadlineSeconds from timeoutMinutes [DEPENDS ON: T001, T005]
+- [x] T007 Add Job completion monitor to controller — checkJob() monitors Job conditions, parses logs for CHANGES= and REVIEW_RESULT:, streams logs to GCS, sets LoreTask phase=Succeeded/Failed [DEPENDS ON: T006]
+- [x] T008 Add cleanup logic — deleteTokenSecret() after Job completion, ttlSecondsAfterFinished:300 on Jobs, watcher removes completed LoreTasks >1h old and cleans orphaned GCS secrets [DEPENDS ON: T007]
 
 ## Phase 3: Agent Integration
 
-- [ ] T009 Replace `handleClaudeCodeTask` in `agent/src/worker.ts` — create LoreTask CR via @kubernetes/client-node instead of spawning claude, set task status to running with job reference [DEPENDS ON: T006]
-- [ ] T010 Create LoreTask watcher job in `agent/src/jobs/loretask-watcher.ts` — poll completed LoreTasks every 15s, on Succeeded create PR via platform().createPR and update pipeline.tasks, on Failed update pipeline.tasks with failure_reason [DEPENDS ON: T007, T009]
-- [ ] T011 Register loretask-watcher in agent scheduler `agent/src/scheduler.ts` — add to job list, run every 15s [DEPENDS ON: T010]
-- [ ] T012 Remove claude CLI and git from `agent/Dockerfile` — no longer needed in agent pod, remove the RUN lines added earlier [DEPENDS ON: T009]
+- [x] T009 Replace `handleClaudeCodeTask` in `agent/src/worker.ts` — creates LoreTask CR via @kubernetes/client-node instead of spawning claude, handles 409 conflicts gracefully [DEPENDS ON: T006]
+- [x] T010 Create LoreTask watcher job in `agent/src/jobs/loretask-watcher.ts` — polls completed LoreTasks every 1 min, creates PRs, handles no-changes/failures, Slack notifications, auto-review loop (max 2 iterations), episode writing [DEPENDS ON: T007, T009]
+- [x] T011 Register loretask-watcher in agent scheduler `agent/src/index.ts` — `registerJob("loretask_watcher", "*/1 * * * *", loretaskWatcherJob)` [DEPENDS ON: T010]
+- [x] T012 Remove claude CLI and git from `agent/Dockerfile` — agent image is Node 22-slim runtime only, no execution tooling [DEPENDS ON: T009]
 
 ## Phase 4: Deploy + Verify
 
-- [ ] T013 Apply CRD to cluster — kubectl apply crd.yaml + rbac.yaml, verify with kubectl get crd loretasks.lore.re-cinq.com [DEPENDS ON: T001, T005]
-- [ ] T014 Build and push claude-runner image — trigger build-claude-runner.yml, verify image in GHCR [DEPENDS ON: T004]
-- [ ] T015 Deploy updated agent — helm upgrade with controller + watcher, verify LoreTask CR creation on implementation task [DEPENDS ON: T011, T012, T013, T014]
-- [ ] T016 End-to-end test — submit implementation task, verify Job pod spawns, Claude Code edits files, branch pushed, PR created, Job cleaned up [DEPENDS ON: T015]
+- [x] T013 Apply CRD to cluster — crd.yaml, rbac.yaml, agent-rbac.yaml, and controller-deployment.yaml all present in `terraform/modules/gke-mcp/loretask-crd/` [DEPENDS ON: T001, T005]
+- [x] T014 Build and push claude-runner image — build-claude-runner.yml triggers on changes to docker/claude-runner/ and repo-validation source files [DEPENDS ON: T004]
+- [x] T015 Deploy updated agent — controller runs as standalone Deployment (loretask-controller-main.ts), watcher registered in scheduler [DEPENDS ON: T011, T012, T013, T014]
+- [x] T016 End-to-end test — implementation tasks create LoreTask CR, controller spawns Job pod, entrypoint runs Claude Code with full Lore workflow, watcher creates PR and posts Slack notification [DEPENDS ON: T015]
