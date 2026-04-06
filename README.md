@@ -74,7 +74,7 @@ A developer types `/lore implementation add retry logic to the webhook handler` 
 | **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
 | **Local runner** | Developer says "run locally" | Background `claude --print` in an isolated git worktree on the developer's machine. Uses Claude Code subscription — zero API cost. Non-blocking, PR created via `gh`. |
 
-All execution modes include **deterministic validation** — after the agent edits code, lint and typecheck run as mandatory pipeline stages (detected from package.json, go.mod, pyproject.toml, or Cargo.toml). If validation fails, one automatic fix retry runs before escalating to human review.
+All execution modes include **deterministic validation** — after the agent edits code, lint and typecheck run as mandatory pipeline stages (detected from package.json, go.mod, pyproject.toml, or Cargo.toml). If validation fails, one automatic fix retry runs before escalating to human review. K8s Jobs retry once on transient failures (`backoffLimit: 1`). Failed tasks can be retried via `/lore retry <task_id>`, the `retry_task` MCP tool, or the API.
 
 The agent service decides which mode to use based on the task type configured in `task-types.yaml`.
 
@@ -267,6 +267,7 @@ The MCP server runs locally via stdio and proxies all operations (context, memor
 | `get_pipeline_status` | Pipeline | Task status and event timeline |
 | `list_pipeline_tasks` | Pipeline | List tasks with status filter |
 | `cancel_task` | Pipeline | Cancel a running or pending task |
+| `retry_task` | Pipeline | Retry a failed task (creates new task linked to original) |
 | `get_pr_status` | Pipeline | Live GitHub PR state (checks, reviews, merge status) |
 | `sync_tasks` | Tasks | Parse tasks.md and sync to pipeline database |
 | `ready_tasks` | Tasks | List unblocked tasks (all dependencies satisfied) |
@@ -302,6 +303,7 @@ Type `/lore` in any mapped Slack channel to create tasks:
 /lore implementation add rate limiting to the API
 /lore general analyze our test coverage gaps
 /lore runbook database failover procedure
+/lore retry <task_id>
 ```
 
 Lore posts back to the channel when:

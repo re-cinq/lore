@@ -214,7 +214,7 @@ up the repo's content. Repos table: lore.repos.
 
 Tasks created via UI, MCP, or PR trigger agents on GKE.
 Pipeline tools: create_pipeline_task, get_pipeline_status,
-list_pipeline_tasks, cancel_task. Local runner tools:
+list_pipeline_tasks, cancel_task, retry_task. Local runner tools:
 run_task_locally, list_local_tasks, cancel_local_task.
 Task types configured in
 scripts/task-types.yaml:
