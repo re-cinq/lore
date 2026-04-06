@@ -39,6 +39,31 @@ import { extractAndUpdateGraph, queryLiveGraph } from "./graph.js";
 import { assembleContext, loadTemplates } from "./context-assembly.js";
 import { trackToolCall, dumpSessionLog, formatSessionSummary } from "./session-tracker.js";
 
+/** Build a graph LLM call function for extractAndUpdateGraph. */
+function makeGraphLlmCall(): ((prompt: string) => Promise<string>) | undefined {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return undefined;
+  const model = process.env.LORE_GRAPH_MODEL || "claude-haiku-4-5-20251001";
+  return async (prompt: string) => {
+    const start = Date.now();
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      body: JSON.stringify({ model, max_tokens: 1024, messages: [{ role: "user", content: prompt }] }),
+    });
+    const json = await res.json() as any;
+    const durationMs = Date.now() - start;
+    if (json.usage && dbPoolRef) {
+      const costUsd = json.usage.input_tokens * 0.8 / 1_000_000 + json.usage.output_tokens * 4.0 / 1_000_000;
+      dbPoolRef.query(
+        `INSERT INTO pipeline.llm_calls (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms) VALUES (NULL, 'graph-extraction', $1, $2, $3, $4, $5)`,
+        [model, json.usage.input_tokens, json.usage.output_tokens, costUsd, durationMs],
+      ).catch(() => {});
+    }
+    return json.content[0].text;
+  };
+}
+
 /** Strip secrets/keys from text before storing in org-wide memory. */
 function sanitizeContent(text: string): string {
   const patterns: RegExp[] = [
@@ -1718,8 +1743,10 @@ async function main() {
               res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "duplicate" }));
               return;
             }
-            // Trigger async fact extraction
+            // Trigger async fact + graph extraction
             extractFactsFromEpisode(rows[0].id, safeContent, agent, dbPoolRef).catch(() => {});
+            const gLlm = makeGraphLlmCall();
+            if (gLlm) extractAndUpdateGraph(dbPoolRef, safeContent, ref || null, rows[0].id, null, gLlm).catch(() => {});
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "ok", episode_id: rows[0].id }));
           } catch (err: any) {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
@@ -1773,6 +1800,8 @@ async function main() {
             }
 
             extractFactsFromEpisode(rows[0].id, content, agent, dbPoolRef).catch(() => {});
+            const gLlm2 = makeGraphLlmCall();
+            if (gLlm2) extractAndUpdateGraph(dbPoolRef, content, repo || null, rows[0].id, null, gLlm2).catch(() => {});
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "ok", episode_id: rows[0].id }));
           } catch (err: any) {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
