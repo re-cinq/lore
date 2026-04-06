@@ -69,15 +69,20 @@ describe("Slack HMAC verification", () => {
 describe("Slack command parsing", () => {
   const knownTypes = ["general", "implementation", "runbook", "gap-fill", "review", "feature-request"];
 
-  function parseCommand(text: string): { taskType: string; description: string } {
-    const words = text.trim().split(/\s+/);
+  function parseCommand(text: string): { taskType: string; description: string; priority: string } {
+    let words = text.trim().split(/\s+/);
+    let priority = "normal";
+    if (words[0] === "!") {
+      priority = "immediate";
+      words = words.slice(1);
+    }
     let taskType = "general";
-    let description = text.trim();
+    let description = words.join(" ");
     if (words.length > 1 && knownTypes.includes(words[0])) {
       taskType = words[0];
       description = words.slice(1).join(" ");
     }
-    return { taskType, description };
+    return { taskType, description, priority };
   }
 
   it("parses /lore implementation add auth", () => {
@@ -119,5 +124,30 @@ describe("Slack command parsing", () => {
   it("preserves extra whitespace in description", () => {
     const { description } = parseCommand("general   hello    world");
     expect(description).toBe("hello world");
+  });
+
+  it("parses ! prefix as immediate priority", () => {
+    const { taskType, description, priority } = parseCommand("! implementation add caching");
+    expect(priority).toBe("immediate");
+    expect(taskType).toBe("implementation");
+    expect(description).toBe("add caching");
+  });
+
+  it("defaults to normal priority without ! prefix", () => {
+    const { priority } = parseCommand("implementation add caching");
+    expect(priority).toBe("normal");
+  });
+
+  it("handles ! with general task (no explicit type)", () => {
+    const { taskType, description, priority } = parseCommand("! fix the login bug");
+    expect(priority).toBe("immediate");
+    expect(taskType).toBe("general");
+    expect(description).toBe("fix the login bug");
+  });
+
+  it("handles ! alone", () => {
+    const { priority, description } = parseCommand("!");
+    expect(priority).toBe("immediate");
+    expect(description).toBe("");
   });
 });
