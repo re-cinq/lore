@@ -178,7 +178,7 @@ async function reconcile(lt: LoreTask): Promise<void> {
     spec: {
       activeDeadlineSeconds: (lt.spec.timeoutMinutes || 30) * 60,
       ttlSecondsAfterFinished: 300,
-      backoffLimit: 0,
+      backoffLimit: 1,
       template: {
         spec: {
           restartPolicy: "Never",
