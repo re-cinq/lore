@@ -95,30 +95,38 @@ export async function ingestFiles(
         // Content provided directly — no GitHub fetch needed
         content = fileEntry.content;
       } else {
-        // Fetch from GitHub
-        try {
-          const { data } = await octokit.rest.repos.getContent({
-            owner,
-            repo: repoName,
-            path: filePath,
-            ref: commit,
-          });
-          if ('content' in data) {
-            content = Buffer.from(data.content, 'base64').toString('utf-8');
+        // Fetch from GitHub — try the given ref, fall back to default branch
+        for (const ref of [commit, 'HEAD']) {
+          try {
+            const { data } = await octokit.rest.repos.getContent({
+              owner,
+              repo: repoName,
+              path: filePath,
+              ref,
+            });
+            if ('content' in data) {
+              content = Buffer.from(data.content, 'base64').toString('utf-8');
+            }
+            break; // success
+          } catch (err: any) {
+            if (err.status === 404 && ref === commit && commit !== 'HEAD') {
+              // Commit doesn't exist in this repo — retry with HEAD
+              continue;
+            }
+            if (err.status === 404) {
+              // File genuinely doesn't exist — remove from chunks
+              await pool.query(
+                `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
+                [filePath, repo],
+              );
+              results.push({ file: filePath, status: 'deleted' });
+              deleted++;
+              break;
+            }
+            throw err;
           }
-        } catch (err: any) {
-          if (err.status === 404) {
-            // File was deleted — remove from chunks
-            await pool.query(
-              `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-              [filePath, repo],
-            );
-            results.push({ file: filePath, status: 'deleted' });
-            deleted++;
-            continue;
-          }
-          throw err;
         }
+        if (!content && results[results.length - 1]?.status === 'deleted') continue;
       }
 
       if (!content) {
