@@ -51,7 +51,8 @@ export async function POST(
     }
 
     if (body.settings !== undefined) {
-      updates.push(`settings = $${paramIdx++}`);
+      // Merge into existing settings instead of overwriting
+      updates.push(`settings = COALESCE(settings, '{}') || $${paramIdx++}::jsonb`);
       values.push(JSON.stringify(body.settings));
     }
 
