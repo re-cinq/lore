@@ -6,24 +6,27 @@
 | Branch         | feat/loretask-crd                        |
 | Status         | Shipped                                  |
 | Created        | 2026-04-01                               |
+| Last Updated   | 2026-04-06 (post-ship reconciliation)    |
 | Owner          | Platform Engineering                     |
-| Target         | 1 week                                   |
+| ADRs           | ADR-011, ADR-012, ADR-013               |
+
+> **Note:** This spec was reconciled against the shipped implementation on 2026-04-06.
+> The original spec had significant drift in auth model, CRD schema, and entrypoint
+> behavior. The sections below reflect what is actually deployed.
 
 ## Problem Statement
 
-Implementation tasks run `claude --print` inside the long-lived agent
-pod. This is fundamentally broken:
+Implementation tasks ran `claude --print` inside the long-lived agent pod. This was
+fundamentally broken:
 
-1. **CI deploys kill running tasks** — Every push to main triggers
-   `build-agent.yml` → deploy → `kubectl rollout restart`, which
-   terminates the pod while Claude Code is mid-execution. Tasks go
-   `pending` → `running` → orphaned.
-2. **No parallelism** — The worker is single-threaded. One Claude Code
-   session blocks the entire agent for 5-15 minutes.
-3. **No isolation** — A runaway Claude Code session can OOM the agent
-   pod, taking down task polling, schedulers, and health checks.
-4. **No observability** — Claude Code stdout/stderr is lost when the
-   pod restarts. No way to stream progress to the UI.
+1. **CI deploys killed running tasks** — Every push to main triggered
+   `build-agent.yml` → deploy → `kubectl rollout restart`, terminating Claude Code
+   mid-execution. Tasks went `pending` → `running` → orphaned.
+2. **No parallelism** — The worker was single-threaded. One Claude Code session
+   blocked the entire agent for 5-15 minutes.
+3. **No isolation** — A runaway Claude Code session could OOM the agent pod, taking
+   down task polling, schedulers, and health checks.
+4. **No observability** — Claude Code stdout/stderr was lost on pod restart.
 
 ## Solution: LoreTask CRD + Controller
 
@@ -33,14 +36,16 @@ Replace in-process `spawn("claude")` with a Kubernetes-native pattern:
 Agent Worker                    K8s API                     Job Pod
 ─────────────                   ───────                     ─────────
 detects pending task ──────►  creates LoreTask CR
-                              controller watches ──────►  creates Job
+                              controller watches ──────►  creates Job + token Secret
                                                           clone repo
+                                                          fetch pre-run context
                                                           claude --print ...
+                                                          deterministic validation
                                                           git add/commit/push
                               Job completes ◄──────────   exit 0
 controller reads Job logs ◄─  updates LoreTask status
-agent reads LoreTask ──────►  creates PR, updates DB
-                              deletes Job pod
+agent watcher reads status ─► creates PR, updates DB
+                              deletes Job + token Secret
 ```
 
 ### CRD: `LoreTask`
@@ -56,13 +61,14 @@ metadata:
     lore.re-cinq.com/task-type: implementation
 spec:
   taskId: {uuid}                    # pipeline.tasks.id
-  taskType: implementation          # from task-types.yaml
-  description: "..."                # task description
-  prompt: "..."                     # full rendered prompt
+  taskType: implementation          # implementation | review | general
+  description: "..."                # task description (informational)
+  prompt: "..."                     # full rendered prompt passed to claude
   targetRepo: "re-cinq/lore"       # owner/repo
-  branch: "lore/impl/..."          # branch to create
+  branch: "lore/impl/..."          # branch to create (implementation) or ignored (review)
+  prNumber: 0                       # PR to review (review tasks only)
   model: "claude-sonnet-4-6"       # Claude Code model
-  timeoutMinutes: 30               # max Job duration
+  timeoutMinutes: 30               # maps to activeDeadlineSeconds
   image: "ghcr.io/re-cinq/lore-claude-runner:latest"
 status:
   phase: Pending | Running | Succeeded | Failed
@@ -70,158 +76,140 @@ status:
   startedAt: null
   completedAt: null
   exitCode: null
-  output: ""                        # Claude Code stdout (last 5000 chars)
+  output: ""                        # last 5000 chars of Claude Code stdout
   changedFiles: 0
-  prUrl: ""
-  prNumber: 0
+  prUrl: ""                         # set by loretask-watcher after PR creation
+  prNumber: 0                       # PR number (set by watcher)
+  reviewResult: ""                  # APPROVED | CHANGES_REQUESTED:... (review tasks)
+  parentTaskId: ""                  # originating implementation task (review tasks)
   failureReason: ""
+  logUrl: ""                        # GCS URL for full structured logs
 ```
 
-### Controller
+### Auth Model (differs from original spec)
 
-A Go or TypeScript controller (operator) that:
+The original spec passed `GITHUB_TOKEN` as a plain env var. The shipped implementation
+creates a **per-task K8s Secret** with a fresh GitHub App installation token:
 
-1. **Watches** LoreTask CRs with `phase: Pending`
-2. **Creates a Job** with the claude-runner image:
-   - Mounts: `ANTHROPIC_API_KEY`, GitHub App credentials
-   - Env: `TASK_PROMPT`, `TARGET_REPO`, `BRANCH_NAME`, `MODEL`
-   - Entrypoint: `claude-runner.sh` (clone → claude → commit → push)
-   - Resources: 1 CPU, 2Gi memory, 30 min activeDeadlineSeconds
-3. **Monitors** the Job: updates LoreTask `phase` on completion
-4. **On success**: reads Job pod logs, extracts changed files count,
-   sets `phase: Succeeded`
-5. **On failure**: captures stderr, sets `phase: Failed` with reason
-6. **Cleanup**: deletes completed Job pods after status is read
-   (ttlSecondsAfterFinished: 300)
+1. Controller calls `GitHubPlatform.getInstallationToken()` before creating the Job.
+2. Token stored in `loretask-github-token-{taskIdShort}` (namespace: `lore-agent`).
+3. Job pod mounts the secret as `GITHUB_TOKEN` env var via `secretKeyRef`.
+4. Controller deletes the secret after reading Job status (best effort).
 
-### Claude Runner Image
+This avoids long-lived token exposure in Job manifests and aligns with ADR-002
+(zero stored credentials).
 
-Minimal container: `node:22-slim` + `git` + `claude` CLI.
+### Controller (`agent/src/loretask-controller.ts`)
 
-Entrypoint script (`claude-runner.sh`):
-```bash
-#!/bin/bash
-set -euo pipefail
+Polls every 15 seconds for `LoreTask` CRs with `phase: Pending`:
 
-# Clone repo
-git clone --depth=1 "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" /workspace
-cd /workspace
-git checkout -b "${BRANCH_NAME}"
-git config user.name "Lore Agent"
-git config user.email "lore@re-cinq.com"
+1. Creates a GitHub App installation token Secret.
+2. Creates a `batch/v1 Job` with the claude-runner image.
+   - Resources: 1 CPU, 2Gi memory.
+   - `activeDeadlineSeconds`: `timeoutMinutes * 60`.
+   - `ttlSecondsAfterFinished: 300`.
+   - `backoffLimit: 1` (one retry at the Job level; validation retry is handled
+     inside the entrypoint — see below).
+3. Updates LoreTask `phase: Running`.
+4. On Job completion, reads pod logs, extracts `CHANGES=N` or `REVIEW_RESULT:...`,
+   sets `phase: Succeeded | Failed`.
+5. Writes structured logs to GCS via `writeLogs()` and sets `logUrl`.
+6. Deletes the GitHub token Secret.
 
-# Run Claude Code
-claude --print \
-  --dangerously-skip-permissions \
-  --verbose \
-  --model "${MODEL}" \
-  -- "${TASK_PROMPT}"
+### Claude Runner (`docker/claude-runner/entrypoint.sh`)
 
-# Check for changes
-if [ -z "$(git status --porcelain)" ]; then
-  echo "NO_CHANGES"
-  exit 1
-fi
+Two execution modes selected by `TASK_TYPE` env var:
 
-# Commit and push
-git add -A
-git commit -m "lore: ${TASK_TYPE} — $(echo ${BRANCH_NAME} | sed 's/.*\///')"
-git push origin "${BRANCH_NAME}"
+#### Implementation mode (`TASK_TYPE=implementation`)
 
-echo "CHANGES=$(git diff --stat HEAD~1 | tail -1)"
-```
+1. Validate required env vars (`GITHUB_TOKEN`, `TARGET_REPO`, `BRANCH_NAME`, `TASK_PROMPT`).
+2. Clone repo with `--depth=1`, create branch.
+3. **Pre-run context hydration** (ADR-013): If `LORE_API_URL` and `LORE_INGEST_TOKEN`
+   are set, fetch assembled context from `/api/context` before starting Claude Code.
+   Agent starts with conventions, ADRs, and memories on turn 1.
+4. Inject Lore workflow preamble into the prompt (assemble_context + search_memory
+   + write_episode instructions).
+5. Run `claude --print --dangerously-skip-permissions --model ${MODEL}`.
+6. If no git changes: exit with `NO_CHANGES` (exit 0 for `general` tasks, exit 1
+   for `implementation`).
+7. **Deterministic validation** (ADR-013): Run `node /validation.js --quick --repo
+   /workspace/repo --files <changed-files>`. On failure:
+   - Attempt one fix pass: `claude --print` with the error output as prompt.
+   - Re-validate. If still failing, print `NEEDS_HUMAN_HELP` and continue to push
+     (task marked `needs-human-help` by watcher).
+8. `git add -A && git commit && git push origin ${BRANCH_NAME}`.
+9. Print `CHANGES=N` for the controller to parse.
 
-### Agent Worker Changes
+#### Review mode (`TASK_TYPE=review`)
 
-Replace `handleClaudeCodeTask()` with:
+1. Validate required env vars (`GITHUB_TOKEN`, `TARGET_REPO`, `PR_NUMBER`, `TASK_PROMPT`).
+2. Clone repo, use `gh pr checkout ${PR_NUMBER}` to get the PR branch.
+3. Inject review preamble: call `assemble_context` with `template=review`.
+4. Run `claude --print --dangerously-skip-permissions --model ${MODEL}`.
+5. Parse output for `REVIEW_RESULT:APPROVED` or `REVIEW_RESULT:CHANGES_REQUESTED`.
+6. Print structured result; controller stores in `LoreTask.status.reviewResult`.
 
-```typescript
-async function handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber) {
-  // Create LoreTask CR instead of spawning claude
-  const cr = {
-    apiVersion: "lore.re-cinq.com/v1alpha1",
-    kind: "LoreTask",
-    metadata: {
-      name: `loretask-${task.id.substring(0, 8)}`,
-      namespace: "lore-agent",
-      labels: { "lore.re-cinq.com/task-id": task.id },
-    },
-    spec: {
-      taskId: task.id,
-      taskType: task.task_type,
-      description: task.description,
-      prompt: buildPrompt(task.task_type, task.description),
-      targetRepo,
-      branch: branchName,
-      model: model || "claude-sonnet-4-6",
-      timeoutMinutes: 30,
-    },
-  };
+### Watcher (`agent/src/jobs/loretask-watcher.ts`)
 
-  await k8sApi.createNamespacedCustomObject(
-    "lore.re-cinq.com", "v1alpha1", "lore-agent", "loretasks", cr
-  );
-  // Set task to "queued-for-job" — controller takes over from here
-  await setStatus(task.id, "running", { agent_id: `job-${task.id.substring(0, 8)}` });
-}
-```
+Scheduled every 15 seconds. For each completed LoreTask:
 
-### Completion Handler
+- **Succeeded (implementation)**: Create PR via `platform().createPR()`, update
+  `pipeline.tasks`, post PR link to GitHub Issue, close Issue.
+- **Succeeded (review)**: Parse `reviewResult`. If APPROVED, mark task reviewed.
+  If CHANGES_REQUESTED, create a new implementation LoreTask on the same branch
+  (see ADR-012 autonomous review loop).
+- **Failed**: Update `pipeline.tasks.failure_reason`, post failure comment to Issue,
+  add `lore-failed` label.
+- **Cleanup**: Delete LoreTask CRs older than 1 hour.
 
-A new scheduled job in the agent polls for completed LoreTasks:
+### Auto-curation
 
-```typescript
-async function checkLoreTasks() {
-  const tasks = await k8sApi.listNamespacedCustomObject(
-    "lore.re-cinq.com", "v1alpha1", "lore-agent", "loretasks"
-  );
-  for (const lt of tasks.items) {
-    if (lt.status.phase === "Succeeded" && !lt.status.prUrl) {
-      // Create PR from the pushed branch
-      const pr = await platform().createPR(
-        lt.spec.targetRepo, lt.spec.branch, ...
-      );
-      await setStatus(lt.spec.taskId, "pr-created", { pr_url: pr.url });
-      // Patch LoreTask CR with PR URL, schedule cleanup
-    }
-    if (lt.status.phase === "Failed") {
-      await setStatus(lt.spec.taskId, "failed", {
-        failure_reason: lt.status.failureReason,
-      });
-    }
-  }
-}
-```
+After every terminal outcome (PR created, no-changes, failure), the watcher calls
+`writeEpisodeWithCuration()` to ingest a lesson-learned episode (see ADR-014).
 
-## What Changes
+## What Changed vs Original Spec
 
-| Component | Change |
-|-----------|--------|
-| `terraform/modules/gke-mcp/loretask-crd/` | New: CRD YAML, controller Deployment, RBAC |
-| `agent/src/loretask-controller.ts` | New: controller that watches CRs, creates Jobs |
-| `agent/src/worker.ts` | Modify: `handleClaudeCodeTask` creates CR instead of spawn |
-| `agent/src/jobs/loretask-watcher.ts` | New: scheduled job polls completed LoreTasks, creates PRs |
-| `docker/claude-runner/` | New: Dockerfile + entrypoint for Job pods |
-| `.github/workflows/build-claude-runner.yml` | New: CI for claude-runner image |
-| `agent/Dockerfile` | Remove: claude CLI + git (no longer needed in agent) |
+| Area | Original Spec | Shipped |
+|------|--------------|---------|
+| GitHub auth | `GITHUB_TOKEN` env var | Per-task K8s Secret with App installation token |
+| CRD spec fields | taskId, taskType, description, prompt, targetRepo, branch, model, timeoutMinutes, image | + `prNumber` (for review tasks) |
+| CRD status fields | phase, jobName, startedAt, completedAt, exitCode, output, changedFiles, prUrl, failureReason | + `reviewResult`, `parentTaskId`, `logUrl` |
+| Runner modes | Implementation only | Implementation + Review (ADR-012) |
+| Pre-run context | Not in spec | Fetches from `/api/context` before running Claude Code (ADR-013) |
+| Deterministic validation | Not in spec | lint/typecheck + one-shot fix retry (ADR-013) |
+| Post-task curation | Not in spec | Episode + Haiku lesson extraction (ADR-014) |
+| Controller location | `agent/src/loretask-controller.ts` | Same, but runs as separate process via `loretask-controller-main.ts` |
+
+## File Index
+
+| File | Purpose |
+|------|---------|
+| `terraform/modules/gke-mcp/loretask-crd/` | CRD YAML, controller Deployment, RBAC |
+| `agent/src/loretask-controller.ts` | Controller: watches CRs, creates Jobs, updates status |
+| `agent/src/loretask-controller-main.ts` | Controller entrypoint (separate process) |
+| `agent/src/jobs/loretask-watcher.ts` | Watcher: creates PRs, handles review loop |
+| `docker/claude-runner/Dockerfile` | Runner image (node:22-slim + git + claude CLI) |
+| `docker/claude-runner/entrypoint.sh` | Runner entrypoint (implementation + review modes) |
+| `.github/workflows/build-claude-runner.yml` | CI for claude-runner image |
 
 ## Out of Scope
 
-1. **Multi-cluster** — Single cluster only (n8n-cluster)
+1. **Multi-cluster** — Single cluster only (`n8n-cluster`)
 2. **Priority queues** — All tasks equal priority
 3. **Resource quotas per team** — No per-team limits on concurrent Jobs
-4. **Streaming logs to UI** — Phase 2 (read Job logs via WebSocket)
-5. **Auto-retry** — Failed Jobs are not retried automatically
-6. **CRD versioning** — v1alpha1 only, no conversion webhooks
+4. **CRD versioning** — `v1alpha1` only, no conversion webhooks
 
 ## Acceptance Criteria
 
-1. `implementation` tasks create a LoreTask CR instead of spawning claude
-2. Controller creates a Job pod within 10s of CR creation
-3. Job pod clones repo, runs Claude Code, commits and pushes changes
-4. Controller updates LoreTask status on Job completion
-5. Agent creates PR from pushed branch when LoreTask succeeds
-6. Agent pod restarts do NOT affect running Job pods
-7. Failed Jobs surface error in pipeline.tasks.failure_reason
-8. Job pods are cleaned up within 5 min of completion
-9. Multiple implementation tasks can run in parallel
+1. `implementation` tasks create a LoreTask CR instead of spawning claude in-process.
+2. Controller creates a Job pod within 15s of CR creation.
+3. Job pod fetches pre-run context, runs Claude Code, commits and pushes changes.
+4. Deterministic validation runs before commit; one fix retry attempted on failure.
+5. Controller updates LoreTask status on Job completion; logs uploaded to GCS.
+6. Agent creates PR from pushed branch when LoreTask succeeds.
+7. Agent pod restarts do NOT affect running Job pods.
+8. Failed Jobs surface error in `pipeline.tasks.failure_reason`.
+9. Job pods are cleaned up within 5 min of completion (ttlSecondsAfterFinished).
+10. Multiple implementation tasks can run in parallel.
+11. `review` tasks check out PR branch, run Claude Code, return structured result.
+12. Per-task GitHub token Secrets are deleted after Job completion.
