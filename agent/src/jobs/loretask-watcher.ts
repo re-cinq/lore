@@ -220,13 +220,21 @@ export async function watchLoreTasks(): Promise<void> {
 
         console.log(`[loretask-watcher] Task ${taskId} → PR ${pr.url}`);
 
-        // Post PR link back to Slack if task originated from Slack
+        // Post PR link to Slack — originating channel or repo's mapped channel
         const slackBotToken = process.env.LORE_SLACK_BOT_TOKEN;
         if (slackBotToken) {
           const taskBundle = (await query<{ context_bundle: any }>(
             `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
           ))[0]?.context_bundle;
-          const slackChannel = taskBundle?.slack_channel_id;
+          let slackChannel = taskBundle?.slack_channel_id;
+
+          if (!slackChannel) {
+            const repoRows = await query<{ settings: any }>(
+              `SELECT settings FROM lore.repos WHERE full_name = $1`, [lt.spec.targetRepo],
+            );
+            slackChannel = repoRows[0]?.settings?.slack_channel_id;
+          }
+
           if (slackChannel) {
             try {
               await fetch("https://slack.com/api/chat.postMessage", {
@@ -339,13 +347,22 @@ export async function watchLoreTasks(): Promise<void> {
         );
         await commentFailureOnIssue(rows[0].target_repo, rows[0].issue_number, lt.status.failureReason);
 
-        // Notify Slack if task originated from Slack
+        // Notify Slack on failure — originating channel or repo's mapped channel
         const slackBotToken2 = process.env.LORE_SLACK_BOT_TOKEN;
         if (slackBotToken2) {
           const failBundle = (await query<{ context_bundle: any }>(
             `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
           ))[0]?.context_bundle;
-          const slackCh = failBundle?.slack_channel_id;
+          let slackCh = failBundle?.slack_channel_id;
+
+          // Fall back to repo's mapped channel if task didn't come from Slack
+          if (!slackCh) {
+            const repoRows = await query<{ settings: any }>(
+              `SELECT settings FROM lore.repos WHERE full_name = $1`, [rows[0].target_repo],
+            );
+            slackCh = repoRows[0]?.settings?.slack_channel_id;
+          }
+
           if (slackCh) {
             try {
               await fetch("https://slack.com/api/chat.postMessage", {
@@ -353,7 +370,7 @@ export async function watchLoreTasks(): Promise<void> {
                 headers: { Authorization: `Bearer ${slackBotToken2}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
                   channel: slackCh,
-                  text: `Task failed: ${lt.status.failureReason?.substring(0, 200)}`,
+                  text: `Task failed on \`${rows[0].target_repo}\`: ${lt.spec.taskType}\n> ${lt.status.failureReason?.substring(0, 200)}`,
                 }),
               });
             } catch { /* best effort */ }
