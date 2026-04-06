@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-NS="alloydb" POD="lore-db-1"
+NS="lore-db" POD="lore-db-1"
 echo "[lore] Creating repos schema..."
 kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   CREATE SCHEMA IF NOT EXISTS lore;

@@ -51,7 +51,7 @@ resource "kubernetes_deployment" "lore_ui" {
           # Plain env vars
           env {
             name  = "LORE_DB_HOST"
-            value = "lore-db-rw.alloydb.svc.cluster.local"
+            value = "lore-db-rw.lore-db.svc.cluster.local"
           }
           env {
             name  = "LORE_DB_PORT"
