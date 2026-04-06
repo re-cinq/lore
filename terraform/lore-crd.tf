@@ -42,6 +42,16 @@ resource "kubectl_manifest" "loretask_controller" {
   ]
 }
 
+# --- NetworkPolicy restricting Job pod egress ---
+
+resource "kubectl_manifest" "loretask_networkpolicy" {
+  yaml_body = file("${path.module}/modules/gke-mcp/loretask-crd/networkpolicy.yaml")
+
+  depends_on = [
+    kubernetes_namespace.lore_agent,
+  ]
+}
+
 # --- Agent RBAC (ClusterRole + ClusterRoleBinding for lore-agent SA) ---
 
 data "kubectl_file_documents" "agent_rbac" {

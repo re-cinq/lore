@@ -1,0 +1,35 @@
+# NetworkPolicy restricting Job pod egress to only what's needed:
+# - GitHub API (for git clone/push and PR creation)
+# - Lore API (for context hydration and status updates)
+# - Anthropic API (for Claude Code)
+# - DNS (for hostname resolution)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: loretask-job-egress
+  namespace: lore-agent
+spec:
+  podSelector:
+    matchLabels:
+      lore.re-cinq.com/component: job
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # HTTPS egress (GitHub, Anthropic, Lore API, npm registries)
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Internal Lore API (HTTP within cluster)
+    - ports:
+        - protocol: TCP
+          port: 3000
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mcp-servers
