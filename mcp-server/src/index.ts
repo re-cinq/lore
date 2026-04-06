@@ -1935,13 +1935,18 @@ async function main() {
           if (!commandText) {
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
               response_type: "ephemeral",
-              text: "Usage: `/lore [task_type] <description>`\nTask types: general, implementation, runbook, gap-fill, review\n\nRetry a failed task: `/lore retry <task_id>`",
+              text: "Usage: `/lore [task_type] <description>`\nTask types: general, implementation, runbook, gap-fill, review\n\nPrefix with `!` to execute immediately: `/lore ! implementation add caching`\nRetry a failed task: `/lore retry <task_id>`",
             }));
             return;
           }
 
-          // Handle retry command: /lore retry <task_id>
-          const words = commandText.split(/\s+/);
+          // Parse priority: leading "!" means immediate
+          let words = commandText.split(/\s+/);
+          let priority = "normal";
+          if (words[0] === "!") {
+            priority = "immediate";
+            words = words.slice(1);
+          }
           if (words[0] === "retry" && words[1]) {
             const retryTaskId = words[1];
             try {
@@ -1963,7 +1968,7 @@ async function main() {
           // Parse task type from first word if it matches a known type
           const knownTypes = ["general", "implementation", "runbook", "gap-fill", "review", "feature-request"];
           let taskType = "general";
-          let description = commandText;
+          let description = words.join(" ");
           if (words.length > 1 && knownTypes.includes(words[0])) {
             taskType = words[0];
             description = words.slice(1).join(" ");
@@ -2001,10 +2006,11 @@ async function main() {
           };
 
           try {
-            const taskResult = await createTask(description, taskType, targetRepo, `slack:${userName}`, contextBundle);
+            const taskResult = await createTask(description, taskType, targetRepo, `slack:${userName}`, contextBundle, priority);
+            const priorityLabel = priority === "immediate" ? " | Priority: `immediate`" : "";
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
               response_type: "in_channel",
-              text: `Task created on \`${targetRepo}\`:\n> ${description}\n\nType: \`${taskType}\` | ID: \`${taskResult.task_id}\`\nI'll post the PR here when it's ready.`,
+              text: `Task created on \`${targetRepo}\`:\n> ${description}\n\nType: \`${taskType}\`${priorityLabel} | ID: \`${taskResult.task_id}\`\n${priority === "immediate" ? "Agent will pick this up shortly." : "Task in backlog — claim locally or use the UI to run now."}`,
             }));
           } catch (err: any) {
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
