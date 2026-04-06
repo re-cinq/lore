@@ -185,4 +185,64 @@ describe("Pipeline Task Lifecycle", () => {
     );
     expect(updated[0].review_iteration).toBe(1);
   });
+
+  it("creates tasks with default priority 'normal'", async () => {
+    const { rows } = await pool.query(
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by)
+       VALUES ('priority default test', 'general', 're-cinq/lore', 'integration-test')
+       RETURNING id, priority`,
+    );
+    expect(rows[0].priority).toBe("normal");
+  });
+
+  it("creates tasks with explicit priority 'immediate'", async () => {
+    const { rows } = await pool.query(
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, priority)
+       VALUES ('priority immediate test', 'general', 're-cinq/lore', 'integration-test', 'immediate')
+       RETURNING id, priority`,
+    );
+    expect(rows[0].priority).toBe("immediate");
+  });
+
+  it("GKE worker query picks up immediate tasks without grace period", async () => {
+    const { rows: created } = await pool.query(
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, priority)
+       VALUES ('immediate pickup test', 'general', 're-cinq/lore', 'integration-test', 'immediate')
+       RETURNING id`,
+    );
+
+    // Immediate tasks should be picked up even when just created (no 30s grace period)
+    const { rows: picked } = await pool.query(
+      `SELECT id FROM pipeline.tasks
+       WHERE status = 'pending'
+         AND status != 'running-local'
+         AND (
+           (priority = 'immediate')
+           OR (created_at < now() - interval '30 seconds')
+         )
+         AND id = $1`,
+      [created[0].id],
+    );
+    expect(picked).toHaveLength(1);
+  });
+
+  it("run-now: updates priority from normal to immediate", async () => {
+    const { rows: created } = await pool.query(
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, priority)
+       VALUES ('run-now test', 'general', 're-cinq/lore', 'integration-test', 'normal')
+       RETURNING id`,
+    );
+    const id = created[0].id;
+
+    await pool.query(
+      `UPDATE pipeline.tasks SET priority = 'immediate', updated_at = now() WHERE id = $1 AND status = 'pending'`,
+      [id],
+    );
+
+    const { rows: updated } = await pool.query(
+      `SELECT priority FROM pipeline.tasks WHERE id = $1`,
+      [id],
+    );
+    expect(updated[0].priority).toBe("immediate");
+  });
 });

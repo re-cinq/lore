@@ -8,12 +8,14 @@ async function createTask(formData: FormData) {
   const description = formData.get('description') as string;
   const taskType = formData.get('task_type') as string || 'general';
   const targetRepo = formData.get('target_repo') as string;
+  const priority = formData.get('priority') as string || 'normal';
   if (!description?.trim()) return;
 
+  const resolvedPriority = priority === 'immediate' ? 'immediate' : 'normal';
   await query(
-    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by)
-     VALUES ($1, $2, $3, 'ui')`,
-    [description, taskType, targetRepo]
+    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, priority)
+     VALUES ($1, $2, $3, 'ui', $4)`,
+    [description, taskType, targetRepo, resolvedPriority]
   );
   // Also insert the initial event
   const task = await query(`SELECT id FROM pipeline.tasks ORDER BY created_at DESC LIMIT 1`);
@@ -45,6 +47,12 @@ export default async function CreateRepoTask({ params }: { params: Promise<{ own
 
         <label>Description</label>
         <textarea name="description" rows={5} required placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions." />
+
+        <label style={{display:'flex', alignItems:'center', gap:'8px', cursor:'pointer'}}>
+          <input type="checkbox" name="priority" value="immediate" />
+          <span>Execute immediately</span>
+          <span className="meta" style={{fontSize:'12px'}}>— runs on GKE now instead of waiting for local pickup</span>
+        </label>
 
         <button type="submit">Create Task</button>
       </form>

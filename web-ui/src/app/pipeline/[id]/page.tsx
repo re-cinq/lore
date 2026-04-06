@@ -9,6 +9,7 @@ interface Task {
   description: string;
   task_type: string;
   status: string;
+  priority: string;
   target_repo: string;
   target_branch: string | null;
   agent_id: string | null;
@@ -47,10 +48,10 @@ async function submitFeedback(formData: FormData) {
   const task = await queryOne<Task>(`SELECT * FROM pipeline.tasks WHERE id = $1`, [taskId]);
   if (!task) return;
 
-  // Create a revision task on the same branch with the feedback
+  // Create a revision task on the same branch with the feedback (immediate — active feedback loop)
   const result = await query<{ id: string }>(
-    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
+     VALUES ($1, $2, $3, $4, $5, 'immediate') RETURNING id`,
     [
       `Revise based on feedback: ${feedback.substring(0, 200)}`,
       task.task_type === 'feature-request' ? 'feature-request' : 'implementation',
@@ -102,6 +103,12 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
       <div className="spec-card">
         <p><strong>Type:</strong> <span className="badge">{task.task_type}</span></p>
         <p><strong>Status:</strong> <span className={`op-badge op-${task.status}`}>{task.status}</span></p>
+        <p>
+          <strong>Priority:</strong>{' '}
+          <span className={task.priority === 'immediate' ? 'badge' : 'meta'} style={task.priority === 'immediate' ? {background:'#7c3aed',color:'white',padding:'2px 8px',borderRadius:'4px'} : {}}>
+            {task.priority || 'normal'}
+          </span>
+        </p>
         <p><strong>Repo:</strong> {task.target_repo}</p>
         {task.agent_id && <p><strong>Agent:</strong> {task.agent_id}</p>}
         {task.pr_url && <p><strong>PR:</strong> <a href={task.pr_url} target="_blank">{task.pr_url}</a></p>}
@@ -112,13 +119,22 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         {task.review_iteration > 0 && <p><strong>Review iterations:</strong> {task.review_iteration}</p>}
         <p><strong>Created by:</strong> {task.created_by}</p>
         <p className="meta">Created: {new Date(task.created_at).toLocaleString()} · Updated: {new Date(task.updated_at).toLocaleString()}</p>
-        {!['merged', 'failed', 'cancelled'].includes(task.status) && (
-          <form action={`/api/pipeline/${task.id}/cancel`} method="POST" style={{marginTop:'12px'}}>
-            <button type="submit" style={{background:'#dc2626',color:'white',border:'none',padding:'6px 16px',borderRadius:'4px',cursor:'pointer'}}>
-              Cancel Task
-            </button>
-          </form>
-        )}
+        <div style={{display:'flex', gap:'8px', marginTop:'12px'}}>
+          {task.status === 'pending' && (task.priority || 'normal') === 'normal' && (
+            <form action={`/api/pipeline/${task.id}/run-now`} method="POST">
+              <button type="submit" style={{background:'#7c3aed',color:'white',border:'none',padding:'6px 16px',borderRadius:'4px',cursor:'pointer'}}>
+                Run Now
+              </button>
+            </form>
+          )}
+          {!['merged', 'failed', 'cancelled'].includes(task.status) && (
+            <form action={`/api/pipeline/${task.id}/cancel`} method="POST">
+              <button type="submit" style={{background:'#dc2626',color:'white',border:'none',padding:'6px 16px',borderRadius:'4px',cursor:'pointer'}}>
+                Cancel Task
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       {/* Feedback form — visible when task has a PR and isn't in a terminal state */}

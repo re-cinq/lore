@@ -153,6 +153,77 @@ describe("issueRef", () => {
   });
 });
 
+// ── Task priority filtering (mirrors pollOnce decision logic) ──────
+
+describe("task priority filtering", () => {
+  /**
+   * Mirrors the pollOnce query logic: immediate tasks skip the grace
+   * period, normal tasks need to be older than 30 seconds.
+   */
+  function shouldPickUp(task: { priority: string; ageSeconds: number; status: string }): boolean {
+    if (task.status !== "pending" || task.status === "running-local") return false;
+    if (task.priority === "immediate") return true;
+    return task.ageSeconds >= 30;
+  }
+
+  it("picks up immediate tasks regardless of age", () => {
+    expect(shouldPickUp({ priority: "immediate", ageSeconds: 0, status: "pending" })).toBe(true);
+    expect(shouldPickUp({ priority: "immediate", ageSeconds: 5, status: "pending" })).toBe(true);
+  });
+
+  it("does NOT pick up normal tasks younger than 30 seconds", () => {
+    expect(shouldPickUp({ priority: "normal", ageSeconds: 10, status: "pending" })).toBe(false);
+    expect(shouldPickUp({ priority: "normal", ageSeconds: 29, status: "pending" })).toBe(false);
+  });
+
+  it("picks up normal tasks older than 30 seconds", () => {
+    expect(shouldPickUp({ priority: "normal", ageSeconds: 30, status: "pending" })).toBe(true);
+    expect(shouldPickUp({ priority: "normal", ageSeconds: 120, status: "pending" })).toBe(true);
+  });
+
+  it("skips running-local tasks", () => {
+    expect(shouldPickUp({ priority: "immediate", ageSeconds: 0, status: "running-local" })).toBe(false);
+  });
+
+  it("skips non-pending tasks", () => {
+    expect(shouldPickUp({ priority: "immediate", ageSeconds: 0, status: "running" })).toBe(false);
+    expect(shouldPickUp({ priority: "immediate", ageSeconds: 0, status: "completed" })).toBe(false);
+  });
+
+  /**
+   * When multiple tasks are eligible, immediate tasks should be
+   * processed before normal ones (ORDER BY priority).
+   */
+  function sortByPriority(tasks: { priority: string; createdAt: number }[]): typeof tasks {
+    return [...tasks].sort((a, b) => {
+      const pa = a.priority === "immediate" ? 0 : 1;
+      const pb = b.priority === "immediate" ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return a.createdAt - b.createdAt;
+    });
+  }
+
+  it("immediate tasks sort before normal tasks", () => {
+    const tasks = [
+      { priority: "normal", createdAt: 1 },
+      { priority: "immediate", createdAt: 3 },
+      { priority: "normal", createdAt: 2 },
+    ];
+    const sorted = sortByPriority(tasks);
+    expect(sorted[0].priority).toBe("immediate");
+  });
+
+  it("within same priority, older tasks come first (FIFO)", () => {
+    const tasks = [
+      { priority: "normal", createdAt: 3 },
+      { priority: "normal", createdAt: 1 },
+      { priority: "normal", createdAt: 2 },
+    ];
+    const sorted = sortByPriority(tasks);
+    expect(sorted.map(t => t.createdAt)).toEqual([1, 2, 3]);
+  });
+});
+
 // ── Stale task recovery logic ───────────────────────────────────────
 
 describe("recoverStaleTasks (logic)", () => {

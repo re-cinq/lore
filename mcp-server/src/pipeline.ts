@@ -18,17 +18,19 @@ export async function createTask(
   targetRepo?: string,
   createdBy: string = 'ui',
   contextBundle?: any,
+  priority: string = 'normal',
 ): Promise<any> {
   const repo = targetRepo || getDefaultRepo(taskType);
+  const resolvedPriority = priority === 'immediate' ? 'immediate' : 'normal';
   const { rows } = await pool.query(
-    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, status, created_at`,
-    [description, taskType, repo, createdBy, contextBundle ? JSON.stringify(contextBundle) : null],
+    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, status, priority, created_at`,
+    [description, taskType, repo, createdBy, contextBundle ? JSON.stringify(contextBundle) : null, resolvedPriority],
   );
   const task = rows[0];
-  await recordEvent(task.id, null, 'pending', { created_by: createdBy });
-  return { task_id: task.id, status: task.status, created_at: task.created_at };
+  await recordEvent(task.id, null, 'pending', { created_by: createdBy, priority: resolvedPriority });
+  return { task_id: task.id, status: task.status, priority: task.priority, created_at: task.created_at };
 }
 
 export async function getTask(taskId: string): Promise<any> {
@@ -124,13 +126,14 @@ export async function handleReviewResult(taskId: string, approved: boolean, comm
         iterations: iteration,
       });
     } else {
-      // Re-trigger implementation agent with review feedback
+      // Re-trigger implementation agent with review feedback (immediate — active feedback loop)
       await createTask(
         `Address review feedback on PR: ${comments.substring(0, 200)}`,
         task.task_type,
         task.target_repo,
         'review-agent',
         { branch: task.target_branch, review_comments: comments },
+        'immediate',
       );
       await updateTaskStatus(taskId, 'review', { review_result: 'changes-requested', iteration });
     }

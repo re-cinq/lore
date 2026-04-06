@@ -86,6 +86,13 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   EXCEPTION WHEN duplicate_column THEN NULL;
   END \$\$;
 
+  -- Task priority: 'normal' (backlog, wait for local pickup) or 'immediate' (GKE agent auto-executes)
+  DO \$\$ BEGIN
+    ALTER TABLE pipeline.tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal';
+  EXCEPTION WHEN duplicate_column THEN NULL;
+  END \$\$;
+  CREATE INDEX IF NOT EXISTS tasks_priority_idx ON pipeline.tasks (priority) WHERE status = 'pending';
+
   GRANT USAGE ON SCHEMA pipeline TO lore;
   GRANT ALL ON ALL TABLES IN SCHEMA pipeline TO lore;
   ALTER DEFAULT PRIVILEGES IN SCHEMA pipeline GRANT ALL ON TABLES TO lore;
