@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query } from '@/lib/db';
+import { query, queryAllChunks } from '@/lib/db';
 
 interface SearchResult {
   key: string;
@@ -54,25 +54,25 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       LIMIT 20
     `, [q]);
 
-    // Search repo chunks (scoped by repo if filtered)
-    const chunkParams: any[] = [q];
-    let chunkRepoFilter = '';
-    if (repo) {
-      chunkRepoFilter = 'AND c.repo = $2';
-      chunkParams.push(repo);
-    }
-    const chunkResults = await query<SearchResult>(`
-      SELECT c.file_path as key, substring(c.content, 1, 300) as value,
-             'ingestion' as agent_id,
-             ts_rank(to_tsvector('english', c.content), plainto_tsquery($1)) as score,
-             'chunk' as source,
-             c.repo as repo
-      FROM org_shared.chunks c
-      WHERE to_tsvector('english', c.content) @@ plainto_tsquery($1)
-        ${chunkRepoFilter}
-      ORDER BY score DESC
-      LIMIT 20
-    `, chunkParams);
+    // Search repo chunks across all schemas (scoped by repo if filtered)
+    const chunkResults = await queryAllChunks<SearchResult>(
+      (schema, offset) => {
+        const repoFilter = repo ? `AND c.repo = $${offset + 1}` : '';
+        return {
+          sql: `SELECT c.file_path as key, substring(c.content, 1, 300) as value,
+                       'ingestion' as agent_id,
+                       ts_rank(to_tsvector('english', c.content), plainto_tsquery($${offset})) as score,
+                       'chunk' as source,
+                       c.repo as repo
+                FROM ${schema}.chunks c
+                WHERE to_tsvector('english', c.content) @@ plainto_tsquery($${offset})
+                  ${repoFilter}`,
+          params: repo ? [q, repo] : [q],
+        };
+      },
+    );
+    chunkResults.sort((a, b) => b.score - a.score);
+    chunkResults.splice(20);
 
     // Merge and sort by score descending
     const allResults = [...memoryResults, ...factResults, ...chunkResults];

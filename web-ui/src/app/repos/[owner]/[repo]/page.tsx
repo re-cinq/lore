@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query, queryOne } from '@/lib/db';
+import { query, queryOne, getRepoSchema } from '@/lib/db';
 import Link from 'next/link';
 
 export default async function RepoOverview({ params }: { params: Promise<{ owner: string; repo: string }> }) {
@@ -12,8 +12,9 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
      FROM pipeline.tasks WHERE target_repo = $1 ORDER BY created_at DESC LIMIT 5`,
     [fullName]
   );
+  const schema = await getRepoSchema(fullName);
   const contextCount = await queryOne<{count: number}>(
-    `SELECT count(*)::int as count FROM org_shared.chunks WHERE file_path LIKE $1 || '%'`,
+    `SELECT count(*)::int as count FROM ${schema}.chunks WHERE repo = $1`,
     [fullName]
   );
 

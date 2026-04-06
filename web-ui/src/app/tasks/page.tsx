@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { query } from '@/lib/db';
+import { query, queryAllChunks } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
 interface Task {
@@ -32,13 +32,15 @@ async function createTask(formData: FormData) {
 }
 
 export default async function TasksPage() {
-  const tasks = await query<Task>(`
-    SELECT id, content, content_type, metadata, ingested_at
-    FROM org_shared.chunks
-    WHERE content_type = 'task'
-    ORDER BY ingested_at DESC
-    LIMIT 50
-  `);
+  const allTasks = await queryAllChunks<Task>(
+    (schema) => ({
+      sql: `SELECT id, content, content_type, metadata, ingested_at
+            FROM ${schema}.chunks
+            WHERE content_type = 'task'`,
+      params: [],
+    }),
+  );
+  const tasks = allTasks.sort((a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime()).slice(0, 50);
 
   const recentActivity = await query<AuditEntry>(`
     SELECT agent_id, operation, memory_key, metadata, created_at

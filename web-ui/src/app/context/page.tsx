@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { query } from '@/lib/db';
+import { query, queryAllChunks } from '@/lib/db';
 
 interface Chunk {
   id: string;
@@ -13,13 +13,15 @@ interface Chunk {
 export default async function ContextPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const { type } = await searchParams;
 
-  const chunks = await query<Chunk>(`
-    SELECT id, file_path, content_type, substring(content, 1, 300) as content, ingested_at
-    FROM org_shared.chunks
-    WHERE ($1::text IS NULL OR content_type = $1)
-    ORDER BY ingested_at DESC
-    LIMIT 50
-  `, [type || null]);
+  const allChunks = await queryAllChunks<Chunk>(
+    (schema, offset) => ({
+      sql: `SELECT id, file_path, content_type, substring(content, 1, 300) as content, ingested_at
+            FROM ${schema}.chunks
+            WHERE ($${offset}::text IS NULL OR content_type = $${offset})`,
+      params: [type || null],
+    }),
+  );
+  const chunks = allChunks.sort((a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime()).slice(0, 50);
 
   const types = ['doc', 'adr', 'spec', 'code', 'runbook'];
 
