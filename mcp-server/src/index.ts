@@ -521,7 +521,15 @@ server.tool(
           }
           return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
         }
-        const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id, cross_repo);
+        // Resolve cross_repo: explicit param wins, then check repo settings
+        let enableCrossRepo = cross_repo;
+        if (!enableCrossRepo && repo && dbPoolRef) {
+          try {
+            const { rows } = await dbPoolRef.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
+            if (rows[0]?.settings?.cross_repo === true) enableCrossRepo = true;
+          } catch { /* non-fatal */ }
+        }
+        const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id, enableCrossRepo);
         if (!result.text || result.text.trim().length === 0) {
           return { content: [{ type: "text" as const, text: "No relevant context found for this query." }] };
         }
