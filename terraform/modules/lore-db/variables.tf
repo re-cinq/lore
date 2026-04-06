@@ -38,3 +38,9 @@ variable "storage_class" {
   type        = string
   default     = "standard-rwo"
 }
+
+variable "backup_retention_days" {
+  description = "Number of days to retain GCS backup objects (applied as a GCS lifecycle rule)."
+  type        = number
+  default     = 7
+}
