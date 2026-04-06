@@ -65,9 +65,14 @@ describe("review result parsing", () => {
 });
 
 // ── parseChangedFiles (copied from loretask-controller.ts) ──────────
+// BUG FIX: regex must handle whitespace after = sign.
+// The entrypoint previously output "CHANGES= 1 file changed, 6 insertions(+)"
+// which the old regex /CHANGES=(\d+)/ failed to match (returned 0).
+// This caused tasks with real code changes to be treated as no-change tasks,
+// skipping PR creation entirely.
 
 function parseChangedFiles(logs: string): number {
-  const match = logs.match(/CHANGES=(\d+)/);
+  const match = logs.match(/CHANGES=\s*(\d+)/);
   return match ? parseInt(match[1], 10) : 0;
 }
 
@@ -86,6 +91,35 @@ describe("parseChangedFiles", () => {
 
   it("handles large numbers", () => {
     expect(parseChangedFiles("CHANGES=42")).toBe(42);
+  });
+
+  // --- Regression tests for bugs hit in production ---
+
+  it("handles space before number (old entrypoint format)", () => {
+    // This was the actual bug: entrypoint output "CHANGES= 1 file changed, 6 insertions(+)"
+    expect(parseChangedFiles("CHANGES= 1 file changed, 6 insertions(+)")).toBe(1);
+  });
+
+  it("handles multiple spaces before number", () => {
+    expect(parseChangedFiles("CHANGES=  3")).toBe(3);
+  });
+
+  it("handles tab before number", () => {
+    expect(parseChangedFiles("CHANGES=\t7")).toBe(7);
+  });
+
+  it("extracts from full entrypoint output with surrounding lines", () => {
+    const logs = [
+      "[runner] Pushing to origin/lore/impl/foo...",
+      "CHANGES=1",
+      "[runner] Done.",
+    ].join("\n");
+    expect(parseChangedFiles(logs)).toBe(1);
+  });
+
+  it("extracts from old format with git diff --stat suffix", () => {
+    const logs = "CHANGES= 1 file changed, 1 insertion(+)";
+    expect(parseChangedFiles(logs)).toBe(1);
   });
 });
 
