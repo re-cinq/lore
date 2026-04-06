@@ -29,11 +29,19 @@ async function setStatus(
   status: string,
   extra: Record<string, unknown> = {},
 ): Promise<void> {
+  // Allowlist of permitted column names to prevent SQL injection via dynamic keys
+  const ALLOWED_COLUMNS = new Set([
+    "pr_url", "pr_number", "target_branch", "failure_reason", "agent_id",
+    "log_url", "claimed_by", "claimed_at", "issue_number", "issue_url",
+    "review_iteration", "actor", "priority",
+  ]);
+
   const setClauses = ["status = $1", "updated_at = now()"];
   const params: unknown[] = [status];
   let idx = 2;
 
   for (const [key, value] of Object.entries(extra)) {
+    if (!ALLOWED_COLUMNS.has(key)) continue; // skip unknown columns
     setClauses.push(`${key} = $${idx}`);
     params.push(value);
     idx++;

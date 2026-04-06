@@ -1421,29 +1421,51 @@ async function main() {
   if (mode === "http") {
     const port = parseInt(process.env.PORT || "3000", 10);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => crypto.randomUUID() });
+    const MAX_BODY_BYTES = 1_048_576; // 1MB
+
     const httpServer = createServer(async (req, res) => {
+      // Enforce body size limit on all POST requests
+      if (req.method === "POST") {
+        const contentLength = parseInt(req.headers["content-length"] || "0", 10);
+        if (contentLength > MAX_BODY_BYTES) {
+          res.writeHead(413, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "request body too large" }));
+          return;
+        }
+      }
+
       if (req.url === "/mcp" || req.url === "/mcp/") {
         await transport.handleRequest(req, res);
       } else if (req.url === "/healthz") {
         const health = await getHealthStatus();
         const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
         const code = status === "error" ? 503 : 200;
-        // Add task and cost stats if DB is available
-        let tasks = { processed_today: 0, pending: 0 };
-        let todayCost = "0.00";
-        if (health.connected && dbPoolRef) {
-          try {
-            const [taskStats, costStats] = await Promise.all([
-              dbPoolRef.query(`SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`),
-              dbPoolRef.query(`SELECT COALESCE(SUM(cost_usd), 0)::numeric(10,2) as cost FROM pipeline.llm_calls WHERE created_at > current_date`),
-            ]);
-            tasks = { processed_today: taskStats.rows[0]?.today || 0, pending: taskStats.rows[0]?.pending || 0 };
-            todayCost = costStats.rows[0]?.cost || "0.00";
-          } catch { /* non-fatal */ }
+        // Public healthz returns minimal info. Operational details require auth.
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (token && auth === `Bearer ${token}`) {
+          // Authenticated: return full operational data
+          let tasks = { processed_today: 0, pending: 0 };
+          let todayCost = "0.00";
+          if (health.connected && dbPoolRef) {
+            try {
+              const [taskStats, costStats] = await Promise.all([
+                dbPoolRef.query(`SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`),
+                dbPoolRef.query(`SELECT COALESCE(SUM(cost_usd), 0)::numeric(10,2) as cost FROM pipeline.llm_calls WHERE created_at > current_date`),
+              ]);
+              tasks = { processed_today: taskStats.rows[0]?.today || 0, pending: taskStats.rows[0]?.pending || 0 };
+              todayCost = costStats.rows[0]?.cost || "0.00";
+            } catch { /* non-fatal */ }
+          }
+          res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status, database: health, tasks, today_cost: todayCost }));
+        } else {
+          // Unauthenticated: minimal response
+          res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status }));
         }
-        res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify({ status, database: health, tasks, today_cost: todayCost }));
       } else if (req.url?.startsWith("/api/repo-status") && req.method === "GET") {
         // Statusline cache endpoint — returns onboarded, tasks, memories, auto_review
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
         const url = new URL(req.url, `http://${req.headers.host}`);
         const repo = url.searchParams.get("repo");
         console.log(`[repo-status] repo=${repo} dbPoolRef=${!!dbPoolRef}`);
@@ -1816,8 +1838,12 @@ async function main() {
         let rawBody = "";
         req.on("data", (chunk: Buffer) => { rawBody += chunk.toString(); });
         req.on("end", async () => {
-          // Validate HMAC SHA-256 signature
-          if (webhookSecret) {
+          // Validate HMAC SHA-256 signature (mandatory)
+          if (!webhookSecret) {
+            res.writeHead(503, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "webhook secret not configured" }));
+            return;
+          }
+          {
             if (!signature) {
               res.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "missing signature" }));
               return;
@@ -1951,9 +1977,13 @@ async function main() {
         let rawBody = "";
         req.on("data", (chunk: Buffer) => { rawBody += chunk.toString(); });
         req.on("end", async () => {
-          // Verify Slack signing secret (HMAC-SHA256)
+          // Verify Slack signing secret (HMAC-SHA256, mandatory)
           const slackSecret = process.env.LORE_SLACK_SIGNING_SECRET;
-          if (slackSecret) {
+          if (!slackSecret) {
+            res.writeHead(503).end("Slack signing secret not configured");
+            return;
+          }
+          {
             const timestamp = req.headers["x-slack-request-timestamp"] as string;
             const slackSig = req.headers["x-slack-signature"] as string;
             if (!timestamp || !slackSig) {

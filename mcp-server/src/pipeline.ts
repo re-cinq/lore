@@ -21,6 +21,7 @@ export async function createTask(
   priority: string = 'normal',
 ): Promise<any> {
   const repo = targetRepo || getDefaultRepo(taskType);
+  if (description.length > 10000) throw new Error('Description too long (max 10000 chars)');
   const resolvedPriority = priority === 'immediate' ? 'immediate' : 'normal';
   const { rows } = await pool.query(
     `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
