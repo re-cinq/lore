@@ -38,6 +38,23 @@ import { extractFacts, extractFactsFromEpisode } from "./facts.js";
 import { extractAndUpdateGraph, queryLiveGraph } from "./graph.js";
 import { assembleContext, loadTemplates } from "./context-assembly.js";
 import { trackToolCall, dumpSessionLog, formatSessionSummary } from "./session-tracker.js";
+
+/** Strip secrets/keys from text before storing in org-wide memory. */
+function sanitizeContent(text: string): string {
+  const patterns: RegExp[] = [
+    /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_\-]{20,}/g,
+    /eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}/g,
+    /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g,
+    /(?:postgres|mysql|mongodb|redis|amqp):\/\/[^\s"'`]+/g,
+    /Bearer\s+[A-Za-z0-9_\-.]{20,}/g,
+    /x-access-token:[A-Za-z0-9_\-]{20,}/g,
+  ];
+  let result = text;
+  for (const re of patterns) {
+    result = result.replace(re, "[REDACTED]");
+  }
+  return result;
+}
 import { createHash } from "node:crypto";
 import {
   createTask,
@@ -352,8 +369,10 @@ server.tool(
         return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL (LORE_DB_HOST not set)." }] };
       }
       const agent = resolveAgentId(agent_id);
-      const contentHash = createHash("sha256").update(content).digest("hex");
-      const embedding = await getQueryEmbedding(content);
+      // Privacy filter: strip secrets before storing in org-wide memory
+      const safeContent = sanitizeContent(content);
+      const contentHash = createHash("sha256").update(safeContent).digest("hex");
+      const embedding = await getQueryEmbedding(safeContent);
       const embeddingStr = embedding ? `[${embedding.join(",")}]` : null;
 
       const { rows } = await dbPoolRef.query(
@@ -361,7 +380,7 @@ server.tool(
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (agent_id, content_hash) DO NOTHING
          RETURNING id`,
-        [agent, content, contentHash, source, ref || null, embeddingStr],
+        [agent, safeContent, contentHash, source, ref || null, embeddingStr],
       );
 
       if (rows.length === 0) {
@@ -1612,20 +1631,22 @@ async function main() {
             const { content, source, ref, agent_id } = JSON.parse(body);
             if (!content) { res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "content required" })); return; }
             const agent = agent_id || 'unknown';
-            const contentHash = createHash("sha256").update(content).digest("hex");
+            // Privacy filter: strip secrets before storing
+            const safeContent = sanitizeContent(content);
+            const contentHash = createHash("sha256").update(safeContent).digest("hex");
             const { rows } = await dbPoolRef.query(
               `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
                VALUES ($1, $2, $3, $4, $5)
                ON CONFLICT (agent_id, content_hash) DO NOTHING
                RETURNING id`,
-              [agent, content, contentHash, source || 'session', ref || null],
+              [agent, safeContent, contentHash, source || 'session', ref || null],
             );
             if (rows.length === 0) {
               res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "duplicate" }));
               return;
             }
             // Trigger async fact extraction
-            extractFactsFromEpisode(rows[0].id, content, agent, dbPoolRef).catch(() => {});
+            extractFactsFromEpisode(rows[0].id, safeContent, agent, dbPoolRef).catch(() => {});
             res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "ok", episode_id: rows[0].id }));
           } catch (err: any) {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
