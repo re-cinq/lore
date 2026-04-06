@@ -6,9 +6,9 @@ PR history, and task state.
 
 ## Architecture
 
-**MCP server** (`mcp-server/src/index.ts`): TypeScript, serves context
-to Claude Code via MCP protocol. Dual transport: stdio for local
-(Phase 0), Streamable HTTP for GKE (Phase 1). Three core tools:
+**MCP server** (`mcp-server/src/index.ts` + `routes.ts`): TypeScript,
+serves context to Claude Code via MCP protocol. Dual transport: stdio
+for local (Phase 0), Streamable HTTP for GKE (Phase 1). Three core tools:
 `assemble_context`, `search_context`, `search_memory`. Pipeline
 delegation, local task runner, and 30+ tools total.
 
@@ -51,6 +51,8 @@ gcloud auth for local dev.
 ## Key Components
 
 - `mcp-server/` — the MCP server (TypeScript)
+- `mcp-server/src/routes.ts` — HTTP API route handlers (extracted from index.ts)
+- `mcp-server/src/github-client.ts` — consolidated GitHub auth (App + token fallback)
 - `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code)
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
@@ -290,6 +292,19 @@ Stored as `consolidated/{repo}/{timestamp}` memories.
 through `sanitizeContent()` / `redactSecrets()` to strip API keys,
 JWTs, private keys, connection strings, and bearer tokens before
 storage in the org-wide database.
+
+**API security**: Centralized auth in `routes.ts` — every `/api/*`
+route enforces bearer token validation before dispatch. Supports
+legacy single token (`LORE_INGEST_TOKEN`, full access) and per-client
+scoped tokens (`pipeline.api_tokens` table with SHA-256 hashes).
+Scopes: read, write, task, webhook, admin. Token management via
+`/api/tokens` endpoint. Webhooks (GitHub, Slack) use their own HMAC
+signature verification. Rate limiting: 30/min webhooks, 60/min task
+ops, 200/min other (in-memory sliding window). 1MB body size limit.
+
+**Job pod security**: Pods run as non-root (uid 1000), drop all
+Linux capabilities, disallow privilege escalation. NetworkPolicy
+restricts egress to DNS + HTTPS + internal Lore API only.
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
 - After implementation PR is created, watcher auto-creates a review
