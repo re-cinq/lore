@@ -190,12 +190,32 @@ const fetchers: Record<string, SourceFetcher> = {
   async cross_repo(pool, query, repo) {
     if (!repo) return '';
     try {
-      const { rows } = await pool.query(
-        `SELECT content, repo, file_path FROM org_shared.chunks
-         WHERE repo != $1 AND search_tsv @@ plainto_tsquery($2)
-         ORDER BY ts_rank(search_tsv, plainto_tsquery($2)) DESC LIMIT 5`,
-        [repo, query],
+      // Check if repo has specific cross_repo_repos configured
+      const { rows: repoRows } = await pool.query(
+        `SELECT settings FROM lore.repos WHERE full_name = $1`, [repo],
       );
+      const linkedRepos: string[] = repoRows[0]?.settings?.cross_repo_repos || [];
+
+      let rows: any[];
+      if (linkedRepos.length > 0) {
+        // Search only the linked repos
+        const result = await pool.query(
+          `SELECT content, repo, file_path FROM org_shared.chunks
+           WHERE repo = ANY($1) AND search_tsv @@ plainto_tsquery($2)
+           ORDER BY ts_rank(search_tsv, plainto_tsquery($2)) DESC LIMIT 5`,
+          [linkedRepos, query],
+        );
+        rows = result.rows;
+      } else {
+        // Fallback: search all repos except current
+        const result = await pool.query(
+          `SELECT content, repo, file_path FROM org_shared.chunks
+           WHERE repo != $1 AND search_tsv @@ plainto_tsquery($2)
+           ORDER BY ts_rank(search_tsv, plainto_tsquery($2)) DESC LIMIT 5`,
+          [repo, query],
+        );
+        rows = result.rows;
+      }
       if (rows.length === 0) return '';
       return rows.map((r: any) => `**[${r.repo}] ${r.file_path}**\n${r.content}`).join('\n\n---\n\n');
     } catch {
