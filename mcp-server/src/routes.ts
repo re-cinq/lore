@@ -53,11 +53,6 @@ function json(res: ServerResponse, code: number, body: unknown): void {
   res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify(body));
 }
 
-function authCheck(req: IncomingMessage): boolean {
-  const token = process.env.LORE_INGEST_TOKEN;
-  return !!token && req.headers.authorization === `Bearer ${token}`;
-}
-
 // ── Per-client token auth ───────────────────────────────────────────
 
 type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
@@ -182,7 +177,9 @@ async function handleHealthz(req: IncomingMessage, res: ServerResponse, pool: Po
   const health = await getHealthStatus();
   const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
   const code = status === "error" ? 503 : 200;
-  if (authCheck(req)) {
+  const bearer = req.headers.authorization?.replace("Bearer ", "");
+  const isAuthed = bearer ? await validateClientToken(pool, bearer, "read") : false;
+  if (isAuthed) {
     let tasks = { processed_today: 0, pending: 0 };
     let todayCost = "0.00";
     if (health.connected && pool) {
@@ -202,7 +199,6 @@ async function handleHealthz(req: IncomingMessage, res: ServerResponse, pool: Po
 }
 
 async function handleRepoStatus(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!authCheck(req)) { res.writeHead(401).end(); return; }
   const url = new URL(req.url!, `http://${req.headers.host}`);
   const repo = url.searchParams.get("repo");
   console.log(`[repo-status] repo=${repo} dbPoolRef=${!!pool}`);
@@ -238,7 +234,6 @@ async function handleRepoStatus(req: IncomingMessage, res: ServerResponse, pool:
 }
 
 async function handleIngest(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!authCheck(req)) { json(res, 401, { error: "unauthorized" }); return; }
   if (!pool) { json(res, 503, { error: "database not available" }); return; }
   const body = await readBody(req);
   try {
@@ -256,7 +251,6 @@ async function handleIngest(req: IncomingMessage, res: ServerResponse, pool: Poo
 }
 
 async function handleOnboard(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!authCheck(req)) { json(res, 401, { error: "unauthorized" }); return; }
   if (!pool) { json(res, 503, { error: "database not available" }); return; }
   const body = await readBody(req);
   try {
@@ -274,8 +268,6 @@ async function handleOnboard(req: IncomingMessage, res: ServerResponse, pool: Po
 }
 
 async function handleContext(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  const token = process.env.LORE_INGEST_TOKEN;
-  if (!token || req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
   const url = new URL(req.url!, "http://localhost");
   const repo = url.searchParams.get("repo");
   const query = url.searchParams.get("query");
@@ -303,7 +295,6 @@ async function handleContext(req: IncomingMessage, res: ServerResponse, pool: Po
 }
 
 async function handleGetTask(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (!authCheck(req)) { res.writeHead(401).end(); return; }
   const taskId = req.url!.replace("/api/task/", "");
   try {
     const task = await getTask(taskId);
@@ -315,7 +306,6 @@ async function handleGetTask(req: IncomingMessage, res: ServerResponse): Promise
 }
 
 async function handleListTasks(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (!authCheck(req)) { res.writeHead(401).end(); return; }
   const url = new URL(req.url!, `http://localhost`);
   const status = url.searchParams.get("status") || undefined;
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "20"), 100);
@@ -328,7 +318,6 @@ async function handleListTasks(req: IncomingMessage, res: ServerResponse): Promi
 }
 
 async function handleTaskPost(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!authCheck(req)) { json(res, 401, { error: "unauthorized" }); return; }
   if (!pool) { json(res, 503, { error: "database not available" }); return; }
   const body = await readBody(req);
   try {
@@ -380,7 +369,6 @@ async function handleTaskPost(req: IncomingMessage, res: ServerResponse, pool: P
 }
 
 async function handleMemory(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!authCheck(req)) { json(res, 401, { error: "unauthorized" }); return; }
   const body = await readBody(req);
   try {
     const { action, key, value, agent_id, ttl, query: searchQuery, limit, version, pool_name, repo } = JSON.parse(body);
@@ -428,8 +416,6 @@ async function handleMemory(req: IncomingMessage, res: ServerResponse, pool: Poo
 }
 
 async function handleEpisode(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  const token = process.env.LORE_INGEST_TOKEN;
-  if (token && req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401).end("Unauthorized"); return; }
   const body = await readBody(req);
   try {
     const { content, source, ref, agent_id } = JSON.parse(body);
@@ -458,7 +444,6 @@ async function handleEpisode(req: IncomingMessage, res: ServerResponse, pool: Po
 }
 
 async function handleSessionSummary(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!authCheck(req)) { res.writeHead(401).end(); return; }
   const body = await readBody(req);
   try {
     const { session_log, repo, agent_id } = JSON.parse(body);
@@ -710,7 +695,6 @@ async function handleSlackWebhook(req: IncomingMessage, res: ServerResponse, poo
 }
 
 async function handleTaskLogs(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (!authCheck(req)) { json(res, 401, { error: "unauthorized" }); return; }
   const body = await readBody(req);
   try {
     const { task_id, repo, logs } = JSON.parse(body);
@@ -725,7 +709,6 @@ async function handleTaskLogs(req: IncomingMessage, res: ServerResponse): Promis
 }
 
 async function handleTokens(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!authCheck(req)) { json(res, 401, { error: "unauthorized (admin only)" }); return; }
   if (!pool) { json(res, 503, { error: "database not available" }); return; }
   const method = req.method || "";
 
@@ -793,6 +776,22 @@ export async function handleApiRoute(
     if (!rateLimit(bucket)) {
       res.writeHead(429, { "Content-Type": "application/json", "Retry-After": "60" })
         .end(JSON.stringify({ error: "rate limit exceeded" }));
+      return true;
+    }
+  }
+
+  // Centralized auth — webhooks have their own HMAC auth, healthz is public
+  const authExempt = url === "/healthz" || url.startsWith("/api/webhook/");
+  if (!authExempt) {
+    const bearer = req.headers.authorization?.replace("Bearer ", "");
+    if (!bearer) {
+      json(res, 401, { error: "unauthorized" });
+      return true;
+    }
+    const scope = getRequiredScope(url);
+    const valid = await validateClientToken(pool, bearer, scope);
+    if (!valid) {
+      json(res, 403, { error: "insufficient scope" });
       return true;
     }
   }
