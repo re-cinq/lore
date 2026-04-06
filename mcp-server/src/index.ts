@@ -746,6 +746,26 @@ server.tool(
   }
 );
 
+server.tool(
+  "retry_task",
+  "Retry a failed pipeline task. Creates a new task with the same parameters and links it to the original.",
+  {
+    task_id: z.string().describe("UUID of the failed task to retry."),
+  },
+  async ({ task_id }) => {
+    try {
+      if (!process.env.LORE_DB_HOST) {
+        return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
+      }
+      const { retryTask } = await import('./pipeline.js');
+      const result = await retryTask(task_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error retrying task: ${err.message}` }] };
+    }
+  }
+);
+
 // --- Spec-task tools ---
 
 server.tool(
@@ -1537,6 +1557,14 @@ async function main() {
         req.on("end", async () => {
           try {
             const parsed = JSON.parse(body);
+
+            // Retry action
+            if (parsed.action === "retry" && parsed.task_id) {
+              const { retryTask } = await import('./pipeline.js');
+              const retryResult = await retryTask(parsed.task_id);
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(retryResult));
+              return;
+            }
 
             // Cancel action
             if (parsed.action === "cancel" && parsed.task_id) {

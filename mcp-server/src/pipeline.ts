@@ -137,6 +137,27 @@ export async function handleReviewResult(taskId: string, approved: boolean, comm
   }
 }
 
+// ── Task retry ──────────────────────────────────────────────────────
+
+export async function retryTask(taskId: string): Promise<any> {
+  const task = await getTask(taskId);
+  if (!task) throw new Error('Task not found');
+  if (task.status !== 'failed' && task.status !== 'needs-human-help') {
+    throw new Error(`Cannot retry task in ${task.status} state (must be failed or needs-human-help)`);
+  }
+  // Create a new task with the same parameters
+  const result = await createTask(
+    task.description,
+    task.task_type,
+    task.target_repo,
+    `retry:${task.created_by}`,
+    { ...(task.context_bundle || {}), retry_of: taskId },
+  );
+  // Mark the original as retried
+  await updateTaskStatus(taskId, 'retried', { retried_as: result.task_id });
+  return { task_id: result.task_id, status: result.status, retry_of: taskId };
+}
+
 // ── PR merge management (T028) ──────────────────────────────────────
 
 export async function markTaskMerged(taskId: string): Promise<any> {
