@@ -179,6 +179,37 @@ resource "kubectl_manifest" "es_agent_ghcr" {
 
 # ===== mcp-servers namespace ================================================
 
+resource "kubectl_manifest" "es_mcp_anthropic" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-anthropic-key"
+      namespace = "mcp-servers"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-anthropic-key"
+      }
+      data = [
+        {
+          secretKey = "anthropic-api-key"
+          remoteRef = {
+            key = "lore-anthropic-api-key"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 resource "kubectl_manifest" "es_mcp_github_app" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
