@@ -42,7 +42,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: agent
+          context: .
+          file: agent/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
