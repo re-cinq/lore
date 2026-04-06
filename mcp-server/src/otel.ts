@@ -56,6 +56,64 @@ const gapCounter = meter.createCounter("lore.retrieval.gap_candidates", {
   description: "Low-confidence retrievals (potential gaps)",
 });
 
+// ── Tool + HTTP metrics ─────────────────────────────────────────────
+
+const toolLatency = meter.createHistogram("lore.tool.duration_ms", {
+  description: "MCP tool call duration in milliseconds",
+  unit: "ms",
+});
+const toolCounter = meter.createCounter("lore.tool.calls", {
+  description: "Total MCP tool calls",
+});
+const toolErrors = meter.createCounter("lore.tool.errors", {
+  description: "MCP tool call errors",
+});
+const httpLatency = meter.createHistogram("lore.http.duration_ms", {
+  description: "HTTP request duration in milliseconds",
+  unit: "ms",
+});
+const httpCounter = meter.createCounter("lore.http.requests", {
+  description: "Total HTTP requests",
+});
+const taskCounter = meter.createCounter("lore.tasks.created", {
+  description: "Pipeline tasks created",
+});
+const episodeCounter = meter.createCounter("lore.episodes.written", {
+  description: "Episodes written",
+});
+
+export function traceTool(tool: string, durationMs: number, success: boolean): void {
+  const span = tracer.startSpan(`tool/${tool}`);
+  span.setAttributes({
+    "lore.tool": tool,
+    "lore.duration_ms": durationMs,
+    "lore.success": success,
+  });
+  span.end();
+
+  toolLatency.record(durationMs, { tool });
+  toolCounter.add(1, { tool, success: String(success) });
+  if (!success) toolErrors.add(1, { tool });
+}
+
+export function traceHttp(method: string, path: string, statusCode: number, durationMs: number): void {
+  httpLatency.record(durationMs, { method, path: normalizePath(path) });
+  httpCounter.add(1, { method, path: normalizePath(path), status: String(statusCode) });
+}
+
+export function traceTaskCreated(taskType: string, repo: string): void {
+  taskCounter.add(1, { task_type: taskType, repo });
+}
+
+export function traceEpisodeWritten(source: string): void {
+  episodeCounter.add(1, { source });
+}
+
+function normalizePath(path: string): string {
+  // Collapse UUIDs and IDs to keep cardinality low
+  return path.replace(/\/[0-9a-f-]{36}/g, "/:id").replace(/\?.*/, "").split("/").slice(0, 3).join("/");
+}
+
 export function traceRetrieval(params: {
   query: string;
   namespace: string;
