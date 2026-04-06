@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
-import { redirect } from 'next/navigation';
 
 interface Task {
   id: string;
@@ -31,7 +30,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       [id, task.status, JSON.stringify({ cancelled_by: 'ui' })]
     );
 
-    return NextResponse.redirect(new URL(`/pipeline/${id}`, _req.url));
+    const host = _req.headers.get('x-forwarded-host') || _req.headers.get('host');
+    const proto = _req.headers.get('x-forwarded-proto') || 'https';
+    const base = host ? `${proto}://${host}` : _req.url;
+    return NextResponse.redirect(new URL(`/pipeline/${id}`, base));
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
