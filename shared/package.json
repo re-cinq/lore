@@ -1,0 +1,20 @@
+{
+  "name": "@re-cinq/lore-shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "tree-sitter-wasms": "^0.1.11",
+    "web-tree-sitter": "^0.24.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.7.3"
+  }
+}

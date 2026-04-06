@@ -64,8 +64,8 @@ function makeGraphLlmCall(): ((prompt: string) => Promise<string>) | undefined {
   };
 }
 
-// Secret redaction — shared canonical implementation
-import { redactSecrets as sanitizeContent } from "./redact.js";
+// Secret redaction from shared package
+import { redactSecrets as sanitizeContent } from "@re-cinq/lore-shared";
 import { createHash } from "node:crypto";
 import {
   createTask,

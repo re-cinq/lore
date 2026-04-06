@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@re-cinq/lore-shared": "*",
     "@anthropic-ai/sdk": "^0.39.0",
     "@google-cloud/storage": "^7.19.0",
     "@kubernetes/client-node": "^1.4.0",

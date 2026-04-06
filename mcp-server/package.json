@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@re-cinq/lore-shared": "*",
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": "^0.20.0",
     "@google-cloud/opentelemetry-cloud-trace-exporter": "^2.4.0",
     "@google-cloud/storage": "^7.19.0",
