@@ -171,7 +171,7 @@ beyond the initial install. There is no offline or local-only mode.
 ## GKE Deployment
 
 Four services in the `n8n-cluster` (europe-west1):
-- PostgreSQL + pgvector: `alloydb` namespace
+- PostgreSQL + pgvector: `lore-db` namespace
 - Lore Agent: `lore-agent` namespace
 - Lore MCP server: `mcp-servers` namespace
 - LoreTask controller: `lore-agent` namespace (watches LoreTask CRs, creates Job pods)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NS="alloydb"
+NS="lore-db"
 POD="lore-db-1"
 REPO="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
 

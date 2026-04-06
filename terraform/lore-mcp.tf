@@ -36,7 +36,7 @@ resource "helm_release" "lore_mcp" {
   }
   set {
     name  = "env.LORE_DB_HOST"
-    value = "lore-db-rw.alloydb.svc.cluster.local"
+    value = "lore-db-rw.lore-db.svc.cluster.local"
   }
   set {
     name  = "env.LORE_DB_PORT"

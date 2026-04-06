@@ -5,7 +5,7 @@ set -euo pipefail
 # Run manually or via weekly cron.
 # Usage: bash scripts/infra/benchmark-retrieval.sh
 
-NS="alloydb"
+NS="lore-db"
 POD="lore-db-1"
 
 echo "[lore] Retrieval latency benchmark (last 7 days)"

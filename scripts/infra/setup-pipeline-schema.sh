@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NS="alloydb"
+NS="lore-db"
 POD="lore-db-1"
 
 echo "[lore] Creating pipeline schema and tables..."

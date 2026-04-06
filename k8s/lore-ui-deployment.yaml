@@ -29,7 +29,7 @@ spec:
               containerPort: 3000
           env:
             - name: LORE_DB_HOST
-              value: "lore-db-rw.alloydb.svc.cluster.local"
+              value: "lore-db-rw.lore-db.svc.cluster.local"
             - name: LORE_DB_PORT
               value: "5432"
             - name: LORE_DB_NAME

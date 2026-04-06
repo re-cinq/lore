@@ -4,7 +4,7 @@ set -euo pipefail
 # Create the memory schema and tables in the existing lore database.
 # Run after setup-db.sh has created the lore database.
 
-NS="alloydb"
+NS="lore-db"
 POD="lore-db-1"
 
 echo "[lore] Creating memory schema and tables..."

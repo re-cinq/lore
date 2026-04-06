@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NS="${LORE_DB_NS:-alloydb}"
+NS="${LORE_DB_NS:-lore-db}"
 POD="${LORE_DB_POD:-lore-db-1}"
 
 echo "[lore] Creating agent schema tables..."
