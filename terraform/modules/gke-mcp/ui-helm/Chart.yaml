@@ -1,0 +1,5 @@
+apiVersion: v2
+name: lore-ui
+description: Lore Web UI — Next.js dashboard with GitHub OAuth
+version: 0.1.0
+appVersion: "1.0.0"
