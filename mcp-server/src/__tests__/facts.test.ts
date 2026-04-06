@@ -98,6 +98,37 @@ describe('LLM config', () => {
   });
 });
 
+// ── Claude CLI fallback (integration test) ──────────────────────────
+
+describe('callClaudeCli fallback', () => {
+  it('extracts facts via claude CLI when ANTHROPIC_API_KEY is unset', async () => {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execFileAsync = promisify(execFile);
+
+    const EXTRACTION_PROMPT =
+      'Extract individual factual statements from the following text. ' +
+      'Return a JSON array of strings. Each fact should be a single, ' +
+      'self-contained statement. Maximum 10 facts.';
+    const text = 'Lore uses PostgreSQL with pgvector for vector search. The MCP server runs on GKE.';
+
+    const { stdout } = await execFileAsync('claude', ['-p', `${EXTRACTION_PROMPT}\n\n${text}`, '--output-format', 'text'], {
+      timeout: 30_000,
+      env: { ...process.env, ANTHROPIC_API_KEY: '' },
+    });
+
+    const cleaned = stdout.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
+    const facts = JSON.parse(cleaned);
+
+    expect(Array.isArray(facts)).toBe(true);
+    expect(facts.length).toBeGreaterThan(0);
+    expect(facts.length).toBeLessThanOrEqual(10);
+    // Should mention postgresql or pgvector
+    const allText = facts.join(' ').toLowerCase();
+    expect(allText).toMatch(/postgres|pgvector/);
+  }, 45_000); // generous timeout for CLI
+});
+
 // ── Contradiction detection (integration-style with mock pool) ─────
 
 describe('invalidateContradictions', () => {
