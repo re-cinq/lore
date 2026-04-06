@@ -108,6 +108,8 @@ Key capabilities:
 - **Graph-augmented search** — `search_memory(graph_augment=true)` enriches results with 1-hop knowledge graph neighbors of detected entities
 - **Context assembly** — `assemble_context` retrieves from all sources and formats into a token-budgeted block using configurable YAML templates (default, review, implementation, research). Supports **subdirectory convention rules** — `.claude/rules/*.md` files loaded conditionally based on task keywords
 - **Pre-run hydration** — both local runner and GKE entrypoint fetch assembled context before spawning Claude Code, so agents start with rich context on turn 1
+- **Passive session capture** — MCP server tracks all tool calls; on session exit, dumps and POSTs a summary as an episode with automatic fact extraction. No explicit `write_episode` needed.
+- **Post-task auto-curation** — every task completion (PR, no-changes, failure) automatically captures an episode. High-signal events get Haiku-driven lesson extraction stored as searchable memories.
 - **Retrieval benchmarks** — p50/p95/p99 latency tracked per tool in the audit log, visible in the analytics dashboard
 
 ### Repo Onboarding
