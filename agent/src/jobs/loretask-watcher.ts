@@ -10,6 +10,7 @@
 import { KubeConfig, CustomObjectsApi, CoreV1Api } from "@kubernetes/client-node";
 import { platform } from "../platform.js";
 import { query } from "../db.js";
+import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -161,6 +162,13 @@ export async function watchLoreTasks(): Promise<void> {
             }
           }
 
+          // Auto-capture episode for no-changes completion
+          writeEpisode(
+            `Task ${lt.spec.taskType} on ${target_repo} completed (no changes)\nDescription: ${lt.spec.description?.substring(0, 500)}\nOutput: ${(output || "").substring(0, 2000)}`,
+            "ci",
+            `${target_repo}/${taskId}`,
+          ).catch(() => {});
+
           console.log(`[loretask-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`);
         } catch (err: any) {
           console.error(`[loretask-watcher] Failed to complete no-change task ${taskId}: ${err.message}`);
@@ -236,6 +244,15 @@ export async function watchLoreTasks(): Promise<void> {
             } catch { /* best effort */ }
           }
         }
+
+        // Auto-capture episode for successful PR creation
+        writeEpisodeWithCuration(
+          `Task ${lt.spec.taskType} on ${lt.spec.targetRepo}: created PR ${pr.url}\nChanged files: ${lt.status.changedFiles || "unknown"}\nDescription: ${lt.spec.description?.substring(0, 500)}`,
+          "ci",
+          `${lt.spec.targetRepo}/${taskId}`,
+          "loretask-watcher",
+          taskId,
+        ).catch(() => {});
 
         // Trigger auto-review if enabled for this repo
         if (await shouldAutoReview(lt.spec.targetRepo)) {
@@ -343,14 +360,10 @@ export async function watchLoreTasks(): Promise<void> {
           }
         }
 
-        // Capture failure as an episode for org-wide learning
+        // Auto-capture failure as episode with curation (lesson extraction)
         const failureContent = `Task failed on ${lt.spec.targetRepo}: ${lt.spec.taskType}\n\nDescription: ${lt.spec.description}\n\nFailure: ${lt.status.failureReason}\n\nOutput:\n${(lt.status?.output || '').slice(-2000)}`;
-        const failureHash = require('node:crypto').createHash('sha256').update(failureContent).digest('hex');
-        await query(
-          `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
-           VALUES ($1, $2, $3, 'ci', $4)
-           ON CONFLICT (agent_id, content_hash) DO NOTHING`,
-          ['loretask-watcher', failureContent, failureHash, `${lt.spec.targetRepo}/${taskId}`],
+        writeEpisodeWithCuration(
+          failureContent, "ci", `${lt.spec.targetRepo}/${taskId}`, "loretask-watcher", taskId,
         ).catch(() => {});
 
         console.log(`[loretask-watcher] Task ${taskId} failed: ${lt.status.failureReason}`);

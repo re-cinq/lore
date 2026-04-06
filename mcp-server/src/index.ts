@@ -37,6 +37,7 @@ import { searchMemories } from "./memory-search.js";
 import { extractFacts, extractFactsFromEpisode } from "./facts.js";
 import { extractAndUpdateGraph, queryLiveGraph } from "./graph.js";
 import { assembleContext, loadTemplates } from "./context-assembly.js";
+import { trackToolCall, dumpSessionLog, formatSessionSummary } from "./session-tracker.js";
 import { createHash } from "node:crypto";
 import {
   createTask,
@@ -76,15 +77,23 @@ const server = new McpServer({ name: "@re-cinq/lore-mcp", version: "0.1.0" });
 // --- Latency tracking helper ---
 async function trackLatency(tool: string, fn: () => Promise<any>): Promise<any> {
   const start = Date.now();
-  const result = await fn();
-  const latencyMs = Date.now() - start;
-  if (dbPoolRef) {
-    dbPoolRef.query(
-      `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ($1, $2, $3)`,
-      ['system', tool, JSON.stringify({ latency_ms: latencyMs })],
-    ).catch(() => {});
+  let success = true;
+  try {
+    const result = await fn();
+    return result;
+  } catch (err) {
+    success = false;
+    throw err;
+  } finally {
+    const latencyMs = Date.now() - start;
+    trackToolCall(tool, latencyMs, success);
+    if (dbPoolRef) {
+      dbPoolRef.query(
+        `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ($1, $2, $3)`,
+        ['system', tool, JSON.stringify({ latency_ms: latencyMs })],
+      ).catch(() => {});
+    }
   }
-  return result;
 }
 
 // --- search_context ---
@@ -1622,6 +1631,59 @@ async function main() {
             res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
           }
         });
+      } else if (req.url === "/api/session-summary" && req.method === "POST") {
+        // Receive session log from Stop hook and write as summarized episode
+        const token = process.env.LORE_INGEST_TOKEN;
+        const auth = req.headers.authorization;
+        if (!token || auth !== `Bearer ${token}`) { res.writeHead(401).end(); return; }
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", async () => {
+          try {
+            const { session_log, repo, agent_id } = JSON.parse(body);
+            if (!session_log) {
+              res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "required: session_log" }));
+              return;
+            }
+
+            // The session_log is already a formatted summary — store directly as episode
+            const summary = typeof session_log === "string"
+              ? session_log
+              : (session_log.summary || JSON.stringify(session_log));
+
+            if (!summary || summary.length < 10) {
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "skipped", reason: "empty session" }));
+              return;
+            }
+
+            const content = `Session in ${repo || "unknown"}\n\n${summary}`;
+            const agent = agent_id || "session-hook";
+            const contentHash = createHash("sha256").update(content).digest("hex");
+
+            if (!dbPoolRef) {
+              res.writeHead(503, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "database not available" }));
+              return;
+            }
+
+            const { rows } = await dbPoolRef.query(
+              `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
+               VALUES ($1, $2, $3, 'session', $4)
+               ON CONFLICT (agent_id, content_hash) DO NOTHING
+               RETURNING id`,
+              [agent, content, contentHash, repo || null],
+            );
+
+            if (rows.length === 0) {
+              res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "duplicate" }));
+              return;
+            }
+
+            extractFactsFromEpisode(rows[0].id, content, agent, dbPoolRef).catch(() => {});
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "ok", episode_id: rows[0].id }));
+          } catch (err: any) {
+            res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
+          }
+        });
       } else if (req.url === "/api/webhook/github" && req.method === "POST") {
         // GitHub webhook — issues.labeled event dispatch
         const webhookSecret = process.env.LORE_WEBHOOK_SECRET;
@@ -1901,6 +1963,12 @@ async function main() {
   } else {
     const transport = new StdioServerTransport();
     await server.connect(transport);
+
+    // Dump session log on exit (for Stop hook to POST as episode)
+    const exitHandler = () => dumpSessionLog();
+    process.on("SIGTERM", exitHandler);
+    process.on("SIGINT", exitHandler);
+    process.on("beforeExit", exitHandler);
   }
 }
 

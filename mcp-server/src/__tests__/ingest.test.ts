@@ -84,18 +84,17 @@ describe("IngestFile type handling", () => {
 
 describe("commit SHA fallback", () => {
   it("should use HEAD when commit is from a different repo", () => {
-    const localRepo = "re-cinq/lore";
-    const targetRepo = "re-cinq/website-cf";
+    const localRepo: string = "re-cinq/lore";
+    const targetRepo: string = "re-cinq/website-cf";
     const localHead = "abc1234";
 
-    // The fix: only use the specific commit if repos match
     const commit = localRepo === targetRepo ? localHead : "HEAD";
     expect(commit).toBe("HEAD");
   });
 
   it("should use specific commit when repos match", () => {
-    const localRepo = "re-cinq/lore";
-    const targetRepo = "re-cinq/lore";
+    const localRepo: string = "re-cinq/lore";
+    const targetRepo: string = "re-cinq/lore";
     const localHead = "abc1234";
 
     const commit = localRepo === targetRepo ? localHead : "HEAD";
@@ -103,13 +102,13 @@ describe("commit SHA fallback", () => {
   });
 
   it("should retry refs in order: specific commit, then HEAD", () => {
-    const commit = "abc1234";
+    const commit: string = "abc1234";
     const refs = commit !== "HEAD" ? [commit, "HEAD"] : ["HEAD"];
     expect(refs).toEqual(["abc1234", "HEAD"]);
   });
 
   it("should not duplicate HEAD in retry list", () => {
-    const commit = "HEAD";
+    const commit: string = "HEAD";
     const refs = commit !== "HEAD" ? [commit, "HEAD"] : ["HEAD"];
     expect(refs).toEqual(["HEAD"]);
   });

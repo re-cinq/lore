@@ -10,6 +10,7 @@ import { callLLM, callLLMWithTool } from "./anthropic.js";
 import { platform } from "./platform.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
+import { writeEpisode } from "./lib/episode-writer.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -395,6 +396,14 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
     target_branch: branchName,
   });
   await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
+
+  // Auto-capture feature-request as episode
+  writeEpisode(
+    `Feature request spec generated for ${targetRepo}\nPM intent: ${pmIntent.substring(0, 300)}\nArtifacts: ${committed.join(", ")}\nPR: ${pr.url}`,
+    "ci",
+    `${targetRepo}/${task.id}`,
+  ).catch(() => {});
+
   console.log(`[agent] Task ${task.id} → PR ${pr.url} (${committed.length} spec artifacts)`);
 }
 
@@ -734,6 +743,14 @@ async function handleOnboard(
     target_branch: branchName,
   });
   await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
+
+  // Auto-capture onboarding as episode
+  writeEpisode(
+    `Repo ${targetRepo} onboarded\nGenerated: ${committed.join(", ")}\nPR: ${pr.url}`,
+    "ci",
+    `${targetRepo}/${task.id}`,
+  ).catch(() => {});
+
   console.log(`[agent] Task ${task.id} → PR ${pr.url} (${committed.length} files)`);
 }
 
