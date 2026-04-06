@@ -1,3 +1,7 @@
+# Feature Specification: LoreTask CRD — Ephemeral Claude Code Execution
+
+| Field          | Value                                    |
+|----------------|------------------------------------------|
 | Branch         | feat/loretask-crd                        |
 | Status         | Shipped                                  |
 | Created        | 2026-04-01                               |
