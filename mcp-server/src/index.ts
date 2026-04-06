@@ -1,4 +1,4 @@
-import { initOtel, traceRetrieval } from "./otel.js";
+import { initOtel, traceRetrieval, traceTool, traceHttp } from "./otel.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -87,6 +87,7 @@ async function trackLatency(tool: string, fn: () => Promise<any>): Promise<any> 
   } finally {
     const latencyMs = Date.now() - start;
     trackToolCall(tool, latencyMs, success);
+    traceTool(tool, latencyMs, success);
     if (dbPoolRef) {
       dbPoolRef.query(
         `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ($1, $2, $3)`,
@@ -1520,12 +1521,14 @@ async function main() {
         }
       }
 
+      const reqStart = Date.now();
       if (req.url === "/mcp" || req.url === "/mcp/") {
         await transport.handleRequest(req, res);
       } else {
         const handled = await handleApiRoute(req, res, dbPoolRef);
         if (!handled) res.writeHead(404).end();
       }
+      traceHttp(req.method || "GET", req.url || "/", res.statusCode, Date.now() - reqStart);
     });
     await server.connect(transport);
     httpServer.listen(port, () => {
