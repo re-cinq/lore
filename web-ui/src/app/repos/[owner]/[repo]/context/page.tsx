@@ -1,14 +1,16 @@
 export const dynamic = "force-dynamic";
-import { query } from '@/lib/db';
+import { query, getRepoSchema } from '@/lib/db';
 
 export default async function RepoContext({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
+  const schema = await getRepoSchema(fullName);
+
   // Get context chunks that belong to this repo
   const chunks = await query(
     `SELECT id, file_path, content_type, substring(content, 1, 500) as content, ingested_at
-     FROM org_shared.chunks
+     FROM ${schema}.chunks
      WHERE repo = $1
      ORDER BY content_type, file_path`,
     [fullName]

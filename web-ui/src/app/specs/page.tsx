@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import Link from 'next/link';
-import { query } from '@/lib/db';
+import { query, queryAllChunks } from '@/lib/db';
 
 interface Spec {
   file_path: string;
@@ -28,34 +28,46 @@ function badgeClass(contentType: string): string {
 export default async function SpecsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const { type } = await searchParams;
 
-  // Get available content types for filter buttons
-  const contentTypes = await query<ContentTypeCount>(`
-    SELECT content_type, count(*)::int as count
-    FROM org_shared.chunks
-    WHERE content_type IS NOT NULL
-    GROUP BY content_type
-    ORDER BY count DESC
-  `);
-
-  // Build query with optional content_type filter
-  const conditions: string[] = [];
-  const params: string[] = [];
-
-  if (type && type.trim()) {
-    conditions.push(`content_type = $1`);
-    params.push(type.trim());
+  // Get available content types for filter buttons (across all schemas)
+  const allTypeCounts = await queryAllChunks<ContentTypeCount>(
+    (schema) => ({
+      sql: `SELECT content_type, count(*)::int as count
+            FROM ${schema}.chunks
+            WHERE content_type IS NOT NULL
+            GROUP BY content_type`,
+      params: [],
+    }),
+  );
+  // Merge counts across schemas
+  const typeMap = new Map<string, number>();
+  for (const row of allTypeCounts) {
+    typeMap.set(row.content_type, (typeMap.get(row.content_type) || 0) + row.count);
   }
+  const contentTypes = [...typeMap.entries()]
+    .map(([content_type, count]) => ({ content_type, count }))
+    .sort((a, b) => b.count - a.count);
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-  const specs = await query<Spec>(`
-    SELECT file_path, content_type, ingested_at,
-           substring(content, 1, 200) as excerpt
-    FROM org_shared.chunks
-    ${whereClause}
-    ORDER BY ingested_at DESC
-    LIMIT 50
-  `, params);
+  // Fetch specs across all schemas with optional content_type filter
+  const allSpecs = await queryAllChunks<Spec>(
+    (schema, offset) => {
+      if (type && type.trim()) {
+        return {
+          sql: `SELECT file_path, content_type, ingested_at,
+                       substring(content, 1, 200) as excerpt
+                FROM ${schema}.chunks
+                WHERE content_type = $${offset}`,
+          params: [type.trim()],
+        };
+      }
+      return {
+        sql: `SELECT file_path, content_type, ingested_at,
+                     substring(content, 1, 200) as excerpt
+              FROM ${schema}.chunks`,
+        params: [],
+      };
+    },
+  );
+  const specs = allSpecs.sort((a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime()).slice(0, 50);
 
   return (
     <div>

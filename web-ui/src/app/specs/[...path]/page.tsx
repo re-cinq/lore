@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import Link from 'next/link';
-import { query } from '@/lib/db';
+import { queryAllChunks } from '@/lib/db';
 
 interface ChunkDetail {
   id: string;
@@ -18,12 +18,15 @@ export default async function SpecDetailPage({ params }: { params: Promise<{ pat
   const { path } = await params;
   const filePath = path.map(decodeURIComponent).join('/');
 
-  const chunks = await query<ChunkDetail>(`
-    SELECT id, file_path, content_type, content, team, repo, author, ingested_at, metadata
-    FROM org_shared.chunks
-    WHERE file_path = $1
-    ORDER BY ingested_at DESC
-  `, [filePath]);
+  const allChunks = await queryAllChunks<ChunkDetail>(
+    (schema, offset) => ({
+      sql: `SELECT id, file_path, content_type, content, team, repo, author, ingested_at, metadata
+            FROM ${schema}.chunks
+            WHERE file_path = $${offset}`,
+      params: [filePath],
+    }),
+  );
+  const chunks = allChunks.sort((a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime());
 
   if (chunks.length === 0) {
     return (
