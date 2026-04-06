@@ -182,6 +182,24 @@ async function createDriftTask(
     .map((a) => `- ${a.kind}: \`${a.name}\` — ${a.description}`)
     .join("\n");
 
+  // Skip if there's already a pending/running/failed task for the same spec in the same repo
+  const existing = await query<{ id: string; status: string }>(
+    `SELECT id, status FROM pipeline.tasks
+     WHERE target_repo = $1
+       AND task_type = 'gap-fill'
+       AND description LIKE $2
+       AND status IN ('pending', 'running', 'queued', 'failed')
+     LIMIT 1`,
+    [repo, `Spec drift: ${specPath}%`],
+  );
+
+  if (existing.length > 0) {
+    console.log(
+      `[job] spec-drift: skipping ${repo}:${specPath} — existing task ${existing[0].id} (${existing[0].status})`,
+    );
+    return;
+  }
+
   const title = `Spec drift: ${specPath} (${(divergence * 100).toFixed(0)}% divergence)`;
   const description = `Spec file \`${specPath}\` in \`${repo}\` has ${(divergence * 100).toFixed(0)}% divergence from the codebase.
 
@@ -193,8 +211,7 @@ Either update the spec to reflect current code, or implement the missing items.`
 
   await query(
     `INSERT INTO pipeline.tasks (description, task_type, status, target_repo, context_bundle)
-     VALUES ($1, 'gap-fill', 'pending', $2, $3)
-     ON CONFLICT DO NOTHING`,
+     VALUES ($1, 'gap-fill', 'pending', $2, $3)`,
     [
       title,
       repo,

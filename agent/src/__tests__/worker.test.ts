@@ -161,7 +161,7 @@ describe("task priority filtering", () => {
    * period, normal tasks need to be older than 30 seconds.
    */
   function shouldPickUp(task: { priority: string; ageSeconds: number; status: string }): boolean {
-    if (task.status !== "pending" || task.status === "running-local") return false;
+    if (task.status !== "pending") return false;
     if (task.priority === "immediate") return true;
     return task.ageSeconds >= 30;
   }

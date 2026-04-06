@@ -53,16 +53,30 @@ export async function gapDetectJob(): Promise<string> {
   // Langfuse-driven gap detection (if configured)
   await checkLangfuseGaps(gaps);
 
-  // Create pipeline tasks for each gap
+  // Create pipeline tasks for each gap (skip if duplicate already exists)
   let created = 0;
   for (const gap of gaps) {
     try {
+      const desc = `Gap: ${gap.type} — ${gap.detail}`;
+
+      // Check for existing task with same description pattern for this repo
+      const existing = await query<{ id: string }>(
+        `SELECT id FROM pipeline.tasks
+         WHERE target_repo = $1
+           AND task_type = 'gap-fill'
+           AND description LIKE $2
+           AND status IN ('pending', 'running', 'queued', 'failed', 'pr-created')
+         LIMIT 1`,
+        [gap.repo, `Gap: ${gap.type}%`],
+      );
+
+      if (existing.length > 0) continue;
+
       const result = await query<{ id: string }>(
         `INSERT INTO pipeline.tasks (description, task_type, status, target_repo)
          VALUES ($1, 'gap-fill', 'pending', $2)
-         ON CONFLICT DO NOTHING
          RETURNING id`,
-        [`Gap: ${gap.type} — ${gap.detail}`, gap.repo],
+        [desc, gap.repo],
       );
       if (result.length > 0) created++;
     } catch (err) {
