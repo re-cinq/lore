@@ -34,7 +34,6 @@ interface LlmCall {
   model: string;
   input_tokens: number;
   output_tokens: number;
-  cost_usd: number;
   duration_ms: number;
   created_at: string;
 }
@@ -90,12 +89,10 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   );
 
   const llmCalls = await query<LlmCall>(
-    `SELECT model, input_tokens, output_tokens, cost_usd, duration_ms, created_at
+    `SELECT model, input_tokens, output_tokens, duration_ms, created_at
      FROM pipeline.llm_calls WHERE task_id = $1 ORDER BY created_at`,
     [id]
   );
-
-  const totalLlmCost = llmCalls.reduce((sum, c) => sum + Number(c.cost_usd), 0);
 
   return (
     <div>
@@ -169,24 +166,22 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             <span className={`op-badge op-${e.to_status}`}>{e.to_status}</span>
             {e.from_status && <span className="meta"> ← {e.from_status}</span>}
             <span className="meta" style={{marginLeft:'12px'}}>{new Date(e.created_at).toLocaleString()}</span>
-            {e.metadata?.cost_usd && <span className="badge" style={{marginLeft:'8px'}}>{'$' + Number(e.metadata.cost_usd).toFixed(4)}</span>}
             {e.metadata && <pre style={{marginTop:'4px',fontSize:'12px'}}>{JSON.stringify(e.metadata, null, 2)}</pre>}
           </div>
         ))}
       </div>
 
-      <h2>LLM Calls {llmCalls.length > 0 && <span className="badge" style={{marginLeft:'8px', fontSize:'14px'}}>${totalLlmCost.toFixed(2)} total</span>}</h2>
+      <h2>LLM Calls</h2>
       {llmCalls.length > 0 ? (
         <table>
           <thead>
-            <tr><th>Model</th><th>Tokens (in/out)</th><th>Cost</th><th>Duration</th><th>Time</th></tr>
+            <tr><th>Model</th><th>Tokens (in/out)</th><th>Duration</th><th>Time</th></tr>
           </thead>
           <tbody>
             {llmCalls.map((c, i) => (
               <tr key={i}>
                 <td style={{fontFamily:'monospace', fontSize:'12px'}}>{c.model}</td>
                 <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
-                <td style={{fontFamily:'monospace', fontSize:'12px'}}>${Number(c.cost_usd).toFixed(4)}</td>
                 <td style={{fontFamily:'monospace', fontSize:'12px'}}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
                 <td className="meta">{new Date(c.created_at).toLocaleString()}</td>
               </tr>
