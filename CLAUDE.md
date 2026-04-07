@@ -94,14 +94,17 @@ MCP memory tools for persistent agent memory:
 - **agent_stats** — health, memory count, episode count, facts, searches, daily breakdown
 
 Memory is stored in the PostgreSQL `memory` schema (tables:
-`memories`, `memory_versions`, `facts`, `episodes`, `entities`,
-`edges`, `snapshots`, `shared_pools`, `audit_log`). File-backed
-fallback to `~/.lore/memory/` when DB is unavailable.
+`memories`, `memory_versions`, `facts`, `fact_conflicts`, `episodes`,
+`entities`, `edges`, `snapshots`, `shared_pools`, `audit_log`).
+File-backed fallback to `~/.lore/memory/` when DB is unavailable.
 
-Facts have temporal validity (`valid_from`/`valid_to`). When a new
-fact contradicts an existing one (cosine similarity >= 0.92), the
-old fact is automatically invalidated. Search returns only valid
-facts by default.
+Facts have temporal validity (`valid_from`/`valid_to`), confidence
+tiers (`verified`/`observed`/`inferred`/`stale`), and retrieval
+metadata (`retrieval_count`, `last_retrieved_at`, `half_life_days`).
+When a new fact contradicts an existing one (cosine similarity >=
+0.92), the old fact is automatically invalidated and a conflict
+record is stored in `memory.fact_conflicts`. Search returns only
+valid facts by default and includes confidence annotations.
 
 Episodes are raw text blobs (conversation turns, code reviews,
 observations) that are passively ingested. Facts and knowledge
@@ -281,9 +284,11 @@ extracts a "lesson learned" and stores it as a memory entry
 (`auto-curation/{ref}`).
 
 **Importance-based memory decay**: Daily job scores memories 0-10
-based on recency, content length, and key pattern. Evicts lowest-
-scoring when agent exceeds 500 memories. Also cleans up invalidated
-facts older than 30 days beyond 2000 cap.
+using half-life decay model (`strength = 0.5^(age / half_life_days)`).
+Retrieval count and confidence tier factor into scoring. Evicts
+lowest-scoring when agent exceeds 500 memories. Transitions
+unretrieved facts to `stale` confidence after 30 days. Also cleans
+up invalidated facts older than 30 days beyond 2000 cap.
 
 **Automatic consolidation**: Daily job groups recent facts (7-day
 lookback) by repo and calls Haiku to extract higher-level patterns.
@@ -337,7 +342,33 @@ status. When all tasks in a group merge, a summary episode is written.
 **PR outcome feedback**: `merge-check` job captures PR stats on
 merge (files changed, time to merge, review comments) and writes
 curated episodes. Detects closed-without-merge as rejection signal.
-Tracks aggregate `outcome_stats` per repo.
+Tracks aggregate `outcome_stats` per repo. On merge, boosts
+`half_life_days` (+5) on facts/memories that contributed to the
+task's context. On rejection, penalizes (-3, min 7). Contributing
+refs tracked via `pipeline.tasks.context_refs` JSONB column.
+
+**Retrieval strengthening**: Every `search_memory` call
+asynchronously increments `retrieval_count`, updates
+`last_retrieved_at`, and extends `half_life_days` (+2, cap 365)
+on returned facts and memories. Stale facts revive to `observed`
+on retrieval. Fire-and-forget — adds zero latency to search.
+
+**Confidence tiers**: Facts carry a `confidence` column:
+`verified` (human-confirmed), `observed` (episode-sourced, default),
+`inferred` (memory-sourced), `stale` (unretrieved for 30+ days).
+Assembled context and search results include confidence annotations.
+Stale facts get a -1 importance penalty.
+
+**Conflict surfacing**: Contradiction detection records conflicts
+in `memory.fact_conflicts` before invalidating. Context assembly
+prefixes `[CONFLICT]` on facts with recent (7-day) conflicts,
+giving agents visibility into disputed knowledge.
+
+**Transfer scoring**: Cross-repo context is filtered by transfer
+score — portable keywords (error, pattern, gotcha, convention)
+boost score, local keywords (config, deploy, url, auth, secret)
+reduce it. Only facts scoring >= 0.5 pass through. Prevents
+repo-specific configuration from polluting other repos.
 
 **Production awareness**: `settings.incidents` array (populated via
 `/api/webhook/incident` for PagerDuty/Opsgenie) surfaces recent
