@@ -12,8 +12,8 @@ RUN cd /tmp/validation && npm install --ignore-scripts && npx tsc \
     && cp dist/repo-validation.js /repo-validation.js \
     && rm -rf /tmp/validation
 
-RUN useradd -m -s /bin/bash runner
-RUN mkdir -p /workspace && chown runner:runner /workspace
+RUN useradd -m -s /bin/bash -u 1000 -o runner
+RUN mkdir -p /workspace && chown 1000:1000 /workspace
 WORKDIR /workspace
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
