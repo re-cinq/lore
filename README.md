@@ -103,6 +103,11 @@ Hybrid search combines vector similarity (Vertex AI `text-embedding-005`, 768 di
 
 Key capabilities:
 - **Temporal fact invalidation** — facts have validity windows; contradictory facts are automatically invalidated via embedding similarity (threshold 0.92)
+- **Confidence tiers** — facts carry `verified`/`observed`/`inferred`/`stale` confidence. Episode-sourced default to `observed`, memory-sourced to `inferred`. Unretrieved facts transition to `stale` after 30 days. Context assembly and search include confidence annotations
+- **Retrieval strengthening** — every search asynchronously increments retrieval count, extends half-life (+2, cap 365), and revives stale→observed. Frequently-used facts survive decay longer
+- **Conflict surfacing** — contradictions recorded in `fact_conflicts` table. Context assembly prefixes `[CONFLICT]` on disputed facts (7-day window)
+- **Transfer scoring** — cross-repo context filtered by portable/local keyword heuristics. Only facts with transfer score >= 0.5 pass through, preventing repo-specific config from polluting other repos
+- **Outcome feedback** — merged PRs boost contributing facts' half-life (+5); rejected PRs penalize (-3). Contributing refs tracked via `context_refs` JSONB on tasks
 - **Passive episode ingestion** — `write_episode` accepts raw text (conversations, reviews, observations); facts and knowledge graph entities are extracted automatically. PR review feedback is auto-captured by the review-reactor job. Session summaries are captured via a Stop hook.
 - **Live knowledge graph** — entities (services, teams, technologies) and relationships tracked in PostgreSQL, updated incrementally on every episode. Query with `query_graph`.
 - **Graph-augmented search** — `search_memory(graph_augment=true)` enriches results with 1-hop knowledge graph neighbors of detected entities
@@ -110,7 +115,7 @@ Key capabilities:
 - **Pre-run hydration** — both local runner and GKE entrypoint fetch assembled context before spawning Claude Code, so agents start with rich context on turn 1
 - **Passive session capture** — MCP server tracks all tool calls; on session exit, dumps and POSTs a summary as an episode with automatic fact extraction. No explicit `write_episode` needed.
 - **Post-task auto-curation** — every task completion (PR, no-changes, failure) automatically captures an episode. High-signal events get Haiku-driven lesson extraction stored as searchable memories.
-- **Importance-based decay** — memories scored 0-10 by recency, content quality, and key pattern. Low-value entries auto-evicted when agent exceeds 500 memories. Old invalidated facts cleaned up beyond 2000 cap.
+- **Importance-based decay** — half-life decay model: `strength = 0.5^(age / half_life_days)`. Retrieval count and confidence factor into scoring. Low-value entries auto-evicted above 500 memories. Old invalidated facts cleaned up beyond 2000 cap.
 - **Automatic consolidation** — groups recent facts by repo and synthesizes higher-level patterns via Haiku. Turns noisy raw facts into actionable insights.
 - **Privacy filtering** — secrets, API keys, JWTs, and connection strings automatically stripped before storing in org-wide memory.
 - **Retrieval benchmarks** — p50/p95/p99 latency tracked per tool in the audit log, visible in the analytics dashboard
