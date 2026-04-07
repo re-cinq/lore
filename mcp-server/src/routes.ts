@@ -357,6 +357,26 @@ async function handleTaskPost(req: IncomingMessage, res: ServerResponse, pool: P
       return;
     }
 
+    // Status update from local runner (no action field, has task_id + status)
+    if (!parsed.action && parsed.task_id && parsed.status) {
+      const allowedStatuses = ["running", "pr-created", "completed", "failed", "needs-human-help", "cancelled"];
+      if (!allowedStatuses.includes(parsed.status)) {
+        json(res, 400, { error: `invalid status: ${parsed.status}` });
+        return;
+      }
+      const setClauses = ["status = $1", "updated_at = now()"];
+      const values: unknown[] = [parsed.status];
+      if (parsed.pr_url) { setClauses.push(`pr_url = $${values.length + 1}`); values.push(parsed.pr_url); }
+      if (parsed.error) { setClauses.push(`error = $${values.length + 1}`); values.push(parsed.error); }
+      values.push(parsed.task_id);
+      await pool.query(
+        `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${values.length}`,
+        values,
+      );
+      json(res, 200, { ok: true, task_id: parsed.task_id, status: parsed.status });
+      return;
+    }
+
     // Create action (default)
     const { description, task_type, target_repo, priority, context } = parsed;
     if (!description?.trim()) {
