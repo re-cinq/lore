@@ -75,6 +75,41 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   -- Backfill valid_from from created_at for existing facts
   UPDATE memory.facts SET valid_from = created_at WHERE valid_from = created_at;
 
+  -- Retrieval strengthening columns (hippo-memory inspired)
+  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS retrieval_count INT DEFAULT 0;
+  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS last_retrieved_at TIMESTAMPTZ;
+  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS half_life_days INT DEFAULT 30;
+
+  ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS retrieval_count INT DEFAULT 0;
+  ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS last_retrieved_at TIMESTAMPTZ;
+  ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS half_life_days INT DEFAULT 60;
+
+  -- Confidence tiers on facts
+  ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS confidence TEXT DEFAULT 'observed';
+
+  DO \$\$ BEGIN
+    ALTER TABLE memory.facts ADD CONSTRAINT facts_confidence_check
+      CHECK (confidence IN ('verified', 'observed', 'inferred', 'stale'));
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END \$\$;
+
+  -- Conflict surfacing
+  CREATE TABLE IF NOT EXISTS memory.fact_conflicts (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    old_fact_id UUID NOT NULL REFERENCES memory.facts(id),
+    new_fact_id UUID NOT NULL REFERENCES memory.facts(id),
+    similarity  FLOAT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+
+  CREATE INDEX IF NOT EXISTS fact_conflicts_old_idx
+    ON memory.fact_conflicts (old_fact_id);
+  CREATE INDEX IF NOT EXISTS fact_conflicts_new_idx
+    ON memory.fact_conflicts (new_fact_id);
+
+  -- Outcome feedback: context refs on pipeline tasks
+  ALTER TABLE pipeline.tasks ADD COLUMN IF NOT EXISTS context_refs JSONB;
+
   CREATE INDEX IF NOT EXISTS facts_embedding_idx
     ON memory.facts USING hnsw (embedding vector_cosine_ops);
   CREATE INDEX IF NOT EXISTS facts_active_embedding_idx

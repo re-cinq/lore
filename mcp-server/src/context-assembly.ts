@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { searchMemories } from './memory-search.js';
+import { searchMemories, computeTransferScore } from './memory-search.js';
 import { queryLiveGraph } from './graph.js';
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -121,7 +121,26 @@ const fetchers: Record<string, SourceFetcher> = {
     try {
       const results = await searchMemories(pool, query, agentId, undefined, 10, false);
       if (results.length === 0) return '';
-      return results.map(r => `**${r.key}** (${r.source}): ${r.value}`).join('\n\n');
+
+      // Check for recent conflicts on returned facts
+      const factIds = results.filter(r => r.id && (r.source === 'fact' || r.source === 'episode')).map(r => r.id!);
+      const conflictSet = new Set<string>();
+      if (factIds.length > 0) {
+        try {
+          const { rows: conflicts } = await pool.query(
+            `SELECT new_fact_id FROM memory.fact_conflicts
+             WHERE new_fact_id = ANY($1) AND created_at > now() - interval '7 days'`,
+            [factIds],
+          );
+          for (const c of conflicts) conflictSet.add(c.new_fact_id);
+        } catch { /* non-fatal */ }
+      }
+
+      return results.map(r => {
+        const tag = r.confidence ? ` [${r.confidence}]` : '';
+        const conflict = r.id && conflictSet.has(r.id) ? ' [CONFLICT]' : '';
+        return `**${r.key}** (${r.source})${tag}${conflict}: ${r.value}`;
+      }).join('\n\n');
     } catch {
       return '';
     }
@@ -217,7 +236,12 @@ const fetchers: Record<string, SourceFetcher> = {
         rows = result.rows;
       }
       if (rows.length === 0) return '';
-      return rows.map((r: any) => `**[${r.repo}] ${r.file_path}**\n${r.content}`).join('\n\n---\n\n');
+      // Filter by transfer score — only portable, high-value facts from other repos
+      const scored = rows
+        .map((r: any) => ({ ...r, transferScore: computeTransferScore(r.content) }))
+        .filter((r: any) => r.transferScore >= 0.5);
+      if (scored.length === 0) return '';
+      return scored.map((r: any) => `**[${r.repo}] ${r.file_path}**\n${r.content}`).join('\n\n---\n\n');
     } catch {
       return '';
     }
@@ -254,7 +278,8 @@ export async function assembleContext(
   repo?: string,
   agentId?: string,
   crossRepo?: boolean,
-): Promise<{ text: string; sections: { header: string; tokens: number; truncated: boolean }[] }> {
+  includeIds?: boolean,
+): Promise<{ text: string; sections: { header: string; tokens: number; truncated: boolean }[]; context_refs?: { fact_ids: string[]; memory_ids: string[] } }> {
   const template = getTemplate(templateName);
   const minTokens = Math.max(maxTokens, 2000);
 
@@ -279,6 +304,10 @@ export async function assembleContext(
       }
     } catch { /* non-fatal */ }
   }
+
+  // Track assembled IDs for outcome feedback
+  const collectedFactIds: string[] = [];
+  const collectedMemoryIds: string[] = [];
 
   // Filter out cross_repo source unless explicitly requested
   const activeSections = template.sections.filter(s =>
@@ -341,6 +370,18 @@ export async function assembleContext(
   }
 
   // Build the final text
+  // Collect context refs for outcome feedback
+  if (includeIds) {
+    try {
+      const results = await searchMemories(pool, query, agentId, undefined, 20, false);
+      for (const r of results) {
+        if (!r.id) continue;
+        if (r.source === 'memory') collectedMemoryIds.push(r.id);
+        else collectedFactIds.push(r.id);
+      }
+    } catch { /* non-fatal */ }
+  }
+
   const body = assembled
     .map(s => `## ${s.header}\n\n${s.content}`)
     .join('\n\n---\n\n');
@@ -352,5 +393,9 @@ export async function assembleContext(
     truncated: s.truncated,
   }));
 
-  return { text, sections };
+  const result: { text: string; sections: typeof sections; context_refs?: { fact_ids: string[]; memory_ids: string[] } } = { text, sections };
+  if (includeIds && (collectedFactIds.length > 0 || collectedMemoryIds.length > 0)) {
+    result.context_refs = { fact_ids: collectedFactIds, memory_ids: collectedMemoryIds };
+  }
+  return result;
 }

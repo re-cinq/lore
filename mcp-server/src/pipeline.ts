@@ -35,6 +35,7 @@ export async function createTask(
   contextBundle?: any,
   priority: string = 'normal',
   taskGroupId?: string,
+  contextRefs?: { fact_ids: string[]; memory_ids: string[] },
 ): Promise<any> {
   const repo = targetRepo || getDefaultRepo(taskType);
   if (description.length > 10000) throw new Error('Description too long (max 10000 chars)');
@@ -83,6 +84,13 @@ export async function createTask(
     rows = result.rows;
   }
   const task = rows[0];
+  // Store context refs for outcome feedback (which facts/memories contributed)
+  if (contextRefs && (contextRefs.fact_ids.length > 0 || contextRefs.memory_ids.length > 0)) {
+    await getPool().query(
+      `UPDATE pipeline.tasks SET context_refs = $1 WHERE id = $2`,
+      [JSON.stringify(contextRefs), task.id],
+    ).catch(() => {}); // non-fatal if column doesn't exist yet
+  }
   await recordEvent(task.id, null, 'pending', { created_by: createdBy, priority: resolvedPriority });
   return { task_id: task.id, status: task.status, priority: task.priority, created_at: task.created_at };
 }

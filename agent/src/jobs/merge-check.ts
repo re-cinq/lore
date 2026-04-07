@@ -109,6 +109,31 @@ export async function mergeCheckJob(): Promise<string> {
             [task.target_repo, stats.files_changed, timeToMerge || 0],
           );
         } catch { /* outcome capture is best-effort */ }
+        // Outcome feedback: boost contributing facts/memories
+        try {
+          const taskRows = await query<{ context_refs: any }>(
+            `SELECT context_refs FROM pipeline.tasks WHERE id = $1`, [task.id],
+          );
+          const refs = taskRows[0]?.context_refs;
+          if (refs) {
+            if (refs.fact_ids?.length > 0) {
+              await query(
+                `UPDATE memory.facts SET half_life_days = LEAST(COALESCE(half_life_days, 30) + 5, 365) WHERE id = ANY($1::uuid[])`,
+                [refs.fact_ids],
+              );
+            }
+            if (refs.memory_ids?.length > 0) {
+              await query(
+                `UPDATE memory.memories SET half_life_days = LEAST(COALESCE(half_life_days, 60) + 5, 365) WHERE id = ANY($1::uuid[])`,
+                [refs.memory_ids],
+              );
+            }
+            await query(
+              `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ('merge-check', 'outcome-feedback', $1)`,
+              [JSON.stringify({ task_id: task.id, action: 'boost', fact_count: refs.fact_ids?.length || 0, memory_count: refs.memory_ids?.length || 0 })],
+            ).catch(() => {});
+          }
+        } catch { /* outcome feedback is best-effort */ }
         // Progressive trust: auto-promote after N successful merges
         try {
           const trustLevels = ["docs", "tests", "implementation", "full"];
@@ -155,6 +180,31 @@ export async function mergeCheckJob(): Promise<string> {
           `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} was closed without merge (rejected).\nDescription: ${task.description.substring(0, 200)}`,
           "ci", `${task.target_repo}/${task.id}`, "merge-check", task.id,
         );
+        // Outcome feedback: penalize contributing facts/memories on rejection
+        try {
+          const taskRows = await query<{ context_refs: any }>(
+            `SELECT context_refs FROM pipeline.tasks WHERE id = $1`, [task.id],
+          );
+          const refs = taskRows[0]?.context_refs;
+          if (refs) {
+            if (refs.fact_ids?.length > 0) {
+              await query(
+                `UPDATE memory.facts SET half_life_days = GREATEST(7, COALESCE(half_life_days, 30) - 3) WHERE id = ANY($1::uuid[])`,
+                [refs.fact_ids],
+              );
+            }
+            if (refs.memory_ids?.length > 0) {
+              await query(
+                `UPDATE memory.memories SET half_life_days = GREATEST(7, COALESCE(half_life_days, 60) - 3) WHERE id = ANY($1::uuid[])`,
+                [refs.memory_ids],
+              );
+            }
+            await query(
+              `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ('merge-check', 'outcome-feedback', $1)`,
+              [JSON.stringify({ task_id: task.id, action: 'penalize', fact_count: refs.fact_ids?.length || 0, memory_count: refs.memory_ids?.length || 0 })],
+            ).catch(() => {});
+          }
+        } catch { /* best-effort */ }
         tasksClosed++;
         console.log(`[job] merge-check: task ${task.id} PR #${task.pr_number} closed (rejected)`);
       }

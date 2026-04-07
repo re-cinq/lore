@@ -247,6 +247,14 @@ async function invalidateContradictions(
     if (rows.length === 0) return 0;
 
     for (const row of rows) {
+      // Record the conflict before invalidating
+      await pool.query(
+        `INSERT INTO memory.fact_conflicts (old_fact_id, new_fact_id, similarity)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        [row.id, newFactId, row.similarity],
+      ).catch(() => {});
+
       await pool.query(
         `UPDATE memory.facts
          SET valid_to = now(), invalidated_by = $1
@@ -329,8 +337,8 @@ export async function extractFacts(
         const embeddingStr = embedding ? `[${embedding.join(',')}]` : null;
 
         const { rows } = await pool.query(
-          `INSERT INTO memory.facts (memory_id, fact_text, embedding, valid_from)
-           VALUES ($1, $2, $3, now())
+          `INSERT INTO memory.facts (memory_id, fact_text, embedding, valid_from, confidence)
+           VALUES ($1, $2, $3, now(), 'inferred')
            RETURNING id`,
           [memoryId, factText, embeddingStr],
         );

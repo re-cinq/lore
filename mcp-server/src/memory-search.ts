@@ -18,6 +18,8 @@ export interface MemorySearchResult {
   score: number;
   agent_id: string;
   source: 'memory' | 'fact' | 'episode' | 'graph';
+  id?: string;
+  confidence?: string;
 }
 
 // ── RRF constant (matches db.ts hybrid search) ─────────────────────
@@ -113,6 +115,9 @@ export async function searchMemories(
     }
   }
 
+  // Fire-and-forget retrieval strengthening
+  strengthenRetrievals(pool, results).catch(() => {});
+
   // Audit log with latency
   const latencyMs = Date.now() - searchStartTime;
   await auditLog(pool, agent, query, results.length, latencyMs);
@@ -128,6 +133,8 @@ interface RankedRow {
   agent_id: string;
   source: 'memory' | 'fact' | 'episode' | 'graph';
   rank: number;
+  id?: string;
+  confidence?: string;
 }
 
 /** Composite key for deduplication across result sets */
@@ -144,7 +151,7 @@ async function vectorSearchMemories(
   poolId: string | null,
 ): Promise<RankedRow[]> {
   const sql = `
-    SELECT m.key, m.value, m.agent_id, 'memory' as source,
+    SELECT m.id, m.key, m.value, m.agent_id, 'memory' as source,
            ROW_NUMBER() OVER (ORDER BY m.embedding <=> $1::vector) as vec_rank
     FROM memory.memories m
     WHERE m.is_deleted = FALSE
@@ -154,6 +161,7 @@ async function vectorSearchMemories(
     LIMIT 20`;
   const { rows } = await pool.query(sql, [embeddingStr, agentId, poolId]);
   return rows.map((r: any) => ({
+    id: r.id,
     key: r.key,
     value: r.value,
     agent_id: r.agent_id,
@@ -169,10 +177,11 @@ async function vectorSearchFacts(
   includeInvalidated: boolean = false,
 ): Promise<RankedRow[]> {
   const sql = `
-    SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
+    SELECT f.id, COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
            f.fact_text as value,
            COALESCE(m.agent_id, e.agent_id) as agent_id,
            CASE WHEN f.episode_id IS NOT NULL THEN 'episode' ELSE 'fact' END as source,
+           f.confidence,
            ROW_NUMBER() OVER (ORDER BY f.embedding <=> $1::vector) as vec_rank
     FROM memory.facts f
     LEFT JOIN memory.memories m ON m.id = f.memory_id
@@ -183,10 +192,12 @@ async function vectorSearchFacts(
     LIMIT 20`;
   const { rows } = await pool.query(sql, [embeddingStr, agentId, includeInvalidated]);
   return rows.map((r: any) => ({
+    id: r.id,
     key: r.key,
     value: r.value,
     agent_id: r.agent_id,
     source: r.source as 'fact',
+    confidence: r.confidence,
     rank: Number(r.vec_rank),
   }));
 }
@@ -201,7 +212,7 @@ async function keywordSearchMemories(
 ): Promise<RankedRow[]> {
   const pattern = `%${query}%`;
   const sql = `
-    SELECT m.key, m.value, m.agent_id, 'memory' as source,
+    SELECT m.id, m.key, m.value, m.agent_id, 'memory' as source,
            ROW_NUMBER() OVER (ORDER BY m.created_at DESC) as kw_rank
     FROM memory.memories m
     WHERE m.is_deleted = FALSE
@@ -212,6 +223,7 @@ async function keywordSearchMemories(
     LIMIT 20`;
   const { rows } = await pool.query(sql, [pattern, agentId, poolId]);
   return rows.map((r: any) => ({
+    id: r.id,
     key: r.key,
     value: r.value,
     agent_id: r.agent_id,
@@ -228,10 +240,11 @@ async function keywordSearchFacts(
 ): Promise<RankedRow[]> {
   const pattern = `%${query}%`;
   const sql = `
-    SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
+    SELECT f.id, COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
            f.fact_text as value,
            COALESCE(m.agent_id, e.agent_id) as agent_id,
            CASE WHEN f.episode_id IS NOT NULL THEN 'episode' ELSE 'fact' END as source,
+           f.confidence,
            ROW_NUMBER() OVER (ORDER BY f.created_at DESC) as kw_rank
     FROM memory.facts f
     LEFT JOIN memory.memories m ON m.id = f.memory_id
@@ -243,10 +256,12 @@ async function keywordSearchFacts(
     LIMIT 20`;
   const { rows } = await pool.query(sql, [pattern, agentId, includeInvalidated]);
   return rows.map((r: any) => ({
+    id: r.id,
     key: r.key,
     value: r.value,
     agent_id: r.agent_id,
     source: r.source as 'fact',
+    confidence: r.confidence,
     rank: Number(r.kw_rank),
   }));
 }
@@ -285,10 +300,61 @@ function rrfMerge(
     score,
     agent_id: row.agent_id,
     source: row.source,
+    id: row.id,
+    confidence: row.confidence,
   }));
 }
 
-// ── Audit helper ────────────────────────────────────────────────────
+// ── Retrieval strengthening ─────────────────────────────────────────
+
+async function strengthenRetrievals(pool: any, results: MemorySearchResult[]): Promise<void> {
+  const factIds = results.filter(r => (r.source === 'fact' || r.source === 'episode') && r.id).map(r => r.id!);
+  const memoryIds = results.filter(r => r.source === 'memory' && r.id).map(r => r.id!);
+
+  const ops: Promise<void>[] = [];
+
+  if (factIds.length > 0) {
+    ops.push(pool.query(
+      `UPDATE memory.facts
+       SET retrieval_count = retrieval_count + 1,
+           last_retrieved_at = now(),
+           half_life_days = LEAST(COALESCE(half_life_days, 30) + 2, 365),
+           confidence = CASE WHEN confidence = 'stale' THEN 'observed' ELSE confidence END
+       WHERE id = ANY($1)`,
+      [factIds],
+    ));
+  }
+
+  if (memoryIds.length > 0) {
+    ops.push(pool.query(
+      `UPDATE memory.memories
+       SET retrieval_count = retrieval_count + 1,
+           last_retrieved_at = now(),
+           half_life_days = LEAST(COALESCE(half_life_days, 60) + 2, 365)
+       WHERE id = ANY($1)`,
+      [memoryIds],
+    ));
+  }
+
+  await Promise.all(ops);
+}
+
+// ── Transfer scoring for cross-repo facts ───────────────────────────
+
+const PORTABLE_KEYWORDS = ['error', 'pattern', 'gotcha', 'rule', 'convention', 'best-practice', 'anti-pattern'];
+const LOCAL_KEYWORDS = ['config', 'deploy', 'url', 'auth', 'secret', 'env', 'port', 'hostname', 'endpoint'];
+
+export function computeTransferScore(text: string): number {
+  const lower = text.toLowerCase();
+  let score = 0.5;
+  for (const kw of PORTABLE_KEYWORDS) {
+    if (lower.includes(kw)) score += 0.15;
+  }
+  for (const kw of LOCAL_KEYWORDS) {
+    if (lower.includes(kw)) score -= 0.15;
+  }
+  return Math.max(0, Math.min(1, score));
+}
 
 // ── Entity cache for graph augmentation ─────────────────────────────
 
