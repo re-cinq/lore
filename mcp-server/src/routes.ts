@@ -182,18 +182,13 @@ async function handleHealthz(req: IncomingMessage, res: ServerResponse, pool: Po
   const isAuthed = bearer ? await validateClientToken(pool, bearer, "read") : false;
   if (isAuthed) {
     let tasks = { processed_today: 0, pending: 0 };
-    let todayCost = "0.00";
     if (health.connected && pool) {
       try {
-        const [taskStats, costStats] = await Promise.all([
-          pool.query(`SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`),
-          pool.query(`SELECT COALESCE(SUM(cost_usd), 0)::numeric(10,2) as cost FROM pipeline.llm_calls WHERE created_at > current_date`),
-        ]);
+        const taskStats = await pool.query(`SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`);
         tasks = { processed_today: taskStats.rows[0]?.today || 0, pending: taskStats.rows[0]?.pending || 0 };
-        todayCost = costStats.rows[0]?.cost || "0.00";
       } catch { /* non-fatal */ }
     }
-    json(res, code, { status, database: health, tasks, today_cost: todayCost });
+    json(res, code, { status, database: health, tasks });
   } else {
     json(res, code, { status });
   }

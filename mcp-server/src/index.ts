@@ -597,7 +597,7 @@ server.tool(
 
 server.tool(
   "my_usage",
-  "Show your personal LLM cost and task usage. Breaks down by today, 7-day, and 30-day periods.",
+  "Show your personal task and token usage. Breaks down by today, 7-day, and 30-day periods.",
   {
     agent_id: z.string().optional().describe("Override agent ID. Auto-detected if omitted."),
   },
@@ -615,8 +615,7 @@ server.tool(
       const results: any = {};
       for (const period of periods) {
         const { rows } = await dbPoolRef.query(
-          `SELECT COALESCE(SUM(lc.cost_usd), 0)::numeric(10,4) as cost,
-                  COUNT(DISTINCT t.id)::int as tasks,
+          `SELECT COUNT(DISTINCT t.id)::int as tasks,
                   COALESCE(SUM(lc.input_tokens), 0)::bigint as input_tokens,
                   COALESCE(SUM(lc.output_tokens), 0)::bigint as output_tokens
            FROM pipeline.tasks t
@@ -626,7 +625,6 @@ server.tool(
           [agent, `%${agent.substring(0, 8)}%`],
         );
         results[period.name] = {
-          cost_usd: rows[0].cost,
           tasks: rows[0].tasks,
           input_tokens: Number(rows[0].input_tokens),
           output_tokens: Number(rows[0].output_tokens),
@@ -1063,7 +1061,7 @@ server.tool(
 
 server.tool(
   "get_analytics",
-  "Returns org-level analytics: LLM costs, task throughput, success rates. Useful for cost tracking and usage reporting.",
+  "Returns org-level analytics: task throughput, success rates, and token usage.",
   {
     period: z.enum(["today", "week", "month", "all"]).default("month").describe("Time period for analytics."),
   },
@@ -1080,15 +1078,15 @@ server.tool(
         all: "TRUE",
       }[period];
 
-      const [costResult, taskResult, byTypeResult] = await Promise.all([
-        dbPoolRef.query(`SELECT COALESCE(SUM(cost_usd), 0)::numeric(10,2) as cost, count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`),
+      const [usageResult, taskResult, byTypeResult] = await Promise.all([
+        dbPoolRef.query(`SELECT count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`),
         dbPoolRef.query(`SELECT count(*) as total, count(*) FILTER (WHERE status IN ('pr-created', 'merged')) as succeeded, count(*) FILTER (WHERE status = 'failed') as failed FROM pipeline.tasks WHERE ${periodFilter}`),
-        dbPoolRef.query(`SELECT t.task_type, count(DISTINCT t.id) as tasks, COALESCE(SUM(lc.cost_usd), 0)::numeric(10,2) as cost FROM pipeline.tasks t LEFT JOIN pipeline.llm_calls lc ON lc.task_id = t.id WHERE t.${periodFilter} GROUP BY t.task_type ORDER BY cost DESC`),
+        dbPoolRef.query(`SELECT t.task_type, count(DISTINCT t.id) as tasks FROM pipeline.tasks t WHERE t.${periodFilter} GROUP BY t.task_type ORDER BY tasks DESC`),
       ]);
 
       const analytics = {
         period,
-        cost: { total_usd: costResult.rows[0].cost, llm_calls: parseInt(costResult.rows[0].calls), input_tokens: parseInt(costResult.rows[0].input_tokens), output_tokens: parseInt(costResult.rows[0].output_tokens) },
+        usage: { llm_calls: parseInt(usageResult.rows[0].calls), input_tokens: parseInt(usageResult.rows[0].input_tokens), output_tokens: parseInt(usageResult.rows[0].output_tokens) },
         tasks: { total: parseInt(taskResult.rows[0].total), succeeded: parseInt(taskResult.rows[0].succeeded), failed: parseInt(taskResult.rows[0].failed) },
         by_type: byTypeResult.rows,
       };

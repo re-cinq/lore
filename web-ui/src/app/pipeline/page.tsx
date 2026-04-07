@@ -15,11 +15,6 @@ interface Task {
   pr_number: number | null;
   created_by: string;
   created_at: string;
-  llm_cost: number;
-}
-
-interface TodayCost {
-  today: number;
 }
 
 export default async function PipelinePage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
@@ -28,21 +23,11 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   const where = status ? 'WHERE t.status = $1' : '';
   const params = status ? [status] : [];
   const tasks = await query<Task>(
-    `SELECT t.id, t.description, t.task_type, t.status, COALESCE(t.priority, 'normal') as priority, t.target_repo, t.agent_id, t.pr_url, t.pr_number, t.created_by, t.created_at,
-            COALESCE(lc.total_cost, 0) as llm_cost
+    `SELECT t.id, t.description, t.task_type, t.status, COALESCE(t.priority, 'normal') as priority, t.target_repo, t.agent_id, t.pr_url, t.pr_number, t.created_by, t.created_at
      FROM pipeline.tasks t
-     LEFT JOIN (
-       SELECT task_id, SUM(cost_usd) as total_cost
-       FROM pipeline.llm_calls
-       GROUP BY task_id
-     ) lc ON lc.task_id = t.id
      ${where}
      ORDER BY t.created_at DESC LIMIT 50`,
     params
-  );
-
-  const todayCost = await queryOne<TodayCost>(
-    `SELECT COALESCE(SUM(cost_usd), 0)::numeric(10,2) as today FROM pipeline.llm_calls WHERE created_at > current_date`
   );
 
   const statuses = ['pending', 'queued', 'running', 'pr-created', 'review', 'merged', 'failed', 'cancelled'];
@@ -61,14 +46,9 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         ))}
       </div>
 
-      <div className="spec-card" style={{marginBottom:'16px', display:'flex', alignItems:'center', gap:'16px'}}>
-        <strong>Today&apos;s LLM Cost:</strong>
-        <span className="badge" style={{fontSize:'14px'}}>${Number(todayCost?.today ?? 0).toFixed(2)}</span>
-      </div>
-
       <table>
         <thead>
-          <tr><th>Task</th><th>Type</th><th>Status</th><th>Priority</th><th>Cost</th><th>Repo</th><th>Agent</th><th>PR</th><th>Created</th></tr>
+          <tr><th>Task</th><th>Type</th><th>Status</th><th>Priority</th><th>Repo</th><th>Agent</th><th>PR</th><th>Created</th></tr>
         </thead>
         <tbody>
           {tasks.map(t => (
@@ -87,7 +67,6 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
                   <span className={t.priority === 'immediate' ? 'badge' : 'meta'} style={t.priority === 'immediate' ? {background:'#7c3aed',color:'white'} : {}}>{t.priority}</span>
                 )}
               </td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>${Number(t.llm_cost).toFixed(2)}</td>
               <td style={{fontFamily:'monospace', fontSize:'12px'}}>
                 {t.target_repo ? (
                   <Link href={`/repos/${t.target_repo}`}>{t.target_repo}</Link>
@@ -105,7 +84,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
               <td className="meta">{new Date(t.created_at).toLocaleString()}</td>
             </tr>
           ))}
-          {tasks.length === 0 && <tr><td colSpan={9} className="meta" style={{textAlign:'center'}}>No tasks</td></tr>}
+          {tasks.length === 0 && <tr><td colSpan={8} className="meta" style={{textAlign:'center'}}>No tasks</td></tr>}
         </tbody>
       </table>
     </div>
