@@ -27,31 +27,50 @@ const CONSOLIDATION_LOOKBACK_DAYS = 7;
 // ── Importance scoring ──────────────────────────────────────────────
 
 /**
- * Score a memory's importance (0-10) based on:
- *   - Recency: newer = higher (decays over 180 days)
- *   - Content length: longer, more detailed = higher
- *   - Key pattern: session-summary < deployment-gotchas < explicit memories
+ * Score a memory's importance (0-10) using half-life decay model.
+ *
+ * strength = 0.5^(effective_age / half_life_days)
+ *
+ * Effective age uses last_retrieved_at when available (rewarding
+ * frequently-retrieved memories), falling back to created_at.
+ * Retrieval count provides a minor boost. Stale confidence penalizes.
  */
 function scoreImportance(memory: {
   key: string;
   value: string;
   created_at: string;
+  last_retrieved_at?: string | null;
+  half_life_days?: number | null;
+  retrieval_count?: number | null;
+  confidence?: string | null;
 }): number {
-  let score = 5; // baseline
+  const halfLife = memory.half_life_days || 60;
+  const effectiveDate = memory.last_retrieved_at || memory.created_at;
+  const effectiveAgeDays = (Date.now() - new Date(effectiveDate).getTime()) / 86400000;
 
-  // Recency: -1 per 30 days of age, min 0
-  const ageDays = (Date.now() - new Date(memory.created_at).getTime()) / 86400000;
-  score -= Math.min(5, Math.floor(ageDays / 30));
+  // Half-life decay: strength decays from 1.0 to 0.0
+  const strength = Math.pow(0.5, effectiveAgeDays / halfLife);
 
-  // Content richness: short = low value
+  // Map strength (0-1) to score (0-10)
+  let score = Math.round(strength * 10);
+
+  // Content richness
   if (memory.value.length < 50) score -= 2;
   else if (memory.value.length > 500) score += 1;
 
-  // Key-based importance boost
-  if (memory.key.startsWith("auto-curation/")) score -= 1; // auto-generated, lower value
-  if (memory.key.startsWith("session-summary/")) score -= 1; // ephemeral
+  // Key-based importance
+  if (memory.key.startsWith("auto-curation/")) score -= 1;
+  if (memory.key.startsWith("session-summary/")) score -= 1;
   if (memory.key.includes("gotcha") || memory.key.includes("decision")) score += 2;
   if (memory.key.includes("convention") || memory.key.includes("pattern")) score += 2;
+
+  // Retrieval frequency boost
+  const retrievals = memory.retrieval_count || 0;
+  if (retrievals >= 20) score += 2;
+  else if (retrievals >= 5) score += 1;
+
+  // Stale confidence penalty (for facts passed through as memories)
+  if (memory.confidence === 'stale') score -= 1;
 
   return Math.max(0, Math.min(10, score));
 }
@@ -76,8 +95,8 @@ export async function importanceDecayJob(): Promise<string> {
     if (excess <= 0) continue;
 
     // Get old memories (older than DECAY_MIN_AGE_DAYS)
-    const candidates = await query<{ id: string; key: string; value: string; created_at: string }>(
-      `SELECT id, key, value, created_at
+    const candidates = await query<{ id: string; key: string; value: string; created_at: string; last_retrieved_at: string | null; half_life_days: number | null; retrieval_count: number | null }>(
+      `SELECT id, key, value, created_at, last_retrieved_at, half_life_days, retrieval_count
        FROM memory.memories
        WHERE agent_id = $1 AND is_deleted = FALSE
          AND created_at < now() - interval '${DECAY_MIN_AGE_DAYS} days'
@@ -145,11 +164,27 @@ export async function importanceDecayJob(): Promise<string> {
     factsEvicted += result.length;
   }
 
-  if (totalEvicted > 0 || factsEvicted > 0) {
-    console.log(`[job] importance-decay: evicted ${totalEvicted} memories, ${factsEvicted} old facts`);
+  // Transition unretrieved facts to 'stale' after 30 days
+  let staleTransitioned = 0;
+  try {
+    const result = await query<{ id: string }>(
+      `UPDATE memory.facts
+       SET confidence = 'stale'
+       WHERE valid_to IS NULL
+         AND confidence NOT IN ('stale', 'verified')
+         AND COALESCE(last_retrieved_at, created_at) < now() - interval '30 days'
+       RETURNING id`,
+    );
+    staleTransitioned = result.length;
+  } catch {
+    // Non-fatal
   }
 
-  return `Evicted ${totalEvicted} memories, ${factsEvicted} old facts`;
+  if (totalEvicted > 0 || factsEvicted > 0 || staleTransitioned > 0) {
+    console.log(`[job] importance-decay: evicted ${totalEvicted} memories, ${factsEvicted} old facts, transitioned ${staleTransitioned} facts to stale`);
+  }
+
+  return `Evicted ${totalEvicted} memories, ${factsEvicted} old facts, ${staleTransitioned} stale transitions`;
 }
 
 // ── Consolidation job ───────────────────────────────────────────────
