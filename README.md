@@ -68,7 +68,7 @@ A developer types `/lore implementation add retry logic to the webhook handler` 
 
 | Mode | When | How |
 |------|------|-----|
-| **API call** | Onboarding, runbooks, gap-fill, review, review-reactor fixes | Direct `@anthropic-ai/sdk` call to Claude Haiku. Fast, cheap ($0.01-0.07/task). Plain text in, plain text out. |
+| **API call** | Onboarding, runbooks, gap-fill, review, review-reactor fixes | Direct `@anthropic-ai/sdk` call to Claude Haiku. Fast, lightweight. Plain text in, plain text out. |
 | **Claude Code (ephemeral Job)** | Implementation, refactoring, complex analysis | Creates a LoreTask CR → controller spawns an ephemeral K8s Job pod with claude-runner image. Full tool access, isolated resources, survives agent deploys. |
 | **Multi-agent** | Large implementation tasks | Multiple LoreTask Jobs run in parallel. Each works on a different part of the task (e.g., one agent per file or module). Results merged into a single PR. |
 | **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
@@ -89,7 +89,7 @@ The agent service decides which mode to use based on the task type configured in
 | **MCP Server** | Serves org context to Claude Code via MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. Per-client scoped tokens. Rate-limited. |
 | **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, delegates complex tasks (implementation) to ephemeral Job pods via LoreTask CRD. Runs 10 scheduled maintenance jobs. Creates PRs via GitHub App. Every task automatically creates a GitHub Issue on the target repo, so developers see what Lore is doing without checking the dashboard. Issues are updated with status changes and closed when the PR is created. |
 | **LoreTask Controller** | Watches LoreTask custom resources and spawns ephemeral K8s Job pods with the claude-runner image. Each Job pod clones the target repo, runs Claude Code, commits, and pushes. Tasks survive agent deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and egress-restricted NetworkPolicy. |
-| **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring with cost tracking. Analytics dashboard. Global settings. |
+| **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector, GIN for keyword. |
 | **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets for ingest automation. |
 
@@ -244,7 +244,7 @@ claude "create a runbook for database failover in re-cinq/my-service"
 
 # Check task status
 claude "what's the status of my last pipeline task?"
-# → Returns status, PR link, cost, duration
+# → Returns status, PR link, duration
 ```
 
 The MCP server runs locally via stdio and proxies all operations (context, memory, search, pipeline) to the GKE backend via `LORE_API_URL`. There is no offline mode — the backend must be running. The install script configures the API URL automatically.
@@ -263,8 +263,8 @@ The MCP server runs locally via stdio and proxies all operations (context, memor
 | `write_episode` | Memory | Ingest raw text; auto-extracts facts and updates knowledge graph |
 | `query_graph` | Memory | Query live knowledge graph for entities and relationships |
 | `agent_stats` | Memory | Health, memory count, episode count, facts, searches, daily breakdown |
-| `create_pipeline_task` | Pipeline | Create task on GKE (API cost). Supports `group_id` for multi-repo coordination |
-| `run_task_locally` | Pipeline | Run task in background on dev machine (subscription, zero API cost) |
+| `create_pipeline_task` | Pipeline | Create task on GKE. Supports `group_id` for multi-repo coordination |
+| `run_task_locally` | Pipeline | Run task in background on dev machine (uses subscription) |
 | `list_local_tasks` | Pipeline | Show running/completed local background tasks |
 | `cancel_local_task` | Pipeline | Cancel a local background task |
 | `enable_task_notifications` | Pipeline | Start watching for pending tasks (statusline indicator) |
@@ -279,12 +279,12 @@ The MCP server runs locally via stdio and proxies all operations (context, memor
 | `ready_tasks` | Tasks | List unblocked tasks (all dependencies satisfied) |
 | `claim_task` | Tasks | Atomically claim a task to prevent double work |
 | `complete_task` | Tasks | Mark done, report newly unblocked dependents |
-| `get_analytics` | Repos | Cost/usage tracking by period |
+| `get_analytics` | Repos | Task throughput and token usage by period |
 | `list_repos` | Repos | All onboarded repos with activity stats |
 | `onboard_repo` | Repos | Onboard a new repo to Lore |
 | `get_task_logs` | Pipeline | Fetch task execution logs from GCS (no UI needed) |
 | `list_task_group` | Pipeline | List all tasks in a multi-repo task group |
-| `my_usage` | Pipeline | Per-developer cost breakdown (today, 7-day, 30-day) |
+| `my_usage` | Pipeline | Per-developer task and token usage (today, 7-day, 30-day) |
 | `ingest_files` | Ingest | Manually ingest files into Lore's context store |
 
 ### GitHub Issue Dispatch
@@ -458,7 +458,7 @@ The entire flow from "I want X" to merged code, with proper specs, tracked tasks
 ### Monitoring
 
 **Web UI** (`LORE_UI_DOMAIN`):
-- Pipeline page shows all tasks with status, cost, PR links, and live PR state badges
+- Pipeline page shows all tasks with status, PR links, and live PR state badges
 - Task detail page shows live agent output in a terminal-style log viewer (polls every 5s while running)
 - Repo view shows context, active tasks, and memory for each repo
 - Search page queries across all onboarded repos
@@ -467,19 +467,18 @@ The entire flow from "I want X" to merged code, with proper specs, tracked tasks
 ```bash
 curl https://LORE_API_DOMAIN/healthz
 # Unauthenticated: returns {"status":"ok"}
-# Authenticated: adds database status, task counts, today's LLM cost
+# Authenticated: adds database status, task counts
 ```
 
-**LLM costs** tracked per task in `pipeline.llm_calls` table — visible in the pipeline dashboard.
+**LLM usage** tracked per task in `pipeline.llm_calls` table (model, tokens, duration).
 
 ### Analytics
 
 The analytics dashboard at `LORE_UI_DOMAIN/analytics` shows:
-- Cost overview cards (today, 7-day, 30-day)
-- Task summary by status
+- Task summary by status (total, succeeded, failed, active)
 - Retrieval performance (p50/p95/p99 latency per MCP tool, 200ms threshold)
-- Cost breakdown by task type and by repo
-- Daily cost trend chart
+- Token usage by task type and by repo
+- Daily usage trend (LLM calls, input/output tokens)
 - Scheduled job run history
 
 Additional pages:
