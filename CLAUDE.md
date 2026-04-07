@@ -375,7 +375,7 @@ repo-specific configuration from polluting other repos.
 incidents in `assemble_context` at priority 1.
 
 **Developer tools**: `get_task_logs` MCP tool reads task logs from
-GCS (no UI needed). `my_usage` shows per-developer cost breakdown
+GCS (no UI needed). `my_usage` shows per-developer token usage
 (today/7-day/30-day).
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
