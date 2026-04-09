@@ -257,7 +257,7 @@ Every task outcome writes to the Lore memory system:
 
 ## Out of Scope (Unchanged)
 
-1. **Multi-cluster** — Single cluster only (n8n-cluster)
+1. **Multi-cluster** — Single cluster only (your-gke-cluster)
 2. **Priority queues** — All tasks equal priority
 3. **Resource quotas per team** — No per-team limits on concurrent Jobs
 4. **Streaming logs to UI** — Phase 2 (WebSocket)

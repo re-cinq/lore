@@ -20,10 +20,11 @@ terraform {
     }
   }
 
-  backend "gcs" {
-    bucket = "re5-n8n-terraform-state"
-    prefix = "lore"
-  }
+  # Configure your own backend. Example for GCS:
+  # backend "gcs" {
+  #   bucket = "your-terraform-state-bucket"
+  #   prefix = "lore"
+  # }
 }
 
 provider "google" {

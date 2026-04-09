@@ -15,7 +15,7 @@
   <!-- Web UI -->
   <rect class="box" x="180" y="20" width="320" height="44" fill="#f8fafc" stroke="#cbd5e1"/>
   <text class="label" x="340" y="40" text-anchor="middle">Web UI</text>
-  <text class="sub" x="340" y="55" text-anchor="middle">(lore.gcp.re-cinq.com)</text>
+  <text class="sub" x="340" y="55" text-anchor="middle">(your-lore-ui.example.com)</text>
 
   <line class="conn" x1="340" y1="64" x2="340" y2="96"/>
 

@@ -72,7 +72,7 @@ jobs:
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v3
         with:
-          cluster_name: n8n-cluster
+          cluster_name: ${{ vars.GKE_CLUSTER_NAME }}
           location: europe-west1
           project_id: ${{ vars.GCP_PROJECT_ID }}
 

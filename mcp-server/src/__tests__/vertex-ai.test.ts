@@ -14,9 +14,9 @@ describe("Vertex AI URL construction", () => {
   }
 
   it("builds correct URL with project set", () => {
-    const url = buildVertexUrl("re5-n8n-platform", "europe-west1");
+    const url = buildVertexUrl("my-gcp-project", "europe-west1");
     expect(url).toBe(
-      "https://europe-west1-aiplatform.googleapis.com/v1/projects/re5-n8n-platform/locations/europe-west1/publishers/google/models/text-embedding-005:predict"
+      "https://europe-west1-aiplatform.googleapis.com/v1/projects/my-gcp-project/locations/europe-west1/publishers/google/models/text-embedding-005:predict"
     );
     expect(url).not.toContain("projects//");
   });

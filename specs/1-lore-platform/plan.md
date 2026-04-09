@@ -237,7 +237,7 @@ MCP server to serve.
 
 ### Phase 1: Managed Infrastructure (Weeks 2-3)
 
-Phase 1 deployed onto the existing shared GKE cluster `n8n-cluster`
+Phase 1 deployed onto the existing shared GKE cluster `your-gke-cluster`
 in `europe-west1` — no new cluster was provisioned. All infrastructure
 is Kubernetes-native (CNPG operator, K8s CronJobs, K8s Deployments).
 No Terraform, no Cloud SQL, no Cloud Scheduler, no Langfuse, no
@@ -246,7 +246,7 @@ BigQuery.
 #### Week 2: Infrastructure + Klaus
 
 1. **Infrastructure provisioning:**
-   - Existing GKE cluster `n8n-cluster` in `europe-west1` (shared
+   - Existing GKE cluster `your-gke-cluster` in `europe-west1` (shared
      cluster, already running).
    - CNPG operator already installed on cluster.
    - CNPG Cluster resource deployed: PostgreSQL 16 with `pgvector`

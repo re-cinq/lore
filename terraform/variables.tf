@@ -1,13 +1,17 @@
 variable "project_id" {
-  default = "re5-n8n-platform"
+  description = "GCP project ID"
+  type        = string
 }
 
 variable "region" {
-  default = "europe-west1"
+  description = "GCP region"
+  type        = string
+  default     = "europe-west1"
 }
 
 variable "cluster_name" {
-  default = "n8n-cluster"
+  description = "GKE cluster name"
+  type        = string
 }
 
 # Secret values — pass via .tfvars or TF_VAR_ env

@@ -183,9 +183,9 @@ results from PostgreSQL via hybrid vector + keyword search in < 200ms.
 
 ### Tasks
 
-- [x] T036 [US6] Deploy CNPG Cluster resource (PostgreSQL 16 + pgvector) in namespace "alloydb" on existing GKE cluster n8n-cluster (europe-west1)
+- [x] T036 [US6] Deploy CNPG Cluster resource (PostgreSQL 16 + pgvector) in namespace "alloydb" on existing GKE cluster your-gke-cluster (europe-west1)
 - [x] T037 [US6] Create schema-per-team DDL: chunks table with VECTOR(768), HNSW index, GIN index on search_tsv for payments, platform, mobile, data, org_shared schemas
-- [x] T038 [US6] Configure namespaces (mcp-servers, klaus, alloydb, dolt) on existing GKE cluster n8n-cluster in europe-west1
+- [x] T038 [US6] Configure namespaces (mcp-servers, klaus, alloydb, dolt) on existing GKE cluster your-gke-cluster in europe-west1
 - [x] T039 [US6] Configure Workload Identity bindings: per-team MCP service account (read own schema + org_shared), Klaus SA (write ingestion + read GitHub)
 - [x] T040 [US6] Upgrade MCP server search_context to hybrid PostgreSQL search: HNSW vector + BM25 keyword with Reciprocal Rank Fusion (k=60) in mcp-server/src/index.ts
 - [x] T041 [US6] Upgrade MCP server get_context and get_adrs to query PostgreSQL instead of local files in mcp-server/src/index.ts

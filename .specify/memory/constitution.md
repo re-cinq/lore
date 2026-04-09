@@ -167,7 +167,7 @@ The following decisions have been made and MUST NOT be relitigated:
 | Ingestion trigger | On-push (fast) + nightly (full) via K8s CronJobs |
 | Observability | OpenTelemetry → Cloud Monitoring + Graphiti (gap signal) |
 | Scheduling | Lore Agent built-in scheduler with DB persistence |
-| GKE cluster | Existing shared `n8n-cluster` in `europe-west1` (not dedicated) |
+| GKE cluster | Existing shared `your-gke-cluster` in `europe-west1` (not dedicated) |
 | Task tracking | Pipeline tasks via Lore MCP + GH Issues |
 | Governance | Distributed ownership + CI eval gate |
 | Build sequence | DX-first: Phase 0 before infra |
@@ -262,7 +262,7 @@ depends on.
 | Feature workflow | Spec Kit (`specify-cli`) |
 | Observability | OpenTelemetry → Cloud Monitoring |
 | CI evals | PromptFoo |
-| Infrastructure | CNPG operator + K8s manifests + CronJobs (on existing shared GKE cluster `n8n-cluster`) |
+| Infrastructure | CNPG operator + K8s manifests + CronJobs (on existing shared GKE cluster `your-gke-cluster`) |
 | Auth | Workload Identity (GKE), Workload Identity Federation (GHA) |
 | Code parsing | web-tree-sitter (TypeScript, Python, Go) |
 | Document parsing | LlamaIndex readers (GitHub, Confluence) + unstructured |
@@ -288,7 +288,7 @@ Phase 1 starts.
 ### Phase 1: Managed Infrastructure (~2 weeks) — DEPLOYED AND VERIFIED
 
 Replace file-backed MCP with PostgreSQL + pgvector (CNPG). Wire up ingestion.
-Deployed onto existing shared GKE cluster `n8n-cluster` in `europe-west1`.
+Deployed onto existing shared GKE cluster `your-gke-cluster` in `europe-west1`.
 Hybrid search verified end-to-end: Workload Identity → Vertex AI → PostgreSQL → RRF results.
 Deliverables:
 - CNPG Cluster resource (namespace `alloydb`, pod `lore-db-1`) +
