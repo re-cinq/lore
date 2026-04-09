@@ -40,5 +40,5 @@ variable "google_client_secret" {
 variable "langfuse_domain" {
   description = "Public domain for the Langfuse UI (used for NEXTAUTH_URL)."
   type        = string
-  default     = "langfuse.lore.internal"
+  default     = ""
 }

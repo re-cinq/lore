@@ -570,10 +570,10 @@ namespace: lore-ui
 replicas: 1
 image: ghcr.io/re-cinq/lore-ui:latest
 env:
-  - LORE_DB_HOST: lore-db-1.alloydb.svc.cluster.local
+  - LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
   - LORE_DB_USER: lore_ui
   - LORE_DB_NAME: lore
-  - NEXTAUTH_URL: https://lore.internal.re-cinq.com
+  - NEXTAUTH_URL: https://lore-internal.example.com
   - GOOGLE_CLIENT_ID: (from K8s Secret)
   - GOOGLE_CLIENT_SECRET: (from K8s Secret)
 port: 3000
@@ -583,7 +583,7 @@ Internal-only access via GKE Ingress with IAP (Identity-Aware Proxy) or internal
 
 #### 3.4 Phase 3 Verification
 
-- Platform engineer opens `https://lore.internal.re-cinq.com`, authenticates with Google Workspace.
+- Platform engineer opens `https://lore-internal.example.com`, authenticates with Google Workspace.
 - Agent overview shows all active agents with correct memory counts.
 - Clicking an agent shows its memories with version history.
 - Search for "payment idempotency" returns relevant memories and facts across agents.

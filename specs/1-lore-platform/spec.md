@@ -505,7 +505,7 @@ improvements.
 ### NFR-4: Scalability
 
 - CNPG PostgreSQL instance on existing shared GKE cluster
-  (`n8n-cluster`, `europe-west1`). Scale up CNPG resource requests
+  (`your-gke-cluster`, `europe-west1`). Scale up CNPG resource requests
   when query latency p99 exceeds 50ms. Upgrade path to AlloyDB Omni
   or managed AlloyDB if needed.
 - GKE cluster is shared — Lore workloads run in dedicated namespaces
@@ -565,7 +565,7 @@ improvements.
 ## Dependencies
 
 - Claude Code v2.1.32+ (Agent Teams support).
-- GCP project with existing GKE cluster (`n8n-cluster`,
+- GCP project with existing GKE cluster (`your-gke-cluster`,
   `europe-west1`) and Cloud Monitoring access (Phase 1+).
 - CloudNativePG operator (CNPG) on GKE (Phase 1+, already installed
   on shared cluster).
