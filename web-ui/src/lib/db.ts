@@ -39,6 +39,18 @@ export async function getRepoSchema(fullName: string): Promise<string> {
 }
 
 /**
+ * Resolve schema and team for a repo in one query.
+ * Returns null if the repo does not exist in lore.repos.
+ */
+export async function getRepoSchemaAndTeam(fullName: string): Promise<{ schema: string; team: string } | null> {
+  const row = await queryOne<{ team: string | null }>(`SELECT team FROM lore.repos WHERE full_name = $1`, [fullName]);
+  if (row === null) return null;
+  const team = row.team ?? '';
+  const schema = SCHEMA_RE.test(team) ? team : 'org_shared';
+  return { schema, team };
+}
+
+/**
  * Build a UNION ALL across all chunk schemas.
  * `selectFn` receives a schema name and returns the SELECT statement for that schema.
  * Caller is responsible for safe schema interpolation (schemas are validated against SCHEMA_RE).

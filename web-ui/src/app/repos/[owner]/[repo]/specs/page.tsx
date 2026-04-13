@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query, getRepoSchema, queryOne } from '@/lib/db';
+import { query, getRepoSchema, getRepoSchemaAndTeam } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
 async function addSpec(formData: FormData) {
@@ -11,14 +11,10 @@ async function addSpec(formData: FormData) {
   const content = (formData.get('content') as string || '').trim();
   if (!filePath || !content) return;
 
-  const repoData = await queryOne<{ team: string | null }>(
-    `SELECT team FROM lore.repos WHERE full_name = $1`,
-    [fullName]
-  );
-  const SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
-  const team = repoData?.team ?? '';
-  const schema = SCHEMA_RE.test(team) ? team : 'org_shared';
+  const repoData = await getRepoSchemaAndTeam(fullName);
+  if (!repoData) return;
 
+  const { schema, team } = repoData;
   await query(
     `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
      VALUES ($1, 'spec', $2, $3, $4, $5)`,
