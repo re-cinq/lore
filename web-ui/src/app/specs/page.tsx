@@ -1,77 +1,71 @@
 export const dynamic = "force-dynamic";
 import Link from 'next/link';
-import { query, queryAllChunks } from '@/lib/db';
+import { queryAllChunks } from '@/lib/db';
 
 interface Spec {
   file_path: string;
-  content_type: string;
+  repo: string | null;
   ingested_at: string;
   excerpt: string;
 }
 
-interface ContentTypeCount {
-  content_type: string;
+interface RepoCount {
+  repo: string;
   count: number;
 }
 
-const CONTENT_TYPE_BADGE: Record<string, string> = {
-  spec: 'badge badge-blue',
-  doc: 'badge badge-green',
-  adr: 'badge badge-yellow',
-  claude_md: 'badge badge-purple',
-};
+export default async function SpecsPage({ searchParams }: { searchParams: Promise<{ repo?: string }> }) {
+  const { repo } = await searchParams;
 
-function badgeClass(contentType: string): string {
-  return CONTENT_TYPE_BADGE[contentType] || 'badge badge-gray';
-}
-
-export default async function SpecsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
-  const { type } = await searchParams;
-
-  // Get available content types for filter buttons (across all schemas)
-  const allTypeCounts = await queryAllChunks<ContentTypeCount>(
+  // Get available repos for filter buttons (only repos that have spec-type content)
+  const allRepoCounts = await queryAllChunks<RepoCount>(
     (schema) => ({
-      sql: `SELECT content_type, count(*)::int as count
+      sql: `SELECT repo, count(*)::int as count
             FROM ${schema}.chunks
-            WHERE content_type IS NOT NULL
-            GROUP BY content_type`,
+            WHERE content_type = 'spec' AND repo IS NOT NULL
+            GROUP BY repo`,
       params: [],
     }),
   );
   // Merge counts across schemas
-  const typeMap = new Map<string, number>();
-  for (const row of allTypeCounts) {
-    typeMap.set(row.content_type, (typeMap.get(row.content_type) || 0) + row.count);
+  const repoMap = new Map<string, number>();
+  for (const row of allRepoCounts) {
+    if (row.repo) {
+      repoMap.set(row.repo, (repoMap.get(row.repo) || 0) + row.count);
+    }
   }
-  const contentTypes = [...typeMap.entries()]
-    .map(([content_type, count]) => ({ content_type, count }))
+  const repos = [...repoMap.entries()]
+    .map(([r, count]) => ({ repo: r, count }))
     .sort((a, b) => b.count - a.count);
 
-  // Fetch specs across all schemas with optional content_type filter
+  // Fetch specs across all schemas, always filtered to content_type = 'spec'
   const allSpecs = await queryAllChunks<Spec>(
     (schema, offset) => {
-      if (type && type.trim()) {
+      if (repo && repo.trim()) {
         return {
-          sql: `SELECT file_path, content_type, ingested_at,
+          sql: `SELECT file_path, repo, ingested_at,
                        substring(content, 1, 200) as excerpt
                 FROM ${schema}.chunks
-                WHERE content_type = $${offset}`,
-          params: [type.trim()],
+                WHERE content_type = 'spec' AND repo = $${offset}`,
+          params: [repo.trim()],
         };
       }
       return {
-        sql: `SELECT file_path, content_type, ingested_at,
+        sql: `SELECT file_path, repo, ingested_at,
                      substring(content, 1, 200) as excerpt
-              FROM ${schema}.chunks`,
+              FROM ${schema}.chunks
+              WHERE content_type = 'spec'`,
         params: [],
       };
     },
   );
-  const specs = allSpecs.sort((a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime()).slice(0, 50);
+  const specs = allSpecs
+    .sort((a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime())
+    .slice(0, 50);
 
   return (
     <div>
-      <h1>Org Context &amp; Specifications</h1>
+      <h1>Specifications</h1>
       <div style={{ background: 'var(--bg-muted, #1a1a2e)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
         <p className="meta" style={{ margin: 0 }}>
           This is the global view across all repos. For repo-specific specs, visit{' '}
@@ -79,26 +73,26 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
         </p>
       </div>
       <p className="meta" style={{ marginBottom: 16 }}>
-        Browse ingested specs, ADRs, CLAUDE.md, and other org context from the context repository.
+        Browse ingested spec files from across all repos.
       </p>
 
       <div className="filter-buttons">
-        <Link href="/specs" className={!type ? 'active' : ''}>
-          All
+        <Link href="/specs" className={!repo ? 'active' : ''}>
+          All repos
         </Link>
-        {contentTypes.map(ct => (
+        {repos.map(r => (
           <Link
-            key={ct.content_type}
-            href={`/specs?type=${encodeURIComponent(ct.content_type)}`}
-            className={type === ct.content_type ? 'active' : ''}
+            key={r.repo}
+            href={`/specs?repo=${encodeURIComponent(r.repo)}`}
+            className={repo === r.repo ? 'active' : ''}
           >
-            {ct.content_type} ({ct.count})
+            {r.repo} ({r.count})
           </Link>
         ))}
       </div>
 
       <p className="meta" style={{ marginBottom: 16 }}>
-        {specs.length} chunk{specs.length !== 1 ? 's' : ''}{type ? ` of type "${type}"` : ''}
+        {specs.length} spec{specs.length !== 1 ? 's' : ''}{repo ? ` in "${repo}"` : ''}
       </p>
 
       {specs.map((s, i) => (
@@ -108,7 +102,12 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
               {s.file_path}
             </Link>
           </h3>
-          <span className={badgeClass(s.content_type)}>{s.content_type}</span>
+          <span className="badge badge-blue">spec</span>
+          {s.repo && (
+            <span className="meta" style={{ marginLeft: 8 }}>
+              <Link href={`/repos/${s.repo}`}>{s.repo}</Link>
+            </span>
+          )}
           <span className="meta" style={{ marginLeft: 8 }}>
             {new Date(s.ingested_at).toLocaleString()}
           </span>
@@ -117,7 +116,7 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
       ))}
       {specs.length === 0 && (
         <div className="empty-state">
-          <p>No content ingested yet{type ? ` for type "${type}"` : ''}.</p>
+          <p>No specs ingested yet{repo ? ` for repo "${repo}"` : ''}.</p>
         </div>
       )}
     </div>
