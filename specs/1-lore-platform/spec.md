@@ -425,8 +425,9 @@ The system MUST provide observability into context retrieval quality.
 - FR-8.2: Low-confidence retrievals (score < threshold) tagged as
   gap candidates via OTEL span attributes and Cloud Monitoring
   custom metrics.
-- FR-8.3: Gap signal feeds into Graphiti episodes in Phase 3 for
-  automated context improvement.
+- FR-8.3: Gap signal feeds the autoresearch loop (ADR-010): Langfuse
+  low-confidence trace queries → candidate generation → PromptFoo eval
+  → PR for automated context improvement.
 - FR-8.4: `my_usage` tool exposes per-developer token consumption
   (today / 7-day / 30-day) without leaving Claude Code.
 
