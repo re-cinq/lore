@@ -24,7 +24,7 @@
 | Fact extraction           | Configurable LLM (`LORE_FACT_LLM`: claude/openai/ollama) | 2 |
 | Shared memory pools       | PostgreSQL `memory.shared_pools`                     | 2 |
 | Snapshots                 | Reference-based (memory IDs + versions)              | 2 |
-| TTL cleanup               | K8s CronJob in `lore-agent` namespace                | 2 |
+| TTL cleanup               | In-process scheduled job via `registerJob()` in `agent/src/index.ts` | 2 |
 | Passive session capture   | `mcp-server/src/session-tracker.ts` + Stop hook      | ADR-014 |
 | Episode system            | `memory.episodes` table + `agent/src/lib/episode-writer.ts` | ADR-014 |
 | Importance decay          | `agent/src/jobs/memory-lifecycle.ts` (daily at 5 AM) | ADR-014 |
@@ -63,14 +63,10 @@ agent/src/lib/
 
 agent/src/jobs/
   memory-lifecycle.ts   # importanceDecayJob() + consolidationJob()
-                        #   Scheduled via K8s CronJob
+                        #   Registered as in-process jobs via registerJob() in agent/src/index.ts
 
 scripts/
   install.sh            # Extended: generate ~/.lore/agent-id, register Stop hook
-
-k8s/
-  memory-ttl-cronjob.yaml  # Expired memory hard-delete (hourly)
-  memory-lifecycle-cronjob.yaml  # Decay (5 AM) + consolidation (5:30 AM)
 
 web-ui/src/app/
   page.tsx              # Agent overview
@@ -431,14 +427,15 @@ Target: under 1 second for 10,000 memories.
 
 #### 2.4 TTL and Expiration
 
-CronJob (hourly) hard-deletes memories 24 hours after their `expires_at`:
+An in-process scheduled job (registered via `registerJob()` in `agent/src/index.ts`,
+runs hourly) hard-deletes memories 24 hours after their `expires_at`:
 
 ```sql
 DELETE FROM memory.memories WHERE expires_at < now() - interval '24 hours';
 ```
 
 Expired memories are excluded from search immediately via the partial index.
-The CronJob is a cleanup-only pass — no agent logic.
+This cleanup job runs in-process — there are no standalone K8s CronJob manifests.
 
 #### 2.5 Confidence Tiers
 
