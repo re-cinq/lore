@@ -291,9 +291,11 @@ The system MUST provide visibility into agent memory operations.
 - FR-8.4: Web UI for browsing memories, agent activity, search
   quality, and audit trail.
 - FR-8.5: The UI also serves as the non-developer interface to Lore.
-  Product owners and managers can use it to: add tasks and specs,
-  view agent work in progress, browse organizational context, and
-  review gap detection drafts — without using Claude Code.
+  Product owners and managers can use it to: view agent work in
+  progress, browse organizational context (specs, ADRs, CLAUDE.md),
+  and review gap detection drafts — without using Claude Code.
+  Note: adding spec text directly from the UI is not yet implemented;
+  `/specs` and `/specs/[...path]` are currently read-only.
 - FR-8.6: UI reads from the same PostgreSQL database as the MCP
   server. No separate data store.
 

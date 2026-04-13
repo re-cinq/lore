@@ -559,7 +559,8 @@ Rationale:
 For product owners and managers who do not use Claude Code:
 
 - `/tasks`: View current Beads tasks across agents. Add new tasks (writes to Beads via API).
-- `/specs`: Browse `.specify/` specs ingested into PostgreSQL. Add new spec text (writes to `org_shared.chunks` with `content_type = 'spec'`).
+- `/specs`: Browse ingested context chunks from all team schemas. Filter by content type (spec, doc, adr, claude_md, etc.). Shows 50 most recent chunks across all schemas. Each row links to `/specs/[...path]` for full detail.
+  - `/specs/[...path]`: Detail view for a specific file path. Shows all chunks for that path sorted newest first, with content_type badge, team/repo/author metadata, ingested timestamp, and collapsible raw metadata block. Read-only — adding new spec text via the UI is not yet implemented.
 - `/gaps`: Review gap detection drafts (PRs labelled `context-gap-draft`). Approve/reject directly from the UI (triggers GitHub API via server action).
 
 #### 3.3 Deployment
