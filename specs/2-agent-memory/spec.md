@@ -337,7 +337,7 @@ The system MUST provide visibility into agent memory operations.
 - Q: What happens when fact extraction LLM is unreachable? → A: Write succeeds immediately, facts queued for async retry. Memory searchable as raw text until extraction completes.
 - Q: How is agent identity established for Claude Code sessions? → A: Random UUID generated on first use, stored in ~/.lore/agent-id. Stable per machine. Klaus agents use pod name. Overridable via explicit agent_id parameter.
 - Q: How are snapshots stored at scale? → A: Reference-based. Snapshot stores memory IDs + version numbers, not full copies. Restore sets version pointers. No data duplication.
-- Q: Should memory operations emit OTEL spans? → A: No. Build a web UI instead that exposes agent memory, audit trail, and system status. The UI also serves as the non-developer interface — product owners/managers can add tasks, specs, and context to Lore without using Claude Code.
+- Q: Should memory operations emit OTEL spans? → A: No. Build a web UI instead that exposes agent memory, audit trail, and system status. The UI also serves as the non-developer interface — product owners/managers can add tasks and context to Lore without using Claude Code (specs are read-only in the UI; see FR-8.5).
 
 ## Scope Boundaries
 
