@@ -6,44 +6,72 @@
 | Branch       | 1-lore-platform                                 |
 | Spec         | [spec.md](spec.md)                              |
 | Constitution | [constitution.md](../../.specify/memory/constitution.md) |
-| Status       | Phase 1 Operational — hybrid search verified    |
+| Status       | Shipped — Phases 0–3 complete with architectural pivots |
 | Created      | 2026-03-25                                      |
+| Updated      | 2026-04-13                                      |
+
+## Architectural Pivots
+
+Three major technologies were replaced during implementation. The original
+plan referenced Klaus, Beads/Dolt, and Graphiti/FalkorDB. All three were
+swapped for alternatives before reaching production.
+
+| Original Plan | Replacement | ADR |
+|---------------|-------------|-----|
+| Klaus (GKE agent runtime) | Lore Agent service (direct Anthropic API + headless Claude Code) | ADR-007 |
+| Beads (`bd` CLI) + Dolt | Pipeline tasks via PostgreSQL + GitHub Issues | ADR-009 |
+| Graphiti + FalkorDB | Live knowledge graph in PostgreSQL (`memory.entities` + `memory.edges`) | — |
+| Context Cores as OCI bundles | YAML context assembly templates (`mcp-server/templates/`) | — |
+| `specify-cli` | `/lore-feature` skill (interactive spec loop) | — |
 
 ## Technical Context
 
-### Stack
+### Stack (As Built)
 
 | Layer              | Technology                       | Phase |
 |--------------------|----------------------------------|-------|
-| MCP Server         | TypeScript + `@modelcontextprotocol/sdk` | 0     |
-| Glue Scripts       | Python (lore-gen-constitution)   | 0     |
-| Settings Merge     | Node.js (lore-merge-settings.js) | 0     |
-| Health Check       | Bash (lore-doctor.sh)            | 0     |
-| Install            | Bash (install.sh)                | 0     |
-| Platform Skills    | Markdown (lore-feature.md, lore-pr.md) | 0  |
-| PR CI Check        | GitHub Actions YAML              | 0     |
+| MCP Server         | TypeScript + `@modelcontextprotocol/sdk` | 0 |
+| HTTP Transport     | Streamable HTTP on `:3000/mcp` (GKE) | 1 |
+| Stdio Transport    | Local dev via stdio (selected by `MCP_TRANSPORT`) | 0 |
+| Glue Scripts       | Python (`lore-gen-constitution`) | 0 |
+| Settings Merge     | Node.js (`lore-merge-settings.js`) | 0 |
+| Health Check       | Bash (`lore-doctor.sh`) | 0 |
+| Install            | Bash (`install.sh`) | 0 |
+| Platform Skills    | Markdown (`lore-feature.md`, `lore-pr.md`, `lore-init.md`) | 0 |
+| PR CI Check        | GitHub Actions YAML | 0 |
 | Vector Store       | PostgreSQL + pgvector (CNPG on GKE, europe-west1) | 1 |
-| Cluster Agents     | Lore Agent on GKE                | 1     |
-| Observability      | OpenTelemetry → Cloud Monitoring  | 1    |
-| CI Evals           | PromptFoo                        | 1     |
-| Infrastructure     | CNPG operator + K8s manifests + CronJobs | 1     |
-| Task Sync          | Pipeline tasks via PostgreSQL    | 2     |
-| Knowledge Graph    | Graphiti + FalkorDB                | 3     |
-| Context Cores      | OCI bundles via Artifact Registry  | 3     |
-| Self-Improvement   | Autoresearch loop (Lore Agent job) -- IMPLEMENTED | 3     |
-| Code Parsing       | web-tree-sitter (WASM)           | 1     |
+| Embeddings         | Vertex AI `text-embedding-005` (768 dimensions) | 1 |
+| Hybrid Search      | HNSW vector + BM25 keyword + Reciprocal Rank Fusion | 1 |
+| Cluster Agents     | Lore Agent service on GKE (replaces Klaus) | 1 |
+| Task Pipeline      | PostgreSQL `pipeline.tasks` + GitHub Issues (replaces Beads) | 1 |
+| Task Execution     | LoreTask CRD + ephemeral K8s Job pods | 1 |
+| Observability      | OpenTelemetry → Cloud Monitoring | 1 |
+| CI Evals           | PromptFoo | 1 |
+| Infrastructure     | Terraform (Helm charts for all services) | 1 |
+| Context Templates  | YAML templates in `mcp-server/templates/` (replaces Context Cores) | 1 |
+| Knowledge Graph    | PostgreSQL `memory.entities` + `memory.edges` (replaces Graphiti) | 2 |
+| Memory System      | PostgreSQL `memory` schema — facts, episodes, entities, edges | 2 |
+| Web UI             | Next.js (`web-ui/`) — pipeline status, repo onboarding | 2 |
+| Slack Integration  | `/lore` slash command → pipeline tasks | 2 |
+| Gap Detection      | Lore Agent `gap-detect.ts` CronJob | 2 |
+| Spec Drift         | Lore Agent `spec-drift.ts` CronJob | 3 |
+| Autoresearch       | Lore Agent `autoresearch.ts` CronJob | 3 |
+| Memory Lifecycle   | `memory-lifecycle.ts` — importance decay + consolidation | 3 |
 
-### Key Dependencies
+### Key Dependencies (As Built)
 
-| Dependency              | Purpose                          | Risk |
-|-------------------------|----------------------------------|------|
-| `@modelcontextprotocol/sdk` | MCP server framework          | Low — stable, well-documented |
-| `specify-cli`           | Spec Kit CLI                     | Medium — newer tool |
-| CloudNativePG (CNPG)    | PostgreSQL operator + pgvector   | Low — mature CNCF operator |
-| OpenTelemetry + Cloud Monitoring | Trace observability     | Low — native GCP, free tier |
-| PromptFoo               | CI eval framework                | Low — mature, good GH Actions support |
+| Dependency              | Purpose                          | Status |
+|-------------------------|----------------------------------|--------|
+| `@modelcontextprotocol/sdk` | MCP server framework          | Stable |
+| CloudNativePG (CNPG)    | PostgreSQL operator + pgvector   | Production |
+| Vertex AI text-embedding-005 | 768-dim embeddings          | Production |
+| OpenTelemetry + Cloud Monitoring | Trace observability     | Production |
+| PromptFoo               | CI eval framework                | Production |
+| LoreTask CRD            | K8s custom resource for task jobs | Production |
+| External Secrets Operator | GCP Secret Manager integration | Production |
+| GitHub App              | Webhook auth + PR creation       | Production |
 
-### Repository Structure
+### Repository Structure (As Built)
 
 ```
 re-cinq/lore/
@@ -58,433 +86,411 @@ re-cinq/lore/
 │   ├── mobile/CLAUDE.md
 │   └── data/CLAUDE.md
 ├── evals/
+├── specs/
 ├── mcp-server/
-│   ├── src/index.ts
-│   ├── package.json
-│   └── Dockerfile
+│   ├── src/
+│   │   ├── index.ts          # MCP server entrypoint, 30+ tools
+│   │   ├── routes.ts         # HTTP API route handlers
+│   │   ├── context-assembly.ts
+│   │   ├── github-client.ts  # GitHub App + token auth
+│   │   ├── local-runner.ts   # Local task runner (worktrees)
+│   │   ├── session-tracker.ts
+│   │   ├── repo-validation.ts
+│   │   └── graph.ts          # Knowledge graph (PostgreSQL-backed)
+│   ├── templates/            # YAML context assembly templates
+│   └── package.json
+├── agent/
+│   └── src/
+│       ├── platform.ts       # CodePlatform interface
+│       ├── github.ts         # GitHubPlatform implementation
+│       ├── worker.ts         # Job execution orchestration
+│       └── jobs/
+│           ├── reindex.ts
+│           ├── gap-detect.ts
+│           ├── spec-drift.ts
+│           ├── autoresearch.ts
+│           ├── context-core-builder.ts
+│           ├── merge-check.ts
+│           ├── memory-lifecycle.ts
+│           └── loretask-watcher.ts
+├── web-ui/                   # Next.js UI
 ├── scripts/
 │   ├── install.sh
+│   ├── lore-doctor.sh
 │   ├── lore-gen-constitution.py
-│   ├── lore-tasks-to-beads.py
 │   ├── lore-merge-settings.js
-│   └── lore-doctor.sh
+│   └── infra/
+│       ├── setup-db.sh
+│       ├── setup-schedulers.sh
+│       └── generate-embeddings.sh
 ├── .claude/
 │   └── skills/
-│       ├── lore-feature.md
-│       └── lore-pr.md
-├── k8s/                    # K8s manifests (CNPG, Klaus, MCP, Dolt, CronJobs)
-├── .github/
-│   ├── workflows/
-│   │   ├── pr-description-check.yml
-│   │   ├── ingest-context.yml
-│   │   ├── context-evals.yml
-│   │   └── gap-detection.yml
-│   └── PULL_REQUEST_TEMPLATE.md
+│       ├── lore-feature/
+│       ├── lore-pr/
+│       └── lore-init/
+├── terraform/
+│   └── modules/
+│       ├── gke-mcp/          # MCP server Helm chart
+│       ├── lore-db/          # CNPG PostgreSQL
+│       └── gke-mcp/loretask-crd/  # LoreTask CRD + RBAC
+├── docker/
+│   └── claude-runner/        # Ephemeral container for K8s Job pods
+└── .github/
+    ├── workflows/
+    │   ├── pr-description-check.yml
+    │   ├── ingest-context.yml
+    │   ├── context-evals.yml
+    │   └── gap-detection.yml
+    └── PULL_REQUEST_TEMPLATE.md
 ```
 
 ## Constitution Check
 
 | Principle | Status | Notes |
 |-----------|--------|-------|
-| P1: DX-First Delivery | PASS | Phase 0 delivers full DX with zero infra. Gate enforced before Phase 1. |
-| P2: Zero Stored Credentials | PASS | Phase 0 uses no credentials. Phase 1 uses Workload Identity exclusively. |
-| P3: PR Quality Gates | PASS | PR template + CI check deployed in Phase 0 Day 1. |
-| P4: Three-Command Interface | PASS | `bd ready`, `/lore-feature`, `/lore-pr` — all delivered in Phase 0. |
-| P5: Single Interface (Lore MCP) | PASS | MCP server is the only developer-facing interface. Klaus accessed only via MCP delegation. |
+| P1: DX-First Delivery | PASS | Phase 0 delivered full DX with zero infra. |
+| P2: Zero Stored Credentials | PASS | Workload Identity on GKE; External Secrets Operator for all secrets. |
+| P3: PR Quality Gates | PASS | PR template + CI check deployed Phase 0 Day 1. |
+| P4: Three-Command Interface | PASS | `/lore-feature`, `/lore-pr`, `/lore-init` delivered. |
+| P5: Single Interface (Lore MCP) | PASS | MCP server is the only developer-facing interface. Agent tasks accessed only via MCP delegation. |
 | P6: Distributed Ownership | PASS | CODEOWNERS enforced. PromptFoo evals owned by teams. |
-| P7: Architecture Final | PASS | Plan uses all decided technologies. No alternatives proposed. |
-| P8: Schema-Per-Team | PASS | Phase 1 PostgreSQL (CNPG) uses schema-per-team. Phase 0 simulates via file directories. |
-| P9: Agents Over Scripts | PASS | Phase 1 replaces all Python scripts with Klaus agents. |
-| P10: Opt-In Data | PASS | Slack indexing opt-in only. PII classifier at ingest. |
-
-No constitution violations. All gates pass.
+| P7: Architecture Final | PASS | Klaus → Lore Agent and Beads → Pipeline Tasks were documented pivots via ADRs, not ad-hoc changes. |
+| P8: Schema-Per-Team | PASS | PostgreSQL (CNPG) uses schema-per-team isolation. |
+| P9: Agents Over Scripts | PASS | All scheduled jobs run as Lore Agent CronJob-triggered tasks, not shell scripts. |
+| P10: Opt-In Data | PASS | Slack indexing opt-in per channel. PII classifier at ingest. DMs never indexed. |
 
 ## Implementation Phases
 
-### Phase 0: Developer Experience (Days 1-4)
+### Phase 0: Developer Experience — COMPLETE
 
-Phase 0 is the critical path. Every subsequent phase depends on its
-success. The ordering below reflects dependencies — each day builds
-on the previous.
+Phase 0 delivered the full developer experience with zero infrastructure
+dependency. All 35 tasks shipped.
 
-#### Day 1: Foundation
+#### What Was Built
 
-**Deliverables:**
-1. Create `re-cinq/lore` GitHub repository.
-2. Write root `CLAUDE.md` (architecture contracts, code conventions,
-   key services — under 2 pages).
-3. Write `teams/payments/CLAUDE.md` (richest existing conventions:
-   ADR-042 minor units, PCI scope, idempotency patterns).
-4. Write `teams/platform/CLAUDE.md`.
-5. Write 3 ADRs in MADR format with YAML frontmatter (use existing
-   real decisions).
-6. Write 2 runbooks from actual incidents.
-7. Write `CODEOWNERS` with ownership boundaries.
-8. Deploy `PULL_REQUEST_TEMPLATE.md` to all product repos.
-9. Deploy `pr-description-check.yml` GitHub Action (warning mode).
+1. **Context repository** — `re-cinq/lore` with root `CLAUDE.md`,
+   per-team `CLAUDE.md` files under `teams/`, ADRs in MADR format,
+   runbooks, and `CODEOWNERS`.
 
-**Dependencies:** None — this is pure content creation.
-
-**Verification:**
-- CLAUDE.md files render correctly and are under 2 pages each.
-- ADR frontmatter validates against schema.
-- PR template appears on new PRs in product repos.
-- CI check runs and warns on empty sections.
-
-#### Day 2: MCP Server + Install + Beads
-
-**Deliverables:**
-1. MVP MCP server (`mcp-server/src/index.ts`, ~80 lines):
+2. **MVP MCP server** (`mcp-server/src/index.ts`):
    - `get_context(team?)` — reads org + team CLAUDE.md from disk.
    - `get_adrs(domain?, status?)` — reads and filters ADR files.
-   - `search_context(query, team?, limit?)` — naive text search
-     across all content files.
-   - Falls back gracefully if files missing.
-2. `install.sh`:
-   - Clone `re-cinq/lore` to `~/.re-cinq/lore` (or pull if exists).
-   - `npm install && npm run build` in mcp-server/.
-   - Detect team via `git config --global lore.team`.
-   - Run `lore-merge-settings.js` to configure Claude Code.
-   - Install platform skills to `~/.claude/skills/`.
-   - Install `@beads/bd` and `specify-cli`.
-   - Run `bd init` in `~/.re-cinq/lore`.
-   - Run `lore-doctor.sh`.
-   - Idempotent — safe to re-run.
-3. `lore-merge-settings.js` (~40 lines):
-   - Reads existing `~/.claude/settings.json`.
-   - Merges platform MCP config, env vars, hooks.
-   - Never overwrites personal hooks.
-   - Idempotent — detects existing lore hooks.
-4. `AGENTS.md` with proactive guidance instructions.
+   - `search_context(query, limit?)` — naive text search across content.
+   - File-backed; no database required.
 
-**Dependencies:** Day 1 content (CLAUDE.md, ADRs) must exist for
-MCP server to serve.
+3. **`install.sh`** — single-command install that clones the lore repo,
+   builds the MCP server, detects team via `git config --global lore.team`,
+   runs `lore-merge-settings.js`, installs platform skills, and runs health
+   checks. Idempotent.
 
-**Verification:**
-- `install.sh` completes in under 5 minutes on clean machine.
-- MCP server starts and `tools/list` returns 3 tools.
+4. **`lore-merge-settings.js`** — merges platform MCP config, env vars,
+   and hooks into `~/.claude/settings.json` without overwriting personal hooks.
+
+5. **`lore-gen-constitution.py`** — calls MCP `get_context` and `get_adrs`,
+   renders `.specify/constitution.md` for use with the lore-feature skill.
+
+6. **`lore-doctor.sh`** — health check that tests MCP server, git
+   connectivity, platform hooks, and platform skills.
+
+7. **Platform skills** — `/lore-feature` (spec-driven loop), `/lore-pr`
+   (drafts PR descriptions), `/lore-init` (onboards new repos).
+
+8. **PR quality enforcement** — `PULL_REQUEST_TEMPLATE.md` with required
+   sections + `pr-description-check.yml` GitHub Action (warning mode,
+   then hard fail).
+
+9. **`AGENTS.md`** — proactive guidance for Claude Code sessions.
+
+**Phase 0 Verification (all passed):**
+- Install completes under 5 minutes on clean machine.
 - `get_context("payments")` returns payments team conventions.
-- `get_adrs(domain="payments")` returns ADR-042.
 - `search_context("error handling")` returns relevant results.
-- `bd --version` works.
 - `lore-doctor` prints all green.
+- Full loop completes under 30 minutes; developer speaks fewer than 10 words.
 
-#### Day 3: Glue Scripts + Hooks + Skills
+### Phase 1: Managed Infrastructure — COMPLETE
 
-**Deliverables:**
-1. `lore-gen-constitution.py` (~60 lines):
-   - Calls MCP `get_context(team)` and `get_adrs(domain=team)`.
-   - Renders `.specify/constitution.md`.
-   - Handles: MCP not running, missing team, existing file.
-2. `lore-tasks-to-beads.py` (~80 lines):
-   - Parses Spec Kit `tasks.md`.
-   - Calls `bd create` for each task.
-   - Calls `bd dep add` for `[DEPENDS ON: ...]` markers.
-   - Handles: `bd` not installed, file not found, duplicates.
-3. `lore-doctor.sh` (~40 lines):
-   - Tests: MCP server responds, `get_context` returns data,
-     `bd` installed, `specify` installed, git connectivity,
-     platform hooks present, platform skills present.
-   - Prints pass/fail with fix instructions.
-4. Platform hooks (in `lore-merge-settings.js`):
-   - `SessionStart`: pull context repo + Beads state silently.
-   - `PostToolUse` (Write/Edit/MultiEdit): mark claimed task
-     in-progress.
-   - `Stop`: remind about open claimed tasks.
-5. Platform skills:
-   - `lore-feature.md`: full spec-driven loop. Claude Code asks
-     one question, then runs constitution -> specify -> tasks ->
-     Beads wiring. Developer confirms at 3 decision points only.
-   - `lore-pr.md`: reads Beads task + spec + diff + ADRs, drafts
-     complete PR description. Developer reviews once.
+Phase 1 replaced the file-backed MCP server with PostgreSQL + hybrid search,
+deployed the Lore Agent service (instead of the planned Klaus), and
+established the task pipeline (instead of Beads).
 
-**Dependencies:** Day 2 MCP server + install.sh must work.
+#### Infrastructure
 
-**Verification:**
-- `lore-gen-constitution --team payments` produces valid constitution
-  from real ADRs.
-- `lore-tasks-to-beads .specify/tasks.md` creates Beads tasks with
-  correct dependencies.
-- SessionStart hook pulls silently (no visible output on success).
-- PostToolUse hook updates task progress on file edit.
-- `/lore-feature` runs the full loop interactively.
-- `/lore-pr` drafts a description from context.
-- `lore-doctor` tests all of the above.
+- **GKE cluster** (`your-gke-cluster`, `europe-west1`) — shared cluster,
+  no new cluster provisioned.
+- **PostgreSQL (CNPG)** — `lore-db` namespace. PostgreSQL 16 + pgvector.
+  Schema-per-team isolation. HNSW indexes (m=16, ef_construction=64) for
+  vector search; GIN indexes for BM25 keyword search.
+- **Embeddings** — Vertex AI `text-embedding-005` (768 dimensions).
+  Generated via `scripts/infra/generate-embeddings.sh`. 46 chunks seeded
+  after initial `lore-init` run.
+- **Workload Identity** — all GKE workloads use Workload Identity. No
+  long-lived credentials.
+- **External Secrets Operator (ESO)** — pulls secrets from GCP Secret
+  Manager. Single `terraform apply` deploys everything.
 
-#### Day 4: Integration + Pilot
+#### Lore Agent Service (replaces Klaus)
 
-**Deliverables:**
-1. End-to-end pilot run by platform engineering team:
-   - Fresh machine install via `curl | bash`.
-   - `lore-gen-constitution --team platform`.
-   - `/speckit.specify` for a real feature.
-   - `/speckit.tasks` to generate tasks.
-   - `lore-tasks-to-beads` to wire tasks.
-   - `bd ready` to see tasks.
-   - Implement one task.
-   - `/lore-pr` to draft PR description.
-2. Fix any friction discovered during pilot.
-3. Document any workarounds or known issues.
+Klaus was dropped after 8+ attempts to fix output wrapping and model
+parameter rejection issues. See ADR-007.
 
-**Dependencies:** All Day 1-3 deliverables.
+The Lore Agent service (`lore-agent` namespace on GKE) replaced it:
+- Simple tasks: direct Anthropic API calls (Haiku model).
+- Complex tasks: headless Claude Code in ephemeral K8s Job pods.
+- Jobs: `reindex.ts`, `gap-detect.ts`, `spec-drift.ts`, `autoresearch.ts`,
+  `context-core-builder.ts`, `merge-check.ts`, `memory-lifecycle.ts`,
+  `loretask-watcher.ts`.
 
-**Verification (Phase 0 Gate):**
-- Full loop completes in under 30 minutes.
-- Developer speaks fewer than 10 words during `/lore-feature`.
-- `lore-doctor` all green on pilot machine.
-- PR description has all sections populated.
-- No manual context loading required at any point.
+#### LoreTask CRD
 
-### Phase 1: Managed Infrastructure (Weeks 2-3)
+All complex tasks use the LoreTask custom resource:
+1. Agent creates a LoreTask CR.
+2. `loretask-controller` watches CRs and creates K8s Jobs with the
+   `claude-runner` image (`docker/claude-runner/`).
+3. Job pods: pre-load context via API → run Claude Code → run
+   deterministic validation (lint/typecheck) → commit → push.
+4. Validation failure: one retry with fix prompt. If still failing:
+   mark `needs-human-help`, preserve worktree.
+5. `loretask-watcher.ts` creates a PR when the Job completes.
 
-Phase 1 deployed onto the existing shared GKE cluster `your-gke-cluster`
-in `europe-west1` — no new cluster was provisioned. All infrastructure
-is Kubernetes-native (CNPG operator, K8s CronJobs, K8s Deployments).
-No Terraform, no Cloud SQL, no Cloud Scheduler, no Langfuse, no
-BigQuery.
+#### Task Pipeline (replaces Beads + Dolt)
 
-#### Week 2: Infrastructure + Klaus
+Beads was dropped due to integration complexity and the `bd` CLI becoming
+unmaintained. Dolt was dropped due to instability. See ADR-009.
 
-1. **Infrastructure provisioning:**
-   - Existing GKE cluster `your-gke-cluster` in `europe-west1` (shared
-     cluster, already running).
-   - CNPG operator already installed on cluster.
-   - CNPG Cluster resource deployed: PostgreSQL 16 with `pgvector`
-     extension, namespace `alloydb`, pod `lore-db-1`.
-   - 5 schemas: `payments`, `platform`, `mobile`, `data`,
-     `org_shared`.
-   - Chunks table with `VECTOR(768)` embedding column, HNSW index
-     (`lists = 100, m = 16, ef_construction = 64`),
-     GIN index on `search_tsv`.
-   - Workload Identity bindings per MCP server.
+Pipeline tasks are now PostgreSQL-backed (`pipeline.tasks` table) with
+GitHub Issues for human-visible tracking:
+- Every task creates a GitHub Issue (`lore-managed` label) on the target repo.
+- MCP tools: `create_pipeline_task`, `get_pipeline_status`,
+  `list_pipeline_tasks`, `cancel_task`, `retry_task`.
+- Task types configured in `scripts/task-types.yaml`.
+- Per-client scoped API tokens with SHA-256 hashes (scopes: read, write,
+  task, webhook, admin).
 
-2. **Klaus deployment:**
-   - Built from source (`giantswarm/klaus`), pushed to
-     `ghcr.io/re-cinq/klaus:latest`.
-   - Deployed in GKE `klaus` namespace, port 8080.
-   - Configured with real Anthropic API key.
-   - Workload Identity: write to PostgreSQL ingestion schemas +
-     read GitHub API.
+#### MCP Server PostgreSQL Upgrade
 
-3. **Lore MCP server deployment:**
-   - Built and pushed to `ghcr.io/re-cinq/lore-mcp:latest`.
-   - Deployed in GKE `mcp-servers` namespace.
-   - HTTP transport on `:3000/mcp` (GKE), stdio transport for
-     local dev — selected via `MCP_TRANSPORT` env var.
-   - Connected to PostgreSQL (CNPG) + Klaus + Cloud Monitoring
-     via OTEL.
-   - `delegate_task(task, context?, priority?)` — packages context
-     bundle, submits to Klaus HTTP endpoint.
-   - `task_status(task_id)` — polls Klaus.
-   - `task_result(task_id)` — retrieves completed output.
-   - `list_cluster_tasks()` — shows running tasks.
-   - `buildContextBundle()` (~80 lines) — packages Beads task +
-     spec + PostgreSQL seed chunks + branch.
+- `search_context` → hybrid search (HNSW vector + BM25 keyword, RRF).
+- `get_context` → queries PostgreSQL `org_shared` + team schema.
+- `get_adrs` → queries with status/domain filters.
+- `get_file_pr_history(file_path)` added.
+- Degraded-mode fallback: local files + warning if DB unreachable.
+- No interface changes — `install.sh` re-run updates seamlessly.
 
-4. **Dolt remote deployment:**
-   - Deployed in GKE `dolt` namespace as `dolt-sql-server`.
-   - Used for Beads task sync across developers.
+#### Context Templates (replaces Context Cores)
 
-5. **AGENTS.md update:** add delegation guidance (when to delegate,
-   when not to, always pass context).
+Context Cores as OCI bundles were not implemented. Instead, YAML context
+assembly templates in `mcp-server/templates/` (default, review,
+implementation, research) configure what context is assembled and at what
+priority. `context-core-builder.ts` exists in the agent but OCI promotion
+is not wired.
 
-#### Week 3: MCP Upgrade + Observability + Evals
+#### Observability
 
-1. **MCP server PostgreSQL upgrade:**
-   - Replace file reads with PostgreSQL (CNPG) queries.
-   - `search_context` → hybrid search (HNSW vector + BM25 keyword,
-     Reciprocal Rank Fusion).
-   - `get_context` → query PostgreSQL `org_shared` + team schema.
-   - `get_adrs` → query with status/domain filters.
-   - Add `get_file_pr_history(file_path)`.
-   - Add degraded-mode fallback (local files + warning).
-   - No interface changes — `install.sh` re-run updates seamlessly.
+- OpenTelemetry SDK integrated into the MCP server.
+- Traces + metrics exported to Cloud Monitoring.
+- `tracedSearch()` emits OTEL spans for every MCP retrieval call.
+- Low-confidence threshold tagging as OTEL span attributes + Cloud
+  Monitoring custom metric (`lore/gap_candidates`).
+- Cloud Monitoring dashboards: retrieval latency p99, gap candidate rate,
+  query volume per namespace.
 
-2. **CronJobs in `klaus` namespace (replacing Cloud Scheduler):**
-   - Nightly full re-index: CronJob at 2am UTC →
-     `delegate_task` to Klaus. Hard-delete stale chunks.
-   - Weekly gap detection: CronJob Monday 9am UTC →
-     `delegate_task` to Klaus.
-   - Weekly spec drift: CronJob Monday 10am UTC →
-     `delegate_task` to Klaus.
-   - Incremental ingest: GitHub Actions on-push webhook triggers
-     `delegate_task` to Klaus.
+#### PromptFoo CI Evals
 
-3. **OpenTelemetry instrumentation (built into MCP server):**
-   - OTEL SDK integrated directly into the Lore MCP server.
-   - Traces + metrics exported to Cloud Monitoring.
-   - `tracedSearch()` wrapper emits OTEL spans for every MCP retrieval call.
-   - Low-confidence threshold tagging (initial: 0.72) as OTEL span
-     attributes + Cloud Monitoring custom metric (`lore/gap_candidates`).
-   - Cloud Monitoring dashboards: retrieval latency p99, gap candidate
-     rate, query volume per namespace.
-   - No Langfuse — OTEL to Cloud Monitoring is sufficient.
+- `evals/<team>/promptfooconfig.yaml` per team (5-10 cases).
+- `context-evals.yml` triggered on ADR/CLAUDE.md/spec changes.
+- `--assert-pass-rate 0.85` merge gate.
 
-4. **PromptFoo CI evals:**
-   - `evals/<team>/promptfooconfig.yaml` per team (5-10 cases).
-   - `context-evals.yml` triggered on ADR/CLAUDE.md/spec changes.
-   - `--assert-pass-rate 0.85` merge gate.
-
-**Phase 1 Verification:**
-- `search_context("error handling patterns")` returns relevant
-  results in < 200ms p99.
-- Merge a PR → within 5 minutes, Claude Code can answer why that
-  approach was chosen.
+**Phase 1 Verification (all passed):**
+- Hybrid search verified end-to-end: Workload Identity → Vertex AI
+  text-embedding-005 → HNSW + BM25 → RRF ranked results.
+- Query "how does the lore platform work" returns plan.md, spec.md,
+  platform CLAUDE.md as top results.
 - `search_context("ChargeBuilder idempotency")` returns code chunk
   (vector) + PR (keyword).
-- Re-run `install.sh` — no workflow changes, better context quality.
-- Cloud Monitoring shows retrieval latency p99 per namespace. Low-confidence tagged.
 - PR changing CLAUDE.md to "store amounts as floats" fails CI.
-- Hybrid search verified end-to-end: Workload Identity → Vertex AI
-  text-embedding-005 → PostgreSQL HNSW + BM25 → RRF ranked results.
-  Query "how does the lore platform work" returns plan.md, spec.md,
-  platform CLAUDE.md as top results.
-- Dedicated `lore` DB user (not the CNPG-managed `postgres` user) for
-  cross-namespace access — bypasses CNPG reconciliation of password.
-- Embeddings generated via `scripts/infra/generate-embeddings.sh`
-  using Vertex AI text-embedding-005 (768 dimensions).
-- 46 chunks seeded from clean repo after `lore-init` replaced
-  fictional Acme content with re-cinq skeleton.
+- Cloud Monitoring shows retrieval latency p99 per namespace.
+- **Note (2026-03-28):** Hybrid search is functional end-to-end but p99
+  latency has not been benchmarked under load. The 200ms target remains
+  aspirational until measured.
 
-### Phase 2: Feedback Loop (Weeks 4-5)
+### Phase 2: Feedback Loop + Memory System — COMPLETE
 
-Dolt remote and gap detection CronJob were deployed as part of
-Phase 1, reducing Phase 2 scope.
+Phase 2 added the memory system, web UI, Slack integration, and gap
+detection. The knowledge graph was implemented in PostgreSQL rather than
+Graphiti/FalkorDB.
 
-1. **Dolt remote (deployed in Phase 1):**
-   - Self-hosted `dolt-sql-server` in GKE `dolt` namespace (no
-     DoltHub dependency).
-   - Remote added to `install.sh`.
-   - Auto-pull in `.zshrc`/`.bashrc`.
-   - Optimistic locking with version counter for concurrent claims.
+#### Memory System
 
-2. **Spec file ingestion:**
-   - Instruct Klaus nightly agent to include `.specify/` files.
-   - Content type: `spec`, subtypes: `constitution`, `spec`, `tasks`.
+Persistent agent memory in the PostgreSQL `memory` schema:
+- `memories`, `memory_versions`, `facts`, `fact_conflicts`, `episodes`,
+  `entities`, `edges`, `snapshots`, `shared_pools`, `audit_log`.
+- MCP tools: `write_memory`, `read_memory`, `delete_memory`,
+  `list_memories`, `search_memory`, `write_episode`, `query_graph`,
+  `assemble_context`, `agent_stats`.
+- Facts have temporal validity (`valid_from`/`valid_to`), confidence tiers
+  (`verified`/`observed`/`inferred`/`stale`), and retrieval metadata.
+- Contradiction detection: cosine similarity >= 0.92 triggers automatic
+  invalidation + conflict record in `memory.fact_conflicts`.
+- Privacy filtering: `sanitizeContent()` / `redactSecrets()` strip API
+  keys, JWTs, private keys, connection strings before storage.
 
-3. **Spec evals in CI:**
-   - Add `.specify/**` to `context-evals.yml` trigger paths.
+#### Knowledge Graph (PostgreSQL-backed, replaces Graphiti)
 
-4. **Gap detection Klaus agent (CronJob deployed in Phase 1):**
-   - CronJob Monday 9am UTC in `klaus` namespace →
-     `delegate_task`.
-   - Agent queries Cloud Monitoring for gap candidate metrics.
-   - Clusters by embedding similarity.
-   - For 3+ occurrence clusters: drafts content, opens PR to
-     `re-cinq/lore`, labels `context-gap-draft`, assigns team.
-   - Human review required.
+Graphiti + FalkorDB were not deployed. The knowledge graph lives in
+PostgreSQL (`memory.entities` + `memory.edges`):
+- Entity types: Service, Team, Function, PR, ADR, Spec, Concept, Runbook.
+- Typed relationships: OWNS, CALLS, IMPLEMENTS, SUPERSEDES, REFERENCES, etc.
+- `query_graph` MCP tool queries the live graph.
+- Updated incrementally on every `write_episode` call via `graph.ts`.
+- **Not implemented**: temporal traversal (`get_entity_history`), multi-hop
+  traversal via a Graphiti MCP proxy. Graph search is flat SQL, not
+  traversal-based.
 
-**Phase 2 Verification:**
-- `bd pull` syncs task state across developers.
-- Concurrent `bd update --claim` on same task: one succeeds, one
-  gets version conflict error.
-- Gap detection opens a PR with specific, actionable drafted content.
-- Spec files appear in `search_context` results.
+#### Web UI
 
-### Phase 3: Knowledge Graph, Context Cores, and Self-Improvement (Weeks 6-10)
+Next.js UI (`web-ui/`) for:
+- Pipeline status and task management (`/pipeline/[id]`).
+- Repo onboarding (`/onboard`).
+- Live Job log viewer (`TaskLogs.tsx`, polls every 5s).
+- PR status card (`PRStatusCard.tsx`).
 
-#### Week 6: Ontology + Graphiti
+#### Slack Integration
 
-1. **Lore ontology definition:**
-   - 8 entity types: Service, Team, Function, PR, ADR, Spec, Concept, Runbook.
-   - 15 relationship types: OWNS, CALLS, IMPLEMENTS, SUPERSEDES, REFERENCES,
-     AUTHORED_BY, DEFINES, VIOLATES, DERIVED_FROM, PART_OF, VALID_FROM,
-     VALID_UNTIL, and others.
-   - Write as a config file consumed by Graphiti during entity extraction.
-   - Must be defined before Graphiti runs.
+`/lore` slash command creates pipeline tasks:
+- Channel-to-repo mapping via `lore.repos.settings.slack_channel_id`.
+- Watcher posts PR links, issue links, and failure messages back via
+  `LORE_SLACK_BOT_TOKEN`.
+- `scripts/slack-app-manifest.yaml` defines the Slack app.
 
-2. **Graphiti deployment:**
-   - GKE `graphiti` namespace.
-   - FalkorDB as the graph backend (lighter than Neo4j).
-   - Graphiti MCP server: exposes graph search + entity history as MCP tools.
-   - Ingests from PostgreSQL (CNPG) after each Klaus ingest job.
-   - Incremental updates — no full re-index needed.
+#### Gap Detection
 
-3. **Lore MCP tools (Graphiti proxy):**
-   - `graph_search(query, depth)` — proxies to Graphiti MCP for multi-hop traversal.
-   - `get_entity_history(entity)` — returns temporal history of an entity.
-   - Replace the existing local-JSON-based graph.ts implementation.
+Lore Agent `gap-detect.ts` CronJob (Monday 9am UTC):
+- Queries Cloud Monitoring for gap candidate metrics.
+- Clusters by embedding similarity.
+- For 3+ occurrence clusters: drafts content, opens PR to `re-cinq/lore`,
+  labels `context-gap-draft`, assigns team.
+- Human review required before merge.
 
-#### Week 7: Context Cores
+#### Passive Memory Capture
 
-1. **Context Core manifest format:**
-   - `lore-core.json`: version, namespace, source commit, ontology version,
-     chunk count, eval score, provenance, promoted_by.
-   - Stored as OCI artifacts in Artifact Registry.
+All MCP tool calls tracked in memory via `session-tracker.ts` (500-entry
+ring buffer). On exit, dumps to `~/.lore/last-session.json`. Stop hook
+POSTs to `/api/session-summary` for automatic episode + fact extraction.
+No agent cooperation needed. See ADR-014.
 
-2. **Context Core builder (nightly Klaus agent):**
-   - Builds candidate Core from latest PostgreSQL (CNPG) content.
-   - Runs full PromptFoo eval suite against candidate.
-   - Promotes if score improves by >= 2% over current version.
-   - Discards and opens Beads task if score regresses.
+#### Progressive Trust + Repo Onboarding
 
-3. **install.sh update:**
-   - Pull latest promoted Context Core via `crane pull` instead of git clone.
-   - Fallback to git clone for Phase 0-2 compatibility.
+- `settings.trust.level` controls allowed task types per repo.
+- Auto-promotes after 3 successful merges at current level.
+- Repo onboarding via UI (`/onboard`) or `onboard_repo` MCP tool.
+- Creates PR on target repo with CLAUDE.md, AGENTS.md, PR template, CI.
 
-#### Week 8: Autoresearch Loop
+**Phase 2 Verification (all passed):**
+- `search_memory` returns relevant facts from past sessions.
+- `query_graph` returns entity relationships.
+- Gap detection opens PRs with specific drafted content.
+- Slack `/lore` command creates tasks and posts PR links back.
 
-1. **research-charter.md:**
-   - Standing instructions for the context research org.
-   - Defines: the eval metric (PromptFoo score), what good context looks like,
-     entity types in scope, exclusions (no PII, no credentials, no strategy).
-   - Platform engineers update this file to steer the research system.
+### Phase 3: Self-Improvement + Memory Lifecycle — COMPLETE
 
-2. **Autoresearch loop (weekly Klaus agent):**
-   - For each gap cluster from Cloud Monitoring gap candidate metrics:
-     Generate 3 candidate additions (direct, example-based, constraint-based).
-   - Build candidate Context Core for each.
-   - Evaluate against PromptFoo suite.
-   - Best candidate promoted if score improves >= 2%.
-   - Failed attempts logged to Cloud Monitoring, Beads task for manual review.
-   - PRs labelled `context-experiment-passed`.
+Phase 3 added autoresearch, spec drift detection, and memory lifecycle
+management. The planned Graphiti deployment was not completed.
 
-#### Week 9: Spec Drift + Graph Integration
+#### Autoresearch Loop (ADR-010)
 
-1. **Spec drift detection:**
-   - Weekly Klaus agent reads spec assertions, checks against code via tree-sitter.
-   - Adds VIOLATES edges to Graphiti graph for queryable drift.
-   - Creates Beads task if divergence > 20%.
+Lore Agent `autoresearch.ts` weekly CronJob:
+- For each gap cluster from Cloud Monitoring metrics: generates 3 candidate
+  additions (direct, example-based, constraint-based).
+- Builds candidate context for each via `context-core-builder.ts`.
+- Evaluates against PromptFoo suite.
+- Best candidate promoted if score improves >= 2%.
+- Failed attempts logged to Cloud Monitoring; Beads task opened (GitHub
+  Issue) for manual review.
+- PRs labelled `context-experiment-passed`.
+- `research-charter.md` defines standing instructions for the research system.
 
-#### Week 10: AgentDB Cache
+#### Spec Drift Detection
 
-1. **AgentDB local cache (optional):**
-   - Optional prompt in install.sh (unchanged).
+Lore Agent `spec-drift.ts` weekly CronJob:
+- Reads spec assertions, checks against code.
+- Divergence > 20%: creates GitHub Issue for the owning team.
+- Test files and generated files excluded.
+- **Note**: VIOLATES edges to a Graphiti graph were planned but not
+  implemented. Drift signals are surfaced as GitHub Issues only.
+
+#### Memory Lifecycle (ADR-014)
+
+Daily jobs (5 AM decay, 5:30 AM consolidation):
+- **Importance decay**: scores memories 0-10 (recency, content length,
+  key pattern bonuses). Evicts lowest-scoring when agent exceeds 500
+  memories. Cleans invalidated facts older than 30 days beyond 2000 cap.
+- **Fact consolidation**: groups recent facts (7-day lookback) by repo,
+  calls Haiku to extract 1-3 higher-level patterns. Stored as
+  `consolidated/{repo}/{timestamp}` memories.
+- **Retrieval strengthening**: every `search_memory` call asynchronously
+  increments `retrieval_count`, extends `half_life_days` (+2, cap 365).
+  Stale facts revive to `observed` on retrieval.
+- **PR outcome feedback**: merge boosts half_life (+5) on facts that
+  contributed context; rejection penalizes (-3, min 7).
+
+#### Post-Task Auto-Curation
+
+After every task (PR created, no-changes, failure), an episode is written
+via `episode-writer.ts`. High-signal events trigger Haiku lesson extraction
+→ stored as `auto-curation/{ref}` memories. Zero agent cooperation needed.
+
+#### Autonomous Review Loop (ADR-012)
+
+Opt-in per repo via `auto_review` setting:
+- After implementation PR, watcher creates a review LoreTask CR.
+- Review Job pod: clones PR branch, reads spec + conventions, posts PR
+  comments via `gh`, outputs APPROVED or CHANGES_REQUESTED.
+- Changes requested (iteration < 2): new implementation LoreTask with
+  feedback on the same branch.
+- Changes requested (iteration >= 2): escalate to human review.
 
 **Phase 3 Verification:**
-- `graph_search("why does ChargeBuilder work this way?")` returns traversal chain
-  through Graphiti: Function → PR → ADR → Concept.
-- `get_entity_history("ADR-042")` returns full temporal history.
-- Context Core promotion: nightly build improves eval score, auto-promotes.
-- Autoresearch loop: generates candidate, evaluates, opens PR with score diff.
-- Spec drift adds VIOLATES edges visible in graph queries.
+- Autoresearch loop generates candidates, evaluates, opens PRs.
+- Spec drift creates GitHub Issues on divergence > 20%.
+- Memory decay evicts low-importance memories; consolidation produces
+  higher-level patterns.
+- Post-task auto-curation produces `auto-curation/*` memories after
+  every task completion.
+
+## Open Items
+
+| Item | Severity | Notes |
+|------|----------|-------|
+| Knowledge graph temporal traversal | Medium | `get_entity_history` not implemented; graph is flat SQL, not Graphiti traversal |
+| p99 latency benchmark | Medium | Hybrid search functional but 200ms target not verified under load |
+| Context Core OCI promotion | Low | `context-core-builder.ts` exists; OCI artifact push and `crane pull` in install.sh not wired |
+| Graphiti + FalkorDB deployment | Low | `scripts/graphiti/ontology.yaml` exists; deployment deferred indefinitely |
 
 ## Risk Register
 
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|------------|------------|
-| Beads CLI API changes | Medium | Medium | Pin version in install.sh, test in CI |
-| Klaus HTTP API not stable | High | Medium | Abstract behind Lore MCP delegation layer |
 | Low PR description quality despite template | High | Medium | Warning period + internal comms campaign |
 | CNPG PostgreSQL cold-start latency | Medium | Low | Connection pooling, PgBouncer sidecar |
-| Developer adoption friction | High | Medium | Phase 0 gate — fix friction before Phase 1 |
 | PromptFoo eval false positives | Medium | Medium | Start with high-confidence cases, tune threshold |
-| Graphiti + FalkorDB operational overhead | Medium | Medium | Start with FalkorDB (lighter than Neo4j), monitor resource usage |
-| Context Core promotion false positives | Medium | Low | Require >= 2% improvement threshold, human review on all promoted PRs |
+| Context Core OCI promotion gap | Medium | Low | Current YAML templates serve context adequately; OCI adds distribution, not quality |
+| Knowledge graph depth limited without Graphiti | Medium | Low | Flat PostgreSQL graph covers most use cases; temporal traversal is Phase 3+ |
+| Developer adoption friction | High | Medium | Phase 0 gate enforced; lore-doctor diagnoses issues |
 
 ## Critical Path
 
 ```
-PR template (Day 1)
+PR template (Phase 0 Day 1)
   → ingestion quality (Phase 1)
     → semantic search quality (Phase 1)
       → context eval accuracy (Phase 1)
         → gap detection value (Phase 2)
+          → autoresearch loop (Phase 3)
 ```
 
-Everything depends on PR description quality. Start the PR template
-on Day 1. The 4-6 week lead time before Phase 1 ingestion is
-non-negotiable.
+PR description quality is the foundation. Without rich alternatives-rejected
+sections in PRs, the ingested content is thin and gap detection finds nothing
+to improve.
 
 ## Generated Artifacts
 
