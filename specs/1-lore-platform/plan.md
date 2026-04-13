@@ -131,8 +131,8 @@ re-cinq/lore/
 ├── terraform/
 │   └── modules/
 │       ├── gke-mcp/          # MCP server Helm chart
-│       ├── lore-db/          # CNPG PostgreSQL
-│       └── gke-mcp/loretask-crd/  # LoreTask CRD + RBAC
+│       │   └── loretask-crd/ # LoreTask CRD + RBAC
+│       └── lore-db/          # CNPG PostgreSQL
 ├── docker/
 │   └── claude-runner/        # Ephemeral container for K8s Job pods
 └── .github/
@@ -404,8 +404,7 @@ Lore Agent `autoresearch.ts` weekly CronJob:
 - Builds candidate context for each via `context-core-builder.ts`.
 - Evaluates against PromptFoo suite.
 - Best candidate promoted if score improves >= 2%.
-- Failed attempts logged to Cloud Monitoring; Beads task opened (GitHub
-  Issue) for manual review.
+- Failed attempts logged to Cloud Monitoring; GitHub Issue opened for manual review.
 - PRs labelled `context-experiment-passed`.
 - `research-charter.md` defines standing instructions for the research system.
 
