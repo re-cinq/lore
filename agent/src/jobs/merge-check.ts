@@ -85,7 +85,6 @@ export async function mergeCheckJob(): Promise<string> {
 
   if (repos.length === 0) {
     console.log("[job] merge-check: no pending repos");
-    return "Checked 0 repos, 0 merged";
   }
 
   let mergedCount = 0;
