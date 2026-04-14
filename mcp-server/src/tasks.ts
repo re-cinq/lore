@@ -1,68 +1,14 @@
 /**
- * Spec-task parsing, syncing, claiming, and completion.
+ * Spec-task syncing, claiming, and completion.
  *
  * Pipeline-backed MCP tools for task tracking.
  * Tasks live in pipeline.tasks with task_type = 'spec-task'.
+ *
+ * Parsing logic lives in @re-cinq/lore-shared so the agent can reuse it.
  */
 
-// ── Types ───────────────────────────────────────────────────────────
-
-export interface ParsedTask {
-  specTaskId: string;   // e.g. "T001"
-  description: string;
-  dependsOn: string[];  // e.g. ["T002", "T003"]
-  parallelizable: boolean;
-  completed: boolean;
-}
-
-// ── Parsing ─────────────────────────────────────────────────────────
-
-// Matches: - [ ] T001 [P] Description [DEPENDS ON: T002, T003]
-//      or: - [x] T001 Description
-const TASK_RE = /^- \[([ x])\] (T\d+)\s*/;
-const PARALLEL_RE = /\[P\]\s*/;
-const DEPENDS_RE = /\[DEPENDS ON:\s*([^\]]+)\]/;
-
-export function parseTasks(markdown: string): ParsedTask[] {
-  const tasks: ParsedTask[] = [];
-
-  for (const line of markdown.split('\n')) {
-    const trimmed = line.trim();
-    const taskMatch = trimmed.match(TASK_RE);
-    if (!taskMatch) continue;
-
-    const completed = taskMatch[1] === 'x';
-    const specTaskId = taskMatch[2];
-    let rest = trimmed.slice(taskMatch[0].length);
-
-    // Check for [P] marker
-    const parallelizable = PARALLEL_RE.test(rest);
-    if (parallelizable) {
-      rest = rest.replace(PARALLEL_RE, '');
-    }
-
-    // Check for [DEPENDS ON: ...] marker
-    const depsMatch = rest.match(DEPENDS_RE);
-    const dependsOn: string[] = [];
-    if (depsMatch) {
-      for (const dep of depsMatch[1].split(',')) {
-        const d = dep.trim();
-        if (d) dependsOn.push(d);
-      }
-      rest = rest.replace(DEPENDS_RE, '').trim();
-    }
-
-    tasks.push({
-      specTaskId,
-      description: rest.trim(),
-      dependsOn,
-      parallelizable,
-      completed,
-    });
-  }
-
-  return tasks;
-}
+// Re-export parsing from shared package
+export { parseTasks, inferPhaseDependencies, type ParsedTask } from '@re-cinq/lore-shared';
 
 // ── DB operations ───────────────────────────────────────────────────
 
@@ -75,7 +21,8 @@ export async function syncTasksToDb(
   pool: any,
   repo: string,
   specSlug: string,
-  tasks: ParsedTask[],
+  tasks: import('@re-cinq/lore-shared').ParsedTask[],
+  taskGroupId?: string,
 ): Promise<{ synced: number; created: number }> {
   let created = 0;
 
@@ -86,6 +33,8 @@ export async function syncTasksToDb(
       depends_on: task.dependsOn,
       spec_slug: specSlug,
       parallelizable: task.parallelizable,
+      phase: task.phase,
+      file_path: task.filePath,
     };
     const status = task.completed ? 'completed' : 'pending';
 
@@ -109,11 +58,19 @@ export async function syncTasksToDb(
       );
     } else {
       // Insert new task
-      await pool.query(
-        `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, metadata, created_by)
-         VALUES ($1, 'spec-task', $2, $3, $4, 'sync_tasks')`,
-        [title, repo, status, JSON.stringify(metadata)],
-      );
+      if (taskGroupId) {
+        await pool.query(
+          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, metadata, created_by, task_group_id)
+           VALUES ($1, 'spec-task', $2, $3, $4, 'sync_tasks', $5)`,
+          [title, repo, status, JSON.stringify(metadata), taskGroupId],
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, metadata, created_by)
+           VALUES ($1, 'spec-task', $2, $3, $4, 'sync_tasks')`,
+          [title, repo, status, JSON.stringify(metadata)],
+        );
+      }
       created++;
     }
   }

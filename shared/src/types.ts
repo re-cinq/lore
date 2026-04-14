@@ -49,7 +49,8 @@ export type TaskType =
   | "gap-fill"
   | "review"
   | "feature-request"
-  | "onboard";
+  | "onboard"
+  | "spec-task";
 
 export interface PRDetails {
   url: string;

@@ -1,6 +1,73 @@
 import { query } from "../db.js";
 import { platform } from "../platform.js";
 import { writeEpisodeWithCuration } from "../lib/episode-writer.js";
+import { parseTasks, inferPhaseDependencies } from "@re-cinq/lore-shared";
+
+/**
+ * Fallback: when a feature-request task's PR merges and the webhook was missed,
+ * read tasks.md from the repo and sync spec-tasks into the pipeline.
+ */
+async function syncSpecTasksFromMerge(task: { id: string; target_repo: string; target_branch: string | null }): Promise<void> {
+  const branch = task.target_branch || "";
+  if (!branch.startsWith("lore/feature-request/")) return;
+
+  // Extract spec slug from branch: lore/feature-request/{slug}-{taskId8}
+  const branchSuffix = branch.replace("lore/feature-request/", "");
+  const specSlug = branchSuffix.replace(/-[a-f0-9]{8}$/, "");
+  if (!specSlug) return;
+
+  // Idempotency: check if spec-tasks already synced (by webhook or previous run)
+  const existing = await query<{ id: string }>(
+    `SELECT id FROM pipeline.tasks
+     WHERE task_type = 'spec-task'
+       AND target_repo = $1
+       AND metadata->>'spec_slug' = $2
+     LIMIT 1`,
+    [task.target_repo, specSlug],
+  );
+  if (existing.length > 0) {
+    console.log(`[job] merge-check: spec-tasks already synced for ${specSlug}`);
+    return;
+  }
+
+  // Read tasks.md from main branch (PR is merged, content is on main)
+  const tasksPath = `specs/${specSlug}/tasks.md`;
+  const content = await platform().getFileContent(task.target_repo, tasksPath);
+  if (!content) {
+    console.log(`[job] merge-check: no tasks.md at ${tasksPath}`);
+    return;
+  }
+
+  // Parse and infer dependencies
+  const parsed = parseTasks(content);
+  const withDeps = inferPhaseDependencies(parsed);
+
+  // Sync to DB
+  const taskGroupId = crypto.randomUUID();
+  let created = 0;
+  for (const t of withDeps) {
+    const title = `${t.specTaskId}: ${t.description}`;
+    const metadata = {
+      spec_task_id: t.specTaskId,
+      depends_on: t.dependsOn,
+      spec_slug: specSlug,
+      parallelizable: t.parallelizable,
+      phase: t.phase,
+      file_path: t.filePath,
+    };
+    const status = t.completed ? "completed" : "pending";
+    const result = await query<{ id: string }>(
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, metadata, created_by, task_group_id)
+       VALUES ($1, 'spec-task', $2, $3, $4, 'merge-check', $5)
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [title, task.target_repo, status, JSON.stringify(metadata), taskGroupId],
+    );
+    if (result.length > 0) created++;
+  }
+
+  console.log(`[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`);
+}
 
 interface PendingRepo {
   id: string;
@@ -61,8 +128,8 @@ export async function mergeCheckJob(): Promise<string> {
   }
 
   // Also check pipeline tasks with PRs that might have been merged
-  const tasks = await query<{ id: string; target_repo: string; pr_url: string; pr_number: number; issue_number: number | null; task_type: string; description: string; created_at: string }>(
-    `SELECT id, target_repo, pr_url, pr_number, issue_number, task_type, description, created_at
+  const tasks = await query<{ id: string; target_repo: string; target_branch: string | null; pr_url: string; pr_number: number; issue_number: number | null; task_type: string; description: string; created_at: string }>(
+    `SELECT id, target_repo, target_branch, pr_url, pr_number, issue_number, task_type, description, created_at
      FROM pipeline.tasks
      WHERE status IN ('pr-created', 'review')
        AND pr_number IS NOT NULL
@@ -163,6 +230,14 @@ export async function mergeCheckJob(): Promise<string> {
             }
           }
         } catch { /* trust promotion is best-effort */ }
+        // For feature-request tasks, auto-sync spec-tasks from tasks.md
+        if (task.task_type === "feature-request") {
+          try {
+            await syncSpecTasksFromMerge(task);
+          } catch (err: any) {
+            console.error(`[job] merge-check: spec-task sync failed for ${task.id}: ${err.message}`);
+          }
+        }
         tasksMerged++;
         console.log(`[job] merge-check: task ${task.id} PR #${task.pr_number} merged`);
         continue;

@@ -739,7 +739,7 @@ server.tool(
         const pickupMsg = priority === "immediate"
           ? "The GKE agent will pick this up within 30 seconds."
           : "Task added to backlog. Claim it locally with claim_and_run_locally, or set priority to immediate via the UI.";
-        const msg = `Task created: ${result.task_id}\nType: ${task_type}\nPriority: ${priority}\nRepo: ${resolvedRepo || 'default'}\n\n${pickupMsg}`;
+        const msg = `Task created: ${result.task_id}\nType: ${result.task_type || task_type}\nPriority: ${priority}\nRepo: ${resolvedRepo || 'default'}\n\n${pickupMsg}`;
         return { content: [{ type: "text" as const, text: msg }] };
       }
 

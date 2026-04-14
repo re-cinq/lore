@@ -97,6 +97,12 @@ resource "helm_release" "lore_agent" {
     value = "token"
   }
 
+  # Task type config — inlined from scripts/task-types.yaml
+  set {
+    name  = "taskTypesConfig"
+    value = file("${path.module}/../scripts/task-types.yaml")
+  }
+
   depends_on = [
     kubernetes_namespace.lore_agent,
     kubernetes_config_map.agent_config,
