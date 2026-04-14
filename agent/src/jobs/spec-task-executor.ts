@@ -127,7 +127,7 @@ export async function specTaskExecutorJob(): Promise<string> {
         labels: {
           "lore.re-cinq.com/task-id": task.id,
           "lore.re-cinq.com/task-type": "spec-task",
-          ...(specSlug ? { "lore.re-cinq.com/spec-slug": specSlug } : {}),
+          ...(specSlug ? { "lore.re-cinq.com/spec-slug": specSlug.replace(/[^a-zA-Z0-9._-]/g, "").replace(/^-+|-+$/g, "").substring(0, 63) || "unknown" } : {}),
         },
       },
       spec: {
