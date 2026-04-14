@@ -7,7 +7,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { redactSecrets as sanitizeContent } from "@re-cinq/lore-shared";
+import { redactSecrets as sanitizeContent, parseTasks, inferPhaseDependencies } from "@re-cinq/lore-shared";
 import { getHealthStatus, isDbAvailable, getQueryEmbedding } from "./db.js";
 import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "./memory.js";
 import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "./memory-file.js";
@@ -16,6 +16,7 @@ import { extractFactsFromEpisode } from "./facts.js";
 import { extractAndUpdateGraph } from "./graph.js";
 import { assembleContext } from "./context-assembly.js";
 import { createTask, getTask, listTasks } from "./pipeline.js";
+import { syncTasksToDb } from "./tasks.js";
 import { getTaskTypes } from "./pipeline-config.js";
 import { onboardRepo } from "./repo-onboard.js";
 import { ingestFiles } from "./ingest.js";
@@ -506,6 +507,100 @@ async function handleSessionSummary(req: IncomingMessage, res: ServerResponse, p
   }
 }
 
+// ── Spec PR merge → auto-create spec-tasks ────────────────────────
+
+async function readFileFromGitHub(repo: string, path: string, ref: string): Promise<string | null> {
+  const token = await getGitHubToken();
+  if (!token) return null;
+  const [owner, repoName] = repo.split("/");
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repoName}/contents/${encodeURIComponent(path)}?ref=${ref}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.raw+json",
+      },
+    },
+  );
+  if (!response.ok) return null;
+  return response.text();
+}
+
+async function handleSpecPRMerge(payload: any, pool: Pool | null, res: ServerResponse): Promise<void> {
+  if (payload.action !== "closed" || !payload.pull_request?.merged) {
+    json(res, 200, { skipped: true, reason: "not a merged PR" });
+    return;
+  }
+  if (!pool) { json(res, 503, { error: "database not available" }); return; }
+
+  const pr = payload.pull_request;
+  const repo: string = payload.repository?.full_name;
+  const branch: string = pr.head?.ref || "";
+  const mergeCommitSha: string = pr.merge_commit_sha;
+  const labels: string[] = (pr.labels || []).map((l: any) => l.name);
+
+  // Detect spec PRs by branch pattern + label
+  if (!branch.startsWith("lore/feature-request/") || !labels.includes("spec")) {
+    json(res, 200, { skipped: true, reason: "not a spec PR" });
+    return;
+  }
+
+  // Extract spec slug from branch name: lore/feature-request/{slug}-{taskId8}
+  const branchSuffix = branch.replace("lore/feature-request/", "");
+  const specSlug = branchSuffix.replace(/-[a-f0-9]{8}$/, "");
+  if (!specSlug) {
+    json(res, 200, { skipped: true, reason: "could not extract spec slug" });
+    return;
+  }
+
+  // Idempotency: check if spec-tasks already synced
+  const { rows: existing } = await pool.query(
+    `SELECT id FROM pipeline.tasks
+     WHERE task_type = 'spec-task'
+       AND target_repo = $1
+       AND metadata->>'spec_slug' = $2
+     LIMIT 1`,
+    [repo, specSlug],
+  );
+  if (existing.length > 0) {
+    json(res, 200, { skipped: true, reason: "spec-tasks already synced", spec_slug: specSlug });
+    return;
+  }
+
+  // Read tasks.md from the merged commit
+  const tasksPath = `specs/${specSlug}/tasks.md`;
+  const tasksContent = await readFileFromGitHub(repo, tasksPath, mergeCommitSha);
+  if (!tasksContent) {
+    json(res, 200, { skipped: true, reason: "no tasks.md found", path: tasksPath });
+    return;
+  }
+
+  // Parse, infer dependencies, sync to DB
+  const parsed = parseTasks(tasksContent);
+  const withDeps = inferPhaseDependencies(parsed);
+  const taskGroupId = crypto.randomUUID();
+  const result = await syncTasksToDb(pool, repo, specSlug, withDeps, taskGroupId);
+
+  // Mark the parent feature-request pipeline task as merged
+  await pool.query(
+    `UPDATE pipeline.tasks SET status = 'merged', updated_at = now()
+     WHERE task_type = 'feature-request'
+       AND target_repo = $1
+       AND target_branch = $2
+       AND status IN ('pr-created', 'review')`,
+    [repo, branch],
+  ).catch(() => {});
+
+  console.log(`[webhook] Spec PR merged: ${repo}/${specSlug} → ${result.created} spec-tasks (group ${taskGroupId})`);
+  json(res, 200, {
+    ok: true,
+    spec_slug: specSlug,
+    task_group_id: taskGroupId,
+    tasks_synced: result.synced,
+    tasks_created: result.created,
+  });
+}
+
 async function handleGitHubWebhook(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
   const webhookSecret = process.env.LORE_WEBHOOK_SECRET;
   const signature = req.headers["x-hub-signature-256"] as string | undefined;
@@ -520,6 +615,16 @@ async function handleGitHubWebhook(req: IncomingMessage, res: ServerResponse, po
   const expBuf = Buffer.from(expected);
   if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
     json(res, 401, { error: "invalid signature" });
+    return;
+  }
+
+  if (ghEvent === "pull_request") {
+    let payload: any;
+    try { payload = JSON.parse(rawBody); } catch {
+      json(res, 400, { error: "invalid JSON" });
+      return;
+    }
+    await handleSpecPRMerge(payload, pool, res);
     return;
   }
 

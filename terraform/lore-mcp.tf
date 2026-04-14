@@ -89,6 +89,12 @@ resource "helm_release" "lore_mcp" {
     value = "installation-id"
   }
 
+  # Task type config — inlined from scripts/task-types.yaml
+  set {
+    name  = "taskTypesConfig"
+    value = file("${path.module}/../scripts/task-types.yaml")
+  }
+
   depends_on = [
     kubernetes_namespace.mcp_servers,
   ]

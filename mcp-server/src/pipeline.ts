@@ -92,7 +92,7 @@ export async function createTask(
     ).catch(() => {}); // non-fatal if column doesn't exist yet
   }
   await recordEvent(task.id, null, 'pending', { created_by: createdBy, priority: resolvedPriority });
-  return { task_id: task.id, status: task.status, priority: task.priority, created_at: task.created_at };
+  return { task_id: task.id, task_type: taskType, status: task.status, priority: task.priority, created_at: task.created_at };
 }
 
 export async function getTask(taskId: string): Promise<any> {

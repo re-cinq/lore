@@ -36,7 +36,7 @@ task_types:
       - Start immediately with the first file edit
 
       Spec: {description}
-    timeout_minutes: 45
+    timeout_minutes: 90
     review_required: true
     execution_mode: claude-code
     model: claude-sonnet-4-6
