@@ -48,6 +48,15 @@ install_context() {
 # --- 2. Build MCP server -----------------------------------------------------
 build_mcp_server() {
   CURRENT_STEP="build MCP server"
+  # Build shared package first (MCP server depends on @re-cinq/lore-shared)
+  echo "[lore] Building shared package ..."
+  cd "$LORE_DIR/shared"
+  if [ ! -d node_modules ] || [ package.json -nt node_modules/.package-lock.json ] 2>/dev/null; then
+    npm install --silent 2>&1 || true
+  fi
+  npm run build 2>&1 || { echo "[lore] Error: shared package build failed."; return 1; }
+  cd - >/dev/null
+
   echo "[lore] Building MCP server ..."
   cd "$LORE_DIR/mcp-server"
   # Only reinstall if node_modules is missing or package-lock changed
