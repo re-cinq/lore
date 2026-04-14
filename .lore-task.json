@@ -1,10 +1,10 @@
 {
-  "taskId": "8f06da41-2af4-49bd-878d-5608cd887d8f",
-  "pid": 59525,
-  "branch": "lore/implementation/in-the-web-ui-find-the-logo-brand-sectio-8f06da41",
+  "taskId": "27115485-ac38-4578-a1aa-ce18ade76764",
+  "pid": 54454,
+  "branch": "lore/implementation/fix-schema-conflicts-in-zoho-crm-integra-27115485",
   "repo": "re-cinq/lore",
-  "worktreePath": "/Users/michaelmueller/.lore/worktrees/8f06da41-2af4-49bd-878d-5608cd887d8f",
-  "logFile": "/Users/michaelmueller/.lore/task-logs/8f06da41-2af4-49bd-878d-5608cd887d8f.log",
-  "startedAt": "2026-04-04T09:30:03.363Z",
+  "worktreePath": "/Users/michaelmueller/.lore/worktrees/27115485-ac38-4578-a1aa-ce18ade76764",
+  "logFile": "/Users/michaelmueller/.lore/task-logs/27115485-ac38-4578-a1aa-ce18ade76764.log",
+  "startedAt": "2026-04-14T15:02:16.125Z",
   "status": "running"
 }
