@@ -558,7 +558,7 @@ async function handleSpecPRMerge(payload: any, pool: Pool | null, res: ServerRes
     `SELECT id FROM pipeline.tasks
      WHERE task_type = 'spec-task'
        AND target_repo = $1
-       AND metadata->>'spec_slug' = $2
+       AND context_bundle->>'spec_slug' = $2
      LIMIT 1`,
     [repo, specSlug],
   );

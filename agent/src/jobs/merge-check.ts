@@ -21,7 +21,7 @@ async function syncSpecTasksFromMerge(task: { id: string; target_repo: string; t
     `SELECT id FROM pipeline.tasks
      WHERE task_type = 'spec-task'
        AND target_repo = $1
-       AND metadata->>'spec_slug' = $2
+       AND context_bundle->>'spec_slug' = $2
      LIMIT 1`,
     [task.target_repo, specSlug],
   );
@@ -57,7 +57,7 @@ async function syncSpecTasksFromMerge(task: { id: string; target_repo: string; t
     };
     const status = t.completed ? "completed" : "pending";
     const result = await query<{ id: string }>(
-      `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, metadata, created_by, task_group_id)
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
        VALUES ($1, 'spec-task', $2, $3, $4, 'merge-check', $5)
        ON CONFLICT DO NOTHING
        RETURNING id`,

@@ -25,27 +25,27 @@ export async function specTaskExecutorJob(): Promise<string> {
   const readyTasks = await query<{
     id: string;
     description: string;
-    metadata: any;
+    context_bundle: any;
     target_repo: string;
     task_group_id: string | null;
   }>(
-    `SELECT t.id, t.description, t.metadata, t.target_repo, t.task_group_id
+    `SELECT t.id, t.description, t.context_bundle, t.target_repo, t.task_group_id
      FROM pipeline.tasks t
      WHERE t.task_type = 'spec-task'
        AND t.status = 'pending'
        AND NOT EXISTS (
          SELECT 1
-         FROM jsonb_array_elements_text(t.metadata->'depends_on') AS dep_id
+         FROM jsonb_array_elements_text(t.context_bundle->'depends_on') AS dep_id
          WHERE NOT EXISTS (
            SELECT 1 FROM pipeline.tasks d
            WHERE d.target_repo = t.target_repo
              AND d.task_type = 'spec-task'
-             AND d.metadata->>'spec_task_id' = dep_id
-             AND d.metadata->>'spec_slug' = t.metadata->>'spec_slug'
+             AND d.context_bundle->>'spec_task_id' = dep_id
+             AND d.context_bundle->>'spec_slug' = t.context_bundle->>'spec_slug'
              AND d.status IN ('completed', 'merged')
          )
        )
-     ORDER BY t.metadata->>'spec_task_id'`,
+     ORDER BY t.context_bundle->>'spec_task_id'`,
   );
 
   if (readyTasks.length === 0) {
@@ -103,9 +103,9 @@ export async function specTaskExecutorJob(): Promise<string> {
     ).catch(() => {});
 
     // Build implementation prompt with spec context
-    const specSlug = task.metadata?.spec_slug;
-    const specTaskId = task.metadata?.spec_task_id;
-    const filePath = task.metadata?.file_path;
+    const specSlug = task.context_bundle?.spec_slug;
+    const specTaskId = task.context_bundle?.spec_task_id;
+    const filePath = task.context_bundle?.file_path;
 
     const specRef = specSlug ? `\n\nREAD the spec at specs/${specSlug}/spec.md and specs/${specSlug}/data-model.md first for full context.` : "";
     const fileRef = filePath ? `\nTarget file: ${filePath}` : "";

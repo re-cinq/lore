@@ -43,8 +43,8 @@ export async function syncTasksToDb(
       `SELECT id, status FROM pipeline.tasks
        WHERE target_repo = $1
          AND task_type = 'spec-task'
-         AND metadata->>'spec_task_id' = $2
-         AND metadata->>'spec_slug' = $3`,
+         AND context_bundle->>'spec_task_id' = $2
+         AND context_bundle->>'spec_slug' = $3`,
       [repo, task.specTaskId, specSlug],
     );
 
@@ -52,7 +52,7 @@ export async function syncTasksToDb(
       // Update existing task
       await pool.query(
         `UPDATE pipeline.tasks
-         SET description = $1, metadata = $2, status = $3, updated_at = now()
+         SET description = $1, context_bundle = $2, status = $3, updated_at = now()
          WHERE id = $4`,
         [title, JSON.stringify(metadata), status, existing[0].id],
       );
@@ -60,13 +60,13 @@ export async function syncTasksToDb(
       // Insert new task
       if (taskGroupId) {
         await pool.query(
-          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, metadata, created_by, task_group_id)
+          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
            VALUES ($1, 'spec-task', $2, $3, $4, 'sync_tasks', $5)`,
           [title, repo, status, JSON.stringify(metadata), taskGroupId],
         );
       } else {
         await pool.query(
-          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, metadata, created_by)
+          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by)
            VALUES ($1, 'spec-task', $2, $3, $4, 'sync_tasks')`,
           [title, repo, status, JSON.stringify(metadata)],
         );
@@ -84,24 +84,24 @@ export async function syncTasksToDb(
  */
 export async function getReadyTasks(pool: any, repo: string): Promise<any[]> {
   const { rows } = await pool.query(
-    `SELECT t.id, t.description, t.status, t.metadata, t.agent_id
+    `SELECT t.id, t.description, t.status, t.context_bundle, t.agent_id
      FROM pipeline.tasks t
      WHERE t.task_type = 'spec-task'
        AND t.target_repo = $1
        AND t.status = 'pending'
        AND NOT EXISTS (
          SELECT 1
-         FROM jsonb_array_elements_text(t.metadata->'depends_on') AS dep_id
+         FROM jsonb_array_elements_text(t.context_bundle->'depends_on') AS dep_id
          WHERE NOT EXISTS (
            SELECT 1 FROM pipeline.tasks d
            WHERE d.target_repo = $1
              AND d.task_type = 'spec-task'
-             AND d.metadata->>'spec_task_id' = dep_id
-             AND d.metadata->>'spec_slug' = t.metadata->>'spec_slug'
+             AND d.context_bundle->>'spec_task_id' = dep_id
+             AND d.context_bundle->>'spec_slug' = t.context_bundle->>'spec_slug'
              AND d.status IN ('completed', 'merged')
          )
        )
-     ORDER BY t.metadata->>'spec_task_id'`,
+     ORDER BY t.context_bundle->>'spec_task_id'`,
     [repo],
   );
   return rows;
@@ -165,7 +165,7 @@ export async function completeTask(
 ): Promise<{ completed: boolean; unblocked: string[] }> {
   // Get the task to find its spec_task_id and spec_slug
   const { rows: taskRows } = await pool.query(
-    `SELECT id, status, metadata, target_repo FROM pipeline.tasks WHERE id = $1`,
+    `SELECT id, status, context_bundle, target_repo FROM pipeline.tasks WHERE id = $1`,
     [taskId],
   );
 
@@ -195,36 +195,36 @@ export async function completeTask(
 
   // Find newly unblocked tasks: tasks that depend on this one
   // and now have all dependencies satisfied
-  const specTaskId = task.metadata?.spec_task_id;
-  const specSlug = task.metadata?.spec_slug;
+  const specTaskId = task.context_bundle?.spec_task_id;
+  const specSlug = task.context_bundle?.spec_slug;
   if (!specTaskId || !specSlug) {
     return { completed: true, unblocked: [] };
   }
 
   // Get tasks that list this task in their depends_on
   const { rows: dependents } = await pool.query(
-    `SELECT t.id, t.description, t.metadata
+    `SELECT t.id, t.description, t.context_bundle
      FROM pipeline.tasks t
      WHERE t.task_type = 'spec-task'
        AND t.target_repo = $1
-       AND t.metadata->>'spec_slug' = $2
+       AND t.context_bundle->>'spec_slug' = $2
        AND t.status = 'pending'
-       AND t.metadata->'depends_on' ? $3
+       AND t.context_bundle->'depends_on' ? $3
        AND NOT EXISTS (
          SELECT 1
-         FROM jsonb_array_elements_text(t.metadata->'depends_on') AS dep_id
+         FROM jsonb_array_elements_text(t.context_bundle->'depends_on') AS dep_id
          WHERE NOT EXISTS (
            SELECT 1 FROM pipeline.tasks d
            WHERE d.target_repo = $1
              AND d.task_type = 'spec-task'
-             AND d.metadata->>'spec_task_id' = dep_id
-             AND d.metadata->>'spec_slug' = $2
+             AND d.context_bundle->>'spec_task_id' = dep_id
+             AND d.context_bundle->>'spec_slug' = $2
              AND d.status IN ('completed', 'merged')
          )
        )`,
     [task.target_repo, specSlug, specTaskId],
   );
 
-  const unblocked = dependents.map((d: any) => `${d.metadata?.spec_task_id}: ${d.description}`);
+  const unblocked = dependents.map((d: any) => `${d.context_bundle?.spec_task_id}: ${d.description}`);
   return { completed: true, unblocked };
 }
