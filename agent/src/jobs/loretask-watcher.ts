@@ -12,6 +12,70 @@ import { platform } from "../platform.js";
 import { query } from "../db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 
+// ── Slack batching ──────────────────────────────────────────────────
+
+interface SlackBatchEntry {
+  repo: string;
+  taskId: string;
+  type: "pr" | "completed" | "failed";
+  message: string; // PR URL or failure reason
+}
+
+const slackBatch: SlackBatchEntry[] = [];
+
+function queueSlackNotification(repo: string, taskId: string, type: SlackBatchEntry["type"], message: string): void {
+  slackBatch.push({ repo, taskId, type, message });
+}
+
+async function flushSlackBatch(): Promise<void> {
+  if (slackBatch.length === 0) return;
+
+  // Group by repo
+  const byRepo = new Map<string, SlackBatchEntry[]>();
+  for (const entry of slackBatch) {
+    if (!byRepo.has(entry.repo)) byRepo.set(entry.repo, []);
+    byRepo.get(entry.repo)!.push(entry);
+  }
+
+  for (const [repo, entries] of byRepo) {
+    // For single events, post directly (no batching overhead)
+    if (entries.length === 1) {
+      const e = entries[0];
+      const msg = e.type === "pr" ? `PR ready for review: ${e.message}`
+        : e.type === "completed" ? `Task completed: ${e.message}`
+        : `Task failed: ${e.message}`;
+      await notifySlack(e.taskId, repo, msg).catch(() => {});
+      continue;
+    }
+
+    // Batch: group by type and post a summary
+    const prs = entries.filter(e => e.type === "pr");
+    const completed = entries.filter(e => e.type === "completed");
+    const failed = entries.filter(e => e.type === "failed");
+
+    const parts: string[] = [];
+    if (prs.length > 0) {
+      parts.push(`*${prs.length} PRs ready for review:*\n${prs.map(e => `• ${e.message}`).join("\n")}`);
+    }
+    if (completed.length > 0) {
+      parts.push(`*${completed.length} tasks completed:*\n${completed.map(e => `• ${e.message}`).join("\n")}`);
+    }
+    if (failed.length > 0) {
+      const firstFailure = failed[0].message;
+      if (failed.length === 1) {
+        parts.push(`*1 task failed:*\n• ${firstFailure}`);
+      } else {
+        parts.push(`*${failed.length} tasks failed* (first error: ${firstFailure.substring(0, 100)})`);
+      }
+    }
+
+    const summary = `*${repo}* — ${entries.length} task updates\n\n${parts.join("\n\n")}`;
+    await notifySlack(entries[0].taskId, repo, summary).catch(() => {});
+  }
+
+  slackBatch.length = 0;
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 /**
@@ -173,7 +237,7 @@ export async function watchLoreTasks(): Promise<void> {
           // Notify Slack
           if (issue_number) {
             const issueUrl = `https://github.com/${target_repo}/issues/${issue_number}`;
-            notifySlack(taskId, target_repo, `Task completed: ${issueUrl}`).catch(() => {});
+            queueSlackNotification(target_repo, taskId, "completed", issueUrl);
           }
 
           // Auto-capture episode for no-changes completion
@@ -235,7 +299,7 @@ export async function watchLoreTasks(): Promise<void> {
         console.log(`[loretask-watcher] Task ${taskId} → PR ${pr.url}`);
 
         // Post PR link to Slack
-        notifySlack(taskId, lt.spec.targetRepo, `PR ready for review: ${pr.url}`).catch(() => {});
+        queueSlackNotification(lt.spec.targetRepo, taskId, "pr", pr.url);
 
         // Auto-capture episode for successful PR creation
         writeEpisodeWithCuration(
@@ -332,7 +396,7 @@ export async function watchLoreTasks(): Promise<void> {
         await commentFailureOnIssue(rows[0].target_repo, rows[0].issue_number, lt.status.failureReason);
 
         // Notify Slack on failure
-        notifySlack(taskId, rows[0].target_repo, `Task failed on \`${rows[0].target_repo}\`: ${lt.spec.taskType}\n> ${lt.status.failureReason?.substring(0, 200)}`).catch(() => {});
+        queueSlackNotification(rows[0].target_repo, taskId, "failed", `${lt.spec.taskType}: ${lt.status.failureReason?.substring(0, 200)}`);
 
         // Auto-capture failure as episode with curation (lesson extraction)
         const failureContent = `Task failed on ${lt.spec.targetRepo}: ${lt.spec.taskType}\n\nDescription: ${lt.spec.description}\n\nFailure: ${lt.status.failureReason}\n\nOutput:\n${(lt.status?.output || '').slice(-2000)}`;
@@ -479,6 +543,9 @@ export async function watchLoreTasks(): Promise<void> {
       }
     }
   }
+
+  // Flush batched Slack notifications as a single summary per repo
+  await flushSlackBatch();
 }
 
 /**
