@@ -1208,6 +1208,12 @@ server.tool(
       const repo = detectRepo();
       if (!repo) return { content: [{ type: "text" as const, text: "Error: not in a git repository with a GitHub remote" }] };
 
+      // Warn if the task description references a different repo
+      const repoRefMatch = args.description.match(/\b([\w-]+\/[\w-]+)(?:#|\s)/);
+      if (repoRefMatch && repoRefMatch[1] !== repo && !args.description.toLowerCase().includes(repo)) {
+        return { content: [{ type: "text" as const, text: `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude` }] };
+      }
+
       // Create pipeline task via API
       const apiUrl = process.env.LORE_API_URL || "";
       const token = process.env.LORE_INGEST_TOKEN || "";
@@ -1346,10 +1352,46 @@ server.tool(
 
 server.tool(
   "list_pending_tasks",
-  "Show pending pipeline tasks that can be claimed and run locally.",
-  {},
-  async () => {
+  "Show pending pipeline tasks that can be claimed and run locally. Shows tasks across all repos by default.",
+  {
+    repo: z.string().optional().describe('Filter by repo in "owner/repo" format. Omit to show all repos.'),
+  },
+  async ({ repo: filterRepo }) => {
     try {
+      // Try API first for global view (all repos)
+      const apiUrl = process.env.LORE_API_URL || "";
+      const token = process.env.LORE_INGEST_TOKEN || "";
+      if (apiUrl && token) {
+        const resp = await fetch(`${apiUrl}/api/tasks?status=pending&limit=50`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (resp.ok) {
+          const data = await resp.json() as any;
+          let tasks = data.tasks || data || [];
+          if (filterRepo) {
+            tasks = tasks.filter((t: any) => t.target_repo === filterRepo);
+          }
+          if (tasks.length === 0) {
+            return { content: [{ type: "text" as const, text: filterRepo ? `No pending tasks for ${filterRepo}.` : "No pending tasks." }] };
+          }
+          // Group by repo
+          const byRepo = new Map<string, any[]>();
+          for (const t of tasks) {
+            const r = t.target_repo || "unknown";
+            if (!byRepo.has(r)) byRepo.set(r, []);
+            byRepo.get(r)!.push(t);
+          }
+          const sections: string[] = [];
+          for (const [r, repoTasks] of byRepo) {
+            const lines = repoTasks.map((t: any) =>
+              `  ${t.id.substring(0, 8)} ${t.task_type} ${t.issue_number ? "#" + t.issue_number + " " : ""}${(t.description || "").substring(0, 80)}`
+            );
+            sections.push(`**${r}** (${repoTasks.length})\n${lines.join("\n")}`);
+          }
+          return { content: [{ type: "text" as const, text: sections.join("\n\n") }] };
+        }
+      }
+      // Fallback to local pending file
       const { listPendingTasks } = await import("./local-runner.js");
       const tasks = listPendingTasks();
       if (tasks.length === 0) {
@@ -1376,11 +1418,31 @@ server.tool(
     try {
       const { spawnLocalTask, getRepoRoot, skipTask, listPendingTasks } = await import("./local-runner.js");
 
-      // Find the task in pending list
+      // Find the task in local pending list first, then fall back to API
       const pending = listPendingTasks();
-      const task = pending.find((t: any) => t.id === args.task_id || t.id.startsWith(args.task_id));
+      let task = pending.find((t: any) => t.id === args.task_id || t.id.startsWith(args.task_id));
+
+      // If not in local cache, try fetching from API (supports cross-repo tasks)
       if (!task) {
-        return { content: [{ type: "text" as const, text: `Task ${args.task_id} not found in pending tasks. Run list_pending_tasks first.` }] };
+        const apiUrl = process.env.LORE_API_URL || "";
+        const apiToken = process.env.LORE_INGEST_TOKEN || "";
+        if (apiUrl && apiToken) {
+          try {
+            const resp = await fetch(`${apiUrl}/api/task/${args.task_id}`, {
+              headers: { Authorization: `Bearer ${apiToken}` },
+            });
+            if (resp.ok) {
+              const data = await resp.json() as any;
+              if (data.status === "pending") {
+                task = { id: data.id, description: data.description, task_type: data.task_type, target_repo: data.target_repo, issue_number: data.issue_number, created_at: data.created_at };
+              }
+            }
+          } catch { /* fall through */ }
+        }
+      }
+
+      if (!task) {
+        return { content: [{ type: "text" as const, text: `Task ${args.task_id} not found or not in pending status. Run list_pending_tasks first.` }] };
       }
 
       // Claim via API (best effort)

@@ -52,7 +52,9 @@ export async function specTaskExecutorJob(): Promise<string> {
     return "No ready spec-tasks";
   }
 
-  // Count currently running spec-tasks per group to enforce concurrency limit
+  // Count currently running spec-tasks per group to enforce concurrency limit.
+  // Also count LoreTask CRs in Running phase to catch tasks the DB hasn't
+  // caught up with yet (prevents over-dispatch across executor cycles).
   const runningByGroup = new Map<string, number>();
   const runningRows = await query<{ task_group_id: string; cnt: string }>(
     `SELECT task_group_id, COUNT(*) as cnt
@@ -64,6 +66,39 @@ export async function specTaskExecutorJob(): Promise<string> {
   );
   for (const row of runningRows) {
     runningByGroup.set(row.task_group_id, parseInt(row.cnt, 10));
+  }
+
+  // Hard limit: skip dispatch entirely if too many tasks are already running
+  const totalRunning = [...runningByGroup.values()].reduce((a, b) => a + b, 0);
+  if (totalRunning >= MAX_CONCURRENT_PER_GROUP) {
+    return `Waiting: ${totalRunning} spec-tasks already running (limit ${MAX_CONCURRENT_PER_GROUP})`;
+  }
+
+  // Pre-flight: check Anthropic API is reachable and credits are available
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (apiKey) {
+    try {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1,
+          messages: [{ role: "user", content: "hi" }],
+        }),
+      });
+      if (resp.status === 429 || resp.status === 403) {
+        const body = await resp.text().catch(() => "");
+        if (body.includes("credit") || body.includes("balance") || body.includes("billing")) {
+          console.warn("[spec-task-executor] API credits exhausted, skipping dispatch");
+          return "Skipped: API credits exhausted";
+        }
+      }
+    } catch { /* network error — proceed and let individual tasks handle it */ }
   }
 
   const kc = new KubeConfig();

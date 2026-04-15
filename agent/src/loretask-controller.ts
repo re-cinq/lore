@@ -98,17 +98,11 @@ async function createTokenSecret(taskIdShort: string): Promise<string> {
     },
   };
 
-  try {
-    await coreApi.createNamespacedSecret({ namespace: NAMESPACE, body: secret });
-  } catch (err: any) {
-    if (err?.response?.statusCode === 409) {
-      // Secret exists from previous attempt — delete and recreate with fresh token
-      try { await coreApi.deleteNamespacedSecret({ name: secretName, namespace: NAMESPACE }); } catch { /* gone */ }
-      await coreApi.createNamespacedSecret({ namespace: NAMESPACE, body: secret });
-    } else {
-      throw err;
-    }
-  }
+  // Delete any stale secret first, then create fresh — avoids 409 race conditions
+  try { await coreApi.deleteNamespacedSecret({ name: secretName, namespace: NAMESPACE }); } catch { /* doesn't exist yet — fine */ }
+  // Brief pause to let K8s propagate the deletion
+  await new Promise(r => setTimeout(r, 200));
+  await coreApi.createNamespacedSecret({ namespace: NAMESPACE, body: secret });
 
   return secretName;
 }
