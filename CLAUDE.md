@@ -56,7 +56,7 @@ gcloud auth for local dev.
 - `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
-- `scripts/klaus-prompts/` — standing instructions for agents (legacy, migrating to lore-agent)
+- `scripts/klaus-prompts/` — legacy prompt templates (migration complete per ADR-007; kept only for reference, not loaded at runtime)
 - `.claude/skills/` — platform skills (lore-feature, lore-pr, lore-init)
 - `terraform/modules/` — K8s manifests, Helm charts (lore-db, gke-mcp)
 - `docker/claude-runner/` — ephemeral container for Claude Code execution in K8s Jobs
@@ -79,6 +79,7 @@ gcloud auth for local dev.
 - `mcp-server/src/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
 - `scripts/slack-app-manifest.yaml` — Slack app manifest for /lore slash command
 - `agent/src/lib/episode-writer.ts` — shared episode writer with Haiku-driven auto-curation
+- `agent/src/lib/prompt-cache.ts` — `getCacheControl(jobName)` (ephemeral + optional `ttl: "1h"`), `computeCachePrefixHash` (djb2 over system + tool schemas), `analyzeCacheBreak` (in-memory per-job tracker classifying hit / first-call / prompt-changed / ttl-expired)
 - `agent/src/jobs/memory-lifecycle.ts` — importance decay (eviction) + fact consolidation (pattern extraction)
 - `mcp-server/src/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
 - `evals/` — PromptFoo eval configs per team
@@ -405,15 +406,27 @@ and `LORE_BUSINESS_DAYS`; defaults Europe/Berlin, 9-18, Mon-Fri)
 catches any dropped webhook deliveries. Webhook-triggered runs are
 never gated.
 
-**Prompt caching on agent LLM calls**: `callLLM`/`callLLMWithTool` in
-`agent/src/anthropic.ts` wrap the system prompt in a TextBlockParam
-with `cache_control: {type: "ephemeral"}`. `response.usage.cache_*`
-feeds cost accounting (1.25x writes, 0.1x reads). MCP-side raw
-fetches have static prefixes below Haiku's 2048-token cache minimum
-so caching there would not trigger. Default `assembleContext` budget
-is 8K tokens (research template keeps 16K; implementation/review/
-default cap at 8K); the `assemble_context` MCP tool's `max_tokens`
-parameter default is also 8K.
+**Prompt caching on agent LLM calls**: `callLLM` / `callLLMWithTool`
+in `agent/src/anthropic.ts` use `getCacheControl(jobName)` from
+`lib/prompt-cache.ts` to place two cache breakpoints per request —
+one on the system block, one on the tool schema — so a tool-schema
+edit cannot bust the system cache and vice versa. The helper returns
+`{type: "ephemeral", ttl: "1h"}` for jobs in the `LORE_CACHE_1H_JOBS`
+allowlist (default: `auto-curation`, `review_reactor`,
+`fact-extraction`, `graph-extraction`) and `{type: "ephemeral"}` (5m)
+otherwise. Special values: `none` disables 1h everywhere, `*`
+enables it for every job. Eligibility is latched once at module load
+to prevent mid-process toggles from busting the server-side cache.
+Each call hashes (djb2) the system + tools prefix, compares to the
+last call for the same `jobName`, and emits `cache hit | first-call |
+break:system | break:tools | break:ttl(42m)` on the existing log
+line. `response.usage.cache_*` feeds cost accounting (1.25x writes,
+0.1x reads). MCP-side raw fetches (facts.ts, graph extraction) have
+static prefixes below Haiku's 2048-token cache minimum so caching
+there would not trigger and is not attempted. Default
+`assembleContext` budget is 8K tokens (research template keeps 16K;
+implementation / review / default cap at 8K); the `assemble_context`
+MCP tool's `max_tokens` parameter default is also 8K.
 
 - Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.
