@@ -13,6 +13,7 @@ import {
   writeConfig,
   listPendingTasks,
   skipTask,
+  validateRepoMatch,
   type LocalRunnerConfig,
   type PendingTask,
 } from "../local-runner.js";
@@ -208,5 +209,44 @@ describe("branch name generation", () => {
     const slug = slugify("fix");
     const branch = `lore/general/${slug}-abcd1234`;
     expect(branch).toBe("lore/general/fix-abcd1234");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateRepoMatch — guards against pushing to the wrong repo (issue #250)
+// ---------------------------------------------------------------------------
+
+describe("validateRepoMatch", () => {
+  it("passes when cwd repo matches task repo", () => {
+    expect(() =>
+      validateRepoMatch("re-cinq/lore", "re-cinq/lore"),
+    ).not.toThrow();
+  });
+
+  it("throws when cwd repo differs from task repo", () => {
+    expect(() =>
+      validateRepoMatch("re-cinq/re-plan", "re-cinq/lore"),
+    ).toThrow(/target_repo mismatch/);
+  });
+
+  it("error message names both repos and suggests a cd", () => {
+    try {
+      validateRepoMatch("re-cinq/re-plan", "re-cinq/lore");
+      expect.fail("expected throw");
+    } catch (err: any) {
+      expect(err.message).toContain("re-cinq/re-plan");
+      expect(err.message).toContain("re-cinq/lore");
+      expect(err.message).toMatch(/cd to a checkout/);
+    }
+  });
+
+  it("passes when cwd repo cannot be detected (null)", () => {
+    // Caller is not in a git repo — nothing to check against.
+    // Note: the null-cwd path still means spawnLocalTask will fail later
+    // on "Not in a git repository — cannot create worktree", so letting
+    // this validator pass keeps error messages focused.
+    expect(() =>
+      validateRepoMatch("re-cinq/lore", null),
+    ).not.toThrow();
   });
 });
