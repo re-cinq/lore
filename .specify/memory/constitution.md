@@ -1,19 +1,14 @@
 <!--
 Sync Impact Report
-- Version: 1.3.0 (MINOR — updated commands, agents, tech stack, phase milestones)
-- Modified: Principle 4, 9 — updated commands and agent jobs; Phase 1, 3 — removed Klaus, marked implementations
-- Added principles:
-  1. DX-First Delivery
-  2. Zero Stored Credentials
-  3. PR Description Quality Gates Ingestion
-  4. Three-Command Developer Interface
-  5. Single Interface (Lore MCP)
-  6. Distributed Ownership with CI Eval Gates
-  7. Architecture Decisions Are Final
-  8. Schema-Per-Team Isolation
-  9. Intelligent Agents Over Mechanical Scripts
-  10. Opt-In Data Collection
-- Templates requiring updates: N/A (initial creation)
+- Version: 2.0.0 (MAJOR — principles 5, 7, 9 materially redefined; technology stack and phases updated)
+- Modified: Principles 5, 7, 9 — tool names, agent names, architecture decisions updated
+- Added: Principle 11 (Intelligent Memory Lifecycle)
+- Removed: Klaus references (replaced by Lore Agent throughout)
+- Removed: Context Cores / OCI bundles (not implemented)
+- Removed: Graphiti + FalkorDB (graph stored in PostgreSQL memory.entities + memory.edges)
+- Updated: Technology stack — knowledge graph, cluster agents, memory system
+- Updated: Phase 1 — Klaus → Lore Agent namespace; Phase 2/3 — marked IMPLEMENTED
+- Updated: Principle 9 jobs table — reflects actual task types
 - Follow-up TODOs: None
 -->
 
@@ -23,9 +18,9 @@ Sync Impact Report
 |---|---|
 | Project | Lore |
 | Subtitle | Shared context infrastructure for Claude Code |
-| Constitution Version | 1.3.0 |
+| Constitution Version | 2.0.0 |
 | Ratification Date | 2026-03-25 |
-| Last Amended Date | 2026-04-01 |
+| Last Amended Date | 2026-04-13 |
 
 ## Purpose
 
@@ -122,14 +117,14 @@ just experience Claude Code being smarter.
 
 The Lore MCP server is the single interface for all context retrieval
 and cluster delegation. Developers MUST NOT interact with cluster
-agents (Klaus) directly — they talk to the Lore MCP server, which
-delegates on their behalf.
+agents (Lore Agent) directly — they talk to the Lore MCP server,
+which delegates on their behalf.
 
 MCP tools fall into two categories:
-- Context retrieval: `get_context`, `get_adrs`, `search_context`,
-  `get_file_pr_history`.
-- Cluster delegation: `delegate_task`, `task_status`, `task_result`,
-  `list_cluster_tasks`.
+- Context retrieval: `assemble_context`, `search_context`,
+  `search_memory`, `query_graph`, `get_file_pr_history`.
+- Cluster delegation: `create_pipeline_task`, `get_pipeline_status`,
+  `list_pipeline_tasks`, `cancel_task`, `retry_task`.
 
 **Rationale:** A single interface means one thing to configure, one
 thing to debug, and one set of access controls. Exposing cluster
@@ -163,19 +158,19 @@ The following decisions have been made and MUST NOT be relitigated:
 |---|---|
 | Vector store | PostgreSQL + pgvector via CloudNativePG (CNPG) on GKE |
 | Namespace model | Schema per team in PostgreSQL (CNPG) |
-| MCP deployment | Per-team containers on GKE |
+| MCP deployment | Single container in `mcp-servers` namespace on GKE |
 | Ingestion trigger | On-push (fast) + nightly (full) via K8s CronJobs |
-| Observability | OpenTelemetry → Cloud Monitoring + Graphiti (gap signal) |
+| Observability | OpenTelemetry → Cloud Monitoring |
 | Scheduling | Lore Agent built-in scheduler with DB persistence |
 | GKE cluster | Existing shared `your-gke-cluster` in `europe-west1` (not dedicated) |
 | Task tracking | Pipeline tasks via Lore MCP + GH Issues |
 | Governance | Distributed ownership + CI eval gate |
 | Build sequence | DX-first: Phase 0 before infra |
-| Multi-agent orchestration | Native Claude Code Agent Teams (local) + Lore Agent (cluster) |
-| Context distribution format | Context Cores (versioned OCI bundles) |
-| Knowledge graph | Graphiti (temporal, MCP-native) |
-| Context ontology | Explicit 8-type schema (Phase 3) |
-| Self-improvement loop | Autoresearch-style keep/discard against PromptFoo |
+| Multi-agent orchestration | Lore Agent (direct API + headless Claude Code) on GKE |
+| Task execution | LoreTask CRD → ephemeral K8s Job pods (claude-runner image) |
+| Knowledge graph | PostgreSQL `memory.entities` + `memory.edges` tables (incremental, live) |
+| Memory lifecycle | Importance decay (half-life model) + automatic fact consolidation (Haiku) |
+| Privacy | `sanitizeContent()` / `redactSecrets()` on all memory writes before DB storage |
 
 Upgrade path to AlloyDB Omni or managed AlloyDB if corpus exceeds ~10M vectors. Revisit Vertex AI Vector Search only if corpus exceeds ~100M vectors.
 
@@ -228,8 +223,11 @@ Platform jobs running as Lore Agent tasks:
 | Gap detection | Drafts missing context and opens PRs |
 | Spec drift check | Reads code + spec, writes the update needed |
 | Eval runner | Runs PromptFoo nightly, detects regressions, creates tasks |
-| Autoresearch | Finds knowledge gaps from Langfuse traces, generates candidates, opens PRs |
-| Context core builder | Compares context quality to baseline, promotes improvements |
+| Feature request | Generates spec.md, data-model.md, tasks.md from PM intent |
+| Implementation | Implements from spec in ephemeral Job pod with lint/typecheck gate |
+| Review | Reviews PR against conventions, posts comments, iterates up to 2 rounds |
+| Memory decay | Scores and evicts low-importance memories (importance decay job, 5 AM) |
+| Memory consolidation | Synthesizes higher-level patterns from recent facts (consolidation job, 5:30 AM) |
 
 **Rationale:** The value of Lore is not in storing chunks — it is in
 understanding context. Agents that can reason about what is missing,
@@ -247,6 +245,41 @@ fear surveillance will not write candid PR descriptions or Slack
 discussions — destroying the quality of the exact content the system
 depends on.
 
+### Principle 11: Intelligent Memory Lifecycle
+
+Memory MUST be bounded, fresh, and signal-dense. Three mechanisms
+enforce this without agent cooperation:
+
+1. **Passive capture** — MCP server tracks all tool calls in-memory
+   (500-entry ring buffer). On process exit, dumps to
+   `~/.lore/last-session.json`. Stop hook POSTs to
+   `/api/session-summary` for automatic episode + fact extraction.
+   No agent `write_episode` call required.
+
+2. **Importance-based decay** — Daily job (5 AM) scores memories
+   0-10 using a half-life decay model
+   (`strength = 0.5^(age / half_life_days)`). Retrieval count,
+   content richness, and key type factor into scoring. Evicts
+   lowest-scoring memories beyond 500 per agent. Transitions
+   unretrieved facts to `stale` confidence after 30 days.
+
+3. **Automatic consolidation** — Daily job (5:30 AM) groups recent
+   facts (7-day lookback, minimum 5 facts) by repo and calls Haiku
+   to extract 1-3 higher-level patterns. Stored as
+   `consolidated/{repo}/{timestamp}` memories. Turns noisy raw facts
+   into actionable insights for future agents.
+
+Facts carry a `confidence` column: `verified` (human-confirmed),
+`observed` (episode-sourced), `inferred` (memory-sourced), `stale`
+(unretrieved 30+ days). Search returns only valid facts by default
+and includes confidence annotations. Contradicted facts are
+automatically invalidated and recorded in `memory.fact_conflicts`.
+
+**Rationale:** Unbounded memory growth degrades search quality and
+increases cost. Agents that skip `write_episode` lose learnings
+silently. Passive capture + bounded decay + consolidation keeps
+memory useful without requiring explicit agent cooperation.
+
 ## Technology Stack
 
 | Component | Technology |
@@ -255,22 +288,24 @@ depends on.
 | Embedding | Vertex AI `text-embedding-005` via application-level call |
 | Vector index | HNSW (pgvector) |
 | Search | Hybrid: HNSW vector + BM25 keyword, Reciprocal Rank Fusion |
-| MCP server | TypeScript, per-team containers on GKE |
+| MCP server | TypeScript, single container in `mcp-servers` namespace |
 | Cluster agents | Lore Agent (`lore-agent` namespace, @anthropic-ai/sdk + Claude Code CLI) |
-| Local orchestration | Claude Code Agent Teams (native) |
+| Task execution | LoreTask CRD → ephemeral K8s Job pods (claude-runner image) |
 | Task tracking | Pipeline tasks via Lore MCP + GitHub Issues |
 | Feature workflow | Spec Kit (`specify-cli`) |
 | Observability | OpenTelemetry → Cloud Monitoring |
 | CI evals | PromptFoo |
-| Infrastructure | CNPG operator + K8s manifests + CronJobs (on existing shared GKE cluster `your-gke-cluster`) |
+| Infrastructure | CNPG operator + K8s manifests + CronJobs + LoreTask CRD (on existing shared GKE cluster `your-gke-cluster`) |
 | Auth | Workload Identity (GKE), Workload Identity Federation (GHA) |
 | Code parsing | web-tree-sitter (TypeScript, Python, Go) |
 | Document parsing | LlamaIndex readers (GitHub, Confluence) + unstructured |
-| Knowledge graph | Graphiti (temporal context graph) + FalkorDB |
+| Knowledge graph | PostgreSQL `memory.entities` + `memory.edges` (incremental updates on `write_episode`) |
+| Memory lifecycle | `agent/src/jobs/memory-lifecycle.ts` — importance decay (Ebbinghaus model) + Haiku-driven consolidation |
+| Privacy filtering | `@re-cinq/lore-shared` `redactSecrets()` — strips keys, JWTs, connection strings before memory writes |
 
 ## Phased Delivery
 
-### Phase 0: Developer Experience (3-4 working days, zero infra)
+### Phase 0: Developer Experience (3-4 working days, zero infra) — COMPLETE
 
 Validate the workflow before investing in infrastructure. Deliverables:
 - `re-cinq/lore` repo with CLAUDE.md hierarchy + ADRs + runbooks.
@@ -282,50 +317,60 @@ Validate the workflow before investing in infrastructure. Deliverables:
 - Platform hooks (SessionStart, PostToolUse, Stop).
 - Platform skills (`/lore-feature`, `/lore-pr`).
 - PR template + CI description check in all product repos.
-**Gate:** Pilot team completes a full feature loop naturally before
-Phase 1 starts.
 
-### Phase 1: Managed Infrastructure (~2 weeks) — DEPLOYED AND VERIFIED
+### Phase 1: Managed Infrastructure — DEPLOYED AND VERIFIED
 
 Replace file-backed MCP with PostgreSQL + pgvector (CNPG). Wire up ingestion.
 Deployed onto existing shared GKE cluster `your-gke-cluster` in `europe-west1`.
 Hybrid search verified end-to-end: Workload Identity → Vertex AI → PostgreSQL → RRF results.
 Deliverables:
-- CNPG Cluster resource (namespace `alloydb`, pod `lore-db-1`) +
-  schema-per-team + HNSW indexes. Dedicated `lore` DB user (not
-  `postgres`) for cross-namespace access — bypasses CNPG password
-  reconciliation.
-- Embeddings via Vertex AI `text-embedding-005` (768 dimensions),
-  generated by `scripts/infra/generate-embeddings.sh`. 46 chunks
-  seeded from clean repo after `lore-init`.
-- Namespaces on shared cluster: `mcp-servers`, `alloydb`, `lore-agent`.
-- Klaus (`ghcr.io/re-cinq/klaus:latest`) in `klaus` namespace, port 8080.
+- CNPG Cluster resource (namespace `lore-db`) + schema-per-team + HNSW indexes.
+  Dedicated `lore` DB user (not `postgres`) for cross-namespace access.
+- Embeddings via Vertex AI `text-embedding-005` (768 dimensions).
+- Namespaces on shared cluster: `mcp-servers`, `lore-db`, `lore-agent`.
+- Lore Agent (`ghcr.io/re-cinq/lore-agent:latest`) in `lore-agent` namespace.
 - Lore MCP server (`ghcr.io/re-cinq/lore-mcp:latest`) in `mcp-servers`
   namespace, HTTP transport on `:3000/mcp`.
-- 3 CronJobs in `klaus` namespace: nightly reindex (2am), weekly gap
-  detection (Mon 9am), weekly spec drift (Mon 10am).
+- LoreTask CRD + controller in `lore-agent` namespace. Ephemeral Job pods
+  run `ghcr.io/re-cinq/claude-runner:latest`.
+- CronJobs: nightly reindex (2 AM), weekly gap detection (Mon 9 AM),
+  weekly spec drift (Mon 10 AM), daily importance decay (5 AM),
+  daily consolidation (5:30 AM).
 - OpenTelemetry instrumentation built into MCP server → Cloud Monitoring.
 - PromptFoo eval suite + CI gate.
-- No Langfuse, no Cloud SQL, no BigQuery, no Cloud Scheduler, no Terraform.
 
-**Gate:** Phase 1 acceptance criteria pass before Phase 2.
+### Phase 2: Feedback Loop — IMPLEMENTED
 
-### Phase 2: Feedback Loop (~1.5 weeks)
-
-Close the loop — system improves based on actual usage. Deliverables:
-- Gap detection as Klaus agent (drafts content, opens PRs).
+Closed the loop — system improves based on actual usage. Deliverables:
+- Gap detection as Lore Agent task (drafts content, opens PRs).
 - Spec file ingestion into PostgreSQL.
 - Spec evals in CI.
+- Passive session capture (`session-tracker.ts` + Stop hook → `/api/session-summary`).
+- Post-task auto-curation (`episode-writer.ts` with Haiku lesson extraction).
+- Importance-based memory decay + automatic fact consolidation (`memory-lifecycle.ts`).
+- Privacy filtering on all memory writes (`redactSecrets()`).
+- Session diversification in search (max 3 results per agent_id + source combo in RRF).
 
-### Phase 3: Knowledge Graph, Context Cores, and Self-Improvement (3-4 weeks, after 3+ months of content)
-- Lore ontology definition (8 entity types, 15 relationships).
-- Graphiti deployment (GKE graphiti namespace + FalkorDB).
-- `graph_search` + `get_entity_history` Lore MCP tools (Graphiti proxy).
-- Context Core builder (nightly Lore Agent job: eval + promote/discard) — IMPLEMENTED.
-- `research-charter.md` — standing instructions for the context research org.
-- Autoresearch loop (weekly Lore Agent job: query Langfuse for low-confidence traces, generate candidates, eval against PromptFoo, promote or discard) — IMPLEMENTED.
-- Spec drift detection with VIOLATES graph edges.
-- AgentDB optional local cache.
+### Phase 3: Knowledge Graph and Self-Improvement — IMPLEMENTED
+
+Deliverables:
+- Live knowledge graph (`memory.entities` + `memory.edges`) updated
+  incrementally on every `write_episode` call.
+- `query_graph` MCP tool for entity relationship queries.
+- Autonomous review loop (opt-in per repo via `auto_review` setting) —
+  review Job posts PR comments, iterates up to 2 rounds.
+- PR outcome feedback: merge/rejection signals adjust fact `half_life_days`
+  (+5 on merge, -3 on rejection). Context refs tracked via
+  `pipeline.tasks.context_refs`.
+- Retrieval strengthening: `search_memory` increments `retrieval_count`,
+  updates `last_retrieved_at`, extends `half_life_days` (+2, cap 365)
+  on returned facts and memories.
+- Confidence tiers: `verified`, `observed`, `inferred`, `stale`.
+- Conflict surfacing: `[CONFLICT]` prefix on facts with recent contradictions.
+- Cross-repo context transfer scoring (portable vs local keyword filtering).
+- Progressive trust levels per repo (`docs` → `tests` → `implementation` → `full`).
+- Spec drift detection with VIOLATES tracking.
+- AgentDB optional local read cache.
 
 ## Governance
 
