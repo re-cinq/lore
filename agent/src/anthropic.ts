@@ -5,6 +5,8 @@ export interface LLMResult {
   text: string;
   inputTokens: number;
   outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
   costUsd: number;
   durationMs: number;
   model: string;
@@ -14,17 +16,57 @@ export interface ToolResult<T> {
   data: T;
   inputTokens: number;
   outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
   costUsd: number;
   durationMs: number;
   model: string;
 }
 
-// Haiku pricing: $0.80 per million input tokens, $4.00 per million output tokens
+// Haiku pricing: $0.80 per million input tokens, $4.00 per million output tokens.
+// Cache writes: 1.25x input. Cache reads: 0.1x input.
 const COST_PER_INPUT_TOKEN = 0.8 / 1_000_000;
 const COST_PER_OUTPUT_TOKEN = 4.0 / 1_000_000;
+const COST_PER_CACHE_WRITE_TOKEN = COST_PER_INPUT_TOKEN * 1.25;
+const COST_PER_CACHE_READ_TOKEN = COST_PER_INPUT_TOKEN * 0.1;
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TOKENS = 8192;
+
+// Below these thresholds Anthropic does not cache. We don't enforce
+// them — the API silently skips caching if under — but they document
+// the break-even point.
+// - sonnet/opus: 1024 tokens
+// - haiku: 2048 tokens
+
+/**
+ * Build a cacheable system block from a system prompt string. The whole
+ * system prompt becomes one text block tagged with an ephemeral cache
+ * breakpoint so identical system prompts across calls hit the cache.
+ */
+function buildCacheableSystem(systemPrompt: string): Anthropic.TextBlockParam[] {
+  return [
+    {
+      type: "text",
+      text: systemPrompt,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+}
+
+function computeCost(
+  inputTokens: number,
+  outputTokens: number,
+  cacheCreationTokens: number,
+  cacheReadTokens: number,
+): number {
+  return (
+    inputTokens * COST_PER_INPUT_TOKEN +
+    outputTokens * COST_PER_OUTPUT_TOKEN +
+    cacheCreationTokens * COST_PER_CACHE_WRITE_TOKEN +
+    cacheReadTokens * COST_PER_CACHE_READ_TOKEN
+  );
+}
 
 export async function callLLM(params: {
   prompt: string;
@@ -44,7 +86,9 @@ export async function callLLM(params: {
     const response = await client.messages.create({
       model,
       max_tokens: maxTokens,
-      ...(params.systemPrompt ? { system: params.systemPrompt } : {}),
+      ...(params.systemPrompt
+        ? { system: buildCacheableSystem(params.systemPrompt) }
+        : {}),
       messages: [{ role: "user", content: params.prompt }],
     });
 
@@ -55,9 +99,14 @@ export async function callLLM(params: {
 
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;
-    const costUsd =
-      inputTokens * COST_PER_INPUT_TOKEN +
-      outputTokens * COST_PER_OUTPUT_TOKEN;
+    const cacheCreationTokens = response.usage.cache_creation_input_tokens ?? 0;
+    const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
+    const costUsd = computeCost(
+      inputTokens,
+      outputTokens,
+      cacheCreationTokens,
+      cacheReadTokens,
+    );
 
     // Log to pipeline.llm_calls
     await query(
@@ -76,10 +125,19 @@ export async function callLLM(params: {
     );
 
     console.log(
-      `[agent] LLM call: ${model} ${inputTokens}+${outputTokens} tokens $${costUsd.toFixed(4)} ${durationMs}ms`,
+      `[agent] LLM call: ${model} ${inputTokens}+${outputTokens} tokens (cache w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
     );
 
-    return { text, inputTokens, outputTokens, costUsd, durationMs, model };
+    return {
+      text,
+      inputTokens,
+      outputTokens,
+      cacheCreationTokens,
+      cacheReadTokens,
+      costUsd,
+      durationMs,
+      model,
+    };
   } catch (err) {
     console.error("[agent] LLM call failed:", err);
     throw err;
@@ -107,7 +165,9 @@ export async function callLLMWithTool<T>(params: {
     const response = await client.messages.create({
       model,
       max_tokens: maxTokens,
-      ...(params.systemPrompt ? { system: params.systemPrompt } : {}),
+      ...(params.systemPrompt
+        ? { system: buildCacheableSystem(params.systemPrompt) }
+        : {}),
       messages: [{ role: "user", content: params.prompt }],
       tools: [
         {
@@ -134,9 +194,14 @@ export async function callLLMWithTool<T>(params: {
 
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;
-    const costUsd =
-      inputTokens * COST_PER_INPUT_TOKEN +
-      outputTokens * COST_PER_OUTPUT_TOKEN;
+    const cacheCreationTokens = response.usage.cache_creation_input_tokens ?? 0;
+    const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
+    const costUsd = computeCost(
+      inputTokens,
+      outputTokens,
+      cacheCreationTokens,
+      cacheReadTokens,
+    );
 
     // Log to pipeline.llm_calls
     await query(
@@ -155,10 +220,19 @@ export async function callLLMWithTool<T>(params: {
     );
 
     console.log(
-      `[agent] LLM tool call: ${model} ${inputTokens}+${outputTokens} tokens $${costUsd.toFixed(4)} ${durationMs}ms`,
+      `[agent] LLM tool call: ${model} ${inputTokens}+${outputTokens} tokens (cache w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
     );
 
-    return { data, inputTokens, outputTokens, costUsd, durationMs, model };
+    return {
+      data,
+      inputTokens,
+      outputTokens,
+      cacheCreationTokens,
+      cacheReadTokens,
+      costUsd,
+      durationMs,
+      model,
+    };
   } catch (err) {
     console.error("[agent] LLM tool call failed:", err);
     throw err;

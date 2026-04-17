@@ -2,6 +2,7 @@ import { query } from "../db.js";
 import { platform } from "../platform.js";
 import { callLLM } from "../anthropic.js";
 import { writeEpisode } from "../lib/episode-writer.js";
+import { isBusinessHours } from "../lib/business-hours.js";
 
 interface PendingTask {
   id: string;
@@ -15,7 +16,16 @@ interface PendingTask {
   target_branch: string;
 }
 
+/**
+ * Safety-net polling entry point. Webhooks are the primary trigger — this
+ * runs on a business-hours cron to catch PRs whose webhook delivery was
+ * dropped. Off-hours invocations no-op.
+ */
 export async function reviewReactorJob(): Promise<string> {
+  if (!isBusinessHours()) {
+    return "Skipped: outside business hours";
+  }
+
   const tasks = await query<PendingTask>(
     `SELECT id, description, task_type, target_repo, pr_number, pr_url,
             issue_number, review_iteration, target_branch
@@ -34,49 +44,8 @@ export async function reviewReactorJob(): Promise<string> {
 
   for (const task of tasks) {
     try {
-      // Get reviews
-      const reviews = await platform().listPRReviews(task.target_repo, task.pr_number);
-
-      // Get commits to determine last commit date
-      const commits = await platform().listPRCommits(task.target_repo, task.pr_number);
-      const lastCommitDate = new Date(
-        commits[commits.length - 1]?.date || 0,
-      );
-
-      // Find "changes_requested" reviews submitted after the last commit
-      const pendingReviews = reviews.filter(
-        (r) =>
-          r.state === "CHANGES_REQUESTED" &&
-          new Date(r.submitted_at || 0) > lastCommitDate,
-      );
-
-      // Get inline review comments
-      const comments = await platform().listPRComments(task.target_repo, task.pr_number);
-      const pendingComments = comments.filter(
-        (c) => new Date(c.created_at) > lastCommitDate,
-      );
-
-      // Get regular PR comments (issue-style — what users type from mobile)
-      const issueComments = await platform().listPRIssueComments(task.target_repo, task.pr_number);
-      const pendingIssueComments = issueComments.filter(
-        (c) => new Date(c.created_at) > lastCommitDate,
-      );
-
-      if (pendingReviews.length === 0 && pendingComments.length === 0 && pendingIssueComments.length === 0) {
-        continue; // no pending feedback
-      }
-
-      // Merge issue comments into the inline comments format for processing
-      const allComments = [
-        ...pendingComments,
-        ...pendingIssueComments.map(c => ({
-          id: 0, path: '(general)', line: null,
-          body: c.body, user: c.user, created_at: c.created_at,
-        })),
-      ];
-
-      await processReviewFeedback(task, pendingReviews, allComments);
-      feedbackCount++;
+      const processed = await checkAndProcessPR(task);
+      if (processed) feedbackCount++;
     } catch (err) {
       console.error(
         `[job] review-reactor: error processing task ${task.id} (${task.target_repo}#${task.pr_number}):`,
@@ -86,6 +55,85 @@ export async function reviewReactorJob(): Promise<string> {
   }
 
   return `Checked ${tasks.length} PRs, ${feedbackCount} had pending feedback`;
+}
+
+/**
+ * Run the reactor for a single PR. Called by the webhook endpoint on
+ * pull_request.synchronize or pull_request_review.submitted events.
+ * Returns the number of feedback batches processed (0 or 1).
+ */
+export async function runReviewReactorForPR(
+  repo: string,
+  prNumber: number,
+): Promise<{ processed: boolean; reason?: string }> {
+  const tasks = await query<PendingTask>(
+    `SELECT id, description, task_type, target_repo, pr_number, pr_url,
+            issue_number, review_iteration, target_branch
+     FROM pipeline.tasks
+     WHERE status IN ('pr-created', 'review', 'revision-requested')
+       AND target_repo = $1
+       AND pr_number = $2
+       AND (review_iteration IS NULL OR review_iteration < 3)
+     LIMIT 1`,
+    [repo, prNumber],
+  );
+
+  if (tasks.length === 0) {
+    return { processed: false, reason: "no matching task" };
+  }
+
+  try {
+    const processed = await checkAndProcessPR(tasks[0]);
+    return { processed };
+  } catch (err) {
+    console.error(
+      `[webhook] review-reactor: error processing ${repo}#${prNumber}:`,
+      err,
+    );
+    return { processed: false, reason: (err as Error).message };
+  }
+}
+
+/**
+ * Check one PR for pending feedback and run processReviewFeedback if so.
+ * Returns true if feedback was processed.
+ */
+async function checkAndProcessPR(task: PendingTask): Promise<boolean> {
+  const reviews = await platform().listPRReviews(task.target_repo, task.pr_number);
+
+  const commits = await platform().listPRCommits(task.target_repo, task.pr_number);
+  const lastCommitDate = new Date(commits[commits.length - 1]?.date || 0);
+
+  const pendingReviews = reviews.filter(
+    (r) =>
+      r.state === "CHANGES_REQUESTED" &&
+      new Date(r.submitted_at || 0) > lastCommitDate,
+  );
+
+  const comments = await platform().listPRComments(task.target_repo, task.pr_number);
+  const pendingComments = comments.filter(
+    (c) => new Date(c.created_at) > lastCommitDate,
+  );
+
+  const issueComments = await platform().listPRIssueComments(task.target_repo, task.pr_number);
+  const pendingIssueComments = issueComments.filter(
+    (c) => new Date(c.created_at) > lastCommitDate,
+  );
+
+  if (pendingReviews.length === 0 && pendingComments.length === 0 && pendingIssueComments.length === 0) {
+    return false;
+  }
+
+  const allComments = [
+    ...pendingComments,
+    ...pendingIssueComments.map((c) => ({
+      id: 0, path: "(general)", line: null,
+      body: c.body, user: c.user, created_at: c.created_at,
+    })),
+  ];
+
+  await processReviewFeedback(task, pendingReviews, allComments);
+  return true;
 }
 
 async function processReviewFeedback(

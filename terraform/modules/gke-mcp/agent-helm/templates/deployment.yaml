@@ -63,6 +63,11 @@ spec:
                   name: lore-ingest-token
                   key: token
                   optional: true
+            - name: LORE_AGENT_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.internalTokenSecret.name }}
+                  key: {{ .Values.internalTokenSecret.key }}
             {{- if .Values.slackBotTokenSecret }}
             - name: LORE_SLACK_BOT_TOKEN
               valueFrom:

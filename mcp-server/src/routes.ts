@@ -601,6 +601,65 @@ async function handleSpecPRMerge(payload: any, pool: Pool | null, res: ServerRes
   });
 }
 
+/**
+ * Forward a review-reactor trigger to the agent service. Fire-and-forget:
+ * the agent returns 202 before running the LLM, so this won't block the
+ * webhook response. Safe to await briefly for the 202 itself.
+ */
+async function triggerAgentReviewReactor(repo: string, prNumber: number): Promise<void> {
+  const agentUrl = process.env.LORE_AGENT_URL;
+  const token = process.env.LORE_AGENT_INTERNAL_TOKEN;
+  if (!agentUrl || !token) {
+    console.warn("[webhook] LORE_AGENT_URL or LORE_AGENT_INTERNAL_TOKEN not set — skipping review-reactor trigger");
+    return;
+  }
+  try {
+    await fetch(`${agentUrl.replace(/\/+$/, "")}/api/trigger/review-reactor`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ repo, pr_number: prNumber }),
+    });
+  } catch (err: any) {
+    console.warn("[webhook] review-reactor trigger failed:", err.message);
+  }
+}
+
+/**
+ * pull_request events that should wake the review reactor: new commits
+ * pushed (synchronize), or the PR being (re)opened. Closed/edited/etc.
+ * are ignored here (spec-PR merge is a separate branch).
+ */
+async function handlePullRequestReviewTrigger(payload: any, res: ServerResponse): Promise<boolean> {
+  const action = payload.action;
+  if (!["synchronize", "opened", "reopened", "ready_for_review"].includes(action)) {
+    return false;
+  }
+  const repo: string = payload.repository?.full_name;
+  const prNumber: number | undefined = payload.pull_request?.number;
+  if (!repo || !prNumber) return false;
+  triggerAgentReviewReactor(repo, prNumber).catch(() => {});
+  json(res, 200, { triggered: "review-reactor", repo, pr_number: prNumber, via: "pull_request" });
+  return true;
+}
+
+async function handlePullRequestReviewEvent(payload: any, res: ServerResponse): Promise<void> {
+  if (payload.action !== "submitted") {
+    json(res, 200, { skipped: true, reason: "not a submitted review" });
+    return;
+  }
+  const repo: string = payload.repository?.full_name;
+  const prNumber: number | undefined = payload.pull_request?.number;
+  if (!repo || !prNumber) {
+    json(res, 400, { error: "missing repo or pr_number" });
+    return;
+  }
+  triggerAgentReviewReactor(repo, prNumber).catch(() => {});
+  json(res, 200, { triggered: "review-reactor", repo, pr_number: prNumber, via: "pull_request_review" });
+}
+
 async function handleGitHubWebhook(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
   const webhookSecret = process.env.LORE_WEBHOOK_SECRET;
   const signature = req.headers["x-hub-signature-256"] as string | undefined;
@@ -624,7 +683,45 @@ async function handleGitHubWebhook(req: IncomingMessage, res: ServerResponse, po
       json(res, 400, { error: "invalid JSON" });
       return;
     }
-    await handleSpecPRMerge(payload, pool, res);
+    // First: spec-PR merge takes priority (closed + merged action)
+    if (payload.action === "closed" && payload.pull_request?.merged) {
+      await handleSpecPRMerge(payload, pool, res);
+      return;
+    }
+    // Otherwise try review-reactor trigger (sync/opened/reopened/ready_for_review)
+    if (await handlePullRequestReviewTrigger(payload, res)) return;
+    json(res, 200, { skipped: true, reason: "no handler for pull_request action", action: payload.action });
+    return;
+  }
+
+  if (ghEvent === "pull_request_review") {
+    let payload: any;
+    try { payload = JSON.parse(rawBody); } catch {
+      json(res, 400, { error: "invalid JSON" });
+      return;
+    }
+    await handlePullRequestReviewEvent(payload, res);
+    return;
+  }
+
+  if (ghEvent === "issue_comment") {
+    // Reviewers often leave feedback as issue comments on PRs. Trigger
+    // the reactor when the commented-on item is a PR (has pull_request).
+    let payload: any;
+    try { payload = JSON.parse(rawBody); } catch {
+      json(res, 400, { error: "invalid JSON" });
+      return;
+    }
+    if (payload.action === "created" && payload.issue?.pull_request) {
+      const repo: string = payload.repository?.full_name;
+      const prNumber: number | undefined = payload.issue?.number;
+      if (repo && prNumber) {
+        triggerAgentReviewReactor(repo, prNumber).catch(() => {});
+        json(res, 200, { triggered: "review-reactor", repo, pr_number: prNumber, via: "issue_comment" });
+        return;
+      }
+    }
+    json(res, 200, { skipped: true, reason: "not a PR issue_comment created event" });
     return;
   }
 

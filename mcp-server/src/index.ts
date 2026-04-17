@@ -492,7 +492,7 @@ server.tool(
   {
     query: z.string().describe("What context is needed (e.g. 'implement auth middleware', 'review PR #42')."),
     template: z.string().default("default").describe('Template name: "default", "review", "implementation", "research".'),
-    max_tokens: z.number().default(16000).describe("Maximum token budget for assembled context (min 2000)."),
+    max_tokens: z.number().default(8000).describe("Maximum token budget for assembled context (min 2000). Raise up to ~16000 for research-heavy queries."),
     repo: z.string().optional().describe("Target repo (e.g. 'owner/repo'). Auto-detected if omitted."),
     agent_id: z.string().optional().describe("Override agent ID."),
     cross_repo: z.boolean().default(false).describe("Include context from other repos in the org."),
