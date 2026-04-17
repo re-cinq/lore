@@ -29,29 +29,71 @@ jobs:
         id: teams
         run: |
           TEAMS=""
-          CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
-
-          # Check each eval directory for teams whose context may have changed
+          # Check each eval directory for teams whose context may have changed.
+          # (For now we always scan all teams; future: diff against changed
+          # paths so we only eval teams whose docs moved.)
           for team_dir in evals/*/; do
             team=$(basename "$team_dir")
             if [ -f "$team_dir/promptfooconfig.yaml" ]; then
               TEAMS="$TEAMS $team"
             fi
           done
-
           echo "teams=$TEAMS" >> "$GITHUB_OUTPUT"
 
+      # Threshold enforcement used to live in `promptfoo eval --assert-pass-rate`.
+      # That flag was removed by promptfoo upstream (broke CI on every PR
+      # starting 2026-04-06). We now emit JSON and jq out the pass rate
+      # ourselves — more robust to further upstream CLI churn.
       - name: Run evals
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PASS_RATE_THRESHOLD: "0.85"
         run: |
+          set -u
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::warning::OPENAI_API_KEY secret not configured — skipping context evals. See issue #254."
+            exit 0
+          fi
+
           EXIT_CODE=0
           for team in ${{ steps.teams.outputs.teams }}; do
-            echo "::group::Running evals for $team"
-            if ! promptfoo eval \
+            echo "::group::Evals for $team"
+
+            OUTPUT_FILE="/tmp/evals-${team}.json"
+            # --no-share: never upload results to a shared cloud bucket
+            # || true so we can inspect the output file even on failure
+            promptfoo eval \
               --config "evals/$team/promptfooconfig.yaml" \
-              --assert-pass-rate 0.85; then
+              --output "$OUTPUT_FILE" \
+              --no-share || true
+
+            if [ ! -s "$OUTPUT_FILE" ]; then
               EXIT_CODE=1
-              echo "::error::Eval pass rate below 85% for team: $team"
+              echo "::error::No eval output produced for team '$team' — config broken?"
+              echo "::endgroup::"
+              continue
+            fi
+
+            # promptfoo JSON shape: .results.stats.{successes,failures,errors}
+            PASS_RATE=$(jq -r '
+              (.results.stats.successes // 0) as $s
+              | (.results.stats.failures // 0) as $f
+              | (.results.stats.errors // 0) as $e
+              | ($s + $f + $e) as $total
+              | if $total == 0 then 0 else ($s / $total) end
+            ' "$OUTPUT_FILE")
+
+            # bash has no float comparison — compare via awk
+            BELOW=$(awk -v pr="$PASS_RATE" -v t="$PASS_RATE_THRESHOLD" \
+              'BEGIN { print (pr + 0 < t + 0) ? 1 : 0 }')
+
+            if [ "$BELOW" = "1" ]; then
+              EXIT_CODE=1
+              echo "::error::Pass rate $PASS_RATE below threshold $PASS_RATE_THRESHOLD for team '$team'"
+            else
+              echo "Pass rate $PASS_RATE OK for team '$team' (threshold $PASS_RATE_THRESHOLD)"
             fi
             echo "::endgroup::"
           done
-          exit $EXIT_CODE
+
+          exit "$EXIT_CODE"
