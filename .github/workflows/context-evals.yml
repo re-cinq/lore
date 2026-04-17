@@ -7,6 +7,12 @@ on:
       - "teams/**"
       - "CLAUDE.md"
       - ".specify/**"
+      # Also trigger when the workflow itself changes so self-modifying
+      # PRs (like #255) can verify the fix in CI instead of post-merge.
+      - ".github/workflows/context-evals.yml"
+  # Allow manual runs from the Actions tab — useful when OPENAI_API_KEY
+  # is added later and we want to confirm evals work without a content PR.
+  workflow_dispatch:
 
 jobs:
   evals:
