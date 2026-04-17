@@ -36,6 +36,10 @@ env:
   LORE_BUSINESS_HOURS_START: "9"
   LORE_BUSINESS_HOURS_END: "18"
   LORE_BUSINESS_DAYS: "1,2,3,4,5"
+  # Jobs that get 1-hour prompt-cache TTL (stable system prompt + bursty
+  # calls amortize the 1.25x write premium). Use "none" to disable 1h
+  # everywhere, "*" to enable for all jobs. See agent/src/lib/prompt-cache.ts.
+  LORE_CACHE_1H_JOBS: "auto-curation,review_reactor,fact-extraction,graph-extraction"
 
 dbPasswordSecret:
   name: lore-agent-db-password

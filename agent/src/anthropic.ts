@@ -1,5 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { query } from "./db.js";
+import {
+  getCacheControl,
+  computeCachePrefixHash,
+  analyzeCacheBreak,
+  type CacheBreakAnalysis,
+} from "./lib/prompt-cache.js";
 
 export interface LLMResult {
   text: string;
@@ -43,15 +49,50 @@ const DEFAULT_MAX_TOKENS = 8192;
  * Build a cacheable system block from a system prompt string. The whole
  * system prompt becomes one text block tagged with an ephemeral cache
  * breakpoint so identical system prompts across calls hit the cache.
+ * TTL (5m vs 1h) varies per job — see lib/prompt-cache.
  */
-function buildCacheableSystem(systemPrompt: string): Anthropic.TextBlockParam[] {
+function buildCacheableSystem(
+  systemPrompt: string,
+  jobName?: string,
+): Anthropic.TextBlockParam[] {
   return [
     {
       type: "text",
       text: systemPrompt,
-      cache_control: { type: "ephemeral" },
+      cache_control: getCacheControl(jobName),
     },
   ];
+}
+
+/**
+ * Build a tool definition with cache_control attached to the last tool.
+ * Enables a second cache breakpoint so tool schemas are cached separately
+ * from the system block — tool breaks alone won't bust the system cache.
+ */
+function buildCacheableTools(
+  toolName: string,
+  toolDescription: string,
+  toolSchema: Anthropic.Tool.InputSchema,
+  jobName?: string,
+): Anthropic.Tool[] {
+  return [
+    {
+      name: toolName,
+      description: toolDescription,
+      input_schema: toolSchema,
+      cache_control: getCacheControl(jobName),
+    },
+  ];
+}
+
+function formatBreakLogTag(a: CacheBreakAnalysis): string {
+  switch (a.status) {
+    case "hit":            return "hit";
+    case "first-call":     return "first-call";
+    case "prompt-changed": return `break:${a.reason ?? "?"}`;
+    case "ttl-expired":    return `break:ttl(${a.ageMinutes ?? "?"}m)`;
+    case "unknown-miss":   return "miss:?";
+  }
 }
 
 function computeCost(
@@ -83,11 +124,13 @@ export async function callLLM(params: {
     const client = new Anthropic();
     const start = Date.now();
 
+    const prefixHash = computeCachePrefixHash(params.systemPrompt, undefined);
+
     const response = await client.messages.create({
       model,
       max_tokens: maxTokens,
       ...(params.systemPrompt
-        ? { system: buildCacheableSystem(params.systemPrompt) }
+        ? { system: buildCacheableSystem(params.systemPrompt, params.jobName) }
         : {}),
       messages: [{ role: "user", content: params.prompt }],
     });
@@ -104,6 +147,12 @@ export async function callLLM(params: {
     const costUsd = computeCost(
       inputTokens,
       outputTokens,
+      cacheCreationTokens,
+      cacheReadTokens,
+    );
+    const breakAnalysis = analyzeCacheBreak(
+      params.jobName,
+      prefixHash,
       cacheCreationTokens,
       cacheReadTokens,
     );
@@ -125,7 +174,7 @@ export async function callLLM(params: {
     );
 
     console.log(
-      `[agent] LLM call: ${model} ${inputTokens}+${outputTokens} tokens (cache w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
+      `[agent] LLM call: ${model} ${inputTokens}+${outputTokens} tokens (cache ${formatBreakLogTag(breakAnalysis)} w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
     );
 
     return {
@@ -162,20 +211,29 @@ export async function callLLMWithTool<T>(params: {
     const client = new Anthropic();
     const start = Date.now();
 
+    const tools = buildCacheableTools(
+      params.toolName,
+      params.toolDescription,
+      params.toolSchema as Anthropic.Tool.InputSchema,
+      params.jobName,
+    );
+    const prefixHash = computeCachePrefixHash(
+      params.systemPrompt,
+      tools.map((t) => ({
+        name: t.name,
+        description: t.description ?? "",
+        input_schema: t.input_schema,
+      })),
+    );
+
     const response = await client.messages.create({
       model,
       max_tokens: maxTokens,
       ...(params.systemPrompt
-        ? { system: buildCacheableSystem(params.systemPrompt) }
+        ? { system: buildCacheableSystem(params.systemPrompt, params.jobName) }
         : {}),
       messages: [{ role: "user", content: params.prompt }],
-      tools: [
-        {
-          name: params.toolName,
-          description: params.toolDescription,
-          input_schema: params.toolSchema as Anthropic.Tool.InputSchema,
-        },
-      ],
+      tools,
       tool_choice: { type: "tool", name: params.toolName },
     });
 
@@ -202,6 +260,12 @@ export async function callLLMWithTool<T>(params: {
       cacheCreationTokens,
       cacheReadTokens,
     );
+    const breakAnalysis = analyzeCacheBreak(
+      params.jobName,
+      prefixHash,
+      cacheCreationTokens,
+      cacheReadTokens,
+    );
 
     // Log to pipeline.llm_calls
     await query(
@@ -220,7 +284,7 @@ export async function callLLMWithTool<T>(params: {
     );
 
     console.log(
-      `[agent] LLM tool call: ${model} ${inputTokens}+${outputTokens} tokens (cache w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
+      `[agent] LLM tool call: ${model} ${inputTokens}+${outputTokens} tokens (cache ${formatBreakLogTag(breakAnalysis)} w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
     );
 
     return {
