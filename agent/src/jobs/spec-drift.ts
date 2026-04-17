@@ -22,6 +22,9 @@ interface Assertion {
 
 const DIVERGENCE_THRESHOLD = 0.2; // 20%
 
+/** Look-back window for "has this repo shipped anything?". */
+const ACTIVITY_WINDOW_DAYS = 7;
+
 /**
  * Spec Drift Detection Job
  *
@@ -29,6 +32,13 @@ const DIVERGENCE_THRESHOLD = 0.2; // 20%
  * 1. Extract testable assertions via LLM (function names, endpoints, data structures)
  * 2. Match against code chunks using symbol_name metadata from AST chunking
  * 3. If divergence > 20%, create a gap-fill pipeline task
+ *
+ * Activity pre-filter (added 2026-04-17): skip specs in repos whose
+ * code hasn't been re-ingested in the last ACTIVITY_WINDOW_DAYS days.
+ * If a repo ships nothing, its code can't have drifted from its spec —
+ * scanning it is pure LLM waste. The push-triggered lore-ingest.yml
+ * workflow refreshes chunks.ingested_at on every merge to main, so
+ * recent code-chunk activity is a reliable "something shipped" signal.
  */
 export async function specDriftJob(): Promise<string> {
   // Get all spec chunks
@@ -44,6 +54,16 @@ export async function specDriftJob(): Promise<string> {
     return "No specs found";
   }
 
+  // Pre-filter: which repos have had code chunk updates in the window?
+  const activeRepoRows = await query<{ repo: string }>(
+    `SELECT DISTINCT repo
+     FROM org_shared.chunks
+     WHERE content_type = 'code'
+       AND ingested_at > now() - ($1 || ' days')::interval`,
+    [String(ACTIVITY_WINDOW_DAYS)],
+  );
+  const activeRepos = new Set(activeRepoRows.map((r) => r.repo));
+
   // Group specs by repo
   const byRepo = new Map<string, SpecChunk[]>();
   for (const spec of specs) {
@@ -54,8 +74,18 @@ export async function specDriftJob(): Promise<string> {
 
   let totalChecked = 0;
   let totalDrift = 0;
+  let skippedRepos = 0;
+  let skippedSpecs = 0;
 
   for (const [repo, repoSpecs] of byRepo) {
+    if (!activeRepos.has(repo)) {
+      skippedRepos++;
+      skippedSpecs += repoSpecs.length;
+      console.log(
+        `[job] spec-drift: skipping ${repo} — no code chunk updates in last ${ACTIVITY_WINDOW_DAYS}d (${repoSpecs.length} specs skipped)`,
+      );
+      continue;
+    }
     // Get all code chunks for this repo with symbol metadata
     const codeChunks = await query<CodeChunk>(
       `SELECT
@@ -114,7 +144,8 @@ export async function specDriftJob(): Promise<string> {
     }
   }
 
-  const summary = `Checked ${totalChecked} specs across ${byRepo.size} repos, ${totalDrift} with significant drift`;
+  const activeRepoCount = byRepo.size - skippedRepos;
+  const summary = `Checked ${totalChecked} specs across ${activeRepoCount} active repos (${totalDrift} drifted); skipped ${skippedSpecs} specs from ${skippedRepos} quiet repos`;
   console.log(`[job] spec-drift: ${summary}`);
   return summary;
 }
