@@ -206,7 +206,8 @@ add tasks/specs without using Claude Code.
 - [x] T039 [P] [US8] Create web-ui/src/app/audit/page.tsx: Filterable audit trail (agent, operation, date range), paginated
 - [x] T040 [P] [US8] Create web-ui/src/app/pools/page.tsx: Shared pools browser with entry counts, drill-in, pool-scoped search
 - [x] T041 [US8] Create web-ui/src/app/tasks/page.tsx: View Beads tasks, add new task form (writes via bd create)
-- [x] T042 [US8] Create web-ui/src/app/specs/page.tsx: Browse ingested specs from org_shared.chunks, add new spec text
+- [x] T042 [US8] Create web-ui/src/app/specs/page.tsx: Browse ingested chunks from all schemas, filter by content type (spec/doc/adr/claude_md), 50 most recent, links to detail view
+- [x] T042b [US8] Create web-ui/src/app/specs/[...path]/page.tsx: Detail view for a file path — all chunks sorted newest first, content_type badge, team/repo/author metadata, collapsible raw metadata (read-only; add-new-spec form deferred)
 - [x] T043 [US8] Create web-ui/src/app/gaps/page.tsx: Review gap detection draft PRs (fetch from GitHub API), approve/reject actions
 - [x] T044 [US8] Create Dockerfile for web-ui in web-ui/Dockerfile
 - [x] T045 [US8] Build and push web-ui image to ghcr.io/re-cinq/lore-ui
