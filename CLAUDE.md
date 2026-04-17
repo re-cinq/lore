@@ -53,7 +53,7 @@ gcloud auth for local dev.
 - `mcp-server/` — the MCP server (TypeScript)
 - `mcp-server/src/routes.ts` — HTTP API route handlers (extracted from index.ts)
 - `mcp-server/src/github-client.ts` — consolidated GitHub auth (App + token fallback)
-- `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code)
+- `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
 - `scripts/klaus-prompts/` — standing instructions for agents (legacy, migrating to lore-agent)
