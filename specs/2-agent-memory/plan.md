@@ -23,7 +23,7 @@
 | Fact extraction    | Configurable LLM (Claude / OpenAI / Ollama) | 2 |
 | Shared memory pools | PostgreSQL shared schema | 2 |
 | Snapshots          | Reference-based (memory IDs + versions) | 2 |
-| TTL cleanup        | K8s CronJob in `klaus` namespace | 2 |
+| TTL cleanup        | In-process scheduled job via `registerJob()` in `agent/src/index.ts` | 2 |
 | Web UI             | Next.js on GKE, Google Workspace OIDC | 3 |
 
 ### Key Dependencies
@@ -50,9 +50,6 @@ mcp-server/src/
 
 scripts/
   install.sh            # Extended: generate ~/.lore/agent-id
-
-k8s/
-  memory-ttl-cronjob.yaml  # NEW: expired memory cleanup
 
 web-ui/                 # NEW (Phase 3)
   package.json
@@ -445,15 +442,9 @@ Behavior:
 
 #### 2.4 TTL and Expiration
 
-**File:** `k8s/memory-ttl-cronjob.yaml`
+**Implementation:** In-process scheduled job registered via `registerJob()` in `agent/src/index.ts`, runs hourly.
 
-CronJob in `klaus` namespace, runs hourly:
-
-```yaml
-schedule: "0 * * * *"
-```
-
-Job: connect to PostgreSQL, run:
+The job connects to PostgreSQL and runs:
 
 ```sql
 DELETE FROM memory.memories
@@ -466,7 +457,7 @@ DELETE FROM memory.facts
 WHERE memory_id NOT IN (SELECT id FROM memory.memories);
 ```
 
-Expired memories are excluded from search immediately (via the partial index WHERE clause). The CronJob does the hard delete 24 hours after expiration as a cleanup pass.
+Expired memories are excluded from search immediately (via the partial index WHERE clause). The scheduled job does the hard delete 24 hours after expiration as a cleanup pass.
 
 #### 2.5 Agent Health and Stats Tools
 
