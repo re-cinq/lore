@@ -76,6 +76,8 @@ A developer types `/lore implementation add retry logic to the webhook handler` 
 
 All execution modes include **deterministic validation** — after the agent edits code, lint and typecheck run as mandatory pipeline stages (detected from package.json, go.mod, pyproject.toml, or Cargo.toml). If validation fails, one automatic fix retry runs before escalating to human review. K8s Jobs retry once on transient failures (`backoffLimit: 1`). Failed tasks can be retried via `/lore retry <task_id>`, the `retry_task` MCP tool, or the API.
 
+All agent API calls also go through **multi-block prompt caching** (ADR-015 + `agent/src/lib/prompt-cache.ts`): the system prompt and tool schemas each carry a `cache_control: {type: "ephemeral"}` breakpoint so tool edits don't bust the system cache and vice versa. Jobs whose prompts are stable and cluster within an hour (auto-curation, review-reactor fixes, fact extraction, graph extraction — override via `LORE_CACHE_1H_JOBS` env) use the 1-hour cache TTL; eligibility is latched at process start to prevent mid-session TTL flips. Each call's log line annotates the cache outcome (`hit` / `first-call` / `break:system` / `break:tools` / `break:ttl(42m)`) for live cost diagnostics.
+
 The agent service decides which mode to use based on the task type configured in `task-types.yaml`.
 
 ## Architecture
@@ -87,7 +89,7 @@ The agent service decides which mode to use based on the task type configured in
 | Component | What it does |
 |-----------|-------------|
 | **MCP Server** | Serves org context to Claude Code via MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. Per-client scoped tokens. Rate-limited. |
-| **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, delegates complex tasks (implementation) to ephemeral Job pods via LoreTask CRD. Runs 10 scheduled maintenance jobs. Creates PRs via GitHub App. Every task automatically creates a GitHub Issue on the target repo, so developers see what Lore is doing without checking the dashboard. Issues are updated with status changes and closed when the PR is created. |
+| **Lore Agent** | Processes pipeline tasks. Calls Claude API for simple tasks, delegates complex tasks (implementation) to ephemeral Job pods via LoreTask CRD. Runs 14 scheduled maintenance jobs. Creates PRs via GitHub App. Every task automatically creates a GitHub Issue on the target repo, so developers see what Lore is doing without checking the dashboard. Issues are updated with status changes and closed when the PR is created. |
 | **LoreTask Controller** | Watches LoreTask custom resources and spawns ephemeral K8s Job pods with the claude-runner image. Each Job pod clones the target repo, runs Claude Code, commits, and pushes. Tasks survive agent deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and egress-restricted NetworkPolicy. |
 | **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector, GIN for keyword. |
@@ -143,7 +145,7 @@ After the PR is merged, the agent automatically configures ingest secrets so con
 | Gap detection | Monday 9 AM | Find missing documentation, create gap-fill tasks |
 | Spec drift | Monday 10 AM | Compare specs against actual code |
 | Merge check | Every 60s | Detect merged onboarding PRs, trigger ingestion |
-| Review reactor | Every 5 min | Detect human review feedback on agent PRs, generate fixes, commit to branch |
+| Review reactor (safety) | Hourly Mon–Fri business hours | Catch dropped-webhook PRs; primary trigger is GitHub webhooks via `/api/trigger/review-reactor` (see ADR-015) |
 | Approval check | Every 60s | Check for approved label on tasks awaiting approval |
 | Memory TTL | Every hour | Clean up expired memory entries |
 | Eval runner | Daily 3 AM | Run PromptFoo evals for all teams, detect quality regressions |
@@ -301,8 +303,13 @@ developers stay in their GitHub workflow.
 Duplicate prevention: if an active task already exists for the issue,
 Lore comments with the existing task ID instead of creating a new one.
 
-Requires a webhook on the repo: `POST https://LORE_API_DOMAIN/api/webhook/github`
-with events `Issues` and HMAC secret from `LORE_WEBHOOK_SECRET`.
+Requires a webhook on the GitHub App: `POST https://LORE_API_DOMAIN/api/webhook/github`
+with HMAC secret from `LORE_WEBHOOK_SECRET`. Subscribe to events:
+
+- `Issues` — label dispatch (described above)
+- `Pull request` — spec-PR merge detection and review-reactor wake-up on sync/open/reopen
+- `Pull request review` — wake the review reactor on CHANGES_REQUESTED submissions
+- `Issue comment` — catch reviewer comments typed from mobile (GitHub routes these as issue comments on the PR)
 
 ### Slack Integration
 
