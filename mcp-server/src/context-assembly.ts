@@ -270,18 +270,28 @@ const fetchers: Record<string, SourceFetcher> = {
 
 // ── Main assembly ───────────────────────────────────────────────────
 
+// Per-template default token budgets. Smaller budgets for task-shaped
+// templates; research keeps the old 16K ceiling since it's memory/episode-heavy.
+const TEMPLATE_DEFAULT_BUDGETS: Record<string, number> = {
+  default: 8000,
+  implementation: 8000,
+  review: 8000,
+  research: 16000,
+};
+
 export async function assembleContext(
   pool: any,
   query: string,
   templateName: string = 'default',
-  maxTokens: number = 16000,
+  maxTokens?: number,
   repo?: string,
   agentId?: string,
   crossRepo?: boolean,
   includeIds?: boolean,
 ): Promise<{ text: string; sections: { header: string; tokens: number; truncated: boolean }[]; context_refs?: { fact_ids: string[]; memory_ids: string[] } }> {
   const template = getTemplate(templateName);
-  const minTokens = Math.max(maxTokens, 2000);
+  const effectiveMax = maxTokens ?? TEMPLATE_DEFAULT_BUDGETS[templateName] ?? 8000;
+  const minTokens = Math.max(effectiveMax, 2000);
 
   // Check context freshness + first-run status
   let freshnessWarning = '';

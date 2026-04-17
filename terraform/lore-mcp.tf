@@ -88,12 +88,35 @@ resource "helm_release" "lore_mcp" {
     name  = "githubAppSecret.installationIdKey"
     value = "installation-id"
   }
-
-  # Task type config — inlined from scripts/task-types.yaml
   set {
-    name  = "taskTypesConfig"
-    value = file("${path.module}/../scripts/task-types.yaml")
+    name  = "webhookSecret.name"
+    value = "lore-webhook-secret"
   }
+  set {
+    name  = "webhookSecret.key"
+    value = "secret"
+  }
+  set {
+    name  = "internalTokenSecret.name"
+    value = "lore-agent-internal-token"
+  }
+  set {
+    name  = "internalTokenSecret.key"
+    value = "token"
+  }
+  set {
+    name  = "env.LORE_AGENT_URL"
+    value = "http://lore-agent.lore-agent.svc.cluster.local:8080"
+  }
+
+  # Task type config — inlined from scripts/task-types.yaml.
+  # Passed via `values` (not `set`) because helm's CLI parser
+  # can't handle commas in multi-line string values.
+  values = [
+    yamlencode({
+      taskTypesConfig = file("${path.module}/../scripts/task-types.yaml")
+    })
+  ]
 
   depends_on = [
     kubernetes_namespace.mcp_servers,

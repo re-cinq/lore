@@ -52,6 +52,12 @@ variable "webhook_secret" {
   default   = ""
 }
 
+variable "agent_internal_token" {
+  description = "Shared secret between mcp-server and lore-agent for /api/trigger/* (e.g. review-reactor webhook fan-out)."
+  type        = string
+  sensitive   = true
+}
+
 variable "github_oauth_client_id" {
   type      = string
   sensitive = true

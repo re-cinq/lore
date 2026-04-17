@@ -30,6 +30,12 @@ env:
   PORT: "8080"
   LORE_INGEST_URL: ""
   LORE_LOG_BUCKET: ""
+  # Business-hours gate for review-reactor safety cron. Override at
+  # deploy time if the team isn't CET / Mon-Fri 9-18.
+  LORE_BUSINESS_HOURS_TZ: Europe/Berlin
+  LORE_BUSINESS_HOURS_START: "9"
+  LORE_BUSINESS_HOURS_END: "18"
+  LORE_BUSINESS_DAYS: "1,2,3,4,5"
 
 dbPasswordSecret:
   name: lore-agent-db-password
@@ -44,6 +50,12 @@ githubAppSecret:
   appIdKey: app-id
   privateKeyKey: private-key
   installationIdKey: installation-id
+
+# Shared secret with mcp-server used to authenticate
+# POST /api/trigger/review-reactor (webhook → agent fan-out).
+internalTokenSecret:
+  name: lore-agent-internal-token
+  key: token
 
 configMap:
   name: lore-agent-config

@@ -43,7 +43,11 @@ async function main(): Promise<void> {
 
   registerJob("merge_check", "*/1 * * * *", mergeCheckJob);
   registerJob("approval_check", "*/1 * * * *", approvalCheckJob);
-  registerJob("review_reactor", "*/5 * * * *", reviewReactorJob);
+  // Safety-net cron for review reactor. Primary trigger is the
+  // GitHub webhook (see mcp-server routes); this cron catches PRs whose
+  // webhook delivery was dropped. Fires hourly Mon-Fri 07:07-17:07 UTC
+  // (roughly 09-19 CET/CEST); the job itself gates on business hours.
+  registerJob("review_reactor", "7 7-17 * * 1-5", reviewReactorJob);
   registerJob("memory_ttl", "0 * * * *", ttlCleanupJob);
   registerJob("context_reindex", "0 2 * * *", reindexJob);
   registerJob("gap_detection", "0 9 * * 1", gapDetectJob);

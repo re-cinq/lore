@@ -7,6 +7,7 @@ locals {
     "lore-db-password"                = var.db_password
     "lore-ingest-token"               = var.ingest_token
     "lore-webhook-secret"             = var.webhook_secret
+    "lore-agent-internal-token"       = var.agent_internal_token
     "lore-slack-signing-secret"       = var.slack_signing_secret
     "lore-slack-bot-token"            = var.slack_bot_token
     "lore-github-oauth-client-id"     = var.github_oauth_client_id

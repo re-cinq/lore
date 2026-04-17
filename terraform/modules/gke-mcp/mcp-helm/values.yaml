@@ -30,6 +30,9 @@ env:
   LORE_DB_PORT: "5432"
   LORE_DB_NAME: lore
   LORE_DB_USER: lore
+  # Internal cluster URL for the lore-agent health server. mcp-server
+  # uses this to POST /api/trigger/review-reactor on GitHub webhooks.
+  LORE_AGENT_URL: http://lore-agent.lore-agent.svc.cluster.local:8080
 
 dbPasswordSecret:
   name: lore-mcp-db-password
@@ -47,6 +50,17 @@ githubAppSecret:
   appIdKey: app-id
   privateKeyKey: private-key
   installationIdKey: installation-id
+
+# HMAC secret for verifying GitHub webhook signatures.
+webhookSecret:
+  name: lore-webhook-secret
+  key: secret
+
+# Shared secret with lore-agent used to POST to
+# /api/trigger/review-reactor in the lore-agent namespace.
+internalTokenSecret:
+  name: lore-agent-internal-token
+  key: token
 
 # Slack integration (optional — leave empty to disable)
 slackSigningSecret:

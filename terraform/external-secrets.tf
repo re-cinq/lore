@@ -315,6 +315,68 @@ resource "kubectl_manifest" "es_mcp_ingest_token" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+resource "kubectl_manifest" "es_agent_internal_token" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-agent-internal-token"
+      namespace = "lore-agent"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-agent-internal-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-agent-internal-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
+resource "kubectl_manifest" "es_mcp_internal_token" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-agent-internal-token"
+      namespace = "mcp-servers"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-agent-internal-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-agent-internal-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 resource "kubectl_manifest" "es_mcp_webhook_secret" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"

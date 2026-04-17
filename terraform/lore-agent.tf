@@ -96,15 +96,25 @@ resource "helm_release" "lore_agent" {
     name  = "ingestTokenSecret.key"
     value = "token"
   }
-
-  # Task type config — inlined from scripts/task-types.yaml
   set {
-    name  = "taskTypesConfig"
-    value = file("${path.module}/../scripts/task-types.yaml")
+    name  = "internalTokenSecret.name"
+    value = "lore-agent-internal-token"
   }
+  set {
+    name  = "internalTokenSecret.key"
+    value = "token"
+  }
+
+  # Task type config — inlined from scripts/task-types.yaml.
+  # Passed via `values` (not `set`) because helm's CLI parser
+  # can't handle commas in multi-line string values.
+  values = [
+    yamlencode({
+      taskTypesConfig = file("${path.module}/../scripts/task-types.yaml")
+    })
+  ]
 
   depends_on = [
     kubernetes_namespace.lore_agent,
-    kubernetes_config_map.agent_config,
   ]
 }
