@@ -141,6 +141,24 @@ export function detectRepo(): string | null {
   }
 }
 
+/**
+ * Guards against opening PRs on the wrong repo. If the developer's cwd
+ * resolves to a different GitHub owner/repo than the task's target_repo,
+ * throw — don't silently create a worktree and push to the wrong remote.
+ * Called from spawnLocalTask. Exported for unit tests.
+ */
+export function validateRepoMatch(
+  taskRepo: string,
+  cwdRepo: string | null,
+): void {
+  if (cwdRepo && cwdRepo !== taskRepo) {
+    throw new Error(
+      `target_repo mismatch: task expects '${taskRepo}' but current directory is a checkout of '${cwdRepo}'. ` +
+      `cd to a checkout of ${taskRepo} before claiming this task.`,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // API helpers (best-effort updates to GKE pipeline)
 // ---------------------------------------------------------------------------
@@ -306,36 +324,52 @@ async function monitorTask(task: LocalTask): Promise<void> {
         timeout: 30000,
       });
 
-      const branchTail = task.branch.split("/").pop() || task.taskId;
-      execSync(
-        `git commit -m "lore: local \u2014 ${branchTail}"`,
-        { cwd: task.worktreePath, stdio: "pipe", timeout: 30000 },
-      );
-
-      execSync(`git push origin ${task.branch}`, {
+      // After staging, check if there's anything worth committing.
+      // `git status --porcelain` above can include files that become
+      // ignored or stripped on add — verify the index actually has
+      // changes before we commit/push/open a PR (issue #250).
+      const stagedFiles = execSync("git diff --cached --name-only", {
         cwd: task.worktreePath,
-        stdio: "pipe",
-        timeout: 60000,
-      });
+        encoding: "utf-8",
+        timeout: 10000,
+      }).trim();
 
-      // Create PR via gh CLI (developer's auth)
-      const prTitle = `lore: local \u2014 ${branchTail}`;
-      const prBody = [
-        "Local task executed by Lore on developer machine.",
-        "",
-        `Task ID: ${task.taskId}`,
-      ].join("\n");
-      const prUrl = execSync(
-        `gh pr create --title "${prTitle}" --body "${prBody}" --head ${task.branch}`,
-        { cwd: task.worktreePath, encoding: "utf-8", timeout: 30000 },
-      ).trim();
+      if (!stagedFiles) {
+        console.log(`[lore] local-runner: ${task.taskId} produced no staged changes — skipping PR`);
+        if (idx >= 0) tasks[idx].status = "completed";
+        await updateTaskViaAPI(task.taskId, "completed", { no_changes: true });
+      } else {
+        const branchTail = task.branch.split("/").pop() || task.taskId;
+        execSync(
+          `git commit -m "lore: local \u2014 ${branchTail}"`,
+          { cwd: task.worktreePath, stdio: "pipe", timeout: 30000 },
+        );
 
-      if (idx >= 0) {
-        tasks[idx].status = "completed";
-        tasks[idx].prUrl = prUrl;
+        execSync(`git push origin ${task.branch}`, {
+          cwd: task.worktreePath,
+          stdio: "pipe",
+          timeout: 60000,
+        });
+
+        // Create PR via gh CLI (developer's auth)
+        const prTitle = `lore: local \u2014 ${branchTail}`;
+        const prBody = [
+          "Local task executed by Lore on developer machine.",
+          "",
+          `Task ID: ${task.taskId}`,
+        ].join("\n");
+        const prUrl = execSync(
+          `gh pr create --title "${prTitle}" --body "${prBody}" --head ${task.branch}`,
+          { cwd: task.worktreePath, encoding: "utf-8", timeout: 30000 },
+        ).trim();
+
+        if (idx >= 0) {
+          tasks[idx].status = "completed";
+          tasks[idx].prUrl = prUrl;
+        }
+
+        await updateTaskViaAPI(task.taskId, "pr-created", { pr_url: prUrl });
       }
-
-      await updateTaskViaAPI(task.taskId, "pr-created", { pr_url: prUrl });
     } else {
       // No changes — mark completed without PR
       if (idx >= 0) tasks[idx].status = "completed";
@@ -428,6 +462,10 @@ export async function spawnLocalTask(opts: {
   if (!repoRoot) {
     throw new Error("Not in a git repository — cannot create worktree");
   }
+
+  // Refuse to run if the developer's cwd is a checkout of a different
+  // repo than the task's target_repo — avoids pushing to the wrong remote.
+  validateRepoMatch(repo, detectRepo());
 
   const config = readConfig();
   const slug = slugify(prompt.substring(0, 60));
@@ -539,11 +577,9 @@ export async function spawnLocalTask(opts: {
     status: "running",
   };
 
-  // Write metadata into the worktree for discoverability
-  fs.writeFileSync(
-    path.join(worktreePath, ".lore-task.json"),
-    JSON.stringify(taskMeta, null, 2),
-  );
+  // Task metadata goes into ~/.lore/local-tasks.json only — never inside
+  // the worktree. Writing it there previously caused noise PRs whose only
+  // diff was the metadata file (see issue #250).
 
   // Add to the task registry
   const tasks = readTasks();
