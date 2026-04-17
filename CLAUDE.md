@@ -70,6 +70,9 @@ gcloud auth for local dev.
 - `web-ui/src/app/pipeline/[id]/TaskLogs.tsx` — live Job log viewer (polls every 5s)
 - `web-ui/src/app/pipeline/[id]/PRStatusCard.tsx` — live PR status card
 - `agent/src/jobs/loretask-watcher.ts` — polls LoreTasks, creates PRs, triggers auto-review
+- `agent/src/jobs/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
+- `agent/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons
+- `agent/src/health.ts` — exposes `POST /api/trigger/review-reactor` for mcp-server fan-out
 - `mcp-server/src/context-assembly.ts` — context assembly with YAML templates
 - `mcp-server/templates/` — YAML context assembly templates (default, review, implementation, research)
 - `mcp-server/src/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)
@@ -387,6 +390,30 @@ GCS (no UI needed). `my_usage` shows per-developer token usage
 - Changes requested (iteration < 2): new implementation LoreTask
   with feedback on the same branch
 - Changes requested (iteration >= 2): escalate to human review
+
+**Event-driven review reactor** (ADR-015): The `review_reactor` that
+addresses post-PR reviewer feedback is webhook-driven, not polled.
+GitHub webhooks for `pull_request` (synchronize / opened / reopened /
+ready_for_review), `pull_request_review.submitted`, and
+`issue_comment.created` (on PRs) arrive at mcp-server, which POSTs
+`{repo, pr_number}` to the agent's `POST /api/trigger/review-reactor`
+endpoint authenticated via `LORE_AGENT_INTERNAL_TOKEN`. The agent
+returns `202 Accepted` and runs `runReviewReactorForPR` in the
+background. A business-hours safety cron (`7 7-17 * * 1-5` UTC, gated
+by `isBusinessHours()` reading `LORE_BUSINESS_HOURS_{TZ,START,END}`
+and `LORE_BUSINESS_DAYS`; defaults Europe/Berlin, 9-18, Mon-Fri)
+catches any dropped webhook deliveries. Webhook-triggered runs are
+never gated.
+
+**Prompt caching on agent LLM calls**: `callLLM`/`callLLMWithTool` in
+`agent/src/anthropic.ts` wrap the system prompt in a TextBlockParam
+with `cache_control: {type: "ephemeral"}`. `response.usage.cache_*`
+feeds cost accounting (1.25x writes, 0.1x reads). MCP-side raw
+fetches have static prefixes below Haiku's 2048-token cache minimum
+so caching there would not trigger. Default `assembleContext` budget
+is 8K tokens (research template keeps 16K; implementation/review/
+default cap at 8K); the `assemble_context` MCP tool's `max_tokens`
+parameter default is also 8K.
 
 - Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.
