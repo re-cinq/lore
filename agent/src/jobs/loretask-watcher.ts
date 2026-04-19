@@ -367,7 +367,40 @@ export async function watchLoreTasks(): Promise<void> {
           console.log(`[loretask-watcher] Auto-review: created review task ${reviewTaskId} for PR #${pr.number}`);
         }
       } catch (err: any) {
-        console.error(`[loretask-watcher] Failed to create PR for ${taskId}: ${err.message}`);
+        const msg = String(err?.message || err);
+        console.error(`[loretask-watcher] Failed to create PR for ${taskId}: ${msg}`);
+
+        // Detect terminal failure modes. Without this the pipeline.tasks
+        // row stays in `running`, the watcher re-tries createPR on every
+        // tick, and the task loops forever (see the 44ca04b0 zoho-CRM
+        // case stuck since 2026-04-14).
+        const isNoCommits = /No commits between/i.test(msg);
+        const isPrAlreadyExists = /A pull request already exists/i.test(msg);
+        const isTerminal = isNoCommits || isPrAlreadyExists;
+
+        if (isTerminal) {
+          const reason = isNoCommits ? "no-code-changes" : "pr-already-exists";
+          await query(
+            `UPDATE pipeline.tasks
+             SET status = 'needs-human-help',
+                 failure_reason = $2,
+                 updated_at = now()
+             WHERE id = $1`,
+            [taskId, `createPR failed: ${reason}. ${msg.substring(0, 300)}`],
+          ).catch(() => {});
+          await query(
+            `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
+             VALUES ($1, 'running', 'needs-human-help', $2)`,
+            [taskId, JSON.stringify({ reason, detected_by: "loretask-watcher", error: msg.substring(0, 500) })],
+          ).catch(() => {});
+          // Stop the LoreTask CR from being re-processed
+          try {
+            await k8sApi.deleteNamespacedCustomObject({
+              group: GROUP, version: VERSION, namespace, plural: PLURAL, name: lt.metadata.name,
+            });
+          } catch { /* already gone */ }
+          console.log(`[loretask-watcher] Marked ${taskId} needs-human-help (${reason}) and deleted LoreTask CR`);
+        }
       }
     }
 
