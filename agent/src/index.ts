@@ -20,6 +20,7 @@ import { contextCoreBuilderJob } from "./jobs/context-core-builder.js";
 import { loretaskWatcherJob } from "./jobs/loretask-watcher.js";
 import { specTaskExecutorJob } from "./jobs/spec-task-executor.js";
 import { importanceDecayJob, consolidationJob } from "./jobs/memory-lifecycle.js";
+import { staleTaskCheckJob } from "./jobs/stale-task-check.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
   registerJob("spec_task_executor", "*/1 * * * *", specTaskExecutorJob);
   registerJob("importance_decay", "0 5 * * *", importanceDecayJob);    // daily 5 AM
   registerJob("consolidation", "30 5 * * *", consolidationJob);        // daily 5:30 AM
+  registerJob("stale_task_check", "17 * * * *", staleTaskCheckJob);    // hourly at :17
 
   startScheduler();
   startWorker();
