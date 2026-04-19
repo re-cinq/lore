@@ -475,6 +475,12 @@ export async function watchLoreTasks(): Promise<void> {
             await platform().commentOnIssue(parent.target_repo, parent.issue_number, `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`).catch(() => {});
             await platform().addIssueLabel(parent.target_repo, parent.issue_number, "needs-human-review").catch(() => {});
           }
+          // Mark the review task itself as completed so the watcher stops
+          // re-processing it every tick. Without this line the review task
+          // stays `running`, the watcher revisits it on every poll, and
+          // each visit re-increments review_iteration + re-posts the
+          // "escalated" comment (iteration 5680+ per 2026-04-19 incident).
+          await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [taskId]);
           console.log(`[loretask-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`);
         } else {
           // Create new implementation task with feedback on the same branch
@@ -519,6 +525,10 @@ export async function watchLoreTasks(): Promise<void> {
           if (parent.issue_number) {
             await platform().commentOnIssue(parent.target_repo, parent.issue_number, `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`).catch(() => {});
           }
+          // Mark this review task completed — it did its job (CHANGES_REQUESTED
+          // captured, fix task created). Otherwise the watcher re-processes
+          // it every tick and spawns duplicate fix tasks on the same branch.
+          await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [taskId]);
           console.log(`[loretask-watcher] Review changes requested, created fix task ${fixTaskId} (iteration ${iteration})`);
         }
       }
