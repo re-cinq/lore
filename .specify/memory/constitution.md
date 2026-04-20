@@ -262,7 +262,7 @@ depends on.
 
 ### Principle 11: Intelligent Memory Lifecycle
 
-Memory MUST be bounded, fresh, and signal-dense. Three mechanisms
+Memory MUST be bounded, fresh, and signal-dense. Six mechanisms
 enforce this without agent cooperation:
 
 1. **Passive capture** — MCP server tracks all tool calls in-memory
