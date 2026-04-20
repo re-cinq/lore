@@ -469,9 +469,13 @@ Week 3:
 - ~12 tasks, targeting 1.5 weeks.
 
 ### Phase 3 Increment (Weeks 6-10)
-- T065-T073b: Graphiti + FalkorDB (T066-T067 still pending), Context Cores, autoresearch loop, spec drift.
+- T065-T073b: Knowledge graph (live pgvector, not Graphiti), Context Cores, autoresearch loop, spec drift.
 - 9 tasks, targeting 5 weeks.
-- **Blocked:** T066 and T067 require Graphiti K8s deployment (not yet started).
+- T066 and T067 (Graphiti + FalkorDB K8s deployment) permanently deferred per ADR-010; replaced by live PostgreSQL knowledge graph.
+
+### Phase 4 Increment (ADR-015)
+- T074-T082: Webhook-driven review reactor, business-hours safety cron, prompt caching (getCacheControl), per-template context budgets, LORE_WEBHOOK_SECRET mount fix.
+- 9 tasks covering event-driven pipeline cost optimisations.
 
 ## Open Work
 
