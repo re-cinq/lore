@@ -69,6 +69,9 @@ gcloud auth for local dev.
 - `web-ui/src/lib/github.ts` — GitHub App client for web-ui (PR status fetching)
 - `web-ui/src/app/pipeline/[id]/TaskLogs.tsx` — live Job log viewer (polls every 5s)
 - `web-ui/src/app/pipeline/[id]/PRStatusCard.tsx` — live PR status card
+- `web-ui/src/app/specs/page.tsx` — global read-only view of ingested specs across all repos; filters by `?repo=` query param; links each entry to `/specs/[...path]` for full content
+- `web-ui/src/app/specs/[...path]/page.tsx` — full content viewer for a single spec file path; renders all chunks for that path across schemas
+- `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` — repo-scoped spec list; **read-only** (no manual insertion — specs enter only via ingestion pipeline); must link each entry to `/specs/[encodeURIComponent(file_path)]` so users can reach the detail view; display badges, proper empty-state div, and `<h2>` heading to match sibling repo pages
 - `agent/src/jobs/loretask-watcher.ts` — polls LoreTasks, creates PRs, triggers auto-review
 - `agent/src/jobs/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
 - `agent/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons
