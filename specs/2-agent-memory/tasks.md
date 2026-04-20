@@ -306,7 +306,7 @@ Phase 1 (Setup: schema + agent ID)
 | Total tasks (incl. additions)       | 72            |
 | Original planned tasks              | 52            |
 | Unplanned additions (Phase 12)      | 20            |
-| Shipped                             | 65            |
+| Shipped                             | 67            |
 | Deferred                            | 5 (shared_write, shared_read, create_snapshot, restore_snapshot, agent_health) |
 | Deferred features still in schema   | shared_pools, snapshots tables present |
 | User stories fully shipped          | 6/8           |
