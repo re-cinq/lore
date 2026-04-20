@@ -6,12 +6,21 @@
 | Branch         | 2-agent-memory                              |
 | Status         | Shipped                                     |
 | Created        | 2026-03-29                                  |
+| Updated        | 2026-04-20 (post-ship drift correction)     |
 | Owner          | Platform Engineering                        |
+
+> **Note:** This spec was updated after shipping to reflect the actual
+> implementation. Several features from the original design were not
+> exposed as MCP tools (shared pools, snapshots), and several
+> capabilities were added beyond the original scope (episodes, knowledge
+> graph, confidence tiers, retrieval strengthening, decay/consolidation).
+> See the [Divergences from Original Design](#divergences-from-original-design)
+> section for a full accounting.
 
 ## Problem Statement
 
 Lore gives agents access to organizational knowledge — conventions,
-ADRs, PR history. But agents have no memory of their own. A Klaus
+ADRs, PR history. But agents have no memory of their own. A Lore
 agent that runs gap detection on Monday has no idea what it tried
 last Monday. A developer's Claude Code session forgets everything
 when it closes. Every agent starts cold, every time.
@@ -22,13 +31,13 @@ capabilities self-hosted, integrated into Lore's existing PostgreSQL
 
 ## Vision
 
-Every agent — local Claude Code, Klaus cluster agent, or future
+Every agent — local Claude Code, Lore cluster agent, or future
 integrations — has persistent memory that survives sessions, restarts,
 and crashes. Memories are versioned, timestamped, semantically
 searchable, and can be shared across agents. The system extracts
 individual facts from unstructured text so agents find exactly what
-they need. When an agent crashes, its full state is recoverable from
-the last snapshot in under a second.
+they need. A live knowledge graph tracks relationships between entities.
+Retrieval strengthens memories and facts that prove useful over time.
 
 ## User Personas
 
@@ -38,7 +47,7 @@ Works in Claude Code daily. Wants Claude to remember preferences,
 past decisions, and context from previous sessions without repeating
 themselves. Expects it to work automatically — no manual save/load.
 
-### Klaus Agent (cluster worker)
+### Lore Agent (cluster worker)
 
 Runs background tasks (ingestion, gap detection, spec drift). Needs
 to remember what it did in previous runs: what gaps it already
@@ -49,346 +58,336 @@ that span multiple runs.
 ### Platform Engineer (operator)
 
 Manages the Lore infrastructure. Needs to see what agents remember,
-debug unexpected agent behavior by inspecting memories, manage
-shared memory pools, and recover from agent crashes.
+debug unexpected agent behavior by inspecting memories, and understand
+the current state of the agent knowledge graph.
 
-## User Scenarios & Acceptance Criteria
+## Shipped MCP Tools
 
-### Scenario 1: Agent Writes and Recalls a Memory
+These are the tools actually registered in the MCP server and
+available to agents. They are the authoritative interface.
 
-**Actor:** Any agent (Claude Code or Klaus)
+### Memory CRUD
 
-**Flow:**
-1. Agent writes a memory with a key and value.
-2. In a later session, agent searches for related information.
-3. System returns the relevant memory by semantic similarity.
+- **`write_memory(key, value, agent_id?, ttl?, extract_facts?)`** —
+  creates or updates a memory. Every write to an existing key creates
+  a new version (monotonic). Returns the memory with version number.
+  If `extract_facts=true`, fact extraction runs asynchronously and
+  does not block the response.
 
-**Acceptance Criteria:**
-- Memory persists after the session ends.
-- Semantic search returns the memory when queried with related
-  (not identical) terms.
-- Memory includes version number, timestamp, and agent ID.
+- **`read_memory(key, agent_id?, version?)`** — returns the latest
+  version by default. Pass `version="all"` for full version history.
 
-### Scenario 2: Memory Versioning
+- **`delete_memory(key, agent_id?)`** — soft-deletes (sets `is_deleted`,
+  preserved in history but excluded from search).
 
-**Actor:** Any agent
+- **`list_memories(agent_id?, limit?, offset?)`** — paginated listing
+  of active (non-deleted, non-expired) memories for an agent.
 
-**Flow:**
-1. Agent writes a memory with key "user-preference".
-2. Agent updates the same key with new information.
-3. Agent queries the history of that key.
+### Semantic Search
 
-**Acceptance Criteria:**
-- Both versions are preserved.
-- Latest version is returned by default.
-- Full version history is available on request.
-- Each version has a timestamp.
+- **`search_memory(query, agent_id?, limit?, pool?, include_invalidated?,
+  graph_augment?)`** — hybrid semantic + keyword search over memories
+  and extracted facts using Reciprocal Rank Fusion. Results include
+  confidence annotations and similarity scores.
+  - `include_invalidated=true` enables historical queries (facts
+    superseded by later contradictions are included).
+  - `graph_augment=true` enriches results with related graph entities.
+  - Results are capped at 3 per (agent_id + source) combo to prevent
+    verbose sessions from dominating (session diversification).
+  - Every search call asynchronously increments `retrieval_count`,
+    updates `last_retrieved_at`, and extends `half_life_days` (+2,
+    cap 365) on returned facts and memories.
 
-### Scenario 3: Fact Extraction
+### Episode Ingestion
 
-**Actor:** Any agent
+- **`write_episode(text, agent_id?, repo?, source?)`** — ingests raw
+  text (conversation turns, code reviews, observations). Fact
+  extraction runs asynchronously. Knowledge graph entities and edges
+  are extracted and upserted. Superseded facts are auto-invalidated
+  (cosine similarity >= 0.92). Does not require the agent to
+  structure the input — unstructured prose is fine.
 
-**Flow:**
-1. Agent stores a paragraph of unstructured text.
-2. System extracts individual facts from the text.
-3. Agent later searches for a specific fact within that text.
+### Knowledge Graph
 
-**Acceptance Criteria:**
-- A single paragraph produces multiple searchable facts.
-- Each fact is independently searchable via semantic search.
-- Original source text is preserved alongside extracted facts.
-- Extraction happens automatically on write (opt-in per memory).
+- **`query_graph(entity?, relation?, repo?, limit?)`** — queries the
+  live knowledge graph for entities and their relationships. Entities
+  carry temporal validity (`valid_from`/`valid_to`). Returns matching
+  entities with their edge relationships.
 
-### Scenario 4: Shared Memory Between Agents
+### Monitoring
 
-**Actor:** Multiple agents (e.g., Klaus gap detection + Klaus
-spec drift)
+- **`agent_stats(agent_id?)`** — returns memory count, total facts
+  extracted, search count, snapshot count, shared pool count, episode
+  count, and daily breakdown of activity. Primary health and usage
+  tool.
 
-**Flow:**
-1. Gap detection agent writes a finding to a shared pool.
-2. Spec drift agent reads from the same pool.
-3. Both agents see each other's contributions.
+## Agent ID Resolution
 
-**Acceptance Criteria:**
-- Named memory pools can be created and accessed by any agent.
-- Write and read operations are tracked with agent ID and timestamp.
-- An agent can list all shared pools it has access to.
+Agent ID is resolved in this priority order:
 
-### Scenario 5: Crash Recovery
+1. Explicit `agent_id` parameter on any tool call.
+2. `LORE_AGENT_ID` environment variable.
+3. `~/.lore/agent-id` file (stable per machine across sessions).
+4. Auto-generated UUID (written to `~/.lore/agent-id` for future use).
 
-**Actor:** Klaus agent (or any agent)
+Lore Agent pods use their pod name. This ensures memories written by
+cluster agents are attributable to a specific pod even after restart.
 
-**Flow:**
-1. Agent is running a long task, periodically snapshotting state.
-2. Agent crashes (OOM, timeout, node preemption).
-3. Agent is restarted and restores from the latest snapshot.
+## Data Model
 
-**Acceptance Criteria:**
-- Snapshots capture all agent memories at a point in time.
-- Restore recovers all memories from the snapshot.
-- Recovery completes in under 1 second.
-- Zero data loss between the last snapshot and the crash.
+All tables live in the `memory` schema in the existing Lore PostgreSQL
+database.
 
-### Scenario 6: Memory TTL and Expiration
+### memories
 
-**Actor:** Any agent
+| Field        | Type           | Notes                                     |
+|--------------|----------------|-------------------------------------------|
+| id           | UUID           | PK                                        |
+| agent_id     | TEXT           | Indexed                                   |
+| key          | TEXT           | Unique per agent+key+version              |
+| value        | TEXT           |                                           |
+| embedding    | VECTOR(768)    | Populated async; HNSW indexed             |
+| version      | INTEGER        | Monotonic per agent+key                   |
+| is_deleted   | BOOLEAN        | Soft-delete                               |
+| pool         | TEXT           | NULL = private; pool name = shared        |
+| ttl_seconds  | INTEGER        | NULL = permanent                          |
+| expires_at   | TIMESTAMPTZ    | Computed from ttl_seconds on write        |
+| created_at   | TIMESTAMPTZ    |                                           |
+| metadata     | JSONB          |                                           |
 
-**Flow:**
-1. Agent stores a temporary memory with a TTL (e.g., 24 hours).
-2. After the TTL expires, the memory is no longer returned in search.
+### memory_versions
 
-**Acceptance Criteria:**
-- Memories with TTL are automatically excluded from search after
-  expiration.
-- Expired memories are cleaned up periodically.
-- Permanent memories (no TTL) are never auto-deleted.
+Mirrors each write to `memories` preserving full history. Version
+history is queryable via `read_memory(key, version="all")`.
 
-### Scenario 7: Monitoring and Inspection
+### facts
 
-**Actor:** Platform Engineer
+| Field            | Type        | Notes                                      |
+|------------------|-------------|--------------------------------------------|
+| id               | UUID        | PK                                         |
+| memory_id        | UUID        | FK → memories (nullable; episode facts use episode_id) |
+| fact_text        | TEXT        |                                            |
+| embedding        | VECTOR(768) | HNSW indexed                               |
+| confidence       | TEXT        | verified / observed / inferred / stale     |
+| valid_from       | TIMESTAMPTZ | When this fact became valid                |
+| valid_to         | TIMESTAMPTZ | NULL if still valid                        |
+| invalidated_by   | UUID        | FK → facts (the fact that superseded this) |
+| retrieval_count  | INTEGER     | Incremented on every search hit            |
+| last_retrieved_at| TIMESTAMPTZ |                                            |
+| half_life_days   | FLOAT       | Decay rate; extended on retrieval          |
+| created_at       | TIMESTAMPTZ |                                            |
 
-**Flow:**
-1. Engineer opens a dashboard or queries the system.
-2. Sees all agents, their memory counts, recent activity.
-3. Drills into a specific agent's memories.
-4. Searches across all agent memories for debugging.
+**Contradiction detection:** When new facts are extracted, each is
+compared against existing valid facts by cosine similarity. If
+similarity >= 0.92, the old fact's `valid_to` is set and
+`invalidated_by` is linked. A record is inserted into `fact_conflicts`
+before invalidation so context assembly can surface disputed knowledge
+with a `[CONFLICT]` prefix.
 
-**Acceptance Criteria:**
-- All agents and their memory counts are visible.
-- Individual memories can be inspected (key, value, versions,
-  timestamps).
-- Cross-agent search works (find a memory regardless of which
-  agent wrote it).
-- Audit trail shows writes, reads, searches, and snapshots with
-  timestamps.
+**Confidence lifecycle:**
+- `observed` — default for episode-sourced facts.
+- `inferred` — for memory-sourced extractions.
+- `verified` — human-confirmed (set manually).
+- `stale` — automatically applied after 30 days of zero retrieval.
+  Stale facts revive to `observed` on next retrieval.
 
-### Scenario 8: Memory Search Quality
+### episodes
 
-**Actor:** Any agent
+Raw text blobs ingested via `write_episode`. Source of truth for
+passive knowledge capture. Fact and graph extraction runs
+asynchronously after write.
 
-**Flow:**
-1. Agent has accumulated 1000+ memories over weeks.
-2. Agent searches with a natural language query.
-3. System returns the most relevant memories ranked by similarity.
+### entities + edges
 
-**Acceptance Criteria:**
-- Search returns results in under 100 milliseconds.
-- Top result is relevant to the query at least 85% of the time.
-- Search works across all of an agent's memories simultaneously.
-- Results include similarity score for transparency.
+Live knowledge graph. Entities represent services, teams,
+technologies, and other named concepts. Edges represent typed
+relationships (e.g., `depends_on`, `owns`, `uses`). Both carry
+temporal validity. Contradictory edges (same source + relation + target
+type, different target) auto-invalidate the prior edge.
 
-## Functional Requirements
+### snapshots
 
-### FR-1: Memory CRUD Operations
+Reference-based snapshots capturing memory IDs + version numbers at
+a point in time. Internal implementation detail — not exposed as
+MCP tools. Created manually via internal functions only.
 
-The system MUST provide MCP tools for creating, reading, updating,
-and deleting agent memories.
+### shared_pools
 
-- FR-1.1: `write_memory(key, value, agent_id?, ttl?, extract_facts?)`
-  creates or updates a memory. Returns the memory with version number.
-- FR-1.2: `read_memory(key, agent_id?)` returns the latest version
-  of a specific memory.
-- FR-1.3: `delete_memory(key, agent_id?)` soft-deletes a memory
-  (preserved in history but excluded from search).
-- FR-1.4: `list_memories(agent_id?, limit?, offset?)` returns all
-  memories for an agent, paginated.
-- FR-1.5: Agent ID is a random UUID generated on first use and
-  stored in `~/.lore/agent-id`. Stable per machine across sessions.
-  Klaus agents use their pod name. Can be overridden via explicit
-  `agent_id` parameter on any tool call.
+Named memory spaces. Shared pool functions (`sharedWrite`,
+`sharedRead`) exist in the implementation but are not exposed as MCP
+tools. Memories can be assigned to a pool via the `pool` field on
+`write_memory`, and `search_memory` accepts a `pool` parameter for
+scoped search.
 
-### FR-2: Semantic Search
+### audit_log
 
-The system MUST provide semantic search over agent memories.
+Immutable record of all operations (write, read, search, delete)
+with timestamp and agent ID.
 
-- FR-2.1: `search_memory(query, agent_id?, limit?)` returns memories
-  ranked by semantic similarity.
-- FR-2.2: Search uses vector embeddings for meaning-based matching.
-- FR-2.3: Results include similarity score (0-1).
-- FR-2.4: Search scoped to a single agent by default, cross-agent
-  search available via parameter.
+## Fact Extraction
 
-### FR-3: Memory Versioning
+Triggered by `extract_facts=true` on `write_memory`, or automatically
+on all `write_episode` calls.
 
-The system MUST version every memory update.
+Extraction is asynchronous and non-blocking. If the LLM is unreachable,
+the memory write succeeds immediately and the memory is searchable as
+raw text. Extraction is not retried automatically — failed extractions
+are dropped.
 
-- FR-3.1: Every write to an existing key creates a new version.
-- FR-3.2: Previous versions are preserved and queryable.
-- FR-3.3: `read_memory` returns latest version by default.
-- FR-3.4: Version history available via
-  `read_memory(key, version="all")`.
-- FR-3.5: Each version has a monotonic version number and timestamp.
-- FR-3.6: Concurrent writes to the same key use last-write-wins.
-  Both writes succeed and create versions. The version with the
-  latest timestamp is returned by default read. No data is lost.
+The extraction LLM is configurable via `LORE_FACT_LLM`:
+- `claude` — Anthropic API (default)
+- `openai` — OpenAI API
+- `ollama` — local Ollama instance
 
-### FR-4: Fact Extraction
+Haiku is used for extraction by default to minimize cost on high-frequency
+writes. Each extracted fact gets an independent embedding for
+fine-grained search.
 
-The system MUST extract individual facts from unstructured text.
+## Memory Lifecycle (Background Jobs)
 
-- FR-4.1: When `extract_facts=true`, the system breaks the value
-  into individual fact statements.
-- FR-4.2: Each fact is stored as a separate searchable unit linked
-  to the parent memory.
-- FR-4.3: Extraction uses an LLM (configurable: Claude, OpenAI,
-  or local Ollama).
-- FR-4.4: Original text is preserved alongside extracted facts.
-- FR-4.5: Facts are embedded independently for fine-grained search.
-- FR-4.6: If the extraction LLM is unreachable, the memory write
-  succeeds immediately. Fact extraction is queued for later retry.
-  The memory is searchable as raw text until extraction completes.
+Two daily jobs run in the Lore Agent service to manage memory health:
 
-### FR-5: Shared Memory Pools
+### Importance Decay (5:00 AM UTC)
 
-The system MUST support named memory spaces shared across agents.
+Scores all memories 0–10 using:
 
-- FR-5.1: `shared_write(pool, key, value, agent_id?)` writes to
-  a named pool.
-- FR-5.2: `shared_read(pool, key?)` reads from a pool (all entries
-  or specific key).
-- FR-5.3: `search_memory(query, pool?)` searches within a specific
-  pool.
-- FR-5.4: Pools are created implicitly on first write.
-- FR-5.5: All shared operations are attributed to the writing agent.
+```
+strength = 0.5 ^ (age_days / half_life_days)
+```
 
-### FR-6: Crash Recovery
+Additional factors:
+- Retrieval count and `last_retrieved_at` boost scores.
+- Confidence tier affects baseline: `stale` facts get -1 penalty.
+- Content signals: decisions/conventions +2, auto-curation/sessions -1.
 
-The system MUST provide snapshot and restore capabilities.
+When an agent exceeds 500 memories, lowest-scoring are soft-deleted
+(eviction). Invalidated facts beyond a cap of 2000 are hard-deleted
+if older than 30 days.
 
-- FR-6.1: `create_snapshot(agent_id?)` captures all current memories
-  for an agent.
-- FR-6.2: `restore_snapshot(snapshot_id)` restores all memories
-  from a snapshot.
-- FR-6.3: Automatic snapshots before long-running operations
-  (configurable interval).
-- FR-6.4: Snapshot metadata includes: agent ID, timestamp, memory
-  count, trigger (manual/auto).
-- FR-6.5: Recovery time under 1 second for up to 10,000 memories.
-- FR-6.6: Snapshots are reference-based: they store memory IDs and
-  version numbers, not full copies of memory values. Restore sets
-  version pointers. No data duplication.
+Facts unretrieved for 30+ days are transitioned to `stale` confidence.
 
-### FR-7: TTL and Expiration
+### Automatic Consolidation (5:30 AM UTC)
 
-The system MUST support time-to-live for memories.
+Groups recent facts (7-day lookback) by repo. Calls Haiku to extract
+1–3 higher-level patterns per repo. Stored as
+`consolidated/{repo}/{timestamp}` memories. Requires a minimum of 5
+facts to trigger. Turns noisy raw facts into actionable insights.
 
-- FR-7.1: Optional TTL on any memory (seconds or ISO duration).
-- FR-7.2: Expired memories excluded from search results.
-- FR-7.3: Background cleanup job removes expired memories
-  periodically.
-- FR-7.4: Permanent memories (no TTL) never auto-deleted.
+## Passive Memory Capture (Session Layer)
 
-### FR-8: Monitoring and Audit
+The MCP server tracks all tool calls in memory (`session-tracker.ts`,
+500-entry ring buffer). On session exit, dumps to
+`~/.lore/last-session.json`. A stop hook POSTs to `/api/session-summary`
+for automatic episode + fact extraction. No agent cooperation needed.
 
-The system MUST provide visibility into agent memory operations.
+After every task completion (PR created, no-changes, failure), an
+episode is automatically written via `episode-writer.ts`. For
+high-signal events, Haiku extracts a "lesson learned" stored as a
+`auto-curation/{ref}` memory.
 
-- FR-8.1: All operations (write, read, search, delete, snapshot,
-  restore) logged with timestamp and agent ID.
-- FR-8.2: Agent health endpoint returns memory count, last active
-  time, snapshot count.
-- FR-8.3: MCP tools for querying audit trail:
-  `agent_health(agent_id?)`, `agent_stats(agent_id?)`.
-- FR-8.4: Web UI for browsing memories, agent activity, search
-  quality, and audit trail.
-- FR-8.5: The UI also serves as the non-developer interface to Lore.
-  Product owners and managers can use it to: view agent work in
-  progress, browse organizational context (specs, ADRs, CLAUDE.md),
-  and review gap detection drafts — without using Claude Code.
-  Note: adding spec text directly from the UI is not yet implemented;
-  `/specs` and `/specs/[...path]` are currently read-only.
-- FR-8.6: UI reads from the same PostgreSQL database as the MCP
-  server. No separate data store.
+## TTL and Expiration
+
+Any memory can be written with a TTL (seconds). `expires_at` is
+computed on write and stored. Expired memories are excluded from
+reads and search via `expires_at > now()` checks. A background
+cleanup job removes expired memories periodically. Permanent memories
+(no TTL) are never auto-deleted.
+
+## File-Backed Fallback
+
+When PostgreSQL is unavailable, all memory operations fall back to
+`~/.lore/memory/` on disk (implemented in `memory-file.ts`). Search
+quality degrades (no vector similarity) but reads and writes continue.
+The fallback is transparent to callers.
+
+## Transfer Scoring (Cross-Repo Context)
+
+Facts retrieved for cross-repo context are filtered by a portability
+score. Portable keywords (`error`, `pattern`, `gotcha`, `convention`)
+boost the score; local keywords (`config`, `deploy`, `url`, `auth`,
+`secret`) reduce it. Only facts scoring >= 0.5 pass through to
+prevent repo-specific configuration from polluting other repos.
+
+## Divergences from Original Design
+
+The following features were specified but not exposed as MCP tools:
+
+| Specified Tool        | Status | Notes |
+|-----------------------|--------|-------|
+| `shared_write`        | Not exposed | Functions exist in memory.ts; pool field on write_memory is the workaround |
+| `shared_read`         | Not exposed | Functions exist in memory.ts; search_memory with pool= is the workaround |
+| `create_snapshot`     | Not exposed | Internal function exists; not registered as MCP tool |
+| `restore_snapshot`    | Not exposed | Internal function exists; not registered as MCP tool |
+| `agent_health`        | Not exposed | Data subsumed by agent_stats |
+
+The following capabilities were added beyond the original spec:
+
+| Addition                          | Shipped in |
+|-----------------------------------|------------|
+| `write_episode` tool              | 2-agent-memory |
+| `query_graph` tool                | live-knowledge-graph |
+| Knowledge graph (entities + edges)| live-knowledge-graph |
+| Fact contradiction detection      | 2-agent-memory |
+| Confidence tiers (verified/observed/inferred/stale) | 2-agent-memory |
+| Retrieval strengthening           | ADR-014 |
+| Importance-based memory decay     | ADR-014 |
+| Automatic fact consolidation      | ADR-014 |
+| Session diversification in search | ADR-014 |
+| File-backed fallback              | 2-agent-memory |
+| Transfer scoring for cross-repo   | graph-augmented-search |
+| Passive session capture           | ADR-014 |
+| Post-task auto-curation           | ADR-014 |
 
 ## Non-Functional Requirements
 
-### NFR-1: Performance
+### Performance
 
-- Write latency under 50 milliseconds for single memory operations.
-- Search latency under 100 milliseconds for 10,000+ memories.
-- Snapshot creation under 5 seconds for 10,000 memories.
-- Restore under 1 second for 10,000 memories.
+- Write latency under 50ms for single memory operations.
+- Search latency under 100ms for 10,000+ memories.
 
-### NFR-2: Scalability
+### Scalability
 
-- Support up to 100 concurrent agents.
+- Up to 100 concurrent agents.
 - Up to 100,000 memories per agent.
-- Up to 1,000,000 total memories across all agents.
+- Agent-level eviction (500-memory cap) prevents unbounded growth.
 
-### NFR-3: Reliability
-
-- Zero data loss on agent crash (snapshot + WAL).
-- Memories survive pod restarts and node preemption.
-- Shared pool operations are atomic (no partial reads).
-
-### NFR-4: Security
+### Security
 
 - Agent memories are isolated by default (agent A cannot read
-  agent B's private memories).
-- Shared pools have explicit opt-in.
-- No credentials, API keys, or PII stored in memory values
-  (enforced by content filter on write).
+  agent B's private memories without explicit pool sharing).
+- All memory writes pass through `sanitizeContent()` / `redactSecrets()`
+  to strip API keys, JWTs, private keys, connection strings, and
+  bearer tokens before storage.
 - Audit trail is immutable.
+
+## Success Criteria (As Shipped)
+
+1. An agent writes a memory in one session and retrieves it by
+   semantic search in a later session, without any manual loading.
+2. A Lore agent remembers what gap detection candidates it tried
+   last week and avoids repeating them.
+3. Two agents share findings through a named pool (via `pool=` on
+   `write_memory` and `search_memory`).
+4. `write_episode` turns raw conversation text into searchable facts
+   and knowledge graph updates without agent-side structuring.
+5. A platform engineer can inspect any agent's memories and search
+   across all agents via `search_memory` with no `agent_id` filter.
+6. The system handles 100 concurrent agents with memories bounded by
+   the importance-decay eviction policy.
 
 ## Clarifications
 
 ### Session 2026-03-29
 
 - Q: What happens on concurrent writes to the same memory key? → A: Last-write-wins. Both writes succeed, both create versions, latest timestamp wins for default read. No data lost.
-- Q: What happens when fact extraction LLM is unreachable? → A: Write succeeds immediately, facts queued for async retry. Memory searchable as raw text until extraction completes.
-- Q: How is agent identity established for Claude Code sessions? → A: Random UUID generated on first use, stored in ~/.lore/agent-id. Stable per machine. Klaus agents use pod name. Overridable via explicit agent_id parameter.
-- Q: How are snapshots stored at scale? → A: Reference-based. Snapshot stores memory IDs + version numbers, not full copies. Restore sets version pointers. No data duplication.
-- Q: Should memory operations emit OTEL spans? → A: No. Build a web UI instead that exposes agent memory, audit trail, and system status. The UI also serves as the non-developer interface — product owners/managers can add tasks and context to Lore without using Claude Code (specs are read-only in the UI; see FR-8.5).
-
-## Scope Boundaries
-
-### In Scope
-
-- MCP tools for memory CRUD, search, snapshots, shared pools.
-- Memory schema in existing PostgreSQL + pgvector database.
-- Fact extraction via LLM.
-- Version history for all memories.
-- TTL and expiration.
-- Audit trail.
-- Agent health and stats MCP tools.
-
-### Out of Scope
-
-- Real-time notifications when shared pool updates.
-- Memory encryption at rest (relies on database-level encryption).
-- Multi-cluster memory sync (single cluster for now).
-- Memory import/export.
+- Q: What happens when fact extraction LLM is unreachable? → A: Write succeeds immediately. Fact extraction is dropped (not retried). Memory searchable as raw text.
+- Q: How is agent identity established for Claude Code sessions? → A: Random UUID generated on first use, stored in ~/.lore/agent-id. Stable per machine. Lore Agent pods use pod name. Overridable via explicit agent_id parameter.
+- Q: How are snapshots stored at scale? → A: Reference-based. Snapshot stores memory IDs + version numbers, not full copies. Restore sets version pointers. No data duplication. (Note: snapshot MCP tools not shipped — internal only.)
+- Q: Should memory operations emit OTEL spans? → A: No. agent_stats provides visibility into memory activity. Web UI for browsing memories is not yet implemented.
 
 ## Dependencies
 
 - Existing PostgreSQL + pgvector instance (CNPG on GKE).
 - Existing Lore MCP server (extends with new tools).
-- Vertex AI or configurable LLM for fact extraction.
 - Vertex AI text-embedding-005 for memory embeddings.
-
-## Assumptions
-
-- The existing MCP server can be extended with additional tools
-  without a separate service.
-- PostgreSQL + pgvector handles the memory workload alongside the
-  existing context chunks.
-- Agent IDs are stable across sessions (derived from MCP session
-  or explicitly provided).
-- Fact extraction is acceptable as an async operation (doesn't
-  block the write response).
-
-## Success Criteria
-
-1. An agent writes a memory in one session and retrieves it by
-   semantic search in a later session, without any manual loading.
-2. A Klaus agent remembers what gap detection candidates it tried
-   last week and avoids repeating them.
-3. Two agents share findings through a named memory pool without
-   custom integration code.
-4. An agent crashes and is fully restored from a snapshot in under
-   1 second with zero data loss.
-5. A platform engineer can inspect any agent's memories and search
-   across all agents from MCP tools.
-6. The system handles 100 concurrent agents with 10,000 memories
-   each without degraded search performance (under 100ms).
-7. Fact extraction improves search precision by at least 30%
-   compared to storing raw paragraphs.
+- Configurable LLM for fact extraction (`LORE_FACT_LLM`): Claude (default), OpenAI, or Ollama.
