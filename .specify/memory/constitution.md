@@ -1,14 +1,13 @@
 <!--
 Sync Impact Report
-- Version: 2.0.0 (MAJOR — principles 5, 7, 9 materially redefined; technology stack and phases updated)
-- Modified: Principles 5, 7, 9 — tool names, agent names, architecture decisions updated
-- Added: Principle 11 (Intelligent Memory Lifecycle)
-- Removed: Klaus references (replaced by Lore Agent throughout)
-- Removed: Context Cores / OCI bundles (not implemented)
-- Removed: Graphiti + FalkorDB (graph stored in PostgreSQL memory.entities + memory.edges)
-- Updated: Technology stack — knowledge graph, cluster agents, memory system
-- Updated: Phase 1 — Klaus → Lore Agent namespace; Phase 2/3 — marked IMPLEMENTED
-- Updated: Principle 9 jobs table — reflects actual task types
+- Version: 2.1.0 (MINOR — Principle 12 added; Principles 5, 7, 9, 11 materially expanded)
+- Modified: Principle 5 — complete MCP tool list (memory, graph, episode tools added)
+- Modified: Principle 7 — architecture decisions table updated to reflect ADR-015 and post-April-13 decisions
+- Modified: Principle 9 — jobs table updated (review reactor, prompt cache analysis)
+- Modified: Principle 11 — expanded with retrieval strengthening, PR outcome feedback, confidence tiers, conflict surfacing
+- Added: Principle 12 (Event-Driven Automation over Polling)
+- Updated: Technology stack — prompt caching, local runner, AgentDB, session tracker, token scopes
+- Updated: Phase 3 description — cross-repo context, progressive trust, task groups, production awareness, per-template budgets
 - Follow-up TODOs: None
 -->
 
@@ -18,9 +17,9 @@ Sync Impact Report
 |---|---|
 | Project | Lore |
 | Subtitle | Shared context infrastructure for Claude Code |
-| Constitution Version | 2.0.0 |
+| Constitution Version | 2.1.0 |
 | Ratification Date | 2026-03-25 |
-| Last Amended Date | 2026-04-13 |
+| Last Amended Date | 2026-04-20 |
 
 ## Purpose
 
@@ -120,11 +119,15 @@ and cluster delegation. Developers MUST NOT interact with cluster
 agents (Lore Agent) directly — they talk to the Lore MCP server,
 which delegates on their behalf.
 
-MCP tools fall into two categories:
+MCP tools fall into three categories:
 - Context retrieval: `assemble_context`, `search_context`,
   `search_memory`, `query_graph`, `get_file_pr_history`.
+- Memory operations: `write_memory`, `read_memory`, `delete_memory`,
+  `list_memories`, `write_episode`, `agent_stats`.
 - Cluster delegation: `create_pipeline_task`, `get_pipeline_status`,
-  `list_pipeline_tasks`, `cancel_task`, `retry_task`.
+  `list_pipeline_tasks`, `cancel_task`, `retry_task`,
+  `list_task_group`, `get_task_logs`, `my_usage`,
+  `run_task_locally`, `list_local_tasks`, `cancel_local_task`.
 
 **Rationale:** A single interface means one thing to configure, one
 thing to debug, and one set of access controls. Exposing cluster
@@ -171,6 +174,14 @@ The following decisions have been made and MUST NOT be relitigated:
 | Knowledge graph | PostgreSQL `memory.entities` + `memory.edges` tables (incremental, live) |
 | Memory lifecycle | Importance decay (half-life model) + automatic fact consolidation (Haiku) |
 | Privacy | `sanitizeContent()` / `redactSecrets()` on all memory writes before DB storage |
+| Review reactor trigger | GitHub webhooks (event-driven) + business-hours safety cron — no idle polling (ADR-015) |
+| Prompt caching | Two cache breakpoints per LLM call (system + tool schema); `LORE_CACHE_1H_JOBS` allowlist for 1 h TTL |
+| Context budgets | Default 8K tokens; research template 16K; callers request more explicitly |
+| Cross-repo context | Transfer-score filtering (portable vs local keywords, threshold ≥ 0.5); bidirectional link registration |
+| Progressive trust | Per-repo trust level (`docs` → `tests` → `implementation` → `full`); auto-promotes after 3 merged tasks |
+| API auth | Per-client scoped tokens (SHA-256, `pipeline.api_tokens`); scopes: read / write / task / webhook / admin |
+| Rate limiting | In-memory sliding window: 30/min webhooks, 60/min task ops, 200/min other |
+| Job pod security | Non-root uid 1000, drop all Linux caps, NetworkPolicy egress: DNS + HTTPS + Lore API only |
 
 Upgrade path to AlloyDB Omni or managed AlloyDB if corpus exceeds ~10M vectors. Revisit Vertex AI Vector Search only if corpus exceeds ~100M vectors.
 
@@ -228,6 +239,10 @@ Platform jobs running as Lore Agent tasks:
 | Review | Reviews PR against conventions, posts comments, iterates up to 2 rounds |
 | Memory decay | Scores and evicts low-importance memories (importance decay job, 5 AM) |
 | Memory consolidation | Synthesizes higher-level patterns from recent facts (consolidation job, 5:30 AM) |
+| Review reactor (webhook) | Fires on GitHub webhook events; runs `runReviewReactorForPR` in background; never gated |
+| Review reactor (safety cron) | `7 7-17 * * 1-5` UTC; catches dropped webhook deliveries; gated by `isBusinessHours()` |
+| Prompt cache analysis | Emits hit/miss/break classification per `jobName`; feeds cost accounting (1.25× writes, 0.1× reads) |
+| PR outcome feedback | On merge: +5 `half_life_days` on contributing facts; on rejection: −3 (min 7) |
 
 **Rationale:** The value of Lore is not in storing chunks — it is in
 understanding context. Agents that can reason about what is missing,
@@ -272,13 +287,67 @@ enforce this without agent cooperation:
 Facts carry a `confidence` column: `verified` (human-confirmed),
 `observed` (episode-sourced), `inferred` (memory-sourced), `stale`
 (unretrieved 30+ days). Search returns only valid facts by default
-and includes confidence annotations. Contradicted facts are
-automatically invalidated and recorded in `memory.fact_conflicts`.
+and includes confidence annotations. Stale facts receive a −1
+importance penalty; retrieval revives them to `observed`. Contradicted
+facts (cosine similarity ≥ 0.92 to a new fact) are automatically
+invalidated before storage; conflicts are recorded in
+`memory.fact_conflicts`. Context assembly prefixes `[CONFLICT]` on
+facts with contradictions in the past 7 days.
+
+4. **Retrieval strengthening** — Every `search_memory` call
+   asynchronously increments `retrieval_count`, updates
+   `last_retrieved_at`, and extends `half_life_days` (+2, cap 365)
+   on returned facts and memories. Fire-and-forget; zero added latency.
+
+5. **PR outcome feedback** — On PR merge, `half_life_days` is boosted
+   (+5) on facts and memories whose IDs appear in
+   `pipeline.tasks.context_refs` for that task. On
+   closed-without-merge (rejection), the penalty is −3 (floor 7).
+   Signals which context actually drove good outcomes.
+
+6. **Session diversification** — RRF merge caps results at 3 per
+   `agent_id + source` combo, preventing one verbose session from
+   dominating search rankings.
 
 **Rationale:** Unbounded memory growth degrades search quality and
 increases cost. Agents that skip `write_episode` lose learnings
-silently. Passive capture + bounded decay + consolidation keeps
-memory useful without requiring explicit agent cooperation.
+silently. Passive capture + bounded decay + consolidation + retrieval
+strengthening + outcome feedback keeps memory useful and
+self-improving without requiring explicit agent cooperation.
+
+### Principle 12: Event-Driven Automation Over Polling
+
+Background automation MUST be triggered by real events, not
+scheduled polls. Polling burns API quota on ticks that do nothing
+and introduces artificial latency.
+
+**Pattern:**
+
+1. **Primary trigger** — GitHub webhooks deliver state changes
+   immediately. The MCP server receives webhook events and fans out
+   to the relevant agent endpoint via HTTP POST with an internal
+   bearer token (`LORE_AGENT_INTERNAL_TOKEN`). The agent returns
+   `202 Accepted` and processes asynchronously.
+
+2. **Safety net cron** — A low-frequency cron (`7 7-17 * * 1-5` UTC)
+   catches any webhook deliveries that were dropped. It MUST be gated
+   by `isBusinessHours()` — off-hours invocations no-op. Webhook-
+   triggered runs MUST never be gated by business hours.
+
+3. **No idle work** — A cron that fires unconditionally and performs
+   meaningful work only 10% of the time is a polling loop in disguise.
+   Either gate it (business hours, feature flag) or replace it with an
+   event trigger.
+
+Accepted webhook event types for review automation:
+`pull_request` (synchronize / opened / reopened / ready_for_review),
+`pull_request_review` (submitted), `issue_comment` (created on PRs).
+
+**Rationale:** The original 5-min `review_reactor` cron burned GitHub
+API rate-limit budget on most ticks without doing anything. Switching
+to webhooks reduced average review latency from ~2.5 min to seconds
+and eliminated idle API calls. The safety cron provides fault
+tolerance without reinstating continuous polling. See ADR-015.
 
 ## Technology Stack
 
@@ -302,6 +371,12 @@ memory useful without requiring explicit agent cooperation.
 | Knowledge graph | PostgreSQL `memory.entities` + `memory.edges` (incremental updates on `write_episode`) |
 | Memory lifecycle | `agent/src/jobs/memory-lifecycle.ts` — importance decay (Ebbinghaus model) + Haiku-driven consolidation |
 | Privacy filtering | `@re-cinq/lore-shared` `redactSecrets()` — strips keys, JWTs, connection strings before memory writes |
+| Prompt caching | `agent/src/lib/prompt-cache.ts` — `getCacheControl(jobName)` returns ephemeral (5m) or 1h breakpoints; `analyzeCacheBreak` classifies hit / first-call / break |
+| Local task runner | `mcp-server/src/local-runner.ts` — worktree-based execution with `validateRepoMatch`; task state in `~/.lore/local-tasks.json` |
+| Session tracker | `mcp-server/src/session-tracker.ts` — passive tool-call ring buffer (500 entries); exit dump + Stop hook POST |
+| Local read cache | AgentDB optional local read cache when MCP runs in stdio mode (proxies writes to GKE backend) |
+| API token scopes | `pipeline.api_tokens` — SHA-256 hashed per-client tokens; scopes: read / write / task / webhook / admin |
+| Rate limiting | In-memory sliding window: 30/min webhooks, 60/min task ops, 200/min other; 1 MB body limit |
 
 ## Phased Delivery
 
@@ -360,17 +435,37 @@ Deliverables:
 - Autonomous review loop (opt-in per repo via `auto_review` setting) —
   review Job posts PR comments, iterates up to 2 rounds.
 - PR outcome feedback: merge/rejection signals adjust fact `half_life_days`
-  (+5 on merge, -3 on rejection). Context refs tracked via
-  `pipeline.tasks.context_refs`.
+  (+5 on merge, −3 on rejection, floor 7). Context refs tracked via
+  `pipeline.tasks.context_refs`. Closed-without-merge detected as rejection.
 - Retrieval strengthening: `search_memory` increments `retrieval_count`,
   updates `last_retrieved_at`, extends `half_life_days` (+2, cap 365)
-  on returned facts and memories.
+  on returned facts and memories. Stale facts revive to `observed` on retrieval.
 - Confidence tiers: `verified`, `observed`, `inferred`, `stale`.
-- Conflict surfacing: `[CONFLICT]` prefix on facts with recent contradictions.
-- Cross-repo context transfer scoring (portable vs local keyword filtering).
-- Progressive trust levels per repo (`docs` → `tests` → `implementation` → `full`).
+- Conflict surfacing: `[CONFLICT]` prefix on facts with contradictions in the
+  past 7 days.
+- Cross-repo context: `settings.cross_repo_repos` bidirectional links.
+  Transfer score filters portable content (threshold ≥ 0.5); local config
+  and secrets are excluded automatically.
+- Progressive trust: per-repo `settings.trust.level` (docs → tests →
+  implementation → full). Auto-promotes after 3 successful merges. Defaults
+  to `implementation` for backward compatibility.
+- Task groups: `task_group_id` coordinates multi-repo features. Summary
+  episode written when all tasks in a group merge.
+- Production awareness: `settings.incidents` surfaced at priority 1 in
+  `assemble_context`. Populated via `/api/webhook/incident`
+  (PagerDuty / Opsgenie).
+- Event-driven review reactor: webhook fan-out from mcp-server to agent's
+  `POST /api/trigger/review-reactor`; business-hours safety cron catches
+  dropped deliveries. See ADR-015.
+- Prompt caching: two cache breakpoints per LLM call (system + tool schema);
+  1h TTL allowlist via `LORE_CACHE_1H_JOBS`. Cost accounting at 1.25× writes,
+  0.1× reads.
+- Per-template context budgets: default 8K, research 16K. `assemble_context`
+  `max_tokens` parameter default 8K.
+- Context freshness: `assemble_context` warns on stale (>7 days) or missing
+  context. `/api/repo-status` exposes `last_ingested_at` + `stale` flag.
 - Spec drift detection with VIOLATES tracking.
-- AgentDB optional local read cache.
+- AgentDB optional local read cache (stdio mode).
 
 ## Governance
 
