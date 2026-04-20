@@ -7,12 +7,16 @@
 | Plan    | [plan.md](plan.md)                   |
 | Spec    | [spec.md](spec.md)                   |
 | Created | 2026-03-25                           |
-| Updated | 2026-04-13 (spec drift reconciliation) |
+| Updated | 2026-04-20 (spec drift reconciliation — ADR-015 + deferred tasks) |
 
 > **Architecture note:** Several foundational decisions changed after the original tasks were written.
 > ADR-007 replaced Klaus with the purpose-built **Lore Agent** service.
 > ADR-009 replaced Beads/`bd` CLI and Dolt with **pipeline task MCP tools**.
 > ADR-011 introduced the **LoreTask CRD** for ephemeral Claude Code execution.
+> ADR-015 replaced the 5-min polling cron with a webhook-driven review reactor, added prompt
+> caching on agent LLM calls, and reduced default context budgets from 16K → 8K tokens.
+> T066 and T067 (Graphiti/FalkorDB) are permanently deferred — the PostgreSQL live knowledge
+> graph (ADR-010) supersedes them.
 > Tasks below reflect actual implementation.
 
 ## User Story Map
@@ -338,8 +342,8 @@ Autoresearch loop autonomously improves context quality.
 ### Tasks
 
 - [x] T065 [US9] Write ontology definition file with 8 entity types and 15 relationships in scripts/graphiti/ontology.yaml
-- [ ] T066 [US9] Write K8s manifests for Graphiti deployment on GKE (graphiti namespace + FalkorDB) — **INCOMPLETE**
-- [ ] T067 [US9] Rewrite mcp-server/src/graph.ts: graph_search and get_entity_history as Graphiti MCP proxies (replace local JSON implementation) — **INCOMPLETE**
+- [x] T066 [US9] ~~Write K8s manifests for Graphiti deployment on GKE (graphiti namespace + FalkorDB)~~ — **PERMANENTLY DEFERRED** — superseded by ADR-010; PostgreSQL live knowledge graph (`memory.entities` + `memory.edges`) replaces Graphiti. `scripts/graphiti/ontology.yaml` kept for reference only.
+- [x] T067 [US9] ~~Rewrite mcp-server/src/graph.ts as Graphiti MCP proxy~~ — **PERMANENTLY DEFERRED** — `mcp-server/src/graph.ts` queries the PostgreSQL knowledge graph directly. `query_graph` MCP tool is live; temporal traversal (`get_entity_history`) not implemented (flat SQL only, not traversal-based).
 - [x] T068 [US9] Write Lore Agent prompt for weekly spec drift detection with VIOLATES graph edges in scripts/klaus-prompts/spec-drift.md
 - [x] T069 [US9] Add optional AgentDB local cache prompt to install.sh
 - [x] T070b [US9] Write Context Core manifest schema (lore-core.json) in scripts/context-cores/manifest-schema.json
@@ -349,7 +353,27 @@ Autoresearch loop autonomously improves context quality.
 
 ---
 
-## Phase 17: Polish & Cross-Cutting Concerns
+## Phase 17: Cost Optimisations + Event-Driven Review (ADR-015)
+
+### Goal
+Replace the 5-min review-reactor poll with a GitHub webhook fan-out, add prompt
+caching to all agent LLM calls, and reduce default context budgets. Fix the latent
+`LORE_WEBHOOK_SECRET` mounting bug that silently blocked all webhook signature
+validation. See ADR-015 for full context.
+
+- [x] T074 Fix `LORE_WEBHOOK_SECRET` ExternalSecret — was never mounted in the pod; `handleGitHubWebhook` always returned 503. Mount secret into the MCP server pod env and add it to `routes.ts` middleware. (`mcp-server/src/routes.ts`, `terraform/modules/gke-mcp/`)
+- [x] T075 Extend GitHub App webhook subscriptions to include `pull_request_review` and `issue_comment` events in addition to existing `pull_request` and `issues`
+- [x] T076 Update `mcp-server/src/routes.ts` webhook handler: handle `pull_request_review.submitted` and `issue_comment.created` (on PRs). For qualifying events POST `{repo, pr_number}` to `LORE_AGENT_URL/api/trigger/review-reactor` with `LORE_AGENT_INTERNAL_TOKEN` bearer. Log warning if `LORE_AGENT_URL` is not configured (silently disables webhook path).
+- [x] T077 Add `POST /api/trigger/review-reactor` endpoint to Lore Agent (`agent/src/health.ts`): validates `LORE_AGENT_INTERNAL_TOKEN`, returns 202, runs `runReviewReactorForPR` in background. Never gated by business hours.
+- [x] T078 Replace 5-min `reviewReactorJob` cron with business-hours safety cron (`7 7-17 * * 1-5`): implement `isBusinessHours()` in `agent/src/lib/business-hours.ts` reading `LORE_BUSINESS_HOURS_{TZ,START,END}` and `LORE_BUSINESS_DAYS` (defaults: Europe/Berlin, 9, 18, Mon-Fri). Off-hours ticks no-op.
+- [x] T079 Implement prompt caching in `agent/src/lib/prompt-cache.ts`: `getCacheControl(jobName)` returns `{type:"ephemeral",ttl:"1h"}` for jobs in `LORE_CACHE_1H_JOBS` allowlist (default: auto-curation, review_reactor, fact-extraction, graph-extraction), `{type:"ephemeral"}` (5m) otherwise. `computeCachePrefixHash` (djb2). `analyzeCacheBreak` per-job in-memory tracker.
+- [x] T080 Wire prompt caching into `callLLM` and `callLLMWithTool` in `agent/src/anthropic.ts`: two cache breakpoints per request (system block + tool schema), `response.usage.cache_*` feeds cost accounting (1.25× writes, 0.1× reads). Hash system+tools prefix per `jobName`; emit `cache hit | first-call | break:system | break:tools | break:ttl(Xm)` on log line.
+- [x] T081 Reduce `assembleContext` default token budget from 16K to 8K. Research template keeps 16K. Implementation/review/default capped at 8K. Update `assemble_context` MCP tool `max_tokens` parameter default to 8K.
+- [x] T082 Add two new required env vars to Helm values and Terraform: `LORE_AGENT_URL` (mcp-server needs to fan out to agent) and `LORE_AGENT_INTERNAL_TOKEN` (shared secret for mcp-server → agent calls). Document in `secrets.tfvars.example`.
+
+---
+
+## Phase 18: Polish & Cross-Cutting Concerns
 
 - [x] T070 Review and harden install.sh error handling: ensure every step has clear error messages and recovery instructions in scripts/install.sh
 - [x] T071 Write internal comms template for PR description enforcement rollout (frame as "makes Claude Code smarter for the team")
@@ -376,8 +400,10 @@ Phase 1 (Setup)
                           ├── Phase 13 (US8: Gap Detection) ── T061-T064
                           ├── Phase 14 (Memory Lifecycle) ── T064a-T064f
                           ├── Phase 15 (Autonomous Review Loop) ── T064g-T064i
-                          └── Phase 16 (US9: Knowledge Graph + Context Cores) ── T065-T073b
-                                Depends on: Phase 11 + Phase 13
+                          ├── Phase 16 (US9: Knowledge Graph + Context Cores) ── T065-T073b
+                          │     Depends on: Phase 11 + Phase 13
+                          └── Phase 17 (ADR-015: Webhook reactor + caching) ── T074-T082
+                                Depends on: Phase 15
 ```
 
 ## Parallel Execution Opportunities
@@ -451,19 +477,22 @@ Week 3:
 
 | Task | Description | Blocker |
 |------|-------------|---------|
-| T066 | K8s manifests for Graphiti + FalkorDB on GKE | Infrastructure decision pending |
-| T067 | Rewrite graph.ts as Graphiti MCP proxy | Depends on T066 |
+| — | Knowledge graph temporal traversal (`get_entity_history`) | Not scheduled — flat SQL covers current needs; Graphiti permanently deferred |
+| — | p99 latency benchmark for hybrid search | No active owner; 200ms target aspirational until measured under load |
+| — | Context Core OCI promotion | `context-core-builder.ts` exists; OCI artifact push + `crane pull` in install.sh not wired |
 
 ## Summary
 
 | Metric                       | Value |
 |------------------------------|-------|
-| Total tasks                  | 90+   |
+| Total tasks                  | 100+  |
 | Phase 0 (MVP) tasks         | 35    |
 | Phase 1 tasks               | ~30   |
 | Phase 2 tasks               | ~12   |
 | Phase 3 tasks               | 9     |
+| Phase 4 (ADR-015) tasks     | 9     |
 | Polish tasks                | 4     |
 | Parallelizable tasks ([P])  | 26+   |
 | User stories covered        | 9/9   |
-| Open tasks                  | 2 (T066, T067) |
+| Permanently deferred        | T066, T067 (Graphiti/FalkorDB — superseded by ADR-010) |
+| Open items                  | 3 non-blocking (temporal traversal, p99 benchmark, OCI promotion) |
