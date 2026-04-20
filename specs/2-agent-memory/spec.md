@@ -117,9 +117,10 @@ available to agents. They are the authoritative interface.
 ### Monitoring
 
 - **`agent_stats(agent_id?)`** — returns memory count, total facts
-  extracted, search count, snapshot count, shared pool count, episode
-  count, and daily breakdown of activity. Primary health and usage
-  tool.
+  extracted, search count, episode count, and daily breakdown of
+  activity. Primary health and usage tool. (Snapshot count and shared
+  pool count are always 0 — those MCP tools were not shipped; see
+  [Divergences from Original Design](#divergences-from-original-design).)
 
 ## Agent ID Resolution
 
@@ -252,8 +253,12 @@ Two daily jobs run in the Lore Agent service to manage memory health:
 Scores all memories 0–10 using:
 
 ```
-strength = 0.5 ^ (age_days / half_life_days)
+effective_age_days = now() - (last_retrieved_at ?? created_at)
+strength = 0.5 ^ (effective_age_days / half_life_days)
 ```
+
+Age is measured from `last_retrieved_at` when available, falling back
+to `created_at`. This means retrieval resets the decay clock.
 
 Additional factors:
 - Retrieval count and `last_retrieved_at` boost scores.
@@ -350,6 +355,16 @@ The following capabilities were added beyond the original spec:
 - Up to 100 concurrent agents.
 - Up to 100,000 memories per agent.
 - Agent-level eviction (500-memory cap) prevents unbounded growth.
+
+### Reliability
+
+- PostgreSQL WAL ensures zero data loss on agent crash or pod
+  preemption — every committed write is durable before the response
+  returns.
+- When PostgreSQL is unavailable, the file-backed fallback
+  (`~/.lore/memory/`) keeps reads and writes available with degraded
+  search quality (no vector similarity). Recovery to full search
+  quality is automatic when the database reconnects.
 
 ### Security
 
