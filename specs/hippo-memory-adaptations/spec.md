@@ -3,7 +3,7 @@
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
 | Feature        | Hippo-Memory Adaptations                    |
-| Status         | Draft                                       |
+| Status         | Completed                                   |
 | Created        | 2026-04-07                                  |
 | Owner          | Platform Engineering                        |
 | Priority       | P1 — High value, medium effort              |

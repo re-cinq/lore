@@ -4,7 +4,7 @@
 |---------|--------------------------------------|
 | Feature | Hippo-Memory Adaptations             |
 | Spec    | [spec.md](spec.md)                   |
-| Status  | Draft                                |
+| Status  | Completed                            |
 | Created | 2026-04-07                           |
 | Issue   | [re-cinq/lore#205](https://github.com/re-cinq/lore/issues/205) |
 
