@@ -365,7 +365,13 @@ Next.js UI (`web-ui/`) for:
 #### Gap Detection
 
 Lore Agent `gap-detect.ts` CronJob (Monday 9am UTC):
-- Queries Cloud Monitoring for gap candidate metrics.
+- Low-confidence retrievals tagged as OTEL span attributes and Cloud
+  Monitoring custom metric (`lore/gap_candidates`) — this is the
+  observability side.
+- `autoresearch.ts` fetches gap signals from **Langfuse** (not Cloud
+  Monitoring directly): reads low-confidence traces via `LANGFUSE_PK` /
+  `LANGFUSE_SK` / `LANGFUSE_HOST` env vars. The spec (FR-8.3) references
+  Langfuse; plan.md previously said Cloud Monitoring.
 - Clusters by embedding similarity.
 - For 3+ occurrence clusters: drafts content, opens PR to `re-cinq/lore`,
   labels `context-gap-draft`, assigns team.
@@ -411,11 +417,14 @@ Lore Agent `autoresearch.ts` weekly CronJob:
 #### Spec Drift Detection
 
 Lore Agent `spec-drift.ts` weekly CronJob:
-- Reads spec assertions, checks against code.
-- Divergence > 20%: creates GitHub Issue for the owning team.
+- Reads spec assertions, checks against code via embedding similarity on
+  ingested chunks.
+- Divergence > 20%: creates a `gap-fill` pipeline task for the owning team
+  (not a GitHub Issue — task creation matches FR-14.2).
 - Test files and generated files excluded.
-- **Note**: VIOLATES edges to a Graphiti graph were planned but not
-  implemented. Drift signals are surfaced as GitHub Issues only.
+- **Note**: The plan originally stated "creates GitHub Issue"; the actual
+  implementation creates a `pipeline.tasks` row with `task_type = 'gap-fill'`,
+  consistent with the spec (FR-14.2) and the standard pipeline task flow.
 
 #### Memory Lifecycle (ADR-014)
 
@@ -460,10 +469,11 @@ Opt-in per repo via `auto_review` setting:
 
 | Item | Severity | Notes |
 |------|----------|-------|
-| Knowledge graph temporal traversal | Medium | `get_entity_history` not implemented; graph is flat SQL, not Graphiti traversal |
+| Knowledge graph temporal traversal | Medium | `get_entity_history` not implemented; graph is flat SQL (1-hop), not Graphiti traversal |
 | p99 latency benchmark | Medium | Hybrid search functional but 200ms target not verified under load |
 | Context Core OCI promotion | Low | `context-core-builder.ts` exists; OCI artifact push and `crane pull` in install.sh not wired |
 | Graphiti + FalkorDB deployment | Low | `scripts/graphiti/ontology.yaml` exists; deployment deferred indefinitely |
+| Langfuse dependency in autoresearch | Low | `autoresearch.ts` reads gap signals from Langfuse (`LANGFUSE_PK/SK/HOST`). If Langfuse is not configured, the autoresearch loop silently skips. Cloud Monitoring gap metrics (`lore/gap_candidates`) are written but not consumed by autoresearch. |
 
 ## Risk Register
 
