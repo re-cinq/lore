@@ -6,7 +6,7 @@
 | Branch            | 1-lore-platform                            |
 | Status            | Shipped                                    |
 | Created           | 2026-03-25                                 |
-| Updated           | 2026-04-13                                 |
+| Updated           | 2026-04-20                                 |
 | Owner             | Platform Engineering                       |
 | Phase 0 Target    | 3-4 working days                           |
 | Full Stack Target | 6-8 weeks                                  |
@@ -18,6 +18,14 @@
 > FalkorDB replaced by a PostgreSQL-backed live knowledge graph (ADR-010),
 > and OCI Context Cores replaced by DB-cached context assembly. All changes
 > are documented in `adrs/`.
+
+> **Note (2026-04-20):** Further updates to reflect ADR-015 (accepted
+> 2026-04-17) and post-April-13 implementation work. Key changes: the
+> review reactor is now webhook-driven (not cron-polled), prompt caching
+> added to all agent LLM calls, per-template context budgets introduced
+> (8K default, 16K for research), and additional MCP tools shipped. A
+> stuck-task terminal-state recovery mechanism was also added. All changes
+> are reflected in FR-2, FR-13, and the new FR-16 and FR-17 below.
 
 ## Problem Statement
 
@@ -327,6 +335,28 @@ Code sessions. It exposes 30+ tools grouped by function.
   template, and CI workflows on a target repo via PR.
 - FR-2.20: Phase 0 implementation is file-backed; Phase 1 replaces
   storage backends without interface changes.
+- FR-2.21: `get_pr_status(repo, pr_number)` — fetch live PR status
+  (CI checks, review state, merge readiness) without leaving Claude Code.
+- FR-2.22: `get_analytics(repo?)` — per-repo or org-wide task
+  completion, token usage, and merge-rate metrics.
+- FR-2.23: `list_repos` — list all onboarded repos with their trust
+  level, last-ingest timestamp, and stale flag.
+- FR-2.24: `ingest_files(repo, paths[])` — trigger ad-hoc ingestion
+  for specific files; used after large refactors to keep search fresh
+  without waiting for the nightly job.
+
+**Extended local runner tools (added post-Phase-0):**
+- FR-2.25: `enable_task_notifications` / `disable_task_notifications`
+  — toggle statusline task-completion alerts.
+- FR-2.26: `list_pending_tasks` — show tasks waiting for a human claim
+  on this machine.
+- FR-2.27: `claim_and_run_locally(task_id)` — atomic claim + local
+  execution in a single call; eliminates the two-step claim → run
+  sequence.
+- FR-2.28: `skip_task(task_id, reason)` — mark a task skipped without
+  failing it; releases the slot for another agent.
+- FR-2.29: `configure_local_runner(options)` — update max concurrency,
+  allowed task types, and model selection in `~/.lore/local-runner.json`.
 
 ### FR-3: Developer Onboarding
 
@@ -509,6 +539,8 @@ cooperation.
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
 The system MUST support an opt-in autonomous review loop per repo.
+**Updated 2026-04-20 per ADR-015**: the reactor is now webhook-driven;
+cron is a safety net only.
 
 - FR-13.1: After an implementation PR is created, the loretask-watcher
   automatically creates a review LoreTask CR (if `auto_review` is
@@ -522,6 +554,22 @@ The system MUST support an opt-in autonomous review loop per repo.
   LoreTask created on the same branch with feedback as context.
 - FR-13.5: On CHANGES_REQUESTED (iteration ≥ 2): escalate to human
   review. No further autonomous iterations.
+- FR-13.6: **Primary trigger is GitHub webhooks** (ADR-015). The
+  mcp-server webhook handler accepts `pull_request` events
+  (`synchronize`, `opened`, `reopened`, `ready_for_review`),
+  `pull_request_review.submitted`, and `issue_comment.created` (on
+  PRs). For qualifying events, mcp-server POSTs `{repo, pr_number}`
+  to `POST /api/trigger/review-reactor` on the agent service,
+  authenticated via `LORE_AGENT_INTERNAL_TOKEN`. Agent returns
+  `202 Accepted` and runs in the background.
+- FR-13.7: **Safety-net cron** fires at `7 7-17 * * 1-5` (UTC,
+  Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
+  are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
+  Mon-Fri via `LORE_BUSINESS_HOURS_{TZ,START,END,DAYS}` env vars).
+  Webhook-triggered runs are never gated by business hours.
+- FR-13.8: Webhook path silently degrades if `LORE_AGENT_URL` or
+  `LORE_AGENT_INTERNAL_TOKEN` are missing — mcp-server logs a warning
+  but continues accepting webhooks (safety-net cron covers the gap).
 
 ### FR-14: Spec Drift Detection (Phase 2)
 
@@ -544,6 +592,65 @@ reliability.
   `full` (all).
 - FR-15.2: Auto-promotes after 3 successful merges at the current
   level. Defaults to `implementation` for backward compatibility.
+
+### FR-16: Prompt Caching on Agent LLM Calls (Phase 1)
+
+The system MUST cache repeated LLM prefixes on all agent-side Anthropic
+API calls to reduce token cost. Added 2026-04-17 per ADR-015.
+
+- FR-16.1: `callLLM` and `callLLMWithTool` in `agent/src/anthropic.ts`
+  place two cache breakpoints per request — one on the system prompt
+  block, one on the tool schema block — so a tool-schema edit cannot
+  bust the system cache and vice versa.
+- FR-16.2: `getCacheControl(jobName)` from `agent/src/lib/prompt-cache.ts`
+  returns `{type: "ephemeral", ttl: "1h"}` for jobs in the
+  `LORE_CACHE_1H_JOBS` allowlist and `{type: "ephemeral"}` (5-min)
+  otherwise. Default allowlist: `auto-curation`, `review_reactor`,
+  `fact-extraction`, `graph-extraction`. Special values: `none`
+  disables 1h everywhere; `*` enables it for every job.
+- FR-16.3: Cache eligibility is latched at module load to prevent
+  mid-process toggles from busting the server-side cache.
+- FR-16.4: Each call computes a djb2 hash of the system + tools prefix
+  and compares to the last call for the same `jobName`. Log line
+  emits: `cache hit | first-call | break:system | break:tools |
+  break:ttl(Nm)`.
+- FR-16.5: `response.usage.cache_creation_input_tokens` and
+  `cache_read_input_tokens` feed cost accounting (1.25× writes,
+  0.1× reads).
+- FR-16.6: MCP-server raw fetch call sites (fact extraction, graph
+  extraction) have static prefixes below Haiku's 2048-token cache
+  minimum — caching is not applied there.
+
+### FR-17: Per-Template Context Budgets (Phase 1)
+
+The system MUST apply different token budgets per context-assembly
+template to avoid over-sending context on constrained flows.
+Added 2026-04-17 per ADR-015.
+
+- FR-17.1: Default `assembleContext` budget: 8K tokens (down from 16K).
+  Research template keeps 16K (memory-heavy queries need it).
+  Implementation and review templates cap at 8K.
+- FR-17.2: The `assemble_context` MCP tool's `max_tokens` parameter
+  default is 8K. Callers may pass a higher value explicitly.
+- FR-17.3: Template-level budgets are declared in the YAML template
+  files under `mcp-server/templates/`.
+
+### FR-18: Stuck-Task Terminal-State Recovery (Phase 1)
+
+The system MUST detect and surface pipeline tasks that are stuck in
+non-terminal states and resolve them without manual intervention.
+
+- FR-18.1: A `stale_task_check` job runs hourly at `:17` and flags
+  tasks in `running` or `pending` state for longer than their
+  configured timeout plus a grace period.
+- FR-18.2: Stuck tasks are transitioned to a terminal state
+  (`failed` with reason `timeout_exceeded`) so the pipeline does not
+  stall waiting for a pod that has already exited.
+- FR-18.3: The transition is idempotent — if a task completes between
+  detection and the state write, the write is a no-op.
+- FR-18.4: A failure episode is written for each stuck task so the
+  auto-curation pipeline can surface patterns (e.g. a task type that
+  consistently times out).
 
 ## Non-Functional Requirements
 
@@ -630,6 +737,15 @@ reliability.
 - Q: Why no Graphiti / FalkorDB? → A: PostgreSQL-backed live knowledge graph provides the same traversable fact store without an additional graph database dependency. (ADR-010)
 - Q: Why no OCI Context Cores? → A: DB-cached context assembly with the `assemble_context` tool provides equivalent freshness guarantees without OCI registry infrastructure overhead. (ADR-010)
 
+### Session 2026-04-20 (spec update — ADR-015 + post-April-13 work)
+
+- Q: Why switch from cron-polling to webhooks for the review reactor? → A: Polling every 5 minutes burned API quota and GitHub rate-limit budget on ticks that did nothing. Webhooks fire only on actual PR state changes; review latency drops from avg ~2.5 min to seconds. (ADR-015)
+- Q: Why keep the safety-net cron at all? → A: A dropped webhook delivery stalls a PR until a human notices. A business-hours safety cron is nearly free and catches stragglers. Off-hours ticks are a pure waste so the cron is gated by `isBusinessHours()`. (ADR-015)
+- Q: Why was the context budget cut from 16K to 8K by default? → A: Implementation and review flows only need conventions + the immediate diff. 16K was over-sending context and paying unnecessary token costs. Research keeps 16K because it needs broad memory coverage. (ADR-015)
+- Q: Why prompt-cache at the system + tool-schema boundary separately? → A: A tool-schema edit would otherwise bust the system-prompt cache entry. Separate breakpoints ensure each can be reused independently. (ADR-015)
+- Q: What is the `LORE_WEBHOOK_SECRET` latent bug that ADR-015 fixed? → A: The secret existed in GCP Secret Manager and had an ExternalSecret CR, but was never mounted into the mcp-server pod. `handleGitHubWebhook` always returned `503 "webhook secret not configured"`. ADR-015 mounted the secret and the webhook path now validates HMAC signatures correctly.
+- Q: Why add `FR-18` (stuck-task recovery) now? → A: Job pods that exit without writing a terminal status left tasks stuck in `running` forever. The loretask-watcher had no mechanism to detect this until the `stale_task_check` hourly job was added (commit f203952, 2026-04-20).
+
 ## Scope Boundaries
 
 ### In Scope
@@ -646,11 +762,14 @@ reliability.
 - Gap detection (automated drafting + PR opening).
 - Live knowledge graph (PostgreSQL entities + edges).
 - Intelligent memory lifecycle (passive capture, decay, consolidation).
-- Autonomous review loop (opt-in per repo).
+- Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, task logs).
+- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps).
 - Spec drift detection (Phase 2).
+- Prompt caching on agent LLM calls (ADR-015).
+- Per-template context budgets (ADR-015).
+- Stuck-task terminal-state recovery (`stale_task_check` job).
 
 ### Out of Scope
 
