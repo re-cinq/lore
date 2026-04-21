@@ -22,7 +22,9 @@ task_types:
     timeout_minutes: 20
     review_required: true
     execution_mode: claude-code
-    model: claude-sonnet-4-6
+    # Haiku handles runbook drafting fine — it's doc-writing, not codegen.
+    # Human reviews the PR before merge, so quality is still gated.
+    model: claude-haiku-4-5-20251001
 
   implementation:
     prompt_template: |
@@ -52,7 +54,10 @@ task_types:
     timeout_minutes: 15
     review_required: false
     execution_mode: claude-code
-    model: claude-sonnet-4-6
+    # Gap-fill generates documentation drafts that always go through
+    # human PR review. Haiku is fully capable; Sonnet was overkill.
+    # Monday-cron-burst cost reduction — see the 2026-04-20 postmortem.
+    model: claude-haiku-4-5-20251001
 
   review:
     prompt_template: |
@@ -70,6 +75,11 @@ task_types:
     timeout_minutes: 10
     review_required: false
     execution_mode: claude-code
+    # Review reads diff + spec and posts comments — no codegen. Haiku
+    # is sufficient. If the structured REVIEW_RESULT marker goes
+    # missing, the runner parser defaults to changes-requested which
+    # is the safe fallback. Monitor parse-success rate for a week.
+    model: claude-haiku-4-5-20251001
 
   feature-request:
     prompt_template: |
@@ -158,3 +168,6 @@ task_types:
     target_repo: null
     timeout_minutes: 15
     review_required: false
+    # Onboarding generates a first-pass CLAUDE.md / ADRs / spec that
+    # a human always reviews before merge. Haiku is fine for drafts.
+    model: claude-haiku-4-5-20251001
