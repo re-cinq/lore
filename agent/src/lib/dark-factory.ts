@@ -1,72 +1,28 @@
 import { query } from "../db.js";
 import { requiresApproval } from "../approval.js";
+// Canonical types + resolver moved to @re-cinq/lore-shared so all
+// consumers (agent, mcp-server, GKE Job pod runner) share one source.
+import {
+  resolveDarkFactorySettings,
+  trustMeets,
+  type DarkFactorySettings,
+  type ResolvedDarkFactorySettings,
+  type ReviewMode,
+} from "@re-cinq/lore-shared";
 
-export type ReviewMode = "trust_based" | "always" | "never";
-
-/**
- * Pure resolver: applies dark-factory defaults to a partial settings
- * doc. Mirrors `mcp-server/src/dark-factory-settings.resolveSettings`
- * but lives in the agent so the orchestrator (T058 follow-up) can
- * resolve settings without crossing workspaces.
- */
-export interface ResolvedDarkFactorySettings {
-  enabled: boolean;
-  create_issue: "never" | "on_gate" | "always";
-  auto_merge: {
-    paths: string[];
-    min_trust: "docs" | "tests" | "implementation" | "full";
-    require_green_ci: boolean;
-    require_bot_approval: boolean;
-  };
-  review: ReviewMode;
-  notify: Array<"escalation" | "watched" | "all">;
-}
-
-const DEFAULT_AUTO_MERGE_PATHS = [
-  "specs/**",
-  "adrs/**",
-  "*.md",
-  "CLAUDE.md",
-  ".claude/**",
-];
-
-export function resolveDarkFactorySettings(
-  partial: DarkFactoryRepoSettings | null | undefined,
-): ResolvedDarkFactorySettings {
-  const enabled = partial?.enabled ?? false;
-  return {
-    enabled,
-    create_issue: partial?.create_issue ?? (enabled ? "on_gate" : "always"),
-    auto_merge: {
-      paths: partial?.auto_merge?.paths ?? DEFAULT_AUTO_MERGE_PATHS,
-      min_trust: partial?.auto_merge?.min_trust ?? "docs",
-      require_green_ci: partial?.auto_merge?.require_green_ci ?? true,
-      require_bot_approval:
-        partial?.auto_merge?.require_bot_approval ?? true,
-    },
-    review: partial?.review ?? (enabled ? "trust_based" : "always"),
-    notify: partial?.notify ?? (enabled ? [] : ["all"]),
-  };
-}
+// Re-export so existing agent callers don't need to switch imports.
+export {
+  resolveDarkFactorySettings,
+  trustMeets,
+  type ResolvedDarkFactorySettings,
+  type ReviewMode,
+};
 
 /**
  * Per-repo dark-factory configuration as stored under
- * `lore.repos.settings.dark_factory`. Mirror of the schema in
- * `mcp-server/src/dark-factory-settings.ts` — kept duplicated here so
- * the agent doesn't import from the mcp-server workspace.
+ * `lore.repos.settings.dark_factory`. Alias of the canonical type.
  */
-export interface DarkFactoryRepoSettings {
-  enabled?: boolean;
-  create_issue?: "never" | "on_gate" | "always";
-  auto_merge?: {
-    paths?: string[];
-    min_trust?: "docs" | "tests" | "implementation" | "full";
-    require_green_ci?: boolean;
-    require_bot_approval?: boolean;
-  };
-  review?: "trust_based" | "always" | "never";
-  notify?: Array<"escalation" | "watched" | "all">;
-}
+export type DarkFactoryRepoSettings = DarkFactorySettings;
 
 export interface DarkFactoryTaskOverrides {
   human_review?: "required";

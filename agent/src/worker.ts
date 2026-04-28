@@ -270,18 +270,49 @@ async function processTask(task: any): Promise<void> {
           target_repo: targetRepo,
         },
         settings: resolvedSettings,
+        // Thread the branch through so revision tasks (where
+        // contextBundle.branch is preserved) land on the same branch
+        // and the supervisor resumes from the prior stage commits.
+        branchName,
       });
-      if (result.outcome === "error") {
-        throw new Error(result.errorMessage ?? "supervisor failed");
+      switch (result.outcome) {
+        case "error":
+          throw new Error(result.errorMessage ?? "supervisor failed");
+        case "no_changes":
+          await setStatus(task.id, "completed");
+          await insertEvent(task.id, "running", "completed", {
+            reason: "no_changes",
+          });
+          break;
+        case "pr_created":
+          // pushAndOpenPr already wrote pr-created status; record the
+          // event for completeness.
+          await insertEvent(task.id, "running", "pr-created", {
+            pr_url: result.prUrl,
+            pr_number: result.prNumber,
+            via: "dark-factory-supervisor",
+          });
+          break;
+        case "lease_held":
+          // Another supervisor (likely a parallel pod) has the branch;
+          // back off to queued so the next worker tick retries.
+          await setStatus(task.id, "queued", { agent_id: agentId });
+          await insertEvent(task.id, "running", "queued", {
+            reason: "lease_held",
+          });
+          break;
+        case "iteration_max":
+          // Escalation Issue + Slack already fired via
+          // onIterationMaxExceeded inside the orchestrator. Mark the
+          // task failed with the error message so it surfaces in the UI.
+          await setStatus(task.id, "failed", {
+            failure_reason: result.errorMessage ?? "iteration_max",
+          });
+          await insertEvent(task.id, "running", "failed", {
+            reason: "iteration_max_exceeded",
+          });
+          break;
       }
-      if (result.outcome === "no_changes") {
-        await setStatus(task.id, "completed");
-        await insertEvent(task.id, "running", "completed", {
-          reason: "no_changes",
-        });
-      }
-      // pr_created / lease_held / iteration_max paths already wrote
-      // their status updates inside the orchestrator.
       return;
     }
 

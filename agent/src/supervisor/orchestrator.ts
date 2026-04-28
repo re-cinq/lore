@@ -5,32 +5,18 @@ import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import { Octokit } from "octokit";
 import { createAppAuth } from "@octokit/auth-app";
+import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import { callLLM } from "../anthropic.js";
 import { query } from "../db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { evaluateAndMerge } from "../jobs/auto-merge.js";
 import { prFooter } from "../lib/pr-body.js";
+import { escalate } from "../lib/escalation.js";
 import { runSupervisor } from "./index.js";
 import { loadWorkflowDir, type Workflow } from "../workflow/loader.js";
 import { createAgentHandler } from "./agent-handler.js";
 import { createProductionHandlers } from "./handlers.js";
 import { buildPrompt, getTaskTypeConfig } from "../config.js";
-/**
- * Mirror of `mcp-server/src/dark-factory-settings.ResolvedDarkFactorySettings`.
- * Duplicated here so the agent doesn't import across workspaces.
- */
-export interface ResolvedDarkFactorySettings {
-  enabled: boolean;
-  create_issue: "never" | "on_gate" | "always";
-  auto_merge: {
-    paths: string[];
-    min_trust: "docs" | "tests" | "implementation" | "full";
-    require_green_ci: boolean;
-    require_bot_approval: boolean;
-  };
-  review: "trust_based" | "always" | "never";
-  notify: Array<"escalation" | "watched" | "all">;
-}
 
 const execFile = promisify(execFileCb);
 
@@ -52,11 +38,19 @@ export interface ProcessTaskViaSupervisorOptions {
   };
   /** Per-repo dark-factory policy already resolved by the caller. */
   settings: ResolvedDarkFactorySettings;
+  /**
+   * Branch name supplied by the caller (worker.ts). Revision tasks
+   * carry a non-default branch in `contextBundle.branch` so the
+   * supervisor lands on the same branch and resumes from the prior
+   * stage commits. Falls back to a derived `lore/<type>/<slug>-<id8>`
+   * when omitted (greenfield tasks).
+   */
+  branchName?: string;
   /** Override for tests — defaults to load from `agent/src/workflows/`. */
   loadWorkflows?: (dir: string) => Promise<Map<string, Workflow>>;
   /** Override for tests — defaults to constructing an Octokit. */
   octokit?: Octokit;
-  /** Override for tests — defaults to using the production agent handler. */
+  /** Override for tests — defaults to using a tmpdir under `os.tmpdir()`. */
   workdir?: string;
 }
 
@@ -90,16 +84,25 @@ export function isDarkFactoryEligible(taskType: string): boolean {
   return SUPPORTED_TASK_TYPES.has(taskType);
 }
 
+export function buildBranchName(task: {
+  id: string;
+  description: string;
+  task_type: string;
+}): string {
+  const slug = task.description
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30)
+    .replace(/-+$/, "");
+  return `lore/${task.task_type}/${slug}-${task.id.slice(0, 8)}`;
+}
+
 export async function processTaskViaSupervisor(
   opts: ProcessTaskViaSupervisorOptions,
 ): Promise<ProcessTaskViaSupervisorResult> {
   const { task, settings } = opts;
-  const branchSlug = task.description
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .slice(0, 30)
-    .replace(/-+$/, "");
-  const branchName = `lore/${task.task_type}/${branchSlug}-${task.id.slice(0, 8)}`;
+  const branchName = opts.branchName ?? buildBranchName(task);
 
   const workflows = await (opts.loadWorkflows ?? loadWorkflowDir)(WORKFLOWS_DIR);
   const workflow = workflows.get(task.task_type);
@@ -115,7 +118,7 @@ export async function processTaskViaSupervisor(
     opts.workdir ??
     (await fs.mkdtemp(path.join(os.tmpdir(), `lore-supervisor-${task.id}-`)));
 
-  let cleanupWorkdir = !opts.workdir; // only delete what we created
+  const cleanupWorkdir = !opts.workdir; // only delete what we created
 
   try {
     await cloneAndBranch(workdir, task.target_repo, branchName, octokit);
@@ -161,6 +164,21 @@ export async function processTaskViaSupervisor(
       gitDir: workdir,
       workflow,
       handlers,
+      // FR3.8 / T040: a stuck task must produce a needs-human-help
+      // Issue + Slack ping with full context. Wired here so the
+      // dark-factory dispatch path doesn't lose the escalation hook.
+      onIterationMaxExceeded: async (info) => {
+        await escalate({
+          octokit,
+          taskId: info.taskId,
+          repo: task.target_repo,
+          branchName: info.branchName,
+          reason: "iteration_max_exceeded",
+          diagnostic:
+            `Workflow ${info.workflowName} exceeded iteration_max=${info.iterationMax} ` +
+            `on back-edge ${info.fromNode} → ${info.toNode}`,
+        });
+      },
     });
 
     if (result.reason === "lease_held") {
@@ -197,7 +215,14 @@ export async function processTaskViaSupervisor(
     };
   } finally {
     if (cleanupWorkdir) {
-      await fs.rm(workdir, { recursive: true, force: true }).catch(() => {});
+      await fs
+        .rm(workdir, { recursive: true, force: true })
+        .catch((err) =>
+          console.warn(
+            `[orchestrator] workdir cleanup failed for ${workdir}:`,
+            (err as Error).message,
+          ),
+        );
     }
   }
 }
@@ -226,16 +251,31 @@ async function cloneAndBranch(
   branch: string,
   octokit: Octokit,
 ): Promise<void> {
-  // Use the App-installation token for auth. octokit.auth() returns
-  // either a token string or { token } depending on the auth strategy.
   const auth = await octokit.auth();
   const token =
     typeof auth === "string" ? auth : (auth as { token?: string })?.token;
   if (!token) {
     throw new Error("octokit.auth() did not yield a token for clone");
   }
-  const url = `https://x-access-token:${token}@github.com/${repo}.git`;
-  await execFile("git", ["clone", "--depth", "1", url, workdir]);
+  // Avoid baking the token into `.git/config` (which would persist for
+  // the workdir's lifetime and risk leaking into logs that echo URLs).
+  // Pass the credential as a per-invocation `http.extraheader` config
+  // override; never stored on disk in cleartext.
+  const headerValue = `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}`;
+  const repoUrl = `https://github.com/${repo}.git`;
+  const authConfig = [
+    "-c",
+    `http.https://github.com/.extraheader=${headerValue}`,
+  ];
+
+  await execFile("git", [
+    ...authConfig,
+    "clone",
+    "--depth",
+    "1",
+    repoUrl,
+    workdir,
+  ]);
   await execFile("git", ["-C", workdir, "checkout", "-b", branch]);
   await execFile("git", [
     "-C",
@@ -253,6 +293,34 @@ async function cloneAndBranch(
   ]);
 }
 
+/**
+ * Push helper — reuses the same `http.extraheader` pattern as
+ * cloneAndBranch so the token never lives in `.git/config`. Token is
+ * fetched fresh each time (App installation tokens have ~1h TTL but
+ * are cheap to re-mint).
+ */
+async function pushBranch(
+  workdir: string,
+  repo: string,
+  branch: string,
+  octokit: Octokit,
+): Promise<void> {
+  const auth = await octokit.auth();
+  const token =
+    typeof auth === "string" ? auth : (auth as { token?: string })?.token;
+  if (!token) throw new Error("octokit.auth() did not yield a token for push");
+  const headerValue = `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}`;
+  await execFile("git", [
+    "-C",
+    workdir,
+    "-c",
+    `http.https://github.com/.extraheader=${headerValue}`,
+    "push",
+    "origin",
+    branch,
+  ]);
+}
+
 async function pushAndOpenPr(opts: {
   workdir: string;
   repo: string;
@@ -260,27 +328,44 @@ async function pushAndOpenPr(opts: {
   task: ProcessTaskViaSupervisorOptions["task"];
   octokit: Octokit;
 }): Promise<ProcessTaskViaSupervisorResult> {
-  // Did the supervisor produce any commits beyond the initial clone?
-  const { stdout: log } = await execFile("git", [
-    "-C",
-    opts.workdir,
-    "log",
-    "--oneline",
-    "-n",
-    "10",
-  ]);
-  const commitCount = log.trim().split("\n").length;
-  if (commitCount <= 1) {
-    return { outcome: "no_changes", branchName: opts.branchName };
-  }
+  const [owner, repoName] = opts.repo.split("/");
 
+  // Look up the repo's actual default branch (master / main / develop /
+  // trunk — varies). Used for the no-changes diff check and the PR
+  // base. Hardcoding "main" 422'd on repos that hadn't switched.
+  const repoMeta = await opts.octokit.rest.repos.get({
+    owner,
+    repo: repoName,
+  });
+  const defaultBranch = repoMeta.data.default_branch;
+
+  // Real change detection: compare HEAD to the upstream default branch
+  // via diff, not commit count. Stage commits include intentional
+  // empty commits (validate / gate / retrospective per FR1.3), so a
+  // workflow that runs to completion without producing file changes
+  // still has commitCount > 1. `git diff --shortstat` against the
+  // default branch returns "" iff no real diff exists.
   await execFile("git", [
     "-C",
     opts.workdir,
-    "push",
+    "fetch",
     "origin",
-    opts.branchName,
+    defaultBranch,
+    "--depth",
+    "1",
   ]);
+  const { stdout: shortstat } = await execFile("git", [
+    "-C",
+    opts.workdir,
+    "diff",
+    "--shortstat",
+    `origin/${defaultBranch}...HEAD`,
+  ]);
+  if (shortstat.trim() === "") {
+    return { outcome: "no_changes", branchName: opts.branchName };
+  }
+
+  await pushBranch(opts.workdir, opts.repo, opts.branchName, opts.octokit);
 
   // Look up issueNumber for the PR footer (it's null for dark-mode
   // tasks that didn't create an Issue).
@@ -290,13 +375,12 @@ async function pushAndOpenPr(opts: {
   );
   const issueNumber = rows[0]?.issue_number ?? null;
 
-  const [owner, repoName] = opts.repo.split("/");
   const pr = await opts.octokit.rest.pulls.create({
     owner,
     repo: repoName,
     title: `lore: ${opts.task.task_type} — ${opts.branchName.split("/").pop()}`,
     head: opts.branchName,
-    base: "main",
+    base: defaultBranch,
     body:
       `## ${opts.task.task_type}\n\n${opts.task.description}\n\n` +
       `**Execution mode:** Dark Factory (in-agent supervisor)\n\n` +
@@ -351,10 +435,21 @@ async function resolvePrForTaskFromDb(
   // any failure just defers auto-merge with deferred:api_failure on the
   // call itself.
   const [owner, repoName] = row.target_repo.split("/");
-  let ciSucceeded = true;
-  let botApproved = true;
+  // Conservative defaults: assume CI hasn't passed and the bot hasn't
+  // approved until proven otherwise. Flipping these to `true` as the
+  // initial state would let auto-merge fire when GitHub returns no
+  // check_runs / reviews (a brand-new PR) — which is exactly when we
+  // most need the gate.
+  let ciSucceeded = false;
+  let botApproved = false;
   let humanChangesRequested = false;
   let changedPaths: string[] = [];
+  // Specific bot login that the auto-merge gate trusts. Defaults to the
+  // Lore agent App; deployments using a different App slug override
+  // via env. Without this, *any* bot's APPROVED review (Dependabot,
+  // Renovate, an external review bot) would satisfy the require_bot_approval
+  // gate.
+  const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
   try {
     const filesRes = await octokit.rest.pulls.listFiles({
       owner,
@@ -368,9 +463,13 @@ async function resolvePrForTaskFromDb(
       repo: repoName,
       ref: row.target_branch ?? `pull/${row.pr_number}/head`,
     });
-    ciSucceeded = checks.data.check_runs.every(
-      (c) => c.conclusion === "success" || c.conclusion === "skipped",
-    );
+    // Vacuous truth on an empty array would let auto-merge fire when
+    // CI hasn't reported yet. Require at least one passing check.
+    ciSucceeded =
+      checks.data.check_runs.length > 0 &&
+      checks.data.check_runs.every(
+        (c) => c.conclusion === "success" || c.conclusion === "skipped",
+      );
 
     const reviews = await octokit.rest.pulls.listReviews({
       owner,
@@ -378,12 +477,11 @@ async function resolvePrForTaskFromDb(
       pull_number: row.pr_number,
     });
     botApproved = reviews.data.some(
-      (r) =>
-        r.state === "APPROVED" && r.user?.login.endsWith("[bot]"),
+      (r) => r.state === "APPROVED" && r.user?.login === botLogin,
     );
     humanChangesRequested = reviews.data.some(
       (r) =>
-        r.state === "CHANGES_REQUESTED" && !r.user?.login.endsWith("[bot]"),
+        r.state === "CHANGES_REQUESTED" && !r.user?.login?.endsWith("[bot]"),
     );
   } catch (err) {
     console.warn(
