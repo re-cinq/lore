@@ -241,6 +241,50 @@ async function processTask(task: any): Promise<void> {
     const model =
       repoOverrides?.model || getTaskTypeConfig(task.task_type)?.model || undefined;
 
+    // Dark-factory dispatch (T058 follow-up): when the repo has dark
+    // mode enabled AND the task type has a workflow definition, route
+    // through the in-agent supervisor instead of the legacy code paths.
+    // Limited to JSON-output workflows (gap-fill, runbook); Claude
+    // Code-driven types continue via the Job pod path until the
+    // entrypoint.sh refactor lands.
+    const { isDarkFactoryEligible, processTaskViaSupervisor } = await import(
+      "./supervisor/orchestrator.js"
+    );
+    const darkFactoryEnabled =
+      repoSettings?.dark_factory?.enabled === true;
+    if (darkFactoryEnabled && isDarkFactoryEligible(task.task_type)) {
+      console.log(
+        `[agent] Task ${task.id} routing through dark-factory supervisor (${task.task_type} on ${targetRepo})`,
+      );
+      const { resolveDarkFactorySettings } = await import(
+        "./lib/dark-factory.js"
+      );
+      const resolvedSettings = resolveDarkFactorySettings(
+        repoSettings?.dark_factory,
+      );
+      const result = await processTaskViaSupervisor({
+        task: {
+          id: task.id,
+          description: task.description,
+          task_type: task.task_type,
+          target_repo: targetRepo,
+        },
+        settings: resolvedSettings,
+      });
+      if (result.outcome === "error") {
+        throw new Error(result.errorMessage ?? "supervisor failed");
+      }
+      if (result.outcome === "no_changes") {
+        await setStatus(task.id, "completed");
+        await insertEvent(task.id, "running", "completed", {
+          reason: "no_changes",
+        });
+      }
+      // pr_created / lease_held / iteration_max paths already wrote
+      // their status updates inside the orchestrator.
+      return;
+    }
+
     if (task.task_type === "onboard") {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);
     } else if (task.task_type === "feature-request") {
