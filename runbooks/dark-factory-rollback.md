@@ -155,6 +155,135 @@ After the incident is resolved and post-mortem complete:
 3. Watch the dashboard for 24 hours.
 4. Promote the next trust tier only after green.
 
+## Cluster path enablement
+
+The cluster-side dark-factory path (impl / general / review tasks
+running through `/app/dist/supervisor/runner-cli.js` inside Job pods)
+is gated by **two** independent switches:
+
+1. **Per-repo:** `lore.repos.settings.dark_factory.enabled = true`
+   (set via the settings UI / API). Without this, the repo gets the
+   legacy flow regardless.
+2. **Cluster-wide:** `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the
+   agent deployment env (helm `values.yaml`). Without this, the worker
+   refuses to forward `darkFactoryWorkflow` to the LoreTask CR — the
+   pod runs the legacy `claude --print` path even for dark-mode repos.
+
+The cluster-wide gate exists because the cluster path needs the agent
+build present at `/app/dist/` in the claude-runner image. If the helm
+flag flipped before the image had `dist/`, every Job pod would fail at
+the first line of the dark-factory branch in `entrypoint.sh`.
+
+### Rollout procedure
+
+#### Step 0 — verify the image is ready
+
+```bash
+# Pull the most recent claude-runner tag
+IMAGE=ghcr.io/re-cinq/lore-claude-runner:latest
+docker pull "$IMAGE"
+
+# Both must succeed:
+docker run --rm --entrypoint sh "$IMAGE" -c \
+  'test -f /app/dist/supervisor/runner-cli.js && ls /app/dist/workflows/*.yaml'
+```
+
+If either check fails, the image build pipeline (PR #311 onward) didn't
+ship the agent dist or workflow YAMLs. Stop — fix the image before
+flipping the flag.
+
+#### Step 1 — flip the cluster flag (no per-repo change yet)
+
+```bash
+helm upgrade --reuse-values lore-agent ./terraform/modules/gke-mcp/agent-helm \
+  --namespace lore-agent \
+  --set env.LORE_DARK_FACTORY_CLUSTER_ENABLED=true
+kubectl rollout status deployment/lore-agent -n lore-agent --timeout=2m
+```
+
+This is a no-op for any repo with `dark_factory.enabled = false` —
+those still get the legacy path. Only repos that already opted in
+will start routing impl/general/review through the cluster supervisor.
+
+If no repo has dark mode on yet, this flip is a pure pre-flight and
+you proceed to step 2. If a repo already has `dark_factory.enabled =
+true` (e.g. the docs-only path was piloted via the in-agent supervisor
+in PR #308), expect those to start using the cluster path on their
+next impl/general/review task — confirm by watching `kubectl logs`
+for `[runner-cli] Starting dark-factory supervisor`.
+
+#### Step 2 — pick a pilot repo
+
+Choose a repo that:
+
+- Has CLAUDE.md, AGENTS.md, and a CODEOWNERS file (so escalation
+  routing works).
+- Has been onboarded to Lore for at least 7 days (so memory + facts
+  have warmed).
+- Has at least one human reviewer who can intercept misbehavior fast.
+- **Not** a production-critical repo (auth / payments / billing).
+
+Enable dark mode on it:
+
+```sql
+UPDATE lore.repos
+SET settings = jsonb_set(
+  COALESCE(settings, '{}'::jsonb),
+  '{dark_factory}',
+  '{"enabled": true, "auto_merge": {"min_trust": "docs"}}'::jsonb
+)
+WHERE full_name = 'org/pilot-repo';
+```
+
+Or via the settings UI: navigate to the repo, toggle "Dark factory
+mode" → on.
+
+#### Step 3 — soak for 7 days
+
+Watch:
+
+- `pipeline.audit_log` — `auto_merge_decision` rows. The `rule` field
+  shows which gate fired (path, trust, ci, bot-approval).
+- Escalation Issues labelled `needs-human-help` — should be rare
+  (< 1 per 50 tasks).
+- Cluster-pod failures — `kubectl get loretasks -n lore-agent -l
+  lore.re-cinq.com/dark-factory=true` then `kubectl describe` any in
+  `Failed` state.
+
+#### Step 4 — ramp
+
+Promote the pilot repo's `auto_merge.min_trust` one tier at a time
+(`docs` → `tests` → `implementation` → `full`), waiting at least
+3 successful merges at each tier (the auto-promotion logic lives in
+`agent/src/jobs/dark-factory-baseline.ts`).
+
+Once two repos have soaked at `implementation` for 7 days each, flip
+the helm default:
+
+```yaml
+# values.yaml
+env:
+  LORE_DARK_FACTORY_CLUSTER_ENABLED: "true"  # was "false"
+```
+
+Bake-in is the operational signal that the cluster path is the new
+default for opted-in repos.
+
+### Rollback at any step
+
+To unflip the cluster gate:
+
+```bash
+helm upgrade --reuse-values lore-agent ./terraform/modules/gke-mcp/agent-helm \
+  --namespace lore-agent \
+  --set env.LORE_DARK_FACTORY_CLUSTER_ENABLED=false
+```
+
+In-flight Job pods finish (they're already running the cluster
+supervisor). New tasks route through the legacy path immediately.
+
+To unflip a single repo's dark mode, see "Per-repo rollback" above.
+
 ## Known gaps
 
 ### Cluster-path PRs do not auto-merge yet
