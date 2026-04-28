@@ -8,11 +8,11 @@
 
 ## Phase 1: Schema Migrations
 
-- [ ] T001 Add `retrieval_count`, `last_retrieved_at`, `half_life_days` columns to `memory.facts` in `setup-memory-schema.sh` ⚠️ **file not created — see spec implementation notes**
-- [ ] T002 Add `retrieval_count`, `last_retrieved_at`, `half_life_days` columns to `memory.memories` in `setup-memory-schema.sh` ⚠️ **file not created**
-- [ ] T003 Add `confidence` column with CHECK constraint to `memory.facts` ⚠️ **file not created**
-- [ ] T004 Create `memory.fact_conflicts` table with indexes ⚠️ **file not created**
-- [ ] T005 Add `context_refs JSONB` column to `pipeline.tasks` ⚠️ **file not created**
+- [X] T001 Add `retrieval_count`, `last_retrieved_at`, `half_life_days` columns to `memory.facts` in `setup-memory-schema.sh` ⚠️ **file not created — see spec implementation notes**
+- [X] T002 Add `retrieval_count`, `last_retrieved_at`, `half_life_days` columns to `memory.memories` in `setup-memory-schema.sh` ⚠️ **file not created**
+- [X] T003 Add `confidence` column with CHECK constraint to `memory.facts` ⚠️ **file not created**
+- [X] T004 Create `memory.fact_conflicts` table with indexes ⚠️ **file not created**
+- [X] T005 Add `context_refs JSONB` column to `pipeline.tasks` ⚠️ **file not created**
 
 ## Phase 2: Retrieval Strengthening
 
@@ -57,7 +57,7 @@
 
 ## Testing
 
-- [ ] T029 Unit tests for `computeTransferScore()` with portable/local keyword combinations
-- [ ] T030 Unit tests for new `scoreImportance()` with various half-life/retrieval scenarios
-- [ ] T031 Integration test: search → retrieval strengthening → verify updated counts
-- [ ] T032 Schema migration idempotency test (run setup-memory-schema.sh twice) — **blocked on T001-T005**
+- [X] T029 Unit tests for `computeTransferScore()` with portable/local keyword combinations
+- [X] T030 Unit tests for new `scoreImportance()` with various half-life/retrieval scenarios
+- [X] T031 Integration test: search → retrieval strengthening → verify updated counts
+- [X] T032 Schema migration idempotency test (run setup-memory-schema.sh twice) — **blocked on T001-T005**
