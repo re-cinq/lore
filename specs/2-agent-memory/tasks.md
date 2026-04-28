@@ -143,8 +143,8 @@ for pool-scoped search. Full pool CRUD tools remain deferred.
 ### Tasks
 
 - [x] T023 [US5] Schema: memory.shared_pools table created in setup-memory-schema.sh
-- [X] T024 [US5] Register shared_write MCP tool — **DEFERRED**
-- [X] T025 [US5] Register shared_read MCP tool — **DEFERRED**
+- [x] T024 [US5] Register shared_write MCP tool — resolved as deferred (see Status above; pool CRUD not shipped)
+- [x] T025 [US5] Register shared_read MCP tool — resolved as deferred (see Status above)
 - [x] T026 [P] [US5] search_memory pool parameter: scopes search to pool entries
 
 ---
@@ -165,8 +165,8 @@ episode-backed fact re-extraction rather than snapshot/restore.
 ### Tasks
 
 - [x] T027 [US6] Schema: memory.snapshots table created in setup-memory-schema.sh
-- [X] T028 [US6] Register create_snapshot MCP tool — **DEFERRED**
-- [X] T029 [US6] Register restore_snapshot MCP tool — **DEFERRED**
+- [x] T028 [US6] Register create_snapshot MCP tool — resolved as deferred (see Status above; superseded by ADR-014 lifecycle management)
+- [x] T029 [US6] Register restore_snapshot MCP tool — resolved as deferred (see Status above)
 
 ---
 
@@ -185,7 +185,7 @@ Temporary memories expire automatically and are excluded from search.
 - [x] T030 [US7] Implement TTL in memory.ts writeMemory: compute expires_at from ttl_seconds, add to partial index filter
 - [x] T031 [US7] TTL cleanup: handled by memory-lifecycle job in agent/src/jobs/memory-lifecycle.ts (replaces planned k8s/memory-ttl-cronjob.yaml; runs as in-process cron via registerJob)
 - [x] T032 [US7] Register agent_stats MCP tool in mcp-server/src/index.ts: returns total_memories, total_facts, total_searches, memories_by_day from audit_log
-- [X] T033 [US7] Register agent_health MCP tool — **DEFERRED** (agent_stats covers this use case)
+- [x] T033 [US7] Register agent_health MCP tool — resolved as deferred (agent_stats covers this use case)
 
 ---
 
