@@ -148,7 +148,13 @@ async function processTask(task: any): Promise<void> {
   // Create GitHub Issue on the target repo
   // Skip upfront issue for general tasks — the watcher creates the issue with the result
   let issueNumber: number | null = task.issue_number || null;
-  if (!issueNumber && task.task_type !== "general") {
+  // Dark-factory gate (T019, FR3.2): when dark mode is enabled, defer
+  // Issue creation per the repo's `create_issue` setting and the task's
+  // approval requirement. `with_issue: true` per-task override forces
+  // creation regardless.
+  const { shouldCreateIssue } = await import("./lib/dark-factory.js");
+  const issueGate = await shouldCreateIssue(task);
+  if (!issueNumber && task.task_type !== "general" && issueGate.create) {
     try {
       const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
       const issue = await platform().createIssue(
@@ -169,6 +175,8 @@ async function processTask(task: any): Promise<void> {
     }
   } else if (issueNumber) {
     console.log(`[agent] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`);
+  } else if (!issueGate.create && task.task_type !== "general") {
+    console.log(`[agent] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`);
   }
 
   // Check if this task requires approval
