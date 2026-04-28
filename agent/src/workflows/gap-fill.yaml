@@ -1,0 +1,44 @@
+name: gap-fill
+description: Draft missing context as docs, validate, push. No human review on the auto-merge path.
+version: 1
+entry: draft
+exit: done
+
+nodes:
+  - id: draft
+    type: agent
+    prompt_ref: gap-fill
+    model: claude-haiku-4-5-20251001
+    description: LLM drafts the missing CLAUDE.md / ADR / runbook content.
+
+  - id: validate
+    type: validate
+    validator: all
+    description: Run lint + typecheck on changed files.
+
+  - id: push
+    type: agent
+    prompt_ref: push-only
+    description: Open or update the PR.
+
+  - id: retrospective
+    type: retrospective
+    description: Write episode + curated memory.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker (the executor halts on exit).
+
+edges:
+  - from: draft
+    to: validate
+    on: success
+  - from: validate
+    to: push
+    on: success
+  - from: push
+    to: retrospective
+    on: always
+  - from: retrospective
+    to: done
+    on: always

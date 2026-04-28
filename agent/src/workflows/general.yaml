@@ -1,0 +1,59 @@
+name: general
+description: Linear flow for general tasks — implement, validate, push, review, retrospective. Used when no more specific workflow applies.
+version: 1
+entry: implement
+exit: done
+
+nodes:
+  - id: implement
+    type: agent
+    prompt_ref: general
+    model: claude-sonnet-4-6
+    description: LLM edits the working tree per the task description.
+
+  - id: validate
+    type: validate
+    validator: all
+    description: Run lint + typecheck on changed files.
+
+  - id: push
+    type: agent
+    prompt_ref: push-only
+    description: Open or update the PR.
+
+  - id: review
+    type: agent
+    prompt_ref: review
+    model: claude-haiku-4-5-20251001
+    description: Bot review — posts inline comments + verdict.
+
+  - id: retrospective
+    type: retrospective
+    description: Episode + curated memory.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: implement
+    to: validate
+    on: success
+  - from: validate
+    to: push
+    on: success
+  - from: push
+    to: review
+    on: always
+  - from: review
+    to: retrospective
+    on: success
+  - from: review
+    to: retrospective
+    on: changes_requested
+  - from: review
+    to: retrospective
+    on: failed
+  - from: retrospective
+    to: done
+    on: always

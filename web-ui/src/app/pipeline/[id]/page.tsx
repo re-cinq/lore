@@ -3,6 +3,7 @@ import { query, queryOne } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import PRStatusCard from './PRStatusCard';
 import TaskLogs from './TaskLogs';
+import Timeline from './Timeline';
 
 interface Task {
   id: string;
@@ -156,6 +157,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           </form>
         </div>
       )}
+
+      <Timeline taskId={task.id} initialStatus={task.status} />
 
       <TaskLogs taskId={task.id} initialStatus={task.status} />
 

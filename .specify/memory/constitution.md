@@ -1,6 +1,9 @@
 <!--
 Sync Impact Report
-- Version: 2.1.0 (MINOR — Principle 12 added; Principles 5, 7, 9, 11 materially expanded)
+- Version: 2.2.0 (MINOR — Dark Factory mode (ADR-016) + Principle 12 added; P7/P11 task-tracking narrowed)
+- Modified: P7 decision table row "Task tracking" — narrows when GH Issues are created (now exception-surface only when dark-factory mode is enabled per repo)
+- Modified: Technology stack row "Task tracking" — same narrowing reflected
+- Added: ADR-016 reference (Dark Factory mode)
 - Modified: Principle 5 — complete MCP tool list (memory, graph, episode tools added)
 - Modified: Principle 7 — architecture decisions table updated to reflect ADR-015 and post-April-13 decisions
 - Modified: Principle 9 — jobs table updated (review reactor, prompt cache analysis)
@@ -8,7 +11,15 @@ Sync Impact Report
 - Added: Principle 12 (Event-Driven Automation over Polling)
 - Updated: Technology stack — prompt caching, local runner, AgentDB, session tracker, token scopes
 - Updated: Phase 3 description — cross-repo context, progressive trust, task groups, production awareness, per-template budgets
-- Follow-up TODOs: None
+- Follow-up TODOs: pilot rollout against three trust-tiered repos (T059) before flipping dark-factory defaults
+
+Previous (Version 2.1.0 — 2026-04-20, MINOR):
+- Principle 12 added; Principles 5, 7, 9, 11 materially expanded
+
+Previous (Version 2.0.0 — 2026-04-13, MAJOR):
+- principles 5, 7, 9 materially redefined; technology stack and phases updated
+- added P11 (Intelligent Memory Lifecycle)
+- removed Klaus, Context Cores, Graphiti+FalkorDB references
 -->
 
 # Project Constitution
@@ -17,9 +28,9 @@ Sync Impact Report
 |---|---|
 | Project | Lore |
 | Subtitle | Shared context infrastructure for Claude Code |
-| Constitution Version | 2.1.0 |
+| Constitution Version | 2.2.0 |
 | Ratification Date | 2026-03-25 |
-| Last Amended Date | 2026-04-20 |
+| Last Amended Date | 2026-04-28 |
 
 ## Purpose
 
@@ -166,7 +177,7 @@ The following decisions have been made and MUST NOT be relitigated:
 | Observability | OpenTelemetry → Cloud Monitoring |
 | Scheduling | Lore Agent built-in scheduler with DB persistence |
 | GKE cluster | Existing shared `your-gke-cluster` in `europe-west1` (not dedicated) |
-| Task tracking | Pipeline tasks via Lore MCP + GH Issues |
+| Task tracking | Pipeline tasks via Lore MCP; GH Issues for exception surfaces (opt-out per ADR-016) |
 | Governance | Distributed ownership + CI eval gate |
 | Build sequence | DX-first: Phase 0 before infra |
 | Multi-agent orchestration | Lore Agent (direct API + headless Claude Code) on GKE |
@@ -360,7 +371,7 @@ tolerance without reinstating continuous polling. See ADR-015.
 | MCP server | TypeScript, single container in `mcp-servers` namespace |
 | Cluster agents | Lore Agent (`lore-agent` namespace, @anthropic-ai/sdk + Claude Code CLI) |
 | Task execution | LoreTask CRD → ephemeral K8s Job pods (claude-runner image) |
-| Task tracking | Pipeline tasks via Lore MCP + GitHub Issues |
+| Task tracking | Pipeline tasks via Lore MCP; GitHub Issues for exception surfaces (opt-out per ADR-016) |
 | Feature workflow | Spec Kit (`specify-cli`) |
 | Observability | OpenTelemetry → Cloud Monitoring |
 | CI evals | PromptFoo |

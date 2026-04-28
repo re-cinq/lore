@@ -1,0 +1,78 @@
+name: implementation
+description: Implement a spec, validate, push, review. On changes_requested, address feedback up to 2 iterations.
+version: 1
+entry: implement
+exit: done
+
+nodes:
+  - id: implement
+    type: agent
+    prompt_ref: implementation
+    model: claude-sonnet-4-6
+    description: Implement the spec; edit source files.
+
+  - id: validate
+    type: validate
+    validator: all
+    description: Run lint + typecheck on changed files.
+
+  - id: push
+    type: agent
+    prompt_ref: push-only
+    description: Open or update the PR.
+
+  - id: review
+    type: agent
+    prompt_ref: review
+    model: claude-haiku-4-5-20251001
+    description: Bot review — posts inline comments + verdict.
+
+  - id: address
+    type: agent
+    prompt_ref: address-feedback
+    model: claude-sonnet-4-6
+    description: Address review feedback in code.
+
+  - id: retrospective
+    type: retrospective
+    description: Episode + curated memory.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: implement
+    to: validate
+    on: success
+  - from: implement
+    to: implement
+    on: failed
+    iteration_max: 1
+  - from: validate
+    to: push
+    on: success
+  - from: validate
+    to: implement
+    on: failed
+    iteration_max: 1
+  - from: push
+    to: review
+    on: always
+  - from: review
+    to: retrospective
+    on: success
+  - from: review
+    to: address
+    on: changes_requested
+    iteration_max: 2
+  - from: address
+    to: validate
+    on: always
+    iteration_max: 2
+  - from: review
+    to: retrospective
+    on: failed
+  - from: retrospective
+    to: done
+    on: always

@@ -7,7 +7,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { redactSecrets as sanitizeContent, parseTasks, inferPhaseDependencies } from "@re-cinq/lore-shared";
+import { redactSecrets as sanitizeContent, parseTasks, inferPhaseDependencies, parseTrailers } from "@re-cinq/lore-shared";
 import { getHealthStatus, isDbAvailable, getQueryEmbedding } from "./db.js";
 import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "./memory.js";
 import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "./memory-file.js";
@@ -21,7 +21,14 @@ import { getTaskTypes } from "./pipeline-config.js";
 import { onboardRepo } from "./repo-onboard.js";
 import { ingestFiles } from "./ingest.js";
 import { resolveAgentId } from "./agent-id.js";
-import { getGitHubToken } from "./github-client.js";
+import { getGitHubToken, getOctokit } from "./github-client.js";
+import {
+  parseDarkFactorySettings,
+  resolveSettings,
+  twoKeyFieldsTouched,
+  type DarkFactorySettings,
+} from "./dark-factory-settings.js";
+import { verifyApproval, TwoKeyError } from "./dark-factory-authz.js";
 
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
 
@@ -76,7 +83,21 @@ const ROUTE_SCOPES: Record<string, TokenScope> = {
   "/api/tokens": "admin",
 };
 
+// URL patterns that override the prefix-based scope mapping for routes
+// that need stronger scope than their generic prefix would imply. Keep
+// these explicit so future `/api/repos/:o/:r/...` routes don't silently
+// inherit admin scope.
+const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope }> = [
+  {
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$|\/)/,
+    scope: "admin",
+  },
+];
+
 function getRequiredScope(url: string): TokenScope {
+  for (const override of SCOPE_OVERRIDES) {
+    if (override.re.test(url)) return override.scope;
+  }
   for (const [prefix, scope] of Object.entries(ROUTE_SCOPES)) {
     if (url.startsWith(prefix)) return scope;
   }
@@ -1114,8 +1135,508 @@ export async function handleApiRoute(
     await handleIncidentWebhook(req, res, pool);
   } else if (url === "/api/tokens") {
     await handleTokens(req, res, pool);
+  } else if (
+    /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)
+  ) {
+    await handleDarkFactorySettingsRoute(req, res, pool);
+  } else if (
+    /^\/api\/tasks\/[^/]+\/timeline(\?|$)/.test(url) && method === "GET"
+  ) {
+    await handleTaskTimeline(req, res, pool);
+  } else if (
+    /^\/api\/tasks\/by-pr\/[^/]+\/[^/]+\/[0-9]+(\?|$)/.test(url) &&
+    method === "GET"
+  ) {
+    await handleTaskByPr(req, res, pool);
   } else {
     return false; // not handled
   }
   return true;
+}
+
+// ── Dark factory settings (T018, T017) ──────────────────────────────
+
+const DARK_FACTORY_PATH_RE =
+  /^\/api\/repos\/([^/]+)\/([^/]+)\/settings\/dark-factory/;
+
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let buf = "";
+    let len = 0;
+    req.on("data", (chunk: Buffer) => {
+      len += chunk.length;
+      if (len > 1_048_576) {
+        req.destroy();
+        reject(new Error("body too large"));
+        return;
+      }
+      buf += chunk.toString("utf-8");
+    });
+    req.on("end", () => {
+      if (!buf) return resolve({});
+      try {
+        resolve(JSON.parse(buf));
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+// ── Task timeline (T048, T049 — FR5.3) ─────────────────────────────
+
+const TIMELINE_RE = /^\/api\/tasks\/([^/?]+)\/timeline/;
+const BY_PR_RE = /^\/api\/tasks\/by-pr\/([^/]+)\/([^/]+)\/([0-9]+)/;
+const LORE_TASK_TRAILER_RE = /^Lore-Task:\s*([0-9a-f-]+)\s*$/im;
+
+interface TimelineCommit {
+  sha: string;
+  stage: string;
+  iteration: number;
+  outcome: string;
+  committed_at: string;
+  duration_ms: number | null;
+  summary: string;
+  extras?: Record<string, string>;
+}
+
+async function handleTaskTimeline(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: Pool | null,
+): Promise<void> {
+  if (!pool) {
+    json(res, 503, { error: "database unavailable" });
+    return;
+  }
+  const m = (req.url || "").match(TIMELINE_RE);
+  if (!m) {
+    json(res, 404, { error: "not found" });
+    return;
+  }
+  const taskId = decodeURIComponent(m[1]);
+
+  let task: {
+    target_repo: string | null;
+    target_branch: string | null;
+    pr_number: number | null;
+    pr_url: string | null;
+    status: string;
+    created_at: Date;
+  } | undefined;
+  try {
+    const { rows } = await pool.query(
+      `SELECT target_repo, target_branch, pr_number, pr_url, status, created_at
+         FROM pipeline.tasks WHERE id = $1`,
+      [taskId],
+    );
+    task = rows[0];
+  } catch (err) {
+    console.error("[timeline] task lookup failed:", err);
+    json(res, 500, { error: "internal" });
+    return;
+  }
+  if (!task) {
+    json(res, 404, { error: "task_not_found" });
+    return;
+  }
+
+  const repo = task.target_repo;
+  const branch = task.target_branch;
+  if (!repo || !branch) {
+    json(res, 200, {
+      task_id: taskId,
+      branch_name: branch,
+      repo,
+      pr_number: task.pr_number,
+      pr_url: task.pr_url,
+      pr_state: null,
+      commits: [],
+      current_stage: null,
+      pending: "no_branch",
+    });
+    return;
+  }
+
+  // Fetch commits via the GitHub API. Avoids requiring local git
+  // checkout in mcp-server — the branch is the source of truth on the
+  // remote anyway.
+  let commitsApi: Array<{
+    sha: string;
+    commit: { message: string; committer: { date?: string | null } | null };
+  }>;
+  let prState: "open" | "closed" | "merged" | null = null;
+  try {
+    const [owner, repoName] = repo.split("/");
+    const octokit = await getOctokit();
+    const r = await octokit.rest.repos.listCommits({
+      owner,
+      repo: repoName,
+      sha: branch,
+      per_page: 100,
+    });
+    commitsApi = r.data as typeof commitsApi;
+    if (task.pr_number) {
+      try {
+        const prRes = await octokit.rest.pulls.get({
+          owner,
+          repo: repoName,
+          pull_number: task.pr_number,
+        });
+        prState = prRes.data.merged
+          ? "merged"
+          : (prRes.data.state as "open" | "closed");
+      } catch {
+        // PR fetch is best-effort.
+      }
+    }
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) {
+      json(res, 200, {
+        task_id: taskId,
+        branch_name: branch,
+        repo,
+        pr_number: task.pr_number,
+        pr_url: task.pr_url,
+        pr_state: null,
+        commits: [],
+        branch_deleted: true,
+      });
+      return;
+    }
+    console.error("[timeline] listCommits failed:", err);
+    json(res, 500, { error: "github_api" });
+    return;
+  }
+
+  // Stage commits are most-recent-first from GitHub. Reverse for
+  // chronological order so durations compute correctly.
+  const ordered = [...commitsApi].reverse();
+  const stageCommits: TimelineCommit[] = [];
+  let prevTimeMs = task.created_at.getTime();
+  for (const c of ordered) {
+    const trailers = parseTrailers(c.commit.message);
+    if (!trailers) continue;
+    const committedIso =
+      c.commit.committer?.date ?? new Date().toISOString();
+    const committedMs = new Date(committedIso).getTime();
+    stageCommits.push({
+      sha: c.sha,
+      stage: trailers.stage,
+      iteration: trailers.iteration,
+      outcome: trailers.extras?.["Lore-Outcome"] ?? "success",
+      committed_at: committedIso,
+      duration_ms: Number.isFinite(committedMs - prevTimeMs)
+        ? committedMs - prevTimeMs
+        : null,
+      summary: c.commit.message.split("\n")[0],
+      ...(trailers.extras ? { extras: trailers.extras } : {}),
+    });
+    prevTimeMs = committedMs;
+  }
+
+  const currentStage =
+    stageCommits.length > 0
+      ? stageCommits[stageCommits.length - 1].stage
+      : null;
+
+  // Lease state — best-effort.
+  let lease: {
+    held: boolean;
+    holder?: string;
+    expires_at?: string;
+  } | null = null;
+  try {
+    const { rows } = await pool.query(
+      `SELECT holder, expires_at FROM pipeline.task_leases WHERE branch_name = $1`,
+      [branch],
+    );
+    if (rows.length > 0) {
+      const expiresAt = new Date(rows[0].expires_at);
+      lease = {
+        held: expiresAt.getTime() > Date.now(),
+        holder: rows[0].holder,
+        expires_at: expiresAt.toISOString(),
+      };
+    } else {
+      lease = { held: false };
+    }
+  } catch {
+    // Lease table may not exist yet — non-fatal.
+  }
+
+  json(res, 200, {
+    task_id: taskId,
+    branch_name: branch,
+    repo,
+    pr_number: task.pr_number,
+    pr_url: task.pr_url,
+    pr_state: prState,
+    commits: stageCommits,
+    current_stage: currentStage,
+    lease,
+  });
+}
+
+async function handleTaskByPr(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: Pool | null,
+): Promise<void> {
+  if (!pool) {
+    json(res, 503, { error: "database unavailable" });
+    return;
+  }
+  const m = (req.url || "").match(BY_PR_RE);
+  if (!m) {
+    json(res, 404, { error: "not found" });
+    return;
+  }
+  const owner = decodeURIComponent(m[1]);
+  const repoName = decodeURIComponent(m[2]);
+  const prNumber = Number.parseInt(m[3], 10);
+  const repo = `${owner}/${repoName}`;
+
+  // First try the DB — fast path.
+  try {
+    const { rows } = await pool.query(
+      `SELECT id FROM pipeline.tasks
+         WHERE target_repo = $1 AND pr_number = $2
+         LIMIT 1`,
+      [repo, prNumber],
+    );
+    if (rows.length > 0) {
+      json(res, 200, { task_id: rows[0].id, trailer_source: "db" });
+      return;
+    }
+  } catch (err) {
+    console.error("[by-pr] DB lookup failed:", err);
+  }
+
+  // Fall back to GitHub API: fetch PR body + final commit and parse
+  // for Lore-Task: trailer.
+  try {
+    const octokit = await getOctokit();
+    const pr = await octokit.rest.pulls.get({
+      owner,
+      repo: repoName,
+      pull_number: prNumber,
+    });
+
+    const fromBody = pr.data.body?.match(LORE_TASK_TRAILER_RE);
+    if (fromBody) {
+      json(res, 200, { task_id: fromBody[1], trailer_source: "pr_body" });
+      return;
+    }
+
+    // Final commit on the PR head branch.
+    const head = pr.data.head.sha;
+    const commit = await octokit.rest.git.getCommit({
+      owner,
+      repo: repoName,
+      commit_sha: head,
+    });
+    const trailers = parseTrailers(commit.data.message);
+    if (trailers?.taskId) {
+      json(res, 200, {
+        task_id: trailers.taskId,
+        trailer_source: "final_commit",
+      });
+      return;
+    }
+    json(res, 404, { error: "no_trailer_found" });
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) {
+      json(res, 404, { error: "pr_not_found" });
+      return;
+    }
+    console.error("[by-pr] GitHub fallback failed:", err);
+    json(res, 500, { error: "github_api" });
+  }
+}
+
+async function handleDarkFactorySettingsRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: Pool | null,
+): Promise<void> {
+  if (!pool) {
+    json(res, 503, { error: "database unavailable" });
+    return;
+  }
+  const m = (req.url || "").match(DARK_FACTORY_PATH_RE);
+  if (!m) {
+    json(res, 404, { error: "not found" });
+    return;
+  }
+  const owner = decodeURIComponent(m[1]);
+  const repoName = decodeURIComponent(m[2]);
+  const repo = `${owner}/${repoName}`;
+  const method = req.method || "";
+
+  if (method === "GET") {
+    await handleGetDarkFactorySettings(repo, res, pool);
+    return;
+  }
+  if (method === "PUT") {
+    await handlePutDarkFactorySettings(req, res, pool, repo);
+    return;
+  }
+  json(res, 405, { error: "method not allowed" });
+}
+
+async function handleGetDarkFactorySettings(
+  repo: string,
+  res: ServerResponse,
+  pool: Pool,
+): Promise<void> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT settings FROM lore.repos WHERE full_name = $1`,
+      [repo],
+    );
+    if (rows.length === 0) {
+      json(res, 404, { error: "repo not onboarded", repo });
+      return;
+    }
+    const partial = (rows[0].settings?.dark_factory ?? null) as
+      | DarkFactorySettings
+      | null;
+    json(res, 200, resolveSettings(partial));
+  } catch (err) {
+    console.error("[dark-factory] GET settings failed:", err);
+    json(res, 500, { error: "internal" });
+  }
+}
+
+async function handlePutDarkFactorySettings(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: Pool,
+  repo: string,
+): Promise<void> {
+  let body: unknown;
+  try {
+    body = await readJsonBody(req);
+  } catch (err) {
+    json(res, 400, {
+      error: "invalid_body",
+      detail: (err as Error).message,
+    });
+    return;
+  }
+
+  let patch: DarkFactorySettings;
+  try {
+    patch = parseDarkFactorySettings(body);
+  } catch (err) {
+    const issues =
+      typeof err === "object" && err !== null && "issues" in err
+        ? (err as { issues: unknown }).issues
+        : (err as Error).message;
+    json(res, 400, { error: "invalid_settings", issues });
+    return;
+  }
+
+  // Two-key check (FR3.9): privileged fields require an approval-PR header.
+  const twoKey = twoKeyFieldsTouched(patch);
+  let ceremony: { tier: "two_key" | "admin"; pr_ref?: string; approver?: string; pr_url?: string } = { tier: "admin" };
+  if (twoKey.length > 0) {
+    const prRef = req.headers["x-lore-approval-pr"];
+    if (typeof prRef !== "string" || !prRef) {
+      json(res, 403, {
+        error: "two_key_required",
+        field_paths: twoKey,
+        detail:
+          "Privileged fields require an X-Lore-Approval-PR header. " +
+          "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.",
+      });
+      return;
+    }
+    try {
+      const octokit = await getOctokit();
+      const evidence = await verifyApproval({
+        octokit,
+        prRef,
+        targetRepo: repo,
+      });
+      ceremony = {
+        tier: "two_key",
+        pr_ref: evidence.prRef,
+        approver: evidence.approver,
+        pr_url: evidence.prUrl,
+      };
+    } catch (err) {
+      if (err instanceof TwoKeyError) {
+        json(res, 403, {
+          error: "codeowners_check_failed",
+          code: err.code,
+          detail: err.message,
+        });
+        return;
+      }
+      console.error("[dark-factory] Two-key verify failed:", err);
+      json(res, 503, { error: "github_api_unavailable" });
+      return;
+    }
+  }
+
+  // Read current, merge patch, write back. lore.repos.settings is JSONB.
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      `SELECT settings FROM lore.repos WHERE full_name = $1 FOR UPDATE`,
+      [repo],
+    );
+    if (rows.length === 0) {
+      await client.query("ROLLBACK");
+      json(res, 404, { error: "repo not onboarded", repo });
+      return;
+    }
+    const settings = rows[0].settings ?? {};
+    const prev = settings.dark_factory ?? {};
+    const next = { ...prev, ...patch };
+    if (patch.auto_merge) {
+      next.auto_merge = { ...(prev.auto_merge ?? {}), ...patch.auto_merge };
+    }
+    settings.dark_factory = next;
+
+    await client.query(
+      `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`,
+      [settings, repo],
+    );
+
+    // Audit log entry per FR3.9.
+    const auditPayload = {
+      field_paths_changed: Object.keys(patch),
+      two_key_fields: twoKey,
+      prev: prev,
+      next: next,
+      ceremony,
+    };
+    await client
+      .query(
+        `INSERT INTO pipeline.audit_log (event_type, repo, payload)
+         VALUES ('dark_factory_setting_changed', $1, $2)`,
+        [repo, JSON.stringify(auditPayload)],
+      )
+      .catch(() => {
+        // Audit log is best-effort; do not block the settings update.
+      });
+
+    await client.query("COMMIT");
+    json(res, 200, {
+      ok: true,
+      applied: next,
+      ceremony,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[dark-factory] PUT settings failed:", err);
+    json(res, 500, { error: "internal" });
+  } finally {
+    client.release();
+  }
 }

@@ -51,7 +51,24 @@ gcloud auth for local dev.
 ## Key Components
 
 - `mcp-server/` — the MCP server (TypeScript)
-- `mcp-server/src/routes.ts` — HTTP API route handlers (extracted from index.ts)
+- `mcp-server/src/routes.ts` — HTTP API route handlers (extracted from index.ts). Includes `/api/repos/:o/:r/settings/dark-factory` (GET/PUT, two-key authZ on privileged fields), `/api/tasks/:uuid/timeline`, `/api/tasks/by-pr/:o/:r/:n` (PR↔task resolver)
+- `mcp-server/src/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` for the privileged-field gate
+- `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
+- `agent/src/supervisor/lease.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
+- `agent/src/supervisor/graph-executor.ts` — `executeGraph()` walks workflow YAML, dispatches per-node-type handlers, emits stage commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers (allow-empty for non-file-changing nodes), refreshes lease per node, supports resume from last trailer on the branch
+- `agent/src/workflow/loader.ts` — Zod schema for workflow YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check
+- `agent/src/workflows/*.yaml` — declarative workflow definitions (gap-fill, general, implementation; more extensible)
+- `agent/src/jobs/auto-merge.ts` — pure `evaluateAutoMerge()` decision + `evaluateAndMerge()` end-to-end with backoff. Outcome enum captures all 7 deferral reasons + `merged`. OTEL span `lore.auto_merge.decision` carries the rule trace
+- `agent/src/jobs/lease-reaper.ts` — 60s tick deletes leases >5min past expiry, writes `lease_expired` audit entries
+- `agent/src/jobs/dark-factory-baseline.ts` — pre-feature 30-day counter snapshot per repo, written to `pipeline.dark_factory_baseline` for SC1/SC4/SC6 deltas
+- `agent/src/lib/dark-factory.ts` — `decideIssueCreate()` and `decideReviewMode()` pure helpers + DB-backed `shouldCreateIssue()` / `resolveReviewMode()` wrappers
+- `agent/src/lib/escalation.ts` — `escalate()` creates the `needs-human-help` Issue with diagnostic, branch link, contributing refs; falls back to audit-only Slack inline if Issue creation fails (3-attempt backoff)
+- `agent/src/lib/path-match.ts` — `allPathsMatch()` minimatch wrapper; returns true only when **every** changed path matches at least one allowlist glob
+- `agent/src/lib/notify.ts` — `decideNotify()` filters notifications by `dark_factory.notify` channel list
+- `agent/src/lib/audit.ts` — `writeAuditLog()` writer for the new `pipeline.audit_log` table
+- `agent/src/lib/pr-body.ts` — `prFooter()` composes the standard `Lore-Task: <uuid>` (+ optional `Refs #N`) PR-body footer used by every Lore-authored PR
+- `shared/src/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `lastStageOnBranch()` exported via `@re-cinq/lore-shared`. Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
+- `web-ui/src/app/pipeline/[id]/Timeline.tsx` — client component, vertical stage-commit timeline with node-type icons, outcome badges, lease indicator. Polls `/api/pipeline/:id/timeline` every 10s while task is in flight
 - `mcp-server/src/github-client.ts` — consolidated GitHub auth (App + token fallback)
 - `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
@@ -432,5 +449,13 @@ there would not trigger and is not attempted. Default
 implementation / review / default cap at 8K); the `assemble_context`
 MCP tool's `max_tokens` parameter default is also 8K.
 
-- Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created.
+- Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created. **Dark-factory mode (per ADR-016) narrows this**: when `dark_factory.enabled = true`, Issues are created only for approval-gated tasks, on-the-fly escalations (`needs-human-help`), or repos that explicitly opted into `create_issue: always`. The PR remains the canonical artifact; cross-reference is via the `Lore-Task: <uuid>` trailer in the PR body.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.
+
+**Dark Factory mode** (per-repo, off by default; ADR-016):
+- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Schema in `mcp-server/src/dark-factory-settings.ts`; defaults in `resolveSettings()`.
+- Privileged changes (`enabled` toggle, `auto_merge.paths`, downgrade of `require_*` to false) need two-key authorization: admin scope + an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md` (`dark-factory-authz.ts`).
+- Branch-as-state: every workflow phase commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers; the supervisor reads `git log` to resume after pod death.
+- Workflow definitions live as YAML files at `agent/src/workflows/*.yaml`. Local runner and GKE supervisor share definitions (FR2.3).
+- Auto-merge runs after `[stage:retrospective]`: green CI + bot APPROVED + path matches every changed file + repo trust ≥ `min_trust` → squash-merge. Decision and rule recorded in `pipeline.audit_log` as `auto_merge_decision`.
+- Rollback procedure: `runbooks/dark-factory-rollback.md`.
