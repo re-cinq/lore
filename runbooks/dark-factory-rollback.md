@@ -194,23 +194,50 @@ flipping the flag.
 
 #### Step 1 — flip the cluster flag (no per-repo change yet)
 
+> ⚠️ **Not a no-op for repos already on PR #308's in-agent docs path.**
+> Any repo with `dark_factory.enabled = true` today (i.e. repos
+> piloted via the in-agent supervisor for `gap-fill` / `runbook`)
+> will start routing **impl / general / review** tasks through the
+> cluster supervisor on their next task. If you don't want that yet,
+> set `dark_factory.enabled = false` on those repos *before* flipping
+> the cluster gate, then re-enable per-repo as part of step 2's soak.
+
+Pre-check which repos are about to shift:
+
+```bash
+psql "$LORE_DB_URL" -c "
+  SELECT full_name FROM lore.repos
+   WHERE settings->'dark_factory'->>'enabled' = 'true';
+"
+```
+
 ```bash
 helm upgrade --reuse-values lore-agent ./terraform/modules/gke-mcp/agent-helm \
   --namespace lore-agent \
-  --set env.LORE_DARK_FACTORY_CLUSTER_ENABLED=true
-kubectl rollout status deployment/lore-agent -n lore-agent --timeout=2m
+  --set-string env.LORE_DARK_FACTORY_CLUSTER_ENABLED=true
+kubectl rollout status deployment/lore-agent -n lore-agent --timeout=5m
 ```
 
-This is a no-op for any repo with `dark_factory.enabled = false` —
-those still get the legacy path. Only repos that already opted in
-will start routing impl/general/review through the cluster supervisor.
+`--set-string` (not `--set`) — helm's `--set` parses `=true` as a
+YAML bool, which K8s rejects with `must be a string` for env values.
 
-If no repo has dark mode on yet, this flip is a pure pre-flight and
-you proceed to step 2. If a repo already has `dark_factory.enabled =
-true` (e.g. the docs-only path was piloted via the in-agent supervisor
-in PR #308), expect those to start using the cluster path on their
-next impl/general/review task — confirm by watching `kubectl logs`
-for `[runner-cli] Starting dark-factory supervisor`.
+`--timeout=5m` — agent cold-start covers image pull (~1.6GB after
+PR #311), DB pool init, scheduler boot, webhook subscriber registration.
+2 minutes is on the edge under cluster-autoscaler scenarios where a
+new node has to spin up; false rollout failures during a sensitive
+flag flip are the worst possible signal.
+
+While the rollout is in progress, tail logs in another shell for at
+least 30 s after `Available: True` to catch immediate startup
+failures (bad image, missing env, etc.) before proceeding to step 2:
+
+```bash
+kubectl logs deployment/lore-agent -n lore-agent -f --tail=200
+```
+
+For repos that already had `dark_factory.enabled = true`, confirm the
+shift by watching for `[runner-cli] Starting dark-factory supervisor`
+in pod logs on their next impl/general/review task.
 
 #### Step 2 — pick a pilot repo
 
@@ -223,15 +250,24 @@ Choose a repo that:
 - Has at least one human reviewer who can intercept misbehavior fast.
 - **Not** a production-critical repo (auth / payments / billing).
 
-Enable dark mode on it:
+Enable dark mode on it. If the repo already had a partial
+`dark_factory` config (e.g. `notify` set during the in-agent pilot),
+**do not clobber it** — `jsonb_set(..., '{dark_factory}', $new)`
+replaces the whole subobject. Confirm what's there first, then merge:
 
 ```sql
+-- Check first
+SELECT settings->'dark_factory' FROM lore.repos
+ WHERE full_name = 'org/pilot-repo';
+
+-- Merge (preserves any prior fields like notify, create_issue, etc.)
 UPDATE lore.repos
-SET settings = jsonb_set(
-  COALESCE(settings, '{}'::jsonb),
-  '{dark_factory}',
-  '{"enabled": true, "auto_merge": {"min_trust": "docs"}}'::jsonb
-)
+SET settings = COALESCE(settings, '{}'::jsonb) ||
+  jsonb_build_object(
+    'dark_factory',
+    COALESCE(settings->'dark_factory', '{}'::jsonb) ||
+      '{"enabled": true, "auto_merge": {"min_trust": "docs"}}'::jsonb
+  )
 WHERE full_name = 'org/pilot-repo';
 ```
 
@@ -242,20 +278,32 @@ mode" → on.
 
 Watch:
 
-- `pipeline.audit_log` — `auto_merge_decision` rows. The `rule` field
-  shows which gate fired (path, trust, ci, bot-approval).
-- Escalation Issues labelled `needs-human-help` — should be rare
+- **Auto-merge decisions** in `pipeline.audit_log`. The `rule` payload
+  shows which gate fired (path, trust, ci, bot-approval). Sample query:
+
+  ```sql
+  SELECT created_at, repo, payload->>'pr_number' AS pr,
+         payload->>'outcome'    AS outcome,
+         payload->'rule'        AS rule
+    FROM pipeline.audit_log
+   WHERE event_type = 'auto_merge_decision'
+     AND repo = 'org/pilot-repo'
+   ORDER BY created_at DESC LIMIT 50;
+  ```
+
+- **Escalation Issues** labelled `needs-human-help` — should be rare
   (< 1 per 50 tasks).
-- Cluster-pod failures — `kubectl get loretasks -n lore-agent -l
-  lore.re-cinq.com/dark-factory=true` then `kubectl describe` any in
-  `Failed` state.
+- **Cluster-pod failures** —
+  `kubectl get loretasks -n lore-agent -l lore.re-cinq.com/dark-factory=true`,
+  then `kubectl describe` any in `Failed` state.
 
 #### Step 4 — ramp
 
 Promote the pilot repo's `auto_merge.min_trust` one tier at a time
 (`docs` → `tests` → `implementation` → `full`), waiting at least
 3 successful merges at each tier (the auto-promotion logic lives in
-`agent/src/jobs/dark-factory-baseline.ts`).
+`agent/src/jobs/merge-check.ts:213`; threshold via
+`lore.repos.settings.trust.auto_promote_threshold`, default 3).
 
 Once two repos have soaked at `implementation` for 7 days each, flip
 the helm default:
@@ -276,7 +324,7 @@ To unflip the cluster gate:
 ```bash
 helm upgrade --reuse-values lore-agent ./terraform/modules/gke-mcp/agent-helm \
   --namespace lore-agent \
-  --set env.LORE_DARK_FACTORY_CLUSTER_ENABLED=false
+  --set-string env.LORE_DARK_FACTORY_CLUSTER_ENABLED=false
 ```
 
 In-flight Job pods finish (they're already running the cluster
