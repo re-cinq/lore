@@ -32,6 +32,7 @@ export class TwoKeyError extends Error {
       | "pr_state"
       | "label_missing"
       | "approver_not_codeowner"
+      | "team_membership_unresolved"
       | "codeowners_unparseable"
       | "github_api"
       | "wrong_repo",
@@ -138,6 +139,27 @@ export async function verifyApproval(opts: {
 
   const codeowners = await fetchCodeowners({ octokit, owner, repo });
   if (!isCodeowner(approver, codeowners)) {
+    // Distinguish "no @user matched" from "the file only lists team
+    // handles". Team-membership lookup against the GitHub team API is
+    // a follow-up (it requires a `read:org` token and per-team caching).
+    // For v1 we surface a distinct error code so operators can tell at a
+    // glance whether they need to update CODEOWNERS to include direct
+    // user handles for the approver, vs. the approver genuinely being
+    // out of scope.
+    if (
+      codeowners.length > 0 &&
+      codeowners.every((row) =>
+        row.owners.every((o) => o.includes("/")),
+      )
+    ) {
+      throw new TwoKeyError(
+        `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
+          `team-membership lookup is not implemented in v1. Add an explicit ` +
+          `@user owner for the approver, or wait for the per-path team ` +
+          `resolution follow-up.`,
+        "team_membership_unresolved",
+      );
+    }
     throw new TwoKeyError(
       `${approver} is not a CODEOWNERS member of ${targetRepo}`,
       "approver_not_codeowner",

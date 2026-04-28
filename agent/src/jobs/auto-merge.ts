@@ -13,6 +13,7 @@ export type AutoMergeOutcome =
   | "deferred:path_outside_allowlist"
   | "deferred:trust_too_low"
   | "deferred:dark_mode_off"
+  | "deferred:no_changes"
   | "deferred:api_failure";
 
 export interface DarkFactoryAutoMerge {
@@ -77,6 +78,13 @@ export function evaluateAutoMerge(
 
   if (!inputs.darkFactoryEnabled) {
     return { outcome: "deferred:dark_mode_off", rule: baseRule };
+  }
+
+  // A zero-file PR would technically pass the path-allowlist check
+  // (vacuous truth) but GitHub's merge call would then 422 on an empty
+  // diff. Surface the real reason in the audit log instead.
+  if (inputs.changedPaths.length === 0) {
+    return { outcome: "deferred:no_changes", rule: baseRule };
   }
 
   if (inputs.humanChangesRequested) {
@@ -191,7 +199,10 @@ async function mergeWithBackoff(opts: {
   prNumber: number;
 }): Promise<void> {
   const [owner, name] = opts.repo.split("/");
-  const delays = [1000, 4000, 16000];
+  // Same trade-off as escalation.ts: 5s tail beats 21s while holding
+  // the supervisor lease. On final failure, evaluateAndMerge degrades
+  // to deferred:api_failure and the PR sits open for a human merge.
+  const delays = [1000, 4000];
 
   for (let attempt = 0; attempt < delays.length; attempt++) {
     try {

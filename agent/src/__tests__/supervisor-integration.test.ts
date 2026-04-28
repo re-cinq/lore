@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
+import type { Octokit } from "octokit";
 import { runSupervisor } from "../supervisor/index.js";
 import { FileLeaseBackend } from "../supervisor/lease.js";
 import { parseWorkflow } from "../workflow/loader.js";
@@ -124,6 +125,7 @@ describe("supervisor integration (T058 vertical slice)", () => {
         resolvePrForTask: async () => ({
           repo: "owner/repo",
           prNumber: 42,
+          octokit: {} as Octokit, // unused by the stub evaluateAndMerge
           policy: {
             darkFactoryEnabled: true,
             autoMerge: {

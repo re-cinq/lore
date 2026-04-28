@@ -61,7 +61,9 @@ describe("resolveSettings", () => {
     const r = resolveSettings({ enabled: true });
     expect(r.create_issue).toBe("on_gate");
     expect(r.review).toBe("trust_based");
-    expect(r.notify).toEqual(["escalation"]);
+    // Empty notify list — escalations always fire via decideNotify
+    // regardless, so listing them explicitly was redundant.
+    expect(r.notify).toEqual([]);
     expect(r.auto_merge.paths).toContain("CLAUDE.md");
   });
 

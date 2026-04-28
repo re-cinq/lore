@@ -146,7 +146,7 @@ describe("escalate — retry then success", () => {
 });
 
 describe("escalate — audit_only fallback (T041)", () => {
-  it("degrades to audit_only after 3 attempts and inlines body to Slack", async () => {
+  it("degrades to audit_only after 2 attempts and inlines body to Slack", async () => {
     const { octokit, createCalls } = mockOctokit({ alwaysFails: true });
     vi.spyOn(globalThis, "setTimeout").mockImplementation(
       ((fn: () => void) => {
@@ -170,7 +170,8 @@ describe("escalate — audit_only fallback (T041)", () => {
 
     expect(r.outcome).toBe("audit_only");
     expect(r.issueNumber).toBeUndefined();
-    expect(createCalls).toHaveLength(3);
+    // Reduced retry budget: 2 attempts (1s + 4s tail) instead of 3.
+    expect(createCalls).toHaveLength(2);
 
     // Slack message must carry the full body since the Issue surface
     // failed.

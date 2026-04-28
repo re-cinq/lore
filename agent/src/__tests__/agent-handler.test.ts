@@ -119,6 +119,8 @@ describe("createAgentHandler", () => {
     expect(r.extras?.["Lore-Files-Written"]).toBe("2");
     expect(r.extras?.["Lore-Cost-Tokens"]).toContain("input=100");
     expect(r.extras?.["Lore-Cost-Tokens"]).toContain("output=200");
+    // No USD/dollar trailer — token counts only.
+    expect(r.extras?.["Lore-Cost-USD"]).toBeUndefined();
 
     expect(
       await fs.readFile(path.join(tmpDir, "runbooks/foo.md"), "utf-8"),

@@ -44,7 +44,11 @@ export interface EscalateResult {
   issueUrl?: string;
 }
 
-const RETRY_DELAYS_MS = [1000, 4000, 16000];
+// Two attempts after the initial call: ~5s tail. The supervisor lease
+// is held while we wait, and the audit_only fallback already preserves
+// the diagnostic in Slack — burning 21s on retries doesn't buy
+// reliability proportional to the lease-hold cost.
+const RETRY_DELAYS_MS = [1000, 4000];
 
 /**
  * Escalate a stuck task to humans. Per FR3.8 + research R3:

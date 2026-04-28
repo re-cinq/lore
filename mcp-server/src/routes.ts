@@ -81,10 +81,23 @@ const ROUTE_SCOPES: Record<string, TokenScope> = {
   "/api/webhook/slack": "webhook",
   "/api/webhook/incident": "webhook",
   "/api/tokens": "admin",
-  "/api/repos/": "admin", // dark-factory settings endpoints (FR3.9)
 };
 
+// URL patterns that override the prefix-based scope mapping for routes
+// that need stronger scope than their generic prefix would imply. Keep
+// these explicit so future `/api/repos/:o/:r/...` routes don't silently
+// inherit admin scope.
+const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope }> = [
+  {
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$|\/)/,
+    scope: "admin",
+  },
+];
+
 function getRequiredScope(url: string): TokenScope {
+  for (const override of SCOPE_OVERRIDES) {
+    if (override.re.test(url)) return override.scope;
+  }
   for (const [prefix, scope] of Object.entries(ROUTE_SCOPES)) {
     if (url.startsWith(prefix)) return scope;
   }

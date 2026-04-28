@@ -41,6 +41,12 @@ describe("evaluateAutoMerge — deferral reasons (priority)", () => {
       .toBe("deferred:dark_mode_off");
   });
 
+  it("deferred:no_changes for an empty PR before path-allowlist check", () => {
+    expect(
+      evaluateAutoMerge(inputs({ changedPaths: [] })).outcome,
+    ).toBe("deferred:no_changes");
+  });
+
   it("deferred:human_review when human changes requested", () => {
     expect(
       evaluateAutoMerge(inputs({ humanChangesRequested: true })).outcome,

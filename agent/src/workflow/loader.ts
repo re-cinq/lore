@@ -201,9 +201,27 @@ function detectCycles(wf: Workflow, source: string): void {
   const color = new Map<string, number>();
   for (const n of wf.nodes) color.set(n.id, WHITE);
 
-  function visit(id: string): void {
-    color.set(id, GRAY);
-    for (const e of adj.get(id) ?? []) {
+  // Iterative DFS with explicit stack. Each frame holds the node id
+  // and an index into its outgoing edge list — when we exhaust edges,
+  // we pop and color the node BLACK. Symmetric with the BFS used for
+  // reachability above, and won't blow the stack on deeply-nested
+  // hand-authored YAML.
+  for (const start of wf.nodes) {
+    if (color.get(start.id) !== WHITE) continue;
+    const stack: Array<{ id: string; edgeIndex: number }> = [
+      { id: start.id, edgeIndex: 0 },
+    ];
+    color.set(start.id, GRAY);
+
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1];
+      const edges = adj.get(frame.id) ?? [];
+      if (frame.edgeIndex >= edges.length) {
+        color.set(frame.id, BLACK);
+        stack.pop();
+        continue;
+      }
+      const e = edges[frame.edgeIndex++];
       const c = color.get(e.to);
       if (c === GRAY) {
         if (!e.iteration_max) {
@@ -213,13 +231,9 @@ function detectCycles(wf: Workflow, source: string): void {
           );
         }
       } else if (c === WHITE) {
-        visit(e.to);
+        color.set(e.to, GRAY);
+        stack.push({ id: e.to, edgeIndex: 0 });
       }
     }
-    color.set(id, BLACK);
-  }
-
-  for (const n of wf.nodes) {
-    if (color.get(n.id) === WHITE) visit(n.id);
   }
 }

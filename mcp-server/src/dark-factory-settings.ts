@@ -70,7 +70,10 @@ export function resolveSettings(
         partial?.auto_merge?.require_bot_approval ?? true,
     },
     review: partial?.review ?? (enabled ? "trust_based" : "always"),
-    notify: partial?.notify ?? (enabled ? ["escalation"] : ["all"]),
+    // Empty notify list in dark mode is correct: decideNotify always
+    // fires `escalation` regardless (escalations are never silenced),
+    // so listing it explicitly was redundant noise.
+    notify: partial?.notify ?? (enabled ? [] : ["all"]),
   };
 }
 

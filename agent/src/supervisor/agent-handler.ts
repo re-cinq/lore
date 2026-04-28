@@ -119,9 +119,11 @@ export function createAgentHandler(
       };
     }
 
+    // Token counts only — no dollar amounts in commit trailers (these
+    // are git-permanent and surface anywhere `git log` is read; the
+    // user's stated preference is no USD anywhere in the audit trail).
     const costExtra = {
       "Lore-Cost-Tokens": `input=${result.inputTokens} output=${result.outputTokens}`,
-      "Lore-Cost-USD": result.costUsd.toFixed(6),
     };
 
     if (!parseJsonFiles) {
@@ -143,6 +145,12 @@ export function createAgentHandler(
       };
     }
 
+    // Partial writes are intentional: if the agent crashes mid-write
+    // (or the sanitizer rejects some paths), the next stage's
+    // `git add -A && git commit --allow-empty` picks up whatever did
+    // land. The implementation.yaml `implement → implement (on:
+    // failed, iteration_max: 1)` self-edge bounds the retry; lease
+    // takeover handles full pod death.
     let writtenCount = 0;
     for (const [relPath, content] of Object.entries(fileMap)) {
       const safe = sanitizeRelativePath(relPath);
@@ -229,8 +237,11 @@ function tryParse(s: string): Record<string, string> | null {
 function sanitizeRelativePath(p: string): string | null {
   if (!p) return null;
   if (path.isAbsolute(p)) return null;
+  // path.normalize collapses any embedded `..` segments; a remaining
+  // leading `..` is the only escape case we need to reject.
   const normalized = path.normalize(p);
-  if (normalized.startsWith("..")) return null;
-  if (normalized.includes("/../") || normalized.includes("\\..\\")) return null;
+  if (normalized === ".." || normalized.startsWith("../") || normalized.startsWith("..\\")) {
+    return null;
+  }
   return normalized;
 }

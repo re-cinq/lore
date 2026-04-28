@@ -1,3 +1,4 @@
+import type { Octokit } from "octokit";
 import type { NodeHandler, NodeHandlers } from "./graph-executor.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import {
@@ -31,10 +32,19 @@ export interface ProductionHandlersDeps {
    * time. Returns null when no PR exists yet (e.g. handler exits
    * before push). Production wires this to the pipeline.tasks query;
    * tests inject a stub.
+   *
+   * The caller owns Octokit construction and threads it through here
+   * so the auto-merge engine has a real client (rather than the handler
+   * holding `undefined as any`).
    */
   resolvePrForTask?: (
     taskId: string,
-  ) => Promise<{ repo: string; prNumber: number; policy: AutoMergeJobInputs["policy"] } | null>;
+  ) => Promise<{
+    repo: string;
+    prNumber: number;
+    policy: AutoMergeJobInputs["policy"];
+    octokit: Octokit;
+  } | null>;
 }
 
 /**
@@ -82,11 +92,7 @@ export function createProductionRetrospectiveHandler(
         const pr = await resolvePrForTask(ctx.taskId);
         if (pr) {
           await triggerAutoMerge({
-            // Note: octokit is required by AutoMergeJobInputs; the
-            // orchestrator that wired this dep already had to construct
-            // it. Tests pass a stub that doesn't use it.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            octokit: undefined as any,
+            octokit: pr.octokit,
             taskId: ctx.taskId,
             repo: pr.repo,
             prNumber: pr.prNumber,
