@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import {
   executeGraph,
   resumeFromTrailers,
+  IterationMaxExceededError,
+  type IterationMaxExceededInfo,
   type NodeHandlers,
   type NodeResult,
 } from "../supervisor/graph-executor.js";
@@ -194,7 +196,7 @@ describe("executeGraph (review loop)", () => {
     expect(reviewCalls).toBe(3);
   });
 
-  it("aborts when iteration_max is exceeded", async () => {
+  it("aborts when iteration_max is exceeded with a typed error", async () => {
     let reviewCalls = 0;
     await expect(
       executeGraph({
@@ -217,8 +219,45 @@ describe("executeGraph (review loop)", () => {
         },
         gitCommit: async () => {},
       }),
-    ).rejects.toThrow(/iteration_max=2/);
-    expect(reviewCalls).toBe(3); // 3rd attempt triggers the cap
+    ).rejects.toThrow(IterationMaxExceededError);
+    expect(reviewCalls).toBe(3);
+  });
+
+  it("calls onIterationMaxExceeded hook before throwing (T040)", async () => {
+    const escalations: IterationMaxExceededInfo[] = [];
+    await expect(
+      executeGraph({
+        workflow: reviewLoopWorkflow,
+        taskId: "task-x",
+        branchName: "branch-y",
+        gitDir: "/dev/null",
+        holder: "test",
+        leaseBackend: noopBackend(),
+        onIterationMaxExceeded: async (info) => {
+          escalations.push(info);
+        },
+        handlers: {
+          agent: async (n) =>
+            n.id === "review"
+              ? { outcome: "changes_requested" }
+              : { outcome: "success" },
+          validate: async () => ({ outcome: "success" }),
+          gate: async () => ({ outcome: "success" }),
+          retrospective: async () => ({ outcome: "success" }),
+        },
+        gitCommit: async () => {},
+      }),
+    ).rejects.toThrow(IterationMaxExceededError);
+
+    expect(escalations).toHaveLength(1);
+    expect(escalations[0]).toMatchObject({
+      workflowName: "review-loop",
+      iterationMax: 2,
+      taskId: "task-x",
+      branchName: "branch-y",
+      fromNode: "review",
+      toNode: "implement",
+    });
   });
 });
 

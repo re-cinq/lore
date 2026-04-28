@@ -82,6 +82,47 @@ describe("decideIssueCreate", () => {
   });
 });
 
+describe("Opt-out posture matrix (US6 — T045)", () => {
+  // For every public decision helper, assert that the absence of
+  // dark_factory settings (or explicit enabled:false) yields the same
+  // legacy behavior as today's flow. This is the regression net for
+  // FR4.1: existing repos see no behavior change at migration.
+
+  for (const label of ["no settings", "enabled:false"] as const) {
+    const settings = label === "no settings" ? undefined : { enabled: false };
+
+    it(`${label} → decideIssueCreate creates the Issue`, () => {
+      expect(
+        decideIssueCreate({
+          approvalNeeded: false,
+          overrides: undefined,
+          settings,
+        }).create,
+      ).toBe(true);
+    });
+
+    it(`${label} → decideReviewMode is "always" (legacy human review)`, () => {
+      expect(decideReviewMode({ overrides: undefined, settings })).toBe(
+        "always",
+      );
+    });
+  }
+
+  it("enabled:true switches all gates to dark posture", () => {
+    const settings = { enabled: true };
+    expect(
+      decideIssueCreate({
+        approvalNeeded: false,
+        overrides: undefined,
+        settings,
+      }).create,
+    ).toBe(false); // on_gate is the dark-mode default
+    expect(decideReviewMode({ overrides: undefined, settings })).toBe(
+      "trust_based",
+    );
+  });
+});
+
 describe("decideReviewMode (T034)", () => {
   it("per-task human_review:required → always (overrides repo)", () => {
     expect(

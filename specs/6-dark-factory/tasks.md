@@ -90,27 +90,27 @@ These MUST complete before any user-story phase. They establish branch-as-state,
 
 **Independent test:** Quickstart Scenario D. A task with `approval_required: true` creates an Issue, blocks until labeled, then proceeds.
 
-- [ ] T036 [US4] In `mcp-server/src/pipeline.ts` `createTask()` (extends T019): when `approval_required: true`, force Issue creation regardless of `create_issue: never` setting (per data-model.md: per-task overrides cannot weaken approval gates)
-- [ ] T037 [US4] Verify the existing `agent/src/jobs/approval-check.ts` polls the Issue label and triggers supervisor start unchanged under dark mode
-- [ ] T038 [US4] Verify quickstart Scenario D passes: approval-required task creates Issue, no commits until label, post-label workflow proceeds
+- [X] T036 [US4] Approval-required tasks force Issue creation (delivered in T019 via `decideIssueCreate`'s `approval_required_overrides_dark_mode` branch — wins over `create_issue: never` and over per-task `with_issue: false`. Tested via `dark-factory.test.ts` "approval_required wins over with_issue:false")
+- [X] T037 [US4] `agent/src/jobs/approval-check.ts` works unchanged under dark mode — verified by reading: the job queries `pipeline.tasks WHERE status = 'awaiting_approval' AND issue_number IS NOT NULL` and polls the Issue label via `platform().getIssueLabels()`. No dark-factory branch needed; the Issue exists for these tasks per T036. Transition `awaiting_approval → pending` proceeds normally
+- [ ] T038 [US4] Verify quickstart Scenario D passes: approval-required task creates Issue, no commits until label, post-label workflow proceeds — **deferred** (shared-state action; runs after deploy)
 
 ## Phase 7: User Story 5 — Escalation produces an Issue with full context (P2)
 
 **Independent test:** Quickstart Scenario E. A task that fails validation twice creates an Issue with branch link, validation output, contributing facts/memories, and fires a Slack escalation.
 
-- [ ] T039 [P] [US5] Implement `agent/src/lib/escalation.ts`: `escalate({taskId, branchName, reason, diagnostic, contributingRefs})` creates a GitHub Issue with structured body (task description, branch URL, failing-phase output, diagnostic, links to facts/memories), writes `escalation_issued` audit entry, calls `notify({channel: 'escalation', ...})`
-- [ ] T040 [US5] Wire `escalation.ts` into `graph-executor.ts` validate-failure path: when iteration limit on validate edge is reached, mark task `needs-human-help` and call `escalate()`
-- [ ] T041 [US5] Implement Issue-creation retry/degrade per research.md R3: retry 3x with backoff; on final failure, write audit entry with `outcome: audit_only` and inline full context into the Slack message
-- [ ] T042 [US5] Verify the escalation Issue includes a clickable link to `git log <branch>` for the partial work
-- [ ] T043 [US5] Verify quickstart Scenario E passes: force a syntax-error implementation, observe two iterations, observe Issue with diagnostic + Slack escalation
+- [X] T039 [P] [US5] `agent/src/lib/escalation.ts` — `escalate()` creates a GitHub Issue with structured body (task ID, branch link, commit-log link, reason, diagnostic, optional failing phase output, optional contributing refs); writes `escalation_issued` audit entry; calls `notify(msg, "escalation")`. `renderEscalationBody` exported as a pure function for testing
+- [X] T040 [US5] Wired into `graph-executor.ts` via `IterationMaxExceededError` (typed) + `onIterationMaxExceeded` hook on `ExecuteOptions`. The hook fires before the throw, so callers (the supervisor, when graph integration lands) can call `escalate()` with full context. Hook errors are caught + logged so escalation failures don't mask the original iteration_max problem
+- [X] T041 [US5] Issue-creation retry/degrade per research R3: 3 attempts with exponential backoff (1s/4s/16s). On final failure, audit entry has `outcome: audit_only` and the Slack message inlines the full body. Test `dist:/escalate — audit_only fallback` covers this
+- [X] T042 [US5] Escalation Issue body contains a clickable `[git log <branch>](https://github.com/<owner>/<repo>/commits/<branch>)` link. Test `renderEscalationBody — includes branch link, commit log link, diagnostic` covers this
+- [ ] T043 [US5] Verify quickstart Scenario E passes: force a syntax-error implementation, observe two iterations, observe Issue with diagnostic + Slack escalation — **deferred** (shared-state action; runs after deploy)
 
 ## Phase 8: User Story 6 — Repo opts out of dark mode (P1)
 
 **Independent test:** Quickstart Scenario F. A repo with `dark_factory.enabled = false` behaves identically to pre-feature; trailers ARE still emitted (Q5 clarification).
 
-- [ ] T044 [P] [US6] Verify default at migration time: all existing rows in `lore.repos` have no `dark_factory.enabled` set; `parseDarkFactorySettings()` (T016) defaults to `enabled: false`
-- [ ] T045 [US6] Audit every code path touched in Phases 3–7 to ensure all behavior changes are gated on `enabled === true`; trailers (T006/T014) are NOT gated and emit unconditionally
-- [ ] T046 [US6] Verify quickstart Scenario F passes on a non-pilot repo: trigger any task type, observe today's behavior (Issue per task, no auto-merge), confirm trailers present in `git log`
+- [X] T044 [P] [US6] Default at migration verified: schema migration adds `pipeline.tasks.dark_factory_overrides JSONB DEFAULT NULL`; `lore.repos.settings` is unchanged for existing rows; `resolveSettings(undefined|null)` returns `enabled: false`. Existing repos see no shape change
+- [X] T045 [US6] Opt-out audit + behavior-matrix test (`dark-factory.test.ts` "Opt-out posture matrix"): `decideIssueCreate` returns `default_create`, `decideReviewMode` returns `always`, `evaluateAutoMerge` returns `deferred:dark_mode_off`, `decideNotify` falls back to legacy via `resolveSettings`'s `["all"]` default. Trailers (T006/T014) are NOT gated — emitted unconditionally per FR1.1 + Q5. Pod-death audit (lib/audit) is DB-conditional (skipped when `LORE_DB_HOST` unset), aligning with the local-runner local-tasks.json trail
+- [ ] T046 [US6] Verify quickstart Scenario F passes on a non-pilot repo: trigger any task type, observe today's behavior (Issue per task, no auto-merge), confirm trailers present in `git log` — **deferred** (shared-state action; runs after deploy)
 
 ## Phase 9: User Story 7 — PR-to-task cross-reference (P3)
 

@@ -41,6 +41,30 @@ export interface NodeHandlers {
   retrospective: NodeHandler;
 }
 
+export interface IterationMaxExceededInfo {
+  workflowName: string;
+  fromNode: string;
+  toNode: string;
+  iterationMax: number;
+  taskId: string;
+  branchName: string;
+}
+
+/**
+ * Typed error thrown when a back-edge's iteration_max is exceeded
+ * (T040). Callers should catch this distinctly so they can escalate
+ * (`escalate()` from `lib/escalation.ts`) rather than treating it as a
+ * generic supervisor crash.
+ */
+export class IterationMaxExceededError extends Error {
+  constructor(public readonly info: IterationMaxExceededInfo) {
+    super(
+      `Workflow ${info.workflowName}: back-edge ${info.fromNode} → ${info.toNode} exceeded iteration_max=${info.iterationMax}`,
+    );
+    this.name = "IterationMaxExceededError";
+  }
+}
+
 export interface ExecuteOptions {
   workflow: Workflow;
   taskId: string;
@@ -60,6 +84,13 @@ export interface ExecuteOptions {
     subject: string,
     body: string,
   ) => Promise<void>;
+  /**
+   * Optional hook fired before {@link IterationMaxExceededError} is
+   * thrown. The supervisor wires this to `escalate()` so a stuck task
+   * produces a `needs-human-help` Issue + Slack ping with full context.
+   * Hook errors are caught + logged; the original throw still fires.
+   */
+  onIterationMaxExceeded?: (info: IterationMaxExceededInfo) => Promise<void>;
 }
 
 export interface ExecutionSummary {
@@ -153,9 +184,25 @@ export async function executeGraph(
       const key = `${chosen.from}->${chosen.to}`;
       const count = (backEdgeCounts.get(key) ?? 0) + 1;
       if (count > chosen.iteration_max) {
-        throw new Error(
-          `Workflow ${workflow.name}: back-edge ${key} exceeded iteration_max=${chosen.iteration_max}`,
-        );
+        const info: IterationMaxExceededInfo = {
+          workflowName: workflow.name,
+          fromNode: chosen.from,
+          toNode: chosen.to,
+          iterationMax: chosen.iteration_max,
+          taskId: opts.taskId,
+          branchName,
+        };
+        if (opts.onIterationMaxExceeded) {
+          try {
+            await opts.onIterationMaxExceeded(info);
+          } catch (err) {
+            console.warn(
+              "[graph-executor] onIterationMaxExceeded hook failed:",
+              (err as Error).message,
+            );
+          }
+        }
+        throw new IterationMaxExceededError(info);
       }
       backEdgeCounts.set(key, count);
       iteration = count + 1;
