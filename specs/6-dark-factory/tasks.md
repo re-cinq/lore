@@ -116,23 +116,23 @@ These MUST complete before any user-story phase. They establish branch-as-state,
 
 **Independent test:** Quickstart Scenario G. From a merged PR URL or a task UUID, the web-ui resolves to the other side and renders the stage timeline.
 
-- [ ] T047 [P] [US7] Modify PR-creation paths in `mcp-server/src/pipeline.ts` and `agent/src/jobs/loretask-watcher.ts` to append `Lore-Task: <uuid>` to PR body; for dark-mode tasks, replace the `Refs #<issue>` line; for opt-out repos, keep `Refs #` and add `Lore-Task:` alongside
-- [ ] T048 [P] [US7] Implement `GET /api/tasks/:uuid/timeline` in `mcp-server/src/routes.ts` per `contracts/timeline-api.md`: walks `git log` on the task's branch, parses trailers, returns ordered phase list with timestamps, SHAs, durations, outcomes
-- [ ] T049 [P] [US7] Implement `GET /api/tasks/by-pr/:owner/:repo/:pr_number` reverse resolver in `routes.ts`: looks for `Lore-Task: <uuid>` in PR body, falls back to final commit's trailer
-- [ ] T050 [US7] Implement `web-ui/src/app/pipeline/[id]/Timeline.tsx`: vertical timeline using existing TailwindUI/shadcn primitives; node type icons, durations, outcome badges, SHA links to GitHub
-- [ ] T051 [US7] Wire Timeline.tsx into the existing pipeline detail page; auto-refresh every 10s while task in-flight, stop polling once `current_stage = retrospective` and `lease.held = false`
-- [ ] T052 [US7] Implement repo dashboard "Dark Factory" panel in `web-ui/src/app/repos/[owner]/[repo]/page.tsx`: settings summary, this-week counts (dark tasks, auto-merged, escalations), trust level, link to settings editor
-- [ ] T053 [US7] Verify quickstart Scenario G passes: open merged PR in web-ui, timeline renders; navigate by task UUID, opens same view
+- [X] T047 [P] [US7] PR footer composer in `agent/src/lib/pr-body.ts` — `prFooter({issueNumber, taskId})` always emits `Lore-Task: <uuid>`, prefixes `Refs #N` when issue exists. Wired into `worker.ts` (4 PR creation sites) and `loretask-watcher.ts` (PR creation after Job pod completes)
+- [X] T048 [P] [US7] `GET /api/tasks/:uuid/timeline` in `mcp-server/src/routes.ts` — walks branch via Octokit `repos.listCommits`, parses trailers via shared `parseTrailers`, computes phase durations between consecutive commits, returns commits + lease state + PR state. Branch-deleted case returns degraded payload
+- [X] T049 [P] [US7] `GET /api/tasks/by-pr/:owner/:repo/:pr_number` — fast path queries `pipeline.tasks` by `pr_number`, fallback fetches PR body + final commit via Octokit and parses for `Lore-Task` trailer
+- [X] T050 [US7] `web-ui/src/app/pipeline/[id]/Timeline.tsx` — client component, vertical timeline with node-type icons (✏️/🔧/✅/⬆️/🔍/🛠️/📝/🏁), outcome badges (success green / changes_requested amber / failed red), commit SHA links to GitHub, lease holder + expiry indicator
+- [X] T051 [US7] Wired into `pipeline/[id]/page.tsx`. Polls `/api/pipeline/:id/timeline` (Next.js route handler at `web-ui/src/app/api/pipeline/[id]/timeline/route.ts` with next-auth + repo-access check + LORE_INGEST_TOKEN proxy to mcp-server). Auto-refreshes every 10s while task is in active states or current_stage isn't retrospective
+- [X] T052 [US7] Dark Factory dashboard panel on `repos/[owner]/[repo]/page.tsx` — Mode (Enabled / Off legacy), Trust level, Tasks (7d), Auto-merged (7d), Escalations (7d). Counts query `pipeline.audit_log` by event_type; degrades gracefully if the table doesn't exist yet (legacy clusters)
+- [ ] T053 [US7] Verify quickstart Scenario G passes: open merged PR in web-ui, timeline renders; navigate by task UUID, opens same view — **deferred** (shared-state action; runs after deploy)
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [ ] T054 Author ADR `adrs/ADR-016-dark-factory-mode.md` (MADR format): decision, alternatives rejected (keep Issues mandatory; remove Issues entirely; auto-merge everywhere; multi-provider routing), consequences; supersedes the P7 row "Task tracking — Pipeline tasks via Lore MCP + GH Issues"
-- [ ] T055 Patch `.specify/memory/constitution.md`: bump to v2.1.0 (MINOR — P7 principle unchanged, only its task-tracking decision row is amended); update the task-tracking row to "Task tracking — Pipeline tasks via Lore MCP; GH Issues for exception surfaces (opt-out)"; add Sync Impact Report header documenting the row-level change
-- [ ] T056 [P] Update `CLAUDE.md` architecture section: new modules (`agent/src/supervisor/`, `agent/src/workflow/`, `shared/src/commit-trailers.ts`), `pipeline.task_leases` table, `dark_factory.*` settings shape
-- [ ] T057 [P] Author `runbooks/dark-factory-rollback.md`: how to flip `enabled = false` on a repo, how to reconcile in-flight tasks (drain leases, allow current PRs to merge or close, audit trail review)
-- [ ] T058 [P] Delete legacy local-runner code paths superseded by T011a: remove the in-process Claude Code spawn helper, the per-runner state machine, and any duplicate trailer-emission code. After this task, `mcp-server/src/local-runner.ts` is strictly a wrapper around the supervisor + graph executor with no behavior of its own
-- [ ] T059 Pilot rollout: enable `dark_factory.enabled = true` on three repos at trust tiers `docs`, `tests`, `implementation`; track for 14 days each
-- [ ] T060 After 14-day pilot: produce a measured-results memo against SC1–SC8. For SC1, SC4, SC6: compare the 30-day post-pilot per-repo counters against the baseline captured in T011b's `pipeline.dark_factory_baseline` table; report deltas. For SC2 (pod-death survival), SC3 (stale-PR window), SC5 (PR-to-task resolvability), SC7 (gating-violation count), SC8 (3 trust tiers / 14 days): source from audit_log + git history. Declare GA only if all thresholds pass
+- [X] T054 ADR-016 authored at `adrs/ADR-016-dark-factory-mode.md` — context, 4 sub-decisions, 5 alternatives rejected, consequences, constitutional impact, implementation commits referenced
+- [X] T055 Constitution patched to v2.1.0 (MINOR). P7 task-tracking row + technology-stack row both updated. Sync Impact Report at top documents the change. Last Amended Date: 2026-04-28
+- [X] T056 [P] CLAUDE.md updated — Key Components gained 14 new dark-factory entries (supervisor, workflow loader, workflows dir, auto-merge, lease-reaper, baseline, dark-factory lib, escalation, path-match, notify, audit, pr-body, commit-trailers, Timeline.tsx). New "Dark Factory mode" subsection covers settings, two-key, branch-as-state, auto-merge, rollback ref
+- [X] T057 [P] `runbooks/dark-factory-rollback.md` — pre-flight forensics, per-repo P2 rollback (two-key disable + lease reconciliation + verify), cluster-wide P1 rollback (bulk SQL + audit trail + Slack escalation), recovery procedure
+- [ ] T058 [P] Delete legacy local-runner code paths — **deferred** until graph executor is wired in production. The supervisor skeleton currently doesn't call `executeGraph()`; the legacy local-runner is still the only path to local execution. T058 runs after pilot proves the new path
+- [ ] T059 Pilot rollout — **deferred** (live action; enable `dark_factory.enabled = true` on three repos at trust tiers `docs`, `tests`, `implementation`; track for 14 days each)
+- [ ] T060 14-day measured-results memo vs SC1–SC8 — **deferred** (live action; runs after T059 pilot)
 
 ---
 
