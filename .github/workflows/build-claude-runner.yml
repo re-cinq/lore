@@ -7,6 +7,9 @@ on:
       - 'docker/claude-runner/**'
       - 'mcp-server/src/repo-validation.ts'
       - 'mcp-server/src/repo-validation-cli.ts'
+      - 'agent/**'
+      - 'shared/**'
+      - 'scripts/task-types.yaml'
   workflow_dispatch:
 
 env:
@@ -30,11 +33,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Copy validation source into Docker context
-        run: |
-          cp mcp-server/src/repo-validation.ts docker/claude-runner/validation/src/
-          cp mcp-server/src/repo-validation-cli.ts docker/claude-runner/validation/src/
-
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -44,10 +42,51 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Build image (load locally for smoke test)
         uses: docker/build-push-action@v7
         with:
-          context: docker/claude-runner
-          push: ${{ github.ref == 'refs/heads/main' }}
+          context: .
+          file: docker/claude-runner/Dockerfile
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Smoke test — runner-cli env-missing → exit 9
+        # Exercises that /app/dist/supervisor/runner-cli.js is present
+        # and the documented exit-code matrix (PR #310 review fix) is
+        # honored. Running with no env vars + LORE_DARK_FACTORY_WORKFLOW
+        # unset triggers MissingEnvError → exit 9.
+        run: |
+          IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          set +e
+          docker run --rm --entrypoint node "$IMAGE_TAG" /app/dist/supervisor/runner-cli.js
+          rc=$?
+          set -e
+          if [ "$rc" != "9" ]; then
+            echo "expected exit 9 (env_missing) from runner-cli with no env, got $rc"
+            exit 1
+          fi
+          echo "runner-cli exit-code matrix verified (env_missing → 9)"
+
+      - name: Smoke test — workflow YAMLs present
+        # Confirms agent/src/workflows/*.yaml made it to /app/dist/workflows/.
+        # If the Dockerfile drops the cp step, runner-cli would exit 3
+        # (workflow_load_failed) on every invocation.
+        run: |
+          IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          docker run --rm --entrypoint sh "$IMAGE_TAG" -c \
+            'ls /app/dist/workflows/*.yaml' \
+            | tee /tmp/workflows.txt
+          test -s /tmp/workflows.txt
+
+      - name: Push image
+        # Build is already cached in the local daemon from the load step
+        # above; this just retags + pushes.
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/claude-runner/Dockerfile
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
