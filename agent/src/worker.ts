@@ -327,9 +327,33 @@ async function processTask(task: any): Promise<void> {
       // controller sets LORE_DARK_FACTORY_WORKFLOW on the pod env, and
       // entrypoint.sh routes to the supervisor CLI instead of the
       // legacy claude --print flow.
-      const darkFactoryWorkflow = darkFactoryEnabled
-        ? task.task_type
-        : undefined;
+      //
+      // Gated behind LORE_DARK_FACTORY_CLUSTER_ENABLED until the
+      // claude-runner image ships the agent build at /app/dist/. Without
+      // the gate, a dark-mode repo firing impl/general/review between
+      // this PR landing and the Dockerfile follow-up landing would
+      // produce Job pods that fail on the first line of the dark-factory
+      // branch in entrypoint.sh.
+      const clusterEnabled =
+        process.env.LORE_DARK_FACTORY_CLUSTER_ENABLED === "true";
+      const darkFactoryWorkflow =
+        darkFactoryEnabled && clusterEnabled ? task.task_type : undefined;
+
+      // Look up the actual default branch when forwarding to a
+      // dark-factory pod. Hardcoding "main" 422'd on repos still on
+      // master/develop. The pod uses this for `git diff origin/<base>`
+      // to detect "did anything actually change?"
+      let darkFactoryBaseBranch: string | undefined;
+      if (darkFactoryWorkflow) {
+        try {
+          darkFactoryBaseBranch =
+            await platform().getDefaultBranch(targetRepo);
+        } catch (err: any) {
+          console.warn(
+            `[agent] default-branch lookup failed for ${targetRepo}: ${err.message}`,
+          );
+        }
+      }
       await handleClaudeCodeTask(
         task,
         targetRepo,
@@ -338,6 +362,7 @@ async function processTask(task: any): Promise<void> {
         issueNumber,
         repoOverrides,
         darkFactoryWorkflow,
+        darkFactoryBaseBranch,
       );
     }
   } catch (err: any) {
@@ -550,6 +575,7 @@ async function handleClaudeCodeTask(
   _issueNumber: number | null,
   repoOverrides?: any,
   darkFactoryWorkflow?: string,
+  darkFactoryBaseBranch?: string,
 ): Promise<void> {
   const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
   const kc = new KubeConfig();
@@ -589,7 +615,12 @@ async function handleClaudeCodeTask(
       // entrypoint.sh routes to the supervisor CLI which walks the
       // workflow graph instead of the legacy claude --print flow.
       ...(darkFactoryWorkflow
-        ? { darkFactory: { workflowName: darkFactoryWorkflow } }
+        ? {
+            darkFactory: {
+              workflowName: darkFactoryWorkflow,
+              baseBranch: darkFactoryBaseBranch ?? "main",
+            },
+          }
         : {}),
     },
   };

@@ -20,10 +20,28 @@
  * Optional:
  *   LORE_DB_HOST                 if set, supervisor uses DbLeaseBackend; else file-backed
  *   WORKDIR                      git working tree path (default /workspace/repo)
+ *   TASK_TYPES_PATH              explicit task-types.yaml path (else /config/task-types.yaml)
+ *
+ * Exit-code matrix (consumed by entrypoint.sh + loretask-watcher):
+ *   0  completed                 supervisor walked the graph to a terminal node
+ *   2  not_a_git_workdir         WORKDIR has no .git/
+ *   3  workflow_load_failed      loadWorkflowDir threw (yaml parse, missing dir)
+ *   4  workflow_not_found        LORE_DARK_FACTORY_WORKFLOW didn't match any name
+ *   5  lease_held                another pod owns the branch — exit cleanly
+ *   6  iteration_max_exceeded    graph aborted on a back-edge
+ *   7  executor_error            handler threw mid-run
+ *   8  executor_pending          configuration bug (missing workflow + handlers)
+ *   9  env_missing               required env var not set (controller misconfig)
+ *
+ * Exit 1 is reserved for a Node uncaught exception (rare). Watchers
+ * should treat any non-zero as task failure but use the specific code
+ * to decide retry vs needs-human-help.
  */
 
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { runSupervisor } from "./index.js";
 import { loadWorkflowDir, type Workflow } from "../workflow/loader.js";
 import { createClaudeCodeAgentHandler } from "./claude-code-handler.js";
@@ -31,8 +49,15 @@ import { createProductionHandlers } from "./handlers.js";
 import { buildPrompt, getTaskTypeConfig, loadTaskTypes } from "../config.js";
 import { initPool } from "../db.js";
 
+class MissingEnvError extends Error {
+  constructor(public readonly varName: string) {
+    super(`runner-cli: missing required env var ${varName}`);
+    this.name = "MissingEnvError";
+  }
+}
+
 const WORKFLOWS_DIR = path.resolve(
-  new URL(".", import.meta.url).pathname,
+  fileURLToPath(new URL(".", import.meta.url)),
   "..",
   "workflows",
 );
@@ -62,8 +87,14 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  // task-types.yaml resolution — tries cwd, ../scripts, /config, env.
-  loadTaskTypes();
+  // task-types.yaml resolution — pass an explicit path so we don't
+  // rely on cwd-relative fallbacks, which won't resolve inside the
+  // /workspace/repo working tree of the target repo. Defaults to the
+  // image mount path /config/task-types.yaml; overridable via
+  // TASK_TYPES_PATH for local runs.
+  const taskTypesPath =
+    process.env.TASK_TYPES_PATH || "/config/task-types.yaml";
+  loadTaskTypes(taskTypesPath);
 
   // DB pool optional. When LORE_DB_HOST is set, the supervisor uses
   // DbLeaseBackend (correct for cluster pods); otherwise falls back to
@@ -101,11 +132,17 @@ async function main(): Promise<number> {
 
   const handlers = createProductionHandlers({
     agent: agentHandler,
-    // Episode + auto-merge wiring deliberately deferred — the
-    // loretask-watcher today owns PR creation + post-task episode
-    // writing. Wiring those to fire from inside the pod would
-    // double-write. Once the watcher is updated to skip dark-factory
-    // pods, the production retrospective handler can fire here.
+    // KNOWN GAP (tracked for the loretask-watcher follow-up):
+    // The in-agent retrospective handler (PR #308) wires
+    // evaluateAndMerge(), so dark-mode gap-fill / runbook PRs
+    // auto-merge for path-allowlisted changes per ADR-016. Cluster-
+    // path workflows (implementation / general / review) intentionally
+    // skip auto-merge here because the loretask-watcher owns PR
+    // creation; firing evaluateAndMerge from inside the pod would
+    // double-write before the PR even exists. Until the watcher
+    // grows a "PR created from dark-factory pod → trigger
+    // evaluateAndMerge" hook, those PRs land but wait for human
+    // merge. Documented in runbooks/dark-factory-rollback.md.
     episodeDeps: { curate: false },
   });
 
@@ -150,22 +187,44 @@ async function main(): Promise<number> {
 function requireEnv(name: string): string {
   const v = process.env[name];
   if (!v) {
-    throw new Error(`runner-cli: missing required env var ${name}`);
+    throw new MissingEnvError(name);
   }
   return v;
 }
 
+/**
+ * Realpath-based comparison so the script still self-executes when
+ * invoked via a symlink (e.g. /usr/local/bin/lore-runner →
+ * /app/dist/supervisor/runner-cli.js). String compare on
+ * `import.meta.url` against `process.argv[1]` would skip main() in
+ * that case.
+ */
+function isMainModule(): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    const here = realpathSync(fileURLToPath(import.meta.url));
+    const argv = realpathSync(process.argv[1]);
+    return here === argv;
+  } catch {
+    return false;
+  }
+}
+
 // Only exec when invoked as a script. Allows the file to be imported
 // (and unit-tested) without immediately running main().
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule()) {
   main()
     .then((code) => {
       process.exit(code);
     })
     .catch((err) => {
+      if (err instanceof MissingEnvError) {
+        console.error(`[runner-cli] ${err.message}`);
+        process.exit(9);
+      }
       console.error(`[runner-cli] fatal: ${(err as Error).message}`);
       process.exit(1);
     });
 }
 
-export { main };
+export { main, MissingEnvError };

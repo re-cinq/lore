@@ -41,6 +41,13 @@ interface LoreTaskSpec {
    */
   darkFactory?: {
     workflowName: string;
+    /**
+     * Default branch of the target repo (e.g. "main", "master"). The
+     * Job pod uses it to detect "did anything actually change?" via
+     * `git diff origin/<base>..HEAD`. Stage commits are emitted with
+     * --allow-empty so commit count alone is meaningless.
+     */
+    baseBranch: string;
   };
   /** Raw task description, surfaced to the supervisor as the prompt input. */
   description?: string;
@@ -224,6 +231,10 @@ async function reconcile(lt: LoreTask): Promise<void> {
                 {
                   name: "LORE_DARK_FACTORY_WORKFLOW",
                   value: lt.spec.darkFactory?.workflowName ?? "",
+                },
+                {
+                  name: "BASE_BRANCH",
+                  value: lt.spec.darkFactory?.baseBranch ?? "",
                 },
                 { name: "LORE_TASK_ID", value: lt.spec.taskId },
                 {

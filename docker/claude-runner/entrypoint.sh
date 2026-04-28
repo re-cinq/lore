@@ -3,7 +3,10 @@ set -euo pipefail
 
 # --- Configuration ---
 MODEL="${MODEL:-claude-sonnet-4-6}"
-TASK_TYPE="${TASK_TYPE:-implementation}"
+# TASK_TYPE intentionally has no default — the env-var validation block
+# below catches missing values loudly. Defaulting to "implementation"
+# would silently mask a controller misconfiguration.
+TASK_TYPE="${TASK_TYPE:-}"
 
 # =====================
 # Dark Factory mode (PR #309)
@@ -19,7 +22,7 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
 
   # --- Validate required env vars ---
   missing=()
-  for var in GITHUB_TOKEN TARGET_REPO BRANCH_NAME TASK_DESCRIPTION TASK_TYPE LORE_TASK_ID; do
+  for var in GITHUB_TOKEN TARGET_REPO BRANCH_NAME TASK_DESCRIPTION TASK_TYPE LORE_TASK_ID BASE_BRANCH; do
     if [ -z "${!var:-}" ]; then
       missing+=("$var")
     fi
@@ -59,15 +62,22 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   if [ "$RUNNER_EXIT" = "0" ]; then
     echo "[runner] Pushing dark-factory branch..."
     git push origin "${BRANCH_NAME}"
-    CHANGED_COUNT=$(git log "main..${BRANCH_NAME}" --oneline | wc -l | tr -d ' ')
-    echo "CHANGES=${CHANGED_COUNT}"
+    # Stage commits are emitted with --allow-empty (FR1.4 audit substrate),
+    # so counting commits is misleading. Diff against the base branch
+    # tells us whether any actual files changed.
+    if git diff --quiet "origin/${BASE_BRANCH}..HEAD" --; then
+      echo "CHANGES=0"
+    else
+      echo "CHANGES=1"
+    fi
     echo "[runner] Dark-factory done."
     exit 0
   fi
 
-  # Non-zero: surface the supervisor's exit reason. The loretask-watcher
-  # treats any non-zero as task failure → needs-human-help label.
-  echo "NEEDS_HUMAN_HELP"
+  # Non-zero exit is the contract — the loretask-watcher treats any
+  # non-zero as task failure → needs-human-help label. No stdout marker
+  # needed (a second parallel signaling channel can drift from the exit
+  # code one).
   exit "${RUNNER_EXIT}"
 fi
 
@@ -79,7 +89,7 @@ if [ "$TASK_TYPE" = "review" ]; then
   # --- Validate required env vars ---
   echo "[runner] Validating environment (review mode)..."
   missing=()
-  for var in GITHUB_TOKEN TARGET_REPO PR_NUMBER TASK_PROMPT; do
+  for var in GITHUB_TOKEN TARGET_REPO PR_NUMBER TASK_PROMPT TASK_TYPE; do
     if [ -z "${!var:-}" ]; then
       missing+=("$var")
     fi
@@ -145,7 +155,7 @@ else
   # --- Validate required env vars ---
   echo "[runner] Validating environment..."
   missing=()
-  for var in GITHUB_TOKEN TARGET_REPO BRANCH_NAME TASK_PROMPT; do
+  for var in GITHUB_TOKEN TARGET_REPO BRANCH_NAME TASK_PROMPT TASK_TYPE; do
     if [ -z "${!var:-}" ]; then
       missing+=("$var")
     fi

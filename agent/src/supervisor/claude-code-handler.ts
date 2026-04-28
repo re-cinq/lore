@@ -20,9 +20,10 @@ import { runClaudeCode, type ClaudeCodeResult } from "../claude-code.js";
  *    Claude Code edited via its Bash/Write tools.
  *
  * Failure modes mapped to outcomes:
- *  - non-zero exit → `failed` with `Lore-Validation-Status: cli-error`
- *  - timeout (15min default) → `failed` with timeout extras
- *  - missing prompt_ref / unresolvable prompt → `failed` with config-error
+ *  - non-zero claude exit → `failed` with `Lore-Validation-Status: cli-nonzero`
+ *  - thrown error from runClaudeCode (timeout / spawn fail / missing CLI)
+ *    → `failed` with `Lore-Validation-Status: cli-error`
+ *  - missing prompt_ref / unresolvable prompt → `failed` with `config-error`
  */
 export interface ClaudeCodeHandlerDeps {
   /** Override for testing — defaults to the production runClaudeCode. */
