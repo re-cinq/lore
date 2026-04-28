@@ -1,0 +1,214 @@
+import { describe, it, expect } from "vitest";
+import {
+  parseWorkflow,
+  WorkflowLoadError,
+} from "../workflow/loader.js";
+
+const linearGraph = `
+name: gap-fill
+description: A linear flow
+version: 1
+entry: a
+exit: c
+nodes:
+  - id: a
+    type: agent
+    prompt_ref: gap-fill
+  - id: b
+    type: validate
+    validator: all
+  - id: c
+    type: retrospective
+edges:
+  - from: a
+    to: b
+    on: success
+  - from: b
+    to: c
+    on: always
+`;
+
+describe("parseWorkflow", () => {
+  it("accepts a valid linear workflow", () => {
+    const wf = parseWorkflow(linearGraph);
+    expect(wf.name).toBe("gap-fill");
+    expect(wf.nodes).toHaveLength(3);
+    expect(wf.entry).toBe("a");
+    expect(wf.exit).toBe("c");
+  });
+
+  it("rejects malformed YAML", () => {
+    expect(() => parseWorkflow("name: x\n  - this: is: bad")).toThrow(
+      WorkflowLoadError,
+    );
+  });
+
+  it("rejects schema violations", () => {
+    expect(() =>
+      parseWorkflow(`
+name: x
+description: d
+version: 1
+entry: a
+exit: a
+nodes:
+  - id: a
+    type: not-a-real-type
+edges: []
+`),
+    ).toThrow(/Schema violation/);
+  });
+
+  it("rejects entry pointing to unknown node", () => {
+    expect(() =>
+      parseWorkflow(`
+name: x
+description: d
+version: 1
+entry: ghost
+exit: a
+nodes:
+  - id: a
+    type: retrospective
+edges: []
+`),
+    ).toThrow(/entry "ghost"/);
+  });
+
+  it("rejects edges referencing unknown nodes", () => {
+    expect(() =>
+      parseWorkflow(`
+name: x
+description: d
+version: 1
+entry: a
+exit: a
+nodes:
+  - id: a
+    type: retrospective
+edges:
+  - from: a
+    to: ghost
+    on: always
+`),
+    ).toThrow(/unknown node "ghost"/);
+  });
+
+  it("rejects unreachable nodes", () => {
+    expect(() =>
+      parseWorkflow(`
+name: x
+description: d
+version: 1
+entry: a
+exit: c
+nodes:
+  - id: a
+    type: agent
+  - id: b
+    type: agent
+  - id: c
+    type: retrospective
+edges:
+  - from: a
+    to: c
+    on: success
+`),
+    ).toThrow(/"b" is not reachable/);
+  });
+
+  it("rejects non-exit nodes with no outgoing edges", () => {
+    expect(() =>
+      parseWorkflow(`
+name: x
+description: d
+version: 1
+entry: a
+exit: a
+nodes:
+  - id: a
+    type: retrospective
+  - id: b
+    type: retrospective
+edges:
+  - from: a
+    to: b
+    on: always
+`),
+    ).toThrow(/"b" has no outgoing edges/);
+  });
+
+  it("requires iteration_max on cycles", () => {
+    expect(() =>
+      parseWorkflow(`
+name: x
+description: d
+version: 1
+entry: a
+exit: c
+nodes:
+  - id: a
+    type: agent
+  - id: b
+    type: validate
+  - id: c
+    type: retrospective
+edges:
+  - from: a
+    to: b
+    on: success
+  - from: b
+    to: a
+    on: failed
+  - from: b
+    to: c
+    on: success
+`),
+    ).toThrow(/back-edge b → a requires iteration_max/);
+  });
+
+  it("accepts cycles with iteration_max set", () => {
+    const wf = parseWorkflow(`
+name: x
+description: d
+version: 1
+entry: a
+exit: c
+nodes:
+  - id: a
+    type: agent
+  - id: b
+    type: validate
+  - id: c
+    type: retrospective
+edges:
+  - from: a
+    to: b
+    on: success
+  - from: b
+    to: a
+    on: failed
+    iteration_max: 2
+  - from: b
+    to: c
+    on: success
+`);
+    expect(wf.edges.find((e) => e.from === "b" && e.to === "a")?.iteration_max).toBe(2);
+  });
+
+  it("rejects invalid node id format", () => {
+    expect(() =>
+      parseWorkflow(`
+name: x
+description: d
+version: 1
+entry: A
+exit: A
+nodes:
+  - id: A
+    type: retrospective
+edges: []
+`),
+    ).toThrow(/Schema violation/);
+  });
+});

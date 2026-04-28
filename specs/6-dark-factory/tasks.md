@@ -51,10 +51,10 @@ These MUST complete before any user-story phase. They establish branch-as-state,
 
 **Independent test:** Quickstart Scenario A. A `gap-fill` task on a dark-mode-enabled repo produces a merged PR within 24h with no GitHub Issue and the full stage commit chain on the branch.
 
-- [ ] T012 [P] [US1] Implement workflow YAML loader in `agent/src/workflow/loader.ts` with Zod schema per `contracts/workflow-yaml-schema.md`; load from `agent/src/workflows/*.yaml` at supervisor startup; cycle detection without `iteration_max` rejects the graph
-- [ ] T013 [P] [US1] Author `agent/src/workflows/gap-fill.yaml` matching the linear flow: draft → validate → push → retrospective → done
-- [ ] T014 [US1] Implement graph executor in `agent/src/supervisor/graph-executor.ts`: walks from `entry`, dispatches each node by type (agent/validate/gate/retrospective), commits a stage commit at end of each node with `formatTrailers()`, refreshes lease before each node
-- [ ] T015 [US1] Implement resume logic in `graph-executor.ts`: at start, call `lastStageOnBranch(branchName)` and skip nodes already passed (the resume path is shared with US2)
+- [X] T012 [P] [US1] Implement workflow YAML loader in `agent/src/workflow/loader.ts` with Zod schema per `contracts/workflow-yaml-schema.md`; load from `agent/src/workflows/*.yaml` at supervisor startup; cycle detection without `iteration_max` rejects the graph
+- [X] T013 [P] [US1] Author `agent/src/workflows/gap-fill.yaml` matching the linear flow: draft → validate → push → retrospective → done
+- [X] T014 [US1] Implement graph executor in `agent/src/supervisor/graph-executor.ts`: walks from `entry`, dispatches each node by type (agent/validate/gate/retrospective), commits a stage commit at end of each node with `formatTrailers()`, refreshes lease before each node
+- [X] T015 [US1] Implement resume logic in `graph-executor.ts`: at start, call `lastStageOnBranch(branchName)` and skip nodes already passed (the resume path is shared with US2)
 - [ ] T016 [P] [US1] Add Zod schema for `dark_factory.*` settings in `mcp-server/src/settings-authz.ts` per `data-model.md`; export `parseDarkFactorySettings()` for use across routes
 - [ ] T017 [US1] Implement two-key AuthZ in `mcp-server/src/settings-authz.ts`: `setDarkFactorySettings(repo, patch, actor, ceremony)` validates `X-Lore-Approval-PR` for the four two-key fields (`enabled`, `auto_merge.paths`, and the two `require_*` fields when set false); writes `dark_factory_setting_changed` audit_log entry
 - [ ] T018 [US1] Add routes `GET /api/repos/:owner/:repo/settings/dark-factory` and `PUT /api/repos/:owner/:repo/settings/dark-factory` in `mcp-server/src/routes.ts` per `contracts/dark-factory-settings.md`
