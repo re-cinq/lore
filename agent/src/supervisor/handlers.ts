@@ -1,5 +1,9 @@
 import type { NodeHandler, NodeHandlers } from "./graph-executor.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
+import {
+  evaluateAndMerge,
+  type AutoMergeJobInputs,
+} from "../jobs/auto-merge.js";
 
 export interface ProductionHandlersDeps {
   /** Override for testing — defaults to the real episode-writer. */
@@ -12,6 +16,25 @@ export interface ProductionHandlersDeps {
    * off to avoid hitting Anthropic.
    */
   curate?: boolean;
+  /**
+   * Optional auto-merge trigger. When provided AND a PR is associated
+   * with the task at retrospective time, the retrospective handler
+   * calls `evaluateAndMerge()` after writing the episode. The orchestrator
+   * (worker.ts dispatcher in production) supplies the inputs; tests
+   * use a stub that returns an outcome.
+   */
+  evaluateAndMerge?: (
+    inputs: AutoMergeJobInputs,
+  ) => Promise<{ outcome: string }>;
+  /**
+   * Lookup the PR associated with the current task at retrospective
+   * time. Returns null when no PR exists yet (e.g. handler exits
+   * before push). Production wires this to the pipeline.tasks query;
+   * tests inject a stub.
+   */
+  resolvePrForTask?: (
+    taskId: string,
+  ) => Promise<{ repo: string; prNumber: number; policy: AutoMergeJobInputs["policy"] } | null>;
 }
 
 /**
@@ -46,6 +69,38 @@ export function createProductionRetrospectiveHandler(
     } else {
       await writer(summary, "retrospective", ref, "supervisor");
     }
+
+    // Auto-merge trigger. The retrospective node is the right place
+    // because the workflow has finished its real work — the PR is open,
+    // CI is running (or done), bot review has posted. Calling
+    // evaluateAndMerge here keeps the auto-merge decision atomic with
+    // the workflow exit; no separate poll/webhook needed.
+    const triggerAutoMerge = deps.evaluateAndMerge;
+    const resolvePrForTask = deps.resolvePrForTask;
+    if (triggerAutoMerge && resolvePrForTask) {
+      try {
+        const pr = await resolvePrForTask(ctx.taskId);
+        if (pr) {
+          await triggerAutoMerge({
+            // Note: octokit is required by AutoMergeJobInputs; the
+            // orchestrator that wired this dep already had to construct
+            // it. Tests pass a stub that doesn't use it.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            octokit: undefined as any,
+            taskId: ctx.taskId,
+            repo: pr.repo,
+            prNumber: pr.prNumber,
+            policy: pr.policy,
+          });
+        }
+      } catch (err) {
+        console.warn(
+          "[retrospective] auto-merge trigger failed:",
+          (err as Error).message,
+        );
+      }
+    }
+
     return { outcome: "success" };
   };
 }

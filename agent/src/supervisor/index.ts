@@ -7,14 +7,22 @@ import {
   FileLeaseBackend,
   type LeaseBackend,
 } from "./lease.js";
+import {
+  executeGraph,
+  IterationMaxExceededError,
+  type ExecutionSummary,
+  type NodeHandlers,
+} from "./graph-executor.js";
+import type { Workflow } from "../workflow/loader.js";
 
 export interface SupervisorOptions {
   taskId: string;
   branchName: string;
   workflowName: string;
   /**
-   * Working directory for git operations. The graph executor (T014) uses
-   * this; the skeleton ignores it.
+   * Working directory for git operations. Required when `workflow` and
+   * `handlers` are provided (i.e. real graph execution). Optional when
+   * only the lease lifecycle is being exercised (tests).
    */
   gitDir?: string;
   /**
@@ -28,17 +36,47 @@ export interface SupervisorOptions {
    * callers should rely on {@link leaseBackendForEnv}.
    */
   leaseBackend?: LeaseBackend;
+  /**
+   * Pre-loaded workflow definition. When provided alongside `handlers`,
+   * the supervisor walks the graph instead of returning early with
+   * `executor_pending`. Production callers load the workflow via
+   * `loadWorkflowDir` and pick by `workflowName`.
+   */
+  workflow?: Workflow;
+  /**
+   * Per-node handlers. Required to walk the graph. Production callers
+   * use `createProductionHandlers()` from `./handlers.js`.
+   */
+  handlers?: NodeHandlers;
+  /**
+   * Optional escalation hook fired when the graph aborts on iteration
+   * max. Wired by the orchestrator to call `escalate()` from
+   * `lib/escalation.ts` so a stuck task produces a `needs-human-help`
+   * Issue + Slack ping with full context (FR3.8).
+   */
+  onIterationMaxExceeded?: (info: {
+    workflowName: string;
+    fromNode: string;
+    toNode: string;
+    iterationMax: number;
+    taskId: string;
+    branchName: string;
+  }) => Promise<void>;
 }
 
 export type SupervisorReason =
   | "lease_held"
   | "completed"
-  | "executor_pending";
+  | "executor_pending"
+  | "iteration_max_exceeded"
+  | "executor_error";
 
 export interface SupervisorResult {
   ranWork: boolean;
   reason: SupervisorReason;
   currentHolder?: string;
+  summary?: ExecutionSummary;
+  errorMessage?: string;
 }
 
 function defaultHolder(): string {
@@ -120,13 +158,55 @@ export async function runSupervisor(
   }
 
   try {
-    // T014 fills this with: load workflow YAML, walk graph, commit
-    // stage trailers per node, refresh lease before each node.
+    // When a caller supplies both a loaded workflow and a handler set,
+    // run the graph end-to-end. Otherwise return early — the lease
+    // lifecycle alone is exercised (used by tests of the lease side).
+    if (!opts.workflow || !opts.handlers) {
+      console.log(
+        `[supervisor] Acquired lease on ${opts.branchName} as ${holder}; ` +
+          `workflow=${opts.workflowName} (executor not configured — lease lifecycle only)`,
+      );
+      return { ranWork: true, reason: "executor_pending" };
+    }
+    if (!opts.gitDir) {
+      throw new Error(
+        "[supervisor] gitDir required when workflow + handlers are provided",
+      );
+    }
+
     console.log(
-      `[supervisor] Acquired lease on ${opts.branchName} as ${holder}; ` +
-        `workflow=${opts.workflowName} (graph executor pending T014)`,
+      `[supervisor] Walking workflow ${opts.workflowName} on ${opts.branchName} as ${holder}`,
     );
-    return { ranWork: true, reason: "executor_pending" };
+    try {
+      const summary = await executeGraph({
+        workflow: opts.workflow,
+        taskId: opts.taskId,
+        branchName: opts.branchName,
+        gitDir: opts.gitDir,
+        holder,
+        leaseBackend: backend,
+        handlers: opts.handlers,
+        onIterationMaxExceeded: opts.onIterationMaxExceeded,
+      });
+      return { ranWork: true, reason: "completed", summary };
+    } catch (err) {
+      if (err instanceof IterationMaxExceededError) {
+        return {
+          ranWork: true,
+          reason: "iteration_max_exceeded",
+          errorMessage: err.message,
+        };
+      }
+      console.error(
+        `[supervisor] executeGraph threw on ${opts.branchName}:`,
+        (err as Error).message,
+      );
+      return {
+        ranWork: true,
+        reason: "executor_error",
+        errorMessage: (err as Error).message,
+      };
+    }
   } finally {
     await backend.release(opts.branchName, holder);
   }
