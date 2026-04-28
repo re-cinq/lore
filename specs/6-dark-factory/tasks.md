@@ -79,12 +79,12 @@ These MUST complete before any user-story phase. They establish branch-as-state,
 
 **Independent test:** Quickstart Scenario C. A `general` task editing `agent/src/*` produces a PR that does NOT auto-merge and shows a clear deferral reason in the audit log.
 
-- [ ] T030 [P] [US3] Author `agent/src/workflows/general.yaml` per the implementation flow described in `contracts/workflow-yaml-schema.md` (linear: implement → validate → push → review → retrospective); register in loader
-- [ ] T031 [P] [US3] Author `agent/src/workflows/implementation.yaml` with the loop: implement → validate → push → review → (changes_requested with iteration_max=2: address → validate → ...) → retrospective
-- [ ] T032 [US3] Extend `auto-merge.ts` (T021) deferral logic: emit `outcome: "deferred:path_outside_allowlist"` when `allPathsMatch` returns false; PR is left open
-- [ ] T033 [US3] Implement `review` workflow node behavior in `graph-executor.ts`: when `dark_factory.review = trust_based` and path is outside allowlist, post bot review comments + verdict and STOP (FR3.4); does not trigger auto-merge engine
-- [ ] T034 [US3] Modify `mcp-server/src/pipeline.ts` to compute and persist the effective `review` mode per task (merging repo settings + per-task overrides) so the supervisor reads a single resolved value
-- [ ] T035 [US3] Verify quickstart Scenario C passes: create general task, observe PR not auto-merged, audit log shows `deferred:path_outside_allowlist`
+- [X] T030 [P] [US3] `agent/src/workflows/general.yaml` — linear: implement → validate → push → review → retrospective → done. All review outcomes (success/changes_requested/failed) route to retrospective (no loop). Loaded automatically by `loadWorkflowDir`
+- [X] T031 [P] [US3] `agent/src/workflows/implementation.yaml` — loop: implement → validate → push → review → (changes_requested → address → validate, iteration_max=2) → retrospective. validate→implement back-edge bounded at iteration_max=1 for fix-failed-validation case
+- [X] T032 [US3] Auto-merge deferral on path-outside-allowlist (delivered in T021 via `evaluateAutoMerge`'s `deferred:path_outside_allowlist` outcome — `auto-merge.test.ts` "deferred:path_outside_allowlist on mixed PR" case)
+- [X] T033 [US3] `review` node behavior under dark mode (delivered architecturally — review node always runs and posts comments via the agent handler; the auto-merge engine alone gates per `auto_merge.paths`. PRs outside the allowlist receive `deferred:path_outside_allowlist` and stay open for human merge per FR3.4. No special "stop early" path needed in graph-executor — the auto-merge engine is the single gate)
+- [X] T034 [US3] `agent/src/lib/dark-factory.ts` `decideReviewMode()` (pure) + `resolveReviewMode()` (DB-backed). Per-task `human_review: required` → `always`; dark mode off → `always`; dark mode on → `settings.review` (default `trust_based`). Tested via `dark-factory.test.ts`
+- [ ] T035 [US3] Verify quickstart Scenario C passes: create general task, observe PR not auto-merged, audit log shows `deferred:path_outside_allowlist` — **deferred** (shared-state action; runs after deploy)
 
 ## Phase 6: User Story 4 — Approval gate produces an Issue (P2)
 

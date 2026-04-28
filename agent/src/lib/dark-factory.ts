@@ -1,6 +1,8 @@
 import { query } from "../db.js";
 import { requiresApproval } from "../approval.js";
 
+export type ReviewMode = "trust_based" | "always" | "never";
+
 /**
  * Per-repo dark-factory configuration as stored under
  * `lore.repos.settings.dark_factory`. Mirror of the schema in
@@ -39,6 +41,74 @@ export interface IssueGateDecision {
 }
 
 /**
+ * Pure decision: given the task's approval flag, per-task overrides,
+ * and the repo's dark_factory settings, decide whether a GitHub Issue
+ * should be created. Exported separately from
+ * {@link shouldCreateIssue} so callers can unit-test without the DB
+ * round-trip.
+ */
+export function decideIssueCreate(args: {
+  approvalNeeded: boolean;
+  overrides: DarkFactoryTaskOverrides | undefined;
+  settings: DarkFactoryRepoSettings | undefined;
+}): IssueGateDecision {
+  if (args.overrides?.with_issue === true) {
+    return { create: true, reason: "with_issue_override" };
+  }
+
+  // Approval-required tasks always get an Issue (the Issue is the gate
+  // surface). This wins even over `with_issue: false`.
+  if (args.approvalNeeded) {
+    return {
+      create: true,
+      reason: "approval_required_overrides_dark_mode",
+    };
+  }
+
+  if (!args.settings?.enabled) {
+    return { create: true, reason: "default_create" };
+  }
+
+  const policy = args.settings.create_issue ?? "on_gate";
+  switch (policy) {
+    case "never":
+      return { create: false, reason: "create_issue_never" };
+    case "always":
+      return { create: true, reason: "create_issue_always" };
+    case "on_gate":
+      // approvalNeeded was short-circuited above; reaching here means
+      // no approval gate, so suppress the Issue.
+      return { create: false, reason: "create_issue_on_gate_no_approval" };
+  }
+}
+
+/**
+ * Pure decision (T034): resolves the effective review mode for a
+ * task by merging per-task overrides over per-repo dark_factory
+ * settings.
+ *
+ * - per-task `human_review: required` → `always` (cannot be weakened).
+ * - dark_factory disabled → `always` (legacy / opt-out behavior).
+ * - dark_factory enabled → `settings.review` (default `trust_based`).
+ *
+ * `trust_based` is the dark-mode default that lets the auto-merge
+ * engine gate per-path; `always` forces every PR to wait for a human;
+ * `never` skips the bot review entirely.
+ */
+export function decideReviewMode(args: {
+  overrides: DarkFactoryTaskOverrides | undefined;
+  settings: DarkFactoryRepoSettings | undefined;
+}): ReviewMode {
+  if (args.overrides?.human_review === "required") {
+    return "always";
+  }
+  if (!args.settings?.enabled) {
+    return "always";
+  }
+  return args.settings.review ?? "trust_based";
+}
+
+/**
  * Decide whether to create a GitHub Issue for a task. Defaults to
  * creating (preserves opt-out behavior). When `dark_factory.enabled`
  * is true, applies the `create_issue` policy. Per-task
@@ -58,52 +128,48 @@ export async function shouldCreateIssue(task: {
   if (!targetRepo) return { create: true, reason: "default_create" };
 
   const approvalNeeded = requiresApproval(task.task_type, targetRepo);
+  const settings = await loadRepoSettings(targetRepo);
+  return decideIssueCreate({ approvalNeeded, overrides, settings });
+}
 
-  if (overrides?.with_issue === true) {
-    return { create: true, reason: "with_issue_override" };
+/**
+ * Resolve the effective review mode for a task (T034). Loads repo
+ * settings from the DB, merges with per-task overrides via
+ * {@link decideReviewMode}.
+ */
+export async function resolveReviewMode(task: {
+  task_type: string;
+  target_repo: string | null;
+  dark_factory_overrides?: DarkFactoryTaskOverrides | null;
+}): Promise<ReviewMode> {
+  if (task.dark_factory_overrides?.human_review === "required") {
+    return "always";
   }
+  const targetRepo = task.target_repo;
+  if (!targetRepo) return "always";
+  const settings = await loadRepoSettings(targetRepo);
+  return decideReviewMode({
+    overrides: task.dark_factory_overrides ?? undefined,
+    settings,
+  });
+}
 
-  // Approval-required tasks always get an Issue (the Issue is the gate
-  // surface). This wins even over `with_issue: false`.
-  if (approvalNeeded) {
-    return {
-      create: true,
-      reason: "approval_required_overrides_dark_mode",
-    };
-  }
-
-  let settings: DarkFactoryRepoSettings | undefined;
+async function loadRepoSettings(
+  targetRepo: string,
+): Promise<DarkFactoryRepoSettings | undefined> {
   try {
-    const rows = await query<{ settings: { dark_factory?: DarkFactoryRepoSettings } }>(
+    const rows = await query<{
+      settings: { dark_factory?: DarkFactoryRepoSettings };
+    }>(
       `SELECT settings FROM lore.repos WHERE full_name = $1`,
       [targetRepo],
     );
-    settings = rows[0]?.settings?.dark_factory;
+    return rows[0]?.settings?.dark_factory;
   } catch (err) {
-    // DB read failures degrade to default behavior — preserve opt-out.
     console.warn(
       `[dark-factory] settings read failed for ${targetRepo}:`,
       (err as Error).message,
     );
-    return { create: true, reason: "default_create" };
-  }
-
-  if (!settings?.enabled) {
-    return { create: true, reason: "default_create" };
-  }
-
-  const policy = settings.create_issue ?? "on_gate";
-  switch (policy) {
-    case "never":
-      return { create: false, reason: "create_issue_never" };
-    case "always":
-      return { create: true, reason: "create_issue_always" };
-    case "on_gate":
-      // approvalNeeded was already short-circuited above; reaching
-      // here means no approval gate, so suppress the Issue.
-      return {
-        create: false,
-        reason: "create_issue_on_gate_no_approval",
-      };
+    return undefined;
   }
 }
