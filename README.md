@@ -66,7 +66,7 @@ A developer types `/lore implementation add retry logic to the webhook handler` 
 
 ### Dark Factory Mode (per-repo, opt-in)
 
-Lore can run as a **dark software factory**: autonomous operation as the default, humans only at intent definition + stage-gate validation. Per-repo opt-in via `lore.repos.settings.dark_factory.enabled`. When enabled:
+Lore can run as a **dark software factory**: autonomous operation as the default, humans only at intent definition + stage-gate validation. When enabled:
 
 - **Branch is the durable state.** Every workflow phase commits with `Lore-Stage:` / `Lore-Iteration:` / `Lore-Task:` trailers. A supervisor pod that dies resumes from `git log` on the branch — no DB checkpoints, no parallel ledger.
 - **Workflows are declarative YAML graphs.** `agent/src/workflows/<task-type>.yaml` with 4 node types (`agent | validate | gate | retrospective`) and 4 edge conditions. Local runner and GKE supervisor share definitions.
@@ -74,7 +74,18 @@ Lore can run as a **dark software factory**: autonomous operation as the default
 - **Issues become an exception surface.** Created only for approval gates, escalations (`needs-human-help`), or repos that explicitly opted into `create_issue: always`. Cross-reference is via the `Lore-Task: <uuid>` trailer in the PR body.
 - **Two-key auth on privileged settings.** Toggling `enabled` or modifying `auto_merge.paths` requires admin scope **and** an open PR labeled `dark-factory-approval` by a CODEOWNER of the affected repo's `CLAUDE.md`.
 
-Defaults to **off** for existing repos — no behavior change at migration. Rollback procedure: `runbooks/dark-factory-rollback.md`. Full design: ADR-016 + `specs/6-dark-factory/`.
+#### Two-gate enablement
+
+Dark mode requires **two** independent switches to take effect for a given repo:
+
+| Gate | Where | Purpose |
+|---|---|---|
+| Per-repo | `lore.repos.settings.dark_factory.enabled = true` | Repo opts in via settings UI / API |
+| Cluster | `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the agent deployment env | Permits the worker to forward dark-mode workflows to the LoreTask CRD path |
+
+The cluster gate exists so the helm flag can't get ahead of the claude-runner image: the cluster supervisor needs `/app/dist/supervisor/runner-cli.js` + `/app/dist/workflows/*.yaml` baked in, which the image build pipeline ships starting with the multi-stage Dockerfile rework.
+
+Both gates default to **off** for existing repos — no behavior change at migration. Rollout, rollback, pilot procedure, and audit-log queries: `runbooks/dark-factory-rollback.md`. Full design: ADR-016 + `specs/6-dark-factory/`.
 
 ### Agent Execution Modes
 

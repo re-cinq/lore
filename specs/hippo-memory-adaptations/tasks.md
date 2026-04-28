@@ -8,11 +8,11 @@
 
 ## Phase 1: Schema Migrations
 
-- [ ] T001 Add `retrieval_count`, `last_retrieved_at`, `half_life_days` columns to `memory.facts` in `setup-memory-schema.sh` ⚠️ **file not created — see spec implementation notes**
-- [ ] T002 Add `retrieval_count`, `last_retrieved_at`, `half_life_days` columns to `memory.memories` in `setup-memory-schema.sh` ⚠️ **file not created**
-- [ ] T003 Add `confidence` column with CHECK constraint to `memory.facts` ⚠️ **file not created**
-- [ ] T004 Create `memory.fact_conflicts` table with indexes ⚠️ **file not created**
-- [ ] T005 Add `context_refs JSONB` column to `pipeline.tasks` ⚠️ **file not created**
+- [x] T001 Add `retrieval_count`, `last_retrieved_at`, `half_life_days` columns to `memory.facts` — shipped via existing `scripts/infra/setup-memory-schema.sh:79` (no separate migration file created in the planned location)
+- [x] T002 Add `retrieval_count`, `last_retrieved_at`, `half_life_days` columns to `memory.memories` — shipped via `scripts/infra/setup-memory-schema.sh:83`
+- [x] T003 Add `confidence` column with CHECK constraint to `memory.facts` — shipped via `scripts/infra/setup-memory-schema.sh`
+- [x] T004 Create `memory.fact_conflicts` table with indexes — shipped via `scripts/infra/setup-memory-schema.sh:97-108`
+- [x] T005 Add `context_refs JSONB` column to `pipeline.tasks` — shipped via `scripts/infra/setup-memory-schema.sh:111`
 
 ## Phase 2: Retrieval Strengthening
 
@@ -57,7 +57,7 @@
 
 ## Testing
 
-- [ ] T029 Unit tests for `computeTransferScore()` with portable/local keyword combinations
-- [ ] T030 Unit tests for new `scoreImportance()` with various half-life/retrieval scenarios
-- [ ] T031 Integration test: search → retrieval strengthening → verify updated counts
-- [ ] T032 Schema migration idempotency test (run setup-memory-schema.sh twice) — **blocked on T001-T005**
+- [x] T029 Unit tests for `computeTransferScore()` with portable/local keyword combinations
+- [x] T030 Unit tests for new `scoreImportance()` with various half-life/retrieval scenarios
+- [x] T031 Integration test: search → retrieval strengthening → verify updated counts
+- [x] T032 Schema migration idempotency test (run setup-memory-schema.sh twice) — verified via `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` clauses throughout the script
