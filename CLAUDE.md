@@ -56,6 +56,8 @@ gcloud auth for local dev.
 - `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
 - `agent/src/supervisor/lease.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
 - `agent/src/supervisor/graph-executor.ts` — `executeGraph()` walks workflow YAML, dispatches per-node-type handlers, emits stage commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers (allow-empty for non-file-changing nodes), refreshes lease per node, supports resume from last trailer on the branch
+- `agent/src/supervisor/runner-cli.ts` — Job pod CLI entry point invoked by `entrypoint.sh` when `LORE_DARK_FACTORY_WORKFLOW` is set. Loads workflows from `/app/dist/workflows/`, drives the supervisor inside the pod's working tree, exits with a documented matrix (0/2/3/4/5/6/7/8/9) consumed by `entrypoint.sh` and surfaced in pod logs / loretask-watcher failure reasons; non-zero is treated as task failure with the specific code distinguishing config error from runtime error
+- `agent/src/supervisor/claude-code-handler.ts` — agent-node handler for the cluster path; spawns `claude --print` rather than calling the SDK directly. Maps non-zero exit → `cli-nonzero`, thrown errors → `cli-error`
 - `agent/src/workflow/loader.ts` — Zod schema for workflow YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check
 - `agent/src/workflows/*.yaml` — declarative workflow definitions (gap-fill, general, implementation; more extensible)
 - `agent/src/jobs/auto-merge.ts` — pure `evaluateAutoMerge()` decision + `evaluateAndMerge()` end-to-end with backoff. Outcome enum captures all 7 deferral reasons + `merged`. OTEL span `lore.auto_merge.decision` carries the rule trace
@@ -70,6 +72,8 @@ gcloud auth for local dev.
 - `shared/src/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `lastStageOnBranch()` exported via `@re-cinq/lore-shared`. Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
 - `web-ui/src/app/pipeline/[id]/Timeline.tsx` — client component, vertical stage-commit timeline with node-type icons, outcome badges, lease indicator. Polls `/api/pipeline/:id/timeline` every 10s while task is in flight
 - `mcp-server/src/github-client.ts` — consolidated GitHub auth (App + token fallback)
+- `docker/claude-runner/Dockerfile` — multi-stage build (agent-builder → validation-builder → runtime). Bakes `/app/dist/{supervisor,workflows}`, `/app/node_modules` (workspace deps with `--omit=dev` prune), `/app/shared/` (workspace symlink target — required at this exact path), and `/config/task-types.yaml` into the image. Build context = repo root.
+- `terraform/modules/gke-mcp/agent-helm/values.yaml` — `LORE_DARK_FACTORY_CLUSTER_ENABLED` env var (default `"false"`). Cluster-side dark-factory gate: when `"true"`, the worker forwards `darkFactoryWorkflow` to the LoreTask CR; when `"false"`, dark-mode repos still get the legacy `claude --print` path even with `dark_factory.enabled = true`. Use `--set-string` (not `--set`) when overriding to avoid YAML bool coercion.
 - `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
@@ -453,9 +457,10 @@ MCP tool's `max_tokens` parameter default is also 8K.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.
 
 **Dark Factory mode** (per-repo, off by default; ADR-016):
-- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Schema in `mcp-server/src/dark-factory-settings.ts`; defaults in `resolveSettings()`.
+- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Schema in `mcp-server/src/dark-factory-settings.ts`; defaults in `resolveSettings()`. Canonical types + resolver live in `@re-cinq/lore-shared` (`shared/src/dark-factory-settings.ts`) so agent + mcp-server + Job pod runner share one source.
+- **Two-gate enablement.** Per-repo (`dark_factory.enabled = true`) AND cluster (`LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the agent deployment env) must both be on for impl/general/review tasks to take the cluster supervisor path. The cluster gate prevents the helm flag from getting ahead of the claude-runner image (which must ship `/app/dist/`). Either gate off → repo uses the legacy `claude --print` path.
 - Privileged changes (`enabled` toggle, `auto_merge.paths`, downgrade of `require_*` to false) need two-key authorization: admin scope + an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md` (`dark-factory-authz.ts`).
 - Branch-as-state: every workflow phase commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers; the supervisor reads `git log` to resume after pod death.
 - Workflow definitions live as YAML files at `agent/src/workflows/*.yaml`. Local runner and GKE supervisor share definitions (FR2.3).
-- Auto-merge runs after `[stage:retrospective]`: green CI + bot APPROVED + path matches every changed file + repo trust ≥ `min_trust` → squash-merge. Decision and rule recorded in `pipeline.audit_log` as `auto_merge_decision`.
-- Rollback procedure: `runbooks/dark-factory-rollback.md`.
+- Auto-merge runs after `[stage:retrospective]` for in-agent tasks (gap-fill / runbook): green CI + bot APPROVED + path matches every changed file + repo trust ≥ `min_trust` → squash-merge. Decision and rule recorded in `pipeline.audit_log` as `auto_merge_decision`.
+- Rollout, rollback, pilot procedure, audit-log queries: `runbooks/dark-factory-rollback.md`.
