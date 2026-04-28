@@ -1,5 +1,25 @@
 # Agent instructions
 
+## Commit hygiene (dark-factory branches)
+
+When working on a Lore-managed branch in this repo (or any onboarded repo that
+has `dark_factory.enabled = true`), every commit you author must carry the
+structured trailer block at the end of the commit message body:
+
+```
+Lore-Stage: <stage-name>
+Lore-Iteration: <int>
+Lore-Task: <uuid>
+```
+
+These trailers are the audit substrate. Use `formatTrailers()` from
+`@re-cinq/lore-shared`. Never `--amend`, `git commit --fixup`, force-push, or
+rebase a branch that carries trailers — the lifecycle relies on the commit
+log being append-only.
+
+PR bodies must include the `Lore-Task: <uuid>` line so the web-ui can
+resolve PR ↔ task. Use `prFooter()` from `agent/src/lib/pr-body.ts`.
+
 ## First session (new developer)
 
 If this looks like the developer's first session (no pipeline tasks, no recent

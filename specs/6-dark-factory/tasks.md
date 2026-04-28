@@ -1,0 +1,190 @@
+# Tasks: Dark Factory Mode
+
+| Field    | Value             |
+|----------|-------------------|
+| Feature  | Dark Factory Mode |
+| Branch   | 6-dark-factory    |
+| Created  | 2026-04-28        |
+| Plan     | [plan.md](./plan.md) |
+| Spec     | [spec.md](./spec.md) |
+
+## User story → priority map
+
+Derived from `spec.md`'s seven acceptance scenarios. Priorities reflect delivery order (foundation → MVP → refinements → UI), not relative business value.
+
+| ID  | Story (Spec scenario)                                    | Priority |
+|-----|----------------------------------------------------------|----------|
+| US1 | Routine doc PR auto-merges (Scenario 1)                  | P1 (MVP) |
+| US2 | Implementation task survives pod death (Scenario 2)      | P1       |
+| US3 | Code change still requires human review (Scenario 3)     | P2       |
+| US4 | Approval gate produces an Issue (Scenario 4)             | P2       |
+| US5 | Escalation produces an Issue with full context (Scenario 5) | P2    |
+| US6 | Repo opts out of dark mode (Scenario 6)                  | P1       |
+| US7 | PR-to-task cross-reference (Scenario 7)                  | P3       |
+
+**MVP scope:** Phase 1 + Phase 2 + US1 (auto-merge end-to-end on a single repo opted in via the two-key ceremony) + US6 (opt-out repos unchanged) + US2 (pod-death survival). Everything after that is incremental.
+
+---
+
+## Phase 1: Setup
+
+- [X] T001 Create migration script `scripts/infra/setup-dark-factory-schema.sh` (skeleton, idempotent runner with `[lore]` prefixed output, exit codes 0/1)
+- [X] T002 [P] Add `minimatch` dependency to `agent/package.json` and `mcp-server/package.json`; run `npm install` in each
+- [X] T003 [P] Add scaffolding directory `agent/src/workflows/` with a `README.md` describing YAML location convention
+
+## Phase 2: Foundational (blocking prerequisites)
+
+These MUST complete before any user-story phase. They establish branch-as-state, the lease, and the trailer module — every later phase depends on them.
+
+- [X] T004 Implement schema migration in `scripts/infra/setup-dark-factory-schema.sh`: create `pipeline.task_leases` table, create `pipeline.dark_factory_baseline` table (columns: `id UUID PK`, `repo TEXT`, `captured_at TIMESTAMPTZ`, `window_start TIMESTAMPTZ`, `window_end TIMESTAMPTZ`, `counters JSONB`), create `pipeline.audit_log` table (the existing `memory.audit_log` is memory-scoped and lacks task/repo fields), add `dark_factory_overrides` JSONB column to `pipeline.tasks`. All idempotent (`IF NOT EXISTS`)
+- [ ] T005 Run the migration against the dev DB and verify with `\d pipeline.task_leases` and `\d pipeline.tasks` (deferred — shared-state action; run when ready)
+- [X] T006 [P] Implement `shared/src/commit-trailers.ts` exporting `formatTrailers()`, `parseTrailers()`, `lastStageOnBranch()`. Unit tests in `shared/src/__tests__/commit-trailers.test.ts` covering: round-trip, multi-line bodies, no-trailer commits, malformed trailers
+- [X] T007 [P] Re-export `commit-trailers` module from `@re-cinq/lore-shared` package index (`shared/src/index.ts`)
+- [X] T008 Implement `agent/src/supervisor/lease.ts` with `acquireLease()`, `refreshLease()`, `releaseLease()` functions using `INSERT … ON CONFLICT … WHERE expires_at < now()` semantics. Unit tests in `agent/src/__tests__/lease.test.ts` covering: acquire-from-empty, takeover-after-expiry, refresh-only-by-holder, release-only-by-holder, race between two acquirers
+- [X] T009 [P] Implement `agent/src/jobs/lease-reaper.ts` — 60s tick deleting rows where `expires_at < now() - interval '5 min'`; emits `lease_expired` audit_log entries; OTEL span `lore.lease.expired` (scheduler registration deferred to T060 alongside other dark-factory cron wiring)
+- [X] T010 Wire OTEL spans `lore.lease.acquire`, `lore.lease.refresh`, `lore.lease.release` into `lease.ts`; verify trace propagation with the existing OTEL collector (`@opentelemetry/api` added to agent; spans noop without a tracer provider, full propagation requires agent-side OTEL setup — tracked separately)
+- [X] T011 Implement `agent/src/supervisor/index.ts` skeleton: `runSupervisor({taskId, branchName, workflowName, gitDir})` that acquires lease → loads workflow YAML → calls graph executor stub (returns immediately) → releases lease in `finally`. Handles "lease already held" by exiting cleanly
+- [X] T011a [P] Lease backend abstraction with DB + file backends (`DbLeaseBackend`, `FileLeaseBackend` in `agent/src/supervisor/lease.ts`); supervisor selects backend via `leaseBackendForEnv()` (DB when `LORE_DB_HOST` set, file under `~/.lore/leases/` otherwise). **Local-runner.ts surgery deferred to a follow-up task once the graph executor exists (T014)** — the backend abstraction is the foundation; the actual local-runner cutover lands as a new task in Phase 3
+- [X] T011b Capture pre-feature baseline counters for SC1/SC4/SC6 measurement: scan `pipeline.tasks`, `audit_log`, and GitHub PR metadata for the last 30 days; compute per-repo counters (Job pods per implementation task, GitHub Issues created by Lore per week, share of bot PRs merged with no human review, median time-to-merge for bot PRs). Persist to the new `pipeline.dark_factory_baseline` table (one row per repo, one snapshot per capture). T060 compares post-pilot 30-day window against this snapshot to compute deltas
+
+## Phase 3: User Story 1 — Routine doc PR auto-merges (P1, MVP)
+
+**Independent test:** Quickstart Scenario A. A `gap-fill` task on a dark-mode-enabled repo produces a merged PR within 24h with no GitHub Issue and the full stage commit chain on the branch.
+
+- [X] T012 [P] [US1] Implement workflow YAML loader in `agent/src/workflow/loader.ts` with Zod schema per `contracts/workflow-yaml-schema.md`; load from `agent/src/workflows/*.yaml` at supervisor startup; cycle detection without `iteration_max` rejects the graph
+- [X] T013 [P] [US1] Author `agent/src/workflows/gap-fill.yaml` matching the linear flow: draft → validate → push → retrospective → done
+- [X] T014 [US1] Implement graph executor in `agent/src/supervisor/graph-executor.ts`: walks from `entry`, dispatches each node by type (agent/validate/gate/retrospective), commits a stage commit at end of each node with `formatTrailers()`, refreshes lease before each node
+- [X] T015 [US1] Implement resume logic in `graph-executor.ts`: at start, call `lastStageOnBranch(branchName)` and skip nodes already passed (the resume path is shared with US2)
+- [X] T016 [P] [US1] Add Zod schema for `dark_factory.*` settings in `mcp-server/src/dark-factory-settings.ts` per `data-model.md`; export `parseDarkFactorySettings()`, `resolveSettings()`, `twoKeyFieldsTouched()`, `trustMeets()`
+- [X] T017 [US1] Implement two-key AuthZ in `mcp-server/src/dark-factory-authz.ts`: `verifyApproval()` checks `X-Lore-Approval-PR` is open + labeled `dark-factory-approval` + label applied by a CODEOWNERS member of the affected repo's `CLAUDE.md`. Wired into the PUT route's privileged-field path (FR3.9)
+- [X] T018 [US1] Routes `GET /api/repos/:owner/:repo/settings/dark-factory` and `PUT /api/repos/:owner/:repo/settings/dark-factory` in `mcp-server/src/routes.ts` per `contracts/dark-factory-settings.md`. Admin scope on the URL prefix; two-key on privileged fields; transactional update + audit entry
+- [X] T019 [US1] Modified `agent/src/worker.ts` to consult `agent/src/lib/dark-factory.ts` `shouldCreateIssue()` before creating a GitHub Issue. Skips per `create_issue: never` / `create_issue: on_gate` (when no approval gate). Approval-required tasks always get an Issue (Issue is the gate surface). Per-task `with_issue: true` overrides force creation
+- [X] T020 [P] [US1] Path-allowlist matcher in `agent/src/lib/path-match.ts` using `minimatch` (dot:true). `allPathsMatch()` returns true only when every changed path matches at least one glob; `matchingPatterns()` lists which patterns matched a path (for audit trace)
+- [X] T021 [US1] Auto-merge engine in `agent/src/jobs/auto-merge.ts`: pure `evaluateAutoMerge()` decision function plus `evaluateAndMerge()` end-to-end job that calls `octokit.rest.pulls.merge()` with squash strategy, exponential backoff per research R3 (1s/4s/16s), writes `auto_merge_decision` audit entry, degrades to `deferred:api_failure` on final failure (PR stays open). Outcome enum covers all 7 deferral reasons + `merged`
+- [X] T022 [P] [US1] Notification gate in `agent/src/lib/notify.ts` `decideNotify(level, settings)`: `escalation` always fires, `watched` fires only when configured, `pr_open` requires `all` channel (dark mode silences per-PR Slack noise)
+- [X] T023 [US1] OTEL span `lore.auto_merge.decision` wraps `evaluateAndMerge()` with `pr_number`, `task_id`, `repo`, `decision`, `path_match_count`, `trust_level`, `ci_status`, `bot_review_state` attributes
+- [ ] T024 [US1] End-to-end smoke: enable dark mode on `re-cinq/test-darkmode` via the two-key ceremony, trigger `gap-fill`, verify quickstart Scenario A passes (PR merged, no Issue, all stages present, audit entry written) — **deferred** (shared-state action; runs after deploy)
+
+## Phase 4: User Story 2 — Pod-death survivability (P1)
+
+**Independent test:** Quickstart Scenario B. Killing a supervisor pod mid-flow leads to a replacement that resumes from `git log` and completes without re-executing committed phases.
+
+- [X] T025 [US2] Lease TTL refresh hook before each node in `graph-executor.ts` (delivered in T014: `await leaseBackend.refresh(branchName, holder, undefined, currentId)` per node); ensures the 10-minute TTL is renewed on each phase
+- [X] T026 [US2] Supervisor restart guard in `agent/src/supervisor/index.ts`: lease-held branch exits cleanly with `lease_held` reason; lease-expired branch acquires + logs takeover with previous holder name
+- [X] T027 [US2] Audit emission on takeover: `AcquireResult.tookOverFrom` is set when an acquire takes over from an expired prior lease; supervisor writes `lease_expired` audit entry with `previous_holder` + `new_holder` + `reason: takeover_at_acquire` (DB-only — local-runner mode skips, local-tasks.json is the local trail)
+- [X] T028 [US2] Chaos test in `agent/src/__tests__/pod-death.test.ts`: 3 vitest cases — fresh-supervisor-on-valid-lease exits cleanly, fresh-supervisor-on-expired-lease takes over and reports tookOverFrom, sequential supervisors leave the lease released after each cycle. Full pod-death-with-stage-resume integration awaits the agent-node handler (Phase 3 follow-up: the executor's commit chain is exercised by graph-executor.test.ts's resumeFromTrailers tests today)
+- [ ] T029 [US2] Verify quickstart Scenario B passes against the dev cluster (or local equivalent): kill pod, wait for lease expiry, observe replacement, inspect `git log` and audit_log — **deferred** (shared-state action; runs after deploy)
+
+## Phase 5: User Story 3 — Code change still requires human review (P2)
+
+**Independent test:** Quickstart Scenario C. A `general` task editing `agent/src/*` produces a PR that does NOT auto-merge and shows a clear deferral reason in the audit log.
+
+- [X] T030 [P] [US3] `agent/src/workflows/general.yaml` — linear: implement → validate → push → review → retrospective → done. All review outcomes (success/changes_requested/failed) route to retrospective (no loop). Loaded automatically by `loadWorkflowDir`
+- [X] T031 [P] [US3] `agent/src/workflows/implementation.yaml` — loop: implement → validate → push → review → (changes_requested → address → validate, iteration_max=2) → retrospective. validate→implement back-edge bounded at iteration_max=1 for fix-failed-validation case
+- [X] T032 [US3] Auto-merge deferral on path-outside-allowlist (delivered in T021 via `evaluateAutoMerge`'s `deferred:path_outside_allowlist` outcome — `auto-merge.test.ts` "deferred:path_outside_allowlist on mixed PR" case)
+- [X] T033 [US3] `review` node behavior under dark mode (delivered architecturally — review node always runs and posts comments via the agent handler; the auto-merge engine alone gates per `auto_merge.paths`. PRs outside the allowlist receive `deferred:path_outside_allowlist` and stay open for human merge per FR3.4. No special "stop early" path needed in graph-executor — the auto-merge engine is the single gate)
+- [X] T034 [US3] `agent/src/lib/dark-factory.ts` `decideReviewMode()` (pure) + `resolveReviewMode()` (DB-backed). Per-task `human_review: required` → `always`; dark mode off → `always`; dark mode on → `settings.review` (default `trust_based`). Tested via `dark-factory.test.ts`
+- [ ] T035 [US3] Verify quickstart Scenario C passes: create general task, observe PR not auto-merged, audit log shows `deferred:path_outside_allowlist` — **deferred** (shared-state action; runs after deploy)
+
+## Phase 6: User Story 4 — Approval gate produces an Issue (P2)
+
+**Independent test:** Quickstart Scenario D. A task with `approval_required: true` creates an Issue, blocks until labeled, then proceeds.
+
+- [X] T036 [US4] Approval-required tasks force Issue creation (delivered in T019 via `decideIssueCreate`'s `approval_required_overrides_dark_mode` branch — wins over `create_issue: never` and over per-task `with_issue: false`. Tested via `dark-factory.test.ts` "approval_required wins over with_issue:false")
+- [X] T037 [US4] `agent/src/jobs/approval-check.ts` works unchanged under dark mode — verified by reading: the job queries `pipeline.tasks WHERE status = 'awaiting_approval' AND issue_number IS NOT NULL` and polls the Issue label via `platform().getIssueLabels()`. No dark-factory branch needed; the Issue exists for these tasks per T036. Transition `awaiting_approval → pending` proceeds normally
+- [ ] T038 [US4] Verify quickstart Scenario D passes: approval-required task creates Issue, no commits until label, post-label workflow proceeds — **deferred** (shared-state action; runs after deploy)
+
+## Phase 7: User Story 5 — Escalation produces an Issue with full context (P2)
+
+**Independent test:** Quickstart Scenario E. A task that fails validation twice creates an Issue with branch link, validation output, contributing facts/memories, and fires a Slack escalation.
+
+- [X] T039 [P] [US5] `agent/src/lib/escalation.ts` — `escalate()` creates a GitHub Issue with structured body (task ID, branch link, commit-log link, reason, diagnostic, optional failing phase output, optional contributing refs); writes `escalation_issued` audit entry; calls `notify(msg, "escalation")`. `renderEscalationBody` exported as a pure function for testing
+- [X] T040 [US5] Wired into `graph-executor.ts` via `IterationMaxExceededError` (typed) + `onIterationMaxExceeded` hook on `ExecuteOptions`. The hook fires before the throw, so callers (the supervisor, when graph integration lands) can call `escalate()` with full context. Hook errors are caught + logged so escalation failures don't mask the original iteration_max problem
+- [X] T041 [US5] Issue-creation retry/degrade per research R3: 3 attempts with exponential backoff (1s/4s/16s). On final failure, audit entry has `outcome: audit_only` and the Slack message inlines the full body. Test `dist:/escalate — audit_only fallback` covers this
+- [X] T042 [US5] Escalation Issue body contains a clickable `[git log <branch>](https://github.com/<owner>/<repo>/commits/<branch>)` link. Test `renderEscalationBody — includes branch link, commit log link, diagnostic` covers this
+- [ ] T043 [US5] Verify quickstart Scenario E passes: force a syntax-error implementation, observe two iterations, observe Issue with diagnostic + Slack escalation — **deferred** (shared-state action; runs after deploy)
+
+## Phase 8: User Story 6 — Repo opts out of dark mode (P1)
+
+**Independent test:** Quickstart Scenario F. A repo with `dark_factory.enabled = false` behaves identically to pre-feature; trailers ARE still emitted (Q5 clarification).
+
+- [X] T044 [P] [US6] Default at migration verified: schema migration adds `pipeline.tasks.dark_factory_overrides JSONB DEFAULT NULL`; `lore.repos.settings` is unchanged for existing rows; `resolveSettings(undefined|null)` returns `enabled: false`. Existing repos see no shape change
+- [X] T045 [US6] Opt-out audit + behavior-matrix test (`dark-factory.test.ts` "Opt-out posture matrix"): `decideIssueCreate` returns `default_create`, `decideReviewMode` returns `always`, `evaluateAutoMerge` returns `deferred:dark_mode_off`, `decideNotify` falls back to legacy via `resolveSettings`'s `["all"]` default. Trailers (T006/T014) are NOT gated — emitted unconditionally per FR1.1 + Q5. Pod-death audit (lib/audit) is DB-conditional (skipped when `LORE_DB_HOST` unset), aligning with the local-runner local-tasks.json trail
+- [ ] T046 [US6] Verify quickstart Scenario F passes on a non-pilot repo: trigger any task type, observe today's behavior (Issue per task, no auto-merge), confirm trailers present in `git log` — **deferred** (shared-state action; runs after deploy)
+
+## Phase 9: User Story 7 — PR-to-task cross-reference (P3)
+
+**Independent test:** Quickstart Scenario G. From a merged PR URL or a task UUID, the web-ui resolves to the other side and renders the stage timeline.
+
+- [X] T047 [P] [US7] PR footer composer in `agent/src/lib/pr-body.ts` — `prFooter({issueNumber, taskId})` always emits `Lore-Task: <uuid>`, prefixes `Refs #N` when issue exists. Wired into `worker.ts` (4 PR creation sites) and `loretask-watcher.ts` (PR creation after Job pod completes)
+- [X] T048 [P] [US7] `GET /api/tasks/:uuid/timeline` in `mcp-server/src/routes.ts` — walks branch via Octokit `repos.listCommits`, parses trailers via shared `parseTrailers`, computes phase durations between consecutive commits, returns commits + lease state + PR state. Branch-deleted case returns degraded payload
+- [X] T049 [P] [US7] `GET /api/tasks/by-pr/:owner/:repo/:pr_number` — fast path queries `pipeline.tasks` by `pr_number`, fallback fetches PR body + final commit via Octokit and parses for `Lore-Task` trailer
+- [X] T050 [US7] `web-ui/src/app/pipeline/[id]/Timeline.tsx` — client component, vertical timeline with node-type icons (✏️/🔧/✅/⬆️/🔍/🛠️/📝/🏁), outcome badges (success green / changes_requested amber / failed red), commit SHA links to GitHub, lease holder + expiry indicator
+- [X] T051 [US7] Wired into `pipeline/[id]/page.tsx`. Polls `/api/pipeline/:id/timeline` (Next.js route handler at `web-ui/src/app/api/pipeline/[id]/timeline/route.ts` with next-auth + repo-access check + LORE_INGEST_TOKEN proxy to mcp-server). Auto-refreshes every 10s while task is in active states or current_stage isn't retrospective
+- [X] T052 [US7] Dark Factory dashboard panel on `repos/[owner]/[repo]/page.tsx` — Mode (Enabled / Off legacy), Trust level, Tasks (7d), Auto-merged (7d), Escalations (7d). Counts query `pipeline.audit_log` by event_type; degrades gracefully if the table doesn't exist yet (legacy clusters)
+- [ ] T053 [US7] Verify quickstart Scenario G passes: open merged PR in web-ui, timeline renders; navigate by task UUID, opens same view — **deferred** (shared-state action; runs after deploy)
+
+## Phase 10: Polish & Cross-Cutting Concerns
+
+- [X] T054 ADR-016 authored at `adrs/ADR-016-dark-factory-mode.md` — context, 4 sub-decisions, 5 alternatives rejected, consequences, constitutional impact, implementation commits referenced
+- [X] T055 Constitution patched to v2.1.0 (MINOR). P7 task-tracking row + technology-stack row both updated. Sync Impact Report at top documents the change. Last Amended Date: 2026-04-28
+- [X] T056 [P] CLAUDE.md updated — Key Components gained 14 new dark-factory entries (supervisor, workflow loader, workflows dir, auto-merge, lease-reaper, baseline, dark-factory lib, escalation, path-match, notify, audit, pr-body, commit-trailers, Timeline.tsx). New "Dark Factory mode" subsection covers settings, two-key, branch-as-state, auto-merge, rollback ref
+- [X] T057 [P] `runbooks/dark-factory-rollback.md` — pre-flight forensics, per-repo P2 rollback (two-key disable + lease reconciliation + verify), cluster-wide P1 rollback (bulk SQL + audit trail + Slack escalation), recovery procedure
+- [ ] T058 [P] Delete legacy local-runner code paths — **deferred** until graph executor is wired in production. The supervisor skeleton currently doesn't call `executeGraph()`; the legacy local-runner is still the only path to local execution. T058 runs after pilot proves the new path
+- [ ] T059 Pilot rollout — **deferred** (live action; enable `dark_factory.enabled = true` on three repos at trust tiers `docs`, `tests`, `implementation`; track for 14 days each)
+- [ ] T060 14-day measured-results memo vs SC1–SC8 — **deferred** (live action; runs after T059 pilot)
+
+---
+
+## Dependencies
+
+```
+Phase 1 (Setup)
+   ↓
+Phase 2 (Foundational) ── [BLOCKS ALL USER STORIES]
+   ↓
+Phase 3 (US1 — auto-merge MVP) ──┐
+Phase 4 (US2 — pod death) ───────┤  Can begin in parallel after Phase 2
+                                  ┘
+Phase 5 (US3 — code review) — depends on Phase 3 (workflow YAML loader, review node)
+Phase 6 (US4 — approval gate) — depends on Phase 3 (Issue creation gate)
+Phase 7 (US5 — escalation) — depends on Phase 4 (graph executor failure paths)
+Phase 8 (US6 — opt-out)    — runs across Phases 3–7 (audit + verification)
+Phase 9 (US7 — UI cross-ref) — depends on Phase 3 (PR body trailer)
+
+Phase 10 (Polish) — runs after all P1+P2 stories pass; ADR/constitution/pilot last
+```
+
+## Parallel execution opportunities
+
+Tasks marked **[P]** are parallelizable within their phase. Notable opportunities:
+
+- Phase 2: T006 (commit-trailers), T007 (re-export), T009 (lease-reaper) can run alongside T008 (lease module)
+- Phase 3 (US1): T012 (loader), T013 (gap-fill YAML), T016 (settings schema), T020 (path matcher), T022 (notify gate) can all run alongside the sequential T014→T015→T021 line
+- Phase 4 (US2): T028 (chaos test) can be authored in parallel with T025–T027
+- Phase 5 (US3): T030 + T031 (workflow YAMLs) parallel
+- Phase 7 (US5): T039 (escalation lib) parallel with workflow wiring
+- Phase 9 (US7): T047, T048, T049 parallel; T050–T052 sequential due to web-ui shared layout
+- Phase 10: T056, T057, T058 parallel after T054/T055 land
+
+## Implementation strategy
+
+**Increment 1 (MVP — ≈ 4 working days):** Phase 1 + Phase 2 + Phase 3 (US1) + Phase 4 (US2) + Phase 8 (US6).
+- After Increment 1: a doc PR can auto-merge end-to-end on one pilot repo; pod death is survivable; non-pilot repos are unchanged.
+
+**Increment 2 (≈ 2 working days):** Phase 5 (US3) + Phase 6 (US4) + Phase 7 (US5).
+- After Increment 2: code review behavior preserved, approval gates preserved, escalations have full context.
+
+**Increment 3 (≈ 1.5 working days):** Phase 9 (US7) + Phase 10 polish.
+- After Increment 3: web-ui tells the full story, ADR is in, pilot rollout begins.
+
+**14-day soak (no code, just measurement):** Phase 10 T059–T060.
+
+## Format validation
+
+All 62 tasks follow the required checklist format:
+- [x] Checkbox `- [ ]` prefix
+- [x] Sequential ID `T001`–`T060`
+- [x] `[P]` marker only on parallelizable tasks
+- [x] `[US1]`–`[US7]` story labels only on user-story phases (3–9), absent on Phases 1, 2, 10
+- [x] File path or concrete artifact named in every task

@@ -1,0 +1,106 @@
+import { execFile as execFileCb } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFile = promisify(execFileCb);
+
+export interface Trailers {
+  stage: string;
+  iteration: number;
+  taskId: string;
+  extras?: Record<string, string>;
+}
+
+const STAGE_KEY = "Lore-Stage";
+const ITERATION_KEY = "Lore-Iteration";
+const TASK_KEY = "Lore-Task";
+const REQUIRED_KEYS = [STAGE_KEY, ITERATION_KEY, TASK_KEY] as const;
+
+const TRAILER_LINE_RE = /^([A-Za-z][A-Za-z0-9-]*):\s*(.*)$/;
+
+export function formatTrailers(t: Trailers): string {
+  const lines = [
+    `${STAGE_KEY}: ${t.stage}`,
+    `${ITERATION_KEY}: ${t.iteration}`,
+    `${TASK_KEY}: ${t.taskId}`,
+  ];
+  if (t.extras) {
+    for (const [k, v] of Object.entries(t.extras)) {
+      lines.push(`${k}: ${v}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Parse the trailer block from a commit message body. Trailers are the
+ * last paragraph of the message — a contiguous block of `Key: value`
+ * lines preceded by a blank line (or starting at the top).
+ *
+ * Returns null when:
+ *  - the message has no trailer-shaped paragraph,
+ *  - the last paragraph mixes trailer and non-trailer lines,
+ *  - any required key (Lore-Stage, Lore-Iteration, Lore-Task) is missing,
+ *  - Lore-Iteration is not a valid integer.
+ */
+export function parseTrailers(message: string): Trailers | null {
+  const normalized = message.replace(/\r\n/g, "\n").trimEnd();
+  if (!normalized) return null;
+
+  const paragraphs = normalized.split(/\n\s*\n/);
+  const last = paragraphs[paragraphs.length - 1];
+
+  const lines = last
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (lines.length === 0) return null;
+
+  const map = new Map<string, string>();
+  for (const line of lines) {
+    const m = line.match(TRAILER_LINE_RE);
+    if (!m) return null;
+    map.set(m[1], m[2]);
+  }
+
+  for (const k of REQUIRED_KEYS) {
+    if (!map.has(k)) return null;
+  }
+
+  const iteration = Number.parseInt(map.get(ITERATION_KEY)!, 10);
+  if (!Number.isFinite(iteration)) return null;
+
+  const extras: Record<string, string> = {};
+  for (const [k, v] of map.entries()) {
+    if (!(REQUIRED_KEYS as readonly string[]).includes(k)) {
+      extras[k] = v;
+    }
+  }
+
+  return {
+    stage: map.get(STAGE_KEY)!,
+    iteration,
+    taskId: map.get(TASK_KEY)!,
+    ...(Object.keys(extras).length > 0 ? { extras } : {}),
+  };
+}
+
+/**
+ * Read the most recent commit on `branchName` and parse its trailers.
+ * Returns null on any failure (no commits, no trailers, git error) so the
+ * caller treats it uniformly as "no recoverable stage information".
+ */
+export async function lastStageOnBranch(
+  branchName: string,
+  gitDir?: string,
+): Promise<Trailers | null> {
+  const args: string[] = [];
+  if (gitDir) args.push("-C", gitDir);
+  args.push("log", "-1", "--format=%B", branchName);
+
+  try {
+    const { stdout } = await execFile("git", args);
+    return parseTrailers(stdout);
+  } catch {
+    return null;
+  }
+}

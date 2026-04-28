@@ -25,6 +25,7 @@
     "@opentelemetry/sdk-node": "^0.57.0",
     "@opentelemetry/sdk-trace-node": "^1.30.0",
     "glob": "^11.0.1",
+    "minimatch": "^10.0.1",
     "octokit": "^4.1.0",
     "pg": "^8.13.0",
     "tree-sitter-wasms": "^0.1.11",
