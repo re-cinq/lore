@@ -97,6 +97,9 @@ export interface CodePlatform {
   getIssueLabels(repo: string, issueNumber: number): Promise<string[]>;
   removeIssueLabel(repo: string, issueNumber: number, label: string): Promise<void>;
 
+  // ── Repo Metadata ──
+  getDefaultBranch(repo: string): Promise<string>;
+
   // ── Repo Content ──
   getFileContent(repo: string, path: string, ref?: string): Promise<string | null>;
   listDirectory(repo: string, path: string): Promise<string[]>;

@@ -291,6 +291,15 @@ export class GitHubPlatform implements CodePlatform {
     };
   }
 
+  // ── Repo Metadata ──
+
+  async getDefaultBranch(repo: string): Promise<string> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    const { data } = await ok.rest.repos.get({ owner, repo: repoName });
+    return data.default_branch;
+  }
+
   // ── Repo Content ──
 
   async getFileContent(repo: string, path: string, ref?: string): Promise<string | null> {

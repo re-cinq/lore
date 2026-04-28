@@ -155,6 +155,27 @@ After the incident is resolved and post-mortem complete:
 3. Watch the dashboard for 24 hours.
 4. Promote the next trust tier only after green.
 
+## Known gaps
+
+### Cluster-path PRs do not auto-merge yet
+
+The in-agent supervisor retrospective handler wires
+`evaluateAndMerge`, so dark-mode `gap-fill` / `runbook` PRs auto-merge
+on green CI + bot-approved + path-allowlisted changes (PR #308).
+Cluster-path workflows (`implementation` / `general` / `review`,
+PR #310) intentionally skip auto-merge inside the Job pod because the
+`loretask-watcher` owns PR creation — firing `evaluateAndMerge` from
+inside the pod would race the watcher.
+
+Until the watcher grows a "PR created from dark-factory pod → trigger
+`evaluateAndMerge`" hook, those PRs land but wait for human merge.
+
+**Operational impact:** in dark mode, expect mixed behavior — docs-only
+tasks auto-merge end-to-end, code tasks land a PR that still needs a
+human merge click. Tracked separately from this runbook's rollback
+flow; this is not a regression to roll back, just a not-yet-shipped
+feature.
+
 ## Related
 
 - ADR-016 — Dark Factory mode decision

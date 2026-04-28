@@ -321,8 +321,49 @@ async function processTask(task: any): Promise<void> {
     } else if (task.task_type === "feature-request") {
       await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
     } else {
-      // All other task types run as ephemeral Job pods via LoreTask CRD
-      await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber, repoOverrides);
+      // All other task types run as ephemeral Job pods via LoreTask CRD.
+      // For dark-mode repos with a workflow defined for the task type,
+      // pass the workflow name through to the LoreTask spec — the
+      // controller sets LORE_DARK_FACTORY_WORKFLOW on the pod env, and
+      // entrypoint.sh routes to the supervisor CLI instead of the
+      // legacy claude --print flow.
+      //
+      // Gated behind LORE_DARK_FACTORY_CLUSTER_ENABLED until the
+      // claude-runner image ships the agent build at /app/dist/. Without
+      // the gate, a dark-mode repo firing impl/general/review between
+      // this PR landing and the Dockerfile follow-up landing would
+      // produce Job pods that fail on the first line of the dark-factory
+      // branch in entrypoint.sh.
+      const clusterEnabled =
+        process.env.LORE_DARK_FACTORY_CLUSTER_ENABLED === "true";
+      const darkFactoryWorkflow =
+        darkFactoryEnabled && clusterEnabled ? task.task_type : undefined;
+
+      // Look up the actual default branch when forwarding to a
+      // dark-factory pod. Hardcoding "main" 422'd on repos still on
+      // master/develop. The pod uses this for `git diff origin/<base>`
+      // to detect "did anything actually change?"
+      let darkFactoryBaseBranch: string | undefined;
+      if (darkFactoryWorkflow) {
+        try {
+          darkFactoryBaseBranch =
+            await platform().getDefaultBranch(targetRepo);
+        } catch (err: any) {
+          console.warn(
+            `[agent] default-branch lookup failed for ${targetRepo}: ${err.message}`,
+          );
+        }
+      }
+      await handleClaudeCodeTask(
+        task,
+        targetRepo,
+        branchName,
+        model,
+        issueNumber,
+        repoOverrides,
+        darkFactoryWorkflow,
+        darkFactoryBaseBranch,
+      );
     }
   } catch (err: any) {
     await setStatus(task.id, "failed", {
@@ -533,6 +574,8 @@ async function handleClaudeCodeTask(
   model: string | undefined,
   _issueNumber: number | null,
   repoOverrides?: any,
+  darkFactoryWorkflow?: string,
+  darkFactoryBaseBranch?: string,
 ): Promise<void> {
   const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
   const kc = new KubeConfig();
@@ -552,6 +595,11 @@ async function handleClaudeCodeTask(
       labels: {
         "lore.re-cinq.com/task-id": task.id,
         "lore.re-cinq.com/task-type": task.task_type,
+        // Surface dark-factory mode as a label for `kubectl get
+        // loretasks -l lore.re-cinq.com/dark-factory=true` queries.
+        ...(darkFactoryWorkflow
+          ? { "lore.re-cinq.com/dark-factory": "true" }
+          : {}),
       },
     },
     spec: {
@@ -563,6 +611,17 @@ async function handleClaudeCodeTask(
       branch: branchName,
       model: model || "claude-sonnet-4-6",
       timeoutMinutes: repoOverrides?.timeout_minutes || getTaskTypeConfig(task.task_type)?.timeout_minutes || 30,
+      // Dark-factory mode (PR #309). When set, the Job pod's
+      // entrypoint.sh routes to the supervisor CLI which walks the
+      // workflow graph instead of the legacy claude --print flow.
+      ...(darkFactoryWorkflow
+        ? {
+            darkFactory: {
+              workflowName: darkFactoryWorkflow,
+              baseBranch: darkFactoryBaseBranch ?? "main",
+            },
+          }
+        : {}),
     },
   };
 
