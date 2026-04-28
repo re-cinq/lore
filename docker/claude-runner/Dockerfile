@@ -43,6 +43,12 @@ RUN npm run build --workspace=agent
 RUN mkdir -p /build/agent/dist/workflows \
     && cp /build/agent/src/workflows/*.yaml /build/agent/dist/workflows/
 
+# Drop dev deps before the runtime stage copies node_modules. The
+# initial install above pulls in vitest, typescript, @types/* — pure
+# overhead in the runtime image. Prune is faster than a fresh
+# `npm install --omit=dev`.
+RUN npm prune --omit=dev --workspace=shared --workspace=agent
+
 # ── Stage 2: validation CLI build ─────────────────────────────────────
 FROM node:24-slim AS validation-builder
 WORKDIR /build
@@ -66,6 +72,13 @@ COPY --from=validation-builder /build/dist/repo-validation.js /repo-validation.j
 # runner-cli.ts WORKFLOWS_DIR resolution and the loretask-controller's
 # entrypoint expectation (`node /app/dist/supervisor/runner-cli.js`).
 COPY --from=agent-builder /build/agent/dist /app/dist
+# `/app/shared` is REQUIRED at this exact path — not arbitrary. The
+# npm workspace install creates a relative symlink
+# `node_modules/@re-cinq/lore-shared → ../../shared` (relative to the
+# symlink's parent dir `node_modules/@re-cinq/`). Once that symlink is
+# under `/app/node_modules/@re-cinq/lore-shared`, its target resolves
+# to `/app/shared`. Move `shared/` elsewhere and `import` from
+# `@re-cinq/lore-shared` in compiled supervisor code silently breaks.
 COPY --from=agent-builder /build/shared /app/shared
 COPY --from=agent-builder /build/node_modules /app/node_modules
 COPY --from=agent-builder /build/agent/package.json /app/package.json
