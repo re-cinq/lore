@@ -241,6 +241,81 @@ async function processTask(task: any): Promise<void> {
     const model =
       repoOverrides?.model || getTaskTypeConfig(task.task_type)?.model || undefined;
 
+    // Dark-factory dispatch (T058 follow-up): when the repo has dark
+    // mode enabled AND the task type has a workflow definition, route
+    // through the in-agent supervisor instead of the legacy code paths.
+    // Limited to JSON-output workflows (gap-fill, runbook); Claude
+    // Code-driven types continue via the Job pod path until the
+    // entrypoint.sh refactor lands.
+    const { isDarkFactoryEligible, processTaskViaSupervisor } = await import(
+      "./supervisor/orchestrator.js"
+    );
+    const darkFactoryEnabled =
+      repoSettings?.dark_factory?.enabled === true;
+    if (darkFactoryEnabled && isDarkFactoryEligible(task.task_type)) {
+      console.log(
+        `[agent] Task ${task.id} routing through dark-factory supervisor (${task.task_type} on ${targetRepo})`,
+      );
+      const { resolveDarkFactorySettings } = await import(
+        "./lib/dark-factory.js"
+      );
+      const resolvedSettings = resolveDarkFactorySettings(
+        repoSettings?.dark_factory,
+      );
+      const result = await processTaskViaSupervisor({
+        task: {
+          id: task.id,
+          description: task.description,
+          task_type: task.task_type,
+          target_repo: targetRepo,
+        },
+        settings: resolvedSettings,
+        // Thread the branch through so revision tasks (where
+        // contextBundle.branch is preserved) land on the same branch
+        // and the supervisor resumes from the prior stage commits.
+        branchName,
+      });
+      switch (result.outcome) {
+        case "error":
+          throw new Error(result.errorMessage ?? "supervisor failed");
+        case "no_changes":
+          await setStatus(task.id, "completed");
+          await insertEvent(task.id, "running", "completed", {
+            reason: "no_changes",
+          });
+          break;
+        case "pr_created":
+          // pushAndOpenPr already wrote pr-created status; record the
+          // event for completeness.
+          await insertEvent(task.id, "running", "pr-created", {
+            pr_url: result.prUrl,
+            pr_number: result.prNumber,
+            via: "dark-factory-supervisor",
+          });
+          break;
+        case "lease_held":
+          // Another supervisor (likely a parallel pod) has the branch;
+          // back off to queued so the next worker tick retries.
+          await setStatus(task.id, "queued", { agent_id: agentId });
+          await insertEvent(task.id, "running", "queued", {
+            reason: "lease_held",
+          });
+          break;
+        case "iteration_max":
+          // Escalation Issue + Slack already fired via
+          // onIterationMaxExceeded inside the orchestrator. Mark the
+          // task failed with the error message so it surfaces in the UI.
+          await setStatus(task.id, "failed", {
+            failure_reason: result.errorMessage ?? "iteration_max",
+          });
+          await insertEvent(task.id, "running", "failed", {
+            reason: "iteration_max_exceeded",
+          });
+          break;
+      }
+      return;
+    }
+
     if (task.task_type === "onboard") {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);
     } else if (task.task_type === "feature-request") {

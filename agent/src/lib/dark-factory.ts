@@ -1,26 +1,28 @@
 import { query } from "../db.js";
 import { requiresApproval } from "../approval.js";
+// Canonical types + resolver moved to @re-cinq/lore-shared so all
+// consumers (agent, mcp-server, GKE Job pod runner) share one source.
+import {
+  resolveDarkFactorySettings,
+  trustMeets,
+  type DarkFactorySettings,
+  type ResolvedDarkFactorySettings,
+  type ReviewMode,
+} from "@re-cinq/lore-shared";
 
-export type ReviewMode = "trust_based" | "always" | "never";
+// Re-export so existing agent callers don't need to switch imports.
+export {
+  resolveDarkFactorySettings,
+  trustMeets,
+  type ResolvedDarkFactorySettings,
+  type ReviewMode,
+};
 
 /**
  * Per-repo dark-factory configuration as stored under
- * `lore.repos.settings.dark_factory`. Mirror of the schema in
- * `mcp-server/src/dark-factory-settings.ts` — kept duplicated here so
- * the agent doesn't import from the mcp-server workspace.
+ * `lore.repos.settings.dark_factory`. Alias of the canonical type.
  */
-export interface DarkFactoryRepoSettings {
-  enabled?: boolean;
-  create_issue?: "never" | "on_gate" | "always";
-  auto_merge?: {
-    paths?: string[];
-    min_trust?: "docs" | "tests" | "implementation" | "full";
-    require_green_ci?: boolean;
-    require_bot_approval?: boolean;
-  };
-  review?: "trust_based" | "always" | "never";
-  notify?: Array<"escalation" | "watched" | "all">;
-}
+export type DarkFactoryRepoSettings = DarkFactorySettings;
 
 export interface DarkFactoryTaskOverrides {
   human_review?: "required";
