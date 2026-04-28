@@ -132,17 +132,14 @@ async function main(): Promise<number> {
 
   const handlers = createProductionHandlers({
     agent: agentHandler,
-    // KNOWN GAP (tracked for the loretask-watcher follow-up):
-    // The in-agent retrospective handler (PR #308) wires
-    // evaluateAndMerge(), so dark-mode gap-fill / runbook PRs
-    // auto-merge for path-allowlisted changes per ADR-016. Cluster-
-    // path workflows (implementation / general / review) intentionally
-    // skip auto-merge here because the loretask-watcher owns PR
-    // creation; firing evaluateAndMerge from inside the pod would
-    // double-write before the PR even exists. Until the watcher
-    // grows a "PR created from dark-factory pod → trigger
-    // evaluateAndMerge" hook, those PRs land but wait for human
-    // merge. Documented in runbooks/dark-factory-rollback.md.
+    // Auto-merge intentionally NOT wired here — the loretask-watcher
+    // owns PR creation, and firing evaluateAndMerge from inside the
+    // pod would race the watcher (the PR doesn't exist yet at this
+    // point in the workflow). Instead, the watcher's PR-created
+    // branch calls `tryAutoMergeForCompletedTask` (see
+    // jobs/auto-merge-trigger.ts → jobs/loretask-watcher.ts), so cluster-path
+    // PRs auto-merge under the same policy as the in-agent path
+    // (gap-fill / runbook). Per ADR-016.
     episodeDeps: { curate: false },
   });
 

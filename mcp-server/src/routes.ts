@@ -649,6 +649,72 @@ async function triggerAgentReviewReactor(repo: string, prNumber: number): Promis
 }
 
 /**
+ * Forward an auto-merge re-trigger to the agent. Same shape as the
+ * review-reactor forwarder. Used by `check_run.completed` /
+ * `check_suite.completed` webhook handlers so dark-mode PRs re-evaluate
+ * auto-merge once CI completes — the initial fire at PR-creation time
+ * always sees an empty `check_runs` array.
+ */
+async function triggerAgentAutoMerge(repo: string, prNumber: number): Promise<void> {
+  const agentUrl = process.env.LORE_AGENT_URL;
+  const token = process.env.LORE_AGENT_INTERNAL_TOKEN;
+  if (!agentUrl || !token) {
+    console.warn("[webhook] LORE_AGENT_URL or LORE_AGENT_INTERNAL_TOKEN not set — skipping auto-merge trigger");
+    return;
+  }
+  try {
+    await fetch(`${agentUrl.replace(/\/+$/, "")}/api/trigger/auto-merge`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ repo, pr_number: prNumber }),
+    });
+  } catch (err: any) {
+    console.warn("[webhook] auto-merge trigger failed:", err.message);
+  }
+}
+
+/**
+ * GitHub fires `check_run.completed` per individual check (each CI
+ * job, each external service) and `check_suite.completed` per app
+ * once all that app's checks finish. We accept both — the trigger is
+ * cheap (short-circuits on `dark_factory.enabled = false` and on the
+ * "PR not found in pipeline.tasks" lookup) and the auto-merge engine
+ * itself defers idempotently when not all checks have completed yet.
+ *
+ * Resolves the PR number from the head SHA via the payload's
+ * `pull_requests` array. GitHub populates this for PRs in the same
+ * repo as the head ref; cross-repo PRs (forks) won't carry it, but
+ * dark-mode auto-merge is opt-in per repo so this is fine.
+ */
+async function handleCheckEvent(payload: any, res: ServerResponse): Promise<void> {
+  if (payload.action !== "completed") {
+    json(res, 200, { skipped: true, reason: "not a completed action", action: payload.action });
+    return;
+  }
+  const repo: string = payload.repository?.full_name;
+  const prList: Array<{ number: number }> | undefined =
+    payload.check_run?.pull_requests ?? payload.check_suite?.pull_requests;
+  if (!repo || !prList || prList.length === 0) {
+    json(res, 200, { skipped: true, reason: "no pull_requests in payload" });
+    return;
+  }
+  // A check can be associated with multiple PRs (e.g., the same head
+  // SHA appears on more than one PR). Fan out to all of them.
+  for (const pr of prList) {
+    triggerAgentAutoMerge(repo, pr.number).catch(() => {});
+  }
+  json(res, 200, {
+    triggered: "auto-merge",
+    repo,
+    pr_numbers: prList.map((p) => p.number),
+    via: payload.check_run ? "check_run" : "check_suite",
+  });
+}
+
+/**
  * pull_request events that should wake the review reactor: new commits
  * pushed (synchronize), or the PR being (re)opened. Closed/edited/etc.
  * are ignored here (spec-PR merge is a separate branch).
@@ -722,6 +788,30 @@ async function handleGitHubWebhook(req: IncomingMessage, res: ServerResponse, po
       return;
     }
     await handlePullRequestReviewEvent(payload, res);
+    // A submitted review (especially APPROVED from the review bot)
+    // can flip the auto-merge gate. Piggyback on this event to
+    // re-trigger auto-merge alongside the review-reactor.
+    if (payload.action === "submitted") {
+      const repo: string = payload.repository?.full_name;
+      const prNumber: number | undefined = payload.pull_request?.number;
+      if (repo && prNumber) {
+        triggerAgentAutoMerge(repo, prNumber).catch(() => {});
+      }
+    }
+    return;
+  }
+
+  // CI completion → re-evaluate auto-merge for any backing pipeline
+  // task. Fires per check (check_run) and per app's full set
+  // (check_suite). The agent endpoint resolves PR → task UUID and
+  // short-circuits when there's no matching task.
+  if (ghEvent === "check_run" || ghEvent === "check_suite") {
+    let payload: any;
+    try { payload = JSON.parse(rawBody); } catch {
+      json(res, 400, { error: "invalid JSON" });
+      return;
+    }
+    await handleCheckEvent(payload, res);
     return;
   }
 
