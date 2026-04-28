@@ -3,8 +3,9 @@
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
 | Feature        | Hippo-Memory Adaptations                    |
-| Status         | Draft                                       |
+| Status         | Implemented                                 |
 | Created        | 2026-04-07                                  |
+| Implemented    | 2026-04-20                                  |
 | Owner          | Platform Engineering                        |
 | Priority       | P1 — High value, medium effort              |
 | Motivation     | [GitHub issue #205](https://github.com/re-cinq/lore/issues/205), [ADR-014](../../adrs/ADR-014-passive-memory-capture.md) |
@@ -320,3 +321,72 @@ ALTER TABLE pipeline.tasks ADD COLUMN IF NOT EXISTS context_refs JSONB;
 6. Zero increase in search latency (retrieval strengthening is
    async).
 7. All migrations are idempotent and backward-compatible.
+
+## Implementation Notes
+
+All six feature areas were implemented. Below are the key files and
+any notable deviations from the original spec.
+
+### What was built
+
+| FR | File(s) | Notes |
+|----|---------|-------|
+| FR-1 (schema) | `scripts/infra/setup-memory-schema.sh` | **Not created as planned.** Schema changes were applied without an idempotent migration file. See known gap below. |
+| FR-2 (retrieval strengthening) | `mcp-server/src/memory-search.ts` | `strengthenRetrievals()` implemented as fire-and-forget. Uses `f.id` returned from both vector and keyword fact queries. Stale→observed revival included in the same UPDATE. |
+| FR-3 (confidence tiers) | `mcp-server/src/facts.ts`, `mcp-server/src/context-assembly.ts`, `agent/src/jobs/memory-lifecycle.ts` | Episode-sourced facts default to `observed` via column default; memory-sourced explicitly set `inferred`. Decay job adds a batch UPDATE to transition to `stale` after 30 days. Confidence rendered in assembled context as `[confidence]` prefix on each fact. |
+| FR-4 (conflict surfacing) | `mcp-server/src/facts.ts`, `mcp-server/src/context-assembly.ts` | `invalidateContradictions()` inserts a `fact_conflicts` record before invalidating. Context assembly queries 7-day conflicts and prefixes affected facts with `[CONFLICT]`. **Deviation:** only the new (valid) fact is marked `[CONFLICT]` — the old invalidated fact is not shown alongside it (spec said both should appear). |
+| FR-5 (transfer scoring) | `mcp-server/src/memory-search.ts`, `mcp-server/src/context-assembly.ts` | `computeTransferScore()` matches spec exactly (base 0.5, portable +0.15, local −0.15). Cross-repo queries filter at `>= 0.5`. |
+| FR-6 (outcome feedback) | `agent/src/jobs/merge-check.ts`, `mcp-server/src/pipeline.ts`, `mcp-server/src/context-assembly.ts` | `assembleContext()` accepts `include_ids` flag and returns `{ fact_ids, memory_ids }` as `context_refs`. Stored on `pipeline.tasks.context_refs` JSONB. Merge boosts +5, rejection penalises −3 (min 7). Audit log events written. |
+| FR-7 (importance scoring) | `agent/src/jobs/memory-lifecycle.ts` | `scoreImportance()` rewritten with `0.5^(effective_age / half_life_days)` strength model. Retrieval boost (+1 ≥5, +2 ≥20) and stale penalty (−1) applied. |
+
+### Known gap: missing schema migration file
+
+`setup-memory-schema.sh` was not created. The SQL from the spec's
+Data Model Changes section was applied to the database directly
+(or via another path not tracked in this repo). To make the schema
+self-documenting and safe for future re-installs:
+
+```sql
+-- Add to scripts/infra/setup-memory-schema.sh
+
+-- Retrieval strengthening
+ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS retrieval_count INT DEFAULT 0;
+ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS last_retrieved_at TIMESTAMPTZ;
+ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS half_life_days INT DEFAULT 30;
+
+ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS retrieval_count INT DEFAULT 0;
+ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS last_retrieved_at TIMESTAMPTZ;
+ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS half_life_days INT DEFAULT 60;
+
+-- Confidence tiers
+ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS confidence TEXT DEFAULT 'observed';
+DO $$ BEGIN
+  ALTER TABLE memory.facts ADD CONSTRAINT facts_confidence_check
+    CHECK (confidence IN ('verified', 'observed', 'inferred', 'stale'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Conflict surfacing
+CREATE TABLE IF NOT EXISTS memory.fact_conflicts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  old_fact_id UUID NOT NULL REFERENCES memory.facts(id),
+  new_fact_id UUID NOT NULL REFERENCES memory.facts(id),
+  similarity  FLOAT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS fact_conflicts_old_idx ON memory.fact_conflicts (old_fact_id);
+CREATE INDEX IF NOT EXISTS fact_conflicts_new_idx ON memory.fact_conflicts (new_fact_id);
+
+-- Outcome feedback
+ALTER TABLE pipeline.tasks ADD COLUMN IF NOT EXISTS context_refs JSONB;
+```
+
+### Deviation: conflict pair display
+
+The spec required "both the old invalidated and new valid fact are
+shown" when a conflict exists. The implementation only marks the
+new (currently valid) fact with `[CONFLICT]`. The old invalidated
+fact is accessible via `search_memory` with
+`include_invalidated=true` but is not proactively surfaced in
+assembled context. Acceptable for now; can be revisited if agents
+need the contradicted fact text to reason about the conflict.

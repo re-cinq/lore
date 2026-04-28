@@ -84,6 +84,10 @@ gcloud auth for local dev.
 - `agent/src/platform.ts` — CodePlatform interface (branch, commit, PR, issue, repo content, PR details)
 - `agent/src/github.ts` — GitHubPlatform implementation (only file importing Octokit)
 - `web-ui/src/lib/github.ts` — GitHub App client for web-ui (PR status fetching)
+- `web-ui/src/lib/db.ts` — PostgreSQL pool + cross-schema helpers: `query`, `queryOne`, `getRepoSchema`, `getRepoSchemaAndTeam`, `queryAllChunks` (UNION ALL across all team schemas + `org_shared`)
+- `web-ui/src/app/specs/page.tsx` — global cross-repo spec browser; queries all schemas via `queryAllChunks`, filters `content_type = 'spec'`, shows 50 most-recent with per-repo filter buttons; not in the sidebar nav (only reachable via repo pages or direct URL)
+- `web-ui/src/app/specs/[...path]/page.tsx` — spec detail view; `[...path]` catch-all reconstructs the file path; breadcrumb label reads "Context" (differs from list page label "Specifications"); shows all chunks matching that `file_path` across all schemas
+- `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` — per-repo spec view; scoped to one team schema; includes a server action form (`addSpec`) that inserts spec chunks directly into `{schema}.chunks` with `content_type = 'spec'`; shows 30 most-recent
 - `web-ui/src/app/pipeline/[id]/TaskLogs.tsx` — live Job log viewer (polls every 5s)
 - `web-ui/src/app/pipeline/[id]/PRStatusCard.tsx` — live PR status card
 - `agent/src/jobs/loretask-watcher.ts` — polls LoreTasks, creates PRs, triggers auto-review
