@@ -321,8 +321,24 @@ async function processTask(task: any): Promise<void> {
     } else if (task.task_type === "feature-request") {
       await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
     } else {
-      // All other task types run as ephemeral Job pods via LoreTask CRD
-      await handleClaudeCodeTask(task, targetRepo, branchName, model, issueNumber, repoOverrides);
+      // All other task types run as ephemeral Job pods via LoreTask CRD.
+      // For dark-mode repos with a workflow defined for the task type,
+      // pass the workflow name through to the LoreTask spec — the
+      // controller sets LORE_DARK_FACTORY_WORKFLOW on the pod env, and
+      // entrypoint.sh routes to the supervisor CLI instead of the
+      // legacy claude --print flow.
+      const darkFactoryWorkflow = darkFactoryEnabled
+        ? task.task_type
+        : undefined;
+      await handleClaudeCodeTask(
+        task,
+        targetRepo,
+        branchName,
+        model,
+        issueNumber,
+        repoOverrides,
+        darkFactoryWorkflow,
+      );
     }
   } catch (err: any) {
     await setStatus(task.id, "failed", {
@@ -533,6 +549,7 @@ async function handleClaudeCodeTask(
   model: string | undefined,
   _issueNumber: number | null,
   repoOverrides?: any,
+  darkFactoryWorkflow?: string,
 ): Promise<void> {
   const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
   const kc = new KubeConfig();
@@ -552,6 +569,11 @@ async function handleClaudeCodeTask(
       labels: {
         "lore.re-cinq.com/task-id": task.id,
         "lore.re-cinq.com/task-type": task.task_type,
+        // Surface dark-factory mode as a label for `kubectl get
+        // loretasks -l lore.re-cinq.com/dark-factory=true` queries.
+        ...(darkFactoryWorkflow
+          ? { "lore.re-cinq.com/dark-factory": "true" }
+          : {}),
       },
     },
     spec: {
@@ -563,6 +585,12 @@ async function handleClaudeCodeTask(
       branch: branchName,
       model: model || "claude-sonnet-4-6",
       timeoutMinutes: repoOverrides?.timeout_minutes || getTaskTypeConfig(task.task_type)?.timeout_minutes || 30,
+      // Dark-factory mode (PR #309). When set, the Job pod's
+      // entrypoint.sh routes to the supervisor CLI which walks the
+      // workflow graph instead of the legacy claude --print flow.
+      ...(darkFactoryWorkflow
+        ? { darkFactory: { workflowName: darkFactoryWorkflow } }
+        : {}),
     },
   };
 

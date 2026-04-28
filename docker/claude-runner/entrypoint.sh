@@ -5,6 +5,72 @@ set -euo pipefail
 MODEL="${MODEL:-claude-sonnet-4-6}"
 TASK_TYPE="${TASK_TYPE:-implementation}"
 
+# =====================
+# Dark Factory mode (PR #309)
+# =====================
+# When LORE_DARK_FACTORY_WORKFLOW is set, route the entire pod through
+# the supervisor + workflow graph instead of the legacy claude --print
+# + validate + commit flow. The supervisor walks the graph (commits per
+# stage with Lore-Stage:/Lore-Iteration:/Lore-Task: trailers), refreshes
+# the lease per node, and returns 0 on completion. The loretask-watcher
+# then creates the PR as it does today.
+if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
+  echo "[runner] Dark-factory mode (workflow=${LORE_DARK_FACTORY_WORKFLOW})"
+
+  # --- Validate required env vars ---
+  missing=()
+  for var in GITHUB_TOKEN TARGET_REPO BRANCH_NAME TASK_DESCRIPTION TASK_TYPE LORE_TASK_ID; do
+    if [ -z "${!var:-}" ]; then
+      missing+=("$var")
+    fi
+  done
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo "[runner] ERROR: Missing required env vars (dark-factory): ${missing[*]}"
+    exit 1
+  fi
+
+  # --- Configure git ---
+  git config --global user.name "Lore Agent"
+  git config --global user.email "lore@re-cinq.com"
+
+  # --- Clone repo + branch ---
+  git clone --depth=1 \
+    "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" \
+    /workspace/repo
+  cd /workspace/repo
+  git checkout -b "${BRANCH_NAME}"
+
+  # --- Hand off to the supervisor CLI ---
+  # The supervisor walks the workflow graph; agent nodes spawn `claude`
+  # inside the same workdir, retrospective writes the stage commit,
+  # iteration_max bounds loops. exit code 0 = workflow completed.
+  export WORKDIR=/workspace/repo
+  export GIT_AUTHOR_NAME="Lore Agent"
+  export GIT_AUTHOR_EMAIL="lore@re-cinq.com"
+  export GIT_COMMITTER_NAME="Lore Agent"
+  export GIT_COMMITTER_EMAIL="lore@re-cinq.com"
+
+  # The runner CLI lives in the agent build, mounted/copied into
+  # /app/dist alongside the validation script.
+  node /app/dist/supervisor/runner-cli.js
+  RUNNER_EXIT=$?
+  echo "[runner] runner-cli exited with ${RUNNER_EXIT}"
+
+  if [ "$RUNNER_EXIT" = "0" ]; then
+    echo "[runner] Pushing dark-factory branch..."
+    git push origin "${BRANCH_NAME}"
+    CHANGED_COUNT=$(git log "main..${BRANCH_NAME}" --oneline | wc -l | tr -d ' ')
+    echo "CHANGES=${CHANGED_COUNT}"
+    echo "[runner] Dark-factory done."
+    exit 0
+  fi
+
+  # Non-zero: surface the supervisor's exit reason. The loretask-watcher
+  # treats any non-zero as task failure → needs-human-help label.
+  echo "NEEDS_HUMAN_HELP"
+  exit "${RUNNER_EXIT}"
+fi
+
 if [ "$TASK_TYPE" = "review" ]; then
   # =====================
   # Review flow

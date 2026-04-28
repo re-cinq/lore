@@ -32,6 +32,18 @@ interface LoreTaskSpec {
   prNumber?: number;
   image?: string;
   timeoutMinutes?: number;
+  /**
+   * Dark-factory mode (PR #309). When set, the Job pod's
+   * entrypoint.sh routes through the supervisor + workflow graph
+   * instead of the legacy `claude --print` flow. The value is the
+   * workflow name to load from the agent's bundled workflows
+   * directory (matches the `name` field in the YAML).
+   */
+  darkFactory?: {
+    workflowName: string;
+  };
+  /** Raw task description, surfaced to the supervisor as the prompt input. */
+  description?: string;
 }
 
 interface LoreTaskStatus {
@@ -204,6 +216,20 @@ async function reconcile(lt: LoreTask): Promise<void> {
                 { name: "MODEL", value: lt.spec.model || "claude-sonnet-4-6" },
                 { name: "TASK_TYPE", value: lt.spec.taskType || "implementation" },
                 { name: "PR_NUMBER", value: String(lt.spec.prNumber || "") },
+                // Dark-factory env vars (PR #309). When workflowName
+                // is set, entrypoint.sh routes to the supervisor CLI;
+                // otherwise the legacy claude --print flow runs. The
+                // task description is surfaced raw so the runner-cli
+                // can re-render the prompt per node via the workflow.
+                {
+                  name: "LORE_DARK_FACTORY_WORKFLOW",
+                  value: lt.spec.darkFactory?.workflowName ?? "",
+                },
+                { name: "LORE_TASK_ID", value: lt.spec.taskId },
+                {
+                  name: "TASK_DESCRIPTION",
+                  value: lt.spec.description ?? lt.spec.prompt,
+                },
                 {
                   name: "ANTHROPIC_API_KEY",
                   valueFrom: {
