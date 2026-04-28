@@ -7,6 +7,9 @@ on:
       - 'docker/claude-runner/**'
       - 'mcp-server/src/repo-validation.ts'
       - 'mcp-server/src/repo-validation-cli.ts'
+      - 'agent/**'
+      - 'shared/**'
+      - 'scripts/task-types.yaml'
   workflow_dispatch:
 
 env:
@@ -23,17 +26,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Copy validation source into Docker context
-        run: |
-          cp mcp-server/src/repo-validation.ts docker/claude-runner/validation/src/
-          cp mcp-server/src/repo-validation-cli.ts docker/claude-runner/validation/src/
 
       - name: Image metadata
         id: meta
@@ -44,10 +45,91 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Build (load locally for smoke tests; push only on main)
+        # Single build step that loads to the local Docker daemon AND
+        # conditionally pushes to GHCR. buildx supports `load: true` +
+        # `push: true` together, so the smoke-tested image is byte-
+        # identical to the pushed image. Two separate build-push-action
+        # invocations would risk drift if anything between them changed.
         uses: docker/build-push-action@v7
         with:
-          context: docker/claude-runner
+          context: .
+          file: docker/claude-runner/Dockerfile
+          load: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resolve image tag for smoke tests
+        id: tag
+        # Pin to the sha tag explicitly. `meta.outputs.tags` is multi-
+        # line and order is not guaranteed; `head -1` would be fragile
+        # if anyone adds another tag type or flips `load`.
+        run: |
+          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "image=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test — runner-cli env-missing → exit 9
+        # Exercises that /app/dist/supervisor/runner-cli.js is present
+        # and the documented exit-code matrix (PR #310 review fix) is
+        # honored. Running with no env vars + LORE_DARK_FACTORY_WORKFLOW
+        # unset triggers MissingEnvError → exit 9.
+        run: |
+          set +e
+          docker run --rm --entrypoint node "${{ steps.tag.outputs.image }}" \
+            /app/dist/supervisor/runner-cli.js
+          rc=$?
+          set -e
+          if [ "$rc" != "9" ]; then
+            echo "expected exit 9 (env_missing) from runner-cli with no env, got $rc"
+            exit 1
+          fi
+          echo "runner-cli exit-code matrix verified (env_missing → 9)"
+
+      - name: Smoke test — workflow YAMLs present
+        # Confirms agent/src/workflows/*.yaml made it to /app/dist/workflows/.
+        # If the Dockerfile drops the cp step, runner-cli would exit 3
+        # (workflow_load_failed) on every invocation.
+        run: |
+          docker run --rm --entrypoint sh "${{ steps.tag.outputs.image }}" -c \
+            'ls /app/dist/workflows/*.yaml' \
+            | tee /tmp/workflows.txt
+          test -s /tmp/workflows.txt
+
+      - name: Smoke test — runtime imports load + workflow lookup runs
+        # The previous two tests cover "files exist" but not "the import
+        # graph actually resolves." If `pg`, `@kubernetes/client-node`,
+        # or any transitive runtime dep was lost during the prune step,
+        # runner-cli would crash at module-load before requireEnv ever
+        # ran — and exit-9 would hide it. This one provides all required
+        # env vars + a fake git workdir, points at a workflow that
+        # doesn't exist, expects exit 4 (workflow_not_found). Reaching
+        # that branch proves: deps imported, loadTaskTypes ran,
+        # loadWorkflowDir found the YAML directory, and the workflow
+        # registry is queryable.
+        run: |
+          set +e
+          docker run --rm \
+            -e LORE_DARK_FACTORY_WORKFLOW=does-not-exist \
+            -e LORE_TASK_ID=t1 \
+            -e TARGET_REPO=x/y \
+            -e BRANCH_NAME=lore/test/x \
+            -e TASK_DESCRIPTION=d \
+            -e TASK_TYPE=gap-fill \
+            -e WORKDIR=/tmp/repo \
+            --entrypoint sh \
+            "${{ steps.tag.outputs.image }}" -c \
+            'mkdir -p /tmp/repo/.git && exec node /app/dist/supervisor/runner-cli.js'
+          rc=$?
+          set -e
+          if [ "$rc" != "4" ]; then
+            echo "expected exit 4 (workflow_not_found), got $rc"
+            echo "  rc=1 → uncaught exception (likely missing runtime dep)"
+            echo "  rc=2 → workdir guard fired before workflow lookup (.git mkdir failed?)"
+            echo "  rc=3 → loadWorkflowDir threw (YAMLs missing or unparseable)"
+            echo "  rc=9 → MissingEnvError (env wiring bug in this step)"
+            exit 1
+          fi
+          echo "runtime-imports + workflow loader verified (workflow_not_found → 4)"

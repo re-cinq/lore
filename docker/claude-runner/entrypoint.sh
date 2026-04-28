@@ -53,8 +53,14 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   export GIT_COMMITTER_NAME="Lore Agent"
   export GIT_COMMITTER_EMAIL="lore@re-cinq.com"
 
-  # The runner CLI lives in the agent build, mounted/copied into
-  # /app/dist alongside the validation script.
+  # task-types.yaml is baked into the image at /config/task-types.yaml
+  # by the Dockerfile. runner-cli's loadTaskTypes() defaults to that
+  # path; setting it explicitly here makes the lookup traceable in
+  # `kubectl logs` and lets us override per-pod from the controller.
+  export TASK_TYPES_PATH="${TASK_TYPES_PATH:-/config/task-types.yaml}"
+
+  # The runner CLI lives in the agent build, copied into /app/dist by
+  # the multi-stage Dockerfile alongside /app/dist/workflows/*.yaml.
   node /app/dist/supervisor/runner-cli.js
   RUNNER_EXIT=$?
   echo "[runner] runner-cli exited with ${RUNNER_EXIT}"
