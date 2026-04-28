@@ -311,6 +311,27 @@ export async function watchLoreTasks(): Promise<void> {
           taskId,
         ).catch(() => {});
 
+        // Cluster-path auto-merge hook (closes the gap left by PR #310,
+        // documented in runbooks/dark-factory-rollback.md). The runner-cli
+        // intentionally does NOT call evaluateAndMerge from inside the
+        // pod because the watcher owns PR creation — firing it from the
+        // pod would race this code path. Now that the PR exists and
+        // pipeline.tasks has been updated with pr_number, the auto-merge
+        // policy can run here. tryAutoMergeForCompletedTask short-circuits
+        // when dark mode is off, so this is safe to call for every task.
+        // Fire-and-forget: a flaky GitHub call must never block PR
+        // creation or downstream auto-review wiring.
+        import("./auto-merge-trigger.js")
+          .then(({ tryAutoMergeForCompletedTask }) =>
+            tryAutoMergeForCompletedTask({ taskId }),
+          )
+          .catch((err) =>
+            console.warn(
+              `[loretask-watcher] auto-merge trigger failed for task ${taskId}:`,
+              (err as Error).message,
+            ),
+          );
+
         // Trigger auto-review if enabled for this repo
         if (await shouldAutoReview(lt.spec.targetRepo)) {
           const reviewTaskResult = await query<{ id: string }>(
