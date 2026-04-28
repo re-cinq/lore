@@ -29,9 +29,9 @@ function mockPool(responses: Array<{ rowCount: number; rows?: unknown[] }>) {
 // ── DbLeaseBackend ─────────────────────────────────────────────────────
 
 describe("DbLeaseBackend.acquire", () => {
-  it("returns acquired:true on first acquire", async () => {
+  it("returns acquired:true on first acquire (no prior row)", async () => {
     const { pool, calls } = mockPool([
-      { rowCount: 1, rows: [{ holder: "pod-A" }] },
+      { rowCount: 1, rows: [{ previous_holder: null }] },
     ]);
     const backend = new DbLeaseBackend(pool);
     const r = await backend.acquire("branch-x", "task-1", "pod-A", 600);
@@ -42,19 +42,20 @@ describe("DbLeaseBackend.acquire", () => {
     expect(calls[0].sql).toContain(
       "WHERE pipeline.task_leases.expires_at < now()",
     );
+    expect(calls[0].sql).toContain("WITH prev AS");
     expect(calls[0].values).toEqual(["branch-x", "task-1", "pod-A", 600]);
   });
 
-  it("returns acquired:true on takeover when prior lease expired", async () => {
+  it("returns acquired:true with tookOverFrom on takeover (T027)", async () => {
     const { pool } = mockPool([
-      { rowCount: 1, rows: [{ holder: "pod-B" }] },
+      { rowCount: 1, rows: [{ previous_holder: "pod-A" }] },
     ]);
     const r = await new DbLeaseBackend(pool).acquire(
       "branch-x",
       "task-1",
       "pod-B",
     );
-    expect(r.acquired).toBe(true);
+    expect(r).toEqual({ acquired: true, tookOverFrom: "pod-A" });
   });
 
   it("returns acquired:false with currentHolder when lease still valid", async () => {
@@ -73,7 +74,9 @@ describe("DbLeaseBackend.acquire", () => {
   });
 
   it("uses default TTL of 600s when not specified", async () => {
-    const { pool, calls } = mockPool([{ rowCount: 1 }]);
+    const { pool, calls } = mockPool([
+      { rowCount: 1, rows: [{ previous_holder: null }] },
+    ]);
     await new DbLeaseBackend(pool).acquire("b", "t", "h");
     expect(calls[0].values).toEqual(["b", "t", "h", 600]);
   });
@@ -157,11 +160,11 @@ describe("FileLeaseBackend", () => {
     expect(r).toEqual({ acquired: false, currentHolder: "holder-A" });
   });
 
-  it("allows takeover after the prior lease has expired", async () => {
+  it("allows takeover after the prior lease has expired and reports tookOverFrom (T027)", async () => {
     const backend = new FileLeaseBackend(tmpDir);
     await backend.acquire("b", "t1", "holder-A", -1); // expires immediately
     const r = await backend.acquire("b", "t2", "holder-B");
-    expect(r).toEqual({ acquired: true });
+    expect(r).toEqual({ acquired: true, tookOverFrom: "holder-A" });
   });
 
   it("refresh by current holder extends the expiry", async () => {

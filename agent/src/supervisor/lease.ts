@@ -9,7 +9,18 @@ const tracer: Tracer = trace.getTracer("lore.lease");
 
 export interface AcquireResult {
   acquired: boolean;
+  /**
+   * Set when `acquired === false`. The holder of the still-valid lease
+   * the caller should yield to.
+   */
   currentHolder?: string;
+  /**
+   * Set when `acquired === true` AND the acquire was a takeover from an
+   * expired prior holder. The supervisor uses this to emit a
+   * `lease_expired` audit entry naming the previous holder (T027).
+   * `undefined` when the acquire was a fresh insert with no prior row.
+   */
+  tookOverFrom?: string;
 }
 
 /**
@@ -56,8 +67,17 @@ export class DbLeaseBackend implements LeaseBackend {
       span.setAttribute("ttl_sec", ttlSec);
       span.setAttribute("backend", "db");
       try {
-        const result = await this.pool.query<{ holder: string }>(
-          `INSERT INTO pipeline.task_leases (branch_name, task_id, holder, expires_at)
+        // The CTE captures the previous holder (if any) so a takeover
+        // from an expired prior pod can be reported and audited (T027).
+        const result = await this.pool.query<{
+          previous_holder: string | null;
+        }>(
+          `WITH prev AS (
+             SELECT holder AS prev_holder
+               FROM pipeline.task_leases
+              WHERE branch_name = $1
+           )
+           INSERT INTO pipeline.task_leases (branch_name, task_id, holder, expires_at)
            VALUES ($1, $2, $3, now() + ($4::int || ' seconds')::interval)
            ON CONFLICT (branch_name) DO UPDATE
              SET task_id     = EXCLUDED.task_id,
@@ -65,13 +85,21 @@ export class DbLeaseBackend implements LeaseBackend {
                  acquired_at = now(),
                  expires_at  = EXCLUDED.expires_at
              WHERE pipeline.task_leases.expires_at < now()
-           RETURNING holder`,
+           RETURNING (SELECT prev_holder FROM prev) AS previous_holder`,
           [branchName, taskId, holder, ttlSec],
         );
 
         if ((result.rowCount ?? 0) > 0) {
-          span.setAttribute("outcome", "acquired");
-          return { acquired: true };
+          const tookOverFrom =
+            result.rows[0]?.previous_holder ?? undefined;
+          span.setAttribute(
+            "outcome",
+            tookOverFrom ? "takeover" : "acquired",
+          );
+          if (tookOverFrom) span.setAttribute("took_over_from", tookOverFrom);
+          return tookOverFrom
+            ? { acquired: true, tookOverFrom }
+            : { acquired: true };
         }
 
         const cur = await this.pool.query<{ holder: string }>(
@@ -198,6 +226,7 @@ export class FileLeaseBackend implements LeaseBackend {
           return { acquired: false, currentHolder: existing.holder };
         }
 
+        const tookOverFrom = existing?.holder;
         await this.writeRecord({
           branch_name: branchName,
           task_id: taskId,
@@ -205,8 +234,14 @@ export class FileLeaseBackend implements LeaseBackend {
           acquired_at: new Date(now).toISOString(),
           expires_at: new Date(now + ttlSec * 1000).toISOString(),
         });
-        span.setAttribute("outcome", "acquired");
-        return { acquired: true };
+        span.setAttribute(
+          "outcome",
+          tookOverFrom ? "takeover" : "acquired",
+        );
+        if (tookOverFrom) span.setAttribute("took_over_from", tookOverFrom);
+        return tookOverFrom
+          ? { acquired: true, tookOverFrom }
+          : { acquired: true };
       } finally {
         span.end();
       }

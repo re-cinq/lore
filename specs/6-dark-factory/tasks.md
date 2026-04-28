@@ -69,11 +69,11 @@ These MUST complete before any user-story phase. They establish branch-as-state,
 
 **Independent test:** Quickstart Scenario B. Killing a supervisor pod mid-flow leads to a replacement that resumes from `git log` and completes without re-executing committed phases.
 
-- [ ] T025 [US2] Add lease TTL refresh hook before each node in `graph-executor.ts` (extends T014); ensures the 10-minute TTL is renewed on each phase
-- [ ] T026 [US2] Implement supervisor restart guard in `agent/src/supervisor/index.ts`: when lease is held by another holder, exit code 0; when lease is expired and re-acquired, log takeover with previous holder name
-- [ ] T027 [US2] Add audit_log emission for takeover events: `lease_expired` with `previous_holder` field (extends T009)
-- [ ] T028 [US2] Implement chaos test in `agent/src/__tests__/pod-death.test.ts` (or scripted under `scripts/chaos/`): start a supervisor, after the second stage commit kill the process, start a fresh supervisor, assert: same branch, no duplicate stage commits, lease taken over, full chain to retrospective
-- [ ] T029 [US2] Verify quickstart Scenario B passes against the dev cluster (or local equivalent): kill pod, wait for lease expiry, observe replacement, inspect `git log` and audit_log
+- [X] T025 [US2] Lease TTL refresh hook before each node in `graph-executor.ts` (delivered in T014: `await leaseBackend.refresh(branchName, holder, undefined, currentId)` per node); ensures the 10-minute TTL is renewed on each phase
+- [X] T026 [US2] Supervisor restart guard in `agent/src/supervisor/index.ts`: lease-held branch exits cleanly with `lease_held` reason; lease-expired branch acquires + logs takeover with previous holder name
+- [X] T027 [US2] Audit emission on takeover: `AcquireResult.tookOverFrom` is set when an acquire takes over from an expired prior lease; supervisor writes `lease_expired` audit entry with `previous_holder` + `new_holder` + `reason: takeover_at_acquire` (DB-only — local-runner mode skips, local-tasks.json is the local trail)
+- [X] T028 [US2] Chaos test in `agent/src/__tests__/pod-death.test.ts`: 3 vitest cases — fresh-supervisor-on-valid-lease exits cleanly, fresh-supervisor-on-expired-lease takes over and reports tookOverFrom, sequential supervisors leave the lease released after each cycle. Full pod-death-with-stage-resume integration awaits the agent-node handler (Phase 3 follow-up: the executor's commit chain is exercised by graph-executor.test.ts's resumeFromTrailers tests today)
+- [ ] T029 [US2] Verify quickstart Scenario B passes against the dev cluster (or local equivalent): kill pod, wait for lease expiry, observe replacement, inspect `git log` and audit_log — **deferred** (shared-state action; runs after deploy)
 
 ## Phase 5: User Story 3 — Code change still requires human review (P2)
 

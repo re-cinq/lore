@@ -1,6 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import { getPool } from "../db.js";
+import { writeAuditLog } from "../lib/audit.js";
 import {
   DbLeaseBackend,
   FileLeaseBackend,
@@ -88,6 +89,34 @@ export async function runSupervisor(
       reason: "lease_held",
       currentHolder: lease.currentHolder,
     };
+  }
+
+  if (lease.tookOverFrom) {
+    console.log(
+      `[supervisor] Took over lease on ${opts.branchName} from previous holder ${lease.tookOverFrom} (lease had expired)`,
+    );
+    // Audit log requires a DB connection. In local-runner mode (no
+    // LORE_DB_HOST) the file-backed lease has no audit destination —
+    // local-tasks.json is the local trail. Skip silently.
+    if (process.env.LORE_DB_HOST) {
+      try {
+        await writeAuditLog({
+          event_type: "lease_expired",
+          task_id: opts.taskId,
+          payload: {
+            branch_name: opts.branchName,
+            previous_holder: lease.tookOverFrom,
+            new_holder: holder,
+            reason: "takeover_at_acquire",
+          },
+        });
+      } catch (err) {
+        console.warn(
+          "[supervisor] Failed to write takeover audit entry:",
+          (err as Error).message,
+        );
+      }
+    }
   }
 
   try {
