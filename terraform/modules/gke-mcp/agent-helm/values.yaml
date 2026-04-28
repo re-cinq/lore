@@ -49,6 +49,12 @@ env:
   # a pilot repo has soaked at "true" via override — see
   # runbooks/dark-factory-rollback.md → "Cluster path enablement".
   LORE_DARK_FACTORY_CLUSTER_ENABLED: "false"
+  # Bot login the auto-merge gate accepts as the "bot APPROVED" review.
+  # Must match the GitHub App slug installed on the org (visible in
+  # the App's settings page). If misconfigured, no PR will satisfy
+  # `require_bot_approval` and every dark-mode PR defers with
+  # `deferred:bot_changes_requested`. See agent/src/lib/pr-policy.ts.
+  LORE_REVIEW_BOT_LOGIN: "lore-agent[bot]"
 
 dbPasswordSecret:
   name: lore-agent-db-password

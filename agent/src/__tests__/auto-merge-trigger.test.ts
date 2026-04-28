@@ -146,4 +146,44 @@ describe("tryAutoMergeForCompletedTask", () => {
       supplied,
     );
   });
+
+  it("propagates errors from evaluateAndMerge to the caller", async () => {
+    // The watcher's outer .catch() handles the error and logs it
+    // (loretask-watcher.ts), so the trigger doesn't need its own
+    // try/catch. This test locks in that contract — if anyone adds
+    // an internal try/catch, this fails and forces them to update
+    // the watcher's expectations too.
+    queryMock.mockResolvedValueOnce([
+      {
+        target_repo: "owner/repo",
+        settings: { dark_factory: { enabled: true } },
+      },
+    ]);
+    const fakeOctokit = { _id: "octo" } as never;
+    buildOctokitMock.mockReturnValueOnce(fakeOctokit);
+    resolvePrForTaskFromDbMock.mockResolvedValueOnce({
+      repo: "owner/repo",
+      prNumber: 7,
+      octokit: fakeOctokit,
+      policy: {
+        darkFactoryEnabled: true,
+        autoMerge: {
+          paths: [],
+          min_trust: "docs" as const,
+          require_green_ci: true,
+          require_bot_approval: true,
+        },
+        trustLevel: "docs" as const,
+        changedPaths: [],
+        ciSucceeded: true,
+        botApproved: true,
+        humanChangesRequested: false,
+      },
+    });
+    evaluateAndMergeMock.mockRejectedValueOnce(new Error("merge api 502"));
+
+    await expect(
+      tryAutoMergeForCompletedTask({ taskId: "t1" }),
+    ).rejects.toThrow("merge api 502");
+  });
 });

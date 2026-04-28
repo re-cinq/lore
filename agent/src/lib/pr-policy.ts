@@ -85,13 +85,25 @@ export async function resolvePrForTaskFromDb(
   const [owner, repoName] = row.target_repo.split("/");
   let ciSucceeded = false;
   let botApproved = false;
+  // Mixed-default note: `humanChangesRequested = false` is the
+  // *permissive* state for that flag (no human blocking), unlike
+  // ciSucceeded/botApproved where false is conservative. Safe because
+  // the listReviews call is in the same try block as listFiles +
+  // listForRef — if any of them throws, all three flags stay at their
+  // initial values and `ciSucceeded = false` alone causes the engine
+  // to defer with `deferred:ci_failed`, so the others' values never
+  // matter on the API-failure path. Don't "fix" by flipping to true —
+  // that would block merges when the API is healthy and there are
+  // simply no human reviews yet (the common case).
   let humanChangesRequested = false;
   let changedPaths: string[] = [];
   // Specific bot login the auto-merge gate trusts. Defaults to the
-  // Lore agent App; deployments using a different App slug override
-  // via env. Without this, *any* bot's APPROVED review (Dependabot,
-  // Renovate, an external review bot) would satisfy the
-  // require_bot_approval gate.
+  // Lore agent App slug as configured by the GitHub App's
+  // installation (visible in the App's settings page; the production
+  // value is "lore-agent[bot]" matching the App name). Deployments
+  // using a different App slug override via LORE_REVIEW_BOT_LOGIN.
+  // Without this, *any* bot's APPROVED review (Dependabot, Renovate,
+  // an external review bot) would satisfy require_bot_approval.
   const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
   try {
     const filesRes = await octokit.rest.pulls.listFiles({

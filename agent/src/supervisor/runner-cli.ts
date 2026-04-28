@@ -137,7 +137,7 @@ async function main(): Promise<number> {
     // pod would race the watcher (the PR doesn't exist yet at this
     // point in the workflow). Instead, the watcher's PR-created
     // branch calls `tryAutoMergeForCompletedTask` (see
-    // jobs/auto-merge.ts → jobs/loretask-watcher.ts), so cluster-path
+    // jobs/auto-merge-trigger.ts → jobs/loretask-watcher.ts), so cluster-path
     // PRs auto-merge under the same policy as the in-agent path
     // (gap-fill / runbook). Per ADR-016.
     episodeDeps: { curate: false },
