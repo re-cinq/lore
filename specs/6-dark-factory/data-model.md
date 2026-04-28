@@ -125,7 +125,24 @@ The existing `lore.repos.settings` JSONB column gets a documented `dark_factory`
 
 ## Audit log event types
 
-`pipeline.audit_log` (existing) gains four new `event_type` values. No schema change — `event_type TEXT`.
+`pipeline.audit_log` is a **new** table created by the dark-factory migration (the existing `memory.audit_log` is memory-scoped and lacks `task_id` / `repo` fields). Schema:
+
+```sql
+CREATE TABLE pipeline.audit_log (
+  id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type   TEXT         NOT NULL,
+  task_id      UUID,
+  repo         TEXT,
+  actor        TEXT,
+  payload      JSONB        NOT NULL,
+  created_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX audit_log_task_idx  ON pipeline.audit_log(task_id, created_at DESC);
+CREATE INDEX audit_log_event_idx ON pipeline.audit_log(event_type, created_at DESC);
+CREATE INDEX audit_log_repo_idx  ON pipeline.audit_log(repo, created_at DESC);
+```
+
+The four dark-factory `event_type` values populate the `payload` JSONB:
 
 ### `auto_merge_decision`
 

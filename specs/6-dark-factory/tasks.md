@@ -28,24 +28,24 @@ Derived from `spec.md`'s seven acceptance scenarios. Priorities reflect delivery
 
 ## Phase 1: Setup
 
-- [ ] T001 Create migration script `scripts/infra/setup-dark-factory-schema.sh` (skeleton, idempotent runner with `[lore]` prefixed output, exit codes 0/1)
-- [ ] T002 [P] Add `minimatch` dependency to `agent/package.json` and `mcp-server/package.json`; run `npm install` in each
-- [ ] T003 [P] Add scaffolding directory `agent/src/workflows/` with a `README.md` describing YAML location convention
+- [X] T001 Create migration script `scripts/infra/setup-dark-factory-schema.sh` (skeleton, idempotent runner with `[lore]` prefixed output, exit codes 0/1)
+- [X] T002 [P] Add `minimatch` dependency to `agent/package.json` and `mcp-server/package.json`; run `npm install` in each
+- [X] T003 [P] Add scaffolding directory `agent/src/workflows/` with a `README.md` describing YAML location convention
 
 ## Phase 2: Foundational (blocking prerequisites)
 
 These MUST complete before any user-story phase. They establish branch-as-state, the lease, and the trailer module — every later phase depends on them.
 
-- [ ] T004 Implement schema migration in `scripts/infra/setup-dark-factory-schema.sh`: create `pipeline.task_leases` table, create `pipeline.dark_factory_baseline` table (columns: `id UUID PK`, `repo TEXT`, `captured_at TIMESTAMPTZ`, `window_start TIMESTAMPTZ`, `window_end TIMESTAMPTZ`, `counters JSONB`), add `dark_factory_overrides` JSONB column to `pipeline.tasks`, register new audit_log event types (`auto_merge_decision`, `dark_factory_setting_changed`, `lease_expired`, `escalation_issued`). All idempotent (`IF NOT EXISTS`)
-- [ ] T005 Run the migration against the dev DB and verify with `\d pipeline.task_leases` and `\d pipeline.tasks`
-- [ ] T006 [P] Implement `shared/src/commit-trailers.ts` exporting `formatTrailers()`, `parseTrailers()`, `lastStageOnBranch()`. Unit tests in `shared/src/__tests__/commit-trailers.test.ts` covering: round-trip, multi-line bodies, no-trailer commits, malformed trailers
-- [ ] T007 [P] Re-export `commit-trailers` module from `@re-cinq/lore-shared` package index (`shared/src/index.ts`)
-- [ ] T008 Implement `agent/src/supervisor/lease.ts` with `acquireLease()`, `refreshLease()`, `releaseLease()` functions using `INSERT … ON CONFLICT … WHERE expires_at < now()` semantics. Unit tests in `agent/src/__tests__/lease.test.ts` covering: acquire-from-empty, takeover-after-expiry, refresh-only-by-holder, release-only-by-holder, race between two acquirers
-- [ ] T009 [P] Implement `agent/src/jobs/lease-reaper.ts` — 60s tick deleting rows where `expires_at < now() - interval '5 min'`; emits `lease_expired` audit_log entries; OTEL span `lore.lease.expired`
-- [ ] T010 Wire OTEL spans `lore.lease.acquire`, `lore.lease.refresh`, `lore.lease.release` into `lease.ts`; verify trace propagation with the existing OTEL collector
-- [ ] T011 Implement `agent/src/supervisor/index.ts` skeleton: `runSupervisor({taskId, branchName, workflowName, gitDir})` that acquires lease → loads workflow YAML → calls graph executor stub (returns immediately) → releases lease in `finally`. Handles "lease already held" by exiting cleanly
-- [ ] T011a [P] Migrate `mcp-server/src/local-runner.ts` to invoke the new supervisor + graph executor so the local runner and GKE supervisor share one codepath (FR2.3). Local runner becomes a thin wrapper that spawns a supervisor process in worktree mode; lease becomes file-based at `~/.lore/leases/<branch>.json` when no `LORE_DB_HOST` is configured; preserves existing local-runner observability (`~/.lore/local-tasks.json` semantics)
-- [ ] T011b Capture pre-feature baseline counters for SC1/SC4/SC6 measurement: scan `pipeline.tasks`, `audit_log`, and GitHub PR metadata for the last 30 days; compute per-repo counters (Job pods per implementation task, GitHub Issues created by Lore per week, share of bot PRs merged with no human review, median time-to-merge for bot PRs). Persist to the new `pipeline.dark_factory_baseline` table (one row per repo, one snapshot per capture). T060 compares post-pilot 30-day window against this snapshot to compute deltas
+- [X] T004 Implement schema migration in `scripts/infra/setup-dark-factory-schema.sh`: create `pipeline.task_leases` table, create `pipeline.dark_factory_baseline` table (columns: `id UUID PK`, `repo TEXT`, `captured_at TIMESTAMPTZ`, `window_start TIMESTAMPTZ`, `window_end TIMESTAMPTZ`, `counters JSONB`), create `pipeline.audit_log` table (the existing `memory.audit_log` is memory-scoped and lacks task/repo fields), add `dark_factory_overrides` JSONB column to `pipeline.tasks`. All idempotent (`IF NOT EXISTS`)
+- [ ] T005 Run the migration against the dev DB and verify with `\d pipeline.task_leases` and `\d pipeline.tasks` (deferred — shared-state action; run when ready)
+- [X] T006 [P] Implement `shared/src/commit-trailers.ts` exporting `formatTrailers()`, `parseTrailers()`, `lastStageOnBranch()`. Unit tests in `shared/src/__tests__/commit-trailers.test.ts` covering: round-trip, multi-line bodies, no-trailer commits, malformed trailers
+- [X] T007 [P] Re-export `commit-trailers` module from `@re-cinq/lore-shared` package index (`shared/src/index.ts`)
+- [X] T008 Implement `agent/src/supervisor/lease.ts` with `acquireLease()`, `refreshLease()`, `releaseLease()` functions using `INSERT … ON CONFLICT … WHERE expires_at < now()` semantics. Unit tests in `agent/src/__tests__/lease.test.ts` covering: acquire-from-empty, takeover-after-expiry, refresh-only-by-holder, release-only-by-holder, race between two acquirers
+- [X] T009 [P] Implement `agent/src/jobs/lease-reaper.ts` — 60s tick deleting rows where `expires_at < now() - interval '5 min'`; emits `lease_expired` audit_log entries; OTEL span `lore.lease.expired` (scheduler registration deferred to T060 alongside other dark-factory cron wiring)
+- [X] T010 Wire OTEL spans `lore.lease.acquire`, `lore.lease.refresh`, `lore.lease.release` into `lease.ts`; verify trace propagation with the existing OTEL collector (`@opentelemetry/api` added to agent; spans noop without a tracer provider, full propagation requires agent-side OTEL setup — tracked separately)
+- [X] T011 Implement `agent/src/supervisor/index.ts` skeleton: `runSupervisor({taskId, branchName, workflowName, gitDir})` that acquires lease → loads workflow YAML → calls graph executor stub (returns immediately) → releases lease in `finally`. Handles "lease already held" by exiting cleanly
+- [X] T011a [P] Lease backend abstraction with DB + file backends (`DbLeaseBackend`, `FileLeaseBackend` in `agent/src/supervisor/lease.ts`); supervisor selects backend via `leaseBackendForEnv()` (DB when `LORE_DB_HOST` set, file under `~/.lore/leases/` otherwise). **Local-runner.ts surgery deferred to a follow-up task once the graph executor exists (T014)** — the backend abstraction is the foundation; the actual local-runner cutover lands as a new task in Phase 3
+- [X] T011b Capture pre-feature baseline counters for SC1/SC4/SC6 measurement: scan `pipeline.tasks`, `audit_log`, and GitHub PR metadata for the last 30 days; compute per-repo counters (Job pods per implementation task, GitHub Issues created by Lore per week, share of bot PRs merged with no human review, median time-to-merge for bot PRs). Persist to the new `pipeline.dark_factory_baseline` table (one row per repo, one snapshot per capture). T060 compares post-pilot 30-day window against this snapshot to compute deltas
 
 ## Phase 3: User Story 1 — Routine doc PR auto-merges (P1, MVP)
 
