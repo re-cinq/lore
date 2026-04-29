@@ -173,23 +173,77 @@ server.tool(
 
 // --- API proxy helper (for local mode without DB) ---
 
-async function proxyToApi(endpoint: string, body: Record<string, any>): Promise<string | null> {
-  const apiUrl = process.env.LORE_API_URL;
-  const apiToken = process.env.LORE_INGEST_TOKEN;
-  if (!apiUrl || !apiToken) return null;
-  try {
-    const res = await fetch(`${apiUrl}${endpoint}`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) return null;
-    return JSON.stringify(await res.json());
-  } catch { return null; }
+// Shape lets callers distinguish "no proxy configured" (fall through to
+// file mode is fine) from "proxy configured but unreachable" (loud
+// failure — silently writing to a local file would lose org-wide
+// shared state, which is what bit us on 2026-04-29 when GKE Autopilot
+// was bouncing pods every few minutes).
+export type ProxyResult =
+  | { ok: true; body: string }
+  | { ok: false; reason: "not_configured" }
+  | { ok: false; reason: "unreachable"; detail: string };
+
+const PROXY_RETRY_DELAYS_MS = [200, 600, 1800]; // ~2.6s total budget before giving up
+
+function isRetriableStatus(status: number): boolean {
+  // 502 bad-gateway / 503 unavailable / 504 timeout — exactly the
+  // codes you get from a load-balancer mid-Autopilot-eviction. 408
+  // (request timeout) and 429 (throttle) are also retry-safe.
+  return status === 408 || status === 429 || (status >= 500 && status < 600);
 }
 
-function proxyMemory(action: string, params: Record<string, any>): Promise<string | null> {
+async function proxyToApi(endpoint: string, body: Record<string, any>): Promise<ProxyResult> {
+  const apiUrl = process.env.LORE_API_URL;
+  const apiToken = process.env.LORE_INGEST_TOKEN;
+  if (!apiUrl || !apiToken) return { ok: false, reason: "not_configured" };
+
+  let lastDetail = "no attempts made";
+  for (let attempt = 0; attempt <= PROXY_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const res = await fetch(`${apiUrl}${endpoint}`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.ok) {
+        return { ok: true, body: JSON.stringify(await res.json()) };
+      }
+      lastDetail = `HTTP ${res.status} ${res.statusText}`;
+      if (!isRetriableStatus(res.status)) {
+        // 4xx (auth, validation) — retrying won't help.
+        console.error(`[lore-mcp] proxy ${endpoint} failed (${lastDetail}); not retrying`);
+        return { ok: false, reason: "unreachable", detail: lastDetail };
+      }
+    } catch (err: any) {
+      lastDetail = err?.name === "TimeoutError" ? "request timed out (15s)" : (err?.message || String(err));
+    }
+    if (attempt < PROXY_RETRY_DELAYS_MS.length) {
+      const delay = PROXY_RETRY_DELAYS_MS[attempt];
+      console.error(`[lore-mcp] proxy ${endpoint} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  console.error(`[lore-mcp] proxy ${endpoint} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`);
+  return { ok: false, reason: "unreachable", detail: lastDetail };
+}
+
+function proxyMemory(action: string, params: Record<string, any>): Promise<ProxyResult> {
   return proxyToApi("/api/memory", { action, ...params });
+}
+
+// Format an MCP error for an unreachable proxy. Surfaces the failure
+// to the caller instead of silently writing to a local file (which
+// would never sync to the org-wide DB).
+function unreachableError(op: string, detail: string): { content: [{ type: "text"; text: string }] } {
+  return {
+    content: [{
+      type: "text" as const,
+      text: `Lore API unreachable for ${op} after ${PROXY_RETRY_DELAYS_MS.length + 1} attempts: ${detail}. ` +
+        `Refusing local-file fallback to prevent silent divergence from the org-wide DB. ` +
+        `Check the GKE service (lore-mcp pods) and retry.`,
+    }],
+  };
 }
 
 // --- Memory tools ---
@@ -227,8 +281,9 @@ server.tool(
       }
       // Proxy to GKE if available
       const proxied = await proxyMemory("write", { key, value, agent_id: agent_id || resolveAgentId(), ttl, repo });
-      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
-      // File fallback (local only, not shared)
+      if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+      if (proxied.reason === "unreachable") return unreachableError("write_memory", proxied.detail);
+      // File fallback only when LORE_API_URL is not configured (true offline mode)
       const result = await writeMemoryFile(key, value, agent_id, ttl);
       return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
     } catch (err: any) {
@@ -254,7 +309,8 @@ server.tool(
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       }
       const proxied = await proxyMemory("read", { key, agent_id: agent_id || resolveAgentId(), version });
-      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+      if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+      if (proxied.reason === "unreachable") return unreachableError("read_memory", proxied.detail);
       const result = await readMemoryFile(key, agent_id, ver);
       if (!result) return { content: [{ type: "text" as const, text: `Memory "${key}" not found.` }] };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -278,7 +334,8 @@ server.tool(
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       }
       const proxied = await proxyMemory("delete", { key, agent_id: agent_id || resolveAgentId() });
-      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+      if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+      if (proxied.reason === "unreachable") return unreachableError("delete_memory", proxied.detail);
       const result = await deleteMemoryFile(key, agent_id);
       return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
     } catch (err: any) {
@@ -303,7 +360,8 @@ server.tool(
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       }
       const proxied = await proxyMemory("list", { agent_id: agent_id || undefined, limit, repo });
-      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+      if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+      if (proxied.reason === "unreachable") return unreachableError("list_memories", proxied.detail);
       const result = await listMemoriesFile(agent_id, limit, offset);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err: any) {
@@ -333,7 +391,8 @@ server.tool(
         return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
       }
       const proxied = await proxyMemory("search", { query, agent_id: agent_id || undefined, pool_name: pool, limit });
-      if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+      if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+      if (proxied.reason === "unreachable") return unreachableError("search_memory", proxied.detail);
       const results = await searchMemoryFile(query, agent_id, limit);
       return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
     } catch (err: any) {
@@ -360,7 +419,8 @@ server.tool(
         const proxied = await proxyToApi("/api/episode", {
           content, source, ref, agent_id: agent_id || resolveAgentId(),
         });
-        if (proxied) return { content: [{ type: "text" as const, text: proxied }] };
+        if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+        if (proxied.reason === "unreachable") return unreachableError("write_episode", proxied.detail);
         return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL or LORE_API_URL. Neither is configured." }] };
       }
       const agent = resolveAgentId(agent_id);
