@@ -1,10 +1,18 @@
 name: Integration Tests
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  # No `push: main` trigger — branch protection requires PRs, so the
+  # PR run is the gate. A second run on the squash-merge commit would
+  # be testing the same code (rediscovered 2026-04-29).
+  workflow_dispatch:
+
+# Cancel in-progress runs when a new commit is pushed to the same PR
+# branch. Saves CI minutes during rapid-fire pushes.
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   integration:

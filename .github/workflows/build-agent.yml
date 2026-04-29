@@ -10,6 +10,10 @@ on:
       - '.github/workflows/build-agent.yml'
   workflow_dispatch:
 
+concurrency:
+  group: build-agent-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: re-cinq/lore-agent
