@@ -1,4 +1,12 @@
-replicaCount: 1
+replicaCount: 2
+
+# PodDisruptionBudget keeps at least one mcp-server pod available during
+# Autopilot node consolidation. Without this, scale-down evictions
+# briefly take the API offline and local MCP clients silently fall
+# back to file mode (writes never reach Postgres).
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
 
 image:
   repository: ghcr.io/re-cinq/lore-mcp
