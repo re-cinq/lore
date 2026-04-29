@@ -17,6 +17,12 @@ on:
       - '.github/workflows/build-mcp.yml'
   workflow_dispatch:
 
+# Cancel in-progress runs when a new commit lands on the same ref —
+# but never cancel the deploy on main, that always runs to completion.
+concurrency:
+  group: build-mcp-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: re-cinq/lore-mcp
