@@ -24,7 +24,7 @@ Lore is the shared context layer that makes Claude Code organization-aware. Deve
 
 Beyond context, Lore is an **agent operating system**. It runs background agents that onboard repos, detect documentation gaps, check for spec drift, and review PRs — all producing pull requests that humans review and merge.
 
-## Five Ways to Use Lore
+## Six Ways to Use Lore
 
 ### Flow 1: Developer with Claude Code (local)
 
@@ -51,6 +51,8 @@ A developer creates a GitHub Issue using the Lore issue template — or adds a `
 <p align="center"><img src="badges/flow4-issue.svg" width="600" alt="Flow 4: GitHub Issue dispatch" /></p>
 
 Issue templates are added during onboarding — developers see "Lore: Implementation", "Lore: Review", and "Lore: General Task" when creating new issues.
+
+> Behavior shift under **Dark Factory mode** (`dark_factory.enabled = true` per repo): the user-authored Issue still dispatches a task, but Lore stops creating its own status-tracking Issue per task — Issues become the exception surface (approval gates, `needs-human-help` escalations) and the PR with its `Lore-Task: <uuid>` trailer is the canonical artifact. See the Dark Factory section below.
 
 ### Flow 5: Local Task Runner (background, zero API cost)
 
