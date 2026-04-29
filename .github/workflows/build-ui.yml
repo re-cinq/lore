@@ -83,11 +83,13 @@ jobs:
 
       - name: Helm upgrade
         run: |
+          # --reset-then-reuse-values (helm 3.14+) preserves user --set
+          # overrides while picking up new chart defaults from values.yaml.
           helm upgrade --install lore-ui ./terraform/modules/gke-mcp/ui-helm \
             --namespace lore-ui \
             --set image.tag=${{ needs.build.outputs.image_tag }} \
-            --reuse-values \
-            --wait --timeout 2m
+            --reset-then-reuse-values \
+            --wait --timeout 5m
 
   smoke:
     needs: deploy
