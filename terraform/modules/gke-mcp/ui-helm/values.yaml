@@ -1,4 +1,10 @@
-replicaCount: 1
+replicaCount: 2
+
+# PodDisruptionBudget keeps at least one UI pod available during
+# Autopilot node consolidation.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
 
 image:
   repository: ghcr.io/re-cinq/lore-ui

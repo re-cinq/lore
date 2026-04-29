@@ -1,5 +1,13 @@
 replicaCount: 1
 
+# Agent is a singleton (job processors don't tolerate two writers
+# claiming the same task). Use a PDB to block Autopilot from evicting
+# without warning, but keep replicas at 1 — HA at the agent layer
+# requires lease coordination that doesn't exist yet.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
 image:
   repository: ghcr.io/re-cinq/lore-agent
   tag: latest
