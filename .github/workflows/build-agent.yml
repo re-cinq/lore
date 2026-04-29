@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'agent/**'
+      # Chart or workflow changes need a redeploy too.
+      - 'terraform/modules/gke-mcp/agent-helm/**'
+      - '.github/workflows/build-agent.yml'
   workflow_dispatch:
 
 env:

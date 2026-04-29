@@ -5,9 +5,14 @@ on:
     branches: [main]
     paths:
       - 'web-ui/**'
+      # Chart or workflow changes need a redeploy too.
+      - 'terraform/modules/gke-mcp/ui-helm/**'
+      - '.github/workflows/build-ui.yml'
   pull_request:
     paths:
       - 'web-ui/**'
+      - 'terraform/modules/gke-mcp/ui-helm/**'
+      - '.github/workflows/build-ui.yml'
   workflow_dispatch:
 
 env:
