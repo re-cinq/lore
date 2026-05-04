@@ -1719,7 +1719,7 @@ async function handlePutDarkFactorySettings(
     await client.query("COMMIT");
     json(res, 200, {
       ok: true,
-      applied: next,
+      applied: resolveSettings(next),
       ceremony,
     });
   } catch (err) {
