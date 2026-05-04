@@ -289,7 +289,8 @@ Returns only active (not deleted, not expired) memories.
   agent_id: z.string().optional(),
   pool: z.string().optional(),
   limit: z.number().default(10),
-  include_invalidated: z.boolean().optional()
+  include_invalidated: z.boolean().default(false),
+  graph_augment: z.boolean().default(false)
 }
 ```
 
@@ -307,38 +308,52 @@ updates `last_retrieved_at`, and extends `half_life_days` (+2, cap
 
 ```typescript
 {
-  content: z.string(),
-  agent_id: z.string().optional(),
-  repo: z.string().optional(),
-  source: z.string().optional()
+  content: z.string().min(1).max(50000),   // parameter name is "content", not "text"
+  source: z.string().default("manual"),    // "session" | "pr-review" | "ci" | "manual"
+  ref: z.string().optional(),              // e.g. "owner/repo#42"; used for graph repo scoping
+  agent_id: z.string().optional()
 }
 ```
 
 Ingests raw text (conversation turn, code review, observation).
-Automatically extracts facts and updates the knowledge graph. Triggers
-the same privacy filter as `write_memory`. The primary input path for
-passive memory capture (ADR-014).
+SHA-256 content-hash deduplication prevents re-ingestion of identical
+content (returns `{ status: "duplicate" }` if already stored).
+Automatically extracts facts and updates the knowledge graph
+asynchronously. Triggers the same privacy filter as `write_memory`.
+The primary input path for passive memory capture (ADR-014).
+Note: `repo` is derived from `ref` (pattern `owner/repo#N`), not a
+direct parameter.
 
 **`query_graph`**
 
 ```typescript
 {
-  entity: z.string(),
-  depth: z.number().default(1)
+  entity: z.string().optional(),
+  relation_type: z.string().optional(),   // "uses" | "owns" | "depends-on" | "replaced-by" | "part-of" | "implements"
+  repo: z.string().optional(),
+  include_invalidated: z.boolean().default(false)
 }
 ```
 
 Returns entities and relationships from the live knowledge graph.
-Replaced the static `graphrag/graph.json`.
+Replaced the static `graphrag/graph.json`. The original design
+included a `depth` parameter for multi-hop traversal — this was
+not shipped; use multiple calls for multi-hop paths. `relation_type`
+and `repo` scoping were added in its place. Results include a
+`direction` field (`"outgoing"` or `"incoming"`) on each edge.
+All parameters are optional; omitting `entity` returns recent graph
+edges.
 
 **`assemble_context`**
 
 ```typescript
 {
   query: z.string(),
+  template: z.string().default("default"),   // default | review | implementation | research
+  max_tokens: z.number().default(8000),
   repo: z.string().optional(),
-  template: z.string().optional(),  // default | review | implementation | research
-  max_tokens: z.number().default(8000)
+  agent_id: z.string().optional(),
+  cross_repo: z.boolean().default(false)
 }
 ```
 
@@ -354,9 +369,16 @@ block. Replaces the prior pattern of calling `search_context` +
 { agent_id: z.string().optional() }
 ```
 
-Returns: `{ agent_id, memory_count, episode_count, total_facts,
-total_searches, daily_breakdown (last 7 days) }`. Health info
-(last active, oldest memory) folded in. Aggregated from `audit_log`.
+Returns a merged health + stats + recent-episodes response:
+`{ agent_id, memory_count, last_active, snapshot_count, status,
+total_memories, total_facts, active_facts, invalidated_facts,
+total_searches, shared_pools_created, recent_episodes: { total_count,
+latest[5] } }`. The `latest` array includes up to 5 most recent
+episodes with 200-char content previews and per-episode fact counts.
+`snapshot_count` and `shared_pools_created` are always 0 (snapshot /
+pool MCP tools not shipped). `status` is `healthy` / `idle` / `empty`.
+The original design documented `daily_breakdown` — this was replaced
+by `recent_episodes` in the merged implementation.
 
 #### 1.4 File-Backed Fallback
 
@@ -427,9 +449,12 @@ across task runs.
 **File:** `agent/src/jobs/memory-lifecycle.ts`
 
 Daily job (5 AM UTC) scores memories 0–10:
-- Recency: -1 per 30 days of age
-- Content quality: short (<50 chars) penalized, long (>500) boosted
-- Key pattern: `decisions/` and `conventions/` keys +2; `auto-curation/` and `sessions/` -1
+- Recency: `strength = 0.5 ^ (effective_age_days / half_life_days)`
+- Content quality: short (<50 chars) -2; long (>500 chars) +1
+- Key pattern: key contains `gotcha`, `decision`, `convention`, or
+  `pattern` → +2; key contains `auto-curation` or `session-summary`
+  → -1
+- Retrieval boost: ≥5 retrievals +1; ≥20 retrievals +2
 - Stale confidence tier: -1
 
 Evicts lowest-scoring entries when an agent exceeds 500 memories.
