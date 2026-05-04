@@ -4,7 +4,7 @@
 |-----------|--------------------------------------------------------------------|
 | Feature   | Dark Factory Mode                                                  |
 | Branch    | 6-dark-factory                                                     |
-| Status    | Implemented — Phases 1–9 complete; pilot + live verification deferred |
+| Status    | Implemented — Phases 1–5 complete; pilot + live verification deferred |
 | Created   | 2026-04-28                                                         |
 | Updated   | 2026-05-04 (as-built correction; 89% plan-to-reality divergence)   |
 | Estimated | 8 working days (5 phases)                                          |
