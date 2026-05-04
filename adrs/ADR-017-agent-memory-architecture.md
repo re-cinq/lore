@@ -32,7 +32,7 @@ implementation. The spec and plan files have been updated
 post-ship (2026-04-20), but the decisions behind the changes have
 not been recorded anywhere.
 
-## Decisions
+## Decision
 
 ### 1. PostgreSQL + pgvector as the memory store
 
@@ -201,7 +201,7 @@ in one. `agent_health` was dropped; `agent_stats` subsumes it.
 - The `/api/context` handler in `routes.ts` does not pass
   `includeIds: true` to `assembleContext()`, so `context_refs` is
   never populated on task creation. The outcome feedback loop in
-  ADR-016 (Phase 6) is wired but inert. Fix: one-line change in
+  ADR-016 (dark-factory-mode, Phase 6) is wired but inert. Fix: one-line change in
   `routes.ts` + forwarding `context_refs` in the task creation path.
 - The web UI audit trail (`/audit`) and shared pools browser
   (`/pools`) pages were deferred in Phase 3 in favor of pipeline UI.
@@ -215,6 +215,7 @@ in one. `agent_health` was dropped; `agent_stats` subsumes it.
 
 - **ADR-014** (passive memory capture, importance decay, consolidation)
   — the lifecycle layer that made the episode-first model viable.
-- **ADR-016** (hippo-memory adaptations) — retrieval strengthening,
+- **ADR-016** (dark-factory-mode) — outcome feedback loop (half_life_days boost/penalty on PR merge/rejection) depends on the memory schema established here; the context_refs gap keeps this loop inert until fixed.
+- **ADR-016** (hippo-memory-adaptations) — retrieval strengthening,
   confidence tiers, conflict surfacing, transfer scoring built on
   the schema established by this feature.
