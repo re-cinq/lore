@@ -22,7 +22,7 @@
 | Path-allowlist match  | `agent/src/lib/path-match.ts` using `minimatch` (dot:true, ALL paths must match)      |
 | Audit log             | `pipeline.audit_log` table; written via `agent/src/lib/audit.ts` `writeAuditLog()`    |
 | Settings schema       | `mcp-server/src/dark-factory-settings.ts` (Zod + defaults); canonical types re-exported from `@re-cinq/lore-shared` (`shared/src/dark-factory-settings.ts`) |
-| Settings AuthZ        | `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` ceremony; team-membership lookup stubbed (`team_membership_unresolved` error code) |
+| Settings AuthZ        | `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` ceremony; team-membership lookup stubbed (`team_membership_unresolved` error code — the ceremony is **denied** (TwoKeyError thrown); team-handle CODEOWNERS entries fail closed in v1) |
 | OTEL                  | `lore.stage.*`, `lore.lease.*`, `lore.auto_merge.decision` spans                      |
 | Web-ui timeline       | `web-ui/src/app/pipeline/[id]/Timeline.tsx` — polls every 10s                         |
 | GitHub auto-merge     | `octokit.rest.pulls.merge()` with squash; exponential backoff (1s/4s)                 |
@@ -39,7 +39,7 @@
 | P4 Three-Command Developer IF       | PASS     | No new commands; behavior change invisible to developers using existing 3 commands.                                                                  |
 | P5 Single Interface (Lore MCP)      | PASS     | All settings + task ops go through MCP; no new dev-facing surface.                                                                                   |
 | P6 Distributed Ownership            | PASS     | Two-key AuthZ uses CODEOWNERS — strengthens distributed ownership.                                                                                   |
-| P7 Architecture Decisions Are Final | **NOTE** | Superseded row "Task tracking — Pipeline tasks via Lore MCP + GH Issues". ADR-016 authz via amendment procedure; constitution patched to v2.1.0.     |
+| P7 Architecture Decisions Are Final | **NOTE** | Superseded row "Task tracking — Pipeline tasks via Lore MCP; GH Issues for exception surfaces". ADR-016 authz via amendment procedure; constitution patched to v2.1.0. |
 | P8 Schema-Per-Team Isolation        | PASS     | New tables (`task_leases`, `dark_factory_baseline`, `audit_log`) live in `pipeline` schema.                                                          |
 | P9 Intelligent Agents Over Scripts  | PASS     | Strengthened — supervisor agents own end-to-end flows via declarative YAML graph.                                                                    |
 | P10 Opt-In Data Collection          | PASS     | No new data collection.                                                                                                                              |
@@ -56,7 +56,11 @@ agent/
 │   │   ├── lease.ts              # LeaseBackend interface + DbLeaseBackend + FileLeaseBackend
 │   │   ├── graph-executor.ts     # executeGraph(), resumeFromTrailers(), IterationMaxExceededError
 │   │   ├── runner-cli.ts         # Pod CLI entry point (LORE_DARK_FACTORY_WORKFLOW); 10-code exit matrix
-│   │   └── claude-code-handler.ts # createClaudeCodeAgentHandler(); spawns claude --print
+│   │   ├── claude-code-handler.ts # createClaudeCodeAgentHandler(); spawns claude --print
+│   │   ├── agent-handler.ts      # createAgentHandler() for orchestration integration
+│   │   ├── handlers.ts           # Bundled handler exports
+│   │   ├── index.ts              # runSupervisor() shared entry point (used by runner-cli + local-runner)
+│   │   └── orchestrator.ts       # Internal orchestration utilities
 │   ├── workflow/
 │   │   └── loader.ts             # parseWorkflow(), loadWorkflowDir(); DFS cycle detection + reachability
 │   ├── workflows/
@@ -74,7 +78,7 @@ agent/
 │       ├── notify.ts             # decideNotify(); 4 levels (escalation/watched/completion/pr_open)
 │       ├── audit.ts              # writeAuditLog(); writes to pipeline.audit_log
 │       └── pr-body.ts            # prFooter({taskId, issueNumber?}); always emits Lore-Task:, optional Refs #N
-
+│
 shared/
 └── src/
     ├── commit-trailers.ts        # formatTrailers() / parseTrailers() / lastStageOnBranch(); re-exported from @re-cinq/lore-shared
@@ -100,7 +104,7 @@ runbooks/
 └── dark-factory-rollback.md     # P1 (cluster-wide) + P2 (per-repo) rollback procedures
 ```
 
-> **Divergences from original plan:** The original plan named `agent/src/workflow/executor.ts`, `mcp-server/src/settings-authz.ts`, and `agent/src/supervisor/index.ts` as the primary entry point. The as-built structure splits authz from schema (`dark-factory-authz.ts` / `dark-factory-settings.ts`), places the executor inside `supervisor/` (`graph-executor.ts`), adds an explicit pod CLI (`runner-cli.ts`), separates the agent node handler (`claude-code-handler.ts`), and adds several `lib/` helpers that were implied but not named in the plan.
+> **Divergences from original plan:** The original plan named `agent/src/workflow/executor.ts`, `mcp-server/src/settings-authz.ts`, and `agent/src/supervisor/index.ts` as a primary entry point. The as-built structure splits authz from schema (`dark-factory-authz.ts` / `dark-factory-settings.ts`), places the executor inside `supervisor/` (`graph-executor.ts`), adds an explicit pod CLI (`runner-cli.ts`), retains `index.ts` as the shared supervisor entry point (used by both `runner-cli.ts` and the local runner), separates the agent node handler (`claude-code-handler.ts`), and adds several `lib/` helpers that were implied but not named in the plan.
 
 ---
 
@@ -189,6 +193,19 @@ Additional planned workflows (`runbook.yaml`, `feature-request.yaml`, `onboard.y
 
 ---
 
+## Divergences from Plan
+
+| Item | Deviation | Rationale |
+|------|-----------|-----------|
+| Executor location | `supervisor/graph-executor.ts` not `workflow/executor.ts` | Tighter coupling to supervisor lifecycle (lease refresh per node) |
+| AuthZ split | `dark-factory-authz.ts` + `dark-factory-settings.ts` not unified `settings-authz.ts` | Schema authoring separate from ceremony orchestration; shared types via `@re-cinq/lore-shared` |
+| Supervisor entry | `index.ts` retained as shared entry point; separate `runner-cli.ts` CLI pod entry | Pod invocation independent of local runner; `index.ts` `runSupervisor()` is internal to both |
+| Agent node handler | Explicit `claude-code-handler.ts` separated from executor | Handler pluggability; decouples LLM integration from graph traversal |
+| `lib/` modules | Several `audit.ts`, `path-match.ts`, `pr-body.ts` not named in plan | Extracted during implementation for testability and reuse across jobs + routes |
+| Auto-merge backoff | 2 retries (1s/4s) not 3 retries (1s/4s/16s per T021) | Minimizing lease-hold time under GKE preemption pressure; 5s total wait beats 21s while holding supervisor lease |
+
+---
+
 ## Phase 3: Opt-out gates
 
 ### Task 3.1: Settings schema + AuthZ
@@ -206,7 +223,7 @@ Settings are split across two files:
 **`mcp-server/src/dark-factory-authz.ts`**:
 - `verifyApproval(repo, approvalPrRef, octokit)` — checks `X-Lore-Approval-PR` is open + labeled `dark-factory-approval` + label applied by a CODEOWNERS member. Tries `.github/CODEOWNERS`, `CODEOWNERS`, `docs/CODEOWNERS` in order.
 - 12 typed error codes on `TwoKeyError`: `missing_header | invalid_pr_ref | pr_not_found | pr_state | label_missing | approver_not_codeowner | team_membership_unresolved | codeowners_unparseable | github_api | wrong_repo`.
-- **Team-membership lookup is stubbed in v1** — returns `team_membership_unresolved` when a CODEOWNERS entry is a team (`@org/team`). Per-path CODEOWNERS tightening is a follow-up.
+- **Team-membership lookup is stubbed in v1** — returns `team_membership_unresolved` error code — the ceremony is **denied** (TwoKeyError thrown); team-handle CODEOWNERS entries fail closed in v1.
 
 Routes `GET/PUT /api/repos/:owner/:repo/settings/dark-factory` in `mcp-server/src/routes.ts` require `admin` scope. PUT merges at the `auto_merge` sub-object level (not wholesale replace), runs two-key when `twoKeyFieldsTouched()` is true, writes `dark_factory_setting_changed` audit entry with prev/next states and ceremony metadata.
 
@@ -220,7 +237,7 @@ Routes `GET/PUT /api/repos/:owner/:repo/settings/dark-factory` in `mcp-server/sr
 `agent/src/jobs/auto-merge.ts`:
 - `evaluateAutoMerge(inputs: AutoMergePolicyInputs)` → pure `AutoMergeDecision{outcome, rule}`. Testable without I/O.
 - `evaluateAndMerge(inputs)` → calls `evaluateAutoMerge`, calls `octokit.rest.pulls.merge()` with squash strategy, writes `auto_merge_decision` audit entry, degrades to `deferred:api_failure` on final failure (PR stays open). Exponential backoff: 1s then 4s.
-- `AutoMergeOutcome` enum (8 deferral reasons + `merged`): `merged | deferred:human_review | deferred:ci_failed | deferred:bot_changes_requested | deferred:path_outside_allowlist | deferred:trust_too_low | deferred:dark_mode_off | deferred:api_failure`.
+- `AutoMergeOutcome` enum (8 deferral reasons + `merged`): `merged | deferred:human_review | deferred:ci_failed | deferred:bot_changes_requested | deferred:path_outside_allowlist | deferred:trust_too_low | deferred:dark_mode_off | deferred:api_failure | deferred:no_changes`.
 - Trust level ordering: `"docs" < "tests" < "implementation" < "full"`.
 - OTEL span `lore.auto_merge.decision` with attributes: `pr_number`, `task_id`, `repo`, `decision`, `path_match_count`, `trust_level`, `ci_status`, `bot_review_state`.
 
