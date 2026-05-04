@@ -1,8 +1,3 @@
-# Implementation Plan: Lore Platform
-
-| Field        | Value                                           |
-|--------------|-------------------------------------------------|
-| Feature      | Lore — Shared Context Infrastructure            |
 | Branch       | 1-lore-platform                                 |
 | Spec         | [spec.md](spec.md)                              |
 | Constitution | [constitution.md](../../.specify/memory/constitution.md) |
@@ -12,52 +7,71 @@
 
 ## Architectural Pivots
 
-Five major technologies or architectural patterns were replaced or superseded
+Eight major technologies or architectural patterns were replaced or superseded
 during implementation. The original plan referenced Klaus, Beads/Dolt,
 Graphiti/FalkorDB, and an implicit hardcoded job chain. All were swapped
 for alternatives before reaching production.
 
 | Original Plan | Replacement | ADR |
 |---------------|-------------|-----|
-| Klaus (GKE agent runtime) | Lore Agent service (direct Anthropic API + headless Claude Code) | ADR-007 |
-| Beads (`bd` CLI) + Dolt | Pipeline tasks via PostgreSQL + GitHub Issues | ADR-009 |
+| Klaus | Anthropic Claude (direct HTTP calls) | — |
+| Beads/Dolt | PostgreSQL (Cloud SQL) | — |
 | Graphiti + FalkorDB | Live knowledge graph in PostgreSQL (`memory.entities` + `memory.edges`) | — |
 | Context Cores as OCI bundles | YAML context assembly templates (`mcp-server/templates/`) | — |
 | `specify-cli` | `/lore-feature` skill (interactive spec loop) | — |
 | Implicit hardcoded job chain (`loretask-watcher` → `review-reactor` → `local-runner`) | Declarative YAML workflow graphs (`agent/src/workflows/*.yaml`) driven by `agent/src/supervisor/graph-executor.ts` | ADR-016 |
-| Task state spread across CR / DB / Issue / PR | Branch-as-durable-state via `Lore-Stage:`/`Lore-Task:` commit trailers + `pipeline.task_leases` | ADR-016 |
+| Task state spread across CR / DB / Issue / PR | Branch-as-durable-state via `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` commit trailers + `pipeline.task_leases` | ADR-016 |
 | GitHub Issue per pipeline task (max chatter) | Issues only for exception surfaces (approval gates, escalations); PR is canonical artifact | ADR-016 |
 
 ## Technical Context
 
-### Stack (As Built)
+The Lore platform serves the re:cinq organization as an all-hands code agent.
+It is built in 4 phases, shipping capabilities incrementally on a tight
+critical path.
 
-| Layer              | Technology                       | Phase |
-|--------------------|----------------------------------|-------|
-| MCP Server         | TypeScript + `@modelcontextprotocol/sdk` | 0 |
-| HTTP Transport     | Streamable HTTP on `:3000/mcp` (GKE) | 1 |
-| Stdio Transport    | Local dev via stdio (selected by `MCP_TRANSPORT`) | 0 |
-| Glue Scripts       | Python (`lore-gen-constitution`) | 0 |
-| Settings Merge     | Node.js (`lore-merge-settings.js`) | 0 |
-| Health Check       | Bash (`lore-doctor.sh`) | 0 |
-| Install            | Bash (`install.sh`) | 0 |
-| Platform Skills    | Markdown (`lore-feature.md`, `lore-pr.md`, `lore-init.md`) | 0 |
-| PR CI Check        | GitHub Actions YAML | 0 |
-| Vector Store       | PostgreSQL + pgvector (CNPG on GKE, europe-west1) | 1 |
-| Embeddings         | Vertex AI `text-embedding-005` (768 dimensions) | 1 |
-| Hybrid Search      | HNSW vector + BM25 keyword + Reciprocal Rank Fusion | 1 |
-| Cluster Agents     | Lore Agent service on GKE (replaces Klaus) | 1 |
-| Task Pipeline      | PostgreSQL `pipeline.tasks` + GitHub Issues (replaces Beads) | 1 |
-| Task Execution     | LoreTask CRD + ephemeral K8s Job pods | 1 |
-| Observability      | OpenTelemetry → Cloud Monitoring | 1 |
-| CI Evals           | PromptFoo | 1 |
-| Infrastructure     | Terraform (Helm charts for all services) | 1 |
-| Context Templates  | YAML templates in `mcp-server/templates/` (replaces Context Cores) | 1 |
-| Knowledge Graph    | PostgreSQL `memory.entities` + `memory.edges` (replaces Graphiti) | 2 |
-| Memory System      | PostgreSQL `memory` schema — facts, episodes, entities, edges | 2 |
-| Web UI             | Next.js (`web-ui/`) — pipeline status, repo onboarding | 2 |
-| Slack Integration  | `/lore` slash command → pipeline tasks | 2 |
-| Gap Detection      | Lore Agent `gap-detect.ts` CronJob | 2 |
+### Phase 0: Scaffolding — COMPLETE
+
+Core infrastructure, PR integration, and prompt engineering baseline.
+
+| Component | Purpose | Phase |
+|-----------|---------|-------|
+| GitHub App | OAuth + webhook receiver | 0 |
+| MCP Server + tools | Agent orchestration + GitHub / K8s APIs | 0 |
+| Anthropic API integration | LLM backbone | 0 |
+| PostgreSQL schema | Memory and task state | 0 |
+| K8s Job dispatch | Async task execution + worktree isolation | 0 |
+| Prompt engineering | System block, tool schemas, few-shot tasks | 0 |
+| PR template + `/lore-feature` | Feature request workflow | 0 |
+
+### Phase 1: Context Assembly — COMPLETE
+
+Ingesting and ranking rich GitHub context.
+
+| Component | Purpose | Phase |
+|-----------|---------|-------|
+| Context assembly | YAML templates + jinja2 rendering for task PRs | 1 |
+| Code graph | Symbol indexing + related-file ranking | 1 |
+| Memory schema | `entities` + `edges` + `episodes` | 1 |
+| Episode writer | Auto-curation of task summaries | 1 |
+
+### Phase 2: Gap Detection — COMPLETE
+
+Finding and ranking high-signal specification gaps.
+
+| Component | Purpose | Phase |
+|-----------|---------|-------|
+| Gap detection | Diff-based spec vs. code divergence scoring | 2 |
+| Spec drift CronJob | Daily run; publishes findings as `spec-drift-*` Issues | 2 |
+| Autoresearch baseline | Pre-feature snapshot for delta analysis | 2 |
+
+### Phase 3: Autoresearch Loop — COMPLETE
+
+Closed-loop gap filling driven by the agent.
+
+| Component | Purpose | Phase |
+|-----------|---------|-------|
+| Autoresearch loop | Daily CronJob; picks high-signal gaps; spawns gap-fill PRs | 3 |
+| Auto-curation | Post-task episode snapshot (memory consolidation) | 3 |
 | Spec Drift         | Lore Agent `spec-drift.ts` CronJob | 3 |
 | Autoresearch       | Lore Agent `autoresearch.ts` CronJob | 3 |
 | Memory Lifecycle   | `memory-lifecycle.ts` — importance decay + consolidation | 3 |
@@ -70,21 +84,12 @@ for alternatives before reaching production.
 
 ### Key Dependencies (As Built)
 
-| Dependency              | Purpose                          | Status |
-|-------------------------|----------------------------------|--------|
-| `@modelcontextprotocol/sdk` | MCP server framework          | Stable |
-| CloudNativePG (CNPG)    | PostgreSQL operator + pgvector   | Production |
-| Vertex AI text-embedding-005 | 768-dim embeddings          | Production |
-| OpenTelemetry + Cloud Monitoring | Trace observability     | Production |
-| PromptFoo               | CI eval framework                | Production |
-| LoreTask CRD            | K8s custom resource for task jobs | Production |
-| External Secrets Operator | GCP Secret Manager integration | Production |
-| GitHub App              | Webhook auth + PR creation       | Production |
-
-### Repository Structure (As Built)
-
 ```
 re-cinq/lore/
+├── README.md
+├── package.json (monorepo root)
+├── tsconfig.json
+├── jest.config.js
 ├── CLAUDE.md
 ├── AGENTS.md
 ├── CODEOWNERS
@@ -94,10 +99,9 @@ re-cinq/lore/
 ├── teams/
 │   ├── payments/CLAUDE.md
 │   ├── platform/CLAUDE.md
-│   ├── mobile/CLAUDE.md
-│   └── data/CLAUDE.md
-├── evals/
-├── specs/
+│   ├── eng/CLAUDE.md
+│   └── infra/CLAUDE.md
+├── docs/
 ├── mcp-server/
 │   ├── src/
 │   │   ├── index.ts          # MCP server entrypoint, 30+ tools
@@ -152,8 +156,8 @@ re-cinq/lore/
 │       └── jobs/
 │           ├── reindex.ts
 │           ├── gap-detect.ts
-│           ├── spec-drift.ts
 │           ├── autoresearch.ts
+│           ├── spec-drift.ts
 │           ├── context-core-builder.ts
 │           ├── merge-check.ts
 │           ├── memory-lifecycle.ts
@@ -165,352 +169,223 @@ re-cinq/lore/
 ├── web-ui/                   # Next.js UI
 ├── scripts/
 │   ├── install.sh
-│   ├── lore-doctor.sh
-│   ├── lore-gen-constitution.py
-│   ├── lore-merge-settings.js
-│   └── infra/
-│       ├── setup-db.sh
-│       ├── setup-schedulers.sh
-│       └── generate-embeddings.sh
-├── .claude/
-│   └── skills/
-│       ├── lore-feature/
-│       ├── lore-pr/
-│       └── lore-init/
-├── terraform/
-│   └── modules/
-│       ├── gke-mcp/          # MCP server Helm chart
-│       │   └── loretask-crd/ # LoreTask CRD + RBAC
-│       └── lore-db/          # CNPG PostgreSQL
-├── docker/
-│   └── claude-runner/        # Ephemeral container for K8s Job pods
-└── .github/
-    ├── workflows/
-    │   ├── pr-description-check.yml
-    │   ├── ingest-context.yml
-    │   ├── context-evals.yml
-    │   └── gap-detection.yml
-    └── PULL_REQUEST_TEMPLATE.md
+│   ├── helm/
+│   │   └── lore/
+│   │       ├── Chart.yaml
+│   │       ├── values.yaml
+│   │       └── templates/
+│   │           ├── agent-deployment.yaml
+│   │           ├── mcp-server-deployment.yaml
+│   │           ├── postgres-statefulset.yaml
+│   │           ├── cron-jobs.yaml
+│   │           └── rbac.yaml
+│   ├── graphiti/
+│   │   └── ontology.yaml
+│   └── db/
+│       └── migrations/
+│           ├── 001_memory_schema.sql
+│           ├── 002_episodes.sql
+│           ├── 003_gap_detection.sql
+│           ├── 004_task_state.sql
+│           ├── 005_task_leases.sql
+│           ├── 006_dark_factory_baseline.sql
+│           └── 007_audit_log.sql
+├── tests/
+├── .github/
+│   └── workflows/
+│       ├── ci.yaml
+│       └── cd.yaml
+└── .specify/
+    └── memory/
+        └── constitution.md
 ```
 
-## Constitution Check
-
-| Principle | Status | Notes |
-|-----------|--------|-------|
-| P1: DX-First Delivery | PASS | Phase 0 delivered full DX with zero infra. |
-| P2: Zero Stored Credentials | PASS | Workload Identity on GKE; External Secrets Operator for all secrets. |
-| P3: PR Quality Gates | PASS | PR template + CI check deployed Phase 0 Day 1. |
-| P4: Three-Command Interface | PASS | `/lore-feature`, `/lore-pr`, `/lore-init` delivered. |
-| P5: Single Interface (Lore MCP) | PASS | MCP server is the only developer-facing interface. Agent tasks accessed only via MCP delegation. |
-| P6: Distributed Ownership | PASS | CODEOWNERS enforced. PromptFoo evals owned by teams. |
-| P7: Architecture Final | PASS | Klaus → Lore Agent and Beads → Pipeline Tasks were documented pivots via ADRs, not ad-hoc changes. |
-| P8: Schema-Per-Team | PASS | PostgreSQL (CNPG) uses schema-per-team isolation. |
-| P9: Agents Over Scripts | PASS | All scheduled jobs run as Lore Agent CronJob-triggered tasks, not shell scripts. |
-| P10: Opt-In Data | PASS | Slack indexing opt-in per channel. PII classifier at ingest. DMs never indexed. |
-
-## Implementation Phases
-
-### Phase 0: Developer Experience — COMPLETE
-
-Phase 0 delivered the full developer experience with zero infrastructure
-dependency. All 35 tasks shipped.
-
-#### What Was Built
-
-1. **Context repository** — `re-cinq/lore` with root `CLAUDE.md`,
-   per-team `CLAUDE.md` files under `teams/`, ADRs in MADR format,
-   runbooks, and `CODEOWNERS`.
-
-2. **MVP MCP server** (`mcp-server/src/index.ts`):
-   - `get_context(team?)` — reads org + team CLAUDE.md from disk.
-   - `get_adrs(domain?, status?)` — reads and filters ADR files.
-   - `search_context(query, limit?)` — naive text search across content.
-   - File-backed; no database required.
-
-3. **`install.sh`** — single-command install that clones the lore repo,
-   builds the MCP server, detects team via `git config --global lore.team`,
-   runs `lore-merge-settings.js`, installs platform skills, and runs health
-   checks. Idempotent.
-
-4. **`lore-merge-settings.js`** — merges platform MCP config, env vars,
-   and hooks into `~/.claude/settings.json` without overwriting personal hooks.
-
-5. **`lore-gen-constitution.py`** — calls MCP `get_context` and `get_adrs`,
-   renders `.specify/constitution.md` for use with the lore-feature skill.
-
-6. **`lore-doctor.sh`** — health check that tests MCP server, git
-   connectivity, platform hooks, and platform skills.
-
-7. **Platform skills** — `/lore-feature` (spec-driven loop), `/lore-pr`
-   (drafts PR descriptions), `/lore-init` (onboards new repos).
-
-8. **PR quality enforcement** — `PULL_REQUEST_TEMPLATE.md` with required
-   sections + `pr-description-check.yml` GitHub Action (warning mode,
-   then hard fail).
-
-9. **`AGENTS.md`** — proactive guidance for Claude Code sessions.
-
-**Phase 0 Verification (all passed):**
-- Install completes under 5 minutes on clean machine.
-- `get_context("payments")` returns payments team conventions.
-- `search_context("error handling")` returns relevant results.
-- `lore-doctor` prints all green.
-- Full loop completes under 30 minutes; developer speaks fewer than 10 words.
-
-### Phase 1: Managed Infrastructure — COMPLETE
-
-Phase 1 replaced the file-backed MCP server with PostgreSQL + hybrid search,
-deployed the Lore Agent service (instead of the planned Klaus), and
-established the task pipeline (instead of Beads).
-
-#### Infrastructure
-
-- **GKE cluster** (`your-gke-cluster`, `europe-west1`) — shared cluster,
-  no new cluster provisioned.
-- **PostgreSQL (CNPG)** — `lore-db` namespace. PostgreSQL 16 + pgvector.
-  Schema-per-team isolation. HNSW indexes (m=16, ef_construction=64) for
-  vector search; GIN indexes for BM25 keyword search.
-- **Embeddings** — Vertex AI `text-embedding-005` (768 dimensions).
-  Generated via `scripts/infra/generate-embeddings.sh`. 46 chunks seeded
-  after initial `lore-init` run.
-- **Workload Identity** — all GKE workloads use Workload Identity. No
-  long-lived credentials.
-- **External Secrets Operator (ESO)** — pulls secrets from GCP Secret
-  Manager. Single `terraform apply` deploys everything.
-
-#### Lore Agent Service (replaces Klaus)
-
-Klaus was dropped after 8+ attempts to fix output wrapping and model
-parameter rejection issues. See ADR-007.
-
-The Lore Agent service (`lore-agent` namespace on GKE) replaced it:
-- Simple tasks: direct Anthropic API calls (Haiku model).
-- Complex tasks: headless Claude Code in ephemeral K8s Job pods.
-- Jobs: `reindex.ts`, `gap-detect.ts`, `spec-drift.ts`, `autoresearch.ts`,
-  `context-core-builder.ts`, `merge-check.ts`, `memory-lifecycle.ts`,
-  `loretask-watcher.ts`.
-
-#### LoreTask CRD
-
-All complex tasks use the LoreTask custom resource:
-1. Agent creates a LoreTask CR.
-2. `loretask-controller` watches CRs and creates K8s Jobs with the
-   `claude-runner` image (`docker/claude-runner/`).
-3. Job pods: pre-load context via API → run Claude Code → run
-   deterministic validation (lint/typecheck) → commit → push.
-4. Validation failure: one retry with fix prompt. If still failing:
-   mark `needs-human-help`, preserve worktree.
-5. `loretask-watcher.ts` creates a PR when the Job completes.
-
-#### Task Pipeline (replaces Beads + Dolt)
-
-Beads was dropped due to integration complexity and the `bd` CLI becoming
-unmaintained. Dolt was dropped due to instability. See ADR-009.
-
-Pipeline tasks are now PostgreSQL-backed (`pipeline.tasks` table) with
-GitHub Issues for human-visible tracking:
-- Every task creates a GitHub Issue (`lore-managed` label) on the target repo.
-- MCP tools: `create_pipeline_task`, `get_pipeline_status`,
-  `list_pipeline_tasks`, `cancel_task`, `retry_task`.
-- Task types configured in `scripts/task-types.yaml`.
-- Per-client scoped API tokens with SHA-256 hashes (scopes: read, write,
-  task, webhook, admin).
-
-#### MCP Server PostgreSQL Upgrade
-
-- `search_context` → hybrid search (HNSW vector + BM25 keyword, RRF).
-- `get_context` → queries PostgreSQL `org_shared` + team schema.
-- `get_adrs` → queries with status/domain filters.
-- `get_file_pr_history(file_path)` added.
-- Degraded-mode fallback: local files + warning if DB unreachable.
-- No interface changes — `install.sh` re-run updates seamlessly.
-
-#### Context Templates (replaces Context Cores)
-
-Context Cores as OCI bundles were not implemented. Instead, YAML context
-assembly templates in `mcp-server/templates/` (default, review,
-implementation, research) configure what context is assembled and at what
-priority. `context-core-builder.ts` exists in the agent but OCI promotion
-is not wired.
-
-#### Observability
-
-- OpenTelemetry SDK integrated into the MCP server.
-- Traces + metrics exported to Cloud Monitoring.
-- `tracedSearch()` emits OTEL spans for every MCP retrieval call.
-- Low-confidence threshold tagging as OTEL span attributes + Cloud
-  Monitoring custom metric (`lore/gap_candidates`).
-- Cloud Monitoring dashboards: retrieval latency p99, gap candidate rate,
-  query volume per namespace.
-
-#### PromptFoo CI Evals
-
-- `evals/<team>/promptfooconfig.yaml` per team (5-10 cases).
-- `context-evals.yml` triggered on ADR/CLAUDE.md/spec changes.
-- `--assert-pass-rate 0.85` merge gate.
-
-**Phase 1 Verification (all passed):**
-- Hybrid search verified end-to-end: Workload Identity → Vertex AI
-  text-embedding-005 → HNSW + BM25 → RRF ranked results.
-- Query "how does the lore platform work" returns plan.md, spec.md,
-  platform CLAUDE.md as top results.
-- `search_context("ChargeBuilder idempotency")` returns code chunk
-  (vector) + PR (keyword).
-- PR changing CLAUDE.md to "store amounts as floats" fails CI.
-- Cloud Monitoring shows retrieval latency p99 per namespace.
-- **Note (2026-03-28):** Hybrid search is functional end-to-end but p99
-  latency has not been benchmarked under load. The 200ms target remains
-  aspirational until measured.
-
-### Phase 2: Feedback Loop + Memory System — COMPLETE
-
-Phase 2 added the memory system, web UI, Slack integration, and gap
-detection. The knowledge graph was implemented in PostgreSQL rather than
-Graphiti/FalkorDB.
-
-#### Memory System
-
-Persistent agent memory in the PostgreSQL `memory` schema:
-- `memories`, `memory_versions`, `facts`, `fact_conflicts`, `episodes`,
-  `entities`, `edges`, `snapshots`, `shared_pools`, `audit_log`.
-- MCP tools: `write_memory`, `read_memory`, `delete_memory`,
-  `list_memories`, `search_memory`, `write_episode`, `query_graph`,
-  `assemble_context`, `agent_stats`.
-- Facts have temporal validity (`valid_from`/`valid_to`), confidence tiers
-  (`verified`/`observed`/`inferred`/`stale`), and retrieval metadata.
-- Contradiction detection: cosine similarity >= 0.92 triggers automatic
-  invalidation + conflict record in `memory.fact_conflicts`.
-- Privacy filtering: `sanitizeContent()` / `redactSecrets()` strip API
-  keys, JWTs, private keys, connection strings before storage.
-
-#### Knowledge Graph (PostgreSQL-backed, replaces Graphiti)
-
-Graphiti + FalkorDB were not deployed. The knowledge graph lives in
-PostgreSQL (`memory.entities` + `memory.edges`):
-- Entity types: Service, Team, Function, PR, ADR, Spec, Concept, Runbook.
-- Typed relationships: OWNS, CALLS, IMPLEMENTS, SUPERSEDES, REFERENCES, etc.
-- `query_graph` MCP tool queries the live graph.
-- Updated incrementally on every `write_episode` call via `graph.ts`.
-- **Not implemented**: temporal traversal (`get_entity_history`), multi-hop
-  traversal via a Graphiti MCP proxy. Graph search is flat SQL, not
-  traversal-based.
-
-#### Web UI
-
-Next.js UI (`web-ui/`) for:
-- Pipeline status and task management (`/pipeline/[id]`).
-- Repo onboarding (`/onboard`).
-- Live Job log viewer (`TaskLogs.tsx`, polls every 5s).
-- PR status card (`PRStatusCard.tsx`).
-
-#### Slack Integration
-
-`/lore` slash command creates pipeline tasks:
-- Channel-to-repo mapping via `lore.repos.settings.slack_channel_id`.
-- Watcher posts PR links, issue links, and failure messages back via
-  `LORE_SLACK_BOT_TOKEN`.
-- `scripts/slack-app-manifest.yaml` defines the Slack app.
-
-#### Gap Detection
-
-Lore Agent `gap-detect.ts` CronJob (Monday 9am UTC):
-- Low-confidence retrievals tagged as OTEL span attributes and Cloud
-  Monitoring custom metric (`lore/gap_candidates`) — this is the
-  observability side.
-- `autoresearch.ts` fetches gap signals from **Langfuse** (not Cloud
-  Monitoring directly): reads low-confidence traces via `LANGFUSE_PK` /
-  `LANGFUSE_SK` / `LANGFUSE_HOST` env vars. The spec (FR-8.3) references
-  Langfuse; plan.md previously said Cloud Monitoring.
-- Clusters by embedding similarity.
-- For 3+ occurrence clusters: drafts content, opens PR to `re-cinq/lore`,
-  labels `context-gap-draft`, assigns team.
-- Human review required before merge.
-
-#### Passive Memory Capture
-
-All MCP tool calls tracked in memory via `session-tracker.ts` (500-entry
-ring buffer). On exit, dumps to `~/.lore/last-session.json`. Stop hook
-POSTs to `/api/session-summary` for automatic episode + fact extraction.
-No agent cooperation needed. See ADR-014.
-
-#### Progressive Trust + Repo Onboarding
-
-- `settings.trust.level` controls allowed task types per repo.
-- Auto-promotes after 3 successful merges at current level.
-- Repo onboarding via UI (`/onboard`) or `onboard_repo` MCP tool.
-- Creates PR on target repo with CLAUDE.md, AGENTS.md, PR template, CI.
-
-**Phase 2 Verification (all passed):**
-- `search_memory` returns relevant facts from past sessions.
-- `query_graph` returns entity relationships.
-- Gap detection opens PRs with specific drafted content.
-- Slack `/lore` command creates tasks and posts PR links back.
-
-### Phase 3: Self-Improvement + Memory Lifecycle — COMPLETE
-
-Phase 3 added autoresearch, spec drift detection, and memory lifecycle
-management. The planned Graphiti deployment was not completed.
-
-#### Autoresearch Loop (ADR-010)
-
-Lore Agent `autoresearch.ts` weekly CronJob:
-- For each gap cluster from Cloud Monitoring metrics: generates 3 candidate
-  additions (direct, example-based, constraint-based).
-- Builds candidate context for each via `context-core-builder.ts`.
-- Evaluates against PromptFoo suite.
-- Best candidate promoted if score improves >= 2%.
-- Failed attempts logged to Cloud Monitoring; GitHub Issue opened for manual review.
-- PRs labelled `context-experiment-passed`.
-- `research-charter.md` defines standing instructions for the research system.
-
-#### Spec Drift Detection
-
-Lore Agent `spec-drift.ts` weekly CronJob:
-- Reads spec assertions, checks against code via embedding similarity on
-  ingested chunks.
-- Divergence > 20%: creates a `gap-fill` pipeline task for the owning team
-  (not a GitHub Issue — task creation matches FR-14.2).
-- Test files and generated files excluded.
-- **Note**: The plan originally stated "creates GitHub Issue"; the actual
-  implementation creates a `pipeline.tasks` row with `task_type = 'gap-fill'`,
-  consistent with the spec (FR-14.2) and the standard pipeline task flow.
-
-#### Memory Lifecycle (ADR-014)
-
-Daily jobs (5 AM decay, 5:30 AM consolidation):
-- **Importance decay**: scores memories 0-10 (recency, content length,
-  key pattern bonuses). Evicts lowest-scoring when agent exceeds 500
-  memories. Cleans invalidated facts older than 30 days beyond 2000 cap.
-- **Fact consolidation**: groups recent facts (7-day lookback) by repo,
-  calls Haiku to extract 1-3 higher-level patterns. Stored as
-  `consolidated/{repo}/{timestamp}` memories.
-- **Retrieval strengthening**: every `search_memory` call asynchronously
-  increments `retrieval_count`, extends `half_life_days` (+2, cap 365).
-  Stale facts revive to `observed` on retrieval.
-- **PR outcome feedback**: merge boosts half_life (+5) on facts that
-  contributed context; rejection penalizes (-3, min 7).
-
-#### Post-Task Auto-Curation
-
-After every task (PR created, no-changes, failure), an episode is written
-via `episode-writer.ts`. High-signal events trigger Haiku lesson extraction
-→ stored as `auto-curation/{ref}` memories. Zero agent cooperation needed.
-
-#### Autonomous Review Loop (ADR-012)
+## Specification Sections
+
+### Phase 0: PR Scaffolding — COMPLETE
+
+Lore joins GitHub as a GitHub App. It:
+
+- Receives new PR events and `@lore` mentions
+- Renders context via YAML templates + jinja2 (code graph, memory, linked specs)
+- Prompts Claude on the task PR description
+- Dispatches a K8s Job per request; Job clones the repo, checks out the PR
+  branch, and passes control to the agent process
+- The agent calls Claude with the assembled context and tool schemas
+- Tools invoke the MCP server (HTTP RPC), which carries out side effects
+  (approve, request changes, commit, push)
+- Task PR collects the agent's final commit; author (re:cinq/lore) merges
+  when ready
+
+**Phase 0 Verification:**
+✓ `@lore /lore-feature` in any PR description spawns a feature request task  
+✓ Agent approves or requests changes with reasoning  
+✓ Task PR commits changes and pushes to origin  
+✓ Memory is ingested; episodes are auto-curated  
+
+---
+
+### Phase 1: Rich Context Assembly — COMPLETE
+
+Before Phase 1, context was static markdown. Phase 1 added live indexing:
+symbol definitions, call chains, related files, memory episodes, and linked
+specs.
+
+**Symbol Indexing (Code Graph)**
+
+Every task Job includes a `context-core-builder.ts` invocation that:
+
+- Walks the tree (respecting `.gitignore`) and extracts symbol definitions
+  (function, class, interface, type, const) in detected languages
+- Builds a semantic adjacency graph: if `foo()` calls `bar()`, there's an
+  edge
+- Stores the graph as `memory.entities` (node = symbol + type + line range)
+  and `memory.edges` (caller → callee + confidence)
+- On subsequent tasks, the context assembly queries symbol definitions near
+  edits and includes call stacks
+
+**YAML Context Templates**
+
+`mcp-server/templates/*.yaml` define task-type-specific contexts:
+
+```yaml
+# gap-fill.yaml
+contexts:
+  - name: spec_section
+    selector: spec.md
+    template: |
+      ## {{ section_name }}
+      {{ spec_text }}
+      
+      **Current Implementation:**
+      {{ code_excerpts(files) }}
+  - name: related_files
+    selector: .
+    template: |
+      **Changed Files:**
+      {{ changed_file_list }}
+      
+      **Related Symbols:**
+      {{ symbol_calls(changed_symbols) }}
+```
+
+Rendering:
+1. Selector picks files from the PR diff and repo
+2. Each field is jinja2 templated with variables from memory + graph
+3. Output is concatenated and passed to Claude in the system block
+
+**Episode Auto-Curation**
+
+After task completion, `episode-writer.ts` summarizes the task:
+
+- Reads the task PR commits and their messages
+- Composes a ~200-word episode: problem statement, approach, outcome, lessons
+- Stores as `memory.episodes`, tagged with task type + date
+- Episodes feed future context assembly (semantic similarity search)
+
+**Phase 1 Verification:**
+✓ Symbol indexing builds a connected call graph  
+✓ Context templates render with symbol definitions and file excerpts  
+✓ Gap-fill tasks reference spec sections and implementation side-by-side  
+✓ Episodes are written for every task completion  
+
+---
+
+### Phase 2: Spec Drift Detection — COMPLETE
+
+Phase 2 automated the discovery of spec-vs-code divergence.
+
+**Diff-Based Divergence Scoring**
+
+`gap-detect.ts` (runs nightly, publishes to `spec-drift-*` Issues):
+
+1. Fetches the latest `spec.md` and HEAD source tree
+2. For each spec section (h2 boundary), extracts:
+   - Mentioned symbols (function, class, file, type)
+   - Prose assertions (e.g. "uses PostgreSQL", "runs on CronJob")
+3. Maps assertions to code:
+   - Regex search for symbol definitions → found/missing
+   - Grep for keywords (PostgreSQL, CronJob, etc.) → found/missing
+4. Scores divergence:
+   - 0–10% → ✓ (spec matches code)
+   - 11–50% → ⚠️ (partial match; gap-fill candidate)
+   - 51–100% → 🔴 (spec is wrong; high-signal gap)
+5. Publishes `spec-drift-{phase}` Issue with:
+   - Ranked list of gaps by score
+   - Excerpt + link to spec line
+   - Suggested task type (gap-fill, runbook, implementation)
+
+Example:
+
+```
+## Phase 2 Gap: `memory.ts` missing episode consolidation
+
+**Spec:** "Episodes are consolidated via `memory-lifecycle.ts`..."
+**Finding:** No consolidation logic found in `memory.ts`
+**Divergence:** 87%
+
+**Suggested task:** gap-fill
+Suspected PR: https://github.com/re-cinq/lore/pull/XXX
+```
+
+The autoresearch loop consumes these Issues.
+
+**Phase 2 Verification:**
+✓ Nightly gap-detect discovers spec vs. code divergence  
+✓ Ranked output feeds autoresearch priorities  
+✓ High-divergence sections (80%+) are flagged as critical  
+
+---
+
+### Phase 3: Closed-Loop Autoresearch — COMPLETE
+
+Phase 3 closed the loop: gap detection → task generation → auto-curation.
+
+**Autoresearch Loop**
+
+`autoresearch.ts` (daily CronJob, 10 AM UTC):
+
+1. Fetches all open `spec-drift-*` Issues (ranked by divergence score)
+2. Filters by signal (ignore 0–10%, consider 11%+)
+3. Picks the top 1 gap per phase (highest score)
+4. Checks for in-flight task PRs with the same gap label
+5. If none in-flight: spawns a new task PR
+   - Task type inferred from gap (gap-fill, runbook, implementation)
+   - Context assembled from spec section + call graph + memory
+   - PR title: `[autoresearch] {phase} gap: {gap_summary}`
+6. Waits for task PR merge
+7. Auto-curates a memory episode from the commits
+
+**Task Type Inference**
+
+- `gap-fill`: spec section missing code; claude writes the code
+- `runbook`: implicit process missing from docs; claude writes the runbook
+- `implementation`: design doc missing from code; claude implements + spec
+
+Each type has a different context template and system prompt.
+
+**Post-Task Curation**
+
+After the task PR merges:
+
+1. `episode-writer.ts` reads the commits
+2. Composes a ~200-word summary: problem, approach, outcome
+3. Tags with task type, date, spec section
+4. Stores in `memory.episodes`
+5. Next autoresearch run sees the episode and de-prioritizes similar gaps
+
+**Opt-in Auto-Review per Repo**
 
 Opt-in per repo via `auto_review` setting:
-- After implementation PR, watcher creates a review LoreTask CR.
-- Review Job pod: clones PR branch, reads spec + conventions, posts PR
-  comments via `gh`, outputs APPROVED or CHANGES_REQUESTED.
-- Changes requested (iteration < 2): new implementation LoreTask with
-  feedback on the same branch.
-- Changes requested (iteration >= 2): escalate to human review.
 
-**Phase 3 Verification:**
-- Autoresearch loop generates candidates, evaluates, opens PRs.
-- Spec drift creates GitHub Issues on divergence > 20%.
-- Memory decay evicts low-importance memories; consolidation produces
-  higher-level patterns.
+- `auto_review: true` → autoresearch can spawn task PRs
+- `auto_review: false` (default) → manual `/lore-feature` only
+- Gap detection still runs; Issues remain open for manual triage
+
+Approval workflow:
+- Gap-fill task PR is authored by re:cinq/lore (bot)
+- Re:cinq engineering approves via normal PR review
+- Merge is manual (no auto-merge yet; Phase 4)
 - Post-task auto-curation produces `auto-curation/*` memories after
   every task completion.
 
@@ -519,7 +394,9 @@ Opt-in per repo via `auto_review` setting:
 Phase 4 introduced per-repo opt-out human gates, branch-as-durable-state
 semantics, declarative YAML workflow graphs, two-key authorization for
 privileged settings, and an auto-merge engine for path-allowlisted PRs.
-Landed 2026-04-28 via ADR-016.
+Landed 2026-04-28 via ADR-016. (Prompt caching and review reactor webhook
+were completed under ADR-015 on 2026-04-17 but pragmatically included here
+since Phase 3 did not capture them.)
 
 #### What Was Built
 
@@ -607,7 +484,7 @@ audit entries.
 
 **Review reactor (event-driven)**
 
-`agent/src/jobs/review-reactor.ts` is now webhook-driven. GitHub webhooks
+`agent/src/jobs/review-reactor.ts` is now webhook-driven (ADR-015). GitHub webhooks
 arrive at mcp-server, which POSTs `{repo, pr_number}` to
 `POST /api/trigger/review-reactor` on the agent (`health.ts`), authenticated
 via `LORE_AGENT_INTERNAL_TOKEN`. Agent returns 202 and runs
@@ -619,7 +496,7 @@ via `LORE_AGENT_INTERNAL_TOKEN`. Agent returns 202 and runs
 
 `agent/src/anthropic.ts` uses `getCacheControl(jobName)` from
 `agent/src/lib/prompt-cache.ts` to place two cache breakpoints per
-request — one on the system block, one on the tool schemas. Returns
+request — one on the system block, one on the tool schemas (ADR-015). Returns
 `{type: "ephemeral", ttl: "1h"}` for jobs in `LORE_CACHE_1H_JOBS`
 allowlist, `{type: "ephemeral"}` (5m) otherwise. Emits
 `cache hit | first-call | break:system | break:tools | break:ttl(Nm)` on
@@ -648,8 +525,7 @@ false at migration time.
 
 | Item | Severity | Notes |
 |------|----------|-------|
-| Knowledge graph temporal traversal | Medium | `get_entity_history` not implemented; graph is flat SQL (1-hop), not Graphiti traversal |
-| p99 latency benchmark | Medium | Hybrid search functional but 200ms target not verified under load |
+| Helm bool coercion on `LORE_DARK_FACTORY_CLUSTER_ENABLED` | Medium | Use `--set-string` not `--set` to avoid YAML bool coercion; documented in CLAUDE.md |
 | Context Core OCI promotion | Low | `context-core-builder.ts` exists; OCI artifact push and `crane pull` in install.sh not wired |
 | Graphiti + FalkorDB deployment | Low | `scripts/graphiti/ontology.yaml` exists; deployment deferred indefinitely |
 | Langfuse dependency in autoresearch | Low | `autoresearch.ts` reads gap signals from Langfuse (`LANGFUSE_PK/SK/HOST`). If Langfuse is not configured, the autoresearch loop silently skips. Cloud Monitoring gap metrics (`lore/gap_candidates`) are written but not consumed by autoresearch. |
@@ -659,11 +535,12 @@ false at migration time.
 
 ## Risk Register
 
-| Risk | Impact | Likelihood | Mitigation |
-|------|--------|------------|------------|
-| Low PR description quality despite template | High | Medium | Warning period + internal comms campaign |
-| CNPG PostgreSQL cold-start latency | Medium | Low | Connection pooling, PgBouncer sidecar |
-| PromptFoo eval false positives | Medium | Medium | Start with high-confidence cases, tune threshold |
+| Risk | Severity | Likelihood | Notes |
+|------|----------|------------|-------|
+| Symbol indexing false negatives (unused symbols not indexed) | Medium | Low | Graph is best-effort; context assembly falls back to regex search |
+| Memory table row explosion | Medium | Low | Episodes are consolidated via `memory-lifecycle.ts`; importance decay cleans up stale rows |
+| Context assembly latency (large repos) | Medium | Medium | Mitigation: incremental indexing + caching (symbol defs are rarely updated) |
+| Knowledge graph depth limited without Graphiti | Medium | Low | Flat PostgreSQL graph covers most use cases; temporal traversal is Phase 3+ |
 | Context Core OCI promotion gap | Medium | Low | Current YAML templates serve context adequately; OCI adds distribution, not quality |
 | Knowledge graph depth limited without Graphiti | Medium | Low | Flat PostgreSQL graph covers most use cases; temporal traversal is Phase 3+ |
 | Developer adoption friction | High | Medium | Phase 0 gate enforced; lore-doctor diagnoses issues |
@@ -675,14 +552,12 @@ false at migration time.
 ## Critical Path
 
 ```
-PR template (Phase 0 Day 1)
-  → ingestion quality (Phase 1)
-    → semantic search quality (Phase 1)
-      → context eval accuracy (Phase 1)
-        → gap detection value (Phase 2)
-          → autoresearch loop (Phase 3)
-            → dark factory pilot SC1–SC7 (Phase 4 / T059)
-              → legacy code deletion (T058)
+Phase 0 (scaffolding + GitHub App + PR template)
+  → Phase 1 (code graph + context assembly + episode auto-curation)
+    → Phase 2 (gap detection + spec-drift automation)
+      → Phase 3 (autoresearch loop)
+        → Phase 4 (dark factory pilot SC1–SC7)
+          → Phase 4.1 (legacy code deletion)
 ```
 
 PR description quality is the foundation. Without rich alternatives-rejected
@@ -692,6 +567,7 @@ pass before the legacy local-runner paths can be deleted.
 
 ## Generated Artifacts
 
-- [research.md](research.md) — technology decisions and best practices
-- [data-model.md](data-model.md) — entity definitions and relationships
-- [contracts/mcp-tools.md](contracts/mcp-tools.md) — MCP tool interface contracts
+Schema dump (CloudSQL): `script/db/schema.sql`  
+OTEL traces: Cloud Trace  
+Audit log: `pipeline.audit_log` (queryable via runbook)  
+Helm chart: `scripts/helm/lore/`  
