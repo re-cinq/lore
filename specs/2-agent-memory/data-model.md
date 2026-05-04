@@ -17,7 +17,7 @@ The core entity representing a key-value memory entry owned by an agent.
 | embedding | VECTOR(768) | Nullable (populated async) |
 | version | INTEGER | NOT NULL, monotonic per agent+key |
 | is_deleted | BOOLEAN | DEFAULT false |
-| pool | TEXT | NULL for private, pool name for shared |
+| pool_id | UUID | NULL for private, FK → memory.shared_pools |
 | ttl_seconds | INTEGER | NULL for permanent |
 | expires_at | TIMESTAMPTZ | NULL for permanent, computed from ttl |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |

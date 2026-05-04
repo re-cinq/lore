@@ -253,9 +253,10 @@ keyword matching. Optionally includes shared pool memories.
    - Vector search via HNSW: `embedding <=> query_embedding`.
    - Keyword search via GIN: `search_tsv @@ plainto_tsquery(query)`.
    - Reciprocal Rank Fusion (k=60) to merge rankings.
-4. Filter to `agent_id` private memories (WHERE `pool IS NULL`).
-5. If `pool` is provided, also include memories WHERE
-   `pool = {pool}`.
+4. Filter to `agent_id` private memories (WHERE `pool_id IS NULL`).
+5. If `pool` is provided, resolve the pool name to a UUID via
+   `memory.shared_pools`, then also include memories WHERE
+   `pool_id = {resolved_uuid}`.
 6. Exclude `is_deleted = true` and expired entries.
 7. Also search Fact entities and map results back to parent Memory.
 8. Apply `limit`.
@@ -302,11 +303,12 @@ access to that pool.
 
 **Behavior:**
 1. Resolve `agent_id` from input or session context.
-2. Insert a Memory row with `pool = {pool}`.
+2. Resolve `pool` name to a UUID via `memory.shared_pools` (insert if
+   not exists), then insert a Memory row with `pool_id = {pool_uuid}`.
 3. Version is monotonic per `(agent_id, key)` as with private writes.
 4. Enqueue async embedding generation.
 5. Write an AuditEntry with `operation = 'write'` and
-   `pool = {pool}`.
+   `pool_id = {pool_uuid}`.
 
 **Error handling:**
 - Pool name validation: must be lowercase alphanumeric with hyphens,
@@ -346,13 +348,14 @@ specific entry. Otherwise returns all entries in the pool.
 ```
 
 **Behavior:**
-1. Query Memory WHERE `pool = {pool}`, `is_deleted = false`, and
+1. Resolve `pool` name to a UUID via `memory.shared_pools`, then
+   query Memory WHERE `pool_id = {pool_uuid}`, `is_deleted = false`, and
    not expired.
 2. If `key` is provided, filter to that key (latest version).
 3. If `key` is omitted, return the latest version of each distinct
    key in the pool.
 4. Write an AuditEntry with `operation = 'read'` and
-   `pool = {pool}`.
+   `pool_id = {pool_uuid}`.
 
 **Error handling:**
 - Pool not found (no entries): return
