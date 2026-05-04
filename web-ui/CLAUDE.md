@@ -96,6 +96,31 @@ If you add a link, use:
 <Link href={`/specs/${encodeURIComponent(s.file_path)}`}>{s.file_path}</Link>
 ```
 
+### addSpec server action — schema lookup, team fallback, and silent failure
+
+The `addSpec` server action calls `getRepoSchemaAndTeam` (not `getRepoSchema`).
+These two helpers behave differently:
+
+| Helper | Repo not in `lore.repos` | Repo with no team |
+|---|---|---|
+| `getRepoSchema` | Falls back to `org_shared` | `org_shared` |
+| `getRepoSchemaAndTeam` | Returns `null` | `{ schema: 'org_shared', team: '' }` |
+
+When `getRepoSchemaAndTeam` returns `null`, the action returns early with no
+error — the form submission silently does nothing. This can happen if the
+page URL is reached for a repo that hasn't been onboarded. The page itself
+still renders (the listing query uses `getRepoSchema`, which always succeeds),
+so there is no visual signal that the form is broken.
+
+The `team` value stored in the INSERT uses the fallback `team || 'org'`: an
+empty-string team (repos in `org_shared`) becomes `'org'` in the `team`
+column. This means querying `WHERE team = ''` will not find UI-inserted specs
+for those repos; use `WHERE team = 'org'` or `WHERE metadata->>'created_by' = 'ui'`.
+
+Every spec inserted via this form carries `metadata: { created_by: 'ui' }`.
+This distinguishes hand-entered specs from ingested ones at query time. The
+nightly ingest does not set this field.
+
 ### Manually added specs have no embeddings
 
 The "Add Spec" server action in the repo specs page does a raw
@@ -114,3 +139,10 @@ a file creates a new chunk row — it does **not** upsert. The detail page
 therefore shows multiple chunks for the same path if the file was ingested
 more than once; the most recent appears first with a horizontal rule separator
 between entries. There is no deduplication or "latest only" toggle.
+
+### Preview truncation differs between routes
+
+The per-repo specs page (`/repos/[owner]/[repo]/specs`) uses a **400-char**
+`substring(content, 1, 400)` preview. The global specs list (`/specs`) uses
+**200 chars**. Both append `...` in the JSX. There is no functional reason for
+the difference — it is an implementation inconsistency, not a deliberate choice.
