@@ -1390,6 +1390,7 @@ async function handleTaskTimeline(
         pr_number: task.pr_number,
         pr_url: task.pr_url,
         pr_state: null,
+        current_stage: null,
         commits: [],
         branch_deleted: true,
       });
@@ -1465,7 +1466,7 @@ async function handleTaskTimeline(
     pr_state: prState,
     commits: stageCommits,
     current_stage: currentStage,
-    lease,
+    ...(lease !== null ? { lease } : {}),
   });
 }
 

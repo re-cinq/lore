@@ -88,11 +88,12 @@ export default function Timeline({
     fetchTimeline();
     const stillActive =
       ACTIVE_STATES.has(initialStatus) ||
-      (data?.current_stage && data.current_stage !== "retrospective");
+      (data?.current_stage && data.current_stage !== "retrospective") ||
+      data?.lease?.held === true;
     if (!stillActive) return;
     const handle = setInterval(fetchTimeline, POLL_INTERVAL_MS);
     return () => clearInterval(handle);
-  }, [fetchTimeline, initialStatus, data?.current_stage]);
+  }, [fetchTimeline, initialStatus, data?.current_stage, data?.lease?.held]);
 
   if (loading) {
     return (
