@@ -24,7 +24,7 @@
   and `gh pr review` work without extra auth config.
 
 - [x] T002 Update `docker/claude-runner/entrypoint.sh` — added `TASK_TYPE=review`
-  branch (lines 90–155). Review flow: validate env (`GITHUB_TOKEN`, `TARGET_REPO`,
+  branch. Review flow: validate env (`GITHUB_TOKEN`, `TARGET_REPO`,
   `PR_NUMBER`, `TASK_PROMPT`, `TASK_TYPE`) → configure git + gh auth → clone repo
   → `gh pr checkout $PR_NUMBER` → run Claude Code with MCP context preamble →
   parse result → write to `/tmp/review-result.txt` → exit 0 (both approved and
@@ -92,7 +92,7 @@
 
   - **approved:** transitions parent task to `completed`, posts "Agent review:
     **approved**" comment on the GitHub Issue (if present), marks the review
-    task `completed`. Calls `tryAutoMergeForCompletedTask` is NOT called here;
+    task `completed`. `tryAutoMergeForCompletedTask` is NOT called here;
     auto-merge is triggered by the implementation task's watcher path before
     the review loop starts — see T009b.
 
