@@ -1,3 +1,8 @@
+# Implementation Plan: Lore Platform
+
+| Field        | Value                                           |
+|--------------|-------|
+| Feature      | Lore — Shared Context Infrastructure            |
 | Branch       | 1-lore-platform                                 |
 | Spec         | [spec.md](spec.md)                              |
 | Constitution | [constitution.md](../../.specify/memory/constitution.md) |
@@ -75,6 +80,13 @@ Closed-loop gap filling driven by the agent.
 | Spec Drift         | Lore Agent `spec-drift.ts` CronJob | 3 |
 | Autoresearch       | Lore Agent `autoresearch.ts` CronJob | 3 |
 | Memory Lifecycle   | `memory-lifecycle.ts` — importance decay + consolidation | 3 |
+
+### Phase 4: Dark Factory Mode — COMPLETE
+
+Per-repo opt-out gates, declarative workflow supervision, and auto-merge.
+
+| Component | Purpose | Phase |
+|-----------|---------|-------|
 | Dark Factory mode  | Per-repo opt-out gates, branch-as-state, declarative YAML workflow graphs | 4 |
 | Workflow supervisor | `agent/src/supervisor/` — graph executor, lease management, pod-death resume | 4 |
 | Shared package     | `@re-cinq/lore-shared` (`shared/src/`) — commit trailers, dark-factory types, redact | 4 |
@@ -82,7 +94,7 @@ Closed-loop gap filling driven by the agent.
 | Review reactor     | `agent/src/jobs/review-reactor.ts` — webhook-driven (replaces polled cron path) | 4 |
 | Two-key AuthZ      | `mcp-server/src/dark-factory-authz.ts` — CODEOWNERS-approval PR ceremony | 4 |
 
-### Key Dependencies (As Built)
+### Repository Structure (As Built)
 
 ```
 re-cinq/lore/
@@ -389,6 +401,8 @@ Approval workflow:
 - Post-task auto-curation produces `auto-curation/*` memories after
   every task completion.
 
+---
+
 ### Phase 4: Dark Factory Mode — COMPLETE
 
 Phase 4 introduced per-repo opt-out human gates, branch-as-durable-state
@@ -531,7 +545,6 @@ false at migration time.
 | Langfuse dependency in autoresearch | Low | `autoresearch.ts` reads gap signals from Langfuse (`LANGFUSE_PK/SK/HOST`). If Langfuse is not configured, the autoresearch loop silently skips. Cloud Monitoring gap metrics (`lore/gap_candidates`) are written but not consumed by autoresearch. |
 | Dark Factory pilot SC1–SC7 verification | High | Live acceptance-criteria checks deferred to T059 (pilot). Three repos must pass 14 days each before T058 (legacy code deletion). |
 | Legacy local-runner code deletion (T058) | Medium | Planned post-pilot follow-up. Gated on 3 pilot repos passing SC1–SC7 over 14 days (SC8). |
-| Dark Factory cluster gate helm flag | Medium | Use `--set-string` not `--set` for `LORE_DARK_FACTORY_CLUSTER_ENABLED` to avoid YAML bool coercion. Must stay in sync with `claude-runner` image shipping `/app/dist/`. |
 
 ## Risk Register
 
@@ -540,7 +553,6 @@ false at migration time.
 | Symbol indexing false negatives (unused symbols not indexed) | Medium | Low | Graph is best-effort; context assembly falls back to regex search |
 | Memory table row explosion | Medium | Low | Episodes are consolidated via `memory-lifecycle.ts`; importance decay cleans up stale rows |
 | Context assembly latency (large repos) | Medium | Medium | Mitigation: incremental indexing + caching (symbol defs are rarely updated) |
-| Knowledge graph depth limited without Graphiti | Medium | Low | Flat PostgreSQL graph covers most use cases; temporal traversal is Phase 3+ |
 | Context Core OCI promotion gap | Medium | Low | Current YAML templates serve context adequately; OCI adds distribution, not quality |
 | Knowledge graph depth limited without Graphiti | Medium | Low | Flat PostgreSQL graph covers most use cases; temporal traversal is Phase 3+ |
 | Developer adoption friction | High | Medium | Phase 0 gate enforced; lore-doctor diagnoses issues |
@@ -570,4 +582,4 @@ pass before the legacy local-runner paths can be deleted.
 Schema dump (CloudSQL): `script/db/schema.sql`  
 OTEL traces: Cloud Trace  
 Audit log: `pipeline.audit_log` (queryable via runbook)  
-Helm chart: `scripts/helm/lore/`  
+Helm chart: `scripts/helm/lore/`
