@@ -6,7 +6,7 @@
 | Branch            | 1-lore-platform                            |
 | Status            | Shipped                                    |
 | Created           | 2026-03-25                                 |
-| Updated           | 2026-04-20                                 |
+| Updated           | 2026-05-04                                 |
 | Owner             | Platform Engineering                       |
 | Phase 0 Target    | 3-4 working days                           |
 | Full Stack Target | 6-8 weeks                                  |
@@ -559,11 +559,13 @@ cooperation.
   as `auto-curation/{ref}` memory.
 - FR-12.6: **Transfer scoring.** Cross-repo context assembly filters
   facts by a portability score. Portable keywords (error, pattern,
-  gotcha, convention) boost the score; local keywords (config, deploy,
-  url, auth, secret) reduce it. Only facts scoring ≥ 0.5 pass
-  through to the assembled context of another repo. Prevents
-  repo-specific configuration from polluting shared context.
-  (ADR-016-hippo)
+  gotcha, rule, convention, best-practice, anti-pattern, migration)
+  boost the score; local keywords (config, deploy, url, auth, secret,
+  env, port, hostname, endpoint, cron) reduce it. Base score 0.5,
+  each portable keyword +0.15, each local keyword -0.15, clamped to
+  [0, 1]. Only facts scoring ≥ 0.5 pass through to the assembled
+  context of another repo. Prevents repo-specific configuration from
+  polluting shared context. (ADR-016-hippo)
 - FR-12.7: **PR outcome feedback.** The `merge-check` job captures PR
   stats on merge (files changed, time-to-merge, review comments) and
   writes curated episodes. On merge, `half_life_days` is boosted by
@@ -572,6 +574,13 @@ cooperation.
   closed-without-merge (rejection), the same set is penalised by
   -3 (floor: 7 days). Aggregate `outcome_stats` are tracked per
   repo for platform health dashboards. (ADR-016-hippo)
+  **Gap (ADR-016-hippo §6 — PARTIALLY WIRED):** `context_refs` is
+  never populated at task creation because the `/api/context` handler
+  calls `assembleContext()` without `includeIds: true`. The
+  merge-check feedback path reads null refs and silently no-ops. To
+  close: pass `includeIds: true` in the `/api/context` handler and
+  forward `result.context_refs` to `createTask()`. All machinery is
+  in place; only the wiring call is missing.
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
@@ -916,7 +925,7 @@ dark-factory settings changes. Added 2026-04-28 per ADR-016.
 - Q: Why restrict auto-merge to a path allowlist rather than all green-CI PRs? → A: Auto-merge everywhere is too aggressive for v1 — a misconfigured PR template or transient bot-review parsing failure could merge unintended code changes. The path allowlist confines auto-merge to low-blast-radius outputs (specs, ADRs, runbooks, CLAUDE.md) where a bad merge is reversible by another PR. (ADR-016)
 - Q: Why require a CODEOWNERS-ceremony PR for privileged settings changes? → A: A single admin token is a single point of compromise. Requiring a labeled PR from a CODEOWNERS member adds a human-visible gate that appears in GitHub's audit log and is reviewed by a team member, not just an API caller. (ADR-016 FR3.9, R9)
 - Q: Why two separate `dark_factory.enabled` flags (per-repo AND cluster)? → A: The cluster gate (`LORE_DARK_FACTORY_CLUSTER_ENABLED`) prevents the helm flag from getting ahead of the claude-runner image, which must have `/app/dist/` baked in before dark-mode tasks can use the supervisor. A repo enabling dark mode before the image is ready would silently fall back to the legacy path without the cluster gate. (ADR-016)
-- Q: What is the `transfer_score` cutoff for cross-repo facts? → A: 0.5. Facts with portable signals (error, pattern, gotcha, convention) score above it; facts with local signals (config, deploy, url, auth, secret) score below. The threshold is not configurable in v1 — revisit if cross-repo noise becomes a problem. (ADR-016-hippo)
+- Q: What is the `transfer_score` cutoff for cross-repo facts? → A: 0.5. Facts with portable signals (error, pattern, gotcha, rule, convention, best-practice, anti-pattern, migration) score above it; facts with local signals (config, deploy, url, auth, secret, env, port, hostname, endpoint, cron) score below. The threshold is not configurable in v1 — revisit if cross-repo noise becomes a problem. (ADR-016-hippo)
 - Q: How does outcome feedback avoid penalising a memory that was correct but the PR was closed for unrelated reasons? → A: It doesn't distinguish — rejection always penalises. The minimum floor of 7 days prevents a memory from dropping to zero on a single rejection; the retrieval-strengthening path (FR-12.4) can recover it if it continues to be useful. (ADR-016-hippo)
 
 ## Scope Boundaries
