@@ -191,12 +191,15 @@ memories. On PR rejection (closed without merge), it penalises by -3
 
 **Known gap:** The `/api/context` handler in `routes.ts` calls
 `assembleContext()` without `includeIds: true`, so `context_refs`
-is never populated on task creation. The merge-check feedback path
-reads null refs and silently no-ops. To close this gap, the
-`/api/context` handler must be updated to pass `includeIds: true`
-and the `/api/task` POST handler must forward `result.context_refs`
-to `createTask()`. All the machinery is in place; only the wiring
-call is missing.
+is never returned to callers and never populated on task creation.
+The merge-check feedback path reads null refs and silently no-ops.
+Three changes are required to close this gap: (1) pass
+`includeIds: true` to `assembleContext()` at `routes.ts:299`;
+(2) spread `context_refs` into the `json(res, 200, ...)` response
+so the client receives the IDs; (3) destructure `context_refs`
+from the parsed body in the `/api/task` POST handler and pass it
+as the `contextRefs` argument to `createTask()`. All the machinery
+is in place; only these three wiring calls are missing.
 
 ### 7. Half-life-aware importance scoring (Phase 7)
 
@@ -254,9 +257,12 @@ and `retrieval_count` for all memories in scope.
   behave identically to before until first retrieval or feedback event.
 - **Confidence backfill:** Existing facts remain `observed`. No
   backfill needed; the tier only matters for freshly extracted facts.
-- **Phase 6 fix:** See gap description above. One-line change in
-  `routes.ts` assembleContext call + forwarding contextRefs in the
-  task creation path.
+- **Phase 6 fix:** See gap description above. Three changes in
+  `routes.ts`: (1) pass `includeIds: true` to `assembleContext()`;
+  (2) spread `context_refs` into the `json(res, 200, ...)` response
+  so callers receive the IDs; (3) in the `/api/task` POST handler,
+  destructure `context_refs` from the parsed body and pass it to
+  `createTask()` as the `contextRefs` argument.
 
 ## Relationship to other ADRs
 

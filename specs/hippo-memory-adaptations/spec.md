@@ -57,6 +57,11 @@ CREATE INDEX fact_conflicts_new_idx ON memory.fact_conflicts (new_fact_id);
 
 **Implementation:** `scripts/infra/setup-memory-schema.sh` contains all ALTER and CREATE TABLE statements with `IF NOT EXISTS` guards.
 
+> **⚠️ PENDING: migration not yet applied to production.**
+> `search_memory` currently returns `{"error":"column f.confidence
+> does not exist"}` on every call. FR-2 through FR-6 are inert
+> until the migration is run. See Post-Implementation Steps.
+
 **Run:** Execute in production:
 ```bash
 psql -h $DB_HOST -U $DB_USER -d lore < scripts/infra/setup-memory-schema.sh
@@ -149,7 +154,7 @@ SELECT tablename FROM pg_tables WHERE tablename = 'fact_conflicts';
 ---
 
 ### FR-6: Outcome Feedback
-**Status:** ✅ COMPLETE
+**Status:** ⚠️ PARTIALLY WIRED
 
 **Acceptance:** When a task completes (merged or rejected), the facts and memories used to assemble its context are rewired via their `half_life_days`.
 
@@ -241,6 +246,19 @@ SELECT tablename FROM pg_tables WHERE tablename = 'fact_conflicts';
    }
    ```
 
+> **⚠️ Gap — three wiring calls missing in `routes.ts`:**
+> Steps 2 and 4 above describe the intended state. The current
+> code does not implement them:
+> 1. `assembleContext()` at `routes.ts:299` is called without
+>    `includeIds: true`, so `context_refs` is never collected.
+> 2. The `json(res, 200, ...)` response does not spread
+>    `context_refs`, so the client never receives the IDs.
+> 3. The `/api/task` POST handler does not destructure
+>    `context_refs` from the parsed body before passing it to
+>    `createTask()`.
+> Until these three calls are added, merge/reject feedback is
+> inert — `pipeline.tasks.context_refs` stays null.
+
 - **Merge outcome** boosts `half_life_days` by **+5**
 - **Rejection** penalises by **−3**
 - **Minimum** `half_life_days` is **7** (prevents premature decay)
@@ -326,19 +344,19 @@ These IDs are stored in `pipeline.tasks.context_refs` and later read by `merge-c
 
 ## Implementation Checklist
 
-- [x] FR-1: Schema migration file created with all idempotent statements
+- [x] FR-1: Schema migration file created with all idempotent statements (**not yet applied to production**)
 - [x] FR-2: Retrieval strengthening wired into memory-search.ts
 - [x] FR-3: Confidence tiers integrated into facts extraction and context rendering
 - [x] FR-4: Conflict table created and invalidation flow captures conflicts
 - [x] FR-5: Transfer scoring computed and applied to cross-repo queries
-- [x] FR-6: Context refs captured, stored on tasks, and wired to merge-check outcome feedback
+- [ ] FR-6: Context refs captured, stored on tasks, and wired to merge-check outcome feedback (**partially wired — three routes.ts wiring calls missing**)
 - [x] FR-7: Importance scoring rewritten with half-life decay model
 
 ---
 
 ## Post-Implementation Steps
 
-1. **Run schema migration** (production):
+1. **Run schema migration** (production — **PENDING, blocking FR-2 through FR-6**):
    ```bash
    psql -h $DB_HOST -U $DB_USER -d lore < scripts/infra/setup-memory-schema.sh
    ```
