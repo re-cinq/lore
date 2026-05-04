@@ -42,7 +42,7 @@ Read current settings. Requires `read` scope. Always returns the **resolved** fo
 }
 ```
 
-Note: `notify: []` in dark mode is correct. `decideNotify` always fires escalations regardless of the list, so listing `escalation` explicitly is redundant. The `notify` list controls non-escalation channels only.
+Note: `notify: []` in dark mode is correct (FR3.5 specified `[escalation]` as the initial default, but that was revised — `decideNotify` always fires escalations regardless of the list, so listing `escalation` explicitly is redundant). The `notify` list controls non-escalation channels only.
 
 **Response 404:** repo not onboarded.
 **Response 503:** database unavailable.
@@ -178,7 +178,7 @@ The "approval PR" referenced by `X-Lore-Approval-PR` must satisfy:
 | CODEOWNERS file unparseable | `403 { "error": "codeowners_check_failed", "code": "codeowners_unparseable" }` |
 | CODEOWNERS file absent | Treated as empty CODEOWNERS; approver check fails with `approver_not_codeowner` |
 | Database unavailable | `503 { "error": "database unavailable" }` |
-| Concurrent two-key changes (race) | Last-writer-wins (SELECT FOR UPDATE serializes); both writes succeed; both audit entries present |
+| Concurrent two-key changes (race) | Serialized by `SELECT FOR UPDATE`; second write patches on top of first write's committed state. Both succeed; both audit entries present. |
 
 ## Per-task overrides
 
