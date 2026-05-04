@@ -1,17 +1,15 @@
 <!--
 Sync Impact Report
-- Version: 2.2.0 (MINOR — Dark Factory mode (ADR-016) + Principle 12 added; P7/P11 task-tracking narrowed)
-- Modified: P7 decision table row "Task tracking" — narrows when GH Issues are created (now exception-surface only when dark-factory mode is enabled per repo)
-- Modified: Technology stack row "Task tracking" — same narrowing reflected
-- Added: ADR-016 reference (Dark Factory mode)
-- Modified: Principle 5 — complete MCP tool list (memory, graph, episode tools added)
-- Modified: Principle 7 — architecture decisions table updated to reflect ADR-015 and post-April-13 decisions
-- Modified: Principle 9 — jobs table updated (review reactor, prompt cache analysis)
-- Modified: Principle 11 — expanded with retrieval strengthening, PR outcome feedback, confidence tiers, conflict surfacing
-- Added: Principle 12 (Event-Driven Automation over Polling)
-- Updated: Technology stack — prompt caching, local runner, AgentDB, session tracker, token scopes
-- Updated: Phase 3 description — cross-repo context, progressive trust, task groups, production awareness, per-template budgets
-- Follow-up TODOs: pilot rollout against three trust-tiered repos (T059) before flipping dark-factory defaults
+- Version: 2.3.0 (MINOR — Principle 13 added (Dark Factory); P7/P9/Stack expanded with Dark Factory architecture; Phase 4 added)
+- Added: Principle 13 (Dark Factory — Opt-Out Human Gates)
+- Modified: Principle 7 — decisions table updated with Dark Factory patterns: branch-as-state, YAML workflow graphs, two-gate enablement, two-key authZ
+- Modified: Principle 9 — jobs table updated (auto-merge, lease-reaper, dark-factory-baseline snapshot, gap-fill workflow)
+- Modified: Technology Stack — added @re-cinq/lore-shared, workflow YAML definitions, graph executor, task leases, dark-factory settings + authz, Timeline UI, commit-trailers
+- Added: Phase 4 (Dark Factory Pilot + Legacy Cleanup)
+- Follow-up TODOs: pilot rollout three trust-tiered repos (T059); delete legacy local-runner code paths (T058) after pilot passes SC1–SC8
+
+Previous (Version 2.2.0 — 2026-04-28, MINOR):
+- Dark Factory mode (ADR-016) + Principle 12 added; P7/P11 task-tracking narrowed
 
 Previous (Version 2.1.0 — 2026-04-20, MINOR):
 - Principle 12 added; Principles 5, 7, 9, 11 materially expanded
@@ -28,9 +26,9 @@ Previous (Version 2.0.0 — 2026-04-13, MAJOR):
 |---|---|
 | Project | Lore |
 | Subtitle | Shared context infrastructure for Claude Code |
-| Constitution Version | 2.2.0 |
+| Constitution Version | 2.3.0 |
 | Ratification Date | 2026-03-25 |
-| Last Amended Date | 2026-04-28 |
+| Last Amended Date | 2026-05-04 |
 
 ## Purpose
 
@@ -193,6 +191,11 @@ The following decisions have been made and MUST NOT be relitigated:
 | API auth | Per-client scoped tokens (SHA-256, `pipeline.api_tokens`); scopes: read / write / task / webhook / admin |
 | Rate limiting | In-memory sliding window: 30/min webhooks, 60/min task ops, 200/min other |
 | Job pod security | Non-root uid 1000, drop all Linux caps, NetworkPolicy egress: DNS + HTTPS + Lore API only |
+| Dark factory workflow state | Branch-as-state: every phase ends with a structured commit (`Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers); supervisor resumes from `git log` on pod death — no DB checkpoint needed |
+| Dark factory task execution | Declarative YAML graphs at `agent/src/workflows/*.yaml` (4 node types: agent/validate/gate/retrospective; 4 edge conditions: success/changes\_requested/failed/always); same definition drives local runner and GKE supervisor |
+| Dark factory enablement | Two-gate: per-repo (`dark_factory.enabled`) AND cluster (`LORE_DARK_FACTORY_CLUSTER_ENABLED` helm value); either gate off → legacy `claude --print` path |
+| Dark factory privileged settings | Two-key authorization: admin-scope token + CODEOWNERS-approval PR ceremony (open PR labeled `dark-factory-approval` by a `CLAUDE.md` CODEOWNER) |
+| Dark factory shared types | `@re-cinq/lore-shared` (`shared/src/`) is the single source of truth for dark-factory-settings types, `resolveSettings()`, and commit-trailer helpers; agent, mcp-server, and Job pods all import it |
 
 Upgrade path to AlloyDB Omni or managed AlloyDB if corpus exceeds ~10M vectors. Revisit Vertex AI Vector Search only if corpus exceeds ~100M vectors.
 
@@ -254,6 +257,11 @@ Platform jobs running as Lore Agent tasks:
 | Review reactor (safety cron) | `7 7-17 * * 1-5` UTC; catches dropped webhook deliveries; gated by `isBusinessHours()` |
 | Prompt cache analysis | Emits hit/miss/break classification per `jobName`; feeds cost accounting (1.25× writes, 0.1× reads) |
 | PR outcome feedback | On merge: +5 `half_life_days` on contributing facts; on rejection: −3 (min 7) |
+| Dark factory auto-merge | After `[stage:retrospective]`: evaluates path allowlist + CI status + bot APPROVED + trust level → squash-merge or typed deferral; decision + rule recorded in `pipeline.audit_log` |
+| Lease reaper | 60 s tick; deletes `pipeline.task_leases` rows >5 min past expiry; writes `lease_expired` audit entries naming the prior holder |
+| Dark factory baseline snapshot | Pre-feature 30-day counter snapshot per repo written to `pipeline.dark_factory_baseline`; used to compute SC1/SC4/SC6 deltas during pilot |
+| Gap fill (dark factory workflow) | Drafts missing context via YAML graph executor; auto-merges if every changed path is path-allowlisted and CI is green |
+| Runner-CLI (`runner-cli.ts`) | Job pod CLI entry; loads workflow YAML from `/app/dist/workflows/`, drives supervisor inside pod working tree; exits with documented matrix (0=ok, 2=config-error, 3=runtime-error, 4=validation-failed, 5=lease-conflict, 6=resume-mismatch, 7=no-changes, 8=escalated, 9=internal-error) |
 
 **Rationale:** The value of Lore is not in storing chunks — it is in
 understanding context. Agents that can reason about what is missing,
@@ -360,6 +368,63 @@ to webhooks reduced average review latency from ~2.5 min to seconds
 and eliminated idle API calls. The safety cron provides fault
 tolerance without reinstating continuous polling. See ADR-015.
 
+### Principle 13: Dark Factory — Opt-Out Human Gates
+
+Per-repo dark-factory mode reduces human-in-the-loop friction to the
+minimum required for safety and governance. When enabled, the system
+operates with maximum autonomy at every step where the risk is low
+and the artifact is reversible.
+
+**Three coordinated sub-decisions (per ADR-016):**
+
+1. **Branch as durable state** — Every workflow phase ends with a
+   git commit carrying structured trailers: `Lore-Stage:`,
+   `Lore-Iteration:`, `Lore-Task:`. The branch IS the audit trail.
+   A pod that dies is replaced by a new pod that reads `git log`
+   and resumes from the last committed stage. No DB checkpoint,
+   no CR status, no parallel ledger required.
+
+2. **Workflow as declarative YAML graph** — The implicit hardcoded
+   chain `implement → validate → push → review → address` is
+   externalized to `agent/src/workflows/<task-type>.yaml`. Four
+   node types: `agent` (LLM + edits), `validate` (lint/typecheck),
+   `gate` (named conditions), `retrospective` (episode + curated
+   memory). Four edge conditions: `success | changes_requested |
+   failed | always`. Cycles require `iteration_max`. New flow =
+   new YAML file; no code path forks.
+
+3. **Opt-out human gates** — Per-repo `dark_factory` settings block.
+   Auto-merge runs after `[stage:retrospective]` for path-allowlisted
+   PRs with green CI + bot APPROVED + trust ≥ `min_trust`.
+   GitHub Issues are created only for approval gates, escalations,
+   and `create_issue: always` overrides. The PR + `Lore-Task:` trailer
+   is the canonical artifact.
+
+**Two-gate enablement prevents accidental rollout:**
+- Per-repo: `settings.dark_factory.enabled = true`
+- Cluster: `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` (helm value)
+- Either gate off → repo falls back to legacy `claude --print` path
+
+**Two-key authorization for privileged settings** (`enabled` toggle,
+`auto_merge.paths` changes, downgrade of `require_*` to false):
+requires both admin-scope token AND a CODEOWNERS-approval PR ceremony.
+
+**Trailers are emitted unconditionally** for both dark-mode and
+opt-out repos — they are the audit substrate for both modes. History
+rewriting on agent-authored branches is forbidden by construction.
+
+Default settings for new repos: `enabled: false`, `create_issue:
+on_gate`, `review: trust_based`, `notify: [escalation]`.
+
+**Rationale:** The legacy pipeline produces ~14 artifacts per task of
+which only three are durable a year later (branch, merged PR, episode).
+The rest is "watch me work" theater the team stopped reading — evidenced
+by auto-generated PRs sitting open 8+ days with green CI. Dark mode
+narrows human touch to intent and exception surfaces. The two gates
+and path allowlist confine auto-merge to low-blast-radius outputs
+(specs, ADRs, runbooks, CLAUDE.md) where a bad merge is reversible
+by another PR.
+
 ## Technology Stack
 
 | Component | Technology |
@@ -388,6 +453,14 @@ tolerance without reinstating continuous polling. See ADR-015.
 | Local read cache | AgentDB optional local read cache when MCP runs in stdio mode (proxies writes to GKE backend) |
 | API token scopes | `pipeline.api_tokens` — SHA-256 hashed per-client tokens; scopes: read / write / task / webhook / admin |
 | Rate limiting | In-memory sliding window: 30/min webhooks, 60/min task ops, 200/min other; 1 MB body limit |
+| Shared package | `@re-cinq/lore-shared` (`shared/src/`) — dark-factory-settings types + `resolveSettings()`, `redactSecrets()`, commit-trailer helpers; imported by agent, mcp-server, and Job pods |
+| Workflow definitions | `agent/src/workflows/*.yaml` — Zod-validated declarative YAML graphs; Lore loader (`workflow/loader.ts`) runs cycle detection (DFS) + reachability check at startup |
+| Workflow executor | `agent/src/supervisor/graph-executor.ts` — walks graph from entry, dispatches per-node-type handlers, emits stage commits (allow-empty for non-file-changing nodes), refreshes lease before each node |
+| Task leases | `pipeline.task_leases` — `DbLeaseBackend` uses Postgres CTE-based atomic acquire with takeover detection; `FileLeaseBackend` for worktree/local mode; share `LeaseBackend` interface |
+| Dark factory settings | `mcp-server/src/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` privileged-field gate |
+| Dark factory authz | `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` runs CODEOWNERS-approval-PR ceremony via Octokit |
+| Commit trailers | `shared/src/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `lastStageOnBranch()`; emitted unconditionally on all Lore-authored commits |
+| Pipeline timeline UI | `web-ui/src/app/pipeline/[id]/Timeline.tsx` — vertical stage-commit timeline with node-type icons, outcome badges, lease indicator; polls every 10 s while task is in flight |
 
 ## Phased Delivery
 
@@ -477,6 +550,40 @@ Deliverables:
   context. `/api/repo-status` exposes `last_ingested_at` + `stale` flag.
 - Spec drift detection with VIOLATES tracking.
 - AgentDB optional local read cache (stdio mode).
+
+### Phase 4: Dark Factory Pilot and Legacy Cleanup — IN PROGRESS
+
+Validate dark-factory mode in production against three trust-tiered
+pilot repos before enabling by default for all repos. Deliverables:
+
+- **Pilot gate (T059)**: Three repos representing distinct trust tiers
+  (`docs`, `implementation`, `full`) run dark mode for 14 days each.
+  All seven success criteria must pass before proceeding:
+  - SC1: ≥80% of eligible PRs auto-merged (no human touch)
+  - SC2: Pod-death resume works — task survives at least one involuntary
+    pod termination during the pilot window
+  - SC3: Zero false-positive auto-merges (path-outside-allowlist changes)
+  - SC4: GitHub Issue count ≤20% of pre-dark-factory baseline
+  - SC5: Lease conflict rate <1% across all tasks
+  - SC6: ≤30% of bot PRs require human review on dark-mode repos
+  - SC7: Two-key authorization ceremony rejects all unauthorized
+    privileged-setting mutations
+  - SC8: All seven criteria pass across all three repos for the full
+    14-day window
+
+- **Live verification scenarios** (T024/T029/T035/T038/T043/T046/T053):
+  Deferred until pilot (T059). Each scenario exercises a specific
+  failure mode (pod death mid-stage, lease takeover, CI failure loop,
+  escalation path, auto-merge path, review iteration cap).
+
+- **Legacy local-runner cleanup (T058)**: After pilot passes SC1–SC8,
+  delete the legacy `claude --print` code paths in local-runner that
+  are superseded by the YAML workflow graph. This is a follow-up PR,
+  not a blocker for the pilot.
+
+- **Dark factory defaults**: After pilot, flip `LORE_DARK_FACTORY_CLUSTER_ENABLED`
+  default to `"true"` in `terraform/modules/gke-mcp/agent-helm/values.yaml`.
+  Per-repo `enabled` stays `false` by default — repos opt in explicitly.
 
 ## Governance
 
