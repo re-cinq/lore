@@ -17,6 +17,8 @@
 - [x] T007 [DEPENDS ON: T002] Add `get_pr_status` MCP tool in `mcp-server/src/index.ts` — accepts `repo` + `pr_number`, calls GitHub API directly via `getGitHubToken()` + raw `fetch()` (does not reuse `agent/src/github.ts`), returns `PRDetails` structure
 - [ ] T008 [DEPENDS ON: T002] Unit tests for `getPRDetails` and `PRStatus` computation in `agent/src/__tests__/github.test.ts` — **not implemented**
 - [ ] T009 [DEPENDS ON: T004] Unit tests for `PRStatusCard` component rendering each state in `web-ui/src/app/pipeline/[id]/__tests__/PRStatusCard.test.tsx` — **not implemented**
+- [x] T010 [RETROACTIVE] Add `submitFeedback` server action in `web-ui/src/app/pipeline/[id]/page.tsx` — "Give Feedback" form that creates an `immediate`-priority task with status `revision-requested` on the same branch; added post-spec, introduces the `revision-requested` status value and `immediate` priority, neither of which appears in T001–T009 or the original spec
+- [ ] T011 Consolidate `computeStatus` logic — currently triplicated across `agent/src/github.ts`, `web-ui/src/lib/github.ts`, and `mcp-server/src/index.ts` with diverging `approved`-state guard (`c.status !== 'completed'` vs `c.conclusion === null`); extract to `@re-cinq/lore-shared` or a single canonical module to eliminate silent behavioral drift
 
 ---
 
@@ -57,6 +59,13 @@ used in the pipeline list page. It fetches the same `/api/pipeline/{id}/pr-statu
 route on mount and renders only the `computed_status` pill. Errors are
 silently swallowed (returns `null`) so the list row degrades gracefully.
 
+**N+1 fetch pattern**: The pipeline list page renders one `PRStatusBadge`
+per task row that has a `pr_url`. With the current `LIMIT 50` on the list
+query this means up to 50 concurrent `/api/pipeline/{id}/pr-status` calls
+on page load, each making 3 GitHub API requests (pulls.get, checks, reviews).
+Do not raise the LIMIT without adding pagination or a batched status
+endpoint first.
+
 ### No polling in `PRStatusCard`
 
 `PRStatusCard` fetches once on mount. The adjacent `Timeline` component
@@ -64,9 +73,9 @@ on the same page polls every 10 s, but PR status does not follow suit.
 If CI finishes or a review is submitted while the page is open, the badge
 won't update until the user refreshes.
 
-### Feedback form (untracked)
+### Feedback form (`submitFeedback`)
 
 `web-ui/src/app/pipeline/[id]/page.tsx` includes a "Give Feedback"
-server-action form that creates an `immediate`-priority revision task on
-the same branch. This was added after the spec shipped and is not
-reflected in any spec or task entry.
+server-action form (`submitFeedback`) that creates an `immediate`-priority
+revision task with status `revision-requested` on the same branch. This was
+added after the spec shipped. See T010 for the retroactive task entry.
