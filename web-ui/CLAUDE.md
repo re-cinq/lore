@@ -120,8 +120,10 @@ The query selects these fields from every team schema + `org_shared`:
 id, file_path, content_type, content, team, repo, author, ingested_at, metadata
 ```
 
-`metadata` is a JSONB column; `author` comes from the ingestion pipeline and
-may be `null` for older rows or manually inserted chunks.
+`metadata` is a JSONB column. `team`, `repo`, and `author` are all typed
+`string | null` — they are omitted from the badge row when null. `author` in
+particular may be `null` for older rows or manually inserted chunks; `team`
+and `repo` are null when the chunk was inserted without schema attribution.
 
 Rendering behaviour:
 - If `chunks.length === 0` → "Not Found" empty state with the raw file path
@@ -141,7 +143,9 @@ was ingested with no metadata the `<details>` element is suppressed entirely.
 
 The original UX spec (specs/4-ux-repo-onboarding, Task T029) planned to
 remove `/specs` and `/specs/[...path]` once content moved under
-`/repos/[owner]/[repo]/specs`. That removal did not land because:
+`/repos/[owner]/[repo]/specs`. T029 was closed after `/context` was
+redirected to the per-repo context page (the redirect-or-remove task is
+complete). The global `/specs` routes were deliberately kept because:
 
 1. The per-repo specs page has no link to a detail view — removing the global
    detail route would leave no way to read full chunk content from the UI.
