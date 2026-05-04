@@ -175,7 +175,7 @@ Every write creates a row. `memories` holds the latest state.
 | half_life_days   | INTEGER        | |
 | created_at       | TIMESTAMPTZ    | |
 
-- GIN index on `fact_text` for BM25 keyword search.
+- ILIKE pattern match on `fact_text` for keyword search (no GIN index; fulltext upgrade deferred).
 - HNSW index on `embedding`.
 - When a new fact contradicts an existing one (cosine similarity >= 0.92),
   the old fact's `valid_to` is set and a record is written to
@@ -294,7 +294,7 @@ Returns only active (not deleted, not expired) memories.
 }
 ```
 
-Hybrid search (HNSW vector + BM25 keyword) over `memories.embedding`
+Hybrid search (HNSW vector + ILIKE keyword) over `memories.embedding`
 and `facts.embedding`, merged via Reciprocal Rank Fusion. Results
 capped at max 3 per `(agent_id, source)` combo to prevent one verbose
 session dominating results. Returns confidence annotations. Stale
