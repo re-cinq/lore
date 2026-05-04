@@ -4,9 +4,9 @@ Resolves the deferred items from `/speckit.clarify` (perf targets, GitHub failur
 
 ## R1: Path-allowlist matching semantics
 
-**Decision:** Glob-based pattern matching (via `minimatch` library) against the full PR changeset. Patterns are evaluated with `dot: true` (allows `.*` to match dotfiles), `matchBase: false` (no implicit `**` prefix), `nocase: false` (case-sensitive, matching GitHub's filesystem).
+**Decision:** Use `minimatch` (npm package) with options `{ dot: true, matchBase: false, nocase: false }` for each pattern in the allowlist. A PR auto-merges only if every changed path matches at least one pattern.
 
-**Examples:** `specs/**` matches all files under `specs/` recursively; `*.md` matches top-level Markdown; `.claude/**` matches all files under `.claude/` including dotfiles.
+**Example:** allowlist `["src/**", "*.md"]` matches `src/main.ts`, `README.md`, but rejects `test/foo.ts`.
 
 **Alternatives considered:** prefix match (rejected — too weak for `*.md`), regex (rejected — operator-hostile), CODEOWNERS-style match (rejected — overlaps confusingly with the AuthZ ceremony).
 
@@ -29,7 +29,7 @@ Resolves the deferred items from `/speckit.clarify` (perf targets, GitHub failur
 
 ## R3: GitHub API failure modes
 
-**Decision:** Transient failures (5xx, rate limit, mergeability checks) are retried; permanent failures are logged and the workflow continues.
+**Decision:** Transient GitHub API failures do not block the workflow. Permanent failures are audited and visible in the PR.
 
 | Failure | Behavior |
 |---|---|
@@ -45,48 +45,20 @@ Resolves the deferred items from `/speckit.clarify` (perf targets, GitHub failur
 
 **Rate limit budget:** Today's bot uses ~200 GitHub API calls per task. Auto-merge adds ~3 calls (mergeability, merge, post-merge status). At 50 dark-mode tasks/day, ~150 extra calls/day — well under the 5000 calls/hour App-installation limit.
 
-## R4: Auto-merge deferral outcomes
+## R4: Span schema for tracing
 
-**Decision:** Eight enumerated deferral reasons (plus success/rejection). The supervisor writes a `auto_merge_decision` audit entry in all cases (success, rejection, deferral).
-
-| Outcome | Next step |
-|---|---|
-| `merged` | Close related Issue (if any); task complete |
-| `rejected:paths` | Write decision; do not merge |
-| `rejected:trust` | Write decision; do not merge |
-| `deferred:api_failure` | Log and let human handle |
-| `deferred:no_changes` | Log and let human handle |
-| `deferred:not_mergeable` | Log and let human handle |
-| `deferred:draft` | Log and let human handle |
-| `deferred:unknown` | Log and let human handle |
-
-**Rationale:** Deferral is not a failure — it's a "come back later" state that doesn't block the workflow. Rejection is terminal and authoritatively closes the auto-merge path.
-
-## R5: Commit trailer format
-
-**Decision:** `Lore-Auto-Merge-Decision: <outcome>`. If outcome is a deferral or rejection, include `Reason: <detail>` on the next line.
-
-**Example:**
-```
-Lore-Auto-Merge-Decision: rejected:trust
-Reason: trust_level "low" does not meet min_trust "high"
-```
-
-**Rationale:** Machine-parseable, short header name, Lore-namespaced to avoid collisions.
-
-## R6: Merge safety: timing and commit SHA
-
-**Decision:** Auto-merge decision is calculated after the PR reviewers have signed off, via the `pull_request.synchronize` hook. If new commits arrive between the decision and the actual merge, the merge may fail due to changed mergeability — this is correct behavior (human can review new commits). The decision's commit SHA is recorded in the audit log for audit trail traceability.
-
-**Rationale:** GitHub's mergeability is ephemeral and depends on branch protection rules, CI status, and base branch state. Capturing the SHA ensures we know exactly which version we decided to merge, and the merge API will reject if the head has advanced.
-
-## R7: OpenTelemetry span structure
-
-**Decision:** The supervisor emits the following span hierarchy:
+**Decision:** OTEL spans report to the existing `lore.task` parent trace:
 
 ```
-lore.task (created at task start)
-  lore.stage                    # one per workflow node executed
+lore.supervisor.execute
+  attrs: task_id, repo
+  parent: lore.task
+
+lore.stage
+  attrs: name, node_id, node_type
+  parent: lore.supervisor.execute
+
+lore.task
          task_id, repo, workflow_name
   parent: lore.task
 
@@ -97,7 +69,7 @@ lore.lease.{acquire|refresh|release}
 
 lore.auto_merge.decision
   attrs: pr_number, repo, decision, rule, trust_level,
-         commit_sha, outcome, deferral_reason
+         reason_if_deferred
   parent: lore.task
 ```
 
@@ -106,6 +78,28 @@ lore.auto_merge.decision
 **Rationale:** Inherits existing `lore.task` parent; trace IDs propagate from task creation through merge for end-to-end correlation in Cloud Monitoring. Span names use snake_case to match existing convention.
 
 **Cardinality budget:** Each implementation task emits ~5 stage spans + ~5 lease spans + 1 decision span = ~11 spans per task. At 100 tasks/day = 1100 spans/day, negligible.
+
+## R5: Trust-tier matching in auto-merge
+
+**Decision:** The `min_trust` setting is a gateway. A PR author's trust tier must be >= `min_trust` for auto-merge to proceed. Trust tiers are: `low < medium < high < admin`.
+
+**Example:** `min_trust: "high"` auto-merges only for authors with `high` or `admin` tier (not `low` or `medium`).
+
+**Data source:** `author.trust_tier` comes from the task creation context (`POST /api/tasks`), which reads the creating user's tier from `persona.trust_tier` (computed at session init via trusted identity provider or `LORE_AUTOTRUST` for local dev).
+
+**Rationale:** Allows a repo to run dark mode for maintainers (`min_trust: "high"`) and disable it for one-off contributors (`min_trust: "admin"`), without maintaining an explicit allowlist.
+
+## R6: Spec-drift detection as a gate node
+
+**Decision:** Spec-drift is a gate node in the workflow DAG, not inline. Authors specify a `spec_drift_config` at task creation; the gate node reads it and decides `pass` or `fail`. A `fail` verdict leads to escalation, not auto-merge.
+
+**Rationale:** Keeps the supervisor logic separate from the spec-drift policy. A repo can have multiple workflows with different spec-drift gates (e.g. require no drift on `*.md`, but allow drift on `adrs/**`). The gate result is auditable in the span tree.
+
+## R7: Audit log entry structure
+
+**Decision:** Each significant event writes a `dark_factory_event` row (schema in data-model.md). Examples: `auto_merge_decision`, `escalation_issued`, `lease_expired`, `settings_changed`. All entries carry: `task_id`, `repo`, `event_type`, `outcome`, `timestamp`, `detail` (JSON). The detail field contains event-specific context (e.g., PR number, reason, prior holder name).
+
+**Rationale:** Single table, flexible schema, queryable for reports (e.g., "how many auto-merges deferred last week?"). Entries are immutable; the commit trailer trailer + PR comment + Issue are the human-facing artifacts.
 
 ## R8: Workflow YAML schema details
 
@@ -135,7 +129,7 @@ lore.auto_merge.decision
 
 **Rationale:** Reuses GitHub's existing review machinery; no new approval system. A PR is auditable, revertable, and CODEOWNERS already protects sensitive paths.
 
-## R10: Backwards compatibility on rollout
+## R10: Rollout and adoption gates
 
 **Decision:** Schema migration first (Task 1.1), then code deploys default `dark_factory.enabled = false`. Existing repos behave identically until explicitly opted in via the settings ceremony. Pilot rollout (Task 5.3) on three trust-tiered repos for 14 days each before any default change.
 
