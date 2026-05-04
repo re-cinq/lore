@@ -254,7 +254,7 @@ keyword matching. Optionally includes shared pool memories.
    - Keyword search via GIN: `search_tsv @@ plainto_tsquery(query)`.
    - Reciprocal Rank Fusion (k=60) to merge rankings.
 4. Filter to `agent_id` private memories (WHERE `pool_id IS NULL`).
-5. If `pool` is provided, resolve the pool name to a UUID via
+5. If `pool` is provided, resolve the pool name to its UUID from
    `memory.shared_pools`, then also include memories WHERE
    `pool_id = {resolved_uuid}`.
 6. Exclude `is_deleted = true` and expired entries.
@@ -303,12 +303,22 @@ access to that pool.
 
 **Behavior:**
 1. Resolve `agent_id` from input or session context.
+<<<<<<< HEAD
 2. Resolve `pool` name to a UUID via `memory.shared_pools` (insert if
    not exists), then insert a Memory row with `pool_id = {pool_uuid}`.
 3. Version is monotonic per `(agent_id, key)` as with private writes.
 4. Enqueue async embedding generation.
 5. Write an AuditEntry with `operation = 'write'` and
    `pool_id = {pool_uuid}`.
+=======
+2. Resolve the pool name to its UUID from `memory.shared_pools`
+   (upsert by name if not exists). Insert a Memory row with
+   `pool_id = {resolved_uuid}`.
+3. Version is monotonic per `(agent_id, key)` as with private writes.
+4. Enqueue async embedding generation.
+5. Write an AuditEntry with `operation = 'write'` and
+   `pool_id = {resolved_uuid}`.
+>>>>>>> 963d661 (docs(specs): fix stale pool TEXT column references in agent-memory spec)
 
 **Error handling:**
 - Pool name validation: must be lowercase alphanumeric with hyphens,
@@ -348,14 +358,24 @@ specific entry. Otherwise returns all entries in the pool.
 ```
 
 **Behavior:**
+<<<<<<< HEAD
 1. Resolve `pool` name to a UUID via `memory.shared_pools`, then
    query Memory WHERE `pool_id = {pool_uuid}`, `is_deleted = false`, and
    not expired.
+=======
+1. Resolve the pool name to its UUID from `memory.shared_pools`.
+   Query Memory WHERE `pool_id = {resolved_uuid}`, `is_deleted = false`,
+   and not expired.
+>>>>>>> 963d661 (docs(specs): fix stale pool TEXT column references in agent-memory spec)
 2. If `key` is provided, filter to that key (latest version).
 3. If `key` is omitted, return the latest version of each distinct
    key in the pool.
 4. Write an AuditEntry with `operation = 'read'` and
+<<<<<<< HEAD
    `pool_id = {pool_uuid}`.
+=======
+   `pool_id = {resolved_uuid}`.
+>>>>>>> 963d661 (docs(specs): fix stale pool TEXT column references in agent-memory spec)
 
 **Error handling:**
 - Pool not found (no entries): return
