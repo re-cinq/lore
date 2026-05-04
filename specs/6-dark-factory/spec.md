@@ -4,8 +4,9 @@
 |----------|--------------------------------|
 | Feature  | Dark Factory Mode              |
 | Branch   | 6-dark-factory                 |
-| Status   | Draft                          |
+| Status   | Implemented (Phase 1)          |
 | Created  | 2026-04-28                     |
+| Updated  | 2026-05-04                     |
 | Owner    | Platform Engineering           |
 
 ## Problem Statement
@@ -401,3 +402,165 @@ All other principles remain intact. Specifically preserved:
 - The web-ui pipeline page and task detail view — already shipped; this feature adds rendering for stage timelines and the `Lore-Task:` resolver.
 - The OpenTelemetry instrumentation — already shipped; this feature adds new span types.
 - GitHub App permissions for auto-merge — currently the App can comment and create PRs; merge permissions need verification at plan time.
+
+## As-Built Notes (Phase 1)
+
+This section records how the shipped implementation diverges from the
+spec above. Read together with the spec; the spec states intent, this
+section states reality.
+
+### Two-gate cluster enablement (not in spec)
+
+Dark-factory mode has **two independent gates**, not one. The per-repo
+`dark_factory.enabled = true` setting is necessary but not sufficient
+for the cluster supervisor path. A second cluster-side gate,
+`LORE_DARK_FACTORY_CLUSTER_ENABLED=true` (agent Helm values,
+`terraform/modules/gke-mcp/agent-helm/values.yaml`, default `"false"`),
+must also be on. When the cluster gate is off, dark-mode repos still
+use the legacy `claude --print` path. This prevents the Helm flag from
+getting ahead of the `claude-runner` image, which must contain
+`/app/dist/workflows/` and the supervisor before the cluster path is
+activated. Use `--set-string` (not `--set`) when overriding to avoid
+YAML bool coercion.
+
+### Auto-merge responsibility split in cluster path
+
+The spec implied auto-merge runs inside the supervisor after the
+retrospective node. In the cluster (runner-cli) path, auto-merge is
+**not wired inside the pod**. The pod's supervisor completes the graph
+and pushes the branch; then the `loretask-watcher` creates the PR and
+calls `tryAutoMergeForCompletedTask`. Triggering a merge from inside
+the pod would race the watcher (the PR does not exist yet at that
+point in the workflow). The in-agent path (gap-fill / runbook)
+continues to fire auto-merge directly after the retrospective node.
+
+### FileLeaseBackend (spec said DB-only)
+
+FR1.6 specified a Postgres row-level lease. The implementation ships
+two backends behind the `LeaseBackend` interface
+(`agent/src/supervisor/lease.ts`):
+
+- **`DbLeaseBackend`** — CTE-based atomic acquire with takeover
+  detection. Used when `LORE_DB_HOST` is set (GKE cluster pods).
+- **`FileLeaseBackend`** — JSON files under `~/.lore/leases/`,
+  URL-encoded branch name as filename. Used by the local runner when
+  no `LORE_DB_HOST` is configured.
+
+Both expose identical `LeaseBackend` interface and OTEL spans. The
+supervisor selects the backend at startup.
+
+### Auto-merge: `deferred:no_changes` outcome (not in spec)
+
+The spec listed seven deferral reasons. The implementation adds an
+eighth: **`deferred:no_changes`** fires when `changedPaths` is empty.
+A zero-file PR technically passes the path-allowlist check (vacuous
+truth) but GitHub's merge call would 422. This surfaces the real
+reason in the audit log.
+
+Full outcome set: `merged`, `deferred:human_review`,
+`deferred:ci_failed`, `deferred:bot_changes_requested`,
+`deferred:path_outside_allowlist`, `deferred:trust_too_low`,
+`deferred:dark_mode_off`, `deferred:no_changes`, `deferred:api_failure`.
+
+### `notify` default corrected
+
+The spec said the default `notify` list when dark mode is on is
+`[escalation]`. The implementation resolves to `[]` (empty list).
+The `decideNotify()` helper always fires the escalation channel
+regardless of the notify list — listing `escalation` explicitly was
+redundant. Setting the default to `[]` removes the duplicate signal
+without changing behavior.
+
+### Workflow file location
+
+The spec said workflow files live "in a directory parallel to
+`scripts/task-types.yaml`." The actual location is
+`agent/src/workflows/*.yaml`. The files are compiled into the
+`claude-runner` Docker image at `/app/dist/workflows/` (alongside the
+TypeScript sources). The `runner-cli` resolves the dir relative to
+`import.meta.url`; `TASK_TYPES_PATH` env overrides the
+`task-types.yaml` path independently.
+
+### Shipped workflows (3 of 7 planned)
+
+FR2.4 listed seven flows to migrate. Phase 1 shipped:
+- `gap-fill` — draft → validate → push → retrospective → done
+- `general` — implement → validate → push → review → retrospective → done
+- `implementation` — implement ⇄ validate (1 retry) → push → review
+  ⇄ address (2 iterations) → retrospective → done
+
+Deferred to follow-up: `runbook`, `review`, `feature-request`, `onboard`.
+
+### Builtin handler stubs
+
+The `validate`, `gate`, and `retrospective` node handlers in
+`builtinHandlers` (`graph-executor.ts`) currently return
+`outcome: "success"` unconditionally. They are structural
+placeholders until associated tasks land:
+
+- `validate` — T032 wires actual lint/typecheck hooks
+- `gate` — T021 plugs in `auto_merge_eligible` and other conditions
+- `retrospective` — episode-writer integration lands alongside the
+  auto-merge watcher hook
+
+Until those tasks land, every node of these types is a no-op commit
+carrier. The executor logic and lease refresh work correctly; the
+handler bodies are not yet wired.
+
+### Runner-CLI exit code matrix
+
+The pod entry point (`runner-cli.ts`) exits with typed codes consumed
+by `entrypoint.sh` and `loretask-watcher`:
+
+| Code | Reason               | Meaning                                                      |
+|------|----------------------|--------------------------------------------------------------|
+| 0    | completed            | Graph walked to terminal node                                |
+| 2    | not_a_git_workdir    | `WORKDIR` has no `.git/`                                     |
+| 3    | workflow_load_failed | `loadWorkflowDir` threw (YAML parse, missing dir)            |
+| 4    | workflow_not_found   | `LORE_DARK_FACTORY_WORKFLOW` didn't match any name           |
+| 5    | lease_held           | Another pod owns the branch — clean exit                     |
+| 6    | iteration_max_exceeded | Graph aborted on a back-edge; watcher handles escalation   |
+| 7    | executor_error       | Handler threw mid-run                                        |
+| 8    | executor_pending     | Config bug (missing workflow + handlers)                     |
+| 9    | env_missing          | Required env var not set (controller misconfiguration)       |
+| 1    | uncaught exception   | Reserved for Node runtime errors                             |
+
+Non-zero is task failure; the specific code distinguishes config error
+from runtime error and drives retry-vs-needs-human-help decisions.
+
+### Graph executor safety guard
+
+The executor has a `maxNodes` safety guard (default 200 steps) that
+throws if the `exit` node is not reached within that many iterations.
+This guards against infinite loops from misconfigured back-edges that
+somehow pass cycle detection. Not in the spec's FR2.
+
+### CODEOWNERS two-key limitation (v1)
+
+`verifyApproval()` (`dark-factory-authz.ts`) checks that the label
+applier's GitHub login appears as a direct `@user` handle anywhere in
+the repo's CODEOWNERS file. **Team handles (`@org/team`) are not
+resolved** — the GitHub Teams API requires `read:org` scope and
+per-team caching, deferred to a follow-up. When CODEOWNERS contains
+only team handles, `verifyApproval` throws `TwoKeyError` with code
+`team_membership_unresolved` rather than silently passing or failing.
+Per-path CODEOWNERS tightening (only a CODEOWNER of the specific
+settings path qualifies) is also deferred.
+
+### Web-UI two-key ceremony deferred
+
+FR3.9 mentioned "an equivalent ceremony surfaced via the web-ui." That
+flow was not built in Phase 1. Operators must create the
+`dark-factory-approval` PR manually and pass the `X-Lore-Approval-PR:
+owner/repo#N` header on the settings PUT request.
+
+### Extra commit trailers
+
+`claude-code-handler` adds `Lore-CLI-Duration-Ms` to every successful
+agent-node commit, recording wall-clock time for the Claude Code
+invocation. The `Lore-Cost-Tokens` trailer described in the spec is
+**not yet captured**: `ClaudeCodeResult` does not expose token counts
+from the stream-json output; cost accounting for in-pod Claude Code
+happens via `pipeline.llm_calls` writes inside `runClaudeCode`. The
+spec's mention of `Lore-Cost-Tokens` as an optional extra is
+aspirational for a future PR.
