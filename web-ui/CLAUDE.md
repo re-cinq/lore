@@ -114,3 +114,51 @@ a file creates a new chunk row — it does **not** upsert. The detail page
 therefore shows multiple chunks for the same path if the file was ingested
 more than once; the most recent appears first with a horizontal rule separator
 between entries. There is no deduplication or "latest only" toggle.
+
+### Global `/specs` route is not in the sidebar
+
+`SidebarNav.tsx` does not include `/specs`. The global list is reachable only
+via the repo specs page breadcrumb, direct URL, or the detail page back-link.
+This was an intentional omission during the UX redesign (spec 4-ux-repo-onboarding
+FR-3.8 listed "global search, audit, and shared pools" as top-level nav items
+but did not name the specs list). Adding `/specs` to the sidebar is safe — add
+it to the `links` array in `SidebarNav.tsx` between Analytics and Search.
+
+### `repo` column stores the full `owner/repo` name
+
+The `chunks.repo` column holds the full repository name (e.g., `re-cinq/lore`),
+not just the repo slug. This affects two places in `specs/page.tsx`:
+
+- **Filter buttons** compare `repo === r.repo` where both sides are full names.
+  The URL query param is also the full name (`?repo=re-cinq/lore`).
+- **Repo link** uses `href={`/repos/${s.repo}`}` which expands to
+  `/repos/re-cinq/lore` — Next.js correctly matches this against the
+  `[owner]/[repo]` route segments.
+
+Do not change these to slug-only without updating the DB values and all other
+call sites.
+
+### Hard result caps — no pagination
+
+The global list slices to 50 after merging all schema results. The per-repo
+list uses `LIMIT 30` in SQL. There is no pagination UI on either page.
+Both caps are applied after fetching from the DB (global) or in SQL (per-repo),
+so adding a cursor or `offset` parameter is the correct extension path.
+
+### Excerpt truncation appends `...` unconditionally
+
+The global list renders `<pre>{s.excerpt}...</pre>` where `excerpt` is a
+200-char substring. The `...` is appended in JSX regardless of whether the
+content is shorter than 200 chars, producing `short content...` for small
+specs. The per-repo list does the same at 400 chars.
+
+### Original spec intended `.specify/` path filter — implementation uses content_type
+
+The UX redesign spec (FR-3.6) described the specs tab as showing "`.specify/`
+specs for this repo", implying a path-based filter. The implementation instead
+filters on `content_type = 'spec'`, which captures any chunk ingested with
+that type regardless of path. This is broader: an ingested `adrs/ADR-001.md`
+would appear in the specs list if it were ingested with `content_type = 'spec'`.
+The path-based intent was dropped when the ingestion pipeline adopted
+content-type metadata. Do not re-introduce a path filter without also updating
+the ingestion pipeline and the MCP `search_context` tool's content-type logic.
