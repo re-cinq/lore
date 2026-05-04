@@ -25,11 +25,11 @@ Legend: ✅ implemented · ⏳ deferred (live/cluster action) · 🚧 partial
 
 | Req | Requirement summary | Implementation | Test | Status |
 |-----|---------------------|----------------|------|--------|
-| FR2.1 | Workflow definitions are YAML files in `agent/src/workflows/`; no DOT/JSON/DSL | `agent/src/workflows/gap-fill.yaml`, `general.yaml`, `implementation.yaml` | `agent/src/__tests__/loader.test.ts` schema validation | ✅ T012 T013 T030 T031 |
-| FR2.2 | Graph expresses: typed nodes (agent/validate/gate/retrospective), conditional edges (success/changes_requested/failed/always), entry/exit | `agent/src/workflow/loader.ts` Zod schema (per `contracts/workflow-yaml-schema.md`) | `loader.test.ts` cycle-detection + edge-condition cases | ✅ T012 |
+| FR2.1 | Workflow definitions are YAML files in `agent/src/workflows/`; no DOT/JSON/DSL | `agent/src/workflows/gap-fill.yaml`, `general.yaml`, `implementation.yaml` | `agent/src/__tests__/workflow-loader.test.ts` schema validation | ✅ T012 T013 T030 T031 |
+| FR2.2 | Graph expresses: typed nodes (agent/validate/gate/retrospective), conditional edges (success/changes_requested/failed/always), entry/exit | `agent/src/workflow/loader.ts` Zod schema (per `contracts/workflow-yaml-schema.md`) | `workflow-loader.test.ts` cycle-detection + edge-condition cases | ✅ T012 |
 | FR2.3 | Local runner and GKE supervisor interpret the same YAML definition file | `agent/src/supervisor/runner-cli.ts` loads from `/app/dist/workflows/`; `local-runner.ts` will load from same package (T058 deferred — legacy path still active locally) | Integration confirmed by `runner-cli.ts` + `graph-executor.ts` shared import | 🚧 T058 deferred |
 | FR2.4 | Existing flows (gap-fill, general, implementation) migrated to YAML without behavior change | `gap-fill.yaml` · `general.yaml` · `implementation.yaml`; review/feature-request/onboard remain on legacy path pending T058 | Workflow loader unit tests | ✅ (core 3 flows) |
-| FR2.5 | New flow = new YAML + new agent prompts; no supervisor/runner code changes | `loadWorkflowDir()` auto-discovers `*.yaml` in the workflows directory | `loader.test.ts` "loads all files in dir" | ✅ T012 |
+| FR2.5 | New flow = new YAML + new agent prompts; no supervisor/runner code changes | `loadWorkflowDir()` auto-discovers `*.yaml` in the workflows directory | `workflow-loader.test.ts` "loads all files in dir" | ✅ T012 |
 
 ---
 
@@ -37,7 +37,7 @@ Legend: ✅ implemented · ⏳ deferred (live/cluster action) · 🚧 partial
 
 | Req | Requirement summary | Implementation | Test | Status |
 |-----|---------------------|----------------|------|--------|
-| FR3.1 | `settings.dark_factory.enabled` (default `false`) gates all dark-factory behavior changes | `mcp-server/src/dark-factory-settings.ts` `resolveSettings()` defaults `enabled: false` | `agent/src/__tests__/dark-factory.test.ts` "Opt-out posture matrix" | ✅ T016 T044 |
+| FR3.1 | `settings.dark_factory.enabled` (default `false`) gates all dark-factory behavior changes | `shared/src/dark-factory-settings.ts` (canonical types + resolver, `@re-cinq/lore-shared`) · `mcp-server/src/dark-factory-settings.ts` (Zod parse + `twoKeyFieldsTouched`) | `agent/src/__tests__/dark-factory.test.ts` "Opt-out posture matrix" | ✅ T016 T044 |
 | FR3.2 | `create_issue`: `never \| on_gate \| always`; default when dark-on: `on_gate` | `dark-factory-settings.ts` Zod enum + `agent/src/lib/dark-factory.ts` `decideIssueCreate()` | `dark-factory.test.ts` "approval_required wins over with_issue:false" | ✅ T016 T019 |
 | FR3.3 | `auto_merge` block: path allowlist, min trust, CI requirement, bot-approval requirement; defaults: `specs/**`, `adrs/**`, `*.md`, `CLAUDE.md`, `.claude/**`; min trust `docs` | `dark-factory-settings.ts` + `agent/src/lib/path-match.ts` `allPathsMatch()` + `agent/src/jobs/auto-merge.ts` `evaluateAutoMerge()` | `auto-merge.test.ts` full decision matrix | ✅ T016 T020 T021 |
 | FR3.4 | `review`: `trust_based \| always \| never`; outside-allowlist PRs → bot posts + waits for human; no time-based fallback in v1 | `dark-factory.ts` `decideReviewMode()` + `resolveReviewMode()`; `evaluateAutoMerge()` emits `deferred:path_outside_allowlist` | `dark-factory.test.ts` review-mode matrix | ✅ T034 |
@@ -45,7 +45,7 @@ Legend: ✅ implemented · ⏳ deferred (live/cluster action) · 🚧 partial
 | FR3.6 | Per-task overrides (`human_review: required`, `with_issue: true`, `notify: completion`) override repo settings for one task | `pipeline.tasks.dark_factory_overrides` JSONB column; `decideIssueCreate()` / `decideReviewMode()` consult `task.dark_factory_overrides` before repo settings | `dark-factory.test.ts` per-task override cases | ✅ T004 T019 T034 |
 | FR3.7 | Auto-merge decisions recorded in `pipeline.audit_log` with path-match, trust, CI-status, bot-review attributes | `auto-merge.ts` `evaluateAndMerge()` writes `auto_merge_decision` entry; OTEL span `lore.auto_merge.decision` carries all attributes | `auto-merge.test.ts` "writes audit entry on merge and on deferral" | ✅ T021 T023 |
 | FR3.8 | Escalation Issues contain: task description, branch link, failing phase output, supervisor diagnostic, contributing facts/memories links | `agent/src/lib/escalation.ts` `renderEscalationBody()` + `escalate()` | `agent/src/__tests__/escalation.test.ts` "renderEscalationBody includes all required fields" | ✅ T039 T040 T041 T042 |
-| FR3.9 | Privileged settings (enabled toggle, auto_merge.paths, require_* downgrades) need admin scope + CODEOWNERS-approval PR ceremony; lighter settings need admin scope only; every mutation writes audit entry | `mcp-server/src/dark-factory-authz.ts` `verifyApproval()` + `mcp-server/src/routes.ts` PUT handler + `twoKeyFieldsTouched()` | `mcp-server/src/__tests__/dark-factory-authz.test.ts` | ✅ T017 T018 |
+| FR3.9 | Privileged settings (enabled toggle, auto_merge.paths, require_* downgrades) need admin scope + CODEOWNERS-approval PR ceremony; lighter settings need admin scope only; every mutation writes audit entry | `mcp-server/src/dark-factory-authz.ts` `verifyApproval()` + `mcp-server/src/routes.ts` PUT handler + `twoKeyFieldsTouched()` | `mcp-server/src/__tests__/dark-factory-authz.test.ts` (`parsePrRef`, `isCodeowner`, `verifyApproval` — all error codes + happy path) | ✅ T017 T018 |
 
 ---
 
