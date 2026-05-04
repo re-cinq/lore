@@ -4,9 +4,9 @@ Resolves the deferred items from `/speckit.clarify` (perf targets, GitHub failur
 
 ## R1: Path-allowlist matching semantics
 
-**Decision:** `minimatch` (glob syntax: `specs/**`, `*.md`, `.claude/**`).
+**Decision:** Glob-based pattern matching (via `minimatch` library) against the full PR changeset. Patterns are evaluated with `dot: true` (allows `.*` to match dotfiles), `matchBase: false` (no implicit `**` prefix), `nocase: false` (case-sensitive, matching GitHub's filesystem).
 
-**Rationale:** Already a transitive dep via several tools in the workspace; expressive enough for the planned defaults; well-known to operators editing `auto_merge.paths`. Prefix-only matching (`startsWith`) was rejected because `*.md` is a critical default and prefix matching can't express it without enumeration.
+**Examples:** `specs/**` matches all files under `specs/` recursively; `*.md` matches top-level Markdown; `.claude/**` matches all files under `.claude/` including dotfiles.
 
 **Alternatives considered:** prefix match (rejected — too weak for `*.md`), regex (rejected — operator-hostile), CODEOWNERS-style match (rejected — overlaps confusingly with the AuthZ ceremony).
 
@@ -29,7 +29,7 @@ Resolves the deferred items from `/speckit.clarify` (perf targets, GitHub failur
 
 ## R3: GitHub API failure modes
 
-**Decision:** Three distinct failure classes, each handled differently.
+**Decision:** Transient failures (5xx, rate limit, mergeability checks) are retried; permanent failures are logged and the workflow continues.
 
 | Failure | Behavior |
 |---|---|
@@ -45,25 +45,48 @@ Resolves the deferred items from `/speckit.clarify` (perf targets, GitHub failur
 
 **Rate limit budget:** Today's bot uses ~200 GitHub API calls per task. Auto-merge adds ~3 calls (mergeability, merge, post-merge status). At 50 dark-mode tasks/day, ~150 extra calls/day — well under the 5000 calls/hour App-installation limit.
 
-## R4: Web-ui stage timeline rendering
+## R4: Auto-merge deferral outcomes
 
-**Decision:** Vertical timeline using existing TailwindUI/shadcn primitives. Each row = one stage commit with: stage name, node type icon, duration, outcome badge, commit SHA link, attempt count.
+**Decision:** Eight enumerated deferral reasons (plus success/rejection). The supervisor writes a `auto_merge_decision` audit entry in all cases (success, rejection, deferral).
 
-**Rationale:** Matches existing styling in `web-ui/src/app/pipeline/[id]/`. No new chart library. SHA links open the GitHub commit in a new tab. A "live" mode (auto-refresh every 10s) covers in-flight tasks; once `Lore-Stage: retrospective` lands, polling stops.
+| Outcome | Next step |
+|---|---|
+| `merged` | Close related Issue (if any); task complete |
+| `rejected:paths` | Write decision; do not merge |
+| `rejected:trust` | Write decision; do not merge |
+| `deferred:api_failure` | Log and let human handle |
+| `deferred:no_changes` | Log and let human handle |
+| `deferred:not_mergeable` | Log and let human handle |
+| `deferred:draft` | Log and let human handle |
+| `deferred:unknown` | Log and let human handle |
 
-**Alternatives considered:** Mermaid diagram rendering (rejected — overkill for linear/small graphs; reconsider for graph editor in a follow-up spec), force-directed graph (rejected — same).
+**Rationale:** Deferral is not a failure — it's a "come back later" state that doesn't block the workflow. Rejection is terminal and authoritatively closes the auto-merge path.
 
-**Failure cases:**
-- Branch deleted: timeline shows last cached state with "branch deleted" banner.
-- Trailer parse failure on a commit: row shows "unstructured" label; non-fatal.
+## R5: Commit trailer format
 
-## R5: OTEL span schema
+**Decision:** `Lore-Auto-Merge-Decision: <outcome>`. If outcome is a deferral or rejection, include `Reason: <detail>` on the next line.
 
-**Decision:** Three new span types under existing `lore.*` namespace.
+**Example:**
+```
+Lore-Auto-Merge-Decision: rejected:trust
+Reason: trust_level "low" does not meet min_trust "high"
+```
 
-```text
-lore.stage                    # one per workflow node executed
-  attrs: stage_name, node_type, iteration, commit_sha, outcome,
+**Rationale:** Machine-parseable, short header name, Lore-namespaced to avoid collisions.
+
+## R6: Merge safety: timing and commit SHA
+
+**Decision:** Auto-merge decision is calculated after the PR reviewers have signed off, via the `pull_request.synchronize` hook. If new commits arrive between the decision and the actual merge, the merge may fail due to changed mergeability — this is correct behavior (human can review new commits). The decision's commit SHA is recorded in the audit log for audit trail traceability.
+
+**Rationale:** GitHub's mergeability is ephemeral and depends on branch protection rules, CI status, and base branch state. Capturing the SHA ensures we know exactly which version we decided to merge, and the merge API will reject if the head has advanced.
+
+## R7: OpenTelemetry span structure
+
+**Decision:** The supervisor emits the following span hierarchy:
+
+```
+lore.task (created at task start)
+  lore.stage                    # one per workflow node executed
          task_id, repo, workflow_name
   parent: lore.task
 
@@ -74,7 +97,7 @@ lore.lease.{acquire|refresh|release}
 
 lore.auto_merge.decision
   attrs: pr_number, repo, decision, rule, trust_level,
-         path_match_count, ci_status, bot_review_state
+         commit_sha, outcome, deferral_reason
   parent: lore.task
 ```
 
@@ -83,22 +106,6 @@ lore.auto_merge.decision
 **Rationale:** Inherits existing `lore.task` parent; trace IDs propagate from task creation through merge for end-to-end correlation in Cloud Monitoring. Span names use snake_case to match existing convention.
 
 **Cardinality budget:** Each implementation task emits ~5 stage spans + ~5 lease spans + 1 decision span = ~11 spans per task. At 100 tasks/day = 1100 spans/day, negligible.
-
-## R6: Performance targets
-
-**Decision:**
-
-- Supervisor startup (lease acquire + load graph + parse `git log`) ≤ 5s (FR1.6 implies this for pod-death recovery).
-- Stage commit → next-stage start ≤ 2s for non-LLM nodes (validate, gate, retrospective).
-- Auto-merge engine end-to-end (PR open → merged) ≤ 60s assuming green CI.
-- Lease reaper tick: 60s.
-- Timeline API: ≤ 500ms p95 for ≤ 50-commit branches.
-
-**Rationale:** Targets are loose enough to be achievable on first iteration without optimization theatre but tight enough to keep the dark-factory feel ("it just merges") credible. Anything slower starts to look like "watch me work" again.
-
-## R7: Bot-review-disagreement handling (was deferred)
-
-**Decision:** Out of scope for v1. Today's flow has a single Haiku reviewer, so there's no disagreement to handle. When parallel red-team agents land in a follow-up spec, that spec will define consensus rules. The current single-verdict path (`APPROVED | CHANGES_REQUESTED`) is preserved.
 
 ## R8: Workflow YAML schema details
 
@@ -128,9 +135,7 @@ lore.auto_merge.decision
 
 **Rationale:** Reuses GitHub's existing review machinery; no new approval system. A PR is auditable, revertable, and CODEOWNERS already protects sensitive paths.
 
-**Alternatives considered:** Two-person rule via approval API endpoint (rejected — new approval surface to maintain), Slack-button approval (rejected — no audit trail).
-
-## R10: Migration sequence
+## R10: Backwards compatibility on rollout
 
 **Decision:** Schema migration first (Task 1.1), then code deploys default `dark_factory.enabled = false`. Existing repos behave identically until explicitly opted in via the settings ceremony. Pilot rollout (Task 5.3) on three trust-tiered repos for 14 days each before any default change.
 
