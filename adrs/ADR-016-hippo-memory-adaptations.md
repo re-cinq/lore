@@ -84,7 +84,7 @@ UPDATE memory.memories
 SET retrieval_count   = retrieval_count + 1,
     last_retrieved_at = now(),
     half_life_days    = LEAST(COALESCE(half_life_days, 60) + 2, 365)
-WHERE key = ANY($1) AND agent_id = ANY($2)
+WHERE id = ANY($1)
 ```
 
 To propagate fact IDs, `f.id` and `f.confidence` are now returned
@@ -149,9 +149,9 @@ record is still queryable via SQL if needed.
 
 ```typescript
 const PORTABLE_KEYWORDS = ['error', 'pattern', 'gotcha', 'rule',
-  'convention', 'best-practice', 'anti-pattern', 'migration'];
+  'convention', 'best-practice', 'anti-pattern'];
 const LOCAL_KEYWORDS = ['config', 'deploy', 'url', 'auth',
-  'secret', 'env', 'port', 'hostname', 'endpoint', 'cron'];
+  'secret', 'env', 'port', 'hostname', 'endpoint'];
 
 export function computeTransferScore(text: string): number {
   let score = 0.5;
@@ -209,8 +209,8 @@ const halfLife       = memory.half_life_days || 60;
 const lastActive     = memory.last_retrieved_at || memory.created_at;
 const daysSinceActive = (Date.now() - new Date(lastActive).getTime()) / 86_400_000;
 const strength       = Math.pow(0.5, daysSinceActive / halfLife);
-// strength (0-1) mapped to a -5 to +2 modifier:
-score += Math.round(strength * 7) - 5;
+// strength (0-1) mapped directly to score (0-10):
+let score = Math.round(strength * 10);
 ```
 
 Additional modifiers (unchanged from ADR-014):
