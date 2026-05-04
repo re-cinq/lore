@@ -6,15 +6,16 @@
 | Branch       | 1-lore-platform                                 |
 | Spec         | [spec.md](spec.md)                              |
 | Constitution | [constitution.md](../../.specify/memory/constitution.md) |
-| Status       | Shipped — Phases 0–3 complete with architectural pivots |
+| Status       | Shipped — Phases 0–4 complete with architectural pivots |
 | Created      | 2026-03-25                                      |
-| Updated      | 2026-04-13                                      |
+| Updated      | 2026-05-04                                      |
 
 ## Architectural Pivots
 
-Three major technologies were replaced during implementation. The original
-plan referenced Klaus, Beads/Dolt, and Graphiti/FalkorDB. All three were
-swapped for alternatives before reaching production.
+Five major technologies or architectural patterns were replaced or superseded
+during implementation. The original plan referenced Klaus, Beads/Dolt,
+Graphiti/FalkorDB, and an implicit hardcoded job chain. All were swapped
+for alternatives before reaching production.
 
 | Original Plan | Replacement | ADR |
 |---------------|-------------|-----|
@@ -23,6 +24,9 @@ swapped for alternatives before reaching production.
 | Graphiti + FalkorDB | Live knowledge graph in PostgreSQL (`memory.entities` + `memory.edges`) | — |
 | Context Cores as OCI bundles | YAML context assembly templates (`mcp-server/templates/`) | — |
 | `specify-cli` | `/lore-feature` skill (interactive spec loop) | — |
+| Implicit hardcoded job chain (`loretask-watcher` → `review-reactor` → `local-runner`) | Declarative YAML workflow graphs (`agent/src/workflows/*.yaml`) driven by `agent/src/supervisor/graph-executor.ts` | ADR-016 |
+| Task state spread across CR / DB / Issue / PR | Branch-as-durable-state via `Lore-Stage:`/`Lore-Task:` commit trailers + `pipeline.task_leases` | ADR-016 |
+| GitHub Issue per pipeline task (max chatter) | Issues only for exception surfaces (approval gates, escalations); PR is canonical artifact | ADR-016 |
 
 ## Technical Context
 
@@ -57,6 +61,12 @@ swapped for alternatives before reaching production.
 | Spec Drift         | Lore Agent `spec-drift.ts` CronJob | 3 |
 | Autoresearch       | Lore Agent `autoresearch.ts` CronJob | 3 |
 | Memory Lifecycle   | `memory-lifecycle.ts` — importance decay + consolidation | 3 |
+| Dark Factory mode  | Per-repo opt-out gates, branch-as-state, declarative YAML workflow graphs | 4 |
+| Workflow supervisor | `agent/src/supervisor/` — graph executor, lease management, pod-death resume | 4 |
+| Shared package     | `@re-cinq/lore-shared` (`shared/src/`) — commit trailers, dark-factory types, redact | 4 |
+| Auto-merge engine  | `agent/src/jobs/auto-merge.ts` — path-allowlist + CI-gate + trust-tier merge | 4 |
+| Review reactor     | `agent/src/jobs/review-reactor.ts` — webhook-driven (replaces polled cron path) | 4 |
+| Two-key AuthZ      | `mcp-server/src/dark-factory-authz.ts` — CODEOWNERS-approval PR ceremony | 4 |
 
 ### Key Dependencies (As Built)
 
@@ -78,8 +88,9 @@ re-cinq/lore/
 ├── CLAUDE.md
 ├── AGENTS.md
 ├── CODEOWNERS
-├── adrs/
+├── adrs/                     # MADR ADRs; ADR-016 covers Dark Factory mode
 ├── runbooks/
+│   └── dark-factory-rollback.md  # rollout, rollback, pilot procedure, audit-log queries
 ├── teams/
 │   ├── payments/CLAUDE.md
 │   ├── platform/CLAUDE.md
@@ -90,20 +101,54 @@ re-cinq/lore/
 ├── mcp-server/
 │   ├── src/
 │   │   ├── index.ts          # MCP server entrypoint, 30+ tools
-│   │   ├── routes.ts         # HTTP API route handlers
+│   │   ├── routes.ts         # HTTP API route handlers + /api/repos/:o/:r/settings/dark-factory
 │   │   ├── context-assembly.ts
 │   │   ├── github-client.ts  # GitHub App + token auth
 │   │   ├── local-runner.ts   # Local task runner (worktrees)
 │   │   ├── session-tracker.ts
 │   │   ├── repo-validation.ts
+│   │   ├── repo-validation-cli.ts  # CLI wrapper for K8s Job pods
+│   │   ├── dark-factory-settings.ts  # Zod schema + resolveSettings() + twoKeyFieldsTouched()
+│   │   ├── dark-factory-authz.ts     # verifyApproval() CODEOWNERS-approval PR ceremony
 │   │   └── graph.ts          # Knowledge graph (PostgreSQL-backed)
 │   ├── templates/            # YAML context assembly templates
 │   └── package.json
+├── shared/                   # @re-cinq/lore-shared workspace package
+│   └── src/
+│       ├── commit-trailers.ts  # formatTrailers / parseTrailers / lastStageOnBranch
+│       ├── dark-factory-settings.ts  # canonical DF types + resolveSettings()
+│       ├── redact.ts
+│       ├── tasks.ts
+│       └── types.ts
 ├── agent/
 │   └── src/
 │       ├── platform.ts       # CodePlatform interface
 │       ├── github.ts         # GitHubPlatform implementation
+│       ├── anthropic.ts      # callLLM / callLLMWithTool + prompt-cache integration
 │       ├── worker.ts         # Job execution orchestration
+│       ├── health.ts         # POST /api/trigger/review-reactor endpoint
+│       ├── supervisor/
+│       │   ├── graph-executor.ts   # walks workflow YAML, dispatches handlers, stage commits
+│       │   ├── lease.ts            # DbLeaseBackend + FileLeaseBackend
+│       │   ├── runner-cli.ts       # Job pod CLI entry point (LORE_DARK_FACTORY_WORKFLOW)
+│       │   ├── claude-code-handler.ts  # agent-node handler (spawns claude --print)
+│       │   └── handlers.ts         # validate / gate / retrospective handlers
+│       ├── workflows/
+│       │   ├── gap-fill.yaml
+│       │   ├── general.yaml
+│       │   └── implementation.yaml
+│       ├── workflow/
+│       │   └── loader.ts           # Zod schema, cycle detection, reachability check
+│       ├── lib/
+│       │   ├── audit.ts            # writeAuditLog() for pipeline.audit_log
+│       │   ├── business-hours.ts   # IANA-TZ-aware gate for safety crons
+│       │   ├── dark-factory.ts     # decideIssueCreate() / resolveReviewMode()
+│       │   ├── episode-writer.ts   # shared episode writer + Haiku auto-curation
+│       │   ├── escalation.ts       # escalate() → needs-human-help Issue
+│       │   ├── notify.ts           # decideNotify() channel filter
+│       │   ├── path-match.ts       # allPathsMatch() minimatch wrapper
+│       │   ├── pr-body.ts          # prFooter() Lore-Task trailer composer
+│       │   └── prompt-cache.ts     # getCacheControl() + analyzeCacheBreak()
 │       └── jobs/
 │           ├── reindex.ts
 │           ├── gap-detect.ts
@@ -112,7 +157,11 @@ re-cinq/lore/
 │           ├── context-core-builder.ts
 │           ├── merge-check.ts
 │           ├── memory-lifecycle.ts
-│           └── loretask-watcher.ts
+│           ├── loretask-watcher.ts
+│           ├── auto-merge.ts           # evaluateAutoMerge() + evaluateAndMerge()
+│           ├── dark-factory-baseline.ts # 30-day counter snapshot for SC1/SC4/SC6
+│           ├── lease-reaper.ts         # 60s tick, evicts leases >5min past expiry
+│           └── review-reactor.ts       # reviewReactorJob (cron) + runReviewReactorForPR (webhook)
 ├── web-ui/                   # Next.js UI
 ├── scripts/
 │   ├── install.sh
@@ -465,6 +514,136 @@ Opt-in per repo via `auto_review` setting:
 - Post-task auto-curation produces `auto-curation/*` memories after
   every task completion.
 
+### Phase 4: Dark Factory Mode — COMPLETE
+
+Phase 4 introduced per-repo opt-out human gates, branch-as-durable-state
+semantics, declarative YAML workflow graphs, two-key authorization for
+privileged settings, and an auto-merge engine for path-allowlisted PRs.
+Landed 2026-04-28 via ADR-016.
+
+#### What Was Built
+
+**Branch-as-durable-state (FR1)**
+
+Every workflow phase ends with a git commit carrying structured trailers:
+`Lore-Stage:`, `Lore-Iteration:`, `Lore-Task:`, plus optional
+`Lore-Outcome:` and `Lore-Cost-Tokens:`. The branch is the audit trail.
+A supervisor pod that dies resumes by reading `git log` — no DB
+checkpoints, no CR status sync. Trailers are emitted unconditionally for
+both dark-mode and opt-out repos.
+
+Concurrency enforced by `pipeline.task_leases` (Postgres CTE-based atomic
+acquire). A second supervisor exits cleanly if the lease is held. Takeover
+after expiry writes a `lease_expired` audit entry. `lease-reaper.ts`
+(60-second tick) evicts leases more than 5 minutes past TTL.
+
+Trailer helpers exported from `@re-cinq/lore-shared`
+(`shared/src/commit-trailers.ts`): `formatTrailers()`, `parseTrailers()`,
+`lastStageOnBranch()`.
+
+**Declarative YAML workflow graphs (FR2)**
+
+`agent/src/workflows/*.yaml` define `agent`, `validate`, `gate`, and
+`retrospective` nodes with `success | changes_requested | failed | always`
+edge conditions. Cycles require `iteration_max`. `workflow/loader.ts`
+validates with Zod, detects cycles (DFS coloring), checks reachability.
+
+`agent/src/supervisor/graph-executor.ts` (`executeGraph()`) walks from
+`entry`, dispatches per-node-type handlers, emits stage commits
+(allow-empty for non-file-changing nodes), refreshes lease per node.
+Resume semantics: reads last `Lore-Stage:` trailer and follows the
+outcome-matching outgoing edge.
+
+`agent/src/supervisor/runner-cli.ts` is the Job pod CLI entry point when
+`LORE_DARK_FACTORY_WORKFLOW` is set. Loads workflows from
+`/app/dist/workflows/`, drives the supervisor, exits with a documented
+matrix (0/2/3/4/5/6/7/8/9) consumed by `entrypoint.sh`.
+
+`agent/src/supervisor/claude-code-handler.ts` is the agent-node handler
+for the cluster path; spawns `claude --print`, maps non-zero exit →
+`cli-nonzero`, thrown errors → `cli-error`.
+
+**Opt-out human gates (FR3)**
+
+Per-repo `lore.repos.settings.dark_factory` block:
+- `enabled` (default false), `create_issue` (never/on_gate/always)
+- `auto_merge.{paths, min_trust, require_green_ci, require_bot_approval}`
+- `review` (trust_based/always/never), `notify` ([escalation])
+
+Two-gate enablement: per-repo flag AND
+`LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the agent deployment. Either
+gate off → legacy `claude --print` path. Prevents the helm flag from
+outpacing the `claude-runner` image.
+
+Canonical types and `resolveSettings()` defaults live in
+`@re-cinq/lore-shared` (`shared/src/dark-factory-settings.ts`) so agent,
+mcp-server, and Job pod runner share one source.
+
+GitHub Issues narrow to exception surfaces: approval-gated tasks,
+on-the-fly escalations (`needs-human-help`), or
+`create_issue: always` override.
+
+**Auto-merge engine**
+
+`agent/src/jobs/auto-merge.ts`: pure `evaluateAutoMerge()` decision +
+`evaluateAndMerge()` end-to-end with backoff. Outcome enum captures 7
+deferral reasons + `merged`. OTEL span `lore.auto_merge.decision` records
+the rule trace. Runs after `[stage:retrospective]` for gap-fill/runbook
+tasks. Conditions: green CI + bot APPROVED + every changed path matches
+allowlist + trust ≥ `min_trust`.
+
+`agent/src/jobs/dark-factory-baseline.ts`: pre-feature 30-day counter
+snapshot per repo written to `pipeline.dark_factory_baseline` for
+SC1/SC4/SC6 delta comparisons.
+
+**Two-key authorization (FR3.9)**
+
+Privileged settings changes — `dark_factory.enabled`, `auto_merge.paths`,
+downgrade of `require_green_ci`/`require_bot_approval` — require admin
+token AND an open PR labeled `dark-factory-approval` by a CODEOWNERS
+member of the repo's `CLAUDE.md`. `mcp-server/src/dark-factory-authz.ts`
+validates via Octokit. All mutations write `dark_factory_setting_changed`
+audit entries.
+
+**Review reactor (event-driven)**
+
+`agent/src/jobs/review-reactor.ts` is now webhook-driven. GitHub webhooks
+arrive at mcp-server, which POSTs `{repo, pr_number}` to
+`POST /api/trigger/review-reactor` on the agent (`health.ts`), authenticated
+via `LORE_AGENT_INTERNAL_TOKEN`. Agent returns 202 and runs
+`runReviewReactorForPR` in the background. A business-hours safety cron
+(`7 7-17 * * 1-5` UTC, gated by `isBusinessHours()` in
+`agent/src/lib/business-hours.ts`) catches any dropped webhook deliveries.
+
+**Prompt caching on agent LLM calls**
+
+`agent/src/anthropic.ts` uses `getCacheControl(jobName)` from
+`agent/src/lib/prompt-cache.ts` to place two cache breakpoints per
+request — one on the system block, one on the tool schemas. Returns
+`{type: "ephemeral", ttl: "1h"}` for jobs in `LORE_CACHE_1H_JOBS`
+allowlist, `{type: "ephemeral"}` (5m) otherwise. Emits
+`cache hit | first-call | break:system | break:tools | break:ttl(Nm)` on
+existing log lines. `response.usage.cache_*` feeds cost accounting.
+
+**New database tables (strictly additive)**
+
+- `pipeline.task_leases` — supervisor concurrency
+- `pipeline.dark_factory_baseline` — SC delta counters
+- `pipeline.audit_log` — every privileged mutation and auto-merge decision
+
+All migrations use `IF NOT EXISTS`; `dark_factory.enabled` defaults to
+false at migration time.
+
+**Phase 4 Verification:**
+- Two-gate enablement: per-repo off → legacy path; cluster off → legacy path.
+- Pod-death resume: kill supervisor mid-stage; replacement resumes from `git log`.
+- Auto-merge: green CI + allowlist path + trust ≥ min_trust → squash-merge.
+- Two-key authZ rejects privileged settings change without ceremony PR.
+- Lease reaper evicts stale leases after 5-minute grace window.
+- Deferred (pilot, T059): live SC1–SC7 verification across 14-day pilot on 3 repos.
+
+---
+
 ## Open Items
 
 | Item | Severity | Notes |
@@ -474,6 +653,9 @@ Opt-in per repo via `auto_review` setting:
 | Context Core OCI promotion | Low | `context-core-builder.ts` exists; OCI artifact push and `crane pull` in install.sh not wired |
 | Graphiti + FalkorDB deployment | Low | `scripts/graphiti/ontology.yaml` exists; deployment deferred indefinitely |
 | Langfuse dependency in autoresearch | Low | `autoresearch.ts` reads gap signals from Langfuse (`LANGFUSE_PK/SK/HOST`). If Langfuse is not configured, the autoresearch loop silently skips. Cloud Monitoring gap metrics (`lore/gap_candidates`) are written but not consumed by autoresearch. |
+| Dark Factory pilot SC1–SC7 verification | High | Live acceptance-criteria checks deferred to T059 (pilot). Three repos must pass 14 days each before T058 (legacy code deletion). |
+| Legacy local-runner code deletion (T058) | Medium | Planned post-pilot follow-up. Gated on 3 pilot repos passing SC1–SC7 over 14 days (SC8). |
+| Dark Factory cluster gate helm flag | Medium | Use `--set-string` not `--set` for `LORE_DARK_FACTORY_CLUSTER_ENABLED` to avoid YAML bool coercion. Must stay in sync with `claude-runner` image shipping `/app/dist/`. |
 
 ## Risk Register
 
@@ -485,6 +667,10 @@ Opt-in per repo via `auto_review` setting:
 | Context Core OCI promotion gap | Medium | Low | Current YAML templates serve context adequately; OCI adds distribution, not quality |
 | Knowledge graph depth limited without Graphiti | Medium | Low | Flat PostgreSQL graph covers most use cases; temporal traversal is Phase 3+ |
 | Developer adoption friction | High | Medium | Phase 0 gate enforced; lore-doctor diagnoses issues |
+| Dark Factory misconfiguration blast radius | High | Low | Two-key AuthZ, path allowlist, trust ramp, default-off, every mutation audited |
+| Helm bool coercion on cluster gate | Medium | Medium | Use `--set-string` for `LORE_DARK_FACTORY_CLUSTER_ENABLED`; documented in CLAUDE.md and runbook |
+| Agent branch history rewriting invalidates audit trail | High | Low | Agents enforce by construction (no `--amend`, no force-push); documented constraint |
+| GitHub API budget growth from auto-merge | Low | Low | ~+150 calls/day at 50 dark-mode tasks; well under 5000/hour installation limit |
 
 ## Critical Path
 
@@ -495,11 +681,14 @@ PR template (Phase 0 Day 1)
       → context eval accuracy (Phase 1)
         → gap detection value (Phase 2)
           → autoresearch loop (Phase 3)
+            → dark factory pilot SC1–SC7 (Phase 4 / T059)
+              → legacy code deletion (T058)
 ```
 
 PR description quality is the foundation. Without rich alternatives-rejected
 sections in PRs, the ingested content is thin and gap detection finds nothing
-to improve.
+to improve. Phase 4 adds a second gate: the pilot's SC1–SC7 verification must
+pass before the legacy local-runner paths can be deleted.
 
 ## Generated Artifacts
 
