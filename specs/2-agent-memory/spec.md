@@ -6,14 +6,17 @@
 | Branch         | 2-agent-memory                              |
 | Status         | Shipped                                     |
 | Created        | 2026-03-29                                  |
-| Updated        | 2026-04-20 (post-ship drift correction)     |
+| Updated        | 2026-05-04 (second drift correction)        |
 | Owner          | Platform Engineering                        |
 
-> **Note:** This spec was updated after shipping to reflect the actual
-> implementation. Several features from the original design were not
-> exposed as MCP tools (shared pools, snapshots), and several
-> capabilities were added beyond the original scope (episodes, knowledge
-> graph, confidence tiers, retrieval strengthening, decay/consolidation).
+> **Note:** This spec was updated twice after shipping.
+> The first correction (2026-04-20) documented that shared-pool and
+> snapshot MCP tools were not exposed, and recorded capabilities added
+> beyond the original scope.
+> The second correction (2026-05-04) fixed four remaining inaccuracies
+> found during a live-code audit: `write_episode` parameter names,
+> `query_graph` parameter names, the `memories.pool` column type, and
+> the `agent_stats` return shape.
 > See the [Divergences from Original Design](#divergences-from-original-design)
 > section for a full accounting.
 
@@ -100,27 +103,52 @@ available to agents. They are the authoritative interface.
 
 ### Episode Ingestion
 
-- **`write_episode(text, agent_id?, repo?, source?)`** — ingests raw
+- **`write_episode(content, agent_id?, source?, ref?)`** — ingests raw
   text (conversation turns, code reviews, observations). Fact
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
   (cosine similarity >= 0.92). Does not require the agent to
   structure the input — unstructured prose is fine.
+  - `content` is the raw text (max 50 000 chars); it was named `text`
+    in the original design.
+  - `source` defaults to `"manual"`; other values: `"session"`,
+    `"pr-review"`, `"ci"`.
+  - `ref` is an optional external reference string (e.g.
+    `"owner/repo#42"`). The repo component is extracted automatically
+    from `ref` for knowledge-graph scoping — there is no separate
+    `repo` parameter.
+  - Duplicate episodes (same agent + content hash) are silently
+    ignored and return `{status: "duplicate"}`.
 
 ### Knowledge Graph
 
-- **`query_graph(entity?, relation?, repo?, limit?)`** — queries the
-  live knowledge graph for entities and their relationships. Entities
-  carry temporal validity (`valid_from`/`valid_to`). Returns matching
-  entities with their edge relationships.
+- **`query_graph(entity?, relation_type?, repo?, include_invalidated?)`** —
+  queries the live knowledge graph for entities and their
+  relationships. Entities carry temporal validity
+  (`valid_from`/`valid_to`). Returns matching entities with their
+  edge relationships.
+  - `relation_type` filters by edge label: `"uses"`, `"owns"`,
+    `"depends-on"`, `"replaced-by"`, `"part-of"`, `"implements"`.
+    The parameter was named `relation` in the original design.
+  - `limit` is **not a parameter** — results are hard-capped at 50.
+  - `include_invalidated` (default `false`) returns historical
+    (superseded) edges when `true`; it was not in the original design.
 
 ### Monitoring
 
-- **`agent_stats(agent_id?)`** — returns memory count, total facts
-  extracted, search count, episode count, and daily breakdown of
-  activity. Primary health and usage tool. (Snapshot count and shared
-  pool count are always 0 — those MCP tools were not shipped; see
-  [Divergences from Original Design](#divergences-from-original-design).)
+- **`agent_stats(agent_id?)`** — returns a merged object with:
+  - Health fields: `last_activity`, `snapshot_count` (always 0),
+    `memory_count`.
+  - Stats fields: `total_memories`, `total_facts`, `active_facts`,
+    `invalidated_facts`, `total_searches`, `shared_pools_created`.
+  - `recent_episodes`: `{total_count, latest[]}` — the 5 most-recent
+    episodes with `source`, `ref`, `created_at`, `content_preview`
+    (first 200 chars), and `fact_count` extracted from each.
+  - There is no "daily breakdown" — that field was in the original
+    design but was not implemented.
+  - `snapshot_count` and `shared_pools_created` are structural
+    leftovers; snapshot and shared-pool MCP tools were not shipped
+    (see [Divergences from Original Design](#divergences-from-original-design)).
 
 ## Agent ID Resolution
 
@@ -150,7 +178,7 @@ database.
 | embedding    | VECTOR(768)    | Populated async; HNSW indexed             |
 | version      | INTEGER        | Monotonic per agent+key                   |
 | is_deleted   | BOOLEAN        | Soft-delete                               |
-| pool         | TEXT           | NULL = private; pool name = shared        |
+| pool_id      | UUID           | FK → memory.shared_pools; NULL = private  |
 | ttl_seconds  | INTEGER        | NULL = permanent                          |
 | expires_at   | TIMESTAMPTZ    | Computed from ttl_seconds on write        |
 | created_at   | TIMESTAMPTZ    |                                           |
@@ -319,11 +347,25 @@ The following features were specified but not exposed as MCP tools:
 
 | Specified Tool        | Status | Notes |
 |-----------------------|--------|-------|
-| `shared_write`        | Not exposed | Functions exist in memory.ts; pool field on write_memory is the workaround |
-| `shared_read`         | Not exposed | Functions exist in memory.ts; search_memory with pool= is the workaround |
+| `shared_write`        | Not exposed | `sharedWrite()` function exists in memory.ts; the `write_memory` MCP tool does **not** accept a pool parameter — pool assignment requires the internal function only |
+| `shared_read`         | Not exposed | `sharedRead()` function exists in memory.ts; `search_memory` with `pool=` searches within a named pool (the pool is resolved to a `pool_id` UUID internally) |
 | `create_snapshot`     | Not exposed | Internal function exists; not registered as MCP tool |
 | `restore_snapshot`    | Not exposed | Internal function exists; not registered as MCP tool |
 | `agent_health`        | Not exposed | Data subsumed by agent_stats |
+
+The following parameter / schema divergences from the original design
+were corrected in the 2026-05-04 audit:
+
+| Item | Original design | Actual implementation |
+|------|----------------|-----------------------|
+| `write_episode` first param | `text` | `content` |
+| `write_episode` second positional | `repo?` | `ref?` (repo extracted via regex) |
+| `query_graph` relation filter | `relation?` | `relation_type?` |
+| `query_graph` result cap | `limit?` parameter | hard-coded 50, not configurable |
+| `query_graph` historical flag | not in design | `include_invalidated?` (default false) |
+| `memories` pool column | `pool TEXT` | `pool_id UUID` (FK → memory.shared_pools) |
+| `write_memory` pool param | described as workaround for shared_write | not implemented in MCP tool at all |
+| `agent_stats` shape | daily breakdown + episode count | `recent_episodes {total_count, latest[5]}` — no daily breakdown |
 
 The following capabilities were added beyond the original spec:
 
