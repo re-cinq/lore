@@ -78,6 +78,8 @@ response body identifies the reason:
 | `label_missing` | `dark-factory-approval` label not on the PR | Have a CODEOWNER add it |
 | `approver_not_codeowner` | Label was applied by someone not in CODEOWNERS | Use a CODEOWNER's login |
 | `team_membership_unresolved` | CODEOWNERS has only `@org/team` handles | Add a direct `@user` for the approver (v1 limitation) |
+| `codeowners_unparseable` | CODEOWNERS file exists but could not be read (GitHub API error) | Check file accessibility; retry |
+| `github_api` | GitHub API error while fetching the PR or its events | Check GitHub connectivity; retry after a moment |
 | `wrong_repo` | Approval PR is against a different repo | PR must be on `$REPO` |
 
 ---
@@ -100,7 +102,9 @@ TASK_UUID=<uuid from response>
 #    Expected stages in order: draft → validate → push → retrospective → done
 watch -n 10 "git fetch origin && git log origin/lore/gap-fill/... --pretty=format:'%H %s%n%b' | grep 'Lore-Stage:'"
 
-# 3. Once the supervisor pod exits (exit 0), the loretask-watcher creates the PR.
+# 3. Once the in-agent supervisor completes the `push` workflow node, it
+#    creates the PR directly (gap-fill runs via processTaskViaSupervisor()
+#    in-agent, not as a Job pod; the loretask-watcher is not involved).
 gh pr list -R $REPO --search "author:app/lore-agent" --limit 1 --json number,state,title,body
 
 # 4. Verify auto-merge: the PR should merge automatically on green CI
