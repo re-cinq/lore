@@ -27,6 +27,19 @@
 > stuck-task terminal-state recovery mechanism was also added. All changes
 > are reflected in FR-2, FR-13, and the new FR-16 and FR-17 below.
 
+> **Note (2026-05-04):** Updates to reflect ADR-016 (Dark Factory mode,
+> accepted 2026-04-28) and the hippo-memory adaptations finalised in
+> ADR-016-hippo (accepted 2026-04-20 but not previously captured here).
+> Key changes: GitHub Issue creation narrowed to exception surfaces on
+> dark-factory repos (FR-4.6 amended), declarative YAML workflow graphs
+> replace the hardcoded impl→validate→push→review chain (FR-20), branch
+> commits carry structured trailers as durable state (FR-19), per-repo
+> opt-out human gates and auto-merge introduced (FR-21), two-key
+> authorization required for privileged dark-factory settings changes
+> (FR-22), and transfer scoring + PR outcome feedback added to the memory
+> lifecycle (FR-12.6, FR-12.7). Full detail in `adrs/ADR-016-dark-factory-mode.md`
+> and `specs/6-dark-factory/spec.md`.
+
 ## Problem Statement
 
 Developers at Acme open Claude Code with no organizational context.
@@ -390,12 +403,21 @@ pipeline tasks and GitHub Issues.
   overhead. A claim attempt on a taken task returns an immediate
   error; the developer or agent reads the ready list and picks
   another task.
-- FR-4.6: Every pipeline task automatically creates a GitHub Issue
-  on the target repo (labelled `lore-managed`). The issue receives
-  status comments and is closed when the PR is created.
+- FR-4.6: By default every pipeline task creates a GitHub Issue on the
+  target repo (labelled `lore-managed`); the issue receives status
+  comments and is closed when the PR is created. **When
+  `dark_factory.enabled = true` on a repo (FR-21), Issues are created
+  only for approval-gated tasks, on-the-fly escalations
+  (`needs-human-help`), or repos that explicitly opt into
+  `create_issue: always`. The PR remains the canonical artifact;
+  cross-reference is via the `Lore-Task: <uuid>` trailer in the PR
+  body.** (ADR-016)
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
-  Configured via the settings UI or `lore.settings` table.
+  Configured via the settings UI or `lore.settings` table. Under
+  dark-factory mode this is enforced via `create_issue: on_gate` —
+  the Issue is created only when a gate fires and is the surface for
+  the `approved` label.
 
 ### FR-5: Spec-Driven Feature Workflow
 
@@ -535,6 +557,21 @@ cooperation.
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
   as `auto-curation/{ref}` memory.
+- FR-12.6: **Transfer scoring.** Cross-repo context assembly filters
+  facts by a portability score. Portable keywords (error, pattern,
+  gotcha, convention) boost the score; local keywords (config, deploy,
+  url, auth, secret) reduce it. Only facts scoring ≥ 0.5 pass
+  through to the assembled context of another repo. Prevents
+  repo-specific configuration from polluting shared context.
+  (ADR-016-hippo)
+- FR-12.7: **PR outcome feedback.** The `merge-check` job captures PR
+  stats on merge (files changed, time-to-merge, review comments) and
+  writes curated episodes. On merge, `half_life_days` is boosted by
+  +5 on facts and memories that contributed to the task's context
+  (`pipeline.tasks.context_refs` JSONB column). On
+  closed-without-merge (rejection), the same set is penalised by
+  -3 (floor: 7 days). Aggregate `outcome_stats` are tracked per
+  repo for platform health dashboards. (ADR-016-hippo)
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
@@ -652,6 +689,130 @@ non-terminal states and resolve them without manual intervention.
   auto-curation pipeline can surface patterns (e.g. a task type that
   consistently times out).
 
+### FR-19: Dark Factory Mode — Branch as Durable State (Phase 1)
+
+The system MUST make the git branch the single source of durable
+workflow state so a supervisor pod that dies can resume without
+database checkpoints or CR status sync. Added 2026-04-28 per ADR-016.
+
+- FR-19.1: Every workflow phase ends with a git commit carrying
+  structured trailers: `Lore-Stage: <node-id>`,
+  `Lore-Iteration: <n>`, `Lore-Task: <uuid>`. Optional extras:
+  `Lore-Outcome: <value>`, `Lore-Cost-Tokens: <n>`.
+- FR-19.2: Trailers are emitted **unconditionally** — for both
+  dark-mode and opt-out repos — as the audit substrate for both
+  modes. Non-file-changing nodes emit allow-empty commits.
+- FR-19.3: On entry to a new pod, the supervisor reads the last
+  `Lore-Stage:` trailer on the branch (`lastStageOnBranch()` in
+  `shared/src/commit-trailers.ts`) and follows the
+  outcome-matching outgoing edge to determine where to resume.
+- FR-19.4: Concurrency is enforced by a Postgres
+  `pipeline.task_leases` row keyed on branch name with a 10-minute
+  TTL. A second supervisor that finds the branch held exits cleanly.
+  A supervisor that takes over an expired prior lease writes a
+  `lease_expired` audit entry naming the previous holder.
+- FR-19.5: A lease-reaper job runs every 60 seconds and deletes
+  leases more than 5 minutes past their expiry, writing
+  `lease_expired` audit entries.
+- FR-19.6: `FileLeaseBackend` (worktree mode, `~/.lore/leases/`)
+  and `DbLeaseBackend` (Postgres CTE-based atomic acquire) share a
+  `LeaseBackend` interface so the local runner and GKE supervisor
+  use the same concurrency contract.
+
+### FR-20: Declarative Workflow Graphs (Phase 1)
+
+The system MUST externalize the hardcoded
+`implement → validate → push → review → address` chain into
+declarative YAML files that both the local runner and the GKE
+supervisor interpret. Added 2026-04-28 per ADR-016.
+
+- FR-20.1: Workflow definitions live at
+  `agent/src/workflows/<task-type>.yaml` (gap-fill, general,
+  implementation, review; extensible). Schema validated by Zod
+  on load.
+- FR-20.2: Four node types: `agent` (LLM call + edits), `validate`
+  (lint/typecheck), `gate` (named conditions), `retrospective`
+  (episode + curated memory write).
+- FR-20.3: Four edge conditions: `success | changes_requested |
+  failed | always`. No inline scripting. Back-edges (cycles)
+  require `iteration_max` on the edge.
+- FR-20.4: `executeGraph()` in `agent/src/supervisor/graph-executor.ts`
+  walks the graph from `entry`, dispatches per-node-type handlers,
+  commits a stage commit after each node (FR-19.2), and refreshes
+  the lease before each node.
+- FR-20.5: The loader runs DFS cycle detection (coloring; back-edges
+  must declare `iteration_max`) and reachability check at load time.
+  An invalid workflow YAML fails the pod with exit code 3 (config
+  error).
+- FR-20.6: Local runner and GKE supervisor share the same workflow
+  definitions and `executeGraph()` implementation (FR2.3 of
+  ADR-016). A new task type requires only a new YAML file plus a
+  `task-types.yaml` entry.
+
+### FR-21: Dark Factory Opt-out Human Gates and Auto-merge (Phase 1)
+
+The system MUST support a per-repo `dark_factory` settings block
+that makes human review an exception surface rather than the
+default. Added 2026-04-28 per ADR-016.
+
+- FR-21.1: `dark_factory.enabled` (default: `false`). When false,
+  all existing behavior applies. When true, the cluster gate
+  (`LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the agent
+  deployment) must also be set for impl/general/review tasks to
+  take the supervisor path.
+- FR-21.2: `dark_factory.create_issue` options: `never`, `on_gate`
+  (default), `always`. Controls when GitHub Issues are created
+  (see FR-4.6 amendment).
+- FR-21.3: `dark_factory.auto_merge` block:
+  `paths` (glob allowlist, default: `["specs/**","adrs/**","*.md","CLAUDE.md",".claude/**"]`),
+  `min_trust` (default: `docs`),
+  `require_green_ci` (default: `true`),
+  `require_bot_approval` (default: `true`).
+  Auto-merge runs after the retrospective node: if all changed
+  paths match the allowlist AND CI is green AND bot approval is
+  present AND repo trust ≥ `min_trust` → squash-merge.
+- FR-21.4: When auto-merge conditions are not met, a typed deferral
+  reason is recorded in `pipeline.audit_log`:
+  `deferred:human_review`, `deferred:ci_failed`,
+  `deferred:bot_changes_requested`, `deferred:path_outside_allowlist`,
+  `deferred:trust_too_low`, `deferred:dark_mode_off`,
+  `deferred:api_failure`. The PR remains open for human merge.
+- FR-21.5: `dark_factory.review` options: `trust_based` (default),
+  `always`, `never`. Controls whether an autonomous review node
+  runs after implementation.
+- FR-21.6: `dark_factory.notify` list (default: `[escalation]`).
+  Controls Slack notification scope: `escalation`, `watched`, `all`.
+- FR-21.7: Every dark_factory settings mutation writes a
+  `dark_factory_setting_changed` audit entry to `pipeline.audit_log`
+  with the changed field, old value, new value, and (for privileged
+  changes) the ceremony evidence.
+- FR-21.8: `decideIssueCreate()` and `decideReviewMode()` pure
+  helpers in `agent/src/lib/dark-factory.ts` encapsulate the
+  per-repo decision logic and are covered by unit tests independent
+  of DB state.
+
+### FR-22: Two-key Authorization for Privileged Dark-Factory Settings (Phase 1)
+
+The system MUST require dual authorization for high-blast-radius
+dark-factory settings changes. Added 2026-04-28 per ADR-016.
+
+- FR-22.1: **Privileged fields**: `dark_factory.enabled` toggle,
+  `auto_merge.paths` modification, downgrade of
+  `require_green_ci` or `require_bot_approval` to false.
+- FR-22.2: A change to any privileged field requires: (a) admin-scope
+  API token AND (b) an open GitHub PR on the target repo labelled
+  `dark-factory-approval` whose label was applied by a CODEOWNERS
+  member of the repo's `CLAUDE.md` file.
+- FR-22.3: `verifyApproval()` in `mcp-server/src/dark-factory-authz.ts`
+  validates the PR existence, label, and label applier via Octokit.
+  Returns a structured result with ceremony evidence stored in the
+  audit entry.
+- FR-22.4: `twoKeyFieldsTouched()` in `mcp-server/src/dark-factory-settings.ts`
+  detects whether the incoming PUT payload touches any privileged field
+  by diffing against current resolved settings.
+- FR-22.5: Non-privileged field changes (e.g. `notify`, `create_issue`,
+  `review`) require only an admin-scope token — no ceremony.
+
 ## Non-Functional Requirements
 
 ### NFR-1: Security
@@ -746,6 +907,18 @@ non-terminal states and resolve them without manual intervention.
 - Q: What is the `LORE_WEBHOOK_SECRET` latent bug that ADR-015 fixed? → A: The secret existed in GCP Secret Manager and had an ExternalSecret CR, but was never mounted into the mcp-server pod. `handleGitHubWebhook` always returned `503 "webhook secret not configured"`. ADR-015 mounted the secret and the webhook path now validates HMAC signatures correctly.
 - Q: Why add `FR-18` (stuck-task recovery) now? → A: Job pods that exit without writing a terminal status left tasks stuck in `running` forever. The loretask-watcher had no mechanism to detect this until the `stale_task_check` hourly job was added (commit f203952, 2026-04-20).
 
+### Session 2026-04-28 (spec update — ADR-016 Dark Factory mode)
+
+- Q: Why make the branch durable state instead of the database? → A: A pod that dies mid-task previously lost partial work because state was spread across the CR, DB row, GitHub Issue, and the worktree. The branch is the only artifact that already has every commit and is naturally append-only. Reading `git log` to resume requires zero additional infrastructure. (ADR-016)
+- Q: Why use structured git trailers instead of a separate checkpoint table? → A: Trailers are emitted as part of the normal commit flow — they require no additional write and cannot be lost without also losing the commit itself. A checkpoint table adds a failure mode (commit succeeds, checkpoint write fails). (ADR-016)
+- Q: Why are trailers emitted unconditionally even on non-dark-factory repos? → A: The trailers are the audit substrate for both modes. Non-dark repos get the same `Lore-Stage:`/`Lore-Task:` breadcrumbs for free; this simplifies the graph executor (single code path) and means dark mode can be toggled on without needing a branch history migration. (ADR-016, Q5 clarification)
+- Q: Why declarative YAML graphs instead of code-level workflow composition? → A: The hardcoded chain across `loretask-watcher`, `review-reactor`, and `local-runner` caused the two-codepath problem: a change to the review loop required three separate code edits. A YAML graph is a single source of truth interpreted by both runners. New task types require only a new YAML file. (ADR-016)
+- Q: Why restrict auto-merge to a path allowlist rather than all green-CI PRs? → A: Auto-merge everywhere is too aggressive for v1 — a misconfigured PR template or transient bot-review parsing failure could merge unintended code changes. The path allowlist confines auto-merge to low-blast-radius outputs (specs, ADRs, runbooks, CLAUDE.md) where a bad merge is reversible by another PR. (ADR-016)
+- Q: Why require a CODEOWNERS-ceremony PR for privileged settings changes? → A: A single admin token is a single point of compromise. Requiring a labeled PR from a CODEOWNERS member adds a human-visible gate that appears in GitHub's audit log and is reviewed by a team member, not just an API caller. (ADR-016 FR3.9, R9)
+- Q: Why two separate `dark_factory.enabled` flags (per-repo AND cluster)? → A: The cluster gate (`LORE_DARK_FACTORY_CLUSTER_ENABLED`) prevents the helm flag from getting ahead of the claude-runner image, which must have `/app/dist/` baked in before dark-mode tasks can use the supervisor. A repo enabling dark mode before the image is ready would silently fall back to the legacy path without the cluster gate. (ADR-016)
+- Q: What is the `transfer_score` cutoff for cross-repo facts? → A: 0.5. Facts with portable signals (error, pattern, gotcha, convention) score above it; facts with local signals (config, deploy, url, auth, secret) score below. The threshold is not configurable in v1 — revisit if cross-repo noise becomes a problem. (ADR-016-hippo)
+- Q: How does outcome feedback avoid penalising a memory that was correct but the PR was closed for unrelated reasons? → A: It doesn't distinguish — rejection always penalises. The minimum floor of 7 days prevents a memory from dropping to zero on a single rejection; the retrieval-strengthening path (FR-12.4) can recover it if it continues to be useful. (ADR-016-hippo)
+
 ## Scope Boundaries
 
 ### In Scope
@@ -770,6 +943,9 @@ non-terminal states and resolve them without manual intervention.
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).
 - Stuck-task terminal-state recovery (`stale_task_check` job).
+- Dark Factory mode: branch-as-state, declarative workflow graphs, opt-out human gates, auto-merge, two-key authorization (ADR-016).
+- Transfer scoring for cross-repo context portability (ADR-016-hippo).
+- PR outcome feedback loop — merge/reject signals strengthen or weaken contributing memories (ADR-016-hippo).
 
 ### Out of Scope
 
