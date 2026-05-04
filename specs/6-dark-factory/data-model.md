@@ -130,7 +130,7 @@ The existing `lore.repos.settings` JSONB column gets a documented `dark_factory`
 
 **Canonical types and resolver:**
 
-`ResolvedDarkFactorySettings`, `DarkFactorySettings`, `resolveDarkFactorySettings()`, and `trustMeets()` are exported from `@re-cinq/lore-shared` (`shared/src/dark-factory-settings.ts`) so agent, mcp-server, and GKE Job pod runner share one source. The Zod input-validation schema stays in `mcp-server/src/dark-factory-settings.ts` (the only edge accepting raw user input).
+`ResolvedDarkFactorySettings`, `DarkFactorySettings`, `resolveDarkFactorySettings()`, and `trustMeets()` are exported from `@re-cinq/lore-shared` (`shared/src/dark-factory-settings.ts`) and used by the agent and GKE Job pod runner. The mcp-server has a parallel local implementation: `resolveSettings()` in `mcp-server/src/dark-factory-settings.ts` covers the same defaults logic and also hosts the Zod input-validation schema. The two implementations are in sync but independent — `routes.ts` imports from the local file, not the shared package.
 
 **AuthZ tiers** (per FR3.9):
 
@@ -176,8 +176,8 @@ CREATE INDEX audit_log_repo_idx  ON pipeline.audit_log(repo, created_at DESC);
   "rule": {
     "path_match_count": 3,
     "trust_level": "docs",
-    "ci_status": "success | failed | pending",
-    "bot_review_state": "APPROVED | CHANGES_REQUESTED | PENDING",
+    "ci_status": "success | failed",
+    "bot_review_state": "APPROVED | CHANGES_REQUESTED",
     "human_changes_requested": false
   },
   "decided_at": "2026-04-28T12:34:56Z"
@@ -186,7 +186,7 @@ CREATE INDEX audit_log_repo_idx  ON pipeline.audit_log(repo, created_at DESC);
 
 `deferred:no_changes` fires when `changedPaths` is empty — a zero-file PR passes the path-allowlist check via vacuous truth but GitHub's merge call would 422. Surfacing the real reason in the audit log makes the deferral diagnosable.
 
-`ci_status` can be `"pending"` when the status check query returns a non-conclusive result (e.g. checks still in progress at decision time).
+`ci_status` is `"success"` when `ciSucceeded` is true, `"failed"` otherwise — in-progress CI is indistinguishable from failed at decision time (conservative default). `bot_review_state` is `"APPROVED"` when `botApproved` is true, `"CHANGES_REQUESTED"` otherwise.
 
 ### `dark_factory_setting_changed`
 
