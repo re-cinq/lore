@@ -107,6 +107,51 @@ on the `embedding` column. To make manually added specs searchable,
 trigger a re-ingest via `POST /api/repos/{owner}/{repo}/ingest` or the
 nightly ingest job.
 
+### Detail page — rendering contract and implementation notes
+
+`/specs/[...path]/page.tsx` is a Next.js **async Server Component** with
+`export const dynamic = "force-dynamic"`. The `force-dynamic` directive is
+required because `queryAllChunks` hits the live DB; without it Next.js would
+statically cache the response at build time and serve stale chunks.
+
+The query selects these fields from every team schema + `org_shared`:
+
+```
+id, file_path, content_type, content, team, repo, author, ingested_at, metadata
+```
+
+`metadata` is a JSONB column; `author` comes from the ingestion pipeline and
+may be `null` for older rows or manually inserted chunks.
+
+Rendering behaviour:
+- If `chunks.length === 0` → "Not Found" empty state with the raw file path
+  in the message. No 404 status is set (returns 200 with empty-state JSX).
+- First chunk only: monospace `<h1>` showing the file path (16 px, `var(--font-mono)`).
+- Each chunk: badge row (`content_type`, `team`, `repo`, `author`, `ingested_at`);
+  `<pre>` content block; collapsible `<details>` for `metadata` (shown only
+  when `metadata` is truthy).
+- Chunks are separated by an `<hr>` except after the last one.
+- When `chunks.length > 1`, a footer line reads "N chunks for this file path."
+
+The `metadata` collapsible is the only place structured ingest metadata
+(e.g. source URL, chunk index, token count) is surfaced in the UI. If a chunk
+was ingested with no metadata the `<details>` element is suppressed entirely.
+
+### Why the detail route was not removed
+
+The original UX spec (specs/4-ux-repo-onboarding, Task T029) planned to
+remove `/specs` and `/specs/[...path]` once content moved under
+`/repos/[owner]/[repo]/specs`. That removal did not land because:
+
+1. The per-repo specs page has no link to a detail view — removing the global
+   detail route would leave no way to read full chunk content from the UI.
+2. The global list (`/specs`) serves a cross-repo discovery use case that the
+   per-repo page cannot fulfill.
+
+Both routes remain. The per-repo page is the primary path for repo-scoped
+work; the global routes serve cross-org discovery. No further removal is
+planned unless a linked detail view is added to the per-repo page.
+
 ### Sorting and deduplication
 
 Both the global list and the detail page sort by `ingested_at DESC`. Re-ingesting
