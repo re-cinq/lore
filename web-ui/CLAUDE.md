@@ -121,9 +121,9 @@ id, file_path, content_type, content, team, repo, author, ingested_at, metadata
 ```
 
 `metadata` is a JSONB column. `team`, `repo`, and `author` are all typed
-`string | null` — they are omitted from the badge row when null. `author` in
-particular may be `null` for older rows or manually inserted chunks; `team`
-and `repo` are null when the chunk was inserted without schema attribution.
+`string | null` and omitted from the badge row when null — any of the three
+may be absent depending on how the chunk was ingested (e.g. older rows,
+manually inserted chunks, or ingestion without schema attribution).
 
 Rendering behaviour:
 - If `chunks.length === 0` → "Not Found" empty state with the raw file path
