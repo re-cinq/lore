@@ -36,7 +36,8 @@ a new version is created (previous version preserved in
   agent_id: z.string().optional(),
   ttl: z.number().optional(),        // TTL in seconds; NULL = permanent
   extract_facts: z.boolean().default(false),
-  repo: z.string().optional()
+  repo: z.string().optional(),
+  pool_id: z.string().uuid().optional()  // Write to this shared pool instead of the private agent store
 }
 ```
 
@@ -237,8 +238,9 @@ Note: the parameter is `content`, not `text` (the spec.md prose uses
    up to 10 entities and 10 edges per episode; entity names
    normalized to lowercase; contradictory edges invalidated.
 
-If no `ANTHROPIC_API_KEY` is set, the async pipeline falls back to
-`claude --print` (CLI subscription path, no API credits consumed).
+If fact/graph extraction fails (e.g. no configured LLM), the async
+pipeline is skipped silently; the episode row is still stored. The
+extraction LLM is configured via `LORE_FACT_LLM` (see plan.md §2.1).
 
 `ref` is used to derive the repo scope for graph extraction
 (pattern: `owner/repo#N` → repo = `owner/repo`).
