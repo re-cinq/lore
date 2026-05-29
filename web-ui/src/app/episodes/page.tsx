@@ -86,7 +86,7 @@ export default async function EpisodesPage({ searchParams }: { searchParams: Pro
             </tr>
           ))}
           {episodes.length === 0 && (
-            <tr><td colSpan={6} style={{ textAlign: 'center', color: '#666', padding: 24 }}>
+            <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>
               No episodes yet. Use the <code>write_episode</code> MCP tool to ingest text.
             </td></tr>
           )}

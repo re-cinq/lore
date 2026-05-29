@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query } from '@/lib/db';
 import Link from 'next/link';
+import HelpPopover from '@/components/HelpPopover';
 
 export default async function RepoTasks({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo } = await params;
@@ -15,9 +16,22 @@ export default async function RepoTasks({ params }: { params: Promise<{ owner: s
   return (
     <div>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <h2>Tasks</h2>
+        <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+          <h2 style={{margin:0}}>Tasks</h2>
+          <HelpPopover label="How tasks work">
+            <p>Tasks are units of work you delegate to Lore agents for this repo.</p>
+            <ul>
+              <li>Each runs the pipeline: pull repo context → agent works → deterministic validation (lint/typecheck) → branch + PR (and a GitHub issue).</li>
+              <li>Simple types run via direct API calls; <strong>implementation</strong> and <strong>review</strong> run in ephemeral Job pods.</li>
+              <li>Which types are allowed is gated by the repo&apos;s <strong>trust level</strong> (see Settings).</li>
+            </ul>
+          </HelpPopover>
+        </div>
         <Link href={`/repos/${owner}/${repo}/tasks/create`}><button>+ New Task</button></Link>
       </div>
+      <p className="meta" style={{marginTop:'-4px', marginBottom:'16px'}}>
+        Pipeline tasks targeting this repo. Delegate work to agents and track their status, PRs, and history.
+      </p>
       <table>
         <thead><tr><th>Task</th><th>Type</th><th>Status</th><th>Agent</th><th>PR</th><th>Created</th></tr></thead>
         <tbody>

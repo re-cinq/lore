@@ -18,6 +18,14 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   );
   CREATE INDEX IF NOT EXISTS repos_owner_idx ON lore.repos (owner);
   CREATE INDEX IF NOT EXISTS repos_team_idx ON lore.repos (team);
+
+  -- Org-wide key-value settings (api_url, ingest_token, approval_config).
+  -- Read by the web-ui settings page and agent/src/approval.ts.
+  CREATE TABLE IF NOT EXISTS lore.settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
   -- PR outcome stats (Feature 1)
   DO \$\$ BEGIN
     ALTER TABLE lore.repos ADD COLUMN outcome_stats JSONB DEFAULT '{}';

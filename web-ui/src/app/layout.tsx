@@ -4,6 +4,10 @@ import AppShell from './AppShell';
 import SidebarNav from './SidebarNav';
 import SessionWrapper from './SessionWrapper';
 import UserMenu from './UserMenu';
+import { ThemeProvider } from '@/lib/theme/ThemeProvider';
+import { inter, vt323 } from '@/lib/theme/fonts';
+import { THEME_SCRIPT } from '@/lib/theme/theme-script';
+import './theme.css';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -22,23 +26,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable} ${vt323.variable}`}>
       <body>
-        <SessionWrapper>
-          <AppShell
-            sidebar={
-              <>
-                <Link href="/" className="sidebar-brand">
-                  <img src="/logo.svg" alt="Lore" width={80} height={80} />
-                </Link>
-                <SidebarNav />
-                <UserMenu />
-              </>
-            }
-          >
-            {children}
-          </AppShell>
-        </SessionWrapper>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <ThemeProvider>
+          <SessionWrapper>
+            <AppShell
+              sidebar={
+                <>
+                  <Link href="/" className="sidebar-brand">
+                    <img src="/logo.svg" alt="Lore" width={80} height={80} />
+                  </Link>
+                  <SidebarNav />
+                  <UserMenu />
+                </>
+              }
+            >
+              {children}
+            </AppShell>
+          </SessionWrapper>
+        </ThemeProvider>
       </body>
     </html>
   );

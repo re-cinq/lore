@@ -36,7 +36,7 @@ export default async function GapsPage() {
   return (
     <div>
       <h1>Gap Detection</h1>
-      <div style={{ background: 'var(--bg-muted, #1a1a2e)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+      <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
         <p className="meta" style={{ margin: 0 }}>
           This is the global view across all repos. For repo-specific gaps, visit{' '}
           <a href="/">Repositories</a> and select a repo.

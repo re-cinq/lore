@@ -137,7 +137,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
             </tr>
           ))}
           {entities.length === 0 && (
-            <tr><td colSpan={6} style={{ textAlign: 'center', color: '#666', padding: 24 }}>
+            <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>
               No entities yet. Write episodes to populate the graph.
             </td></tr>
           )}
@@ -148,7 +148,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
         <>
           <h2>Relationships for &quot;{entity}&quot;</h2>
           <div style={{ marginBottom: '0.5rem' }}>
-            <a href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? '' : '&show_invalid=1'}`} style={{ fontSize: '13px' }}>
+            <a href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? '' : '&show_invalid=1'}`} style={{ fontSize: 'var(--fs-sm)' }}>
               {showInvalid ? 'Hide invalidated' : 'Show invalidated edges'}
             </a>
           </div>
@@ -171,7 +171,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
                 </tr>
               ))}
               {edges.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#666', padding: 24 }}>No relationships found for this entity.</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No relationships found for this entity.</td></tr>
               )}
             </tbody>
           </table>
