@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "start:watch": "node --watch dist/index.js",
+    "start:watch": "node --watch-path=./dist --watch-path=../shared/dist dist/index.js",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest"
