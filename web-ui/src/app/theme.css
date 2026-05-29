@@ -1,0 +1,207 @@
+/*
+ * Design tokens for the two theme families (elegant, retro), each with light
+ * and dark variants. Family-level blocks hold shape/type/glass tokens that do
+ * not change with the color scheme; the four family×scheme blocks hold colors.
+ * Consumed by globals.css and component styles — never hardcode color here's
+ * job is to be the single source of truth for color.
+ */
+
+:root {
+  --transition: 150ms ease;
+}
+
+/* ============================================================ ELEGANT ===== */
+/* Figma-like: Inter, rounded corners, soft shadows, frosted glass.           */
+/* Palette modeled on apple.com/mac.                                          */
+
+[data-theme-family='elegant'] {
+  --font-ui: var(--font-inter), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: var(--font-ui);
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  --glass-blur: blur(20px) saturate(180%);
+  --scanline: none;
+}
+
+[data-theme-family='elegant'][data-color-scheme='light'] {
+  --color-scheme: light;
+
+  --bg: #f5f5f7;
+  --bg-surface: #ffffff;
+  --bg-hover: #ececee;
+  --bg-elevated: #ffffff;
+
+  --border: #d2d2d7;
+  --border-hover: #b8b8c0;
+  --focus-ring: rgba(0, 113, 227, 0.4);
+
+  --text: #1d1d1f;
+  --text-muted: #6e6e73;
+  --text-on-accent: #ffffff;
+
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --danger: #d70015;
+  --info: #0071e3;
+  --success-bg: #e4f3e8;
+  --warning-bg: #fbf3da;
+  --danger-bg: #ffe5e6;
+  --info-bg: #e3f0fd;
+
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme-family='elegant'][data-color-scheme='dark'] {
+  --color-scheme: dark;
+
+  --bg: #000000;
+  --bg-surface: #1d1d1f;
+  --bg-hover: #2a2a2c;
+  --bg-elevated: #1d1d1f;
+
+  --border: #38383a;
+  --border-hover: #48484a;
+  --focus-ring: rgba(41, 151, 255, 0.5);
+
+  --text: #f5f5f7;
+  --text-muted: #86868b;
+  --text-on-accent: #ffffff;
+
+  --accent: #2997ff;
+  --accent-hover: #47a9ff;
+
+  --success: #30d158;
+  --warning: #ffd60a;
+  --danger: #ff453a;
+  --info: #0a84ff;
+  --success-bg: #0e2a17;
+  --warning-bg: #2a2410;
+  --danger-bg: #2e1416;
+  --info-bg: #11233f;
+
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+
+  --glass-bg: rgba(29, 29, 31, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================================== RETRO ===== */
+/* DEC VT320 terminal: VT323, sharp corners, phosphor, scanlines, no glass.   */
+
+[data-theme-family='retro'] {
+  --font-ui: var(--font-vt323), 'Courier New', monospace;
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-ui);
+
+  --radius-sm: 0;
+  --radius: 0;
+  --radius-lg: 0;
+  --radius-pill: 0;
+
+  --glass-blur: none;
+  --scanline: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.16) 2px,
+    rgba(0, 0, 0, 0.16) 4px
+  );
+}
+
+[data-theme-family='retro'][data-color-scheme='dark'] {
+  --color-scheme: dark;
+
+  --bg: #050805;
+  --bg-surface: #0a0f0a;
+  --bg-hover: #10180f;
+  --bg-elevated: #0a0f0a;
+
+  --border: #1f3a25;
+  --border-hover: #2f5a38;
+  --focus-ring: #33ff66;
+
+  --text: #33ff66;
+  --text-muted: #1f9a3f;
+  --text-on-accent: #050805;
+
+  --accent: #ffb000;
+  --accent-hover: #ffc94d;
+
+  --success: #33ff66;
+  --warning: #ffb000;
+  --danger: #ff5555;
+  --info: #33ccff;
+  --success-bg: #0d2814;
+  --warning-bg: #2a1f00;
+  --danger-bg: #2a0d0d;
+  --info-bg: #062430;
+
+  --shadow: none;
+  --shadow-lg: 0 0 8px var(--accent);
+
+  --glass-bg: var(--bg-surface);
+  --glass-border: var(--border);
+}
+
+[data-theme-family='retro'][data-color-scheme='light'] {
+  --color-scheme: light;
+
+  --bg: #e8e4d0;
+  --bg-surface: #ded9c2;
+  --bg-hover: #d2ccb0;
+  --bg-elevated: #ded9c2;
+
+  --border: #b0a98c;
+  --border-hover: #8f876a;
+  --focus-ring: #9a6b00;
+
+  --text: #2a3a1a;
+  --text-muted: #5a6a3a;
+  --text-on-accent: #e8e4d0;
+
+  --accent: #8f5b00;
+  --accent-hover: #6b4400;
+
+  --success: #3a7a1a;
+  --warning: #8f5b00;
+  --danger: #a02020;
+  --info: #1a5a7a;
+  --success-bg: #cdd9b0;
+  --warning-bg: #e0d09a;
+  --danger-bg: #e0c0c0;
+  --info-bg: #c0d4dc;
+
+  --shadow: none;
+  --shadow-lg: 0 0 6px var(--accent);
+
+  --glass-bg: var(--bg-surface);
+  --glass-border: var(--border);
+}
+
+/* When the user or OS asks for less transparency (or backdrop-filter is
+ * unsupported), fall back to opaque surfaces. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-theme-family='elegant'] {
+    --glass-blur: none;
+    --glass-bg: var(--bg-surface);
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  [data-theme-family='elegant'] {
+    --glass-bg: var(--bg-surface);
+  }
+}
