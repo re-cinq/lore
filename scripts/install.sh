@@ -29,6 +29,7 @@ require_cmd node "Install Node.js >= 18 from https://nodejs.org"
 require_cmd npm "npm ships with Node.js – check your Node.js installation"
 
 LORE_DIR="$HOME/.re-cinq/lore"
+LORE_REPO_URL="${LORE_REPO_URL:-git@github.com:re-cinq/lore.git}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -38,7 +39,11 @@ install_context() {
   if [ ! -d "$LORE_DIR" ]; then
     echo "[lore] Installing to $LORE_DIR ..."
     mkdir -p "$(dirname "$LORE_DIR")"
-    git clone --depth 1 "$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || echo "$REPO_DIR")" "$LORE_DIR" 2>/dev/null || cp -r "$REPO_DIR" "$LORE_DIR"
+    # Clone source: the local checkout's origin when run from a clone, else the
+    # canonical URL so the installer also works standalone (curl | bash).
+    clone_src="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)"
+    [ -z "$clone_src" ] && clone_src="$LORE_REPO_URL"
+    git clone --depth 1 "$clone_src" "$LORE_DIR" 2>/dev/null || cp -r "$REPO_DIR" "$LORE_DIR"
   else
     echo "[lore] Updating ..."
     git -c http.timeout=10 -C "$LORE_DIR" pull --quiet --ff-only 2>/dev/null || true
@@ -104,7 +109,13 @@ merge_settings() {
       echo "  Get it from: kubectl get secret lore-ingest-token -n mcp-servers -o jsonpath='{.data.token}' | base64 -d"
       echo "  Or ask the platform team."
       echo ""
-      read -r -p "[lore] Paste token (or Enter to skip — you can set it later): " LORE_TOKEN
+      # Read from the terminal so this also works under `curl | bash` (where
+      # stdin is the piped script, not the keyboard). No tty → skip the prompt.
+      if [ -r /dev/tty ]; then
+        read -r -p "[lore] Paste token (or Enter to skip — you can set it later): " LORE_TOKEN < /dev/tty || LORE_TOKEN=""
+      else
+        LORE_TOKEN=""
+      fi
       if [ -n "$LORE_TOKEN" ]; then
         git config --global lore.ingest-token "$LORE_TOKEN"
         echo "[lore] Token saved."
