@@ -19,15 +19,25 @@ fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
 command -v docker >/dev/null 2>&1 || fail "docker not found — needed for local Postgres"
 
-# 1. Ensure Postgres is up (idempotent: start existing container, else create it).
+# 1. Ensure Postgres is up. The :5432 host publish and the data bind mount are
+#    fixed at create time, so a pre-existing container missing either is recreated
+#    (docker start cannot add them). Inspecting config works while stopped too.
+pg_config_ok() {
+  local bindings mounts
+  bindings="$(docker inspect -f '{{json .HostConfig.PortBindings}}' "$PG_CONTAINER" 2>/dev/null)"
+  mounts="$(docker inspect -f '{{range .Mounts}}{{println .Source}}{{end}}' "$PG_CONTAINER" 2>/dev/null)"
+  [[ "$bindings" == *'"5432/tcp"'* ]] && grep -qxF "$PG_DATA_DIR" <<<"$mounts"
+}
+
+if docker ps -a --format '{{.Names}}' | grep -qx "$PG_CONTAINER" && ! pg_config_ok; then
+  log "Existing '$PG_CONTAINER' lacks the :5432 publish or $PG_DATA_DIR mount — recreating"
+  docker rm -f "$PG_CONTAINER" >/dev/null
+fi
+
 if docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
   log "Postgres container '$PG_CONTAINER' already running"
 elif docker ps -a --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
   log "Starting existing Postgres container '$PG_CONTAINER'"
-  if ! docker inspect -f '{{range .Mounts}}{{println .Source}}{{end}}' "$PG_CONTAINER" | grep -qxF "$PG_DATA_DIR"; then
-    log "WARNING: '$PG_CONTAINER' has no $PG_DATA_DIR bind mount — data is NOT persisted to the repo."
-    log "         Run 'npm run db:down' then re-run 'npm start' to recreate it with persistence."
-  fi
   docker start "$PG_CONTAINER" >/dev/null
 else
   log "Creating Postgres container '$PG_CONTAINER' ($PG_IMAGE), data in $PG_DATA_DIR"
