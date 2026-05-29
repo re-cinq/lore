@@ -50,6 +50,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build (load locally for smoke tests; push only on main)
+        id: build
         # Single build step that loads to the local Docker daemon AND
         # conditionally pushes to GHCR. buildx supports `load: true` +
         # `push: true` together, so the smoke-tested image is byte-
@@ -66,14 +67,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Resolve image tag for smoke tests
+      - name: Resolve image ref for smoke tests
         id: tag
-        # Pin to the sha tag explicitly. `meta.outputs.tags` is multi-
-        # line and order is not guaranteed; `head -1` would be fragile
-        # if anyone adds another tag type or flips `load`.
+        # Reference the built image by its image ID, not by a tag.
+        # `meta.outputs.tags` is multi-line, and `type=sha,prefix=`
+        # emits the SHORT sha (e.g. 3691a16) while `github.sha` is the
+        # full 40-char sha — reconstructing the tag from `github.sha`
+        # asks Docker for a manifest that was never built (exit 125).
+        # The image ID from the build step is unambiguous and tag-
+        # independent, so `docker run` always hits the just-built image.
         run: |
-          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          echo "image=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${{ steps.build.outputs.imageid }}" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test — runner-cli env-missing → exit 9
         # Exercises that /app/dist/supervisor/runner-cli.js is present
