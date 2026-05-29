@@ -1,10 +1,13 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne, getRepoSchema } from '@/lib/db';
+import { getReadme } from '@/lib/github';
 import Link from 'next/link';
+import ReadmeBox from './ReadmeBox';
 
 export default async function RepoOverview({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo: repoName } = await params;
   const fullName = `${owner}/${repoName}`;
+  const readme = await getReadme(fullName).catch(() => null);
 
   const repoInfo = await queryOne<{
     settings?: { dark_factory?: { enabled?: boolean }; trust?: { level?: string } };
@@ -60,6 +63,10 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
 
   return (
     <div>
+      {readme && (
+        <ReadmeBox markdown={readme.markdown} rawBaseUrl={readme.rawBaseUrl} htmlUrl={readme.htmlUrl} />
+      )}
+
       {repoInfo && (
         <div className="spec-card" style={{marginBottom:'16px'}}>
           {repoInfo.team && <span className="badge">{repoInfo.team}</span>}

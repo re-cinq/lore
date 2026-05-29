@@ -57,3 +57,6 @@ next-env.d.ts
 # Local dev secrets/overrides sourced by scripts/dev-local.sh
 .env.local
 
+
+# Local dev GitHub App private key
+.lore-github-app.pem

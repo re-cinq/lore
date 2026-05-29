@@ -1,0 +1,114 @@
+/* Rendered README markdown — co-located with ReadmeBox.tsx.
+   CSS Module: the .readme class is scoped; descendant selectors target the
+   raw elements react-markdown renders (h1, p, ul, code, table, ...). */
+
+.readme {
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.readme > :first-child { margin-top: 0; }
+.readme > :last-child { margin-bottom: 0; }
+
+/* Headings */
+.readme h1,
+.readme h2,
+.readme h3,
+.readme h4,
+.readme h5,
+.readme h6 {
+  margin: 24px 0 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.readme h1 { font-size: 1.7em; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.readme h2 { font-size: 1.4em; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.readme h3 { font-size: 1.2em; }
+.readme h4 { font-size: 1.05em; }
+.readme h5 { font-size: 0.95em; }
+.readme h6 { font-size: 0.9em; color: var(--text-muted); }
+
+/* Block spacing */
+.readme p,
+.readme ul,
+.readme ol,
+.readme blockquote,
+.readme pre,
+.readme table,
+.readme details { margin: 0 0 16px; }
+
+/* Lists (restore indentation killed by the global reset) */
+.readme ul,
+.readme ol { padding-left: 1.6em; }
+.readme li { margin: 4px 0; }
+.readme li > ul,
+.readme li > ol { margin: 4px 0; }
+.readme li::marker { color: var(--text-muted); }
+
+/* Links */
+.readme a { color: var(--accent); text-decoration: none; }
+.readme a:hover { text-decoration: underline; }
+
+/* Blockquote */
+.readme blockquote {
+  padding: 2px 0 2px 1em;
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+
+/* Rule + images */
+.readme hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+.readme img { max-width: 100%; height: auto; }
+
+/* Inline + block code */
+.readme code {
+  font-family: var(--font-mono);
+  background: #1c1c1c;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.88em;
+}
+.readme pre {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.readme pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+/* Tables (prose styling — not the global mono/uppercase data table) */
+.readme table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.95em;
+}
+.readme th,
+.readme td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: inherit;
+}
+.readme th { background: var(--bg-surface); font-weight: 600; color: var(--text); }
+.readme tbody tr:nth-child(2n) td { background: rgba(255, 255, 255, 0.02); }

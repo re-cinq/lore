@@ -68,6 +68,44 @@ export function computeStatus(
   return 'open';
 }
 
+export interface RepoMeta {
+  description: string | null;
+  default_branch: string;
+  html_url: string;
+}
+
+export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
+  if (!isGitHubConfigured()) return null;
+  const ok = await octokit();
+  const [owner, name] = split(repo);
+  const { data } = await ok.rest.repos.get({ owner, repo: name });
+  return {
+    description: data.description ?? null,
+    default_branch: data.default_branch,
+    html_url: data.html_url,
+  };
+}
+
+export interface RepoReadme {
+  markdown: string;
+  rawBaseUrl: string;
+  htmlUrl: string;
+}
+
+export async function getReadme(repo: string): Promise<RepoReadme | null> {
+  if (!isGitHubConfigured()) return null;
+  const ok = await octokit();
+  const [owner, name] = split(repo);
+  try {
+    const { data } = await ok.rest.repos.getReadme({ owner, repo: name });
+    const markdown = Buffer.from(data.content, "base64").toString("utf-8");
+    const rawBaseUrl = (data.download_url ?? "").replace(/[^/]+$/, "");
+    return { markdown, rawBaseUrl, htmlUrl: data.html_url ?? "" };
+  } catch {
+    return null;
+  }
+}
+
 export async function getPRDetails(repo: string, prNumber: number): Promise<PRDetails> {
   const ok = await octokit();
   const [owner, repoName] = split(repo);
