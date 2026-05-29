@@ -104,7 +104,7 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
             <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
           ))}
         </select>
-        <span className="meta" style={{fontSize:'12px'}}>Hold Cmd/Ctrl to select multiple. Linked repos will automatically get this repo added to their cross-repo list.</span>
+        <span className="meta" style={{fontSize:'var(--fs-xs)'}}>Hold Cmd/Ctrl to select multiple. Linked repos will automatically get this repo added to their cross-repo list.</span>
 
         <button type="submit">Save Settings</button>
       </form>

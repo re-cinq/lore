@@ -17,11 +17,11 @@ const SCHEMES: { value: ColorSchemePref; label: string; icon: IconName }[] = [
   { value: 'dark', label: 'Dark', icon: 'moon' },
 ];
 
-export default function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
+export default function ThemeSwitcher() {
   const { family, scheme, setFamily, setScheme } = useTheme();
 
   return (
-    <div className={`${styles.switcher}${compact ? ` ${styles.compact}` : ''}`}>
+    <div className={styles.switcher}>
       <fieldset className={styles.group}>
         <legend className={styles.legend}>Theme</legend>
         <div className={styles.segmented}>

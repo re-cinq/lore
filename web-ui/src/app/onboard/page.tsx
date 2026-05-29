@@ -55,7 +55,7 @@ export default async function OnboardPage() {
         <input type="text" name="full_name" required placeholder="re-cinq/my-service"
           pattern="[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+"
           title="Format: owner/repo" />
-        <p className="meta" style={{fontSize:'12px', marginTop:'4px'}}>
+        <p className="meta" style={{fontSize:'var(--fs-xs)', marginTop:'4px'}}>
           The GitHub App must have access to this repo.
           {onboarded.length > 0 && ` Already onboarded: ${onboarded.map((r: any) => r.full_name).join(', ')}`}
         </p>

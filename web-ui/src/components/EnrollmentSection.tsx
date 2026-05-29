@@ -20,9 +20,9 @@ function CheckRow({ check }: { check: Check }) {
       </span>
       <span style={{ flexShrink: 0 }}>{check.label}</span>
       <span className="enroll-dots" />
-      {check.detail && <span className="meta" style={{ fontSize: '12px' }}>{check.detail}</span>}
+      {check.detail && <span className="meta" style={{ fontSize: 'var(--fs-xs)' }}>{check.detail}</span>}
       {check.link && (
-        <a href={check.link.href} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px' }}>
+        <a href={check.link.href} target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--fs-xs)' }}>
           {check.link.text}
         </a>
       )}
@@ -54,12 +54,12 @@ function Step({
     <li style={{ marginBottom: '14px' }}>
       <div style={{ marginBottom: '2px' }}>{label}</div>
       {note && (
-        <div className="meta" style={{ fontSize: '12px', marginBottom: '6px' }}>{note}</div>
+        <div className="meta" style={{ fontSize: 'var(--fs-xs)', marginBottom: '6px' }}>{note}</div>
       )}
       <CommandRow command={command} />
       {alt && (
         <>
-          <div className="meta" style={{ fontSize: '12px', margin: '6px 0 4px' }}>{alt.label}</div>
+          <div className="meta" style={{ fontSize: 'var(--fs-xs)', margin: '6px 0 4px' }}>{alt.label}</div>
           <CommandRow command={alt.command} />
         </>
       )}
@@ -85,17 +85,17 @@ export default function EnrollmentSection({ checks }: { checks: Check[] }) {
             <li>The <strong>local setup</strong> steps run on your machine and can&apos;t be auto-verified.</li>
           </ul>
         </HelpPopover>
-        <span className="meta" style={{ marginLeft: 'auto', fontSize: '12px' }}>{passed}/{total} checks passing</span>
+        <span className="meta" style={{ marginLeft: 'auto', fontSize: 'var(--fs-xs)' }}>{passed}/{total} checks passing</span>
       </div>
 
-      <div className="meta" style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+      <div className="meta" style={{ fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
         Repo integration
       </div>
       <div style={{ marginBottom: '20px' }}>
         {checks.map(c => <CheckRow key={c.id} check={c} />)}
       </div>
 
-      <div className="meta" style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+      <div className="meta" style={{ fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
         Your local setup
       </div>
       <ol style={{ paddingLeft: '1.4em', margin: 0 }}>
@@ -108,7 +108,7 @@ export default function EnrollmentSection({ checks }: { checks: Check[] }) {
         <Step label="Open this repo and start Claude Code — org context loads automatically." command="claude" />
         <Step label="Verify context loads." command={'claude "how do we handle auth in this repo?"'} />
       </ol>
-      <p className="meta" style={{ fontSize: '12px', marginTop: '8px', marginBottom: 0 }}>
+      <p className="meta" style={{ fontSize: 'var(--fs-xs)', marginTop: '8px', marginBottom: 0 }}>
         These run on your machine and aren&apos;t auto-verified — completing step 2 flips <strong>Used locally via MCP</strong> green once a session summary is recorded.
       </p>
     </div>

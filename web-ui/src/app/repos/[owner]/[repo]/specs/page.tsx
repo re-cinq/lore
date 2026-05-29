@@ -74,12 +74,12 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
           spellCheck={false}
           style={{ fontFamily: 'var(--font-mono)' }}
         />
-        <span className="meta" style={{ fontSize: '12px' }}>
+        <span className="meta" style={{ fontSize: 'var(--fs-xs)' }}>
           Relative path within the repo, ending in <code>.md</code> — e.g. <code>specs/my-feature/spec.md</code>. No leading slash.
         </span>
 
         <label>Content</label>
-        <textarea name="content" required rows={8} placeholder="Describe the specification..." style={{ width: '100%', fontFamily: 'monospace', resize: 'vertical' }} />
+        <textarea name="content" required rows={8} placeholder="Describe the specification..." style={{ width: '100%', fontFamily: 'var(--font-mono)', resize: 'vertical' }} />
 
         <button type="submit">Add Spec</button>
       </form>

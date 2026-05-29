@@ -116,25 +116,25 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
         </div>
         <div style={{display:'flex',gap:'24px',flexWrap:'wrap'}}>
           <div>
-            <div className="meta" style={{fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.05em'}}>Mode</div>
+            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Mode</div>
             <div style={{fontWeight:600,marginTop:'2px'}}>
               {darkFactoryEnabled ? <span style={{color:'var(--success)'}}>Enabled</span> : <span className="meta">Off (legacy)</span>}
             </div>
           </div>
           <div>
-            <div className="meta" style={{fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.05em'}}>Trust</div>
+            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Trust</div>
             <div style={{fontWeight:600,marginTop:'2px'}}>{trustLevel}</div>
           </div>
           <div>
-            <div className="meta" style={{fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.05em'}}>Tasks (7d)</div>
+            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Tasks (7d)</div>
             <div style={{fontWeight:600,marginTop:'2px'}}>{darkTasksWeek}</div>
           </div>
           <div>
-            <div className="meta" style={{fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.05em'}}>Auto-merged (7d)</div>
+            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Auto-merged (7d)</div>
             <div style={{fontWeight:600,marginTop:'2px',color: autoMergedWeek > 0 ? 'var(--success)' : undefined}}>{autoMergedWeek}</div>
           </div>
           <div>
-            <div className="meta" style={{fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.05em'}}>Escalations (7d)</div>
+            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Escalations (7d)</div>
             <div style={{fontWeight:600,marginTop:'2px',color: escalationsWeek > 0 ? 'var(--danger)' : undefined}}>{escalationsWeek}</div>
           </div>
         </div>

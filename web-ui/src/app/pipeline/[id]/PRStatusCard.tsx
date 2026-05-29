@@ -79,17 +79,17 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
         <strong>PR Status:</strong>
         <span
           className="status-pill"
-          style={{ ['--pill-color' as string]: color, fontSize: '13px' }}
+          style={{ ['--pill-color' as string]: color, fontSize: 'var(--fs-sm)' }}
         >
           {details.computed_status}
         </span>
-        <a href={details.html_url} target="_blank" style={{ fontSize: '13px' }}>
+        <a href={details.html_url} target="_blank" style={{ fontSize: 'var(--fs-sm)' }}>
           #{details.number} {details.title}
         </a>
       </div>
 
       {details.checks.length > 0 && (
-        <div style={{ fontSize: '13px', marginBottom: '4px' }}>
+        <div style={{ fontSize: 'var(--fs-sm)', marginBottom: '4px' }}>
           <strong>Checks:</strong>{' '}
           {passingChecks > 0 && <span style={{ color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Icon name="check" size={13} /> {passingChecks} passing</span>}
           {failingChecks > 0 && <span style={{ color: 'var(--danger)', marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Icon name="error" size={13} /> {failingChecks} failing</span>}
@@ -98,7 +98,7 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
       )}
 
       {(approvals.length > 0 || changesRequested.length > 0) && (
-        <div style={{ fontSize: '13px' }}>
+        <div style={{ fontSize: 'var(--fs-sm)' }}>
           <strong>Reviews:</strong>{' '}
           {approvals.length > 0 && (
             <span style={{ color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>

@@ -148,7 +148,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
         <>
           <h2>Relationships for &quot;{entity}&quot;</h2>
           <div style={{ marginBottom: '0.5rem' }}>
-            <a href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? '' : '&show_invalid=1'}`} style={{ fontSize: '13px' }}>
+            <a href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? '' : '&show_invalid=1'}`} style={{ fontSize: 'var(--fs-sm)' }}>
               {showInvalid ? 'Hide invalidated' : 'Show invalidated edges'}
             </a>
           </div>

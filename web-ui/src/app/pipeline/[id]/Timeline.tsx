@@ -184,7 +184,7 @@ export default function Timeline({
                   {formatDuration(c.duration_ms)}
                 </span>
               </div>
-              <div style={{ marginTop: "4px", fontSize: "13px" }}>
+              <div style={{ marginTop: "4px", fontSize: 'var(--fs-sm)' }}>
                 {c.summary}
               </div>
               {data.repo && (
@@ -193,7 +193,7 @@ export default function Timeline({
                   target="_blank"
                   rel="noreferrer"
                   className="meta"
-                  style={{ fontFamily: "var(--font-mono)", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "3px" }}
+                  style={{ fontFamily: "var(--font-mono)", fontSize: 'var(--fs-xs)', display: "inline-flex", alignItems: "center", gap: "3px" }}
                 >
                   {c.sha.substring(0, 7)} <Icon name="external" size={11} />
                 </a>
@@ -206,7 +206,7 @@ export default function Timeline({
       {data.lease?.held && (
         <div
           className="meta"
-          style={{ marginTop: "12px", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}
+          style={{ marginTop: "12px", fontSize: 'var(--fs-xs)', display: "flex", alignItems: "center", gap: "4px" }}
         >
           <Icon name="lock" size={12} /> Lease held by <code>{data.lease.holder}</code>
           {data.lease.expires_at &&

@@ -127,19 +127,19 @@ export default async function AnalyticsPage() {
       <div style={{display:'flex', gap:'16px', marginBottom:'24px', flexWrap:'wrap'}}>
         <div className="spec-card" style={{flex:1, minWidth:'150px'}}>
           <div className="meta">Total Tasks</div>
-          <div style={{fontSize:'24px', fontWeight:'bold'}}>{Number(taskSummary?.total ?? 0).toLocaleString()}</div>
+          <div style={{fontSize:'var(--fs-xl)', fontWeight:'bold'}}>{Number(taskSummary?.total ?? 0).toLocaleString()}</div>
         </div>
         <div className="spec-card" style={{flex:1, minWidth:'150px'}}>
           <div className="meta">Succeeded</div>
-          <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--success)'}}>{Number(taskSummary?.succeeded ?? 0).toLocaleString()}</div>
+          <div style={{fontSize:'var(--fs-xl)', fontWeight:'bold', color:'var(--success)'}}>{Number(taskSummary?.succeeded ?? 0).toLocaleString()}</div>
         </div>
         <div className="spec-card" style={{flex:1, minWidth:'150px'}}>
           <div className="meta">Failed</div>
-          <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--danger)'}}>{Number(taskSummary?.failed ?? 0).toLocaleString()}</div>
+          <div style={{fontSize:'var(--fs-xl)', fontWeight:'bold', color:'var(--danger)'}}>{Number(taskSummary?.failed ?? 0).toLocaleString()}</div>
         </div>
         <div className="spec-card" style={{flex:1, minWidth:'150px'}}>
           <div className="meta">Active</div>
-          <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--warning)'}}>{Number(taskSummary?.active ?? 0).toLocaleString()}</div>
+          <div style={{fontSize:'var(--fs-xl)', fontWeight:'bold', color:'var(--warning)'}}>{Number(taskSummary?.active ?? 0).toLocaleString()}</div>
         </div>
       </div>
 
@@ -161,9 +161,9 @@ export default async function AnalyticsPage() {
             <tr key={r.tool}>
               <td><span className="badge">{r.tool}</span></td>
               <td>{Number(r.call_count).toLocaleString()}</td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.p50_ms).toFixed(0)}ms</td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.p95_ms).toFixed(0)}ms</td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.p99_ms).toFixed(0)}ms</td>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(r.p50_ms).toFixed(0)}ms</td>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(r.p95_ms).toFixed(0)}ms</td>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(r.p99_ms).toFixed(0)}ms</td>
               <td>{Number(r.p95_ms) > 200
                 ? <span className="op-badge op-delete">&gt;200ms</span>
                 : <span className="op-badge op-write">OK</span>
@@ -190,8 +190,8 @@ export default async function AnalyticsPage() {
             <tr key={r.task_type}>
               <td><span className="badge">{r.task_type}</span></td>
               <td>{Number(r.task_count).toLocaleString()}</td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.total_input_tokens).toLocaleString()}</td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.total_output_tokens).toLocaleString()}</td>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(r.total_input_tokens).toLocaleString()}</td>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(r.total_output_tokens).toLocaleString()}</td>
             </tr>
           ))}
           {usageByTaskType.length === 0 && <tr><td colSpan={4} className="meta" style={{textAlign:'center'}}>No data</td></tr>}
@@ -210,7 +210,7 @@ export default async function AnalyticsPage() {
         <tbody>
           {usageByRepo.map(r => (
             <tr key={r.target_repo}>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{r.target_repo}</td>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{r.target_repo}</td>
               <td>{Number(r.task_count).toLocaleString()}</td>
             </tr>
           ))}
@@ -234,8 +234,8 @@ export default async function AnalyticsPage() {
             <tr key={r.day}>
               <td>{new Date(r.day).toLocaleDateString()}</td>
               <td>{Number(r.calls).toLocaleString()}</td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.input_tokens).toLocaleString()}</td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(r.output_tokens).toLocaleString()}</td>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(r.input_tokens).toLocaleString()}</td>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(r.output_tokens).toLocaleString()}</td>
             </tr>
           ))}
           {dailyUsage.length === 0 && <tr><td colSpan={4} className="meta" style={{textAlign:'center'}}>No data</td></tr>}
@@ -259,9 +259,9 @@ export default async function AnalyticsPage() {
             <tr key={i}>
               <td><span className="badge">{r.job_name}</span></td>
               <td className="meta">{new Date(r.started_at).toLocaleString()}</td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>{formatDuration(r.started_at, r.completed_at)}</td>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{formatDuration(r.started_at, r.completed_at)}</td>
               <td><span className={`op-badge op-${r.status}`}>{r.status}</span></td>
-              <td style={{fontSize:'12px'}}>{r.error ? <span style={{color:'var(--danger)'}}>{r.error}</span> : (r.result_summary ?? '—')}</td>
+              <td style={{fontSize:'var(--fs-sm)'}}>{r.error ? <span style={{color:'var(--danger)'}}>{r.error}</span> : (r.result_summary ?? '—')}</td>
             </tr>
           ))}
           {jobRuns.length === 0 && <tr><td colSpan={5} className="meta" style={{textAlign:'center'}}>No job runs</td></tr>}
