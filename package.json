@@ -4,5 +4,15 @@
     "shared",
     "mcp-server",
     "agent"
-  ]
+  ],
+  "scripts": {
+    "start": "bash scripts/dev-local.sh",
+    "build": "npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-mcp && npm run build -w @re-cinq/lore-agent",
+    "db:up": "docker start lore-postgres 2>/dev/null || (mkdir -p .lore-pgdata && docker run --name lore-postgres -e POSTGRES_PASSWORD=lore -e POSTGRES_DB=lore -v \"$PWD/.lore-pgdata:/var/lib/postgresql/data\" -p 5432:5432 -d pgvector/pgvector:pg16)",
+    "db:down": "docker rm -f lore-postgres",
+    "db:schema": "bash scripts/infra/setup-local-schema.sh"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
 }

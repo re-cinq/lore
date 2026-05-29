@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import Icon from '@/components/Icon';
 
 export default function AppShell({
   sidebar,
@@ -55,7 +56,7 @@ export default function AppShell({
           onClick={() => setSidebarOpen(false)}
           aria-label="Close menu"
         >
-          ✕
+          <Icon name="close" size={16} />
         </button>
         {sidebar}
       </aside>

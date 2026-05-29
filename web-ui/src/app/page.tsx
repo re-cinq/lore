@@ -16,18 +16,18 @@ interface Repo {
 
 function freshnessIndicator(lastIngestedAt: string | null): { color: string; label: string } {
   if (!lastIngestedAt) {
-    return { color: '#6b7280', label: 'Never ingested' }; // gray
+    return { color: 'var(--text-muted)', label: 'Never ingested' };
   }
   const now = new Date();
   const ingested = new Date(lastIngestedAt);
   const hoursAgo = (now.getTime() - ingested.getTime()) / (1000 * 60 * 60);
 
   if (hoursAgo < 24) {
-    return { color: '#22c55e', label: 'Fresh (< 24h)' }; // green
+    return { color: 'var(--success)', label: 'Fresh (< 24h)' };
   } else if (hoursAgo < 7 * 24) {
-    return { color: '#eab308', label: 'Stale (< 7d)' }; // yellow
+    return { color: 'var(--warning)', label: 'Stale (< 7d)' };
   } else {
-    return { color: '#ef4444', label: 'Outdated (> 7d)' }; // red
+    return { color: 'var(--danger)', label: 'Outdated (> 7d)' };
   }
 }
 
@@ -68,7 +68,7 @@ export default async function HomePage() {
             <div className="repo-meta">
               {r.team && <span className="badge">{r.team}</span>}
               <span className="meta">{r.task_count} tasks</span>
-              {r.active_agents > 0 && <span className="badge" style={{background:'#1e3a2f',color:'#4ade80'}}>{r.active_agents} running</span>}
+              {r.active_agents > 0 && <span className="badge badge-green">{r.active_agents} running</span>}
             </div>
             <div className="meta">
               {r.last_ingested_at

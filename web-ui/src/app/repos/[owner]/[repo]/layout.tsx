@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getRepoMeta } from '@/lib/github';
 
 export default async function RepoLayout({
   children,
@@ -9,6 +10,7 @@ export default async function RepoLayout({
 }) {
   const { owner, repo } = await params;
   const base = `/repos/${owner}/${repo}`;
+  const meta = await getRepoMeta(`${owner}/${repo}`).catch(() => null);
   const tabs = [
     { href: base, label: 'Overview' },
     { href: `${base}/tasks`, label: 'Tasks' },
@@ -21,6 +23,9 @@ export default async function RepoLayout({
   return (
     <div>
       <h1 style={{marginBottom:'4px'}}>{owner}/{repo}</h1>
+      {meta?.description && (
+        <p className="meta" style={{marginTop:0, marginBottom:'12px'}}>{meta.description}</p>
+      )}
       <nav className="tab-nav">
         {tabs.map(t => (
           <Link key={t.href} href={t.href} className="tab-link">{t.label}</Link>

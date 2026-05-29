@@ -1,0 +1,217 @@
+/*
+ * Design tokens for the two theme families (elegant, retro), each with light
+ * and dark variants. Family-level blocks hold shape/type/glass tokens that do
+ * not change with the color scheme; the four family×scheme blocks hold colors.
+ * Consumed by globals.css and component styles — never hardcode color here's
+ * job is to be the single source of truth for color.
+ */
+
+:root {
+  --transition: 150ms ease;
+}
+
+/* ============================================================ ELEGANT ===== */
+/* Figma-like: Inter, rounded corners, soft shadows, frosted glass.           */
+/* Palette modeled on apple.com/mac.                                          */
+
+[data-theme-family='elegant'] {
+  --font-ui: var(--font-inter), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: var(--font-ui);
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Type scale — referenced by globals.css; never hardcode font-size elsewhere. */
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-base: 16px;
+  --fs-md: 18px;
+  --fs-lg: 20px;
+  --fs-xl: 25px;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  --glass-blur: blur(20px) saturate(180%);
+}
+
+[data-theme-family='elegant'][data-color-scheme='light'] {
+  --color-scheme: light;
+
+  --bg: #f5f5f7;
+  --bg-surface: #ffffff;
+  --bg-hover: #ececee;
+  --bg-elevated: #ffffff;
+
+  --border: #d2d2d7;
+  --border-hover: #b8b8c0;
+  --focus-ring: rgba(0, 113, 227, 0.4);
+
+  --text: #1d1d1f;
+  --text-muted: #6e6e73;
+  --text-on-accent: #ffffff;
+
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --danger: #d70015;
+  --info: #0071e3;
+  --success-bg: #e4f3e8;
+  --warning-bg: #fbf3da;
+  --danger-bg: #ffe5e6;
+  --info-bg: #e3f0fd;
+
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme-family='elegant'][data-color-scheme='dark'] {
+  --color-scheme: dark;
+
+  --bg: #000000;
+  --bg-surface: #1d1d1f;
+  --bg-hover: #2a2a2c;
+  --bg-elevated: #1d1d1f;
+
+  --border: #38383a;
+  --border-hover: #48484a;
+  --focus-ring: rgba(41, 151, 255, 0.5);
+
+  --text: #f5f5f7;
+  --text-muted: #86868b;
+  --text-on-accent: #ffffff;
+
+  --accent: #2997ff;
+  --accent-hover: #47a9ff;
+
+  --success: #30d158;
+  --warning: #ffd60a;
+  --danger: #ff453a;
+  --info: #0a84ff;
+  --success-bg: #0e2a17;
+  --warning-bg: #2a2410;
+  --danger-bg: #2e1416;
+  --info-bg: #11233f;
+
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+
+  --glass-bg: rgba(29, 29, 31, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================================== RETRO ===== */
+/* Amber CRT monitor, after watkinslabs/vscode-theme-generator "amber_monitor":*/
+/* VT323, sharp corners, pale-amber text on warm near-black, amber accent.     */
+
+[data-theme-family='retro'] {
+  --font-ui: var(--font-vt323), 'Courier New', monospace;
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-ui);
+
+  /* VT323 has a small x-height, so the whole scale is bumped to read like Inter. */
+  --fs-xs: 15px;
+  --fs-sm: 17px;
+  --fs-base: 19px;
+  --fs-md: 21px;
+  --fs-lg: 24px;
+  --fs-xl: 30px;
+
+  --radius-sm: 2px;
+  --radius: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 0;
+
+  --glass-blur: blur(4px);
+}
+
+[data-theme-family='retro'][data-color-scheme='dark'] {
+  --color-scheme: dark;
+
+  --bg: #141413;
+  --bg-surface: #1e1d1b;
+  --bg-hover: #252525;
+  --bg-elevated: #252526;
+
+  --border: #38352c;
+  --border-hover: #5a5648;
+  --focus-ring: #ff9542;
+
+  --text: #fdffb6;
+  --text-muted: #9c9468;
+  --text-on-accent: #141413;
+
+  --accent: #ff9542;
+  --accent-hover: #ffb066;
+
+  --success: #5cb85c;
+  --warning: #ff8300;
+  --danger: #ff3c38;
+  --info: #ffc080;
+  --success-bg: #16240f;
+  --warning-bg: #2a1c05;
+  --danger-bg: #2e0f0e;
+  --info-bg: #2a2113;
+
+  --shadow: none;
+  --shadow-lg: 0 0 10px var(--accent);
+
+  --glass-bg: rgba(20, 20, 19, 0.72);
+  --glass-border: var(--border);
+}
+
+[data-theme-family='retro'][data-color-scheme='light'] {
+  --color-scheme: light;
+
+  /* Amber-on-paper: clean near-white surfaces, amber kept only as the accent. */
+  --bg: #f3f2ef;
+  --bg-surface: #ffffff;
+  --bg-hover: #eae9e4;
+  --bg-elevated: #ffffff;
+
+  --border: #d9d7d0;
+  --border-hover: #bbb8ae;
+  --focus-ring: #c2570a;
+
+  --text: #1f1d18;
+  --text-muted: #6a665c;
+  --text-on-accent: #ffffff;
+
+  --accent: #c2570a;
+  --accent-hover: #a4490a;
+
+  --success: #1f7a33;
+  --warning: #b35e00;
+  --danger: #c0322e;
+  --info: #8a5a12;
+  --success-bg: #e3efe1;
+  --warning-bg: #f6ead2;
+  --danger-bg: #f6dedd;
+  --info-bg: #f1e7d4;
+
+  --shadow: none;
+  --shadow-lg: 0 0 8px var(--accent);
+
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: var(--border);
+}
+
+/* When the user or OS asks for less transparency (or backdrop-filter is
+ * unsupported), fall back to opaque surfaces for every family. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-theme-family] {
+    --glass-blur: none;
+    --glass-bg: var(--bg-surface);
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  [data-theme-family] {
+    --glass-bg: var(--bg-surface);
+  }
+}

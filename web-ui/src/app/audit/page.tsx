@@ -98,7 +98,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             </tr>
           ))}
           {entries.length === 0 && (
-            <tr><td colSpan={6} style={{ textAlign: 'center', color: '#666', padding: 24 }}>No audit entries found</td></tr>
+            <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No audit entries found</td></tr>
           )}
         </tbody>
       </table>

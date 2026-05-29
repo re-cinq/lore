@@ -68,6 +68,73 @@ export function computeStatus(
   return 'open';
 }
 
+export interface RepoMeta {
+  description: string | null;
+  default_branch: string;
+  html_url: string;
+}
+
+/**
+ * Check whether each path exists on the repo's default branch.
+ * Returns a map of path -> true (exists) / false (404) / null (unknown:
+ * App not configured, no repo access, or transient error). Fail-soft.
+ */
+export async function checkRepoFiles(
+  repo: string,
+  paths: string[],
+): Promise<Record<string, boolean | null>> {
+  const result: Record<string, boolean | null> = {};
+  if (!isGitHubConfigured()) {
+    for (const p of paths) result[p] = null;
+    return result;
+  }
+  const ok = await octokit();
+  const [owner, name] = split(repo);
+  await Promise.all(
+    paths.map(async path => {
+      try {
+        await ok.rest.repos.getContent({ owner, repo: name, path });
+        result[path] = true;
+      } catch (e) {
+        result[path] = (e as { status?: number }).status === 404 ? false : null;
+      }
+    }),
+  );
+  return result;
+}
+
+export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
+  if (!isGitHubConfigured()) return null;
+  const ok = await octokit();
+  const [owner, name] = split(repo);
+  const { data } = await ok.rest.repos.get({ owner, repo: name });
+  return {
+    description: data.description ?? null,
+    default_branch: data.default_branch,
+    html_url: data.html_url,
+  };
+}
+
+export interface RepoReadme {
+  markdown: string;
+  rawBaseUrl: string;
+  htmlUrl: string;
+}
+
+export async function getReadme(repo: string): Promise<RepoReadme | null> {
+  if (!isGitHubConfigured()) return null;
+  const ok = await octokit();
+  const [owner, name] = split(repo);
+  try {
+    const { data } = await ok.rest.repos.getReadme({ owner, repo: name });
+    const markdown = Buffer.from(data.content, "base64").toString("utf-8");
+    const rawBaseUrl = (data.download_url ?? "").replace(/[^/]+$/, "");
+    return { markdown, rawBaseUrl, htmlUrl: data.html_url ?? "" };
+  } catch {
+    return null;
+  }
+}
+
 export async function getPRDetails(repo: string, prNumber: number): Promise<PRDetails> {
   const ok = await octokit();
   const [owner, repoName] = split(repo);

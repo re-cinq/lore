@@ -103,7 +103,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         <p><strong>Status:</strong> <span className={`op-badge op-${task.status}`}>{task.status}</span></p>
         <p>
           <strong>Priority:</strong>{' '}
-          <span className={task.priority === 'immediate' ? 'badge' : 'meta'} style={task.priority === 'immediate' ? {background:'#7c3aed',color:'white',padding:'2px 8px',borderRadius:'4px'} : {}}>
+          <span className={task.priority === 'immediate' ? 'badge badge-red' : 'meta'}>
             {task.priority || 'normal'}
           </span>
         </p>
@@ -113,21 +113,21 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         {task.pr_url && task.pr_number && (
           <PRStatusCard taskId={task.id} prUrl={task.pr_url} />
         )}
-        {task.failure_reason && <p><strong>Failure:</strong> <span style={{color:'#f87171'}}>{task.failure_reason}</span></p>}
+        {task.failure_reason && <p><strong>Failure:</strong> <span style={{color:'var(--danger)'}}>{task.failure_reason}</span></p>}
         {task.review_iteration > 0 && <p><strong>Review iterations:</strong> {task.review_iteration}</p>}
         <p><strong>Created by:</strong> {task.created_by}</p>
         <p className="meta">Created: {new Date(task.created_at).toLocaleString()} · Updated: {new Date(task.updated_at).toLocaleString()}</p>
         <div style={{display:'flex', gap:'8px', marginTop:'12px'}}>
           {task.status === 'pending' && (task.priority || 'normal') === 'normal' && (
             <form action={`/api/pipeline/${task.id}/run-now`} method="POST">
-              <button type="submit" style={{background:'#7c3aed',color:'white',border:'none',padding:'6px 16px',borderRadius:'4px',cursor:'pointer'}}>
+              <button type="submit" style={{background:'var(--accent)',color:'var(--text-on-accent)',border:'none',padding:'6px 16px',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>
                 Run Now
               </button>
             </form>
           )}
           {!['merged', 'failed', 'cancelled'].includes(task.status) && (
             <form action={`/api/pipeline/${task.id}/cancel`} method="POST">
-              <button type="submit" style={{background:'#dc2626',color:'white',border:'none',padding:'6px 16px',borderRadius:'4px',cursor:'pointer'}}>
+              <button type="submit" style={{background:'var(--danger)',color:'var(--text-on-accent)',border:'none',padding:'6px 16px',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>
                 Cancel Task
               </button>
             </form>
@@ -151,7 +151,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
               placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
               style={{ width: '100%', marginBottom: '8px' }}
             />
-            <button type="submit" style={{ background: '#2563eb', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '4px', cursor: 'pointer' }}>
+            <button type="submit" style={{ background: 'var(--accent)', color: 'var(--text-on-accent)', border: 'none', padding: '8px 20px', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
               Request Revision
             </button>
           </form>
@@ -169,7 +169,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             <span className={`op-badge op-${e.to_status}`}>{e.to_status}</span>
             {e.from_status && <span className="meta"> ← {e.from_status}</span>}
             <span className="meta" style={{marginLeft:'12px'}}>{new Date(e.created_at).toLocaleString()}</span>
-            {e.metadata && <pre style={{marginTop:'4px',fontSize:'12px'}}>{JSON.stringify(e.metadata, null, 2)}</pre>}
+            {e.metadata && <pre style={{marginTop:'4px',fontSize:'var(--fs-xs)'}}>{JSON.stringify(e.metadata, null, 2)}</pre>}
           </div>
         ))}
       </div>
@@ -183,9 +183,9 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           <tbody>
             {llmCalls.map((c, i) => (
               <tr key={i}>
-                <td style={{fontFamily:'monospace', fontSize:'12px'}}>{c.model}</td>
-                <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
-                <td style={{fontFamily:'monospace', fontSize:'12px'}}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
+                <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{c.model}</td>
+                <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
+                <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
                 <td className="meta">{new Date(c.created_at).toLocaleString()}</td>
               </tr>
             ))}
