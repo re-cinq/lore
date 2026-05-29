@@ -17,6 +17,13 @@ PG_DATA_DIR="$ROOT/.lore-pgdata"
 log() { echo "[lore] $*"; }
 fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
+# Load local secrets/overrides (gitignored). Put GitHub OAuth creds here so they
+# don't have to be re-exported every session. See .env.local.example.
+if [ -f "$ROOT/.env.local" ]; then
+  log "Loading .env.local"
+  set -a; . "$ROOT/.env.local"; set +a
+fi
+
 command -v docker >/dev/null 2>&1 || fail "docker not found — needed for local Postgres"
 
 # 1. Ensure Postgres is up. The :5432 host publish and the data bind mount are
