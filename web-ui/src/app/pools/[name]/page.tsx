@@ -83,7 +83,7 @@ export default async function PoolDetailPage({ params }: { params: Promise<{ nam
             </tr>
           ))}
           {entries.length === 0 && (
-            <tr><td colSpan={5} style={{ textAlign: 'center', color: '#666', padding: 24 }}>No entries in this pool</td></tr>
+            <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No entries in this pool</td></tr>
           )}
         </tbody>
       </table>

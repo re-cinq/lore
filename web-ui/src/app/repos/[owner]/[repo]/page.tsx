@@ -118,7 +118,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
           <div>
             <div className="meta" style={{fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.05em'}}>Mode</div>
             <div style={{fontWeight:600,marginTop:'2px'}}>
-              {darkFactoryEnabled ? <span style={{color:'#3fb950'}}>Enabled</span> : <span className="meta">Off (legacy)</span>}
+              {darkFactoryEnabled ? <span style={{color:'var(--success)'}}>Enabled</span> : <span className="meta">Off (legacy)</span>}
             </div>
           </div>
           <div>
@@ -131,11 +131,11 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
           </div>
           <div>
             <div className="meta" style={{fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.05em'}}>Auto-merged (7d)</div>
-            <div style={{fontWeight:600,marginTop:'2px',color: autoMergedWeek > 0 ? '#3fb950' : undefined}}>{autoMergedWeek}</div>
+            <div style={{fontWeight:600,marginTop:'2px',color: autoMergedWeek > 0 ? 'var(--success)' : undefined}}>{autoMergedWeek}</div>
           </div>
           <div>
             <div className="meta" style={{fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.05em'}}>Escalations (7d)</div>
-            <div style={{fontWeight:600,marginTop:'2px',color: escalationsWeek > 0 ? '#f85149' : undefined}}>{escalationsWeek}</div>
+            <div style={{fontWeight:600,marginTop:'2px',color: escalationsWeek > 0 ? 'var(--danger)' : undefined}}>{escalationsWeek}</div>
           </div>
         </div>
       </div>

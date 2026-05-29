@@ -137,7 +137,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
             </tr>
           ))}
           {entities.length === 0 && (
-            <tr><td colSpan={6} style={{ textAlign: 'center', color: '#666', padding: 24 }}>
+            <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>
               No entities yet. Write episodes to populate the graph.
             </td></tr>
           )}
@@ -171,7 +171,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
                 </tr>
               ))}
               {edges.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#666', padding: 24 }}>No relationships found for this entity.</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No relationships found for this entity.</td></tr>
               )}
             </tbody>
           </table>

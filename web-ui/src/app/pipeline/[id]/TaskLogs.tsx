@@ -10,18 +10,18 @@ interface LogsResponse {
 }
 
 const TERMINAL_STYLE: React.CSSProperties = {
-  background: "#0d1117",
-  color: "#c9d1d9",
+  background: "var(--bg)",
+  color: "var(--text)",
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
   fontSize: "12px",
   lineHeight: "1.5",
   padding: "16px",
-  borderRadius: "6px",
+  borderRadius: "var(--radius-sm)",
   overflowY: "auto",
   maxHeight: "500px",
   whiteSpace: "pre-wrap",
   wordBreak: "break-all",
-  border: "1px solid #30363d",
+  border: "1px solid var(--border)",
 };
 
 const HEADER_STYLE: React.CSSProperties = {
@@ -34,8 +34,8 @@ const HEADER_STYLE: React.CSSProperties = {
 const PULSE_STYLE: React.CSSProperties = {
   width: "8px",
   height: "8px",
-  borderRadius: "50%",
-  background: "#3fb950",
+  borderRadius: "var(--radius-pill)",
+  background: "var(--success)",
   display: "inline-block",
   animation: "pulse 1.5s ease-in-out infinite",
 };
@@ -129,13 +129,13 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
       </h2>
 
       {accessDenied && (
-        <p style={{ color: "#f87171", fontSize: "13px" }}>
+        <p style={{ color: "var(--danger)", fontSize: "13px" }}>
           Access denied — you do not have access to this repository.
         </p>
       )}
 
       {error && !accessDenied && (
-        <p style={{ color: "#f87171", fontSize: "13px" }}>Failed to load logs: {error}</p>
+        <p style={{ color: "var(--danger)", fontSize: "13px" }}>Failed to load logs: {error}</p>
       )}
 
       {!accessDenied && logs === null && !error ? (

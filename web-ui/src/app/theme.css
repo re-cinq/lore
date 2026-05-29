@@ -19,13 +19,20 @@
   --font-sans: var(--font-ui);
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
+  /* Type scale — referenced by globals.css; never hardcode font-size elsewhere. */
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-base: 16px;
+  --fs-md: 18px;
+  --fs-lg: 20px;
+  --fs-xl: 25px;
+
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 16px;
   --radius-pill: 9999px;
 
   --glass-blur: blur(20px) saturate(180%);
-  --scanline: none;
 }
 
 [data-theme-family='elegant'][data-color-scheme='light'] {
@@ -99,109 +106,111 @@
 }
 
 /* ============================================================== RETRO ===== */
-/* DEC VT320 terminal: VT323, sharp corners, phosphor, scanlines, no glass.   */
+/* Vintage-terminal / cyberpunk, after Richard-Apps/richardapps-web: VT323,    */
+/* sharp corners, cyan-blue phosphor on near-black, subtle backdrop blur.      */
 
 [data-theme-family='retro'] {
   --font-ui: var(--font-vt323), 'Courier New', monospace;
   --font-sans: var(--font-ui);
   --font-mono: var(--font-ui);
 
+  /* VT323 has a small x-height, so the whole scale is bumped to read like Inter. */
+  --fs-xs: 15px;
+  --fs-sm: 17px;
+  --fs-base: 19px;
+  --fs-md: 21px;
+  --fs-lg: 24px;
+  --fs-xl: 30px;
+
   --radius-sm: 0;
   --radius: 0;
   --radius-lg: 0;
   --radius-pill: 0;
 
-  --glass-blur: none;
-  --scanline: repeating-linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0) 0,
-    rgba(0, 0, 0, 0) 2px,
-    rgba(0, 0, 0, 0.16) 2px,
-    rgba(0, 0, 0, 0.16) 4px
-  );
+  --glass-blur: blur(4px);
 }
 
 [data-theme-family='retro'][data-color-scheme='dark'] {
   --color-scheme: dark;
 
-  --bg: #050805;
-  --bg-surface: #0a0f0a;
-  --bg-hover: #10180f;
-  --bg-elevated: #0a0f0a;
+  --bg: #060a12;
+  --bg-surface: #0a121c;
+  --bg-hover: #101b29;
+  --bg-elevated: #0a121c;
 
-  --border: #1f3a25;
-  --border-hover: #2f5a38;
-  --focus-ring: #33ff66;
+  --border: #1d4373;
+  --border-hover: #2f5f96;
+  --focus-ring: #72b6ff;
 
-  --text: #33ff66;
-  --text-muted: #1f9a3f;
-  --text-on-accent: #050805;
+  --text: #72b6ff;
+  --text-muted: #5f86b3;
+  --text-on-accent: #1c2635;
 
-  --accent: #ffb000;
-  --accent-hover: #ffc94d;
+  --accent: #72b6ff;
+  --accent-hover: #a5d0ff;
 
-  --success: #33ff66;
-  --warning: #ffb000;
-  --danger: #ff5555;
-  --info: #33ccff;
-  --success-bg: #0d2814;
-  --warning-bg: #2a1f00;
-  --danger-bg: #2a0d0d;
-  --info-bg: #062430;
+  --success: #b7f15f;
+  --warning: #e67225;
+  --danger: #f05656;
+  --info: #72b6ff;
+  --success-bg: #14260a;
+  --warning-bg: #2a1607;
+  --danger-bg: #2a0c0c;
+  --info-bg: #0c2138;
 
   --shadow: none;
-  --shadow-lg: 0 0 8px var(--accent);
+  --shadow-lg: 0 0 10px var(--accent);
 
-  --glass-bg: var(--bg-surface);
+  --glass-bg: rgba(10, 18, 28, 0.72);
   --glass-border: var(--border);
 }
 
 [data-theme-family='retro'][data-color-scheme='light'] {
   --color-scheme: light;
 
-  --bg: #e8e4d0;
-  --bg-surface: #ded9c2;
-  --bg-hover: #d2ccb0;
-  --bg-elevated: #ded9c2;
+  --bg: #dde8f5;
+  --bg-surface: #eef3fa;
+  --bg-hover: #d4e1f1;
+  --bg-elevated: #eef3fa;
 
-  --border: #b0a98c;
-  --border-hover: #8f876a;
-  --focus-ring: #9a6b00;
+  --border: #b3c6dd;
+  --border-hover: #8fa9c8;
+  --focus-ring: #1f6fd6;
 
-  --text: #2a3a1a;
-  --text-muted: #5a6a3a;
-  --text-on-accent: #e8e4d0;
+  --text: #14263d;
+  --text-muted: #496485;
+  --text-on-accent: #eef3fa;
 
-  --accent: #8f5b00;
-  --accent-hover: #6b4400;
+  --accent: #1f6fd6;
+  --accent-hover: #1a5cb0;
 
-  --success: #3a7a1a;
-  --warning: #8f5b00;
-  --danger: #a02020;
-  --info: #1a5a7a;
-  --success-bg: #cdd9b0;
-  --warning-bg: #e0d09a;
-  --danger-bg: #e0c0c0;
-  --info-bg: #c0d4dc;
+  --success: #2e7d32;
+  --warning: #c25a00;
+  --danger: #c62828;
+  --info: #1f6fd6;
+  --success-bg: #d6e8c8;
+  --warning-bg: #f0dcc0;
+  --danger-bg: #f0cccc;
+  --info-bg: #cfe0f5;
 
   --shadow: none;
-  --shadow-lg: 0 0 6px var(--accent);
+  --shadow-lg: 0 0 8px var(--accent);
 
-  --glass-bg: var(--bg-surface);
+  --glass-bg: rgba(238, 243, 250, 0.8);
   --glass-border: var(--border);
 }
 
 /* When the user or OS asks for less transparency (or backdrop-filter is
- * unsupported), fall back to opaque surfaces. */
+ * unsupported), fall back to opaque surfaces for every family. */
 @media (prefers-reduced-transparency: reduce) {
-  [data-theme-family='elegant'] {
+  [data-theme-family] {
     --glass-blur: none;
     --glass-bg: var(--bg-surface);
   }
 }
 
 @supports not (backdrop-filter: blur(1px)) {
-  [data-theme-family='elegant'] {
+  [data-theme-family] {
     --glass-bg: var(--bg-surface);
   }
 }
