@@ -21,6 +21,9 @@ export default async function RepoContext({ params }: { params: Promise<{ owner:
   return (
     <div>
       <h2>Context</h2>
+      <p className="meta" style={{marginTop:'-6px', marginBottom:'12px'}}>
+        Conventions, ADRs, specs, and code ingested from this repo that agents use as context.
+      </p>
       <p className="meta">{chunks.length} chunks ingested</p>
       {types.map(type => (
         <div key={type}>

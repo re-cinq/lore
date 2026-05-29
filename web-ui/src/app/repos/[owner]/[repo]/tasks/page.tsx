@@ -18,6 +18,9 @@ export default async function RepoTasks({ params }: { params: Promise<{ owner: s
         <h2>Tasks</h2>
         <Link href={`/repos/${owner}/${repo}/tasks/create`}><button>+ New Task</button></Link>
       </div>
+      <p className="meta" style={{marginTop:'-4px', marginBottom:'16px'}}>
+        Pipeline tasks targeting this repo. Delegate work to agents and track their status, PRs, and history.
+      </p>
       <table>
         <thead><tr><th>Task</th><th>Type</th><th>Status</th><th>Agent</th><th>PR</th><th>Created</th></tr></thead>
         <tbody>

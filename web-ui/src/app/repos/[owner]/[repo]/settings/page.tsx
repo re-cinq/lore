@@ -74,6 +74,9 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
   return (
     <div>
       <h2>Settings</h2>
+      <p className="meta" style={{marginTop:'-6px', marginBottom:'16px'}}>
+        Per-repo configuration: team, trust level, task types, auto-review, cross-repo links, and integrations.
+      </p>
       <form action={saveSettings} className="task-form" style={{maxWidth:'500px'}}>
         <input type="hidden" name="full_name" value={fullName} />
 
