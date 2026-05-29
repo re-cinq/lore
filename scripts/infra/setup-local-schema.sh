@@ -18,9 +18,10 @@ docker inspect "$CONTAINER" >/dev/null 2>&1 \
 
 # The GKE schemas GRANT to the 'lore' role and web-ui logs in as 'lore_ui';
 # both pre-exist in the cluster but not in a fresh container. Create them first.
-log "Ensuring roles (lore, lore_ui) and pgvector extension..."
+log "Ensuring roles, pgvector extension, and team chunk schemas..."
 docker exec -i "$CONTAINER" psql -U postgres -d lore -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 CREATE EXTENSION IF NOT EXISTS vector;
+
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore') THEN
     CREATE ROLE lore LOGIN PASSWORD 'lore';
@@ -28,6 +29,33 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore_ui') THEN
     CREATE ROLE lore_ui LOGIN PASSWORD 'lore';
   END IF;
+END $$;
+
+-- Team chunk schemas + chunks tables (mirrors setup-db.sh's CNPG block, which
+-- is kubectl-bound and does not run locally).
+DO $$
+DECLARE s TEXT;
+BEGIN
+  FOREACH s IN ARRAY ARRAY['payments', 'platform', 'mobile', 'data', 'org_shared']
+  LOOP
+    EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', s);
+    EXECUTE format('
+      CREATE TABLE IF NOT EXISTS %I.chunks (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        content       TEXT NOT NULL,
+        embedding     VECTOR(768),
+        content_type  TEXT,
+        team          TEXT,
+        repo          TEXT,
+        file_path     TEXT,
+        author        TEXT,
+        ingested_at   TIMESTAMPTZ DEFAULT NOW(),
+        metadata      JSONB,
+        search_tsv    TSVECTOR GENERATED ALWAYS AS (to_tsvector(''english'', content)) STORED
+      )', s);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I_chunks_embedding_idx ON %I.chunks USING hnsw (embedding vector_cosine_ops)', s, s);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I_chunks_search_idx ON %I.chunks USING GIN (search_tsv)', s, s);
+  END LOOP;
 END $$;
 SQL
 
