@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import { parseSettingsForm } from '@/lib/settings-form';
 
 interface Repo { full_name: string }
 
@@ -9,29 +10,9 @@ async function saveSettings(formData: FormData) {
   const fullName = formData.get('full_name') as string;
   const team = formData.get('team') as string;
 
-  // Parse selected cross-repo repos
-  const selectedRepos = formData.getAll('cross_repo_repos') as string[];
-
   // Merge new values into existing settings (never overwrite unrelated keys)
-  const updates: Record<string, any> = {
-    task_types: (formData.get('task_types') as string || '').split(',').map(s => s.trim()).filter(Boolean),
-    auto_review: formData.get('auto_review') === 'on',
-    cross_repo: selectedRepos.length > 0,
-    cross_repo_repos: selectedRepos,
-    slack_channel_id: (formData.get('slack_channel_id') as string || '').trim() || undefined,
-    dispatch_label: (formData.get('dispatch_label') as string || '').trim() || undefined,
-  };
-
-  // Parse trust level
-  const trustLevel = formData.get('trust_level') as string;
-  if (trustLevel) {
-    updates.trust = { level: trustLevel, auto_promote_threshold: 3 };
-  }
-
-  // Remove undefined keys
-  for (const k of Object.keys(updates)) {
-    if (updates[k] === undefined) delete updates[k];
-  }
+  const updates = parseSettingsForm(formData);
+  const selectedRepos = updates.cross_repo_repos as string[];
 
   await query(
     `UPDATE lore.repos SET team = $1, settings = COALESCE(settings, '{}') || $2::jsonb WHERE full_name = $3`,
@@ -100,19 +81,19 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
           <option value="full">Full (all task types)</option>
         </select>
 
-        <label style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
-          <input type="checkbox" name="auto_review" defaultChecked={settings.auto_review === true} />
-          Auto-review PRs
-        </label>
+        <label>Auto-review PRs</label>
+        <select name="auto_review" defaultValue={settings.auto_review === true ? 'yes' : 'no'}>
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </select>
 
         <label>Cross-repo context (select repos to include)</label>
-        <select name="cross_repo_repos" multiple size={Math.min(allRepos.length, 6)} defaultValue={selectedRepos}
-          style={{width:'100%',padding:'0.25rem'}}>
+        <select name="cross_repo_repos" multiple size={Math.min(allRepos.length, 6)} defaultValue={selectedRepos}>
           {allRepos.map((r) => (
             <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
           ))}
         </select>
-        <span style={{fontSize:'0.8rem',opacity:0.6}}>Hold Cmd/Ctrl to select multiple. Linked repos will automatically get this repo added to their cross-repo list.</span>
+        <span className="meta" style={{fontSize:'12px'}}>Hold Cmd/Ctrl to select multiple. Linked repos will automatically get this repo added to their cross-repo list.</span>
 
         <button type="submit">Save Settings</button>
       </form>
