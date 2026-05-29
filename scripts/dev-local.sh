@@ -83,6 +83,22 @@ export LORE_DB_NAME=lore
 export LORE_DB_USER=postgres
 export LORE_DB_PASSWORD=lore
 
+# 2b. web-ui auth (NextAuth). Needs a URL + secret locally. Generate the secret
+#     once and persist it (gitignored) so sessions survive restarts. GitHub OAuth
+#     creds must be supplied by the user (exported before 'npm start').
+export NEXTAUTH_URL="http://localhost:3000"
+SECRET_FILE="$ROOT/.lore-nextauth-secret"
+if [ ! -s "$SECRET_FILE" ]; then
+  (openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64) > "$SECRET_FILE"
+fi
+export NEXTAUTH_SECRET="$(cat "$SECRET_FILE")"
+
+if [ -z "${GITHUB_OAUTH_CLIENT_ID:-}" ] || [ -z "${GITHUB_OAUTH_CLIENT_SECRET:-}" ]; then
+  log "WARNING: GITHUB_OAUTH_CLIENT_ID / GITHUB_OAUTH_CLIENT_SECRET not set — web-ui login will fail."
+  log "         Create a GitHub OAuth app with callback http://localhost:3000/api/auth/callback/github,"
+  log "         then export both vars before running 'npm start'."
+fi
+
 # 3. web-ui deps live outside the workspace — install on first run.
 if [ ! -d "$ROOT/web-ui/node_modules" ]; then
   log "Installing web-ui dependencies (first run)..."
@@ -99,8 +115,28 @@ npm run build -w @re-cinq/lore-agent
 #    Each TS service gets a tsc --watch (recompile) + node --watch (restart) pair.
 #    start:watch watches both ./dist and ../shared/dist, so a shared-package edit
 #    recompiles (shared tsc) and restarts the dependent services too.
+#
+#    Teardown: concurrently runs via setsid in its OWN process group, detached
+#    from the TTY. Ctrl-C reaches only this script, whose trap signals the whole
+#    group — node --watch children ignore plain SIGTERM, so we escalate to
+#    SIGKILL. This guarantees a clean stop with no orphaned watchers.
+STACK_PGID=""
+cleanup() {
+  trap - INT TERM EXIT
+  [ -n "$STACK_PGID" ] || exit 0
+  log "Stopping all components..."
+  kill -TERM "-$STACK_PGID" 2>/dev/null || true
+  for _ in 1 2 3 4 5 6; do
+    kill -0 "-$STACK_PGID" 2>/dev/null || break
+    sleep 0.3
+  done
+  kill -KILL "-$STACK_PGID" 2>/dev/null || true
+  exit 0
+}
+trap cleanup INT TERM EXIT
+
 log "Starting all components..."
-npx concurrently -k \
+setsid npx concurrently -k \
   -n "shared,mcp-tsc,mcp,agent-tsc,agent,ui" \
   -c "blue,green,greenBright,magenta,magentaBright,cyan" \
   "npm run dev -w @re-cinq/lore-shared" \
@@ -108,4 +144,6 @@ npx concurrently -k \
   "PORT=3001 npm run start:watch -w @re-cinq/lore-mcp" \
   "npm run dev -w @re-cinq/lore-agent" \
   "npm run start:watch -w @re-cinq/lore-agent" \
-  "npm --prefix web-ui run dev"
+  "npm --prefix web-ui run dev" &
+STACK_PGID=$!
+wait "$STACK_PGID"
