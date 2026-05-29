@@ -1,8 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { callClaude } from '../facts.js';
 
-// We can't directly import extractFacts because it depends on DB and embedding.
-// Instead, test the pure logic by re-implementing the key functions here
-// and testing the contradiction detection logic with mocked pool.
+// Mocked CLI integration: callClaude falls back to the `claude` CLI when no
+// API key is set. We mock child_process so the real binary is never spawned —
+// promisify reads the custom symbol off our mock to resolve { stdout, stderr }.
+const { CLI_STDOUT, execFileCalls } = vi.hoisted(() => ({
+  CLI_STDOUT:
+    '["Lore uses PostgreSQL with pgvector for vector search.",' +
+    '"The MCP server runs on GKE."]',
+  execFileCalls: [] as Array<[string, string[]]>,
+}));
+
+vi.mock('node:child_process', () => {
+  const execFile = (() => {
+    throw new Error('execFile callback form should not be used in tests');
+  }) as unknown as Record<symbol, unknown>;
+  execFile[Symbol.for('nodejs.util.promisify.custom')] = (file: string, args: string[]) => {
+    execFileCalls.push([file, args]);
+    return Promise.resolve({ stdout: `${CLI_STDOUT}\n`, stderr: '' });
+  };
+  return { execFile };
+});
+
+// extractFacts itself depends on DB and embedding, so parseFacts is
+// re-implemented here for unit testing and the contradiction detection logic
+// is tested with a mocked pool.
 
 // ── parseFacts (copied from facts.ts for unit testing) ─────────────
 
@@ -100,33 +122,31 @@ describe('LLM config', () => {
 
 // ── Claude CLI fallback (integration test) ──────────────────────────
 
-describe('callClaudeCli fallback', () => {
-  it('extracts facts via claude CLI when ANTHROPIC_API_KEY is unset', async () => {
-    const { execFile } = await import('node:child_process');
-    const { promisify } = await import('node:util');
-    const execFileAsync = promisify(execFile);
+describe('callClaude — CLI fallback (mocked)', () => {
+  beforeEach(() => {
+    execFileCalls.length = 0;
+    delete process.env.ANTHROPIC_API_KEY;
+  });
 
-    const EXTRACTION_PROMPT =
-      'Extract individual factual statements from the following text. ' +
-      'Return a JSON array of strings. Each fact should be a single, ' +
-      'self-contained statement. Maximum 10 facts.';
-    const text = 'Lore uses PostgreSQL with pgvector for vector search. The MCP server runs on GKE.';
+  it('invokes the claude CLI and returns its trimmed stdout when no API key is set', async () => {
+    const text = 'Lore uses PostgreSQL with pgvector for vector search.';
 
-    const { stdout } = await execFileAsync('claude', ['-p', `${EXTRACTION_PROMPT}\n\n${text}`, '--output-format', 'text'], {
-      timeout: 30_000,
-      env: { ...process.env, ANTHROPIC_API_KEY: '' },
-    });
+    const out = await callClaude('claude-haiku-4-5-20251001', text);
 
-    const cleaned = stdout.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
-    const facts = JSON.parse(cleaned);
+    expect(out).toBe(CLI_STDOUT);
+    expect(execFileCalls).toHaveLength(1);
+    expect(execFileCalls[0]).toEqual([
+      'claude',
+      ['-p', expect.stringContaining(text), '--output-format', 'text'],
+    ]);
+  });
 
-    expect(Array.isArray(facts)).toBe(true);
-    expect(facts.length).toBeGreaterThan(0);
-    expect(facts.length).toBeLessThanOrEqual(10);
-    // Should mention postgresql or pgvector
-    const allText = facts.join(' ').toLowerCase();
-    expect(allText).toMatch(/postgres|pgvector/);
-  }, 45_000); // generous timeout for CLI
+  it('parses the mocked CLI output into a bounded fact list', () => {
+    expect(parseFacts(CLI_STDOUT)).toEqual([
+      'Lore uses PostgreSQL with pgvector for vector search.',
+      'The MCP server runs on GKE.',
+    ]);
+  });
 });
 
 // ── Contradiction detection (integration-style with mock pool) ─────
