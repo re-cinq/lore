@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query, getRepoSchema, getRepoSchemaAndTeam } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import HelpPopover from '@/components/HelpPopover';
 
 async function addSpec(formData: FormData) {
   'use server';
@@ -40,27 +41,21 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
 
   return (
     <div>
-      <h2>Specifications</h2>
-      <p className="meta" style={{marginTop:'-6px', marginBottom:'16px'}}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h2 style={{ margin: 0 }}>Specifications</h2>
+        <HelpPopover label="How specs are used">
+          <p>Specs are stored as context chunks for this repo and become part of the context Lore assembles for agents:</p>
+          <ul>
+            <li><strong>feature-request</strong> tasks turn a plain-language intent into a spec.</li>
+            <li><strong>implementation</strong> and <strong>review</strong> tasks read the spec to build and check against the intended contract.</li>
+            <li>They surface in <code>assemble_context</code> and <code>search_context</code> alongside ADRs and conventions.</li>
+          </ul>
+          <p className="meta">Note: a spec added here is saved and listed below immediately, but is only picked up by semantic search after the next ingestion generates its embeddings.</p>
+        </HelpPopover>
+      </div>
+      <p className="meta" style={{marginTop:'6px', marginBottom:'16px'}}>
         Specifications and design docs for this repo. Add your own or browse what&apos;s been ingested.
       </p>
-
-      <div className="spec-card" style={{ marginBottom: '24px' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '8px' }}>How specs are used</h3>
-        <p className="meta" style={{ marginBottom: '8px' }}>
-          Specs are stored as context chunks for this repo and become part of the context Lore
-          assembles for agents:
-        </p>
-        <ul className="meta" style={{ margin: 0, paddingLeft: '1.2em' }}>
-          <li><strong>feature-request</strong> tasks turn a plain-language intent into a spec.</li>
-          <li><strong>implementation</strong> and <strong>review</strong> tasks read the spec to build and check against the intended contract.</li>
-          <li>They surface in <code>assemble_context</code> and <code>search_context</code> alongside ADRs and conventions.</li>
-        </ul>
-        <p className="meta" style={{ marginTop: '8px', marginBottom: 0 }}>
-          Note: a spec added here is saved and listed below immediately, but is only picked up by
-          semantic search after the next ingestion generates its embeddings.
-        </p>
-      </div>
 
       <form action={addSpec} className="task-form" style={{ maxWidth: '600px', marginBottom: '2rem' }}>
         <input type="hidden" name="owner" value={owner} />

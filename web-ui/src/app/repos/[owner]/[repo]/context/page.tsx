@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { query, getRepoSchema } from '@/lib/db';
+import HelpPopover from '@/components/HelpPopover';
 
 export default async function RepoContext({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo } = await params;
@@ -20,8 +21,18 @@ export default async function RepoContext({ params }: { params: Promise<{ owner:
 
   return (
     <div>
-      <h2>Context</h2>
-      <p className="meta" style={{marginTop:'-6px', marginBottom:'12px'}}>
+      <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+        <h2 style={{margin:0}}>Context</h2>
+        <HelpPopover label="How context is used">
+          <p>Context is everything Lore has ingested about this repo — conventions, ADRs, specs, and code — stored as embedded chunks.</p>
+          <ul>
+            <li>Agents load it on turn 1 of every task via <code>assemble_context</code>, and search it with <code>search_context</code>.</li>
+            <li>It is refreshed by nightly ingestion; a repo not ingested in over 7 days is flagged <strong>stale</strong>.</li>
+            <li>Higher-signal chunks (incidents, conflicts, recent facts) are surfaced first within the token budget.</li>
+          </ul>
+        </HelpPopover>
+      </div>
+      <p className="meta" style={{marginTop:'6px', marginBottom:'12px'}}>
         Conventions, ADRs, specs, and code ingested from this repo that agents use as context.
       </p>
       <p className="meta">{chunks.length} chunks ingested</p>

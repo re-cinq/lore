@@ -1,0 +1,50 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.trigger:hover {
+  color: var(--text);
+  border-color: #3a3a3a;
+  background: var(--bg-hover);
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  width: 380px;
+  max-width: 80vw;
+  padding: 14px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text);
+  cursor: default;
+}
+.popover :first-child { margin-top: 0; }
+.popover :last-child { margin-bottom: 0; }
+.popover ul { padding-left: 1.2em; margin: 8px 0; }
+.popover li { margin: 4px 0; }
+.popover p { margin: 8px 0; }
