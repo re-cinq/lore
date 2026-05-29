@@ -2,15 +2,16 @@ export const dynamic = "force-dynamic";
 import { query, getRepoSchema, getRepoSchemaAndTeam } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import HelpPopover from '@/components/HelpPopover';
+import { validateSpecPath } from '@/lib/spec-path';
 
 async function addSpec(formData: FormData) {
   'use server';
   const owner = formData.get('owner') as string;
   const repo = formData.get('repo') as string;
   const fullName = `${owner}/${repo}`;
-  const filePath = (formData.get('file_path') as string || '').trim().replace(/^\/+/, '');
+  const { valid, path: filePath } = validateSpecPath(formData.get('file_path') as string);
   const content = (formData.get('content') as string || '').trim();
-  if (!filePath || !content || !filePath.endsWith('.md')) return;
+  if (!valid || !content) return;
 
   const repoData = await getRepoSchemaAndTeam(fullName);
   if (!repoData) return;

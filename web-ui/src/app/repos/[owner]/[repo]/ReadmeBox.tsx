@@ -5,22 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import styles from './ReadmeBox.module.css';
-
-function resolveUrl(url: string, base: string): string {
-  if (/^(https?:|mailto:|data:|#)/i.test(url) || !base) return url;
-  try {
-    return new URL(url, base).toString();
-  } catch {
-    return url;
-  }
-}
-
-function splitBlocks(markdown: string): string[] {
-  return markdown
-    .split(/\n\s*\n/)
-    .map(b => b.trim())
-    .filter(Boolean);
-}
+import { resolveUrl, splitBlocks } from './readme-markdown';
 
 export default function ReadmeBox({
   markdown,
