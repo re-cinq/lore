@@ -8,9 +8,9 @@ async function addSpec(formData: FormData) {
   const owner = formData.get('owner') as string;
   const repo = formData.get('repo') as string;
   const fullName = `${owner}/${repo}`;
-  const filePath = (formData.get('file_path') as string || '').trim();
+  const filePath = (formData.get('file_path') as string || '').trim().replace(/^\/+/, '');
   const content = (formData.get('content') as string || '').trim();
-  if (!filePath || !content) return;
+  if (!filePath || !content || !filePath.endsWith('.md')) return;
 
   const repoData = await getRepoSchemaAndTeam(fullName);
   if (!repoData) return;
@@ -61,8 +61,22 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
         <input type="hidden" name="owner" value={owner} />
         <input type="hidden" name="repo" value={repo} />
 
-        <label>Spec path (e.g. specs/my-feature/spec.md)</label>
-        <input name="file_path" required placeholder="specs/my-feature/spec.md" />
+        <label htmlFor="spec-path">Spec path</label>
+        <input
+          id="spec-path"
+          name="file_path"
+          required
+          placeholder="specs/my-feature/spec.md"
+          pattern="([\w.-]+/)*[\w.-]+\.md"
+          title="Relative path ending in .md, e.g. specs/my-feature/spec.md (no leading slash)"
+          autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          style={{ fontFamily: 'var(--font-mono)' }}
+        />
+        <span className="meta" style={{ fontSize: '12px' }}>
+          Relative path within the repo, ending in <code>.md</code> — e.g. <code>specs/my-feature/spec.md</code>. No leading slash.
+        </span>
 
         <label>Content</label>
         <textarea name="content" required rows={8} placeholder="Describe the specification..." style={{ width: '100%', fontFamily: 'monospace', resize: 'vertical' }} />
