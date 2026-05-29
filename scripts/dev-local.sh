@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Boot the full Lore stack locally with live reload:
+#   Postgres (docker) + shared (tsc --watch) + mcp-server + agent + web-ui.
+# Idempotent — safe to re-run. Ctrl-C tears everything down (concurrently -k).
+#
+# Ports after start: web-ui :3000, mcp-server :3001, agent :8080, Postgres :5432.
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+PG_CONTAINER="lore-postgres"
+PG_IMAGE="pgvector/pgvector:pg16"
+PG_DATA_DIR="$ROOT/.lore-pgdata"
+
+log() { echo "[lore] $*"; }
+fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
+
+command -v docker >/dev/null 2>&1 || fail "docker not found — needed for local Postgres"
+
+# 1. Ensure Postgres is up (idempotent: start existing container, else create it).
+if docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
+  log "Postgres container '$PG_CONTAINER' already running"
+elif docker ps -a --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
+  log "Starting existing Postgres container '$PG_CONTAINER'"
+  docker start "$PG_CONTAINER" >/dev/null
+else
+  log "Creating Postgres container '$PG_CONTAINER' ($PG_IMAGE), data in $PG_DATA_DIR"
+  mkdir -p "$PG_DATA_DIR"
+  docker run --name "$PG_CONTAINER" \
+    -e POSTGRES_PASSWORD=lore -e POSTGRES_DB=lore \
+    -v "$PG_DATA_DIR:/var/lib/postgresql/data" \
+    -p 5432:5432 -d "$PG_IMAGE" >/dev/null
+fi
+
+log "Waiting for Postgres to accept connections..."
+for _ in $(seq 1 30); do
+  if docker exec "$PG_CONTAINER" pg_isready -U postgres -d lore >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+docker exec "$PG_CONTAINER" pg_isready -U postgres -d lore >/dev/null 2>&1 \
+  || fail "Postgres did not become ready in time"
+log "Postgres ready on localhost:5432 (db=lore user=postgres password=lore)"
+log "NOTE: schemas (lore, pipeline, memory, team schemas) are NOT auto-created."
+log "      Components connect but queries will error until schemas exist."
+
+# 2. Local DB env defaults — propagate to every child process below.
+export LORE_DB_HOST=localhost
+export LORE_DB_PORT=5432
+export LORE_DB_NAME=lore
+export LORE_DB_USER=postgres
+export LORE_DB_PASSWORD=lore
+
+# 3. web-ui deps live outside the workspace — install on first run.
+if [ ! -d "$ROOT/web-ui/node_modules" ]; then
+  log "Installing web-ui dependencies (first run)..."
+  npm --prefix web-ui install
+fi
+
+# 4. Build once so 'node --watch dist/index.js' has something to run cold.
+log "Building shared, mcp-server, agent..."
+npm run build -w @re-cinq/lore-shared
+npm run build -w @re-cinq/lore-mcp
+npm run build -w @re-cinq/lore-agent
+
+# 5. Run everything with live reload — one slot per process so -k kills all.
+#    Each TS service gets a tsc --watch (recompile) + node --watch (restart) pair.
+log "Starting all components..."
+npx concurrently -k \
+  -n "shared,mcp-tsc,mcp,agent-tsc,agent,ui" \
+  -c "blue,green,greenBright,magenta,magentaBright,cyan" \
+  "npm run dev -w @re-cinq/lore-shared" \
+  "npm run dev -w @re-cinq/lore-mcp" \
+  "PORT=3001 npm run start:watch -w @re-cinq/lore-mcp" \
+  "npm run dev -w @re-cinq/lore-agent" \
+  "npm run start:watch -w @re-cinq/lore-agent" \
+  "npm --prefix web-ui run dev"
