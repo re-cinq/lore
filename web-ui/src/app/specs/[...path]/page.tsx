@@ -71,7 +71,7 @@ export default async function SpecDetailPage({ params }: { params: Promise<{ pat
           )}
 
           {i < chunks.length - 1 && (
-            <hr style={{ border: 'none', borderTop: '1px solid #222', margin: '24px 0' }} />
+            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '24px 0' }} />
           )}
         </div>
       ))}

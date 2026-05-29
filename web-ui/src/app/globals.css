@@ -13,20 +13,9 @@ body {
   color: var(--text);
   color-scheme: var(--color-scheme);
   font-family: var(--font-ui);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--fs-base, 16px);
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-}
-
-/* Retro CRT scanline overlay — `--scanline` is `none` for elegant, so this
-   draws nothing there. pointer-events:none keeps it purely decorative. */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background: var(--scanline);
-  z-index: 9999;
 }
 
 a {
@@ -100,7 +89,7 @@ a:hover {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   transition: background var(--transition), color var(--transition);
 }
@@ -140,7 +129,7 @@ a:hover {
 }
 
 .mobile-brand {
-  font-size: 15px;
+  font-size: var(--fs-md);
   font-weight: 600;
   letter-spacing: 0.05em;
   color: var(--text);
@@ -182,7 +171,7 @@ a:hover {
   border: none;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: var(--fs-md);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   line-height: 1;
@@ -208,7 +197,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 thead th {
@@ -217,7 +206,7 @@ thead th {
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
   font-weight: 500;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -234,13 +223,13 @@ tbody tr:hover {
 /* Headings */
 
 h1 {
-  font-size: 20px;
+  font-size: var(--fs-xl);
   font-weight: 600;
   margin-bottom: 16px;
 }
 
 h2 {
-  font-size: 16px;
+  font-size: var(--fs-md);
   font-weight: 600;
   margin-bottom: 12px;
 }
@@ -260,7 +249,7 @@ code {
   background: var(--bg-surface);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 pre {
@@ -270,7 +259,7 @@ pre {
   padding: 12px 16px;
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
 }
 
@@ -280,7 +269,7 @@ pre {
   display: inline-block;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   font-family: var(--font-mono);
 }
@@ -316,7 +305,7 @@ pre {
   display: inline-block;
   padding: 2px 10px;
   border-radius: var(--radius-pill);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   font-family: var(--font-mono);
   background: var(--pill-color, var(--bg-hover));
@@ -329,7 +318,7 @@ pre {
   display: inline-block;
   padding: 2px 8px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
 }
 .op-write { background: var(--success-bg); color: var(--success); }
@@ -380,7 +369,7 @@ pre {
   display: inline-block;
   padding: 2px 8px;
   border-radius: var(--radius);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   background: var(--bg-hover);
   color: var(--text-muted);
   margin-left: 8px;
@@ -400,7 +389,7 @@ pre {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .search-form button, .filter-form button {
   padding: 10px 20px;
@@ -409,7 +398,7 @@ pre {
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .search-form button:hover, .filter-form button:hover {
   background: var(--accent-hover);
@@ -430,7 +419,7 @@ pre {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .filter-form a {
   padding: 6px 14px;
@@ -438,7 +427,7 @@ pre {
   text-decoration: none;
   color: var(--text-muted);
   background: var(--bg-hover);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .filter-form a.active, .filter-form a:hover {
   background: var(--accent);
@@ -472,7 +461,7 @@ pre {
 }
 .spec-card h3 {
   margin: 0 0 8px 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-family: var(--font-mono);
   color: var(--accent);
 }
@@ -502,7 +491,7 @@ pre {
   margin-bottom: 12px;
 }
 .version span {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 
@@ -510,7 +499,7 @@ pre {
 
 .meta {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .memory-list {
   margin-top: 16px;
@@ -529,7 +518,7 @@ pre {
   display: inline-block;
   padding: 5px 14px;
   border-radius: var(--radius-pill);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   background: var(--bg-hover);
   color: var(--text-muted);
@@ -562,7 +551,7 @@ pre {
   display: inline-block;
   padding: 6px 14px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   background: var(--bg-hover);
   color: var(--text);
@@ -580,7 +569,7 @@ pre {
 }
 
 .pagination .page-info {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 
@@ -591,7 +580,7 @@ pre {
   align-items: center;
   gap: 8px;
   padding: 5px 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .enroll-row + .enroll-row {
   border-top: 1px solid var(--border);
@@ -619,7 +608,7 @@ pre {
 }
 
 .breadcrumb {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   margin-bottom: 16px;
 }
@@ -631,7 +620,7 @@ pre {
 /* Result source label */
 
 .result-source {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-family: var(--font-mono);
   color: var(--text-muted);
   margin-top: 6px;
@@ -646,7 +635,7 @@ pre {
 }
 
 .empty-state p {
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 /* --- Forms --- */
@@ -656,7 +645,7 @@ pre {
   gap: 12px;
 }
 .task-form label {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -668,7 +657,7 @@ pre {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-family: inherit;
   width: 100%;
   box-sizing: border-box;
@@ -691,7 +680,7 @@ pre {
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   align-self: flex-start;
 }
@@ -711,7 +700,7 @@ pre {
   color: var(--text-muted);
   text-decoration: none;
   border-bottom: 2px solid transparent;
-  font-size: 14px;
+  font-size: var(--fs-base);
   transition: color var(--transition), border-color var(--transition);
 }
 .tab-link:hover {
@@ -746,7 +735,7 @@ pre {
 .repo-card h3 {
   margin: 0 0 8px 0;
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: var(--fs-md);
   color: var(--accent);
 }
 .repo-meta {
@@ -764,7 +753,7 @@ button {
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 500;
 }
 button:hover {
@@ -855,11 +844,11 @@ textarea:focus-visible,
   }
 
   .main-content h1 {
-    font-size: 17px;
+    font-size: var(--fs-lg);
   }
 
   .main-content h2 {
-    font-size: 14px;
+    font-size: var(--fs-base);
   }
 
   /* Tables scroll horizontally */

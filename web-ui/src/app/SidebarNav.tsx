@@ -30,7 +30,7 @@ export default function SidebarNav() {
           </Link>
         );
       })}
-      <Link href="/onboard" className={pathname === '/onboard' ? 'active' : ''} style={{marginTop:'12px', background:'#1e293b', textAlign:'center', borderRadius:'6px', color:'#e2e8f0', fontSize:'13px'}}>
+      <Link href="/onboard" className={pathname === '/onboard' ? 'active' : ''} style={{marginTop:'12px', background:'var(--bg-hover)', textAlign:'center', borderRadius:'var(--radius-sm)', color:'var(--text)', fontSize:'13px'}}>
         + Add Repo
       </Link>
     </nav>

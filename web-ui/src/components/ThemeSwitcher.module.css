@@ -62,6 +62,10 @@
   font-size: 12px;
 }
 
+.option.iconOnly {
+  padding: 7px 0;
+}
+
 .option + .option {
   border-left: 1px solid var(--border);
 }

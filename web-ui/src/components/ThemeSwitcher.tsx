@@ -49,7 +49,8 @@ export default function ThemeSwitcher({ compact = false }: { compact?: boolean }
           {SCHEMES.map(({ value, label, icon }) => (
             <label
               key={value}
-              className={`${styles.option}${scheme === value ? ` ${styles.selected}` : ''}`}
+              className={`${styles.option} ${styles.iconOnly}${scheme === value ? ` ${styles.selected}` : ''}`}
+              title={label}
             >
               <input
                 type="radio"
@@ -57,9 +58,9 @@ export default function ThemeSwitcher({ compact = false }: { compact?: boolean }
                 value={value}
                 checked={scheme === value}
                 onChange={() => setScheme(value)}
+                aria-label={label}
               />
-              <Icon name={icon} size={14} />
-              {label}
+              <Icon name={icon} size={16} />
             </label>
           ))}
         </div>

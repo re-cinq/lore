@@ -44,7 +44,7 @@ export default async function PoolsPage() {
             </tr>
           ))}
           {pools.length === 0 && (
-            <tr><td colSpan={5} style={{ textAlign: 'center', color: '#666', padding: 24 }}>No shared pools yet</td></tr>
+            <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No shared pools yet</td></tr>
           )}
         </tbody>
       </table>

@@ -131,15 +131,15 @@ export default async function AnalyticsPage() {
         </div>
         <div className="spec-card" style={{flex:1, minWidth:'150px'}}>
           <div className="meta">Succeeded</div>
-          <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--success, #22c55e)'}}>{Number(taskSummary?.succeeded ?? 0).toLocaleString()}</div>
+          <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--success)'}}>{Number(taskSummary?.succeeded ?? 0).toLocaleString()}</div>
         </div>
         <div className="spec-card" style={{flex:1, minWidth:'150px'}}>
           <div className="meta">Failed</div>
-          <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--danger, #ef4444)'}}>{Number(taskSummary?.failed ?? 0).toLocaleString()}</div>
+          <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--danger)'}}>{Number(taskSummary?.failed ?? 0).toLocaleString()}</div>
         </div>
         <div className="spec-card" style={{flex:1, minWidth:'150px'}}>
           <div className="meta">Active</div>
-          <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--warning, #f59e0b)'}}>{Number(taskSummary?.active ?? 0).toLocaleString()}</div>
+          <div style={{fontSize:'24px', fontWeight:'bold', color:'var(--warning)'}}>{Number(taskSummary?.active ?? 0).toLocaleString()}</div>
         </div>
       </div>
 
@@ -261,7 +261,7 @@ export default async function AnalyticsPage() {
               <td className="meta">{new Date(r.started_at).toLocaleString()}</td>
               <td style={{fontFamily:'monospace', fontSize:'12px'}}>{formatDuration(r.started_at, r.completed_at)}</td>
               <td><span className={`op-badge op-${r.status}`}>{r.status}</span></td>
-              <td style={{fontSize:'12px'}}>{r.error ? <span style={{color:'var(--danger, #ef4444)'}}>{r.error}</span> : (r.result_summary ?? '—')}</td>
+              <td style={{fontSize:'12px'}}>{r.error ? <span style={{color:'var(--danger)'}}>{r.error}</span> : (r.result_summary ?? '—')}</td>
             </tr>
           ))}
           {jobRuns.length === 0 && <tr><td colSpan={5} className="meta" style={{textAlign:'center'}}>No job runs</td></tr>}
