@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne, getRepoSchema } from '@/lib/db';
-import { getReadme } from '@/lib/github';
+import { getReadme, checkRepoFiles } from '@/lib/github';
+import { computeEnrollmentChecks } from '@/lib/enrollment';
 import Link from 'next/link';
 import ReadmeBox from './ReadmeBox';
+import EnrollmentSection from '@/components/EnrollmentSection';
 
 export default async function RepoOverview({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo: repoName } = await params;
@@ -14,6 +16,8 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
     onboarded_at: string;
     last_ingested_at?: string;
     team?: string;
+    onboarding_pr_url?: string;
+    onboarding_pr_merged?: boolean;
   }>(`SELECT * FROM lore.repos WHERE full_name = $1`, [fullName]);
   const recentTasks = await query(
     `SELECT id, description, status, agent_id, pr_url, created_at
@@ -25,6 +29,42 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
     `SELECT count(*)::int as count FROM ${schema}.chunks WHERE repo = $1`,
     [fullName]
   );
+
+  // Enrollment / integration signals (all fail-soft).
+  const conventionRows = await query<{ file_path: string }>(
+    `SELECT DISTINCT file_path FROM ${schema}.chunks WHERE repo = $1 AND file_path IN ('AGENTS.md','CLAUDE.md')`,
+    [fullName],
+  ).catch(() => []);
+  // pg returns TIMESTAMPTZ columns as Date objects — normalize to ISO strings.
+  const iso = (d: unknown): string | null => (d ? new Date(d as string | Date).toISOString() : null);
+  let localMcp = { developerCount: 0, lastActivity: null as string | null };
+  try {
+    const row = await queryOne<{ devs: number; last: string | Date | null }>(
+      `SELECT count(DISTINCT agent_id)::int AS devs, max(created_at) AS last
+         FROM memory.episodes WHERE source = 'session' AND ref = $1`,
+      [fullName],
+    );
+    localMcp = { developerCount: row?.devs ?? 0, lastActivity: iso(row?.last) };
+  } catch {
+    // memory.episodes may not exist on legacy clusters.
+  }
+  const githubFiles = await checkRepoFiles(fullName, ['AGENTS.md', '.github/workflows/lore-ingest.yml']).catch(
+    () => ({ 'AGENTS.md': null, '.github/workflows/lore-ingest.yml': null }),
+  );
+
+  const enrollmentChecks = computeEnrollmentChecks({
+    onboarded: !!repoInfo,
+    onboardedAt: iso(repoInfo?.onboarded_at),
+    onboardingPrMerged: repoInfo?.onboarding_pr_merged === true,
+    onboardingPrUrl: repoInfo?.onboarding_pr_url ?? null,
+    lastIngestedAt: iso(repoInfo?.last_ingested_at),
+    chunkCount: contextCount?.count ?? 0,
+    hasConventions: conventionRows.length > 0,
+    team: repoInfo?.team ?? null,
+    githubFiles,
+    localMcp,
+    now: Date.now(),
+  });
 
   // Dark Factory dashboard counts (T052) — best-effort, falls back to
   // zero on any DB error so the panel never breaks the page.
@@ -67,22 +107,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
         <ReadmeBox markdown={readme.markdown} rawBaseUrl={readme.rawBaseUrl} htmlUrl={readme.htmlUrl} />
       )}
 
-      {repoInfo && (
-        <div className="spec-card" style={{marginBottom:'16px'}}>
-          {repoInfo.team && <span className="badge">{repoInfo.team}</span>}
-          <span className="meta" style={{marginLeft:'8px'}}>
-            Onboarded {new Date(repoInfo.onboarded_at).toLocaleDateString()}
-          </span>
-          {repoInfo.last_ingested_at && (
-            <span className="meta" style={{marginLeft:'8px'}}>
-              Last ingested {new Date(repoInfo.last_ingested_at).toLocaleDateString()}
-            </span>
-          )}
-          <span className="meta" style={{marginLeft:'8px'}}>
-            {contextCount?.count || 0} context chunks
-          </span>
-        </div>
-      )}
+      <EnrollmentSection checks={enrollmentChecks} />
 
       <div className="spec-card" style={{marginBottom:'16px', padding:'16px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'8px'}}>

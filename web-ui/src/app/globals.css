@@ -559,6 +559,23 @@ pre {
   color: #666;
 }
 
+/* Enrollment check rows */
+
+.enroll-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.enroll-row + .enroll-row {
+  border-top: 1px solid #1c1c1c;
+}
+.enroll-dots {
+  flex: 1;
+  min-width: 12px;
+}
+
 /* Content viewer */
 
 .content-viewer {

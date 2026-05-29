@@ -74,6 +74,35 @@ export interface RepoMeta {
   html_url: string;
 }
 
+/**
+ * Check whether each path exists on the repo's default branch.
+ * Returns a map of path -> true (exists) / false (404) / null (unknown:
+ * App not configured, no repo access, or transient error). Fail-soft.
+ */
+export async function checkRepoFiles(
+  repo: string,
+  paths: string[],
+): Promise<Record<string, boolean | null>> {
+  const result: Record<string, boolean | null> = {};
+  if (!isGitHubConfigured()) {
+    for (const p of paths) result[p] = null;
+    return result;
+  }
+  const ok = await octokit();
+  const [owner, name] = split(repo);
+  await Promise.all(
+    paths.map(async path => {
+      try {
+        await ok.rest.repos.getContent({ owner, repo: name, path });
+        result[path] = true;
+      } catch (e) {
+        result[path] = (e as { status?: number }).status === 404 ? false : null;
+      }
+    }),
+  );
+  return result;
+}
+
 export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
   if (!isGitHubConfigured()) return null;
   const ok = await octokit();
