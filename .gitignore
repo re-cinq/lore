@@ -48,3 +48,6 @@ next-env.d.ts
 # Lore local runner — per-task ephemeral state, not for commit
 .lore-task.json
 
+# Local dev Postgres data (scripts/dev-local.sh bind mount)
+.lore-pgdata/
+
