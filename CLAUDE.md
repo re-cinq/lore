@@ -211,9 +211,12 @@ repo root runs `scripts/dev-local.sh`: it brings up a docker Postgres
 `shared`→`mcp-server`→`agent`, then runs all four components under
 `concurrently` with live reload. Ports: web-ui `:3000`, mcp-server
 `:3001`, agent `:8080`, Postgres `:5432`. `npm run db:up` / `db:down`
-manage the Postgres container on their own. Note: DB schemas are not
-auto-created — queries error until the `scripts/infra/setup-*.sh`
-schema DDL has been applied.
+manage the Postgres container on their own; `npm run db:schema` applies
+the schema DDL. `scripts/infra/setup-local-schema.sh` bootstraps the
+`lore`/`lore_ui` roles, the pgvector extension, and all schemas by
+shimming `kubectl`→`docker exec` so the existing `setup-*.sh` scripts
+run unmodified against the container (no SQL duplication). `npm start`
+runs it automatically after Postgres is ready.
 
 ## GKE Deployment
 

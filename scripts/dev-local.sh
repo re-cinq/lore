@@ -72,8 +72,9 @@ if ! host_pg_ready 30; then
   host_pg_ready 30 || fail "Postgres did not become reachable on localhost:5432"
 fi
 log "Postgres ready on localhost:5432 (db=lore user=postgres password=lore)"
-log "NOTE: schemas (lore, pipeline, memory, team schemas) are NOT auto-created."
-log "      Components connect but queries will error until schemas exist."
+
+# 1b. Apply schema DDL (idempotent — CREATE ... IF NOT EXISTS).
+bash "$ROOT/scripts/infra/setup-local-schema.sh"
 
 # 2. Local DB env defaults — propagate to every child process below.
 export LORE_DB_HOST=localhost
