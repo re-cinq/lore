@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { query } from '@/lib/db';
+import HelpPopover from '@/components/HelpPopover';
 
 export default async function RepoAgents({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo } = await params;
@@ -19,8 +20,18 @@ export default async function RepoAgents({ params }: { params: Promise<{ owner: 
 
   return (
     <div>
-      <h2>Agents</h2>
-      <p className="meta" style={{marginTop:'-6px', marginBottom:'16px'}}>
+      <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+        <h2 style={{margin:0}}>Agents</h2>
+        <HelpPopover label="What agents are">
+          <p>Agents are the workers that process this repo&apos;s pipeline tasks — on the cluster (GKE Job pods or direct API calls) or via the local runner.</p>
+          <ul>
+            <li>Each agent accumulates <strong>memory</strong> and <strong>facts</strong> from its work.</li>
+            <li>Those feed back into future tasks via <code>search_memory</code> and assembled context.</li>
+            <li>Listed below are the agents that have run tasks against this repo.</li>
+          </ul>
+        </HelpPopover>
+      </div>
+      <p className="meta" style={{marginTop:'6px', marginBottom:'16px'}}>
         Agents that have worked on this repo, with their task counts, memories, and last activity.
       </p>
       <table>

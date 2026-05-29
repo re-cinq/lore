@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { parseSettingsForm } from '@/lib/settings-form';
+import HelpPopover from '@/components/HelpPopover';
 
 interface Repo { full_name: string }
 
@@ -54,8 +55,18 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
 
   return (
     <div>
-      <h2>Settings</h2>
-      <p className="meta" style={{marginTop:'-6px', marginBottom:'16px'}}>
+      <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+        <h2 style={{margin:0}}>Settings</h2>
+        <HelpPopover label="How settings are applied">
+          <p>Per-repo configuration, merged over the global <code>task-types.yaml</code> defaults — repo values win.</p>
+          <ul>
+            <li><strong>Trust level</strong> controls which task types are allowed, and auto-promotes after 3 successful merges.</li>
+            <li><strong>Cross-repo</strong> links are bidirectional — adding a repo here adds this repo to theirs.</li>
+            <li><strong>Auto-review</strong> spins up a review task on each implementation PR before a human merges.</li>
+          </ul>
+        </HelpPopover>
+      </div>
+      <p className="meta" style={{marginTop:'6px', marginBottom:'16px'}}>
         Per-repo configuration: team, trust level, task types, auto-review, cross-repo links, and integrations.
       </p>
       <form action={saveSettings} className="task-form" style={{maxWidth:'500px'}}>
