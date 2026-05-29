@@ -29,6 +29,27 @@ pg_config_ok() {
   [[ "$bindings" == *'"5432/tcp"'* ]] && grep -qxF "$PG_DATA_DIR" <<<"$mounts"
 }
 
+create_pg() {
+  log "Creating Postgres container '$PG_CONTAINER' ($PG_IMAGE), data in $PG_DATA_DIR"
+  mkdir -p "$PG_DATA_DIR"
+  docker run --name "$PG_CONTAINER" \
+    -e POSTGRES_PASSWORD=lore -e POSTGRES_DB=lore \
+    -v "$PG_DATA_DIR:/var/lib/postgresql/data" \
+    -p 5432:5432 -d "$PG_IMAGE" >/dev/null
+}
+
+# Probe the *host* port — that is what the components actually connect to. The
+# in-container pg_isready can pass while the host publish is inactive (a docker
+# start that never re-established the forward), which looks healthy but isn't.
+host_pg_ready() {
+  local i
+  for i in $(seq 1 "${1:-30}"); do
+    (exec 3<>/dev/tcp/127.0.0.1/5432) 2>/dev/null && { exec 3>&-; return 0; }
+    sleep 1
+  done
+  return 1
+}
+
 if docker ps -a --format '{{.Names}}' | grep -qx "$PG_CONTAINER" && ! pg_config_ok; then
   log "Existing '$PG_CONTAINER' lacks the :5432 publish or $PG_DATA_DIR mount — recreating"
   docker rm -f "$PG_CONTAINER" >/dev/null
@@ -40,23 +61,16 @@ elif docker ps -a --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
   log "Starting existing Postgres container '$PG_CONTAINER'"
   docker start "$PG_CONTAINER" >/dev/null
 else
-  log "Creating Postgres container '$PG_CONTAINER' ($PG_IMAGE), data in $PG_DATA_DIR"
-  mkdir -p "$PG_DATA_DIR"
-  docker run --name "$PG_CONTAINER" \
-    -e POSTGRES_PASSWORD=lore -e POSTGRES_DB=lore \
-    -v "$PG_DATA_DIR:/var/lib/postgresql/data" \
-    -p 5432:5432 -d "$PG_IMAGE" >/dev/null
+  create_pg
 fi
 
-log "Waiting for Postgres to accept connections..."
-for _ in $(seq 1 30); do
-  if docker exec "$PG_CONTAINER" pg_isready -U postgres -d lore >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
-docker exec "$PG_CONTAINER" pg_isready -U postgres -d lore >/dev/null 2>&1 \
-  || fail "Postgres did not become ready in time"
+log "Waiting for Postgres on localhost:5432..."
+if ! host_pg_ready 30; then
+  log "Container is up but localhost:5432 is unreachable — recreating once to republish"
+  docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
+  create_pg
+  host_pg_ready 30 || fail "Postgres did not become reachable on localhost:5432"
+fi
 log "Postgres ready on localhost:5432 (db=lore user=postgres password=lore)"
 log "NOTE: schemas (lore, pipeline, memory, team schemas) are NOT auto-created."
 log "      Components connect but queries will error until schemas exist."
