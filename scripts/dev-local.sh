@@ -24,6 +24,10 @@ if docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
   log "Postgres container '$PG_CONTAINER' already running"
 elif docker ps -a --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
   log "Starting existing Postgres container '$PG_CONTAINER'"
+  if ! docker inspect -f '{{range .Mounts}}{{println .Source}}{{end}}' "$PG_CONTAINER" | grep -qxF "$PG_DATA_DIR"; then
+    log "WARNING: '$PG_CONTAINER' has no $PG_DATA_DIR bind mount — data is NOT persisted to the repo."
+    log "         Run 'npm run db:down' then re-run 'npm start' to recreate it with persistence."
+  fi
   docker start "$PG_CONTAINER" >/dev/null
 else
   log "Creating Postgres container '$PG_CONTAINER' ($PG_IMAGE), data in $PG_DATA_DIR"
@@ -68,6 +72,8 @@ npm run build -w @re-cinq/lore-agent
 
 # 5. Run everything with live reload — one slot per process so -k kills all.
 #    Each TS service gets a tsc --watch (recompile) + node --watch (restart) pair.
+#    start:watch watches both ./dist and ../shared/dist, so a shared-package edit
+#    recompiles (shared tsc) and restarts the dependent services too.
 log "Starting all components..."
 npx concurrently -k \
   -n "shared,mcp-tsc,mcp,agent-tsc,agent,ui" \
