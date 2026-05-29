@@ -1,0 +1,90 @@
+.switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.switcher.compact {
+  gap: 10px;
+}
+
+.group {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.compact .legend {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+.compact .segmented {
+  width: 100%;
+}
+
+.option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition);
+}
+
+.compact .option {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.option + .option {
+  border-left: 1px solid var(--border);
+}
+
+.option:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* Visually hide the native radio but keep it accessible/focusable. */
+.option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.option.selected {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.option:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}

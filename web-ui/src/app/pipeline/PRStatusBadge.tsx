@@ -2,13 +2,13 @@
 import { useEffect, useState } from 'react';
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: '#6b7280',
-  open: '#2563eb',
-  'checks-failing': '#dc2626',
-  'changes-requested': '#f59e0b',
-  approved: '#16a34a',
-  merged: '#7c3aed',
-  closed: '#374151',
+  draft: 'var(--text-muted)',
+  open: 'var(--info)',
+  'checks-failing': 'var(--danger)',
+  'changes-requested': 'var(--warning)',
+  approved: 'var(--success)',
+  merged: 'var(--accent)',
+  closed: 'var(--border-hover)',
 };
 
 export default function PRStatusBadge({ taskId }: { taskId: string }) {
@@ -24,14 +24,10 @@ export default function PRStatusBadge({ taskId }: { taskId: string }) {
   if (!status) return null;
 
   return (
-    <span style={{
-      background: STATUS_COLORS[status] || '#6b7280',
-      color: 'white',
-      padding: '1px 7px',
-      borderRadius: '10px',
-      fontSize: '11px',
-      fontWeight: 600,
-    }}>
+    <span
+      className="status-pill"
+      style={{ ['--pill-color' as string]: STATUS_COLORS[status] || 'var(--text-muted)' }}
+    >
       {status}
     </span>
   );

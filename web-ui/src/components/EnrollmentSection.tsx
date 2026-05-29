@@ -1,19 +1,23 @@
 import { type Check, type CheckStatus, passSummary } from '@/lib/enrollment';
 import HelpPopover from './HelpPopover';
 import CopyButton from './CopyButton';
+import Icon from './Icon';
+import type { IconName } from './icon-map';
 
-const STATUS: Record<CheckStatus, { icon: string; color: string }> = {
-  pass: { icon: '✓', color: '#3fb950' },
-  warn: { icon: '⚠', color: '#d29922' },
-  fail: { icon: '✗', color: '#f85149' },
-  unknown: { icon: '–', color: '#6e7681' },
+const STATUS: Record<CheckStatus, { icon: IconName; color: string }> = {
+  pass: { icon: 'check', color: 'var(--success)' },
+  warn: { icon: 'warning', color: 'var(--warning)' },
+  fail: { icon: 'error', color: 'var(--danger)' },
+  unknown: { icon: 'unknown', color: 'var(--text-muted)' },
 };
 
 function CheckRow({ check }: { check: Check }) {
   const s = STATUS[check.status];
   return (
     <div className="enroll-row">
-      <span aria-hidden style={{ color: s.color, fontWeight: 700, width: '1em', flexShrink: 0 }}>{s.icon}</span>
+      <span style={{ color: s.color, display: 'flex', flexShrink: 0 }}>
+        <Icon name={s.icon} size={14} />
+      </span>
       <span style={{ flexShrink: 0 }}>{check.label}</span>
       <span className="enroll-dots" />
       {check.detail && <span className="meta" style={{ fontSize: '12px' }}>{check.detail}</span>}
