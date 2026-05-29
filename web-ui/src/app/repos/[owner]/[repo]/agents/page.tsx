@@ -20,6 +20,9 @@ export default async function RepoAgents({ params }: { params: Promise<{ owner: 
   return (
     <div>
       <h2>Agents</h2>
+      <p className="meta" style={{marginTop:'-6px', marginBottom:'16px'}}>
+        Agents that have worked on this repo, with their task counts, memories, and last activity.
+      </p>
       <table>
         <thead><tr><th>Agent</th><th>Tasks</th><th>Memories</th><th>Last Active</th></tr></thead>
         <tbody>

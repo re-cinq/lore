@@ -41,6 +41,9 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
   return (
     <div>
       <h2>Specifications</h2>
+      <p className="meta" style={{marginTop:'-6px', marginBottom:'16px'}}>
+        Specifications and design docs for this repo. Add your own or browse what&apos;s been ingested.
+      </p>
 
       <form action={addSpec} className="task-form" style={{ maxWidth: '600px', marginBottom: '2rem' }}>
         <input type="hidden" name="owner" value={owner} />
