@@ -733,6 +733,16 @@ button.danger {
 button.danger:hover {
   background: #b91c1c;
 }
+button.btn-secondary {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+button.btn-secondary:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: #3a3a3a;
+}
 
 /* --- Responsive design --- */
 
