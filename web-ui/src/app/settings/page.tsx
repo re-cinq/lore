@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import ThemeSwitcher from '@/components/ThemeSwitcher';
 
 async function saveSettings(formData: FormData) {
   'use server';
@@ -74,6 +75,14 @@ export default async function SettingsPage() {
     <div>
       <h1>Settings</h1>
 
+      <h2>Appearance</h2>
+      <div className="spec-card" style={{maxWidth:'600px', marginBottom:'24px'}}>
+        <p className="meta" style={{fontSize:'12px', marginTop:0, marginBottom:'12px'}}>
+          Theme and appearance are stored in your browser and apply only to this device. Auto follows your operating system&apos;s light/dark setting.
+        </p>
+        <ThemeSwitcher />
+      </div>
+
       <div style={{display:'flex', gap:'16px', marginBottom:'24px'}}>
         <div className="spec-card" style={{flex:1}}>
           <div className="meta">Onboarded Repos</div>
@@ -109,7 +118,7 @@ export default async function SettingsPage() {
       </form>
 
       <form action={regenerateToken} style={{marginTop:'8px'}}>
-        <button type="submit" style={{background:'#dc2626', fontSize:'12px', padding:'6px 12px'}}>Regenerate Token</button>
+        <button type="submit" className="danger" style={{fontSize:'12px', padding:'6px 12px'}}>Regenerate Token</button>
         <span className="meta" style={{marginLeft:'8px', fontSize:'12px'}}>Warning: invalidates all existing tokens. You&apos;ll need to update all repos and developer installs.</span>
       </form>
 

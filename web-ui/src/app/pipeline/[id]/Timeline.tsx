@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Icon from "@/components/Icon";
+import type { IconName } from "@/components/icon-map";
 
 interface TimelineCommit {
   sha: string;
@@ -30,22 +32,22 @@ interface TimelineResponse {
 const ACTIVE_STATES = new Set(["pending", "running", "queued", "review"]);
 const POLL_INTERVAL_MS = 10_000;
 
-const NODE_ICON: Record<string, string> = {
-  draft: "✏️",
-  implement: "🔧",
-  validate: "✅",
-  push: "⬆️",
-  review: "🔍",
-  address: "🛠️",
-  retrospective: "📝",
-  done: "🏁",
-  gate: "🚧",
+const NODE_ICON: Record<string, IconName> = {
+  draft: "draft",
+  implement: "implement",
+  validate: "validate",
+  push: "push",
+  review: "review",
+  address: "address",
+  retrospective: "retrospective",
+  done: "done",
+  gate: "gate",
 };
 
 const OUTCOME_COLOR: Record<string, string> = {
-  success: "#3fb950",
-  changes_requested: "#d29922",
-  failed: "#f85149",
+  success: "var(--success)",
+  changes_requested: "var(--warning)",
+  failed: "var(--danger)",
 };
 
 function formatDuration(ms: number | null): string {
@@ -105,7 +107,7 @@ export default function Timeline({
   if (error) {
     return (
       <div className="spec-card" style={{ marginTop: "16px" }}>
-        <div style={{ color: "#f85149" }}>Timeline unavailable: {error}</div>
+        <div style={{ color: "var(--danger)" }}>Timeline unavailable: {error}</div>
       </div>
     );
   }
@@ -120,10 +122,10 @@ export default function Timeline({
         <div
           style={{
             padding: "8px 12px",
-            background: "#3a2222",
-            border: "1px solid #6b3636",
-            borderRadius: "6px",
-            color: "#f85149",
+            background: "var(--danger-bg)",
+            border: "1px solid var(--danger)",
+            borderRadius: "var(--radius-sm)",
+            color: "var(--danger)",
             marginBottom: "12px",
           }}
         >
@@ -149,14 +151,14 @@ export default function Timeline({
             key={c.sha}
             style={{
               padding: "10px 0",
-              borderBottom: "1px solid #21262d",
+              borderBottom: "1px solid var(--border)",
               display: "flex",
               gap: "12px",
               alignItems: "flex-start",
             }}
           >
-            <div style={{ fontSize: "20px", lineHeight: "1.4", width: "28px" }}>
-              {NODE_ICON[c.stage] ?? "•"}
+            <div style={{ width: "28px", display: "flex", justifyContent: "center", paddingTop: "2px" }}>
+              <Icon name={NODE_ICON[c.stage] ?? "bullet"} size={18} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
@@ -170,12 +172,10 @@ export default function Timeline({
                 <span style={{ fontWeight: 600 }}>{c.stage}</span>
                 <span className="meta">iter {c.iteration}</span>
                 <span
+                  className="status-pill"
                   style={{
-                    background: OUTCOME_COLOR[c.outcome] ?? "#6e7681",
-                    color: "white",
-                    fontSize: "11px",
-                    padding: "1px 8px",
-                    borderRadius: "10px",
+                    ["--pill-color" as string]:
+                      OUTCOME_COLOR[c.outcome] ?? "var(--text-muted)",
                   }}
                 >
                   {c.outcome}
@@ -193,9 +193,9 @@ export default function Timeline({
                   target="_blank"
                   rel="noreferrer"
                   className="meta"
-                  style={{ fontFamily: "monospace", fontSize: "11px" }}
+                  style={{ fontFamily: "var(--font-mono)", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "3px" }}
                 >
-                  {c.sha.substring(0, 7)} ↗
+                  {c.sha.substring(0, 7)} <Icon name="external" size={11} />
                 </a>
               )}
             </div>
@@ -206,9 +206,9 @@ export default function Timeline({
       {data.lease?.held && (
         <div
           className="meta"
-          style={{ marginTop: "12px", fontSize: "12px" }}
+          style={{ marginTop: "12px", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}
         >
-          🔒 Lease held by <code>{data.lease.holder}</code>
+          <Icon name="lock" size={12} /> Lease held by <code>{data.lease.holder}</code>
           {data.lease.expires_at &&
             ` (expires ${new Date(data.lease.expires_at).toLocaleTimeString()})`}
         </div>

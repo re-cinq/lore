@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Icon from '@/components/Icon';
 
 type PRStatus =
   | 'draft'
@@ -24,13 +25,13 @@ interface PRDetails {
 }
 
 const STATUS_COLORS: Record<PRStatus, string> = {
-  draft: '#6b7280',
-  open: '#2563eb',
-  'checks-failing': '#dc2626',
-  'changes-requested': '#f59e0b',
-  approved: '#16a34a',
-  merged: '#7c3aed',
-  closed: '#374151',
+  draft: 'var(--text-muted)',
+  open: 'var(--info)',
+  'checks-failing': 'var(--danger)',
+  'changes-requested': 'var(--warning)',
+  approved: 'var(--success)',
+  merged: 'var(--accent)',
+  closed: 'var(--border-hover)',
 };
 
 export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl: string }) {
@@ -65,7 +66,7 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
     );
   }
 
-  const color = STATUS_COLORS[details.computed_status] || '#6b7280';
+  const color = STATUS_COLORS[details.computed_status] || 'var(--text-muted)';
   const passingChecks = details.checks.filter(c => c.conclusion === 'success' || c.conclusion === 'skipped').length;
   const failingChecks = details.checks.filter(c => c.conclusion === 'failure' || c.conclusion === 'timed_out').length;
   const pendingChecks = details.checks.filter(c => c.status !== 'completed').length;
@@ -76,14 +77,10 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
     <div className="spec-card" style={{ marginTop: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
         <strong>PR Status:</strong>
-        <span style={{
-          background: color,
-          color: 'white',
-          padding: '2px 10px',
-          borderRadius: '12px',
-          fontSize: '13px',
-          fontWeight: 600,
-        }}>
+        <span
+          className="status-pill"
+          style={{ ['--pill-color' as string]: color, fontSize: '13px' }}
+        >
           {details.computed_status}
         </span>
         <a href={details.html_url} target="_blank" style={{ fontSize: '13px' }}>
@@ -94,9 +91,9 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
       {details.checks.length > 0 && (
         <div style={{ fontSize: '13px', marginBottom: '4px' }}>
           <strong>Checks:</strong>{' '}
-          {passingChecks > 0 && <span style={{ color: '#16a34a' }}>✓ {passingChecks} passing</span>}
-          {failingChecks > 0 && <span style={{ color: '#dc2626', marginLeft: '8px' }}>✗ {failingChecks} failing</span>}
-          {pendingChecks > 0 && <span style={{ color: '#6b7280', marginLeft: '8px' }}>⏳ {pendingChecks} pending</span>}
+          {passingChecks > 0 && <span style={{ color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Icon name="check" size={13} /> {passingChecks} passing</span>}
+          {failingChecks > 0 && <span style={{ color: 'var(--danger)', marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Icon name="error" size={13} /> {failingChecks} failing</span>}
+          {pendingChecks > 0 && <span style={{ color: 'var(--text-muted)', marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Icon name="pending" size={13} /> {pendingChecks} pending</span>}
         </div>
       )}
 
@@ -104,12 +101,12 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
         <div style={{ fontSize: '13px' }}>
           <strong>Reviews:</strong>{' '}
           {approvals.length > 0 && (
-            <span style={{ color: '#16a34a' }}>
-              ✓ Approved by {approvals.map(r => r.user).join(', ')}
+            <span style={{ color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+              <Icon name="check" size={13} /> Approved by {approvals.map(r => r.user).join(', ')}
             </span>
           )}
           {changesRequested.length > 0 && (
-            <span style={{ color: '#f59e0b', marginLeft: '8px' }}>
+            <span style={{ color: 'var(--warning)', marginLeft: '8px' }}>
               Changes requested by {changesRequested.map(r => r.user).join(', ')}
             </span>
           )}
