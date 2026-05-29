@@ -79,7 +79,7 @@ async function trackCost(model: string, inputTokens: number, outputTokens: numbe
 
 // ── LLM provider implementations ────────────────────────────────────
 
-async function callClaude(model: string, text: string): Promise<string> {
+export async function callClaude(model: string, text: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     // Fall back to Claude CLI (uses Claude Code subscription, no API credits)
