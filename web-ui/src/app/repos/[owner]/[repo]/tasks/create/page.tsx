@@ -51,7 +51,7 @@ export default async function CreateRepoTask({ params }: { params: Promise<{ own
         <label style={{display:'flex', alignItems:'center', gap:'8px', cursor:'pointer'}}>
           <input type="checkbox" name="priority" value="immediate" />
           <span>Execute immediately</span>
-          <span className="meta" style={{fontSize:'12px'}}>— runs on GKE now instead of waiting for local pickup</span>
+          <span className="meta" style={{fontSize:'var(--fs-xs)'}}>— runs on GKE now instead of waiting for local pickup</span>
         </label>
 
         <button type="submit">Create Task</button>

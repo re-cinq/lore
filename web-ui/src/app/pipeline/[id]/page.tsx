@@ -169,7 +169,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             <span className={`op-badge op-${e.to_status}`}>{e.to_status}</span>
             {e.from_status && <span className="meta"> ← {e.from_status}</span>}
             <span className="meta" style={{marginLeft:'12px'}}>{new Date(e.created_at).toLocaleString()}</span>
-            {e.metadata && <pre style={{marginTop:'4px',fontSize:'12px'}}>{JSON.stringify(e.metadata, null, 2)}</pre>}
+            {e.metadata && <pre style={{marginTop:'4px',fontSize:'var(--fs-xs)'}}>{JSON.stringify(e.metadata, null, 2)}</pre>}
           </div>
         ))}
       </div>
@@ -183,9 +183,9 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           <tbody>
             {llmCalls.map((c, i) => (
               <tr key={i}>
-                <td style={{fontFamily:'monospace', fontSize:'12px'}}>{c.model}</td>
-                <td style={{fontFamily:'monospace', fontSize:'12px'}}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
-                <td style={{fontFamily:'monospace', fontSize:'12px'}}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
+                <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{c.model}</td>
+                <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
+                <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
                 <td className="meta">{new Date(c.created_at).toLocaleString()}</td>
               </tr>
             ))}

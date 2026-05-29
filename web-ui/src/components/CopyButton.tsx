@@ -16,7 +16,7 @@ export default function CopyButton({ text }: { text: string }) {
   };
 
   return (
-    <button type="button" className="btn-secondary" style={{ fontSize: '12px', padding: '4px 10px' }} onClick={copy}>
+    <button type="button" className="btn-secondary" style={{ fontSize: 'var(--fs-xs)', padding: '4px 10px' }} onClick={copy}>
       {copied ? 'Copied' : 'Copy'}
     </button>
   );

@@ -59,7 +59,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
               <td>
                 {t.status === 'pending' && t.priority === 'normal' ? (
                   <form action={`/api/pipeline/${t.id}/run-now`} method="POST" style={{display:'inline'}}>
-                    <button type="submit" style={{background:'var(--accent)',color:'var(--text-on-accent)',border:'none',padding:'2px 10px',borderRadius:'var(--radius-sm)',cursor:'pointer',fontSize:'12px'}}>
+                    <button type="submit" style={{background:'var(--accent)',color:'var(--text-on-accent)',border:'none',padding:'2px 10px',borderRadius:'var(--radius-sm)',cursor:'pointer',fontSize:'var(--fs-xs)'}}>
                       Run Now
                     </button>
                   </form>
@@ -67,7 +67,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
                   <span className={t.priority === 'immediate' ? 'badge badge-red' : 'meta'}>{t.priority}</span>
                 )}
               </td>
-              <td style={{fontFamily:'monospace', fontSize:'12px'}}>
+              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>
                 {t.target_repo ? (
                   <Link href={`/repos/${t.target_repo}`}>{t.target_repo}</Link>
                 ) : '—'}
