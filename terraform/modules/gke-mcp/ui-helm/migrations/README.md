@@ -21,10 +21,23 @@ before-hook-creation`); the tracking table makes already-applied migrations a
 fast no-op. `helm upgrade --wait` blocks until the hook succeeds; a failing
 migration fails the deploy.
 
-The Job connects as the `postgres` superuser (DDL + `GRANT` need it) using the
-chart's existing `dbPasswordSecret` — `postgres` and `lore` share the bootstrap
-password (`terraform/lore-db.tf`), so no extra secret is needed. Disable with
-`--set migrations.enabled=false`.
+The Job connects as `lore`, which owns the database (`terraform/lore-db.tf`
+initdb `owner`), using the chart's existing `dbPasswordSecret` — the same
+secret the UI connects with. Because `lore` owns its schemas, DDL and `GRANT`
+need no superuser; `enableSuperuserAccess` stays at CNPG's secure default. The
+only superuser step (`CREATE EXTENSION vector`) runs once at cluster bootstrap,
+not here. Disable with `--set migrations.enabled=false`.
+
+For clusters provisioned before `owner` was `lore` (where `postgres` still owns
+the database objects), hand ownership to `lore` once via the primary pod's local
+socket — no network superuser needed. `REASSIGN OWNED` covers existing schemas
+*and* tables, so `GRANT`s in migrations succeed:
+
+```
+kubectl exec -n lore-db -it lore-db-1 -c postgres -- \
+  psql -d lore -c "GRANT CREATE ON DATABASE lore TO lore;" \
+               -c "REASSIGN OWNED BY postgres TO lore;"
+```
 
 ## Adding a migration
 

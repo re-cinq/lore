@@ -100,7 +100,7 @@ resource "kubectl_manifest" "lore_db_credentials" {
     }
     type = "kubernetes.io/basic-auth"
     stringData = {
-      username = "postgres"
+      username = "lore"
       password = var.db_password
     }
   })
@@ -120,25 +120,20 @@ resource "kubectl_manifest" "lore_db_cluster" {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:16-bookworm"
 
-      # CNPG disables password auth for `postgres` over the network unless this
-      # is true; without it the ui-helm migrate hook (connects as postgres) can
-      # never authenticate via lore-db-rw. Pin the superuser password to the
-      # same basic-auth secret used at initdb so it equals var.db_password.
-      enableSuperuserAccess = true
-      superuserSecret = {
-        name = "lore-db-credentials"
-      }
-
       bootstrap = {
         initdb = {
           database = "lore"
-          owner    = "postgres"
+          # `lore` owns the database, so the ui-helm migrate hook can run DDL as
+          # `lore` without superuser. CNPG creates this role from the secret
+          # below (username: lore); enableSuperuserAccess stays at the secure
+          # default (false). CREATE EXTENSION is the only superuser step and runs
+          # once here at bootstrap, not per-migration.
+          owner = "lore"
           secret = {
             name = "lore-db-credentials"
           }
           postInitSQL = [
             "CREATE EXTENSION IF NOT EXISTS vector",
-            "CREATE ROLE lore LOGIN PASSWORD '${var.db_password}'",
           ]
         }
       }
