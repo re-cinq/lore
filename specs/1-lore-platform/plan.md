@@ -6,9 +6,9 @@
 | Branch       | 1-lore-platform                                 |
 | Spec         | [spec.md](spec.md)                              |
 | Constitution | [constitution.md](../../.specify/memory/constitution.md) |
-| Status       | Shipped — Phases 0–3 complete with architectural pivots |
+| Status       | Shipped — Phases 0–6 complete with architectural pivots |
 | Created      | 2026-03-25                                      |
-| Updated      | 2026-04-13                                      |
+| Updated      | 2026-06-01                                      |
 
 ## Architectural Pivots
 
@@ -57,6 +57,15 @@ swapped for alternatives before reaching production.
 | Spec Drift         | Lore Agent `spec-drift.ts` CronJob | 3 |
 | Autoresearch       | Lore Agent `autoresearch.ts` CronJob | 3 |
 | Memory Lifecycle   | `memory-lifecycle.ts` — importance decay + consolidation | 3 |
+| Dark Factory Mode  | Per-repo opt-out of human gates; branch-as-state + workflow YAML graph | 4 |
+| Lease Backend      | `pipeline.task_leases` (Postgres CTE acquire) + file-backed local | 4 |
+| Workflow Executor  | `graph-executor.ts` — declarative node dispatch, resume from trailers | 4 |
+| Workflow Definitions | `agent/src/workflows/*.yaml` — gap-fill, general, implementation | 4 |
+| Commit Trailers    | `shared/src/commit-trailers.ts` — `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` | 4 |
+| Auto-Merge Engine  | `agent/src/jobs/auto-merge.ts` — post-retrospective squash-merge with path + trust gates | 4 |
+| Dark Factory AuthZ | Two-key approval gate for privileged settings via CODEOWNERS-labeled PR | 4 |
+| Web UI Theming     | Token-driven Elegant/Retro families + light/dark/auto OS sync + per-family icon sets | 5 |
+| Test CI Matrix     | Per-subproject vitest matrix in `test.yml`; `dist/**` excluded from discovery | 6 |
 
 ### Key Dependencies (As Built)
 
@@ -80,6 +89,7 @@ re-cinq/lore/
 ├── CODEOWNERS
 ├── adrs/
 ├── runbooks/
+│   └── dark-factory-rollback.md   # Rollout, rollback, pilot, audit queries
 ├── teams/
 │   ├── payments/CLAUDE.md
 │   ├── platform/CLAUDE.md
@@ -87,11 +97,20 @@ re-cinq/lore/
 │   └── data/CLAUDE.md
 ├── evals/
 ├── specs/
+│   ├── 1-lore-platform/
+│   ├── 6-dark-factory/            # Spec, plan, contracts for dark-factory mode
+│   └── ...
+├── shared/
+│   └── src/
+│       ├── dark-factory-settings.ts  # Canonical DarkFactorySettings type + resolveSettings()
+│       └── commit-trailers.ts        # formatTrailers() / parseTrailers() / lastStageOnBranch()
 ├── mcp-server/
 │   ├── src/
 │   │   ├── index.ts          # MCP server entrypoint, 30+ tools
-│   │   ├── routes.ts         # HTTP API route handlers
+│   │   ├── routes.ts         # HTTP API route handlers (dark-factory, timeline, by-pr)
 │   │   ├── context-assembly.ts
+│   │   ├── dark-factory-settings.ts  # Zod schema + resolveSettings() + twoKeyFieldsTouched()
+│   │   ├── dark-factory-authz.ts     # verifyApproval() — CODEOWNERS-approval-PR ceremony
 │   │   ├── github-client.ts  # GitHub App + token auth
 │   │   ├── local-runner.ts   # Local task runner (worktrees)
 │   │   ├── session-tracker.ts
@@ -104,6 +123,31 @@ re-cinq/lore/
 │       ├── platform.ts       # CodePlatform interface
 │       ├── github.ts         # GitHubPlatform implementation
 │       ├── worker.ts         # Job execution orchestration
+│       ├── supervisor/
+│       │   ├── lease.ts              # DbLeaseBackend + FileLeaseBackend
+│       │   ├── graph-executor.ts     # executeGraph() — node dispatch + stage commits
+│       │   ├── runner-cli.ts         # Job pod CLI entry point (LORE_DARK_FACTORY_WORKFLOW)
+│       │   ├── claude-code-handler.ts # agent-node handler: spawns claude --print
+│       │   ├── agent-handler.ts
+│       │   ├── handlers.ts
+│       │   ├── orchestrator.ts
+│       │   └── index.ts
+│       ├── workflow/
+│       │   └── loader.ts             # Zod schema, cycle detection (DFS), reachability check
+│       ├── workflows/
+│       │   ├── gap-fill.yaml
+│       │   ├── general.yaml
+│       │   └── implementation.yaml
+│       ├── lib/
+│       │   ├── dark-factory.ts       # decideIssueCreate() + decideReviewMode()
+│       │   ├── escalation.ts         # escalate() — needs-human-help Issue + Slack fallback
+│       │   ├── path-match.ts         # allPathsMatch() minimatch wrapper
+│       │   ├── notify.ts             # decideNotify() — channel-list filter
+│       │   ├── audit.ts              # writeAuditLog() for pipeline.audit_log
+│       │   ├── pr-body.ts            # prFooter() — Lore-Task trailer + Refs
+│       │   ├── episode-writer.ts     # Shared episode writer + Haiku auto-curation
+│       │   ├── prompt-cache.ts       # getCacheControl() + computeCachePrefixHash()
+│       │   └── business-hours.ts     # IANA-TZ-aware gate
 │       └── jobs/
 │           ├── reindex.ts
 │           ├── gap-detect.ts
@@ -112,8 +156,31 @@ re-cinq/lore/
 │           ├── context-core-builder.ts
 │           ├── merge-check.ts
 │           ├── memory-lifecycle.ts
-│           └── loretask-watcher.ts
+│           ├── loretask-watcher.ts
+│           ├── review-reactor.ts
+│           ├── auto-merge.ts         # evaluateAutoMerge() + evaluateAndMerge() (Phase 4)
+│           ├── auto-merge-trigger.ts # (Phase 4)
+│           ├── lease-reaper.ts       # 60s tick — evicts expired leases (Phase 4)
+│           ├── dark-factory-baseline.ts # 30-day counter snapshot per repo (Phase 4)
+│           ├── approval-check.ts     # (Phase 4)
+│           ├── spec-task-executor.ts
+│           ├── eval-runner.ts
+│           ├── stale-task-check.ts   # Hourly stuck-task recovery (Phase 1, added later)
+│           └── ttl-cleanup.ts
 ├── web-ui/                   # Next.js UI
+│   └── src/
+│       ├── app/
+│       │   ├── pipeline/[id]/
+│       │   │   ├── Timeline.tsx      # Vertical stage-commit timeline (Phase 4)
+│       │   │   ├── TaskLogs.tsx
+│       │   │   └── PRStatusCard.tsx
+│       │   ├── specs/                # Global + per-repo spec browser (Phase 4)
+│       │   │   ├── page.tsx
+│       │   │   └── [...path]/page.tsx
+│       │   ├── repos/[owner]/[repo]/specs/page.tsx
+│       │   └── settings/page.tsx     # Appearance section + ThemeSwitcher (Phase 5)
+│       └── lib/
+│           └── theme/                # ThemeProvider, theme-core.ts, Icon component (Phase 5)
 ├── scripts/
 │   ├── install.sh
 │   ├── lore-doctor.sh
@@ -130,17 +197,26 @@ re-cinq/lore/
 │       └── lore-init/
 ├── terraform/
 │   └── modules/
-│       ├── gke-mcp/          # MCP server Helm chart
-│       │   └── loretask-crd/ # LoreTask CRD + RBAC
+│       ├── gke-mcp/
+│       │   ├── agent-helm/values.yaml  # LORE_DARK_FACTORY_CLUSTER_ENABLED
+│       │   └── loretask-crd/           # LoreTask CRD + RBAC
 │       └── lore-db/          # CNPG PostgreSQL
 ├── docker/
 │   └── claude-runner/        # Ephemeral container for K8s Job pods
 └── .github/
     ├── workflows/
+    │   ├── test.yml                  # Per-subproject vitest matrix (Phase 6)
+    │   ├── test-integration.yml
     │   ├── pr-description-check.yml
     │   ├── ingest-context.yml
     │   ├── context-evals.yml
-    │   └── gap-detection.yml
+    │   ├── build-claude-runner.yml
+    │   ├── build-ui.yml
+    │   ├── build-mcp.yml
+    │   ├── build-agent.yml
+    │   ├── agent-review.yml
+    │   ├── spec-agent.yml
+    │   └── onboard-repo.yml
     └── PULL_REQUEST_TEMPLATE.md
 ```
 
@@ -459,11 +535,239 @@ Opt-in per repo via `auto_review` setting:
 
 **Phase 3 Verification:**
 - Autoresearch loop generates candidates, evaluates, opens PRs.
-- Spec drift creates GitHub Issues on divergence > 20%.
+- Spec drift creates `gap-fill` pipeline tasks (not GitHub Issues — see
+  FR-14.2) on divergence > 20%; each task is linked to the owning team.
 - Memory decay evicts low-importance memories; consolidation produces
   higher-level patterns.
 - Post-task auto-curation produces `auto-curation/*` memories after
   every task completion.
+
+### Phase 4: Dark Factory Mode — COMPLETE
+
+Phase 4 introduced per-repo opt-out of human gates, branch-as-state, and
+declarative workflow YAML graphs (ADR-016, accepted 2026-04-28). It
+supersedes the legacy looping chain across `loretask-watcher` /
+`review-reactor` / `local-runner`.
+
+#### What Was Built
+
+**Branch-as-state (FR1)**
+
+Every workflow phase commits with structured trailers: `Lore-Stage:`,
+`Lore-Iteration:`, `Lore-Task:`, and optional `Lore-Outcome:` /
+`Lore-Cost-Tokens:`. Trailers are emitted unconditionally for both
+dark-mode and opt-out repos — they are the audit substrate for both
+modes. `shared/src/commit-trailers.ts` exports `formatTrailers()`,
+`parseTrailers()`, and `lastStageOnBranch()` used by the supervisor,
+local runner, and timeline UI.
+
+Concurrency is enforced by `pipeline.task_leases` (Postgres CTE-based
+atomic acquire with takeover detection). `lease.ts` exposes `DbLeaseBackend`
+for the cluster path and `FileLeaseBackend` for worktree mode. `lease-reaper.ts`
+ticks every 60 s and hard-deletes leases older than 5 minutes past expiry,
+writing `lease_expired` audit entries.
+
+**Workflow YAML graph (FR2)**
+
+`agent/src/workflows/*.yaml` — gap-fill, general, and implementation — are
+the canonical task-type definitions. `agent/src/workflow/loader.ts` validates
+against the Zod schema, runs DFS cycle detection (back-edges require
+`iteration_max`), and checks reachability before any workflow starts.
+`graph-executor.ts` (`executeGraph()`) walks the graph, dispatches per-node-type
+handlers, emits stage commits, refreshes the lease on each node, and
+resumes from the last `Lore-Stage:` trailer on the branch after pod death.
+
+`runner-cli.ts` is the Job pod CLI entry point invoked by `entrypoint.sh`
+when `LORE_DARK_FACTORY_WORKFLOW` is set. Exit codes are documented (0/2/3–9)
+and consumed by `entrypoint.sh` to distinguish config vs. runtime errors.
+
+`claude-code-handler.ts` is the `agent` node handler for the cluster path:
+spawns `claude --print`, maps non-zero exit → `cli-nonzero` and thrown
+errors → `cli-error`.
+
+**Two-gate enablement**
+
+Dark-factory mode is off by default. Both gates must be on to take the
+cluster supervisor path:
+1. Per-repo: `dark_factory.enabled = true` in repo settings.
+2. Cluster: `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the agent helm
+   deployment (use `--set-string` to avoid YAML bool coercion).
+
+Either gate off → legacy `claude --print` path.
+
+**Settings + authZ**
+
+`mcp-server/src/dark-factory-settings.ts` holds the Zod schema,
+`resolveSettings()` defaults, and `twoKeyFieldsTouched()` for the
+privileged-field gate. `dark-factory-authz.ts` implements `verifyApproval()`:
+an admin-scope token + an open PR labeled `dark-factory-approval` by a
+CODEOWNER of the repo's `CLAUDE.md` is required to toggle `enabled`,
+change `auto_merge.paths`, or downgrade `require_*` to false.
+
+`GET /api/repos/:o/:r/settings/dark-factory` and
+`PUT /api/repos/:o/:r/settings/dark-factory` are the API endpoints
+(two-key authZ on the PUT for privileged fields).
+
+Canonical types and `resolveSettings()` also live in `@re-cinq/lore-shared`
+(`shared/src/dark-factory-settings.ts`) so agent, mcp-server, and Job pod
+runner share a single source.
+
+**Auto-merge engine**
+
+`agent/src/jobs/auto-merge.ts` exports pure `evaluateAutoMerge()` (decision)
+and `evaluateAndMerge()` (end-to-end with backoff). Auto-merge runs after
+`[stage:retrospective]` for in-agent tasks (gap-fill, runbook). Conditions:
+green CI + bot APPROVED + all changed paths match `auto_merge.paths` glob +
+repo trust ≥ `min_trust` → squash-merge. Outcome enum captures 7 deferral
+reasons + `merged`. OTEL span `lore.auto_merge.decision` carries the rule trace.
+Decision + rule recorded in `pipeline.audit_log` as `auto_merge_decision`.
+
+**Dark-factory-baseline**
+
+`dark-factory-baseline.ts` runs pre-feature to snapshot 30-day counters
+(SC1/SC4/SC6 deltas) into `pipeline.dark_factory_baseline` per repo.
+This pre-populates success-criteria baselines before the pilot begins.
+
+**Supporting lib modules**
+
+`agent/src/lib/` gained: `dark-factory.ts` (pure `decideIssueCreate()` and
+`decideReviewMode()` helpers + DB-backed wrappers), `escalation.ts`
+(`escalate()` — creates `needs-human-help` Issue with diagnostic, falls back
+to audit-only Slack on failure), `path-match.ts` (`allPathsMatch()`
+minimatch wrapper — true only when every changed path matches at least one
+allowlist glob), `notify.ts` (`decideNotify()` — filters by
+`dark_factory.notify` channel list), `audit.ts` (`writeAuditLog()`),
+and `pr-body.ts` (`prFooter()` — `Lore-Task:` trailer + optional `Refs #N`).
+
+**Web UI — timeline**
+
+`web-ui/src/app/pipeline/[id]/Timeline.tsx` is a client component that
+renders a vertical stage-commit timeline with node-type icons, outcome badges,
+and a lease indicator. It polls `/api/pipeline/:id/timeline` every 10 s while
+the task is in flight.
+
+**Spec + runbook**
+
+Full spec artifacts in `specs/6-dark-factory/` (spec, plan, contracts,
+data-model, quickstart). `runbooks/dark-factory-rollback.md` covers rollout,
+rollback, pilot procedure, and audit-log queries.
+
+**Phase 4 Verification:**
+- Dark-factory disabled: legacy `claude --print` path taken; no supervisor.
+- Dark-factory enabled, cluster gate off: same legacy path even for
+  `dark_factory.enabled = true` repos.
+- Dark-factory enabled, cluster gate on: supervisor path taken; branch gains
+  `Lore-Stage:` commits after each node.
+- Pod death: new pod reads `lastStageOnBranch()` and resumes from the
+  next node.
+- Auto-merge: green CI + APPROVED + path match + trust → squash-merged;
+  decision recorded in `pipeline.audit_log`.
+- Privileged settings change without two-key approval: `403 Forbidden`.
+
+---
+
+### Phase 5: Web UI Theming — COMPLETE
+
+Phase 5 replaced the single dark-only stylesheet with a two-axis
+token-driven theme system (ADR-017, accepted 2026-05-29).
+
+#### What Was Built
+
+**Two-axis token model**
+
+Two independent axes:
+- `family ∈ {elegant, retro}` → `data-theme-family` attribute on `<html>`.
+- `scheme ∈ {light, dark, auto}` → `data-color-scheme` on `<html>`.
+  `auto` is resolved to a concrete `light`/`dark` before it reaches the
+  DOM via the FOUC-prevention inline script. Each axis is persisted
+  independently in `localStorage` (`lore-theme-family`, `lore-color-scheme`).
+  Defaults: `elegant` + `auto`.
+
+**`theme.css` — single source of truth**
+
+All tokens live in `theme.css`, imported before `globals.css`.
+Family-level blocks hold shape/type/glass tokens (`--radius*`, `--fs-*`
+type scale, `--glass-blur`). Four `[data-theme-family][data-color-scheme]`
+blocks hold all color tokens. No hardcoded color or font-size remains in
+`src/` outside these two files. Palettes: **Elegant** (frosted glass, Inter
+via `next/font/google`); **Retro** (amber CRT, sharp corners, phosphor-glow,
+VT323 font — type scale bumped for VT323's small x-height).
+
+**FOUC prevention**
+
+`THEME_SCRIPT` (a dependency-free IIFE) runs as the first child of `<body>`,
+reads `localStorage`, resolves `auto` via `matchMedia`, and sets both
+`data-*` attributes before first paint. Stashes `window.__loreFamily` so
+the client's first render seeds the correct family — no hydration mismatch.
+
+**Per-family icon sets**
+
+`<Icon name="check|warning|…"/>` maps a semantic `IconName` to a
+per-family Iconify icon (`lucide:*` for Elegant, `pixelarticons:*` for Retro).
+Collections registered offline from `@iconify-json/lucide` +
+`@iconify-json/pixelarticons` (no network fetch). A unit test asserts both
+families define the same icon names. All prior emoji/unicode glyphs replaced
+by `<Icon>`.
+
+**Switcher**
+
+`ThemeSwitcher` lives only on `/settings` (Appearance section): a Family
+text toggle and a Light/Auto/Dark square icon-only toggle as accessible radio
+groups.
+
+**Phase 5 Verification:**
+- `npm test` (30 pass), `tsc --noEmit` clean, `npm run build` succeeds.
+- Zero hardcoded colors, zero font-size literals, no emoji glyphs in `src/`
+  outside token files (grep-verified).
+- FOUC prevention: attributes set before first paint; no hydration warnings
+  in React DevTools.
+- Both theme families render correctly in light + dark modes.
+
+---
+
+### Phase 6: Testing Standards + CI — COMPLETE
+
+Phase 6 adopted TDD methodology and added per-subproject unit-test CI
+(ADR-018, accepted 2026-05-29).
+
+#### What Was Built
+
+**TDD methodology (Red-Green-Refactor)**
+
+Adopted for all new code: Three Laws, one test at a time, commit-on-green,
+triangulation, tests describe behaviour not implementation. Characterization
+(test-after) permitted only for pre-existing code. Detailed conventions in
+`specs/testing-standards/`.
+
+**Per-subproject CI matrix (`test.yml`)**
+
+`.github/workflows/test.yml` runs one job per subproject (`shared`,
+`mcp-server`, `agent`, `web-ui`) with `fail-fast: false`. `mcp-server` and
+`agent` build `@re-cinq/lore-shared` first (they import compiled output).
+`web-ui` is installed in place (`npm install --prefix web-ui`) because it is
+not an npm workspace. A failure names exactly which suite broke without masking
+others.
+
+**`dist/**` excluded from vitest discovery**
+
+`agent` and `mcp-server` vitest configs now exclude `dist/**` to prevent stale
+compiled copies (which resolve `dist/workflows` only inside the Docker image)
+from failing the source-tree test run.
+
+**Integration tests isolated**
+
+`vitest.integration.config.ts` and `test-integration.yml` are separate from
+the default `vitest run`. Postgres-backed integration tests do not run in the
+unit matrix.
+
+**Phase 6 Verification:**
+- `test.yml` passes across all four subprojects on a clean source tree.
+- `dist/**` exclusion confirmed: running `npm run build && npm test` in
+  `agent/` produces a green suite (not 5 spurious failures from compiled
+  copies).
+- Integration tests run independently under `test-integration.yml`.
+
+---
 
 ## Open Items
 
@@ -474,6 +778,9 @@ Opt-in per repo via `auto_review` setting:
 | Context Core OCI promotion | Low | `context-core-builder.ts` exists; OCI artifact push and `crane pull` in install.sh not wired |
 | Graphiti + FalkorDB deployment | Low | `scripts/graphiti/ontology.yaml` exists; deployment deferred indefinitely |
 | Langfuse dependency in autoresearch | Low | `autoresearch.ts` reads gap signals from Langfuse (`LANGFUSE_PK/SK/HOST`). If Langfuse is not configured, the autoresearch loop silently skips. Cloud Monitoring gap metrics (`lore/gap_candidates`) are written but not consumed by autoresearch. |
+| Dark-factory pilot verification | High | T024/T029/T035/T038/T043/T046/T053 (live verification scenarios) deferred until pilot rollout (T059). Pilot gated on 3 trust-tiered repos passing SC1–SC7 thresholds across 14 days each (SC8). |
+| Legacy local-runner cleanup | Low | After pilot, the legacy local-runner code paths (T058) are to be deleted. Not yet done. |
+| Theme preference roaming | Low | Theme family/scheme persisted to `localStorage` only — does not roam across devices. Server persistence not planned. |
 
 ## Risk Register
 
