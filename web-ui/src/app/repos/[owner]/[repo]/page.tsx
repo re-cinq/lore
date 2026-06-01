@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic";
 import { query, queryOne, getRepoSchema } from '@/lib/db';
 import { getReadme, checkRepoFiles } from '@/lib/github';
 import { computeEnrollmentChecks } from '@/lib/enrollment';
+import { createOnboardTask } from '@/lib/onboard';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import ReadmeBox from './ReadmeBox';
 import EnrollmentSection from '@/components/EnrollmentSection';
@@ -9,6 +11,15 @@ import EnrollmentSection from '@/components/EnrollmentSection';
 export default async function RepoOverview({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo: repoName } = await params;
   const fullName = `${owner}/${repoName}`;
+
+  // Re-run onboarding to regenerate missing scaffolding (e.g. the ingest
+  // workflow). The agent opens a PR with only the missing files; land the user
+  // on the task page where that PR link surfaces.
+  async function reonboard() {
+    'use server';
+    const id = await createOnboardTask(fullName);
+    redirect(id ? `/pipeline/${id}` : `/repos/${owner}/${repoName}`);
+  }
   const readme = await getReadme(fullName).catch(() => null);
 
   const repoInfo = await queryOne<{
@@ -107,7 +118,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
         <ReadmeBox markdown={readme.markdown} rawBaseUrl={readme.rawBaseUrl} htmlUrl={readme.htmlUrl} />
       )}
 
-      <EnrollmentSection checks={enrollmentChecks} />
+      <EnrollmentSection checks={enrollmentChecks} reonboardAction={reonboard} />
 
       <div className="spec-card" style={{marginBottom:'16px', padding:'16px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'8px'}}>

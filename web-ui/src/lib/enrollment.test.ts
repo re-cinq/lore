@@ -30,6 +30,11 @@ describe('computeEnrollmentChecks', () => {
       .toMatchObject({ status: 'pass', detail: 'since 2026-03-30' });
   });
 
+  it('onboarded passes noting registration when onboarded without a date', () => {
+    expect(byId(computeEnrollmentChecks(input({ onboardedAt: null })), 'onboarded'))
+      .toMatchObject({ status: 'pass', detail: 'registered in Lore' });
+  });
+
   it('onboarded fails when not registered', () => {
     expect(byId(computeEnrollmentChecks(input({ onboarded: false })), 'onboarded').status).toBe('fail');
   });
@@ -57,6 +62,11 @@ describe('computeEnrollmentChecks', () => {
     expect(byId(computeEnrollmentChecks(input({ lastIngestedAt: daysBefore(2) })), 'ingested').status).toBe('pass');
   });
 
+  it('context ingested reads "today" when ingested within the day', () => {
+    expect(byId(computeEnrollmentChecks(input({ lastIngestedAt: daysBefore(0) })), 'ingested').detail)
+      .toContain('last ingest today');
+  });
+
   it('conventions fails when neither AGENTS.md nor CLAUDE.md is ingested', () => {
     expect(byId(computeEnrollmentChecks(input({ hasConventions: false })), 'conventions').status).toBe('fail');
   });
@@ -78,9 +88,39 @@ describe('computeEnrollmentChecks', () => {
     });
   });
 
+  it('present github file with no known purpose passes without a detail', () => {
+    const c = byId(computeEnrollmentChecks(input({ githubFiles: { 'random.md': true } })), 'gh:random.md');
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBeUndefined();
+  });
+
+  it('known github file explains its purpose when present', () => {
+    expect(byId(computeEnrollmentChecks(input()), 'gh:.github/workflows/lore-ingest.yml'))
+      .toMatchObject({ status: 'pass', detail: 'push-triggered context ingestion — keeps Lore fresh on every push' });
+  });
+
+  it('missing github file explains its purpose and offers to open a PR with it', () => {
+    expect(byId(computeEnrollmentChecks(input({ githubFiles: { '.github/workflows/lore-ingest.yml': false } })), 'gh:.github/workflows/lore-ingest.yml'))
+      .toMatchObject({
+        status: 'fail',
+        detail: 'missing · push-triggered context ingestion — keeps Lore fresh on every push',
+        action: { kind: 'reonboard', text: 'create a PR with this file' },
+      });
+  });
+
+  it('missing unknown github file falls back to a generic missing detail with the PR action', () => {
+    expect(byId(computeEnrollmentChecks(input({ githubFiles: { 'some/other-file.yml': false } })), 'gh:some/other-file.yml'))
+      .toMatchObject({ status: 'fail', detail: 'missing', action: { kind: 'reonboard', text: 'create a PR with this file' } });
+  });
+
   it('local MCP passes with developer count when sessions exist', () => {
     expect(byId(computeEnrollmentChecks(input({ localMcp: { developerCount: 1, lastActivity: daysBefore(3) } })), 'local-mcp'))
       .toMatchObject({ status: 'pass', detail: '1 developer · last 3d ago' });
+  });
+
+  it('local MCP passes without a last-seen suffix when activity is unknown', () => {
+    expect(byId(computeEnrollmentChecks(input({ localMcp: { developerCount: 2, lastActivity: null } })), 'local-mcp'))
+      .toMatchObject({ status: 'pass', detail: '2 developers' });
   });
 
   it('local MCP fails when no sessions recorded', () => {
