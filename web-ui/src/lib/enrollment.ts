@@ -6,6 +6,8 @@ export interface Check {
   status: CheckStatus;
   detail?: string;
   link?: { href: string; text: string };
+  /** A fixable check the UI can act on directly (e.g. open a PR with the file). */
+  action?: { kind: 'reonboard'; text: string };
 }
 
 export interface EnrollmentInput {
@@ -96,7 +98,7 @@ export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
       check.detail = 'GitHub App has no repo access';
     } else if (status === 'fail') {
       check.detail = purpose ? `missing · ${purpose}` : 'missing';
-      check.link = { href: '/onboard', text: 're-run onboarding to generate' };
+      check.action = { kind: 'reonboard', text: 'create a PR with this file' };
     } else if (purpose) {
       check.detail = purpose;
     }
