@@ -126,6 +126,9 @@ Memory is stored in the PostgreSQL `memory` schema (tables:
 `memories`, `memory_versions`, `facts`, `fact_conflicts`, `episodes`,
 `entities`, `edges`, `snapshots`, `shared_pools`, `audit_log`).
 File-backed fallback to `~/.lore/memory/` when DB is unavailable.
+`snapshots` and `shared_pools` tables exist but have no MCP tools —
+pool sharing uses the `pool` param on `write_memory`/`search_memory`;
+snapshot restore was superseded by importance decay (ADR-019).
 
 Facts have temporal validity (`valid_from`/`valid_to`), confidence
 tiers (`verified`/`observed`/`inferred`/`stale`), and retrieval
