@@ -7,7 +7,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { redactSecrets as sanitizeContent, parseTasks, inferPhaseDependencies, parseTrailers } from "@re-cinq/lore-shared";
+import { redactSecrets as sanitizeContent, parseTasks, inferPhaseDependencies, parseTrailers, parseSpecTitle, extractSummary, reassembleSpec } from "@re-cinq/lore-shared";
 import { getHealthStatus, isDbAvailable, getQueryEmbedding } from "./db.js";
 import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "./memory.js";
 import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "./memory-file.js";
@@ -1238,6 +1238,11 @@ export async function handleApiRoute(
     method === "GET"
   ) {
     await handleTaskByPr(req, res, pool);
+  } else if (
+    /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage(\?|$)/.test(url) &&
+    method === "GET"
+  ) {
+    await handleSpecCoverage(req, res, pool);
   } else {
     return false; // not handled
   }
@@ -1543,6 +1548,132 @@ async function handleTaskByPr(
     }
     console.error("[by-pr] GitHub fallback failed:", err);
     json(res, 500, { error: "github_api" });
+  }
+}
+
+// ── Spec → test coverage (T011 — spec-test-coverage feature) ─────────
+
+const SPEC_COVERAGE_RE = /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage/;
+const COVERAGE_SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
+
+interface SpecChunkRow {
+  file_path: string;
+  content: string;
+  ingested_at: string | Date;
+}
+
+interface LinkRow {
+  spec_path: string;
+  test_file: string;
+  test_name: string;
+  test_line: number | null;
+  symbol: string | null;
+  match_kind: string;
+  rationale: string;
+}
+
+/** Resolve a repo to its chunk schema (team schema if present, else org_shared). */
+async function resolveCoverageSchema(pool: Pool, repo: string): Promise<string> {
+  const { rows } = await pool.query(`SELECT team FROM lore.repos WHERE full_name = $1`, [repo]);
+  const team = rows[0]?.team;
+  if (team && COVERAGE_SCHEMA_RE.test(team)) {
+    const { rows: schemas } = await pool.query(
+      `SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`,
+      [team],
+    );
+    if (schemas.length > 0) return team;
+  }
+  return "org_shared";
+}
+
+/** GitHub blob link. Uses HEAD so the default branch resolves without storing
+ * it; the line anchor is dropped when AST chunking did not capture a line. */
+function specSourceUrl(repo: string, filePath: string, line: number | null): string {
+  const base = `https://github.com/${repo}/blob/HEAD/${filePath}`;
+  return line ? `${base}#L${line}` : base;
+}
+
+async function handleSpecCoverage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: Pool | null,
+): Promise<void> {
+  if (!pool) {
+    json(res, 503, { error: "database unavailable" });
+    return;
+  }
+  const m = (req.url || "").match(SPEC_COVERAGE_RE);
+  if (!m) {
+    json(res, 404, { error: "not found" });
+    return;
+  }
+  const repo = `${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
+
+  try {
+    const schema = await resolveCoverageSchema(pool, repo);
+    const { rows: specRows } = await pool.query<SpecChunkRow>(
+      `SELECT file_path, content, ingested_at
+       FROM ${schema}.chunks
+       WHERE content_type = 'spec' AND repo = $1`,
+      [repo],
+    );
+    // spec_test_links is added by a deploy-time migration; before it runs (or
+    // during the deploy hook window) treat it as no coverage rather than 500.
+    let linkRows: LinkRow[] = [];
+    try {
+      linkRows = (
+        await pool.query<LinkRow>(
+          `SELECT spec_path, test_file, test_name, test_line, symbol, match_kind, rationale
+           FROM ${schema}.spec_test_links
+           WHERE repo = $1
+           ORDER BY spec_path, test_file, test_line NULLS LAST`,
+          [repo],
+        )
+      ).rows;
+    } catch (err) {
+      if ((err as { code?: string }).code !== "42P01") throw err;
+      console.warn(`[spec-coverage] ${schema}.spec_test_links missing — returning specs with zero coverage`);
+    }
+
+    const chunksByPath = new Map<string, SpecChunkRow[]>();
+    for (const row of specRows) {
+      const list = chunksByPath.get(row.file_path) ?? [];
+      list.push(row);
+      chunksByPath.set(row.file_path, list);
+    }
+    const linksByPath = new Map<string, LinkRow[]>();
+    for (const row of linkRows) {
+      const list = linksByPath.get(row.spec_path) ?? [];
+      list.push(row);
+      linksByPath.set(row.spec_path, list);
+    }
+
+    const payload = [...chunksByPath.entries()]
+      .map(([specPath, chunks]) => {
+        const content = reassembleSpec(chunks);
+        const links = linksByPath.get(specPath) ?? [];
+        return {
+          spec_path: specPath,
+          title: parseSpecTitle(content, specPath),
+          summary: extractSummary(content),
+          test_count: links.length,
+          tests: links.map((link) => ({
+            name: link.test_name,
+            file_path: link.test_file,
+            line: link.test_line,
+            symbol: link.symbol,
+            match_kind: link.match_kind,
+            rationale: link.rationale,
+            url: specSourceUrl(repo, link.test_file, link.test_line),
+          })),
+        };
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+
+    json(res, 200, payload);
+  } catch (err) {
+    console.error("[spec-coverage] error:", err);
+    json(res, 500, { error: (err as Error).message });
   }
 }
 
