@@ -25,6 +25,11 @@ export interface EnrollmentInput {
 
 const STALE_MS = 7 * 86_400_000;
 
+const GH_FILE_PURPOSE: Record<string, string> = {
+  'AGENTS.md': 'context-loading order & conventions for AI agents',
+  '.github/workflows/lore-ingest.yml': 'push-triggered context ingestion — keeps Lore fresh on every push',
+};
+
 function daysAgo(now: number, iso: string): string {
   const d = Math.floor((now - new Date(iso).getTime()) / 86_400_000);
   return d <= 0 ? 'today' : `${d}d ago`;
@@ -85,12 +90,17 @@ export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
 
   for (const [path, exists] of Object.entries(input.githubFiles)) {
     const status: CheckStatus = exists === true ? 'pass' : exists === false ? 'fail' : 'unknown';
-    checks.push({
-      id: `gh:${path}`,
-      label: `${path} on GitHub`,
-      status,
-      detail: status === 'unknown' ? 'GitHub App has no repo access' : undefined,
-    });
+    const purpose = GH_FILE_PURPOSE[path];
+    const check: Check = { id: `gh:${path}`, label: `${path} on GitHub`, status };
+    if (status === 'unknown') {
+      check.detail = 'GitHub App has no repo access';
+    } else if (status === 'fail') {
+      check.detail = purpose ? `missing · ${purpose}` : 'missing';
+      check.link = { href: '/onboard', text: 're-run onboarding to generate' };
+    } else if (purpose) {
+      check.detail = purpose;
+    }
+    checks.push(check);
   }
 
   const { developerCount, lastActivity } = input.localMcp;

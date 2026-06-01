@@ -78,6 +78,25 @@ describe('computeEnrollmentChecks', () => {
     });
   });
 
+  it('known github file explains its purpose when present', () => {
+    expect(byId(computeEnrollmentChecks(input()), 'gh:.github/workflows/lore-ingest.yml'))
+      .toMatchObject({ status: 'pass', detail: 'push-triggered context ingestion — keeps Lore fresh on every push' });
+  });
+
+  it('missing github file explains its purpose and links to re-run onboarding', () => {
+    expect(byId(computeEnrollmentChecks(input({ githubFiles: { '.github/workflows/lore-ingest.yml': false } })), 'gh:.github/workflows/lore-ingest.yml'))
+      .toMatchObject({
+        status: 'fail',
+        detail: 'missing · push-triggered context ingestion — keeps Lore fresh on every push',
+        link: { href: '/onboard', text: 're-run onboarding to generate' },
+      });
+  });
+
+  it('missing unknown github file falls back to a generic missing detail with onboarding link', () => {
+    expect(byId(computeEnrollmentChecks(input({ githubFiles: { 'some/other-file.yml': false } })), 'gh:some/other-file.yml'))
+      .toMatchObject({ status: 'fail', detail: 'missing', link: { href: '/onboard', text: 're-run onboarding to generate' } });
+  });
+
   it('local MCP passes with developer count when sessions exist', () => {
     expect(byId(computeEnrollmentChecks(input({ localMcp: { developerCount: 1, lastActivity: daysBefore(3) } })), 'local-mcp'))
       .toMatchObject({ status: 'pass', detail: '1 developer · last 3d ago' });
