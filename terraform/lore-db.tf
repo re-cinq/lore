@@ -120,6 +120,15 @@ resource "kubectl_manifest" "lore_db_cluster" {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:16-bookworm"
 
+      # CNPG disables password auth for `postgres` over the network unless this
+      # is true; without it the ui-helm migrate hook (connects as postgres) can
+      # never authenticate via lore-db-rw. Pin the superuser password to the
+      # same basic-auth secret used at initdb so it equals var.db_password.
+      enableSuperuserAccess = true
+      superuserSecret = {
+        name = "lore-db-credentials"
+      }
+
       bootstrap = {
         initdb = {
           database = "lore"
