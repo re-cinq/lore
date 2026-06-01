@@ -1,17 +1,18 @@
 <!--
 Sync Impact Report
-- Version: 2.2.0 (MINOR — Dark Factory mode (ADR-016) + Principle 12 added; P7/P11 task-tracking narrowed)
-- Modified: P7 decision table row "Task tracking" — narrows when GH Issues are created (now exception-surface only when dark-factory mode is enabled per repo)
-- Modified: Technology stack row "Task tracking" — same narrowing reflected
-- Added: ADR-016 reference (Dark Factory mode)
-- Modified: Principle 5 — complete MCP tool list (memory, graph, episode tools added)
-- Modified: Principle 7 — architecture decisions table updated to reflect ADR-015 and post-April-13 decisions
-- Modified: Principle 9 — jobs table updated (review reactor, prompt cache analysis)
-- Modified: Principle 11 — expanded with retrieval strengthening, PR outcome feedback, confidence tiers, conflict surfacing
-- Added: Principle 12 (Event-Driven Automation over Polling)
-- Updated: Technology stack — prompt caching, local runner, AgentDB, session tracker, token scopes
-- Updated: Phase 3 description — cross-repo context, progressive trust, task groups, production awareness, per-template budgets
-- Follow-up TODOs: pilot rollout against three trust-tiered repos (T059) before flipping dark-factory defaults
+- Version: 2.3.0 (MINOR — TDD adoption (ADR-018) + Web UI theming (ADR-017); new Principle 13; P6/P7 updated)
+- Added: Principle 13 (Test-Driven Development) — TDD methodology + per-subproject CI matrix (ADR-018)
+- Modified: Principle 6 — added per-subproject unit-test CI gate alongside PromptFoo eval gate
+- Modified: Principle 7 — added "Testing methodology" and "Web UI theme system" rows to decision table (ADR-017, ADR-018)
+- Modified: Principle 9 — no change (jobs table stable)
+- Updated: Technology stack — added "Test runner" and "Web UI theming" rows
+- Updated: Phase 3 — added shipped items: testing standards enforcement + web UI theming system
+- Note: ADR numbering conflict exists — adrs/ADR-016-hippo-memory-adaptations.md and adrs/ADR-016-dark-factory-mode.md
+  both carry adr_number 16. Hippo-memory (2026-04-20) should be renumbered to ADR-016a or the dark-factory ADR to ADR-019
+  in a follow-up PR; constitution references remain unambiguous by filename.
+
+Previous (Version 2.2.0 — 2026-04-28, MINOR):
+- Dark Factory mode (ADR-016) + Principle 12 added; P7/P11 task-tracking narrowed
 
 Previous (Version 2.1.0 — 2026-04-20, MINOR):
 - Principle 12 added; Principles 5, 7, 9, 11 materially expanded
@@ -28,9 +29,9 @@ Previous (Version 2.0.0 — 2026-04-13, MAJOR):
 |---|---|
 | Project | Lore |
 | Subtitle | Shared context infrastructure for Claude Code |
-| Constitution Version | 2.2.0 |
+| Constitution Version | 2.3.0 |
 | Ratification Date | 2026-03-25 |
-| Last Amended Date | 2026-04-28 |
+| Last Amended Date | 2026-06-01 |
 
 ## Purpose
 
@@ -158,6 +159,10 @@ CI, not by a central team reviewing every change.
 - PromptFoo evals: each team owns their eval cases. Platform does
   not own domain knowledge.
 - Pass threshold: `--assert-pass-rate 0.85` required to merge.
+- Unit-test CI gate: `.github/workflows/test.yml` runs one vitest job
+  per subproject (`shared`, `mcp-server`, `agent`, `web-ui`) with
+  `fail-fast: false`; every PR to `main` must pass all four jobs. See
+  ADR-018 and `specs/testing-standards/`.
 
 **Rationale:** Centralised review bottlenecks do not scale. CI eval
 gates provide consistent quality enforcement without requiring a
@@ -193,6 +198,8 @@ The following decisions have been made and MUST NOT be relitigated:
 | API auth | Per-client scoped tokens (SHA-256, `pipeline.api_tokens`); scopes: read / write / task / webhook / admin |
 | Rate limiting | In-memory sliding window: 30/min webhooks, 60/min task ops, 200/min other |
 | Job pod security | Non-root uid 1000, drop all Linux caps, NetworkPolicy egress: DNS + HTTPS + Lore API only |
+| Testing methodology | TDD (Red-Green-Refactor) for all new code; vitest runner; per-subproject CI matrix; integration tests isolated behind `vitest.integration.config.ts` (ADR-018) |
+| Web UI theme system | Two-axis CSS token model (`family × scheme`), `theme.css` sole source, FOUC-free blocking inline script, offline Iconify icon sets per family (ADR-017) |
 
 Upgrade path to AlloyDB Omni or managed AlloyDB if corpus exceeds ~10M vectors. Revisit Vertex AI Vector Search only if corpus exceeds ~100M vectors.
 
@@ -360,6 +367,44 @@ to webhooks reduced average review latency from ~2.5 min to seconds
 and eliminated idle API calls. The safety cron provides fault
 tolerance without reinstating continuous polling. See ADR-015.
 
+### Principle 13: Test-Driven Development
+
+All new behaviour MUST be written test-first using the Red-Green-Refactor
+cycle. A test that does not yet exist is the specification; production
+code exists only to pass tests.
+
+**The Three Laws:**
+
+1. Do not write production code unless it is to make a failing test pass.
+2. Do not write more of a test than is sufficient to fail (compile errors count).
+3. Do not write more production code than is sufficient to pass the current test.
+
+**Conventions:**
+
+- **Runner**: vitest (`globals: true`, node environment) across all subprojects.
+  `dist/**` is excluded from discovery in `agent` and `mcp-server` to prevent
+  stale compiled copies from registering as tests.
+- **Placement**: `agent`/`mcp-server` tests in `src/__tests__/`; `shared`/`web-ui`
+  tests co-located as `*.test.ts` beside the source.
+- **Naming**: behavioural (`given [context], when [action], then [outcome]`) or
+  unit (`[function] returns [expected] when [input/condition]`). No `should`.
+- **Integration tests** require Postgres and live under
+  `mcp-server/src/__tests__/integration/`; they are excluded from the default
+  `vitest run` and from the per-subproject unit matrix.
+- **CI gate**: `.github/workflows/test.yml` runs four parallel jobs (one per
+  subproject, `fail-fast: false`). All four must be green for a PR to merge.
+
+**Exception**: characterization tests (test-after) are allowed only when adding
+tests to pre-existing code. All conventions still apply.
+
+See ADR-018 and `specs/testing-standards/` for the full conventions.
+
+**Rationale:** The testing approach was never written down, producing branches
+that shipped PR-status classifiers and markdown helpers with no tests — none of
+it gated by CI. Untested code and the absence of a unit CI gate allowed unit
+regressions to reach `main` unnoticed. TDD by construction produces testable
+pure functions; the per-subproject matrix names exactly which suite broke.
+
 ## Technology Stack
 
 | Component | Technology |
@@ -388,6 +433,8 @@ tolerance without reinstating continuous polling. See ADR-015.
 | Local read cache | AgentDB optional local read cache when MCP runs in stdio mode (proxies writes to GKE backend) |
 | API token scopes | `pipeline.api_tokens` — SHA-256 hashed per-client tokens; scopes: read / write / task / webhook / admin |
 | Rate limiting | In-memory sliding window: 30/min webhooks, 60/min task ops, 200/min other; 1 MB body limit |
+| Test runner | vitest (`globals: true`, node env) across all subprojects; `dist/**` excluded; per-subproject CI matrix in `.github/workflows/test.yml` |
+| Web UI theming | Two-axis CSS token model in `web-ui/src/app/theme.css`; `ThemeProvider` + `THEME_SCRIPT` (FOUC-free); `<Icon>` per-family abstraction; offline `@iconify-json/lucide` (Elegant) + `@iconify-json/pixelarticons` (Retro) |
 
 ## Phased Delivery
 
@@ -477,6 +524,14 @@ Deliverables:
   context. `/api/repo-status` exposes `last_ingested_at` + `stale` flag.
 - Spec drift detection with VIOLATES tracking.
 - AgentDB optional local read cache (stdio mode).
+- **Testing standards** (ADR-018): TDD methodology adopted for all new code;
+  per-subproject vitest matrix in `.github/workflows/test.yml`; `dist/**`
+  excluded from test discovery; `specs/testing-standards/` documents conventions.
+- **Web UI theming** (ADR-017): Two-axis token model (family × scheme) replacing
+  single dark-only stylesheet; Elegant (Inter, frosted glass) and Retro (VT323,
+  amber CRT) families; FOUC-free blocking `THEME_SCRIPT`; offline Iconify icon
+  sets; `ThemeSwitcher` on `/settings`; zero hardcoded colors or font-sizes in
+  `src/` outside `theme.css`/`globals.css`.
 
 ## Governance
 
