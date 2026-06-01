@@ -296,3 +296,75 @@ See `quickstart.md` for the seven verification scenarios derived from `spec.md`'
 ## Agent Context
 
 `update-agent-context.sh` is not present in this repo's `.specify/scripts/`. Manual update follow-up (Task 5.4): add to `CLAUDE.md` the new modules — `agent/src/supervisor/`, `agent/src/workflow/`, `shared/src/commit-trailers.ts`, `pipeline.task_leases` table, `dark_factory.*` settings shape.
+
+---
+
+## Implementation Addendum — Divergences from Plan
+
+_Written post-implementation. Records what shipped vs. what was planned, so future agents reading this plan have accurate expectations._
+
+### File structure changes
+
+| Planned path | Actual path | Reason |
+|---|---|---|
+| `mcp-server/src/settings-authz.ts` | `mcp-server/src/dark-factory-settings.ts` + `mcp-server/src/dark-factory-authz.ts` | Split into schema/defaults vs. ceremony verification for cleaner separation |
+| _(not planned)_ | `shared/src/dark-factory-settings.ts` | Canonical `ResolvedDarkFactorySettings` types moved to `@re-cinq/lore-shared` so agent, mcp-server, and pod runner share one source without importing across workspaces |
+| `agent/src/workflow/executor.ts` | `agent/src/supervisor/graph-executor.ts` | Co-located in supervisor package; executor is a supervisor concern |
+| _(not planned)_ | `agent/src/supervisor/runner-cli.ts` | Cluster pod CLI entry point — distinct from `supervisor/index.ts`. Needed its own module with a documented exit-code contract for `entrypoint.sh` |
+| _(not planned)_ | `agent/src/supervisor/claude-code-handler.ts` | Agent-node handler for the cluster path extracted into its own factory so it can be injected and tested independently of the executor |
+| _(not planned)_ | `agent/src/supervisor/handlers.ts` | Production handler registry wired in `runner-cli.ts`; separates wiring from executor logic |
+| _(not planned)_ | `agent/src/jobs/dark-factory-baseline.ts` | Pre-feature baseline counter snapshot (T011b) for SC1/SC4/SC6 delta measurement; not in original plan scope |
+
+### Architectural divergences
+
+**1. Local runner migration deferred (Phase 2.4 not shipped)**
+
+The plan's Phase 2.4 said "Local runner adopts the graph executor" and that the MVP would have a single codepath across local + GKE. In practice, local-runner.ts still uses the legacy `claude --print` path (T058 is open). The supervisor and graph executor exist and are used by Job pods on GKE, but `mcp-server/src/local-runner.ts` was not migrated. The `FileLeaseBackend` and `DbLeaseBackend` abstraction was built in preparation; the cutover is gated on pilot proving the new path.
+
+**2. Two-gate enablement added**
+
+The plan had a single per-repo `dark_factory.enabled` gate. The shipped design added a second cluster-level gate: `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the agent deployment env. Both must be on for impl/general/review tasks to take the cluster supervisor path. The cluster gate prevents the Helm flag from running ahead of a compatible claude-runner image. `CLAUDE.md` documents the `--set-string` flag requirement to avoid YAML bool coercion.
+
+**3. Two-key protected fields expanded**
+
+Plan specified two-key AuthZ for `enabled` and `auto_merge.paths`. Actual `twoKeyFieldsTouched()` in `dark-factory-settings.ts` also gates `auto_merge.require_green_ci` and `auto_merge.require_bot_approval` when either is being **downgraded** to `false`. Downgrade protection was not in the original spec but was added to prevent accidental removal of safety constraints.
+
+**4. Auto-merge outcome set expanded**
+
+Plan described "7 deferral reasons + `merged`" (8 outcomes total). Actual `AutoMergeOutcome` has 9 defer outcomes + `merged` (10 total). Added: `no_changes` (branch has no file diff — skip silently) and `api_failure` (GitHub merge API failed after backoff — PR stays open). These address edge cases discovered during implementation.
+
+**5. Pure + DB-backed function pairs**
+
+Plan had single `shouldCreateIssue()` / `resolveReviewMode()` DB-backed functions. Actual implementation adds pure decision variants — `decideIssueCreate()` / `decideReviewMode()` — that take all inputs as arguments. The DB-backed `shouldCreateIssue()` / `resolveReviewMode()` call through to the pure functions. This split was necessary for unit testing without Postgres (TDD constraint from ADR-018).
+
+**6. Runner-cli exit-code matrix**
+
+The plan mentioned GKE pod execution but did not specify the exit-code contract. `runner-cli.ts` ships a documented 10-state matrix consumed by `entrypoint.sh` and `loretask-watcher`:
+
+| Code | Meaning |
+|---|---|
+| 0 | completed |
+| 2 | not_a_git_workdir |
+| 3 | workflow_load_failed |
+| 4 | workflow_not_found |
+| 5 | lease_held |
+| 6 | iteration_max_exceeded |
+| 7 | executor_error |
+| 8 | executor_pending |
+| 9 | env_missing |
+
+Exit 1 is reserved for Node uncaught exceptions. Watchers use the specific code to decide retry vs. `needs-human-help` escalation.
+
+**7. `decideNotify()` API differs from plan**
+
+Plan described `notify({channel, level, repo, ...})` as an imperative call. Actual `notify.ts` exports `decideNotify(level, settings)` as a pure decision function (returns `NotifyDecision`) — consistent with the pure/DB-backed split above. The actual Slack send is performed by callers.
+
+### Deferred items still open
+
+These were in the plan but not yet shipped:
+
+- **T058** — Delete legacy local-runner code paths (blocked on pilot)
+- **T059** — Pilot rollout on three trust-tiered repos (live action)
+- **T060** — 14-day measured results vs. SC1–SC8 (follows T059)
+- **T005** — Run schema migration against dev DB (shared-state action)
+- **T024/T029/T035/T038/T043/T046/T053** — Live verification scenarios (all deferred to pilot)
