@@ -3,6 +3,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import readme from '../ReadmeBox.module.css';
 
 export interface TestLink {
   name: string;
@@ -21,7 +22,7 @@ function shortFile(filePath: string): string {
 export default function SpecDetails({ content, tests }: { content: string; tests: TestLink[] }) {
   return (
     <div>
-      <div className="content-viewer">
+      <div className={readme.readme}>
         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
           {content}
         </ReactMarkdown>
