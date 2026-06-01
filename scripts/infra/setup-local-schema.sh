@@ -100,4 +100,27 @@ for s in setup-repos-schema setup-pipeline-schema setup-agent-schema \
   bash "$DIR/$s.sh"
 done
 
+# Incremental migrations. The GKE Helm hook (migrate-job.yaml) applies these on
+# every deploy, tracked in lore.schema_migrations; local dev has no such hook,
+# so a migration-added table would be missing here until applied by hand. Mirror
+# the hook's semantics — same tracking table, filename order, per-file single
+# transaction, skip-if-applied — so new migrations land locally too.
+MIGRATIONS_DIR="$DIR/../../terraform/modules/gke-mcp/ui-helm/migrations"
+psql() { docker exec -i "$CONTAINER" psql -U postgres -d lore "$@"; }
+log "Applying migrations from $MIGRATIONS_DIR"
+psql -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+CREATE SCHEMA IF NOT EXISTS lore;
+CREATE TABLE IF NOT EXISTS lore.schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
+SQL
+for f in "$MIGRATIONS_DIR"/*.sql; do
+  [ -e "$f" ] || continue
+  v="$(basename "$f")"
+  if [ "$(psql -tA -c "SELECT 1 FROM lore.schema_migrations WHERE version = '$v'")" = "1" ]; then
+    log "migrate skip   $v (already applied)"
+    continue
+  fi
+  log "migrate apply  $v"
+  psql -v ON_ERROR_STOP=1 --single-transaction -f - -c "INSERT INTO lore.schema_migrations (version) VALUES ('$v')" < "$f"
+done
+
 log "Local schema applied to '$CONTAINER'."

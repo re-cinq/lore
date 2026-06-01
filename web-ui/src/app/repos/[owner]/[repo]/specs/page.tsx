@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query, getRepoSchema, getRepoSchemaAndTeam } from '@/lib/db';
+import { query, queryAllowMissing, getRepoSchema, getRepoSchemaAndTeam } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import HelpPopover from '@/components/HelpPopover';
 import { validateSpecPath } from '@/lib/spec-path';
@@ -41,7 +41,7 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
     [fullName]
   );
 
-  const linkCounts = await query<{ spec_path: string; count: string }>(
+  const linkCounts = await queryAllowMissing<{ spec_path: string; count: string }>(
     `SELECT spec_path, count(*)::int AS count
      FROM ${schema}.spec_test_links
      WHERE repo = $1
