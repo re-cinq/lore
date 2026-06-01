@@ -100,14 +100,27 @@ for s in setup-repos-schema setup-pipeline-schema setup-agent-schema \
   bash "$DIR/$s.sh"
 done
 
+# Grant 'lore' the privileges it has in the cluster: it owns the DB there
+# (CNPG initdb owner) and its own schema, and team schemas are GRANTed
+# CREATE/USAGE (setup-db.sh + ui-helm/migrations/README handoff). Mirror that
+# locally so the migration runner — which connects as 'lore' below — can DDL
+# these schemas. Also hand any pre-existing schema_migrations to lore so a DB
+# previously seeded as postgres converges.
+docker exec -i "$CONTAINER" psql -U postgres -d lore -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+GRANT CREATE ON DATABASE lore TO lore;
+GRANT CREATE, USAGE ON SCHEMA lore, payments, platform, mobile, data, org_shared TO lore;
+ALTER TABLE IF EXISTS lore.schema_migrations OWNER TO lore;
+SQL
+
 # Incremental migrations. The GKE Helm hook (migrate-job.yaml) applies these on
-# every deploy, tracked in lore.schema_migrations; local dev has no such hook,
-# so a migration-added table would be missing here until applied by hand. Mirror
-# the hook's semantics — same tracking table, filename order, per-file single
-# transaction, skip-if-applied — so new migrations land locally too.
+# every deploy as the 'lore' role, tracked in lore.schema_migrations; local dev
+# has no such hook. Mirror the hook exactly — same role, tracking table, filename
+# order, per-file single transaction, skip-if-applied — so a migration the 'lore'
+# role cannot apply (e.g. DDL on a schema it lacks CREATE on) fails here too,
+# instead of silently passing as superuser and only breaking on deploy.
 MIGRATIONS_DIR="$DIR/../../terraform/modules/gke-mcp/ui-helm/migrations"
-psql() { docker exec -i "$CONTAINER" psql -U postgres -d lore "$@"; }
-log "Applying migrations from $MIGRATIONS_DIR"
+psql() { docker exec -i "$CONTAINER" psql -U lore -d lore "$@"; }
+log "Applying migrations from $MIGRATIONS_DIR (as role 'lore')"
 psql -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 CREATE SCHEMA IF NOT EXISTS lore;
 CREATE TABLE IF NOT EXISTS lore.schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());

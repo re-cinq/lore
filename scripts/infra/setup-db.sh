@@ -123,6 +123,13 @@ kubectl exec -n "$NAMESPACE" lore-db-1 -- psql -U postgres -d lore -c "
         ON %I.chunks USING GIN (search_tsv)', s, s);
     END LOOP;
   END\$\$;
+
+  -- Team schemas are created here as the bootstrap superuser, so 'lore' (the
+  -- DB owner, but not the schema owner) cannot CREATE in them. The deploy-time
+  -- migration runner connects as 'lore' and DDLs these schemas (e.g.
+  -- spec_test_links), so grant it CREATE/USAGE. Mirrors the lore-schema handoff
+  -- in ui-helm/migrations/README.md; this is a one-time bootstrap step.
+  GRANT CREATE, USAGE ON SCHEMA payments, platform, mobile, data, org_shared TO lore;
 "
 
 echo ""
