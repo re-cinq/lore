@@ -3,41 +3,49 @@
 All tools are registered via `@modelcontextprotocol/sdk` using
 `server.tool()` with Zod input schemas. Responses follow the MCP
 content format: `{ content: [{ type: 'text', text: string }] }`.
+The `text` field contains either a JSON payload or a plain-text error
+message (always prefixed `"Error …"` so callers can distinguish).
 
-When `agent_id` is marked optional, the server resolves it from the
-authenticated session context. If no session context is available and
-`agent_id` is omitted, the tool returns an error.
+When `agent_id` is marked optional, it is resolved from the
+`LORE_AGENT_ID` env, `~/.lore/agent-id` file, or auto-generated UUID.
+
+> **Updated 2026-06-01.** The original contract file described five
+> tools that were never shipped as MCP tools (`shared_write`,
+> `shared_read`, `create_snapshot`, `restore_snapshot`, `agent_health`).
+> This revision documents the seven tools that are actually registered,
+> plus `assemble_context` which was added post-design. See
+> [spec.md § Divergences](../spec.md#divergences-from-original-design).
 
 ---
 
-## Private Memory Tools
+## Memory CRUD
 
 ### write_memory
 
-Write or update a key-value memory entry for an agent. If the key
-already exists, a new version is created (the previous version is
-preserved). Optionally extracts atomic facts asynchronously.
+Store a key-value memory scoped to the current repo. If the key already
+exists, a new version is created and the previous version is preserved in
+`memory_versions`.
 
 **Input:**
 ```typescript
 {
   key: z.string()
-    .describe('Memory key. Use namespaced keys (e.g., "user.preferences", "task.current").'),
+    .describe('Memory key (e.g. "auth-pattern", "session-summary/2026-03-30").'),
   value: z.string()
-    .describe('Memory value. Free-form text, will be embedded asynchronously.'),
+    .describe('Memory value (free-form text, embedded async).'),
   agent_id: z.string().optional()
-    .describe('Agent identifier. Resolved from session if omitted.'),
+    .describe('Override agent ID.'),
   ttl: z.number().optional()
-    .describe('Time-to-live in seconds. NULL for permanent. Memory auto-expires after this duration.'),
-  extract_facts: z.boolean().default(false)
-    .describe('If true, asynchronously extract atomic facts from value and store as Fact entities.')
+    .describe('Time-to-live in seconds. Omit for permanent.'),
+  extract_facts: z.boolean().optional()
+    .describe('If true, asynchronously extract atomic facts from value.')
 }
 ```
 
 **Response:**
 ```json
 {
-  "key": "user.preferences",
+  "key": "auth-pattern",
   "version": 2,
   "agent_id": "agent-abc123",
   "created_at": "2026-03-29T10:00:00Z"
@@ -45,44 +53,40 @@ preserved). Optionally extracts atomic facts asynchronously.
 ```
 
 **Behavior:**
-1. Resolve `agent_id` from input or session context.
-2. Look up the current max version for `(agent_id, key)`.
-3. Insert a new Memory row with `version = max + 1` (or 1 if new).
-4. If `ttl` is provided, compute `expires_at = NOW() + ttl * interval '1 second'`.
-5. Enqueue async embedding generation for the value.
-6. If `extract_facts` is true, enqueue fact extraction job.
-7. Write an AuditEntry with `operation = 'write'`.
+1. Resolve `agent_id`; detect repo from git remote.
+2. Look up current max version for `(repo ?? agent_id, key)`.
+3. `UPDATE` existing row (increment version) or `INSERT` new row.
+4. Mirror the write to `memory_versions` (always).
+5. Enqueue async embedding generation.
+6. If `extract_facts=true`, enqueue async fact extraction via `facts.ts`.
+7. Write an `audit_log` entry with `operation='write'`.
 
-**Error handling:**
-- Missing `agent_id` and no session context: return error
-  `"agent_id is required when no session context is available"`.
-- Value exceeds maximum size (configurable, default 100KB): return
-  error `"value exceeds maximum size of {limit} bytes"`.
+**Error conditions:**
+- Value exceeds 100KB: `"value exceeds maximum size"`.
+- DB unavailable: proxies to `LORE_API_URL` if configured; falls back to
+  file-based storage at `~/.lore/memory/` in true offline mode.
 
 ---
 
 ### read_memory
 
-Read a memory entry by key. Supports fetching the latest version, a
-specific version, or the full version history.
+Retrieve a memory by key. Returns the latest version by default.
 
 **Input:**
 ```typescript
 {
-  key: z.string()
-    .describe('Memory key to read.'),
-  agent_id: z.string().optional()
-    .describe('Agent identifier. Resolved from session if omitted.'),
-  version: z.union([z.number(), z.literal('all')]).optional()
-    .describe('Specific version number, or "all" for full history. Omit for latest.')
+  key: z.string(),
+  agent_id: z.string().optional(),
+  version: z.string().optional()
+    .describe('"all" for full history, or specific version number as string.')
 }
 ```
 
-**Response (single version):**
+**Response (latest version):**
 ```json
 {
-  "key": "user.preferences",
-  "value": "Prefers concise answers, dark mode, metric units.",
+  "key": "auth-pattern",
+  "value": "Use JWT RS256 with a 15-minute expiry.",
   "version": 2,
   "created_at": "2026-03-29T10:00:00Z"
 }
@@ -91,85 +95,62 @@ specific version, or the full version history.
 **Response (version="all"):**
 ```json
 [
-  {
-    "key": "user.preferences",
-    "value": "Prefers concise answers, dark mode, metric units.",
-    "version": 2,
-    "created_at": "2026-03-29T10:00:00Z"
-  },
-  {
-    "key": "user.preferences",
-    "value": "Prefers concise answers.",
-    "version": 1,
-    "created_at": "2026-03-28T08:00:00Z"
-  }
+  { "version": 2, "value": "Use JWT RS256 …", "created_at": "…" },
+  { "version": 1, "value": "Use sessions …", "created_at": "…" }
 ]
 ```
 
 **Behavior:**
-1. Resolve `agent_id` from input or session context.
-2. Query Memory WHERE `agent_id`, `key`, `is_deleted = false`,
-   and `(expires_at IS NULL OR expires_at > NOW())`.
-3. If `version` is a number, filter to that specific version.
-4. If `version` is `"all"`, return all non-deleted versions ordered
-   by version descending.
-5. If omitted, return the row with the highest version.
-6. Write an AuditEntry with `operation = 'read'`.
+- `version="all"` queries `memory_versions` ordered by version descending.
+- Specific version queries `memory_versions` by exact version number.
+- Latest queries `memory.memories` directly (fastest path).
+- Excludes `is_deleted=true` and expired rows.
+- Writes `audit_log` entry with `operation='read'`.
 
-**Error handling:**
-- Key not found: return error `"memory not found for key: {key}"`.
-- Specific version not found: return error
-  `"version {version} not found for key: {key}"`.
+**Error conditions:**
+- Key not found: `"Memory \"{key}\" not found."` (plain text, not JSON).
 
 ---
 
 ### delete_memory
 
-Soft-delete a memory entry. Sets `is_deleted = true` on the current
-version. The entry is excluded from all subsequent reads and searches
-but remains in the database for audit purposes.
+Soft-delete a memory. Sets `is_deleted=true` on the live row. The entry
+is excluded from all reads and searches but remains for audit and version
+history.
 
 **Input:**
 ```typescript
 {
-  key: z.string()
-    .describe('Memory key to delete.'),
+  key: z.string(),
   agent_id: z.string().optional()
-    .describe('Agent identifier. Resolved from session if omitted.')
 }
 ```
 
 **Response:**
 ```json
-{
-  "key": "user.preferences",
-  "deleted": true
-}
+{ "key": "auth-pattern", "deleted": true }
 ```
 
 **Behavior:**
-1. Resolve `agent_id` from input or session context.
-2. Set `is_deleted = true` on all versions of `(agent_id, key)`.
-3. Write an AuditEntry with `operation = 'delete'`.
+1. Resolve `agent_id`.
+2. Set `is_deleted=true` on the latest version of `(agent_id, key)`.
+3. Write `audit_log` entry with `operation='delete'`.
 
-**Error handling:**
-- Key not found: return error `"memory not found for key: {key}"`.
+**Error conditions:**
+- Key not found: returns error string.
 
 ---
 
 ### list_memories
 
-List all active memory keys for an agent with pagination.
+List active memory keys for the current repo, with pagination.
 
 **Input:**
 ```typescript
 {
-  agent_id: z.string().optional()
-    .describe('Agent identifier. Resolved from session if omitted.'),
-  limit: z.number().default(50)
-    .describe('Maximum number of entries to return.'),
+  agent_id: z.string().optional(),
+  limit: z.number().default(50),
   offset: z.number().default(0)
-    .describe('Number of entries to skip for pagination.')
 }
 ```
 
@@ -177,40 +158,29 @@ List all active memory keys for an agent with pagination.
 ```json
 {
   "memories": [
-    {
-      "key": "user.preferences",
-      "version": 2,
-      "created_at": "2026-03-29T10:00:00Z"
-    },
-    {
-      "key": "task.current",
-      "version": 1,
-      "created_at": "2026-03-29T09:30:00Z"
-    }
+    { "key": "auth-pattern", "version": 2, "created_at": "…" },
+    { "key": "session-summary/2026-03-30", "version": 1, "created_at": "…" }
   ],
   "total": 42
 }
 ```
 
 **Behavior:**
-1. Resolve `agent_id` from input or session context.
-2. Query the latest version of each distinct key WHERE
-   `agent_id` matches, `is_deleted = false`, and
-   `(expires_at IS NULL OR expires_at > NOW())`.
-3. Apply `limit` and `offset` for pagination.
-4. Return the total count of active keys alongside the page.
-5. Write an AuditEntry with `operation = 'read'`.
-
-**Error handling:**
-- No memories found: return `{ memories: [], total: 0 }` (not an
-  error).
+- Queries latest version of each distinct key WHERE `repo` matches
+  (or `agent_id` if no repo), `is_deleted=false`, and not expired.
+- Returns total count of active keys alongside the page.
+- No results: `{ memories: [], total: 0 }` (not an error).
 
 ---
 
+## Semantic Search
+
 ### search_memory
 
-Hybrid search across an agent's memories using vector similarity and
-keyword matching. Optionally includes shared pool memories.
+Hybrid semantic + keyword search across all org memories and extracted
+facts. Uses Reciprocal Rank Fusion (k=60) to merge four parallel result
+sets: vector search on memories, vector search on facts, keyword search
+on memories, keyword search on facts.
 
 **Input:**
 ```typescript
@@ -218,307 +188,297 @@ keyword matching. Optionally includes shared pool memories.
   query: z.string()
     .describe('Natural language search query.'),
   agent_id: z.string().optional()
-    .describe('Agent identifier. Resolved from session if omitted.'),
+    .describe('Scope to agent. Omit for cross-agent search.'),
   pool: z.string().optional()
-    .describe('Include results from this shared pool in addition to private memories.'),
-  limit: z.number().default(10)
-    .describe('Maximum number of results to return.')
+    .describe('Include memories from this shared pool (resolved to pool_id).'),
+  limit: z.number().default(10),
+  include_invalidated: z.boolean().default(false)
+    .describe('Include facts superseded by later contradictions. Useful for historical queries.'),
+  graph_augment: z.boolean().default(false)
+    .describe('Enrich results with 1-hop knowledge graph neighbors of detected entities.')
 }
 ```
 
 **Response:**
 ```json
-{
-  "results": [
-    {
-      "key": "user.preferences",
-      "value": "Prefers concise answers, dark mode, metric units.",
-      "score": 0.92,
-      "agent_id": "agent-abc123"
-    },
-    {
-      "key": "project.goals",
-      "value": "Ship v2 API by end of Q1.",
-      "score": 0.78,
-      "agent_id": "agent-abc123"
-    }
-  ]
-}
+[
+  {
+    "key": "auth-pattern",
+    "value": "Use JWT RS256 with a 15-minute expiry.",
+    "score": 0.92,
+    "agent_id": "agent-abc123",
+    "source": "memory",
+    "id": "550e8400-…",
+    "confidence": "observed"
+  },
+  {
+    "key": null,
+    "value": "JWT tokens expire after 15 minutes to limit session hijacking risk.",
+    "score": 0.78,
+    "agent_id": "agent-abc123",
+    "source": "fact",
+    "id": "660e8400-…",
+    "confidence": "observed"
+  }
+]
 ```
 
-**Behavior:**
-1. Resolve `agent_id` from input or session context.
-2. Generate embedding for `query` via the configured embedding model.
-3. Execute hybrid search:
-   - Vector search via HNSW: `embedding <=> query_embedding`.
-   - Keyword search via GIN: `search_tsv @@ plainto_tsquery(query)`.
-   - Reciprocal Rank Fusion (k=60) to merge rankings.
-4. Filter to `agent_id` private memories (WHERE `pool IS NULL`).
-5. If `pool` is provided, also include memories WHERE
-   `pool = {pool}`.
-6. Exclude `is_deleted = true` and expired entries.
-7. Also search Fact entities and map results back to parent Memory.
-8. Apply `limit`.
-9. Write an AuditEntry with `operation = 'search'` and metadata
-   including query and results count.
+`source` is one of `"memory"`, `"fact"`, `"episode"`, `"graph"`.
+`confidence` appears on fact results: `verified`, `observed`, `inferred`,
+or `stale`.
 
-**Error handling:**
-- No results: return `{ results: [] }` (not an error).
-- Embedding service unavailable: fall back to keyword-only search
-  with a warning in the response.
+**Key behaviors:**
+- **Session diversification:** results are capped at 3 per
+  `(agent_id, source)` combination to prevent verbose sessions from
+  dominating the result set.
+- **Retrieval strengthening (fire-and-forget):** every hit increments
+  `retrieval_count`, updates `last_retrieved_at`, and extends
+  `half_life_days` (+2, capped at 365) on the returned facts and
+  memories. Stale facts are revived to `observed` confidence.
+- **Graph augmentation:** when `graph_augment=true`, detected entities
+  in top results are used to fetch 1-hop graph neighbors, appended with
+  a halved score penalty.
+- Only currently-valid facts (`valid_to IS NULL`) are returned by
+  default. Set `include_invalidated=true` for historical queries.
+- Falls back to keyword-only search when Vertex AI embeddings are
+  unavailable.
 
 ---
 
-## Shared Pool Tools
+## Episode Ingestion
 
-### shared_write
+### write_episode
 
-Write a memory entry to a shared pool, visible to all agents with
-access to that pool.
+Ingest raw, unstructured text (conversation turn, code review,
+observation). Stores as an `episode` row and triggers asynchronous fact
+extraction and knowledge-graph update. The caller does not need to
+structure or curate the input.
 
 **Input:**
 ```typescript
 {
-  pool: z.string()
-    .describe('Shared pool name (e.g., "team-context", "project-alpha").'),
-  key: z.string()
-    .describe('Memory key within the pool.'),
-  value: z.string()
-    .describe('Memory value.'),
+  content: z.string().min(1).max(50000)
+    .describe('Raw text to ingest.'),
+  source: z.string().default('manual')
+    .describe('Source tag: "session", "pr-review", "ci", "manual".'),
+  ref: z.string().optional()
+    .describe('External reference, e.g. "owner/repo#42".'),
   agent_id: z.string().optional()
-    .describe('Agent identifier (author). Resolved from session if omitted.')
+    .describe('Override agent ID.')
 }
 ```
 
-**Response:**
+**Response (new episode):**
 ```json
 {
-  "pool": "team-context",
-  "key": "deployment.runbook",
-  "version": 1,
-  "agent_id": "agent-abc123"
+  "status": "ok",
+  "episode_id": "770e8400-e29b-41d4-a716-446655440000",
+  "source": "pr-review",
+  "ref": "re-cinq/lore#42"
+}
+```
+
+**Response (duplicate):**
+```json
+{
+  "status": "duplicate",
+  "message": "Episode already ingested."
 }
 ```
 
 **Behavior:**
-1. Resolve `agent_id` from input or session context.
-2. Insert a Memory row with `pool = {pool}`.
-3. Version is monotonic per `(agent_id, key)` as with private writes.
-4. Enqueue async embedding generation.
-5. Write an AuditEntry with `operation = 'write'` and
-   `pool = {pool}`.
+1. Pass content through `sanitizeContent()` / `redactSecrets()` before
+   storage (strips API keys, JWTs, connection strings, bearer tokens).
+2. Compute SHA-256 hash; `INSERT … ON CONFLICT DO NOTHING` deduplicates.
+3. If new: enqueue async `extractFactsFromEpisode` and
+   `extractAndUpdateGraph` (both best-effort, non-blocking).
+4. Write `audit_log` entry with `operation='write_episode'`.
 
-**Error handling:**
-- Pool name validation: must be lowercase alphanumeric with hyphens,
-  3-64 characters. Return error `"invalid pool name: {pool}"` on
-  violation.
+Requires PostgreSQL. Proxies to `LORE_API_URL` if DB is unavailable.
+No file-backed fallback for episodes.
 
 ---
 
-### shared_read
+## Knowledge Graph
 
-Read entries from a shared pool. If `key` is provided, returns that
-specific entry. Otherwise returns all entries in the pool.
+### query_graph
+
+Query the live knowledge graph for entities and their typed
+relationships. Returns results for both directions (outgoing and
+incoming edges) filtered by the optional constraints.
 
 **Input:**
 ```typescript
 {
-  pool: z.string()
-    .describe('Shared pool name.'),
-  key: z.string().optional()
-    .describe('Specific key to read. If omitted, returns all pool entries.')
+  entity: z.string().optional()
+    .describe('Entity name to query. Omit to browse recent edges.'),
+  relation_type: z.string().optional()
+    .describe('Filter by relation: "uses", "owns", "depends-on", "replaced-by", "part-of", "implements".'),
+  repo: z.string().optional()
+    .describe('Scope to a specific repo.'),
+  include_invalidated: z.boolean().default(false)
+    .describe('Include historical (invalidated) relationships.')
 }
 ```
 
 **Response:**
 ```json
-{
-  "pool": "team-context",
-  "entries": [
-    {
-      "key": "deployment.runbook",
-      "value": "1. Run preflight checks...",
-      "agent_id": "agent-abc123",
-      "created_at": "2026-03-29T10:00:00Z"
-    }
-  ]
-}
+[
+  {
+    "entity": "auth-service",
+    "entity_type": "service",
+    "relation": "depends-on",
+    "related_entity": "postgres",
+    "related_type": "technology",
+    "direction": "outgoing",
+    "valid_from": "2026-03-29T10:00:00Z"
+  },
+  {
+    "entity": "auth-service",
+    "entity_type": "service",
+    "relation": "owns",
+    "related_entity": "platform-team",
+    "related_type": "team",
+    "direction": "incoming",
+    "valid_from": "2026-04-01T08:00:00Z"
+  }
+]
 ```
 
 **Behavior:**
-1. Query Memory WHERE `pool = {pool}`, `is_deleted = false`, and
-   not expired.
-2. If `key` is provided, filter to that key (latest version).
-3. If `key` is omitted, return the latest version of each distinct
-   key in the pool.
-4. Write an AuditEntry with `operation = 'read'` and
-   `pool = {pool}`.
-
-**Error handling:**
-- Pool not found (no entries): return
-  `{ pool: "{pool}", entries: [] }` (not an error).
+- Requires PostgreSQL (`LORE_DB_HOST`). No file-backed fallback.
+- When `entity` is omitted, returns the most recent edges across all
+  entities (useful for graph browsing).
+- By default excludes edges where `valid_to IS NOT NULL`. Set
+  `include_invalidated=true` to see the full relationship history.
+- Empty result: `"No relationships found for \"{entity}\"."` or
+  `"Knowledge graph is empty. …"` (plain text, not JSON).
 
 ---
 
-## Snapshot Tools
+## Observability
 
-### create_snapshot
+### agent_stats
 
-Create a point-in-time snapshot of an agent's current memory state.
-The snapshot stores references (memory ID + version), not copies.
-
-**Input:**
-```typescript
-{
-  agent_id: z.string().optional()
-    .describe('Agent identifier. Resolved from session if omitted.')
-}
-```
-
-**Response:**
-```json
-{
-  "snapshot_id": "550e8400-e29b-41d4-a716-446655440000",
-  "agent_id": "agent-abc123",
-  "memory_count": 42,
-  "created_at": "2026-03-29T10:00:00Z"
-}
-```
-
-**Behavior:**
-1. Resolve `agent_id` from input or session context.
-2. Gather all active, non-deleted, non-expired memories for the
-   agent: collect `{memory_id, version}` for the latest version of
-   each key.
-3. Insert a Snapshot row with `trigger = 'manual'` and the collected
-   `memory_refs`.
-4. Write an AuditEntry with `operation = 'snapshot'`.
-
-**Error handling:**
-- No active memories: return error
-  `"no active memories to snapshot for agent: {agent_id}"`.
-
----
-
-### restore_snapshot
-
-Restore an agent's memory state from a snapshot. For each memory
-reference in the snapshot, the referenced version becomes the new
-current version (by inserting a new version row that copies the
-snapshot's values).
-
-**Input:**
-```typescript
-{
-  snapshot_id: z.string()
-    .describe('Snapshot ID to restore from.')
-}
-```
-
-**Response:**
-```json
-{
-  "snapshot_id": "550e8400-e29b-41d4-a716-446655440000",
-  "memories_restored": 42
-}
-```
-
-**Behavior:**
-1. Load the Snapshot by ID.
-2. For each `{memory_id, version}` in `memory_refs`:
-   a. Read the referenced Memory row.
-   b. Insert a new version of that key with the snapshot's value
-      (effectively "restoring" it as the latest version).
-3. Soft-delete any current keys that are not in the snapshot.
-4. Write an AuditEntry with `operation = 'restore'` and metadata
-   including `snapshot_id` and `memories_restored`.
-
-**Error handling:**
-- Snapshot not found: return error
-  `"snapshot not found: {snapshot_id}"`.
-- Referenced memory row missing (deleted by cleanup): skip it, log
-  a warning, and include a `warnings` array in the response.
-
----
-
-## Observability Tools
-
-### agent_health
-
-Return a health summary for an agent's memory subsystem.
+Returns comprehensive statistics merged from health, usage, and recent
+episode data. Combines `agentHealth` + `agentStats` + recent episodes in
+a single call to avoid multiple round trips.
 
 **Input:**
 ```typescript
 {
   agent_id: z.string().optional()
-    .describe('Agent identifier. Resolved from session if omitted.')
 }
 ```
 
-**Response:**
+**Response (illustrative shape — exact keys depend on DB data):**
 ```json
 {
   "agent_id": "agent-abc123",
   "memory_count": 42,
   "last_active": "2026-03-29T10:00:00Z",
-  "snapshot_count": 3,
-  "status": "healthy"
+  "snapshot_count": 0,
+  "status": "healthy",
+  "total_memories": 42,
+  "active_facts": 187,
+  "invalidated_facts": 13,
+  "total_searches": 89,
+  "shared_pool_count": 0,
+  "daily_breakdown": [
+    { "date": "2026-03-29", "writes": 12, "reads": 5, "searches": 8 }
+  ],
+  "recent_episodes": {
+    "total_count": 23,
+    "latest": [
+      {
+        "id": "770e8400-…",
+        "source": "pr-review",
+        "ref": "re-cinq/lore#42",
+        "created_at": "2026-03-29T10:00:00Z",
+        "content_preview": "Reviewed auth middleware changes…",
+        "fact_count": 5
+      }
+    ]
+  }
 }
 ```
 
-**Behavior:**
-1. Resolve `agent_id` from input or session context.
-2. Count active, non-deleted, non-expired memories.
-3. Find the most recent AuditEntry `created_at` for the agent.
-4. Count snapshots for the agent.
-5. Determine status:
-   - `"healthy"`: memories exist and last activity within 24 hours.
-   - `"idle"`: memories exist but no activity in 24+ hours.
-   - `"empty"`: no memories found.
+Note: `snapshot_count` and `shared_pool_count` are always `0` — no MCP
+tools for creating snapshots or named pools are shipped; those fields are
+retained for forward compatibility.
 
-**Error handling:**
-- Agent not found (no audit entries or memories): return response
-  with `memory_count: 0`, `snapshot_count: 0`,
-  `status: "empty"`, and `last_active: null`.
+**Behavior:**
+- Requires PostgreSQL. Returns an error string if DB is unavailable.
+- Runs three queries in parallel: health, stats, recent episodes (last 5,
+  capped at 200 chars preview each).
+- `status` is `"healthy"` (active within 24h), `"idle"` (>24h), or
+  `"empty"` (no memories at all).
 
 ---
 
-### agent_stats
+## Context Assembly
 
-Return usage statistics for an agent's memory operations.
+### assemble_context
+
+Retrieve and assemble context from all sources — repo conventions, ADRs,
+memories, facts, episodes, graph — into a single structured block
+optimized for LLM consumption. The primary entry-point tool; replaces
+chaining `search_context`, `search_memory`, and `get_adrs` separately.
 
 **Input:**
 ```typescript
 {
-  agent_id: z.string().optional()
-    .describe('Agent identifier. Resolved from session if omitted.')
+  query: z.string()
+    .describe('What context is needed (e.g. "implement auth middleware").'),
+  template: z.string().default('default')
+    .describe('Template: "default", "review", "implementation", "research".'),
+  max_tokens: z.number().default(8000)
+    .describe('Token budget (min 2000; research template typically needs ~16000).'),
+  repo: z.string().optional()
+    .describe('"owner/repo". Auto-detected from git remote if omitted.'),
+  agent_id: z.string().optional(),
+  cross_repo: z.boolean().default(false)
+    .describe('Include context from repos linked via settings.cross_repo_repos.')
 }
 ```
 
 **Response:**
-```json
-{
-  "agent_id": "agent-abc123",
-  "total_writes": 156,
-  "total_searches": 89,
-  "avg_search_latency_ms": 23.4,
-  "top_keys": [
-    { "key": "user.preferences", "access_count": 34 },
-    { "key": "task.current", "access_count": 28 },
-    { "key": "project.goals", "access_count": 19 }
-  ]
-}
+
+A structured prose block prefixed with an HTML comment carrying metadata:
+
+```
+<!-- context: template=default, sections=7, tokens=6241 -->
+
+## Conventions
+…
+## ADRs
+…
+## Memories
+…
 ```
 
 **Behavior:**
-1. Resolve `agent_id` from input or session context.
-2. Query AuditEntry to compute:
-   - `total_writes`: count WHERE `operation = 'write'`.
-   - `total_searches`: count WHERE `operation = 'search'`.
-   - `avg_search_latency_ms`: average from search audit metadata
-     (latency is recorded in audit metadata by the search tool).
-   - `top_keys`: top 10 keys by combined read + write access count.
+- Template selects context ordering and token allocation (see
+  `mcp-server/templates/`).
+- Memories and facts that have recent `fact_conflicts` entries are
+  prefixed `[CONFLICT]` in the output.
+- Stale context warning (>7 days since last ingest) is included when
+  applicable.
+- Proxies to `LORE_API_URL` when DB is unavailable.
+- No result: `"No relevant context found for this query."`.
 
-**Error handling:**
-- No audit data: return response with zeroed counters and empty
-  `top_keys`.
+---
+
+## Not Shipped
+
+The following tools were specified in the original design but were
+**not registered as MCP tools** in the shipped implementation. Internal
+functions exist in `memory.ts` for some of these.
+
+| Specified Tool     | Workaround                                                |
+|--------------------|-----------------------------------------------------------|
+| `shared_write`     | `write_memory` with `pool=<name>` parameter              |
+| `shared_read`      | `search_memory` with `pool=<name>` parameter             |
+| `create_snapshot`  | Internal only; no MCP exposure                           |
+| `restore_snapshot` | Internal only; no MCP exposure                           |
+| `agent_health`     | Data subsumed by `agent_stats`                           |

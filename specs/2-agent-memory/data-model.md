@@ -2,130 +2,279 @@
 
 All entities live in a `memory` schema in the existing lore database.
 
+> **Updated 2026-06-01.** This file reflects the shipped implementation,
+> which diverged significantly from the original design. Major additions:
+> `episodes`, `entities`, `edges`, `fact_conflicts`; extensive new fields
+> on `facts` (confidence tiers, temporal validity, decay metadata).
+> `shared_pools` and `snapshots` exist in the DB but are internal — no
+> MCP tools expose them directly. See
+> [spec.md § Divergences](./spec.md#divergences-from-original-design).
+
+---
+
 ## Entities
 
-### Memory
+### memories
 
-The core entity representing a key-value memory entry owned by an agent.
+The core entity representing a key-value memory entry. Memories are
+**repo-scoped** by default — when the caller is inside a git repo with
+a GitHub remote, writes are tagged with that repo. The same key can exist
+under different repos without collision.
 
-| Field | Type | Constraints |
-|-------|------|-------------|
-| id | UUID | PK, auto-generated |
-| agent_id | TEXT | NOT NULL, indexed |
-| key | TEXT | NOT NULL |
-| value | TEXT | NOT NULL |
-| embedding | VECTOR(768) | Nullable (populated async) |
-| version | INTEGER | NOT NULL, monotonic per agent+key |
-| is_deleted | BOOLEAN | DEFAULT false |
-| pool | TEXT | NULL for private, pool name for shared |
-| ttl_seconds | INTEGER | NULL for permanent |
-| expires_at | TIMESTAMPTZ | NULL for permanent, computed from ttl |
-| created_at | TIMESTAMPTZ | DEFAULT NOW() |
-| metadata | JSONB | Optional extra data |
+| Field         | Type        | Constraints                                     |
+|---------------|-------------|-------------------------------------------------|
+| id            | UUID        | PK, auto-generated                              |
+| agent_id      | TEXT        | NOT NULL, indexed                               |
+| key           | TEXT        | NOT NULL                                        |
+| value         | TEXT        | NOT NULL                                        |
+| embedding     | VECTOR(768) | Nullable; HNSW indexed; populated async         |
+| version       | INTEGER     | NOT NULL, monotonic per agent+key (or repo+key) |
+| is_deleted    | BOOLEAN     | DEFAULT false                                   |
+| pool_id       | UUID        | NULL = private; FK → shared_pools               |
+| ttl_seconds   | INTEGER     | NULL = permanent                                |
+| expires_at    | TIMESTAMPTZ | Computed from ttl_seconds on write              |
+| repo          | TEXT        | NULL if unscoped; auto-detected from git remote |
+| created_at    | TIMESTAMPTZ | DEFAULT NOW()                                   |
 
-**Unique constraint:** `(agent_id, key, version)`
+**Unique constraint:** `(agent_id, key, version)` (or `(repo, key, version)` when repo is set)
 
 **Indexes:**
 - HNSW on `embedding`
 - GIN on `to_tsvector(value)`
 - btree on `(agent_id, key)`
+- btree on `(repo, key)` (conditional)
 
-### Fact
+---
 
-An extracted fact derived from a parent memory entry. Facts are
-generated asynchronously when `extract_facts` is enabled on write.
+### memory_versions
 
-| Field | Type | Constraints |
-|-------|------|-------------|
-| id | UUID | PK |
-| memory_id | UUID | FK to Memory |
-| fact_text | TEXT | NOT NULL |
-| embedding | VECTOR(768) | |
-| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+Append-only history table. Every `write_memory` call that increments the
+version inserts a row here. Enables `read_memory(key, version="all")`.
 
-**Indexes:**
-- HNSW on `embedding`
+| Field     | Type        | Constraints         |
+|-----------|-------------|---------------------|
+| memory_id | UUID        | FK → memories       |
+| version   | INTEGER     | NOT NULL            |
+| value     | TEXT        | NOT NULL            |
+| embedding | VECTOR(768) | Nullable            |
+| created_at| TIMESTAMPTZ | DEFAULT NOW()       |
 
-### Snapshot
+---
 
-A point-in-time reference snapshot of an agent's memory state.
-Snapshots do not copy data; they store references to specific
-memory versions.
+### facts
 
-| Field | Type | Constraints |
-|-------|------|-------------|
-| id | UUID | PK |
-| agent_id | TEXT | NOT NULL |
-| trigger | TEXT | manual or auto |
-| memory_refs | JSONB | Array of {memory_id, version} |
-| memory_count | INTEGER | |
-| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+An atomic fact extracted from a memory or episode by the LLM extraction
+pipeline. Facts are independently embedded and carry temporal validity and
+confidence tiers so the system can surface contradictions and decay
+stale knowledge.
 
-### AuditEntry
+| Field             | Type        | Notes                                                  |
+|-------------------|-------------|--------------------------------------------------------|
+| id                | UUID        | PK                                                     |
+| memory_id         | UUID        | FK → memories; NULL for episode-sourced facts          |
+| episode_id        | UUID        | FK → episodes; NULL for memory-sourced facts           |
+| fact_text         | TEXT        | NOT NULL                                               |
+| embedding         | VECTOR(768) | HNSW indexed                                           |
+| confidence        | TEXT        | `verified` / `observed` / `inferred` / `stale`         |
+| valid_from        | TIMESTAMPTZ | When this fact became valid                            |
+| valid_to          | TIMESTAMPTZ | NULL = still valid; set on contradiction detection     |
+| invalidated_by    | UUID        | FK → facts (the superseding fact)                      |
+| retrieval_count   | INTEGER     | Incremented fire-and-forget on every search hit        |
+| last_retrieved_at | TIMESTAMPTZ | Updated on every search hit                            |
+| half_life_days    | FLOAT       | Decay rate; extended +2 (cap 365) on each retrieval   |
+| created_at        | TIMESTAMPTZ | DEFAULT NOW()                                          |
 
-Append-only log of all memory operations for observability and
-debugging.
+**Confidence lifecycle:**
+- `observed` — default for episode-sourced extractions.
+- `inferred` — for memory-sourced extractions.
+- `verified` — manually confirmed by a human.
+- `stale` — auto-applied after 30 days of zero retrieval; reverts to
+  `observed` on next retrieval.
 
-| Field | Type | Constraints |
-|-------|------|-------------|
-| id | UUID | PK |
-| agent_id | TEXT | NOT NULL |
-| operation | TEXT | write, read, search, delete, snapshot, restore |
-| key | TEXT | Nullable |
-| pool | TEXT | Nullable |
-| metadata | JSONB | Extra context (query, results count, etc.) |
-| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+**Contradiction detection:** at extraction time each new fact is compared
+against existing valid facts by cosine similarity. If similarity >= 0.92,
+the old fact's `valid_to` is set, `invalidated_by` is linked, and a row
+is inserted into `fact_conflicts` for audit.
+
+---
+
+### episodes
+
+Raw text blobs ingested via `write_episode`. The source of truth for
+passive knowledge capture. Content is deduplicated by SHA-256 hash.
+Fact and knowledge-graph extraction run asynchronously after insert.
+
+| Field        | Type        | Notes                                                    |
+|--------------|-------------|----------------------------------------------------------|
+| id           | UUID        | PK                                                       |
+| agent_id     | TEXT        | NOT NULL                                                 |
+| content      | TEXT        | NOT NULL (privacy-filtered via sanitizeContent before store) |
+| content_hash | TEXT        | SHA-256 of content; used for dedup (`ON CONFLICT DO NOTHING`) |
+| source       | TEXT        | `session`, `pr-review`, `ci`, `manual`                   |
+| ref          | TEXT        | Nullable; external ref, e.g. `owner/repo#42`             |
+| embedding    | VECTOR(768) | Populated async                                          |
+| created_at   | TIMESTAMPTZ | DEFAULT NOW()                                            |
+
+**Unique constraint:** `(agent_id, content_hash)` — prevents ingesting the
+same episode twice.
+
+---
+
+### entities
+
+Named entities extracted from episodes and memories by the graph
+extraction pipeline. Entity names are normalized to lowercase.
+
+| Field       | Type        | Notes                                                     |
+|-------------|-------------|-----------------------------------------------------------|
+| id          | UUID        | PK                                                        |
+| name        | TEXT        | NOT NULL; normalized lowercase                            |
+| entity_type | TEXT        | `service`, `team`, `technology`, `concept`, `person`      |
+| repo        | TEXT        | Nullable; scopes entity to a repo when known              |
+| updated_at  | TIMESTAMPTZ |                                                           |
+| created_at  | TIMESTAMPTZ | DEFAULT NOW()                                             |
+
+**Unique constraint:** `(name, entity_type, COALESCE(repo, ''))`
+
+---
+
+### edges
+
+Directed, typed relationships between entities. Both endpoints carry
+temporal validity. When the same `(source, relation_type)` pair is
+updated with a different target, the old edge gets `valid_to = now()`
+(auto-invalidation).
+
+| Field             | Type        | Notes                                            |
+|-------------------|-------------|--------------------------------------------------|
+| id                | UUID        | PK                                               |
+| source_id         | UUID        | FK → entities                                    |
+| target_id         | UUID        | FK → entities                                    |
+| relation_type     | TEXT        | `uses`, `owns`, `depends-on`, `replaced-by`, `part-of`, `implements` |
+| source_episode_id | UUID        | Nullable; FK → episodes (provenance)             |
+| source_memory_id  | UUID        | Nullable; FK → memories (provenance)             |
+| valid_from        | TIMESTAMPTZ | DEFAULT NOW()                                    |
+| valid_to          | TIMESTAMPTZ | NULL = still valid                               |
+| created_at        | TIMESTAMPTZ | DEFAULT NOW()                                    |
+
+---
+
+### fact_conflicts
+
+Immutable record created just before a fact is invalidated by
+contradiction detection. Gives context assembly visibility into disputed
+knowledge (prefixed `[CONFLICT]` in assembled context).
+
+| Field       | Type  | Notes                   |
+|-------------|-------|-------------------------|
+| old_fact_id | UUID  | FK → facts (invalidated)|
+| new_fact_id | UUID  | FK → facts (superseding)|
+| similarity  | FLOAT | Cosine similarity score |
+| created_at  | TIMESTAMPTZ | DEFAULT NOW()   |
+
+---
+
+### snapshots
+
+Point-in-time reference snapshots. Stores memory IDs + version numbers,
+not copies. Internal implementation — **not exposed as MCP tools**.
+
+| Field        | Type        | Constraints                         |
+|--------------|-------------|-------------------------------------|
+| id           | UUID        | PK                                  |
+| agent_id     | TEXT        | NOT NULL                            |
+| trigger      | TEXT        | `manual` or `auto`                  |
+| memory_refs  | JSONB       | Array of `{memory_id, version}`     |
+| memory_count | INTEGER     |                                     |
+| created_at   | TIMESTAMPTZ | DEFAULT NOW()                       |
+
+---
+
+### shared_pools
+
+Named memory namespaces. Pool functions (`sharedWrite`, `sharedRead`)
+exist in `memory.ts` but are **not exposed as MCP tools**. Agents reach
+shared pools via the `pool=` parameter on `write_memory` /
+`search_memory`, which resolves the name to a `pool_id`.
+
+| Field      | Type        | Constraints          |
+|------------|-------------|----------------------|
+| id         | UUID        | PK                   |
+| name       | TEXT        | UNIQUE, NOT NULL     |
+| created_by | TEXT        | agent_id of creator  |
+| created_at | TIMESTAMPTZ | DEFAULT NOW()        |
+
+---
+
+### audit_log
+
+Append-only record of all memory operations.
+
+| Field      | Type        | Constraints                                              |
+|------------|-------------|----------------------------------------------------------|
+| id         | UUID        | PK                                                       |
+| agent_id   | TEXT        | NOT NULL                                                 |
+| operation  | TEXT        | `write`, `read`, `search`, `delete`, `write_episode`     |
+| memory_key | TEXT        | Nullable                                                 |
+| metadata   | JSONB       | Query text, result count, episode_id, etc.               |
+| created_at | TIMESTAMPTZ | DEFAULT NOW()                                            |
 
 **Indexes:**
 - btree on `(agent_id, created_at)`
 
+---
+
 ## Entity Relationships
 
 ```
-Memory 1──→N Fact
-  Parent memory to extracted facts.
+memories 1──→N memory_versions
+  Full version history; version "all" reads this table.
 
-Snapshot ──→N Memory
-  Reference-based, via memory_refs JSONB.
+memories 1──→N facts   (via memory_id)
+episodes 1──→N facts   (via episode_id)
+  Fact extraction sources are either a memory write or an episode ingest.
 
-AuditEntry ──→ Memory
-  Via key, loose reference.
+facts 1──→1 facts      (invalidated_by self-reference)
+  Contradiction chain: each invalidated fact points to its replacement.
+
+episodes ──→ fact_conflicts (via old_fact_id / new_fact_id on facts)
+  Conflicts arise from episode-sourced fact extraction.
+
+episodes 1──→N edges   (via source_episode_id)
+memories 1──→N edges   (via source_memory_id)
+  Provenance of each graph edge.
+
+entities N──→M entities  (via edges table)
+
+memories N──→1 shared_pools  (via pool_id)
 ```
 
-- **Memory 1 to N Fact** -- A single memory entry can produce multiple
-  extracted facts. The `memory_id` FK on Fact points back to the
-  source Memory row.
+---
 
-- **Snapshot to N Memory** -- A snapshot references multiple memory
-  entries by ID and version through the `memory_refs` JSONB array.
-  This is a logical (not FK-enforced) relationship so that snapshots
-  survive memory deletions.
+## State Transitions
 
-- **AuditEntry to Memory** -- Audit entries reference memories loosely
-  via `key` (and optionally `agent_id`). This is intentionally not a
-  foreign key so the audit log remains intact even after memory
-  cleanup.
-
-## State Transitions (Memory)
+### Memory
 
 ```
-created ──→ active          (on write)
-active  ──→ updated         (new version created, old version preserved)
+created ──→ active          (on write_memory)
+active  ──→ updated         (new version created, old version preserved in memory_versions)
 active  ──→ soft-deleted    (is_deleted=true, excluded from search)
-active  ──→ expired         (ttl reached, excluded from search, cleanup deletes)
+active  ──→ expired         (ttl reached, excluded from queries, cleanup hard-deletes)
 ```
 
-- **created to active**: When `write_memory` inserts a new row, it
-  becomes the active version for that agent+key pair.
+### Fact
 
-- **active to updated**: A subsequent `write_memory` with the same key
-  creates a new row with an incremented version. The previous version
-  is preserved for history and snapshot references.
+```
+extracted ──→ observed/inferred   (default on create)
+observed  ──→ stale               (30+ days without retrieval, daily job)
+stale     ──→ observed            (revived on next search hit)
+any       ──→ invalidated         (valid_to set by contradiction detection)
+any       ──→ verified            (manual promotion, no automated path)
+```
 
-- **active to soft-deleted**: `delete_memory` sets `is_deleted=true`
-  on the current version. The row remains in the database for audit
-  purposes but is excluded from all read and search operations.
+### Graph Edge
 
-- **active to expired**: When `NOW() >= expires_at`, the memory is
-  treated as soft-deleted in queries. A background cleanup process
-  hard-deletes expired rows after a configurable retention period.
+```
+created   ──→ valid     (on upsert)
+valid     ──→ invalid   (valid_to set when same source+relation updated with different target)
+```
