@@ -13,6 +13,7 @@ import { ttlCleanupJob } from "./jobs/ttl-cleanup.js";
 import { reindexJob } from "./jobs/reindex.js";
 import { gapDetectJob } from "./jobs/gap-detect.js";
 import { specDriftJob } from "./jobs/spec-drift.js";
+import { specTestLinkerJob } from "./jobs/spec-test-linker.js";
 import { reviewReactorJob } from "./jobs/review-reactor.js";
 import { evalRunnerJob } from "./jobs/eval-runner.js";
 import { autoresearchJob } from "./jobs/autoresearch.js";
@@ -53,6 +54,7 @@ async function main(): Promise<void> {
   registerJob("context_reindex", "0 2 * * *", reindexJob);
   registerJob("gap_detection", "0 9 * * 1", gapDetectJob);
   registerJob("spec_drift", "0 10 * * 1", specDriftJob);
+  registerJob("spec_test_linker", "0 11 * * 1", specTestLinkerJob);
   registerJob("eval_runner", "0 3 * * *", evalRunnerJob);
   registerJob("context_core_builder", "0 4 * * *", contextCoreBuilderJob);
   registerJob("autoresearch", "0 6 * * 1", autoresearchJob);

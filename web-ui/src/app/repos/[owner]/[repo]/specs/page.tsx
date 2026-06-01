@@ -3,6 +3,8 @@ import { query, getRepoSchema, getRepoSchemaAndTeam } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import HelpPopover from '@/components/HelpPopover';
 import { validateSpecPath } from '@/lib/spec-path';
+import { reassembleSpec, parseSpecTitle, extractSummary } from '@/lib/spec-summary';
+import SpecCard, { type SpecCardData } from './SpecCard';
 
 async function addSpec(formData: FormData) {
   'use server';
@@ -32,13 +34,40 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
 
   const schema = await getRepoSchema(fullName);
 
-  const specs = await query(
-    `SELECT id, file_path, substring(content, 1, 400) as content, ingested_at
+  const specChunks = await query<{ file_path: string; content: string; ingested_at: string }>(
+    `SELECT file_path, content, ingested_at
      FROM ${schema}.chunks
-     WHERE content_type = 'spec' AND repo = $1
-     ORDER BY ingested_at DESC LIMIT 30`,
+     WHERE content_type = 'spec' AND repo = $1`,
     [fullName]
   );
+
+  const linkCounts = await query<{ spec_path: string; count: string }>(
+    `SELECT spec_path, count(*)::int AS count
+     FROM ${schema}.spec_test_links
+     WHERE repo = $1
+     GROUP BY spec_path`,
+    [fullName]
+  );
+  const countByPath = new Map(linkCounts.map((r) => [r.spec_path, Number(r.count)]));
+
+  const chunksByPath = new Map<string, { content: string; ingested_at: string }[]>();
+  for (const chunk of specChunks) {
+    const list = chunksByPath.get(chunk.file_path) ?? [];
+    list.push(chunk);
+    chunksByPath.set(chunk.file_path, list);
+  }
+
+  const specs: SpecCardData[] = [...chunksByPath.entries()]
+    .map(([spec_path, chunks]) => {
+      const content = reassembleSpec(chunks);
+      return {
+        spec_path,
+        title: parseSpecTitle(content, spec_path),
+        summary: extractSummary(content),
+        test_count: countByPath.get(spec_path) ?? 0,
+      };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   return (
     <div>
@@ -85,12 +114,8 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
         <button type="submit">Add Spec</button>
       </form>
 
-      {specs.map((s: any) => (
-        <div key={s.id} className="spec-card">
-          <h3>{s.file_path}</h3>
-          <span className="meta">{new Date(s.ingested_at).toLocaleString()}</span>
-          <pre>{s.content}...</pre>
-        </div>
+      {specs.map((spec) => (
+        <SpecCard key={spec.spec_path} owner={owner} repo={repo} spec={spec} />
       ))}
       {specs.length === 0 && <p className="meta">No specs found for this repo.</p>}
     </div>

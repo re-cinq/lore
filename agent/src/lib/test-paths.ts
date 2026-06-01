@@ -1,0 +1,30 @@
+const TEST_PATH_PATTERNS = [
+  /\.test\./, // foo.test.ts, foo.test.tsx
+  /\.spec\./, // foo.spec.ts
+  /_test\./, // foo_test.py
+  /(^|\/)__tests__\//, // __tests__/foo.ts
+  /_test\.go$/, // foo_test.go
+];
+
+/**
+ * True when a file path looks like a test file, by convention. Used by the
+ * spec-test linker to filter `content_type='code'` chunks down to candidate
+ * tests before the LLM judge runs. Path-only — never reads file contents.
+ */
+export function isTestFile(filePath: string): boolean {
+  return TEST_PATH_PATTERNS.some((pattern) => pattern.test(filePath));
+}
+
+/**
+ * Normalizes a `describe > it` pair into a stable key for a single test case:
+ * lowercased, whitespace-collapsed, joined with ` › `. This is the value
+ * stored in `spec_test_links.test_name` and the unique-constraint component
+ * that keeps re-runs from inserting duplicate rows for the same test.
+ */
+export function normalizeTestName(describe: string, it: string): string {
+  const collapse = (segment: string) => segment.trim().replace(/\s+/g, " ").toLowerCase();
+  return [describe, it]
+    .map(collapse)
+    .filter((segment) => segment.length > 0)
+    .join(" › ");
+}
