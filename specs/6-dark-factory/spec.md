@@ -4,8 +4,9 @@
 |----------|--------------------------------|
 | Feature  | Dark Factory Mode              |
 | Branch   | 6-dark-factory                 |
-| Status   | Draft                          |
+| Status   | Implemented                    |
 | Created  | 2026-04-28                     |
+| Amended  | 2026-06-01                     |
 | Owner    | Platform Engineering           |
 
 ## Problem Statement
@@ -401,3 +402,152 @@ All other principles remain intact. Specifically preserved:
 - The web-ui pipeline page and task detail view — already shipped; this feature adds rendering for stage timelines and the `Lore-Task:` resolver.
 - The OpenTelemetry instrumentation — already shipped; this feature adds new span types.
 - GitHub App permissions for auto-merge — currently the App can comment and create PRs; merge permissions need verification at plan time.
+
+---
+
+## Implementation Amendments
+
+The following amendments document where the shipped implementation diverged from the
+original design. They are listed by topic; the relevant spec sections are noted.
+
+### A1 — Two-gate cluster enablement (adds to FR3.1)
+
+The original spec described a single per-repo `dark_factory.enabled` flag.
+Implementation requires **two independent gates** before impl/general/review tasks
+take the cluster supervisor path:
+
+1. **Per-repo:** `settings.dark_factory.enabled = true`
+2. **Cluster:** `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the agent Helm deployment
+
+Both must be on. If the cluster gate is off, dark-mode repos still use the legacy
+`claude --print` path, which lets ops gate the cluster-side machinery independently
+of per-repo settings (preventing a Helm flag from getting ahead of the
+`claude-runner` image). Configure with `--set-string` (not `--set`) to avoid YAML
+boolean coercion. See `terraform/modules/gke-mcp/agent-helm/values.yaml`.
+
+### A2 — Lease backend abstraction (refines FR1.6)
+
+The spec described a single DB row-level lease. The implementation ships two
+backends behind a `LeaseBackend` interface (`agent/src/supervisor/lease.ts`):
+
+- **`DbLeaseBackend`** — Postgres CTE-based atomic acquire with takeover detection.
+  Used by cluster supervisors when `LORE_DB_HOST` is set.
+- **`FileLeaseBackend`** — File-per-branch JSON under `~/.lore/leases/`. Used by
+  the local runner when no `LORE_DB_HOST` is configured.
+
+Both expose the same `acquire / refresh / release` surface with identical OTEL spans
+(tagged `backend: "db"` or `backend: "file"`). Downstream code never branches on
+which backend is active. Default TTL: 600 s.
+
+### A3 — Canonical settings types in `@re-cinq/lore-shared` (adds to FR3.1)
+
+`DarkFactorySettings`, `ResolvedDarkFactorySettings`, `ReviewMode`, and
+`resolveDarkFactorySettings()` are canonical in `shared/src/dark-factory-settings.ts`
+and exported from `@re-cinq/lore-shared`. The `agent` and the GKE Job pod runner
+both import from `@re-cinq/lore-shared`; `mcp-server/src/dark-factory-settings.ts`
+holds its own copy of the schema (with a `resolveSettings()` alias) for the HTTP
+route layer. This ensures the cluster pod runner, the in-agent job, and the MCP
+HTTP API all resolve settings identically.
+
+### A4 — `notify` default changed to `[]` (refines FR3.5)
+
+The spec stated the default `notify` list when dark mode is on is `[escalation]`.
+The shipped default is **`[]`** (empty). Rationale: `decideNotify()` in
+`agent/src/lib/notify.ts` always fires the `escalation` channel regardless of the
+configured list — escalations are never silenceable. Listing it explicitly was
+redundant noise. The observable behavior is unchanged: escalation notifications
+always fire; no other notifications fire unless the operator opts in.
+
+### A5 — Two-key fields expanded to include downgrade protection (refines FR3.9)
+
+The spec listed two privileged (two-key) fields: `enabled` and `auto_merge.paths`.
+The implementation (`twoKeyFieldsTouched()` in `mcp-server/src/dark-factory-settings.ts`)
+also gates the following as two-key **when being downgraded**:
+
+- `auto_merge.require_green_ci` set to `false`
+- `auto_merge.require_bot_approval` set to `false`
+
+Setting either safety flag to `true` is admin-scope only. Downgrading to `false`
+adds the CODEOWNERS-approval PR ceremony. This prevents a single admin token from
+silently weakening the auto-merge safety net.
+
+### A6 — Cluster-path auto-merge runs via loretask-watcher, not inside the pod
+
+The spec described auto-merge running after `[stage:retrospective]` but did not
+distinguish local vs cluster paths. The cluster path (GKE Job pod) intentionally
+does **not** call `evaluateAndMerge` from inside the pod: the PR does not exist when
+the pod finishes its graph walk. The flow is:
+
+1. Pod walks the graph to the exit node and pushes the branch.
+2. `loretask-watcher` detects the completed Job, creates the PR.
+3. `loretask-watcher` then calls `tryAutoMergeForCompletedTask`, which runs the same
+   `evaluateAutoMerge` policy as the in-agent path.
+
+This preserves the unified auto-merge policy while avoiding a race between the pod
+and the watcher on PR creation. See the comment in `runner-cli.ts` and the
+`jobs/loretask-watcher.ts` auto-merge trigger.
+
+### A7 — Shipped workflow definitions (partial delivery of FR2.4)
+
+FR2.4 called for migrating all existing flows to YAML graph definitions. At general
+availability only **three** workflow YAML files shipped (`agent/src/workflows/`):
+
+| File | Flows it covers |
+|---|---|
+| `gap-fill.yaml` | gap-fill, spec-drift, runbook (linear path) |
+| `implementation.yaml` | implementation (with address-feedback back-edge, `iteration_max: 2`) |
+| `general.yaml` | general (linear — review outcome always goes to retrospective) |
+
+Flows not yet ported to YAML graphs (`runbook`, `review`, `feature-request`,
+`onboard`) continue to use the legacy `claude --print` path via `local-runner.ts`
+and the existing CR/Job watcher chain. Migration of those flows is deferred.
+
+### A8 — `validate failed` edge in gap-fill is terminal (not a retry)
+
+Unlike `implementation.yaml` (which retries validate → implement once via
+`iteration_max: 1`), `gap-fill.yaml` has no outgoing edge for `validate: failed`.
+A validation failure on a gap-fill task causes the executor to throw "no edge"
+and the pod exits with code 7 (`executor_error`). The loretask-watcher then marks
+the task `needs-human-help`. This was a deliberate simplification: gap-fill output
+rarely causes lint failures, and a retry loop on doc-only output is lower value than
+on code output.
+
+### A9 — `push` node type is `agent` with `prompt_ref: push-only`
+
+FR2.2 enumerated node types as agent / validate / gate / retrospective. All three
+shipped workflows include a `push` node that is typed `agent` with
+`prompt_ref: push-only`. The `push-only` prompt instructs Claude Code to run
+`gh pr create` (or `gh pr edit`) and nothing else. There is no dedicated `push`
+node type; this is an agent node with a narrow prompt, not a new schema extension.
+
+### A10 — CODEOWNERS team handles not resolved in v1 (affects A5 / FR3.9)
+
+The two-key `verifyApproval()` ceremony (`mcp-server/src/dark-factory-authz.ts`)
+checks whether the label-applying user appears as a direct `@user` handle in any
+CODEOWNERS line. CODEOWNERS files that list **only** team handles (e.g.
+`@org/team`) cause `verifyApproval()` to throw `TwoKeyError` with code
+`team_membership_unresolved`. The error message explicitly instructs operators to
+add a direct `@user` handle for the approver until team-membership lookup is
+implemented. Per-path CODEOWNERS matching (vs. any-path membership) is also a
+follow-up.
+
+### A11 — Runner-CLI exit code matrix (new, not in original spec)
+
+The GKE Job pod CLI (`agent/src/supervisor/runner-cli.ts`) uses a documented exit
+code matrix consumed by `entrypoint.sh` and the loretask-watcher to distinguish
+failure types:
+
+| Code | Reason | Action |
+|---|---|---|
+| 0 | `completed` | Watcher creates PR, triggers auto-merge check |
+| 2 | `not_a_git_workdir` | Controller misconfiguration — needs-human-help |
+| 3 | `workflow_load_failed` | YAML parse error — needs-human-help |
+| 4 | `workflow_not_found` | Unknown workflow name — needs-human-help |
+| 5 | `lease_held` | Another pod owns the branch — exit cleanly, no retry |
+| 6 | `iteration_max_exceeded` | Back-edge loop limit hit — escalate via `escalate()` |
+| 7 | `executor_error` | Handler threw mid-run — needs-human-help |
+| 8 | `executor_pending` | Missing workflow config — needs-human-help |
+| 9 | `env_missing` | Required env var not set — controller misconfiguration |
+
+Exit 1 is reserved for uncaught Node.js exceptions. Watchers treat any non-zero as
+task failure but use the specific code to decide retry vs. `needs-human-help`.
