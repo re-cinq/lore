@@ -1,5 +1,6 @@
 import { query } from "../db.js";
 import { callLLMWithTool } from "../anthropic.js";
+import { isAssertionSource, shouldSkipDrift } from "./spec-drift-rules.js";
 
 interface SpecChunk {
   id: string;
@@ -76,6 +77,7 @@ export async function specDriftJob(): Promise<string> {
   let totalDrift = 0;
   let skippedRepos = 0;
   let skippedSpecs = 0;
+  let filteredDocs = 0;
 
   for (const [repo, repoSpecs] of byRepo) {
     if (!activeRepos.has(repo)) {
@@ -105,6 +107,15 @@ export async function specDriftJob(): Promise<string> {
     );
 
     for (const spec of repoSpecs) {
+      // Skip prose artifacts (research/plan/tasks/quickstart) — they name
+      // concepts, not code symbols, so they always read as 100% drifted.
+      if (!isAssertionSource(spec.file_path)) {
+        filteredDocs++;
+        console.log(
+          `[job] spec-drift: skipping ${repo}:${spec.file_path} — prose doc, not an assertion source`,
+        );
+        continue;
+      }
       try {
         // Extract assertions from spec via LLM
         const assertions = await extractAssertions(spec.content, spec.file_path);
@@ -145,7 +156,7 @@ export async function specDriftJob(): Promise<string> {
   }
 
   const activeRepoCount = byRepo.size - skippedRepos;
-  const summary = `Checked ${totalChecked} specs across ${activeRepoCount} active repos (${totalDrift} drifted); skipped ${skippedSpecs} specs from ${skippedRepos} quiet repos`;
+  const summary = `Checked ${totalChecked} specs across ${activeRepoCount} active repos (${totalDrift} drifted); skipped ${skippedSpecs} specs from ${skippedRepos} quiet repos, ${filteredDocs} prose docs`;
   console.log(`[job] spec-drift: ${summary}`);
   return summary;
 }
@@ -213,20 +224,20 @@ async function createDriftTask(
     .map((a) => `- ${a.kind}: \`${a.name}\` — ${a.description}`)
     .join("\n");
 
-  // Skip if there's already a pending/running/failed task for the same spec in the same repo
-  const existing = await query<{ id: string; status: string }>(
-    `SELECT id, status FROM pipeline.tasks
+  // Skip if a drift task for this spec is still open, or a resolved one is
+  // within the cooldown — otherwise the weekly cron files a duplicate PR every
+  // run for specs already sitting in review.
+  const existing = await query<{ status: string; created_at: string }>(
+    `SELECT status, created_at FROM pipeline.tasks
      WHERE target_repo = $1
        AND task_type = 'gap-fill'
-       AND description LIKE $2
-       AND status IN ('pending', 'running', 'queued', 'failed')
-     LIMIT 1`,
+       AND description LIKE $2`,
     [repo, `Spec drift: ${specPath}%`],
   );
 
-  if (existing.length > 0) {
+  if (shouldSkipDrift(existing, new Date())) {
     console.log(
-      `[job] spec-drift: skipping ${repo}:${specPath} — existing task ${existing[0].id} (${existing[0].status})`,
+      `[job] spec-drift: skipping ${repo}:${specPath} — ${existing.length} existing task(s), still open or within cooldown`,
     );
     return;
   }
