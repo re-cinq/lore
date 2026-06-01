@@ -51,3 +51,24 @@ kubectl exec -n lore-db -it lore-db-1 -c postgres -- \
    re-runs and partial states safe.
 3. `GRANT` to `lore` for anything the app reads (web-ui connects as `lore`).
 4. Deploy the UI chart (CI on merge to main, or `terraform apply`).
+
+### DDL outside the `lore` schema (team schemas)
+
+The runner connects as `lore`, which owns the `lore` schema but **not** the
+team chunk schemas (`payments`, `platform`, `mobile`, `data`, `org_shared`) —
+those are created by the bootstrap superuser in `setup-db.sh`. A migration that
+creates objects there (e.g. `0002_spec_test_links.sql`) needs two things:
+
+- **`CREATE` on each team schema for `lore`.** Fresh clusters get this from
+  `setup-db.sh` (`GRANT CREATE, USAGE ON SCHEMA … TO lore`). For clusters
+  provisioned before that line, hand it over once via the primary pod's local
+  socket (no network superuser):
+
+  ```
+  kubectl exec -n lore-db lore-db-1 -c postgres -- \
+    psql -d lore -c "GRANT CREATE, USAGE ON SCHEMA org_shared, payments, platform, mobile, data TO lore;"
+  ```
+
+- **Schema discovery via `pg_catalog`, not `information_schema`.** The latter is
+  privilege-filtered, so as `lore` it hides tables with no grant and a discovery
+  loop silently creates nothing. Iterate `pg_catalog.pg_class`/`pg_namespace`.
