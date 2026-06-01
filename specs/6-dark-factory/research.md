@@ -109,3 +109,94 @@ lore.auto_merge.decision
 **Decision:** Schema migration first (Task 1.1), then code deploys default `dark_factory.enabled = false`. Existing repos behave identically until explicitly opted in via the settings ceremony. Pilot rollout (Task 5.3) on three trust-tiered repos for 14 days each before any default change.
 
 **Rationale:** Backwards-compatible by construction. SC8 (adoption gate) prevents accidental wide rollout.
+
+---
+
+## Implementation Delta
+
+This section records where the final implementation diverged from the research
+decisions above. It is written after implementation and supersedes the original
+decision where there is a conflict.
+
+### R2 delta: FileLeaseBackend added (not rejected)
+
+The research alternatives section listed "file-based lease in worktree
+(rejected — local-only, doesn't help GKE supervisors)." The implementation
+adopted a `FileLeaseBackend` anyway, but with a key difference: leases are
+stored in `~/.lore/leases/` (flat files with URL-encoded branch names, e.g.
+`lore%2Ffeature%2Ffoo.json`), not inside the worktree. The `DbLeaseBackend`
+remains the canonical backend for cluster supervisors (FR1.6). The
+`FileLeaseBackend` is a local-runner fallback activated when `LORE_DB_HOST`
+is not configured. Both backends share the `LeaseBackend` interface so the
+supervisor is agnostic.
+
+The original rejection criterion ("doesn't help GKE supervisors") still holds
+for the cluster path. The file-based backend was added specifically for
+local-runner parity — operators running tasks locally via `run_task_locally`
+get the same pod-death / lease-takeover semantics without requiring a Postgres
+connection.
+
+### R3 delta: Retry counts halved for GitHub API calls
+
+The research specified "Retry 3x with exponential backoff (1s, 4s, 16s)" for
+both auto-merge calls and issue-creation escalation calls. The implementation
+uses two delays `[1000, 4000]` ms — two total attempts (initial + one retry,
+~5s worst-case wait) rather than three (21s worst-case).
+
+The rationale added in code: "5s tail beats 21s while holding the supervisor
+lease." The lease TTL is 10 minutes refreshed per-node. A 21s merge-call tail
+holds the lease for an extra 21s on what should be a near-instant network
+call; degrading to `deferred:api_failure` after 5s is cheaper. The
+`deferred:api_failure` audit entry and the open PR are the recovery path.
+
+**Affected files:**
+- `agent/src/jobs/auto-merge.ts` — `mergeWithBackoff`, `delays = [1000, 4000]`
+- `agent/src/lib/escalation.ts` — `RETRY_DELAYS_MS = [1000, 4000]`
+
+Note: the escalation.ts docstring says "3 attempts, exponential backoff
+1s/4s/16s" — this is stale. The effective retry count is 2 (loop iterates
+`attempt = 0, 1` for `RETRY_DELAYS_MS.length = 2`).
+
+### R4 delta: Timeline UI uses ADR-017 token system, not shadcn/TailwindUI
+
+The research said the timeline would use "existing TailwindUI/shadcn
+primitives." The actual implementation (`web-ui/src/app/pipeline/[id]/Timeline.tsx`)
+uses the CSS-variable token system from ADR-017 (accepted 2026-05-29):
+`var(--danger)`, `var(--border)`, `var(--success)`, `var(--warning)`, etc.,
+and the `<Icon>` component backed by `@iconify-json/lucide` /
+`@iconify-json/pixelarticons`. The ADR-017 theming rework happened after the
+dark-factory research was written and replaced the shadcn dependency entirely.
+
+There is no Tailwind in the web-ui. All components use CSS custom properties;
+the timeline renders correctly in both Elegant and Retro families, light and
+dark modes.
+
+### R8 delta: Node-type count was a typo
+
+The research section header says "Three node types (`agent | validate | gate |
+retrospective`)" but lists four. The implementation (`agent/src/workflow/loader.ts`)
+correctly defines all four via `z.enum(["agent", "validate", "gate",
+"retrospective"])`. The word "Three" in R8 is a copy error from an earlier
+draft; no implementation divergence.
+
+### R1 addendum: matchingPatterns() helper added
+
+`agent/src/lib/path-match.ts` exports a second helper `matchingPatterns(path,
+allowlist)` alongside `allPathsMatch()`. It returns the subset of allowlist
+patterns that matched a given path. This is used by the auto-merge engine to
+populate `path_match_count` in the `auto_merge_decision` audit-log payload and
+OTEL span, supporting the R5 span schema (`path_match_count` attribute on
+`lore.auto_merge.decision`). Not a breaking change to R1; purely additive.
+
+### R2 addendum: Default auto-merge paths codified
+
+`resolveSettings()` in `mcp-server/src/dark-factory-settings.ts` applies a
+default `auto_merge.paths` list when none is configured:
+
+```
+["specs/**", "adrs/**", "*.md", "CLAUDE.md", ".claude/**"]
+```
+
+This matches the examples cited in R1 but was not enumerated in R2. The
+`minimatch` dot-mode option (`dot: true`) ensures `.claude/**` matches
+dotfiles without requiring the caller to set it explicitly.
