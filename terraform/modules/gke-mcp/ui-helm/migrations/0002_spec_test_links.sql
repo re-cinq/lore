@@ -8,6 +8,13 @@
 -- setup-db.sh is covered, and schemas added later are picked up on the next
 -- deploy's migration re-run.
 --
+-- Discovery uses pg_catalog, NOT information_schema: this runs as the 'lore'
+-- role (the migration runner), and information_schema.tables is privilege-
+-- filtered, so it would silently hide chunks tables lore has no grant on and
+-- the loop would create nothing. pg_catalog lists them regardless of grants.
+-- 'lore' still needs CREATE on each schema (granted by setup-db.sh / the
+-- one-time handoff in README.md).
+--
 -- Idempotent: safe to re-run.
 
 DO $$
@@ -15,7 +22,10 @@ DECLARE
   s TEXT;
 BEGIN
   FOR s IN
-    SELECT table_schema FROM information_schema.tables WHERE table_name = 'chunks'
+    SELECT n.nspname
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relname = 'chunks' AND c.relkind = 'r'
   LOOP
     EXECUTE format('
       CREATE TABLE IF NOT EXISTS %I.spec_test_links (
