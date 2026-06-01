@@ -19,6 +19,25 @@ export async function queryOne<T = any>(text: string, params?: any[]): Promise<T
   return rows[0] || null;
 }
 
+/**
+ * Like `query`, but returns `[]` when the relation does not exist (Postgres
+ * 42P01) instead of throwing. For tables added by deploy-time migrations that
+ * may be absent locally (local dev never runs the migrations dir) or during the
+ * brief window before a deploy's migration hook completes — an empty result is
+ * the correct degraded state, not a 500.
+ */
+export async function queryAllowMissing<T = any>(text: string, params?: any[]): Promise<T[]> {
+  try {
+    return await query<T>(text, params);
+  } catch (err) {
+    if ((err as { code?: string }).code === '42P01') {
+      console.warn(`[db] relation missing, returning empty: ${(err as Error).message}`);
+      return [];
+    }
+    throw err;
+  }
+}
+
 const SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
 
 /** Returns all schemas that contain a chunks table (team schemas + org_shared). */

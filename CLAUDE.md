@@ -216,8 +216,12 @@ manage the Postgres container on their own; `npm run db:schema` applies
 the schema DDL. `scripts/infra/setup-local-schema.sh` bootstraps the
 `lore`/`lore_ui` roles, the pgvector extension, and all schemas by
 shimming `kubectl`→`docker exec` so the existing `setup-*.sh` scripts
-run unmodified against the container (no SQL duplication). `npm start`
-runs it automatically after Postgres is ready.
+run unmodified against the container (no SQL duplication). It then
+applies the `ui-helm/migrations/*.sql` incremental migrations the same
+way the GKE Helm hook does — tracked in `lore.schema_migrations`,
+filename order, per-file single transaction, skip-if-applied — so
+migration-added tables exist locally (local dev has no Helm hook).
+`npm start` runs it automatically after Postgres is ready.
 
 ## GKE Deployment
 
