@@ -29,14 +29,17 @@ only superuser step (`CREATE EXTENSION vector`) runs once at cluster bootstrap,
 not here. Disable with `--set migrations.enabled=false`.
 
 For clusters provisioned before `owner` was `lore` (where `postgres` still owns
-the database objects), hand ownership to `lore` once via the primary pod's local
-socket — no network superuser needed. `REASSIGN OWNED` covers existing schemas
-*and* tables, so `GRANT`s in migrations succeed:
+the `lore` schema), hand the schema to `lore` once via the primary pod's local
+socket — no network superuser needed. `REASSIGN OWNED BY postgres` does *not*
+work (the bootstrap superuser owns system objects Postgres refuses to move), so
+target the `lore` schema directly. This mirrors the fresh-cluster end state
+(`lore` owns its schema) so migration `GRANT`s succeed:
 
 ```
 kubectl exec -n lore-db -it lore-db-1 -c postgres -- \
   psql -d lore -c "GRANT CREATE ON DATABASE lore TO lore;" \
-               -c "REASSIGN OWNED BY postgres TO lore;"
+               -c "ALTER SCHEMA lore OWNER TO lore;" \
+               -c "ALTER TABLE IF EXISTS lore.settings OWNER TO lore;"
 ```
 
 ## Adding a migration
