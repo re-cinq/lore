@@ -26,3 +26,9 @@ export type {
   PRDetails,
   PRStatus,
 } from './types.js';
+export {
+  parseReferences,
+  linkifyMarkdown,
+  type RefContext,
+  type Segment,
+} from './references.js';
