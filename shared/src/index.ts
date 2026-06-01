@@ -32,3 +32,8 @@ export {
   type RefContext,
   type Segment,
 } from './references.js';
+export {
+  parseSpecTitle,
+  extractSummary,
+  reassembleSpec,
+} from './spec-summary.js';
