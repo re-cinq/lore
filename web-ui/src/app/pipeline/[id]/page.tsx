@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import PRStatusCard from './PRStatusCard';
 import TaskLogs from './TaskLogs';
 import Timeline from './Timeline';
+import Linkified from '@/components/Linkified';
 
 interface Task {
   id: string;
@@ -108,12 +109,13 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           </span>
         </p>
         <p><strong>Repo:</strong> {task.target_repo}</p>
+        <p><strong>Description:</strong> <Linkified text={task.description} repo={task.target_repo} /></p>
         {task.agent_id && <p><strong>Agent:</strong> {task.agent_id}</p>}
         {task.pr_url && <p><strong>PR:</strong> <a href={task.pr_url} target="_blank">{task.pr_url}</a></p>}
         {task.pr_url && task.pr_number && (
           <PRStatusCard taskId={task.id} prUrl={task.pr_url} />
         )}
-        {task.failure_reason && <p><strong>Failure:</strong> <span style={{color:'var(--danger)'}}>{task.failure_reason}</span></p>}
+        {task.failure_reason && <p><strong>Failure:</strong> <span style={{color:'var(--danger)'}}><Linkified text={task.failure_reason} repo={task.target_repo} /></span></p>}
         {task.review_iteration > 0 && <p><strong>Review iterations:</strong> {task.review_iteration}</p>}
         <p><strong>Created by:</strong> {task.created_by}</p>
         <p className="meta">Created: {new Date(task.created_at).toLocaleString()} · Updated: {new Date(task.updated_at).toLocaleString()}</p>

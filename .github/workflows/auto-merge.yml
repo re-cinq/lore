@@ -1,0 +1,47 @@
+name: Auto-merge
+
+# Opt-in auto-merge: add the `automerge` label to a PR and GitHub squash-merges
+# it once branch-protection requirements are met — required status checks green
+# (the test.yml matrix + integration) AND at least one approving review. This
+# workflow only ARMS GitHub's native auto-merge; GitHub performs the merge and
+# enforces the gates, so "all tests green + approved" is never re-implemented here.
+#
+# Prerequisites (one-time, repo admin):
+#   - Settings → General → "Allow auto-merge" enabled.
+#   - Branch protection on `main`: require a PR before merging with >=1 approval,
+#     and mark these status checks required: shared, mcp-server, agent, web-ui
+#     (from test.yml) and integration (from test-integration.yml).
+#
+# pull_request_target runs in the base-repo context (write token) and never
+# checks out PR code — it only calls the GitHub API — so it is safe for forks.
+
+on:
+  pull_request_target:
+    types: [labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  arm:
+    if: github.event.label.name == 'automerge'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+    steps:
+      # PR/REPO come from env so PR-controlled values are never interpolated
+      # into the shell command.
+      - name: Enable auto-merge (squash)
+        if: github.event.action == 'labeled'
+        run: gh pr merge --auto --squash "$PR" --repo "$REPO"
+      - name: Disable auto-merge
+        if: github.event.action == 'unlabeled'
+        run: gh pr merge --disable-auto "$PR" --repo "$REPO"
