@@ -34,12 +34,13 @@ env:
 
 # Schema migrations applied as a pre-install/pre-upgrade hook Job before the UI
 # rolls out. SQL lives in migrations/*.sql; tracked in lore.schema_migrations.
-# Connects as the postgres superuser (DDL needs it) via dbPasswordSecret —
-# postgres and lore share the bootstrap password (terraform/lore-db.tf).
+# Connects as `lore`, which owns the database (terraform/lore-db.tf initdb
+# owner), so DDL needs no superuser — reuses the same dbPasswordSecret the UI
+# uses.
 migrations:
   enabled: true
   image: ghcr.io/cloudnative-pg/postgresql:16-bookworm
-  user: postgres
+  user: lore
 
 dbPasswordSecret:
   name: lore-db-password
