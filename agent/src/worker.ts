@@ -7,6 +7,7 @@
 
 import { query } from "./db.js";
 import { callLLM, callLLMWithTool } from "./anthropic.js";
+import { generateArtifactCopy } from "./lib/artifact-copy.js";
 import { platform } from "./platform.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
@@ -157,10 +158,16 @@ async function processTask(task: any): Promise<void> {
   if (!issueNumber && task.task_type !== "general" && issueGate.create) {
     try {
       const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
+      const copy = await generateArtifactCopy({
+        kind: "issue",
+        taskType: task.task_type,
+        description: task.description,
+        repo: targetRepo,
+      });
       const issue = await platform().createIssue(
         targetRepo,
-        `[lore] ${task.task_type}: ${task.description.substring(0, 80)}`,
-        `## Lore Pipeline Task\n\n**Type:** \`${task.task_type}\`\n**Created by:** \`${task.created_by || "unknown"}\`\n**Task ID:** \`${task.id}\`\n\n---\n\n${task.description}\n\n---\n*This issue is managed by [Lore](https://github.com/re-cinq/lore). Status updates will be posted as comments.*`,
+        copy.title,
+        `${copy.body}\n\n---\n*Managed by [Lore](https://github.com/re-cinq/lore) · created by \`${task.created_by || "unknown"}\` · Lore-Task: ${task.id}*`,
         ["lore-managed", taskTypeLabel],
       );
       issueNumber = issue.number;

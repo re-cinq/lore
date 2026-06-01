@@ -11,6 +11,7 @@
 import * as k8s from "@kubernetes/client-node";
 import { GitHubPlatform } from "./github.js";
 import { writeLogs } from "./lib/log-storage.js";
+import { isAlreadyExistsError } from "./lib/k8s-errors.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -288,8 +289,8 @@ async function reconcile(lt: LoreTask): Promise<void> {
   try {
     await batchApi.createNamespacedJob({ namespace: NAMESPACE, body: job });
   } catch (err: any) {
-    // Job might already exist if we're re-reconciling
-    if (err?.response?.statusCode === 409) {
+    // Job might already exist if we're re-reconciling — benign, not a failure.
+    if (isAlreadyExistsError(err)) {
       console.log(`[controller] Job ${jobName} already exists, skipping creation`);
     } else {
       console.error(`[controller] Failed to create job for ${taskId}: ${err.message}`);
