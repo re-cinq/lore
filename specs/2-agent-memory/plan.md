@@ -7,7 +7,7 @@
 | Spec         | [spec.md](spec.md)                              |
 | Status       | Shipped — all phases complete with scope expansions |
 | Created      | 2026-03-29                                      |
-| Updated      | 2026-04-20                                      |
+| Updated      | 2026-06-01 (post-ship drift correction)         |
 
 ## Architectural Pivots
 
@@ -22,6 +22,10 @@ Phase 1. Phases 2 and 3 diverged significantly.
 | `agent_health` + `agent_stats` (two tools) | Single `agent_stats` tool | Health info folded into stats response |
 | No episode concept | `write_episode` tool + `memory.episodes` table | Passive ingestion of raw conversation text was added per ADR-014; episodes are the primary source for automatic fact extraction |
 | No knowledge graph | `query_graph` tool + `memory.entities` + `memory.edges` | Graphiti/FalkorDB evaluation (spec 1) showed PostgreSQL graph tables were sufficient; replaces the static `graphrag/graph.json` |
+| `query_graph(entity, depth=1)` (original spec) | `query_graph(entity?, relation_type?, repo?, include_invalidated?)` | Depth-based traversal replaced by filter-based queries; relation_type and repo filters proved more practical than depth-first graph walks |
+| `search_memory` with no graph support | `search_memory(..., graph_augment?)` | Optional 1-hop graph neighbor enrichment added; enabled via `graph_augment=true` |
+| `assemble_context(query, repo, template, max_tokens)` | Extended with `agent_id?` and `cross_repo?` | Cross-repo context search and explicit agent scoping added after initial ship |
+| `agent_stats` returns usage counts | Extended to include `recent_episodes` with `total_count` and latest 5 episodes | Episode visibility added directly to stats to avoid requiring a separate `list_episodes` call |
 | Simple `memory.facts` (fact_text + embedding) | Facts with temporal validity, confidence tiers, retrieval metadata, conflict detection | ADR-014 and production usage revealed facts needed lifecycle management |
 | `assemble_context` not planned here | `assemble_context` as a top-level MCP tool | Reduces multi-tool call overhead; replaces pattern of calling `search_context` + `search_memory` + `get_adrs` separately |
 | Web UI: Phase 3 (memory browser + pools + audit trail) | Web UI ships read-only memory browser + agent overview; pipeline/task UI took priority | Memory UI is functional but full audit trail and pools browser deferred |
@@ -289,15 +293,20 @@ Returns only active (not deleted, not expired) memories.
   agent_id: z.string().optional(),
   pool: z.string().optional(),
   limit: z.number().default(10),
-  include_invalidated: z.boolean().optional()
+  include_invalidated: z.boolean().optional(),
+  graph_augment: z.boolean().optional()   // added post-spec
 }
 ```
 
-Hybrid search (HNSW vector + BM25 keyword) over `memories.embedding`
-and `facts.embedding`, merged via Reciprocal Rank Fusion. Results
-capped at max 3 per `(agent_id, source)` combo to prevent one verbose
-session dominating results. Returns confidence annotations. Stale
-facts get a -1 importance penalty.
+Hybrid search (HNSW vector + BM25 keyword, RRF_K=60) over
+`memories.embedding` and `facts.embedding`, merged via Reciprocal
+Rank Fusion. Results capped at max 3 per `(agent_id, source)` combo
+to prevent one verbose session dominating results. Returns confidence
+annotations. Stale facts get a -1 importance penalty.
+
+When `graph_augment=true`, entities detected in top results trigger
+a 1-hop graph neighbor lookup; neighbors are appended with
+descending scores. Entity cache is refreshed every 5 minutes.
 
 Every search hit asynchronously increments `retrieval_count`,
 updates `last_retrieved_at`, and extends `half_life_days` (+2, cap
@@ -323,13 +332,20 @@ passive memory capture (ADR-014).
 
 ```typescript
 {
-  entity: z.string(),
-  depth: z.number().default(1)
+  entity: z.string().optional(),
+  relation_type: z.string().optional(),  // uses|owns|depends-on|replaced-by|part-of|implements
+  repo: z.string().optional(),
+  include_invalidated: z.boolean().optional()
 }
 ```
 
 Returns entities and relationships from the live knowledge graph.
-Replaced the static `graphrag/graph.json`.
+All parameters are optional — omitting all returns the full graph
+(up to the internal limit). `include_invalidated=true` includes
+edges with a non-null `valid_to`. Replaced the static
+`graphrag/graph.json`. Note: the original `depth` traversal
+parameter was dropped; the live graph filters by relation type
+and repo instead of depth-first traversal.
 
 **`assemble_context`**
 
@@ -338,7 +354,9 @@ Replaced the static `graphrag/graph.json`.
   query: z.string(),
   repo: z.string().optional(),
   template: z.string().optional(),  // default | review | implementation | research
-  max_tokens: z.number().default(8000)
+  max_tokens: z.number().default(8000),
+  agent_id: z.string().optional(),   // added post-spec
+  cross_repo: z.boolean().optional() // added post-spec
 }
 ```
 
@@ -348,6 +366,12 @@ block. Replaces the prior pattern of calling `search_context` +
 `search_memory` + `get_adrs` individually. Research template keeps
 16K tokens; implementation/review/default cap at 8K.
 
+`cross_repo=true` searches repos linked via
+`settings.cross_repo_repos`; links are bidirectional. Cross-repo
+facts are filtered by transfer scoring (portable keywords boost,
+local keywords like config/deploy/secret reduce) — only facts
+scoring >= 0.5 pass through.
+
 **`agent_stats`**
 
 ```typescript
@@ -355,8 +379,11 @@ block. Replaces the prior pattern of calling `search_context` +
 ```
 
 Returns: `{ agent_id, memory_count, episode_count, total_facts,
-total_searches, daily_breakdown (last 7 days) }`. Health info
-(last active, oldest memory) folded in. Aggregated from `audit_log`.
+total_searches, daily_breakdown (last 7 days),
+recent_episodes: { total_count, latest: Episode[] } }`. Health info
+(last active, oldest memory) folded in. `recent_episodes` includes
+total episode count and the 5 most recent episode summaries.
+Aggregated from `audit_log`.
 
 #### 1.4 File-Backed Fallback
 
@@ -426,13 +453,31 @@ across task runs.
 
 **File:** `agent/src/jobs/memory-lifecycle.ts`
 
-Daily job (5 AM UTC) scores memories 0–10:
-- Recency: -1 per 30 days of age
-- Content quality: short (<50 chars) penalized, long (>500) boosted
-- Key pattern: `decisions/` and `conventions/` keys +2; `auto-curation/` and `sessions/` -1
-- Stale confidence tier: -1
+Daily job (5 AM UTC) scores memories 0–10 using a half-life decay
+model:
 
-Evicts lowest-scoring entries when an agent exceeds 500 memories.
+```
+effective_age_days = now() - (last_retrieved_at ?? created_at)
+strength = 0.5 ^ (effective_age_days / half_life_days)
+score = round(strength * 10)
+```
+
+Effective age resets to zero on each retrieval hit. Additional
+score adjustments applied after the base score:
+
+| Signal | Adjustment |
+|--------|-----------|
+| `value.length < 50` (sparse) | -2 |
+| `value.length > 500` (rich) | +1 |
+| key contains `gotcha` or `decision` | +2 |
+| key contains `convention` or `pattern` | +2 |
+| key prefix `auto-curation/` or `session-summary/` | -1 |
+| `retrieval_count >= 20` | +2 |
+| `retrieval_count >= 5` | +1 |
+| `confidence = 'stale'` | -1 |
+
+Evicts lowest-scoring entries when an agent exceeds 500 memories
+(only memories older than 30 days are eligible for eviction).
 Transitions unretrieved facts to `stale` confidence after 30 days.
 Cleans invalidated facts older than 30 days when total exceeds 2000.
 
