@@ -6,6 +6,8 @@ export interface Check {
   status: CheckStatus;
   detail?: string;
   link?: { href: string; text: string };
+  /** A fixable check the UI can act on directly (e.g. open a PR with the file). */
+  action?: { kind: 'reonboard'; text: string };
 }
 
 export interface EnrollmentInput {
@@ -24,6 +26,11 @@ export interface EnrollmentInput {
 }
 
 const STALE_MS = 7 * 86_400_000;
+
+const GH_FILE_PURPOSE: Record<string, string> = {
+  'AGENTS.md': 'context-loading order & conventions for AI agents',
+  '.github/workflows/lore-ingest.yml': 'push-triggered context ingestion — keeps Lore fresh on every push',
+};
 
 function daysAgo(now: number, iso: string): string {
   const d = Math.floor((now - new Date(iso).getTime()) / 86_400_000);
@@ -85,12 +92,17 @@ export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
 
   for (const [path, exists] of Object.entries(input.githubFiles)) {
     const status: CheckStatus = exists === true ? 'pass' : exists === false ? 'fail' : 'unknown';
-    checks.push({
-      id: `gh:${path}`,
-      label: `${path} on GitHub`,
-      status,
-      detail: status === 'unknown' ? 'GitHub App has no repo access' : undefined,
-    });
+    const purpose = GH_FILE_PURPOSE[path];
+    const check: Check = { id: `gh:${path}`, label: `${path} on GitHub`, status };
+    if (status === 'unknown') {
+      check.detail = 'GitHub App has no repo access';
+    } else if (status === 'fail') {
+      check.detail = purpose ? `missing · ${purpose}` : 'missing';
+      check.action = { kind: 'reonboard', text: 'create a PR with this file' };
+    } else if (purpose) {
+      check.detail = purpose;
+    }
+    checks.push(check);
   }
 
   const { developerCount, lastActivity } = input.localMcp;

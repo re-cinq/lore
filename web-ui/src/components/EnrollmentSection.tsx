@@ -1,6 +1,7 @@
 import { type Check, type CheckStatus, passSummary } from '@/lib/enrollment';
 import HelpPopover from './HelpPopover';
 import CopyButton from './CopyButton';
+import ReonboardButton from './ReonboardButton';
 import Icon from './Icon';
 import type { IconName } from './icon-map';
 
@@ -11,7 +12,7 @@ const STATUS: Record<CheckStatus, { icon: IconName; color: string }> = {
   unknown: { icon: 'unknown', color: 'var(--text-muted)' },
 };
 
-function CheckRow({ check }: { check: Check }) {
+function CheckRow({ check, reonboardAction }: { check: Check; reonboardAction?: () => Promise<void> }) {
   const s = STATUS[check.status];
   return (
     <div className="enroll-row">
@@ -25,6 +26,9 @@ function CheckRow({ check }: { check: Check }) {
         <a href={check.link.href} target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--fs-xs)' }}>
           {check.link.text}
         </a>
+      )}
+      {check.action?.kind === 'reonboard' && reonboardAction && (
+        <ReonboardButton action={reonboardAction} text={check.action.text} />
       )}
     </div>
   );
@@ -70,7 +74,13 @@ function Step({
 const INSTALL_CMD = 'git clone git@github.com:re-cinq/lore.git && cd lore && scripts/install.sh';
 const CURL_CMD = 'curl -fsSL https://raw.githubusercontent.com/re-cinq/lore/main/scripts/install.sh | bash';
 
-export default function EnrollmentSection({ checks }: { checks: Check[] }) {
+export default function EnrollmentSection({
+  checks,
+  reonboardAction,
+}: {
+  checks: Check[];
+  reonboardAction?: () => Promise<void>;
+}) {
   const { passed, total } = passSummary(checks);
 
   return (
@@ -80,7 +90,7 @@ export default function EnrollmentSection({ checks }: { checks: Check[] }) {
         <HelpPopover label="What enrollment checks mean">
           <p>These checks show whether this repo is wired into Lore and whether you&apos;ve set it up locally.</p>
           <ul>
-            <li><strong>Repo integration</strong> is verified from Lore&apos;s database and (where the GitHub App has access) the repo&apos;s files.</li>
+            <li><strong>Repo integration</strong> is verified from Lore&apos;s database and (where the GitHub App has access) the repo&apos;s files. A missing file (e.g. the <code>lore-ingest.yml</code> ingest workflow) can be fixed in place — the <em>create a PR with this file</em> action queues an onboarding task that opens a PR adding only what&apos;s missing.</li>
             <li><strong>Used locally via MCP</strong> turns green once a Claude Code session for this repo is recorded.</li>
             <li>The <strong>local setup</strong> steps run on your machine and can&apos;t be auto-verified.</li>
           </ul>
@@ -92,7 +102,7 @@ export default function EnrollmentSection({ checks }: { checks: Check[] }) {
         Repo integration
       </div>
       <div style={{ marginBottom: '20px' }}>
-        {checks.map(c => <CheckRow key={c.id} check={c} />)}
+        {checks.map(c => <CheckRow key={c.id} check={c} reonboardAction={reonboardAction} />)}
       </div>
 
       <div className="meta" style={{ fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>

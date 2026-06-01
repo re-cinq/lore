@@ -16,6 +16,21 @@ log() { echo "[lore] $*"; }
 docker inspect "$CONTAINER" >/dev/null 2>&1 \
   || { echo "[lore] ERROR: container '$CONTAINER' not found — run 'npm run db:up' first" >&2; exit 1; }
 
+# On a restart over a persisted data dir, the postmaster opens its port before
+# crash recovery finishes, so a bare TCP probe passes while queries still get
+# "FATAL: the database system is starting up". Gate on an actual query through
+# the same docker-exec path the DDL below uses.
+log "Waiting for Postgres to accept queries..."
+ready=0
+for _ in $(seq 1 60); do
+  if docker exec -i "$CONTAINER" psql -U postgres -d lore -tAc 'SELECT 1' >/dev/null 2>&1; then
+    ready=1; break
+  fi
+  sleep 1
+done
+[ "$ready" -eq 1 ] \
+  || { echo "[lore] ERROR: Postgres did not become ready to accept queries within 60s" >&2; exit 1; }
+
 # The GKE schemas GRANT to the 'lore' role and web-ui logs in as 'lore_ui';
 # both pre-exist in the cluster but not in a fresh container. Create them first.
 log "Ensuring roles, pgvector extension, and team chunk schemas..."
