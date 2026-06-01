@@ -6,7 +6,7 @@
 | Branch            | 1-lore-platform                            |
 | Status            | Shipped                                    |
 | Created           | 2026-03-25                                 |
-| Updated           | 2026-04-20                                 |
+| Updated           | 2026-06-01                                 |
 | Owner             | Platform Engineering                       |
 | Phase 0 Target    | 3-4 working days                           |
 | Full Stack Target | 6-8 weeks                                  |
@@ -26,6 +26,21 @@
 > (8K default, 16K for research), and additional MCP tools shipped. A
 > stuck-task terminal-state recovery mechanism was also added. All changes
 > are reflected in FR-2, FR-13, and the new FR-16 and FR-17 below.
+
+> **Note (2026-06-01):** Spec drift reconciliation covering three major
+> features shipped after April 20: **Dark Factory mode** (ADR-016,
+> 2026-04-28) — per-repo opt-out of human gates, branch-as-state commit
+> trailers, declarative YAML workflow graphs, lease-backed concurrency,
+> and auto-merge; **Web UI theming** (ADR-017, 2026-05-29) — two-axis
+> token model (family + scheme), FOUC-free provider, per-family icon sets;
+> **TDD + per-subproject CI** (ADR-018, 2026-05-29) — Red-Green-Refactor
+> methodology, per-subproject vitest matrix, integration test isolation.
+> Also captures cross-cutting additions: cross-repo context linking,
+> per-repo task overrides, PR outcome feedback (merge/rejection half-life
+> adjustment), transfer scoring for cross-repo facts, production
+> awareness (incidents surface in context), and additional web UI
+> components (stage timeline, specs browser). New requirements are
+> FR-19 through FR-25 below.
 
 ## Problem Statement
 
@@ -652,6 +667,242 @@ non-terminal states and resolve them without manual intervention.
   auto-curation pipeline can surface patterns (e.g. a task type that
   consistently times out).
 
+### FR-19: Dark Factory Mode (Phase 1+, ADR-016)
+
+The system MUST support a per-repo, opt-in mode that minimises human
+interrupt artifacts while maintaining a full audit trail. Added
+2026-04-28 per ADR-016.
+
+**Two-gate enablement:**
+- FR-19.1: Dark-factory mode is active for a repo only when BOTH
+  `lore.repos.settings.dark_factory.enabled = true` AND the cluster
+  env var `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` are set. Either
+  gate off reverts to the legacy `claude --print` path. The cluster
+  gate prevents a helm flag from getting ahead of the claude-runner
+  image that must ship compiled workflows.
+
+**Branch-as-state (no parallel ledger):**
+- FR-19.2: Every workflow phase ends with a git commit carrying
+  structured trailers: `Lore-Stage:`, `Lore-Iteration:`, `Lore-Task:`,
+  plus optional `Lore-Outcome:` and `Lore-Cost-Tokens:`. Trailers are
+  emitted unconditionally on every Lore-authored commit regardless of
+  dark-mode setting (they are the audit substrate for both modes).
+  Implemented in `shared/src/commit-trailers.ts` and exported via
+  `@re-cinq/lore-shared`.
+- FR-19.3: A supervisor pod that dies resumes by reading
+  `git log` on the branch for the last `Lore-Stage:` trailer and
+  following the outcome-matching outgoing edge. No database
+  checkpoints, no CR status sync.
+- FR-19.4: Concurrency is enforced by a `pipeline.task_leases` row
+  keyed on branch name with a TTL (default 10 minutes). `DbLeaseBackend`
+  uses a Postgres CTE-based atomic acquire with takeover detection.
+  `FileLeaseBackend` covers the local worktree path under
+  `~/.lore/leases/`. Both share a `LeaseBackend` interface
+  (`agent/src/supervisor/lease.ts`).
+- FR-19.5: A `lease-reaper` job runs every 60 seconds, deletes leases
+  more than 5 minutes past expiry, and writes `lease_expired` audit
+  entries.
+
+**Declarative workflow graphs:**
+- FR-19.6: Workflows are defined as YAML files at
+  `agent/src/workflows/<task-type>.yaml`. Four node types: `agent`
+  (LLM call + edits), `validate` (lint/typecheck), `gate` (named
+  conditions), `retrospective` (episode + curated memory). Four edge
+  conditions: `success | changes_requested | failed | always`. Cycles
+  require `iteration_max` on the back-edge. Loader validates the schema
+  and runs DFS cycle detection (`agent/src/workflow/loader.ts`).
+- FR-19.7: The graph executor (`agent/src/supervisor/graph-executor.ts`)
+  walks from `entry`, dispatches per-node-type handlers, emits a stage
+  commit (allow-empty for non-file-changing nodes), and refreshes the
+  lease before each node. The same YAML file drives both the local
+  runner and the GKE cluster supervisor (FR2.3).
+- FR-19.8: The Job pod CLI entry point (`agent/src/supervisor/runner-cli.ts`)
+  is invoked by `entrypoint.sh` when `LORE_DARK_FACTORY_WORKFLOW` is
+  set. It exits with a documented code matrix:
+  `0` success, `2` config error, `3` workflow not found, `4` load
+  error, `5` entry-node dispatch error, `6` graph cycle, `7` lease
+  acquire failure, `8` resume parse error, `9` unexpected runtime
+  error. Non-zero codes surface in pod logs and loretask-watcher
+  failure reasons.
+
+**Auto-merge:**
+- FR-19.9: After the `[stage:retrospective]` node, the auto-merge
+  engine evaluates: green CI + bot APPROVED + every changed path
+  matches at least one allowlist glob (`allPathsMatch()`) + repo trust
+  ≥ `auto_merge.min_trust` → squash-merge. Decision and winning/losing
+  rule traces are recorded in `pipeline.audit_log` as
+  `auto_merge_decision` (`agent/src/jobs/auto-merge.ts`).
+- FR-19.10: Auto-merge path allowlist uses `minimatch` globbing
+  (`agent/src/lib/path-match.ts`). Returns true only when **every**
+  changed path matches at least one allowlist entry — a single
+  out-of-allowlist file blocks auto-merge.
+
+**Settings and authorization:**
+- FR-19.11: The `dark_factory` settings block schema and
+  `resolveSettings()` defaults live in
+  `shared/src/dark-factory-settings.ts` (canonical) and are re-exported
+  from `mcp-server/src/dark-factory-settings.ts`. Privileged fields
+  (`enabled` toggle, `auto_merge.paths`, downgrade of `require_*` to
+  false) require two-key authorization: admin API scope plus an open PR
+  labeled `dark-factory-approval` by a CODEOWNER of the repo's
+  `CLAUDE.md` (`mcp-server/src/dark-factory-authz.ts`).
+- FR-19.12: The `GET /api/repos/:o/:r/settings/dark-factory` and
+  `PUT` counterpart are in `mcp-server/src/routes.ts`. PUT enforces
+  two-key authZ via `verifyApproval()` before writing privileged fields.
+
+**Audit, escalation, and notifications:**
+- FR-19.13: Every auto-merge decision, gate evaluation, and lease event
+  is written to `pipeline.audit_log` via `writeAuditLog()`
+  (`agent/src/lib/audit.ts`).
+- FR-19.14: `escalate()` (`agent/src/lib/escalation.ts`) creates a
+  `needs-human-help` GitHub Issue with diagnostic context, branch link,
+  and contributing refs. Falls back to audit-only Slack inline if Issue
+  creation fails (3-attempt backoff).
+- FR-19.15: `decideNotify()` (`agent/src/lib/notify.ts`) filters
+  notifications by the `dark_factory.notify` channel list. Dark-mode
+  repos suppress Slack noise on routine completions.
+- FR-19.16: Every Lore-authored PR body includes a standard footer
+  with `Lore-Task: <uuid>` and optional `Refs #N`, composed by
+  `prFooter()` (`agent/src/lib/pr-body.ts`).
+
+**Metrics baseline:**
+- FR-19.17: A daily job (`agent/src/jobs/dark-factory-baseline.ts`)
+  writes a 30-day counter snapshot per repo to
+  `pipeline.dark_factory_baseline`. These counters feed the SC1/SC4/SC6
+  success-criteria deltas tracked during the pilot.
+
+**Issue suppression:**
+- FR-19.18: When `dark_factory.enabled = true`, GitHub Issues are
+  created only for approval-gated tasks, on-the-fly escalations
+  (`needs-human-help`), or repos with `create_issue: always`. The PR
+  and its `Lore-Task:` trailer are the canonical artifacts.
+
+### FR-20: Web UI Theming (Phase 1, ADR-017)
+
+The web UI MUST support two switchable visual families (Elegant and
+Retro), each with light, dark, and auto (OS-following) colour
+schemes, with no FOUC and no per-component theming code. Added
+2026-05-29 per ADR-017.
+
+- FR-20.1: Two independent axes applied as `data-theme-family`
+  (`elegant | retro`) and `data-color-scheme` (`light | dark`) on
+  `<html>`. Each axis persists independently in `localStorage`
+  (`lore-theme-family`, `lore-color-scheme`). User preference `auto`
+  is resolved to a concrete scheme before reaching the DOM. Defaults:
+  `elegant` + `auto`.
+- FR-20.2: A hand-rolled `ThemeProvider` (~90 lines) + pure
+  `theme-core.ts` (`resolveColorScheme`, `parseFamily`,
+  `parseSchemePref`) replaces any third-party theme library. It is
+  fully typed to the `ThemeFamily` and `ColorSchemePref` unions and
+  unit-tested.
+- FR-20.3: A blocking inline `THEME_SCRIPT` (dependency-free IIFE)
+  runs as the first child of `<body>`, reads `localStorage`, resolves
+  `auto` via `matchMedia`, and sets both `data-*` attributes before
+  first paint. The server renders no theme attributes; the IIFE avoids
+  all hydration mismatches.
+- FR-20.4: `theme.css` is the single source of truth for all colour
+  and size tokens. Family-level blocks hold shape, type scale, and
+  glass tokens; four `[data-theme-family][data-color-scheme]` blocks
+  hold surface/border/text/accent/status/shadow palettes. No hardcoded
+  colour or `font-size` literal may appear in any `src/` file outside
+  `theme.css` and `globals.css`.
+- FR-20.5: An `<Icon name="…"/>` component maps a semantic `IconName`
+  to the active family's Iconify icon set (`lucide:*` for Elegant,
+  `pixelarticons:*` for Retro). Collections are registered offline from
+  `@iconify-json/lucide` and `@iconify-json/pixelarticons`. A unit test
+  asserts both families define every semantic icon name.
+- FR-20.6: The `ThemeSwitcher` (family text toggle + Light/Auto/Dark
+  icon toggle as accessible radio groups) lives only on `/settings`
+  (Appearance section). Theme preference is device-local.
+
+### FR-21: Testing Strategy (ADR-018)
+
+The system MUST enforce a consistent testing methodology and a CI
+unit-test gate across all subprojects. Added 2026-05-29 per ADR-018.
+
+- FR-21.1: New production code MUST be written TDD (Red-Green-Refactor):
+  write a failing test first, make it pass with the minimum code, then
+  refactor. Test-after (characterization) is permitted only for
+  pre-existing untested code.
+- FR-21.2: vitest is the standard runner across all subprojects
+  (`globals: true`, node environment). No migration to jest.
+- FR-21.3: `.github/workflows/test.yml` runs one job per subproject
+  (`shared`, `mcp-server`, `agent`, `web-ui`) with `fail-fast: false`.
+  A failure names exactly which suite broke. `mcp-server` and `agent`
+  build `@re-cinq/lore-shared` first (they consume its compiled output).
+  `web-ui` is installed in place (`npm --prefix web-ui install`) because
+  it is not a workspace member.
+- FR-21.4: Integration tests are isolated behind
+  `vitest.integration.config.ts` and the Postgres-backed
+  `test-integration.yml` workflow. They are excluded from the default
+  `vitest run` and from the unit matrix to avoid a Postgres prerequisite
+  on unit runs.
+- FR-21.5: `dist/**` is excluded from vitest discovery in `agent` and
+  `mcp-server` to prevent stale compiled copies of tests (which reference
+  bundled `dist/workflows` that only exist inside the Docker image) from
+  producing spurious failures on a clean source tree.
+
+### FR-22: Cross-Repo Context Linking
+
+Repos MAY declare links to other repos for shared context retrieval.
+
+- FR-22.1: `settings.cross_repo_repos` is an array of `owner/repo`
+  slugs. When set, `assemble_context` searches linked repos for relevant
+  context in addition to the requesting repo.
+- FR-22.2: Links are bidirectional: adding repo B from repo A's settings
+  auto-adds repo A to repo B's `cross_repo_repos` list.
+- FR-22.3: Cross-repo facts are filtered by a transfer score: portable
+  keywords (`error`, `pattern`, `gotcha`, `convention`) boost the score;
+  local keywords (`config`, `deploy`, `url`, `auth`, `secret`) reduce
+  it. Only facts scoring ≥ 0.5 are transferred. Prevents repo-specific
+  configuration from polluting other repos.
+
+### FR-23: Per-Repo Task Overrides
+
+Repos MAY override global task-type defaults for any pipeline task.
+
+- FR-23.1: `settings.task_overrides` is a map from task type name to
+  override fields: `model`, `timeout_minutes`, `system_prompt_suffix`,
+  `review_required`. Overrides are merged with the global
+  `scripts/task-types.yaml` at task creation time; repo values win.
+
+### FR-24: PR Outcome Feedback
+
+The system MUST use PR merge and rejection signals to adjust memory
+half-life for facts that contributed to each task's context.
+
+- FR-24.1: The `merge-check` job captures PR stats on merge (files
+  changed, time to merge, review comments) and writes curated
+  episodes. It detects closed-without-merge as a rejection signal and
+  tracks aggregate `outcome_stats` per repo.
+- FR-24.2: On merge, `half_life_days` is boosted (+5) for facts and
+  memories listed in `pipeline.tasks.context_refs`. On rejection,
+  `half_life_days` is penalised (-3, minimum 7 days).
+- FR-24.3: Contributing context refs are tracked in the
+  `pipeline.tasks.context_refs` JSONB column from the moment a task
+  starts.
+
+### FR-25: Production Awareness and Additional Web UI
+
+The system MUST surface active incidents in assembled context and
+provide web UI views for pipeline timelines and specs.
+
+- FR-25.1: `settings.incidents` (populated via `POST /api/webhook/incident`
+  for PagerDuty/Opsgenie payloads) surfaces recent incidents in
+  `assemble_context` output at priority 1, giving agents immediate
+  awareness of ongoing production issues.
+- FR-25.2: A stage-commit timeline component (`web-ui/src/app/pipeline/[id]/Timeline.tsx`)
+  renders a vertical per-stage view with node-type icons, outcome badges,
+  and a lease indicator. It polls `GET /api/pipeline/:id/timeline` every
+  10 seconds while the task is in flight.
+- FR-25.3: A global specs browser at `/specs` queries all team schemas
+  via `queryAllChunks`, filters on `content_type = 'spec'`, and shows
+  the 50 most-recent with per-repo filter buttons.
+- FR-25.4: A per-repo spec view at `/repos/:owner/:repo/specs` scopes
+  results to one team schema and includes a server action form
+  (`addSpec`) that inserts spec chunks directly into
+  `{schema}.chunks` with `content_type = 'spec'`.
+
 ## Non-Functional Requirements
 
 ### NFR-1: Security
@@ -746,6 +997,15 @@ non-terminal states and resolve them without manual intervention.
 - Q: What is the `LORE_WEBHOOK_SECRET` latent bug that ADR-015 fixed? → A: The secret existed in GCP Secret Manager and had an ExternalSecret CR, but was never mounted into the mcp-server pod. `handleGitHubWebhook` always returned `503 "webhook secret not configured"`. ADR-015 mounted the secret and the webhook path now validates HMAC signatures correctly.
 - Q: Why add `FR-18` (stuck-task recovery) now? → A: Job pods that exit without writing a terminal status left tasks stuck in `running` forever. The loretask-watcher had no mechanism to detect this until the `stale_task_check` hourly job was added (commit f203952, 2026-04-20).
 
+### Session 2026-06-01 (spec drift reconciliation — ADR-016, ADR-017, ADR-018)
+
+- Q: Why introduce Dark Factory mode as an opt-in rather than the default? → A: Repos with active human reviewers get value from the existing chatter (Issues, review comments, Slack ticks). Dark mode is for repos where the team has stopped reading bot artifacts and wants the PR as the sole durable artifact. Defaulting dark would break existing reviewer workflows. (ADR-016)
+- Q: Why a two-gate (per-repo AND cluster env var) for dark mode? → A: The cluster gate (`LORE_DARK_FACTORY_CLUSTER_ENABLED`) prevents a helm flag from enabling dark-mode execution before the claude-runner image ships the compiled workflow files. Either gate off → safe legacy path. (ADR-016)
+- Q: Why are commit trailers emitted even for non-dark-mode repos? → A: The trailers are the audit substrate — they let both modes share the same resume and observability logic. A non-dark repo that loses a pod mid-run still benefits from branch-as-state resume. (ADR-016)
+- Q: Why hand-roll the ThemeProvider rather than using `next-themes`? → A: `next-themes` models a single theme axis. Two independent axes (`family` + `scheme`) that can each be `auto` would require re-implementing scheme resolution anyway. A ~90-line typed provider is smaller and fully typed to our unions. (ADR-017)
+- Q: Why per-subproject CI jobs rather than one root `vitest run`? → A: A single root run hides which subproject failed, couples web-ui's non-workspace install to the root install, and would drag the Postgres requirement onto pure-unit runs. Per-job `fail-fast: false` means one red suite never masks another. (ADR-018)
+- Q: Why exclude `dist/**` from vitest discovery? → A: After a local build, vitest was discovering stale compiled `dist/__tests__/*.js` copies that resolve `dist/workflows` — a directory that only exists inside the Docker image. They failed on a clean source tree even though the `src` suite was green. (ADR-018)
+
 ## Scope Boundaries
 
 ### In Scope
@@ -765,11 +1025,18 @@ non-terminal states and resolve them without manual intervention.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps).
+- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps, timeline, specs browser).
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).
 - Stuck-task terminal-state recovery (`stale_task_check` job).
+- Dark Factory mode: per-repo human-gate opt-out, branch-as-state, declarative workflow graphs, lease-backed concurrency, auto-merge (ADR-016).
+- Web UI theming: two-axis token model, per-family icon sets, FOUC-free provider (ADR-017).
+- TDD methodology + per-subproject CI unit-test matrix (ADR-018).
+- Cross-repo context linking with transfer scoring.
+- Per-repo task-type overrides.
+- PR outcome feedback (merge/rejection half-life adjustment).
+- Production awareness (incidents surfaced in `assemble_context`).
 
 ### Out of Scope
 
