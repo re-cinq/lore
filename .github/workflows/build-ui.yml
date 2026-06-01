@@ -98,7 +98,7 @@ jobs:
             --namespace lore-ui \
             --set image.tag=${{ needs.build.outputs.image_tag }} \
             --reset-then-reuse-values \
-            --wait --timeout 5m
+            --wait --timeout 10m
 
   smoke:
     needs: deploy

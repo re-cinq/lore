@@ -7,6 +7,7 @@ import { Octokit } from "octokit";
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import { callLLM } from "../anthropic.js";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
+import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import { query } from "../db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { evaluateAndMerge } from "../jobs/auto-merge.js";
@@ -369,13 +370,18 @@ async function pushAndOpenPr(opts: {
     repo: opts.repo,
   });
 
+  const body = linkifyMarkdown(copy.body, {
+    repo: opts.repo,
+    branch: opts.branchName,
+    uiUrl: process.env.LORE_UI_URL,
+  });
   const pr = await opts.octokit.rest.pulls.create({
     owner,
     repo: repoName,
     title: copy.title,
     head: opts.branchName,
     base: defaultBranch,
-    body: `${copy.body}${prFooter({ issueNumber, taskId: opts.task.id })}`,
+    body: `${body}${prFooter({ issueNumber, taskId: opts.task.id })}`,
   });
 
   // Update pipeline.tasks with PR info so resolvePrForTask can find it.

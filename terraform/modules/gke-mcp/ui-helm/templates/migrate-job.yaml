@@ -33,8 +33,17 @@ spec:
           args:
             - |
               set -eu
-              echo "[migrate] waiting for $PGHOST ..."
-              until psql -c 'SELECT 1' >/dev/null 2>&1; do sleep 2; done
+              echo "[migrate] waiting for $PGUSER@$PGHOST:$PGPORT/$PGDATABASE ..."
+              i=0
+              until psql -c 'SELECT 1' >/dev/null 2>&1; do
+                i=$((i + 1))
+                if [ "$i" -ge 30 ]; then
+                  echo "[migrate] ERROR: database unreachable after 60s; last attempt:" >&2
+                  psql -c 'SELECT 1' || true
+                  exit 1
+                fi
+                sleep 2
+              done
               psql -v ON_ERROR_STOP=1 \
                 -c "CREATE SCHEMA IF NOT EXISTS lore;" \
                 -c "CREATE TABLE IF NOT EXISTS lore.schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());"
@@ -65,6 +74,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.dbPasswordSecret.name }}
                   key: {{ .Values.dbPasswordSecret.key }}
+          resources:
+            requests:
+              cpu: "100m"
+              memory: 128Mi
+            limits:
+              cpu: "500m"
+              memory: 256Mi
           volumeMounts:
             - name: migrations
               mountPath: /migrations
