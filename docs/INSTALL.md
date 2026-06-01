@@ -78,6 +78,11 @@ scripts/infra/setup-db.sh
 scripts/infra/setup-pipeline-schema.sh
 ```
 
+These create the baseline schema once. Incremental, deploy-time schema changes
+live in `terraform/modules/gke-mcp/ui-helm/migrations/*.sql` and are applied
+automatically on every UI deploy by a `pre-install,pre-upgrade` hook Job (see
+that chart's `migrations/README.md`) — no manual `kubectl exec` needed for those.
+
 ## Step 5: Configure Webhooks
 
 For each repo you want to use with GitHub Issue dispatch:
