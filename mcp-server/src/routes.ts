@@ -1617,13 +1617,23 @@ async function handleSpecCoverage(
        WHERE content_type = 'spec' AND repo = $1`,
       [repo],
     );
-    const { rows: linkRows } = await pool.query<LinkRow>(
-      `SELECT spec_path, test_file, test_name, test_line, symbol, match_kind, rationale
-       FROM ${schema}.spec_test_links
-       WHERE repo = $1
-       ORDER BY spec_path, test_file, test_line NULLS LAST`,
-      [repo],
-    );
+    // spec_test_links is added by a deploy-time migration; before it runs (or
+    // during the deploy hook window) treat it as no coverage rather than 500.
+    let linkRows: LinkRow[] = [];
+    try {
+      linkRows = (
+        await pool.query<LinkRow>(
+          `SELECT spec_path, test_file, test_name, test_line, symbol, match_kind, rationale
+           FROM ${schema}.spec_test_links
+           WHERE repo = $1
+           ORDER BY spec_path, test_file, test_line NULLS LAST`,
+          [repo],
+        )
+      ).rows;
+    } catch (err) {
+      if ((err as { code?: string }).code !== "42P01") throw err;
+      console.warn(`[spec-coverage] ${schema}.spec_test_links missing — returning specs with zero coverage`);
+    }
 
     const chunksByPath = new Map<string, SpecChunkRow[]>();
     for (const row of specRows) {

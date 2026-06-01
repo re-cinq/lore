@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import Link from 'next/link';
-import { query, getRepoSchema } from '@/lib/db';
+import { query, queryAllowMissing, getRepoSchema } from '@/lib/db';
 import { reassembleSpec, parseSpecTitle } from '@/lib/spec-summary';
 import SpecDetails, { type TestLink } from '../SpecDetails';
 
@@ -55,7 +55,7 @@ export default async function RepoSpecDetail({
     );
   }
 
-  const links = await query<LinkRow>(
+  const links = await queryAllowMissing<LinkRow>(
     `SELECT test_name, test_file, test_line, symbol, match_kind, rationale
      FROM ${schema}.spec_test_links
      WHERE repo = $1 AND spec_path = $2
