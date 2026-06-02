@@ -96,3 +96,101 @@ slackBotTokenSecret:
   key: bot-token
 
 gcpProject: ""
+
+# K8s CronJob batch jobs (one pod per run, isolated from the Deployment).
+# Each entry produces a CronJob that calls `node dist/job-runner.js {{ .job }}`
+# inside the agent image, reusing the same env block as the Deployment
+# (see templates/_env.tpl). Schedules match the in-process pre-split
+# cadence one-for-one. Resources/deadlines override `cronJobDefaults`
+# per entry — heavy LLM/embedding jobs (context_reindex, eval_runner,
+# autoresearch) get bumped from the defaults below.
+#
+# Manual run for any of these:
+#   kubectl create job --from=cronjob/<name> manual-$(date +%s)
+cronJobDefaults:
+  # concurrencyPolicy=Forbid mirrors the in-process scheduler's
+  # "running" set — a tick that fires while the previous run is still
+  # going is dropped, not queued. (5-lore-agent SC2.)
+  concurrencyPolicy: Forbid
+  # startingDeadlineSeconds gives K8s a window to launch a missed tick
+  # after a brief outage, replacing scheduler.checkMissedRuns() for
+  # CronJob-migrated jobs (FR1a). 10 min: long enough to bridge a pod
+  # restart, short enough that the next tick isn't a duplicate of the
+  # previous schedule slot.
+  startingDeadlineSeconds: 600
+  # backoffLimit + restartPolicy: Never => one retry on crash, then mark
+  # the Job failed. Production hangs are caught by activeDeadlineSeconds.
+  backoffLimit: 1
+  # 1h wall-clock cap — sized for the lightweight jobs; heavy jobs
+  # below override to longer.
+  activeDeadlineSeconds: 3600
+  # Successful runs to retain (Job objects) — keep 3 for forensic
+  # access; failed runs keep more for postmortem.
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  resources:
+    requests:
+      cpu: "100m"
+      memory: 256Mi
+    limits:
+      cpu: "500m"
+      memory: 512Mi
+
+cronJobs:
+  # Lightweight cleanups (defaults are fine)
+  - name: memory-ttl
+    job: memory_ttl
+    schedule: "0 * * * *"
+  - name: importance-decay
+    job: importance_decay
+    schedule: "0 5 * * *"
+  - name: consolidation
+    job: consolidation
+    schedule: "30 5 * * *"
+  - name: gap-detection
+    job: gap_detection
+    schedule: "0 9 * * 1"
+  - name: spec-drift
+    job: spec_drift
+    schedule: "0 10 * * 1"
+  - name: spec-test-linker
+    job: spec_test_linker
+    schedule: "0 11 * * 1"
+  - name: context-core-builder
+    job: context_core_builder
+    schedule: "0 4 * * *"
+
+  # Heavy LLM / embedding jobs — bigger memory + longer deadline
+  - name: context-reindex
+    job: context_reindex
+    schedule: "0 2 * * *"
+    activeDeadlineSeconds: 10800  # 3h: full repo embedding refresh
+    resources:
+      requests:
+        cpu: "200m"
+        memory: 1Gi
+      limits:
+        cpu: "1000m"
+        memory: 2Gi
+  - name: eval-runner
+    job: eval_runner
+    schedule: "0 3 * * *"
+    activeDeadlineSeconds: 7200  # 2h: per-team PromptFoo eval suites
+    resources:
+      requests:
+        cpu: "200m"
+        memory: 1Gi
+      limits:
+        cpu: "1000m"
+        memory: 2Gi
+  - name: autoresearch
+    job: autoresearch
+    schedule: "0 6 * * 1"
+    activeDeadlineSeconds: 7200  # 2h: weekly LLM-driven research synthesis
+    resources:
+      requests:
+        cpu: "200m"
+        memory: 1Gi
+      limits:
+        cpu: "1000m"
+        memory: 2Gi

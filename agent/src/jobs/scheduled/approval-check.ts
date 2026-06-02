@@ -1,6 +1,6 @@
-import { query } from "../db.js";
-import { platform } from "../platform.js";
-import { getApprovalLabel } from "../approval.js";
+import { query } from "../../db.js";
+import { platform } from "../../platform.js";
+import { getApprovalLabel } from "../../approval.js";
 
 interface AwaitingTask {
   id: string;
