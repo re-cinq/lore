@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import type { Root, Text, Element, ElementContent, RootContent } from 'hast';
-import { type TestLinkRef } from '@re-cinq/lore-shared';
+import { type TestLinkRef } from '@/lib/spec-link-parser';
 import readme from '../ReadmeBox.module.css';
 import styles from './SpecDetails.module.css';
 

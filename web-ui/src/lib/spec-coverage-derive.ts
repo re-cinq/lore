@@ -11,9 +11,8 @@ import {
   segmentStatements,
   buildIntroOrdinals,
   classifyByHeuristic,
-  parseTestLinksInStatement,
-  type TestLinkRef,
-} from '@re-cinq/lore-shared';
+} from './spec-segment';
+import { parseTestLinksInStatement, type TestLinkRef } from './spec-link-parser';
 
 export type StatementState = 'tested' | 'untested' | 'narrative';
 
