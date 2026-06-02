@@ -1,13 +1,16 @@
 # Feature Specification: Local Coverage Linker (BYO-Compute)
 
+> **⚠️ Superseded by [`spec-test-coverage` v3](../spec-test-coverage/spec.md).** This entire feature (the `spec_test_links` / `spec_statements` / `spec_coverage_runs` DB persistence, the `prepare_spec_link` / `persist_spec_link` / `list_stale_spec_coverage` MCP tools, the `/lore-link-coverage` skill, the BYO-compute round-trip) is scheduled for deletion in Phase 5 of v3. The new model puts the source of truth in markdown links inside `spec.md` itself; no DB persistence; the cron survives as a validate + backfill pair that proposes link edits via PRs. See [`spec-test-coverage/spec.md`](../spec-test-coverage/spec.md) for the new design and [`spec-test-coverage/tasks.md`](../spec-test-coverage/tasks.md) Phase 5 for the removal plan. The content below is preserved for historical context; **do not implement anything in this spec**.
+
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Local Coverage Linker (BYO-Compute)      |
-| Status         | Draft                                    |
+| Status         | **Superseded** by `spec-test-coverage` v3 (2026-06-02) |
 | Created        | 2026-06-02                               |
+| Superseded     | 2026-06-02 — same day; the BYO-compute persist apparatus ships in `cea9c55` and is removed in `spec-test-coverage` v3 Phase 5 |
 | Owner          | Platform Engineering                     |
-| Depends on     | [`spec-test-coverage`](../spec-test-coverage/spec.md) (v2 statement-level linker) |
-| Improved by    | `specs/coverage-ingestion/` (future) — when present, populates `coverage_hits` in `prepare_spec_link` so the local judge has execution-trace evidence instead of guessing from name overlap |
+| Depends on     | [`spec-test-coverage`](../spec-test-coverage/spec.md) v2 (statement-level linker, also being torn down) |
+| Improved by    | `specs/coverage-ingestion/` (future) — when present, populates `coverage_hits` in `prepare_spec_link` so the local judge has execution-trace evidence instead of guessing from name overlap. **Note:** coverage-ingestion is also deferred under v3; if implemented later, it would feed the v3 backfill cron's judge, not this defunct persist endpoint. |
 
 ## Problem Statement
 

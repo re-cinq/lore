@@ -1,9 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 
-// The 10 batch jobs migrated to K8s CronJobs per spec
+// Batch jobs migrated to K8s CronJobs per spec
 // scheduled-job-runtime-split (classification table). The dispatch
 // table must expose exactly these names; the runner's CLI argv
 // is matched against this map.
+//
+// v3 of spec-test-coverage (2026-06-02) replaced `spec_test_linker`
+// with the pair `spec_coverage_validate` (daily) + `spec_coverage_backfill`
+// (weekly).
 const EXPECTED_JOBS = [
   "context_reindex",
   "eval_runner",
@@ -13,7 +17,8 @@ const EXPECTED_JOBS = [
   "autoresearch",
   "gap_detection",
   "spec_drift",
-  "spec_test_linker",
+  "spec_coverage_backfill",
+  "spec_coverage_validate",
   "memory_ttl",
 ];
 
@@ -30,14 +35,14 @@ describe("dispatch map", () => {
     expect(typeof handler).toBe("function");
   });
 
-  it("exposes exactly the 10 batch jobs (no extras, no gaps)", () => {
+  it("exposes exactly the 11 batch jobs (no extras, no gaps)", () => {
     expect(Object.keys(dispatch).sort()).toEqual([...EXPECTED_JOBS].sort());
   });
 });
 
 describe("resolveJob", () => {
   it("returns the handler for a known name", () => {
-    expect(resolveJob("spec_test_linker")).toBe(dispatch.spec_test_linker);
+    expect(resolveJob("spec_coverage_backfill")).toBe(dispatch.spec_coverage_backfill);
   });
 
   it("returns null for an unknown name", () => {

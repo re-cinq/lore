@@ -1,5 +1,7 @@
 # Tasks: Local Coverage Linker (BYO-Compute)
 
+> **⚠️ Superseded by [`spec-test-coverage` v3 tasks](../spec-test-coverage/tasks.md).** The implementation below shipped in PR #484 (commit `cea9c55`) and is scheduled for deletion in v3 Phase 5 (T121–T125). No further work happens against this task list. Tracked deletion items live in the v3 file; everything below is left checked-off for archaeology.
+
 Implements [`specs/local-coverage-linker/spec.md`](./spec.md). Depends on
 [`specs/spec-test-coverage/spec.md`](../spec-test-coverage/spec.md)
 (v2 statement-level linker — must be merged first).
