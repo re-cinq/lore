@@ -1,7 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import NavLink from '@/components/NavLink';
+import { isNavActive } from '@/lib/nav-active';
 
 const links = [
   { href: '/', label: 'Repos' },
@@ -19,20 +20,15 @@ export default function SidebarNav() {
 
   return (
     <nav>
-      {links.map(({ href, label }) => {
-        const isActive =
-          href === '/'
-            ? pathname === '/'
-            : pathname === href || pathname.startsWith(href + '/');
-        return (
-          <Link key={href} href={href} className={isActive ? 'active' : ''}>
-            {label}
-          </Link>
-        );
-      })}
-      <Link href="/onboard" className={pathname === '/onboard' ? 'active' : ''} style={{marginTop:'12px', background:'var(--bg-hover)', textAlign:'center', borderRadius:'var(--radius-sm)', color:'var(--text)', fontSize:'var(--fs-sm)'}}>
-        + Add Repo
-      </Link>
+      {links.map(({ href, label }) => (
+        <NavLink key={href} href={href} label={label} active={isNavActive(pathname, href, '/')} />
+      ))}
+      <NavLink
+        href="/onboard"
+        label="+ Add Repo"
+        active={isNavActive(pathname, '/onboard', '/')}
+        style={{ marginTop: '12px', background: 'var(--bg-hover)', textAlign: 'center', borderRadius: 'var(--radius-sm)', color: 'var(--text)', fontSize: 'var(--fs-sm)' }}
+      />
     </nav>
   );
 }
