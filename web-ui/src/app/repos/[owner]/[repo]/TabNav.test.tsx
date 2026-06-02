@@ -7,6 +7,10 @@ const pathnameMock = vi.fn();
 vi.mock('next/navigation', () => ({
   usePathname: () => pathnameMock(),
 }));
+vi.mock('next/link', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/link')>();
+  return { ...actual, useLinkStatus: () => ({ pending: false }) };
+});
 
 const base = '/repos/re-cinq/lore';
 const tabs = [
