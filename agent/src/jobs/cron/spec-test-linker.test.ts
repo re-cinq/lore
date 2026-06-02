@@ -8,8 +8,14 @@ import {
   parseEmbedding,
   selectCandidates,
   staleLinkKeys,
+  staleStatementOrdinals,
+  argmaxByTest,
+  hashSpecContent,
   MAX_CANDIDATES_PER_SPEC,
+  JUDGE_SCORE_THRESHOLD,
   type TestChunk,
+  type Judgment,
+  type MatchKind,
 } from "./spec-test-linker.js";
 
 const assertions = [
@@ -153,6 +159,83 @@ describe("selectCandidates", () => {
     expect(result.total).toBe(MAX_CANDIDATES_PER_SPEC + 1);
     expect(result.candidates).toHaveLength(MAX_CANDIDATES_PER_SPEC);
     expect(result.candidates.some((c) => c.match_kind === "assertion")).toBe(true);
+  });
+});
+
+describe("staleStatementOrdinals", () => {
+  it("returns ordinals no longer present this run", () => {
+    expect(staleStatementOrdinals([0, 1, 2, 3], [0, 2])).toEqual([1, 3]);
+  });
+
+  it("returns all existing ordinals when none are current", () => {
+    expect(staleStatementOrdinals([0, 1], [])).toEqual([0, 1]);
+  });
+
+  it("returns nothing when current matches existing", () => {
+    expect(staleStatementOrdinals([0, 1], [0, 1])).toEqual([]);
+  });
+});
+
+describe("hashSpecContent", () => {
+  it("returns identical hashes for identical input", () => {
+    expect(hashSpecContent("# X\n\nbody")).toBe(hashSpecContent("# X\n\nbody"));
+  });
+
+  it("returns different hashes when content changes", () => {
+    expect(hashSpecContent("# X")).not.toBe(hashSpecContent("# Y"));
+  });
+
+  it("returns a sha-256 hex digest", () => {
+    expect(hashSpecContent("anything")).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("argmaxByTest", () => {
+  const base = (overrides: Partial<Judgment> = {}): Judgment => ({
+    test_file: "t.test.ts",
+    test_name: "x › y",
+    test_line: 1,
+    symbol: null,
+    match_kind: "directory" as MatchKind,
+    matches: true,
+    statement_ordinal: 0,
+    statement_text: "stmt",
+    match_score: 0.6,
+    rationale: "r",
+    ...overrides,
+  });
+
+  it("keeps only the highest-score row per (test_file, test_name)", () => {
+    const out = argmaxByTest([
+      base({ statement_ordinal: 0, match_score: 0.6 }),
+      base({ statement_ordinal: 3, match_score: 0.9 }),
+      base({ statement_ordinal: 5, match_score: 0.7, test_name: "other › z" }),
+    ]);
+    expect(out).toHaveLength(2);
+    const dominant = out.find((j) => j.test_name === "x › y");
+    expect(dominant?.statement_ordinal).toBe(3);
+    expect(dominant?.match_score).toBe(0.9);
+  });
+
+  it("drops rows below the score threshold", () => {
+    const out = argmaxByTest([
+      base({ match_score: JUDGE_SCORE_THRESHOLD - 0.01 }),
+    ]);
+    expect(out).toEqual([]);
+  });
+
+  it("drops rows where matches=false", () => {
+    const out = argmaxByTest([base({ matches: false, match_score: 0.95 })]);
+    expect(out).toEqual([]);
+  });
+
+  it("permits a single statement to be the best match for multiple tests", () => {
+    const out = argmaxByTest([
+      base({ test_name: "a › 1", statement_ordinal: 7, match_score: 0.7 }),
+      base({ test_name: "b › 2", statement_ordinal: 7, match_score: 0.8 }),
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out.every((j) => j.statement_ordinal === 7)).toBe(true);
   });
 });
 

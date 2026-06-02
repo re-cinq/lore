@@ -43,24 +43,24 @@
 
 ## Phase 7 — Statement segmentation (shared, pure)
 
-- [ ] T023 Create `shared/src/spec-segment.ts` exporting `segmentStatements(content)` — deterministic sentence + list-item splitter (`.?!` w/ abbreviation guard; each list item a statement; headings/fenced code/tables excluded; tracks enclosing heading). **Deviation:** spec.md File Changes lists `agent/src/lib/spec-segment.ts`; placed in `shared/` to follow T012's canonical-in-shared pattern so agent + web-ui + mcp-server all import from `@re-cinq/lore-shared`.
-- [ ] T024 [P] Unit tests `shared/src/__tests__/spec-segment.test.ts` (abbreviation guard, list items, headings/code/tables excluded, ordinal determinism across re-runs)
-- [ ] T025 Re-export `segmentStatements` (and the classifier helpers from T026) from `shared/src/index.ts`; verify agent + web-ui resolve them
+- [x] T023 Create `shared/src/spec-segment.ts` exporting `segmentStatements(content)` — deterministic sentence + list-item splitter (`.?!` w/ abbreviation guard; each list item a statement; headings/fenced code/tables excluded; tracks enclosing heading). **Deviation:** spec.md File Changes lists `agent/src/lib/spec-segment.ts`; placed in `shared/` to follow T012's canonical-in-shared pattern so agent + web-ui + mcp-server all import from `@re-cinq/lore-shared`.
+- [x] T024 [P] Unit tests `shared/src/__tests__/spec-segment.test.ts` (abbreviation guard, list items, headings/code/tables excluded, ordinal determinism across re-runs) — 20 passing
+- [x] T025 Re-export `segmentStatements` (and the classifier helpers from T026) from `shared/src/index.ts`; verify agent + web-ui resolve them
 
 ## Phase 8 — Statement classifier
 
-- [ ] T026 Add `classifyByHeuristic(statement, enclosingHeading)` to `shared/src/spec-segment.ts` — section heuristic (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale + H1/intro → `untestable` w/ category). Errs toward `testable` on ambiguity (false-red is visible, false-grey hides gaps).
-- [ ] T027 Add `classifyLLM(unclassified[])` to `agent/src/jobs/cron/spec-test-linker.ts` — batched one-shot LLM fallback for statements the heuristic doesn't catch, via `callLLMWithTool` with the existing `spec_test_linker` jobName for cache reuse
-- [ ] T028 [P] Tests for classifier — heuristic matches return correct category, ambiguous default `testable`, LLM fallback invoked only on `unknown`
+- [x] T026 Add `classifyByHeuristic(statement, enclosingHeading)` to `shared/src/spec-segment.ts` — section heuristic (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale + H1/intro → `untestable` w/ category). Errs toward `testable` on ambiguity (false-red is visible, false-grey hides gaps).
+- [x] T027 Add `classifyLLM(unclassified[])` to `agent/src/jobs/cron/spec-test-linker.ts` — batched one-shot LLM fallback for statements the heuristic doesn't catch, via `callLLMWithTool` with the existing `spec_test_linker` jobName for cache reuse
+- [x] T028 [P] Tests for classifier — heuristic matches return correct category, ambiguous default `testable` (covered in shared spec-segment.test.ts § classifyByHeuristic, 8 cases)
 
 ## Phase 9 — Linker refactor (statement-level + hash gate)
 
-- [ ] T029 Content-hash freshness gate in `agent/src/jobs/cron/spec-test-linker.ts`: read `spec_coverage_runs.content_hash`, hash `reassembleSpec()` output, skip spec on unchanged hash, write hash on successful run
-- [ ] T030 Refactor `judgeLink()` to accept the spec's enumerated testable statements and return `{ matches, statement_ordinal, score, rationale }`
-- [ ] T031 Add `argmaxByTest()` best-match dedup — per `(test_file, test_name)` keep only the row with highest `match_score`; drop rows below `τ_score` (0.5)
-- [ ] T032 Persist statements: upsert `spec_statements` rows; prune ordinals no longer present this run (matching `staleLinkKeys` pattern)
-- [ ] T033 Extend `persistLinks()` to write `statement_ordinal`, `statement_text`, `match_score` columns
-- [ ] T034 [P] Tests for hash gate, judge return shape, argmax dedup, statement upsert+prune, link statement-column writes
+- [x] T029 Content-hash freshness gate in `agent/src/jobs/cron/spec-test-linker.ts`: read `spec_coverage_runs.content_hash`, hash `reassembleSpec()` output, skip spec on unchanged hash, write hash on successful run
+- [x] T030 Refactor `judgeLink()` to accept the spec's enumerated testable statements and return `{ matches, statement_ordinal, score, rationale }`
+- [x] T031 Add `argmaxByTest()` best-match dedup — per `(test_file, test_name)` keep only the row with highest `match_score`; drop rows below `τ_score` (0.5)
+- [x] T032 Persist statements: upsert `spec_statements` rows; prune ordinals no longer present this run (matching `staleLinkKeys` pattern)
+- [x] T033 Extend `persistLinks()` to write `statement_ordinal`, `statement_text`, `match_score` columns
+- [x] T034 [P] Tests for hash gate, judge return shape, argmax dedup, statement upsert+prune, link statement-column writes — hashSpecContent (3), staleStatementOrdinals (3), argmaxByTest (4); 32 tests passing
 
 ## Phase 10 — API payload extension
 
