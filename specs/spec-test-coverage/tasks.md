@@ -37,9 +37,9 @@
 
 ## Phase 6 — v2 data migrations
 
-- [ ] T020 [P] Add migration `terraform/modules/gke-mcp/ui-helm/migrations/0004_spec_statements.sql` creating `{schema}.spec_statements` per team schema (idempotent, `UNIQUE (repo, spec_path, ordinal)`, `spec_statements_spec_idx`)
-- [ ] T021 [P] Add migration `terraform/modules/gke-mcp/ui-helm/migrations/0005_spec_coverage_runs.sql` creating `{schema}.spec_coverage_runs` (PK `(repo, spec_path)`, `content_hash`, `run_at`)
-- [ ] T022 [P] Add migration `terraform/modules/gke-mcp/ui-helm/migrations/0006_spec_test_links_statement_cols.sql` additive `ALTER TABLE {schema}.spec_test_links ADD COLUMN IF NOT EXISTS statement_ordinal INTEGER, statement_text TEXT, match_score REAL` + `spec_test_links_stmt_idx (repo, spec_path, statement_ordinal)`
+- [x] T020 [P] Add migration `terraform/modules/gke-mcp/ui-helm/migrations/0004_spec_statements.sql` creating `{schema}.spec_statements` per team schema (idempotent, `UNIQUE (repo, spec_path, ordinal)`, `spec_statements_spec_idx`)
+- [x] T021 [P] Add migration `terraform/modules/gke-mcp/ui-helm/migrations/0005_spec_coverage_runs.sql` creating `{schema}.spec_coverage_runs` (PK `(repo, spec_path)`, `content_hash`, `run_at`)
+- [x] T022 [P] Add migration `terraform/modules/gke-mcp/ui-helm/migrations/0006_spec_test_links_statement_cols.sql` additive `ALTER TABLE {schema}.spec_test_links ADD COLUMN IF NOT EXISTS statement_ordinal INTEGER, statement_text TEXT, match_score REAL` + `spec_test_links_stmt_idx (repo, spec_path, statement_ordinal)`
 
 ## Phase 7 — Statement segmentation (shared, pure)
 
