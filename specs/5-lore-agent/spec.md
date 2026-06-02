@@ -208,6 +208,14 @@ individual files. Other task types produce a single output file.
 
 ### FR-6: Job Scheduling
 
+> **Partially superseded (2026-06-02) by
+> [scheduled-job-runtime-split](../scheduled-job-runtime-split/spec.md) /
+> [ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md):** the heavy,
+> infrequent batch jobs (reindex, gap detection, spec drift, memory TTL, etc.)
+> now run as Kubernetes CronJobs, not in the in-process scheduler. Only the
+> hot-path / sub-minute jobs (merge check, watchers, review-reactor safety net)
+> remain in-process per this FR.
+
 The service runs periodic maintenance jobs on configurable schedules:
 
 | Job                     | Default Schedule     | Description                                    |
@@ -320,8 +328,11 @@ Additional fields on pipeline.tasks: issue_number (INT, nullable), issue_url (TE
 
 1. Onboarding a new repo produces a multi-file PR on the first
    attempt (no manual retries needed) within 5 minutes
-2. All 5 scheduled maintenance jobs run reliably without K8s
-   CronJob configuration
+2. All scheduled maintenance jobs run reliably at their configured
+   times (in-process for hot-path jobs; heavy batch jobs run as K8s
+   CronJobs per [ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md) —
+   this criterion's original "without K8s CronJob configuration" wording
+   is superseded for the batch subset)
 3. LLM costs per onboarding task are under $0.10 (using the
    cost-effective model)
 4. Zero tasks are lost or stuck during normal service restarts
