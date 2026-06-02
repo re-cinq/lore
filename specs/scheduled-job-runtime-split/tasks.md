@@ -2,11 +2,11 @@
 
 ## Phase 1 — Folder reorg (no behavior change)
 
-- [ ] T001 Create `agent/src/jobs/cron/` and move the 10 batch-job files into it (`reindex`, `gap-detect`, `spec-drift` + `spec-drift-rules` + its test, `spec-test-linker` + its test, `eval-runner`, `context-core-builder`, `autoresearch`, `memory-lifecycle`, `ttl-cleanup`); fix import depth (`../` → `../../`, same-folder siblings stay `./`)
-- [ ] T002 Create `agent/src/jobs/scheduled/` and move the 6 in-process job files (`merge-check`, `approval-check`, `review-reactor`, `loretask-watcher`, `spec-task-executor`, `stale-task-check`); fix import depth, and repoint `loretask-watcher`'s `./auto-merge-trigger` (stays at `jobs/` root) to `../auto-merge-trigger`
-- [ ] T003 [P] Add `agent/src/jobs/cron/README.md` — "each file runs as its own Kubernetes CronJob pod (separate container); schedule + manifest in agent-helm `cronjob.yaml`/`values.yaml`"
-- [ ] T004 [P] Add `agent/src/jobs/scheduled/README.md` — "runs in-process inside the `lore-agent` container via node-cron, registered in `index.ts`"
-- [ ] T005 Repoint importers: `index.ts` (6 in-process imports → `scheduled/`) and `health.ts` (`review-reactor` → `scheduled/`); `agent` typecheck passes
+- [x] T001 Create `agent/src/jobs/cron/` and move the 10 batch-job files into it (`reindex`, `gap-detect`, `spec-drift` + `spec-drift-rules` + its test, `spec-test-linker` + its test, `eval-runner`, `context-core-builder`, `autoresearch`, `memory-lifecycle`, `ttl-cleanup`); fix import depth (`../` → `../../`, same-folder siblings stay `./`)
+- [x] T002 Create `agent/src/jobs/scheduled/` and move the 6 in-process job files (`merge-check`, `approval-check`, `review-reactor`, `loretask-watcher`, `spec-task-executor`, `stale-task-check`); fix import depth, and repoint `loretask-watcher`'s `./auto-merge-trigger` (stays at `jobs/` root) to `../auto-merge-trigger`
+- [x] T003 [P] Add `agent/src/jobs/cron/README.md` — "each file runs as its own Kubernetes CronJob pod (separate container); schedule + manifest in agent-helm `cronjob.yaml`/`values.yaml`"
+- [x] T004 [P] Add `agent/src/jobs/scheduled/README.md` — "runs in-process inside the `lore-agent` container via node-cron, registered in `index.ts`"
+- [x] T005 Repoint importers: `index.ts` (6 in-process imports → `scheduled/`) and `health.ts` (`review-reactor` → `scheduled/`); `agent` typecheck passes
 
 ## Phase 2 — Generic runner
 

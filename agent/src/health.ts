@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { query, isDbAvailable } from "./db.js";
-import { runReviewReactorForPR } from "./jobs/review-reactor.js";
+import { runReviewReactorForPR } from "./jobs/scheduled/review-reactor.js";
 import { tryAutoMergeForCompletedTask } from "./jobs/auto-merge-trigger.js";
 
 const startTime = Date.now();
