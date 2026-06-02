@@ -21,6 +21,7 @@ import { getTaskTypes } from "./pipeline-config.js";
 import { onboardRepo } from "./repo-onboard.js";
 import { ingestFiles } from "./ingest.js";
 import { prepareSpecCoverage } from "./spec-coverage-prepare.js";
+import { persistSpecCoverage, type PersistRequest } from "./spec-coverage-persist.js";
 import { resolveAgentId } from "./agent-id.js";
 import { getGitHubToken, getOctokit } from "./github-client.js";
 import {
@@ -93,6 +94,12 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope }> = [
   {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$|\/)/,
     scope: "admin",
+  },
+  {
+    // BYO-compute persist writes spec_statements + spec_test_links +
+    // spec_coverage_runs in the developer's name; needs write scope.
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage\/persist(\?|$)/,
+    scope: "write",
   },
 ];
 
@@ -1305,6 +1312,11 @@ export async function handleApiRoute(
   ) {
     await handleSpecCoveragePrepare(req, res, pool);
   } else if (
+    /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage\/persist(\?|$)/.test(url) &&
+    method === "POST"
+  ) {
+    await handleSpecCoveragePersist(req, res, pool);
+  } else if (
     /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage(\?|$)/.test(url) &&
     method === "GET"
   ) {
@@ -1741,6 +1753,47 @@ function specSourceUrl(repo: string, filePath: string, line: number | null): str
 
 const SPEC_COVERAGE_PREPARE_RE =
   /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage\/prepare/;
+
+const SPEC_COVERAGE_PERSIST_RE =
+  /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage\/persist/;
+
+async function handleSpecCoveragePersist(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: Pool | null,
+): Promise<void> {
+  if (!pool) {
+    json(res, 503, { error: "database unavailable" });
+    return;
+  }
+  const m = (req.url || "").match(SPEC_COVERAGE_PERSIST_RE);
+  if (!m) {
+    json(res, 404, { error: "not found" });
+    return;
+  }
+  const repo = `${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
+
+  try {
+    const body = await readBody(req);
+    const parsed = JSON.parse(body || "{}") as Partial<PersistRequest>;
+    if (
+      !parsed.spec_path || typeof parsed.spec_path !== "string" ||
+      !parsed.content_hash || typeof parsed.content_hash !== "string" ||
+      !Array.isArray(parsed.classifications) ||
+      !Array.isArray(parsed.judgments)
+    ) {
+      json(res, 400, {
+        error: "required: spec_path (string), content_hash (string), classifications (array), judgments (array)",
+      });
+      return;
+    }
+    const result = await persistSpecCoverage(pool, repo, parsed.spec_path, parsed as PersistRequest);
+    json(res, result.status, result.body);
+  } catch (err) {
+    console.error("[spec-coverage/persist] error:", err);
+    json(res, 500, { error: (err as Error).message });
+  }
+}
 
 async function handleSpecCoveragePrepare(
   req: IncomingMessage,
