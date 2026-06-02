@@ -37,3 +37,13 @@ export {
   extractSummary,
   reassembleSpec,
 } from './spec-summary.js';
+export {
+  segmentStatements,
+  classifyByHeuristic,
+  buildIntroOrdinals,
+  type Statement,
+  type StatementKind,
+  type Testability,
+  type UntestableCategory,
+  type Classification,
+} from './spec-segment.js';
