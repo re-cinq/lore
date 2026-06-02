@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   proposeLinkInsertions,
+  pickStatementsForBackfill,
   type Suggestion,
 } from "../spec-coverage-backfill.js";
+import type { Statement, Classification } from "@re-cinq/lore-shared";
+
+const heuristic = (testability: "testable" | "untestable", category: Classification["category"] = null): Classification => ({
+  testability, category, matchedBySection: testability === "untestable",
+});
 
 const suggest = (overrides: Partial<Suggestion> = {}): Suggestion => ({
   statement_ordinal: 0,
@@ -100,5 +106,90 @@ describe("proposeLinkInsertions", () => {
     expect(out.newContent).toBe(content);
     expect(out.applied).toBe(0);
     expect(out.diffPreview).toBe("");
+  });
+});
+
+describe("pickStatementsForBackfill", () => {
+  const stmt = (ordinal: number, text: string, kind: "sentence" | "list-item" = "list-item"): Statement => ({
+    ordinal, text, kind, enclosingHeading: "Acceptance Criteria",
+  });
+
+  it("returns testable statements with no inline test link", () => {
+    const statements = [
+      stmt(0, "Returns the expected value."),
+      stmt(1, "Throws on null."),
+    ];
+    const classifications = new Map<number, Classification>([
+      [0, heuristic("testable")],
+      [1, heuristic("testable")],
+    ]);
+    const out = pickStatementsForBackfill(statements, classifications);
+    expect(out).toEqual([
+      { ordinal: 0, text: "Returns the expected value." },
+      { ordinal: 1, text: "Throws on null." },
+    ]);
+  });
+
+  it("excludes statements that already carry a trailing test link", () => {
+    const statements = [
+      stmt(0, "Already linked. ([test](src/x.test.ts#L1))"),
+      stmt(1, "Not linked yet."),
+    ];
+    const classifications = new Map<number, Classification>([
+      [0, heuristic("testable")],
+      [1, heuristic("testable")],
+    ]);
+    const out = pickStatementsForBackfill(statements, classifications);
+    expect(out).toEqual([{ ordinal: 1, text: "Not linked yet." }]);
+  });
+
+  it("excludes statements the classifier marked untestable", () => {
+    const statements = [
+      stmt(0, "Narrative intro."),
+      stmt(1, "Real requirement."),
+    ];
+    const classifications = new Map<number, Classification>([
+      [0, heuristic("untestable", "intro")],
+      [1, heuristic("testable")],
+    ]);
+    const out = pickStatementsForBackfill(statements, classifications);
+    expect(out).toEqual([{ ordinal: 1, text: "Real requirement." }]);
+  });
+
+  it("returns an empty array when every testable statement is already linked", () => {
+    const statements = [
+      stmt(0, "Returns. ([t](src/x.test.ts#L1))"),
+      stmt(1, "Throws. ([t](src/y.test.ts#L42))"),
+    ];
+    const classifications = new Map<number, Classification>([
+      [0, heuristic("testable")],
+      [1, heuristic("testable")],
+    ]);
+    expect(pickStatementsForBackfill(statements, classifications)).toEqual([]);
+  });
+
+  it("returns an empty array when there are no testable statements at all", () => {
+    const statements = [
+      stmt(0, "Narrative one."),
+      stmt(1, "Narrative two."),
+    ];
+    const classifications = new Map<number, Classification>([
+      [0, heuristic("untestable", "intro")],
+      [1, heuristic("untestable", "rationale")],
+    ]);
+    expect(pickStatementsForBackfill(statements, classifications)).toEqual([]);
+  });
+
+  it("skips statements with no classification entry (defensive)", () => {
+    const statements = [
+      stmt(0, "Has no classification entry."),
+      stmt(1, "Has one."),
+    ];
+    const classifications = new Map<number, Classification>([
+      [1, heuristic("testable")],
+    ]);
+    expect(pickStatementsForBackfill(statements, classifications)).toEqual([
+      { ordinal: 1, text: "Has one." },
+    ]);
   });
 });
