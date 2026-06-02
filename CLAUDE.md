@@ -99,6 +99,7 @@ gcloud auth for local dev.
 - `agent/src/jobs/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
 - `agent/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons
 - `agent/src/health.ts` — exposes `POST /api/trigger/review-reactor`, `POST /api/trigger/auto-merge`, and `POST /api/trigger/spec-test-linker` for mcp-server fan-out. Last one is fire-and-forget post-ingest; the linker's content-hash gate elides work for unchanged specs.
+- `mcp-server/src/spec-coverage-prepare.ts` / `spec-coverage-persist.ts` / `spec-coverage-stale.ts` — the BYO-compute trio backing `/lore-link-coverage`. `prepare` returns deterministic statements + heuristic + candidates + content_hash; `persist` validates ordinals/scores/hash, applies `argmaxByTest` + τ threshold server-side, writes `spec_statements` + `spec_test_links` + `spec_coverage_runs.linked_by='local:{agent_id}'`; `stale` lists specs whose hash drifted or were never linked. See `specs/local-coverage-linker/`.
 - `mcp-server/src/context-assembly.ts` — context assembly with YAML templates
 - `mcp-server/templates/` — YAML context assembly templates (default, review, implementation, research)
 - `mcp-server/src/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)

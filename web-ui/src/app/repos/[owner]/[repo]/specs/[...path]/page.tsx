@@ -75,6 +75,12 @@ export default async function RepoSpecDetail({
      ORDER BY test_file, test_line NULLS LAST`,
     [fullName, filePath],
   );
+  const runRows = await queryAllowMissing<{ run_at: string; linked_by: string | null }>(
+    `SELECT run_at, linked_by FROM ${schema}.spec_coverage_runs
+     WHERE repo = $1 AND spec_path = $2`,
+    [fullName, filePath],
+  );
+  const run = runRows[0] ?? null;
   const statementRows = await queryAllowMissing<StatementRow>(
     `SELECT ordinal, text, kind, testability, category
      FROM ${schema}.spec_statements
@@ -127,6 +133,12 @@ export default async function RepoSpecDetail({
       <p className="meta" style={{ fontFamily: 'var(--font-mono)', marginTop: 0, marginBottom: 16 }}>{filePath}</p>
       <div style={{ marginBottom: 20 }}>
         <CoverageBar coverage={coverage} size="md" />
+        {run?.linked_by?.startsWith('local:') && (
+          <div className="meta" style={{ marginTop: 6, fontSize: 'var(--fs-xs)' }}>
+            linked by {run.linked_by.slice('local:'.length)} (local) at{' '}
+            {new Date(run.run_at).toLocaleString()}
+          </div>
+        )}
       </div>
       <SpecDetails content={content} tests={tests} statements={statements} />
     </div>

@@ -92,4 +92,23 @@ describe("composeSpecCoverage", () => {
     expect(out.coverage).toEqual({ testable: 0, covered: 0, untestable: 0 });
     expect(out.statements).toEqual([]);
   });
+
+  it("surfaces last_linked_at + last_linked_by when a coverage_runs row is passed", () => {
+    const out = composeSpecCoverage(
+      "re-cinq/lore",
+      "specs/x/spec.md",
+      chunks,
+      statements,
+      [],
+      { run_at: "2026-06-02T13:00:00Z", linked_by: "local:abc" },
+    );
+    expect(out.last_linked_at).toBe("2026-06-02T13:00:00Z");
+    expect(out.last_linked_by).toBe("local:abc");
+  });
+
+  it("returns last_linked_* as null when no coverage_runs row is supplied", () => {
+    const out = composeSpecCoverage("re-cinq/lore", "specs/x/spec.md", chunks, statements, []);
+    expect(out.last_linked_at).toBeNull();
+    expect(out.last_linked_by).toBeNull();
+  });
 });

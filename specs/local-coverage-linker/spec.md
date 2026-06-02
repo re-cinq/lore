@@ -7,6 +7,7 @@
 | Created        | 2026-06-02                               |
 | Owner          | Platform Engineering                     |
 | Depends on     | [`spec-test-coverage`](../spec-test-coverage/spec.md) (v2 statement-level linker) |
+| Improved by    | `specs/coverage-ingestion/` (future) — when present, populates `coverage_hits` in `prepare_spec_link` so the local judge has execution-trace evidence instead of guessing from name overlap |
 
 ## Problem Statement
 
@@ -288,7 +289,17 @@ been linked.
       "test_line": 88,
       "content_snippet": "describe('local-runner', () => { … })",
       "match_kind": "assertion",
-      "symbol": "claimNextTask"
+      "symbol": "claimNextTask",
+      // Populated only when the future `coverage-ingestion` spec has
+      // delivered LCOV/Cobertura uploads for this repo. Empty / absent
+      // when no coverage exists; the client falls back to the other
+      // signals. When present, coverage is the strongest evidence —
+      // an execution trace, not a name-overlap guess.
+      "coverage_hits": [
+        { "covered_file": "mcp-server/src/local-runner.ts",
+          "covered_symbol": "claimNextTask",
+          "lines_covered": [42, 43, 44, 45] }
+      ]
     }
   ],
   "candidate_truncated": false,
@@ -397,3 +408,4 @@ list_stale_spec_coverage { repo }
 4. **Subscription billing model.** Claude Code Pro/Max bills per-seat, not per-call. This feature shifts cost from API → seat utilisation. Confirm with finance before recommending org-wide adoption — at high volume a developer's quota could exhaust if they use this aggressively.
 5. **UI attribution is best-effort.** Shows `agent_id` verbatim; if the developer hasn't set a name, it'll read `linked 2h ago by local:abc-123`. Could resolve to a real display name via `lore.agents` lookup; out of scope for v1.
 6. **Cron and webhook still bill the API key.** This feature gives developers an *option* to use their subscription; it doesn't turn off the existing cron. To do that, ship a `dark_factory.linker = 'manual'` per-repo setting in a follow-up — too entangled with [Dark Factory mode](../6-dark-factory/spec.md) to bundle here.
+7. **Coverage is best-effort, language-agnostic via LCOV.** `coverage_hits` in the `prepare` payload populates only when the future `coverage-ingestion` spec lands — that piece accepts LCOV (de-facto cross-language: JS/TS, Go via gocov-lcov, Python via `coverage lcov`, Rust via tarpaulin, Java/JVM via JaCoCo-to-LCOV, .NET coverlet, Ruby SimpleCov, etc.) and Cobertura XML, stores test→{covered_file, lines} per repo+commit. Until that ships, this feature degrades to the existing name-overlap / directory / embedding signals — same quality as the cron today. Reading coverage from the developer's local filesystem was considered and rejected: it only works for the one repo the developer is currently checked out into and only after they've just run tests, so it doesn't generalize across the org's repos.
