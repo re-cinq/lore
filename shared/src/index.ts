@@ -47,3 +47,31 @@ export {
   type UntestableCategory,
   type Classification,
 } from './spec-segment.js';
+export {
+  isTestFile,
+  normalizeTestName,
+} from './test-paths.js';
+export {
+  specFeatureSlug,
+  hasDirectoryAffinity,
+  cosineSimilarity,
+  matchedAssertion,
+  deriveTestName,
+  parseEmbedding,
+  selectCandidates,
+  staleLinkKeys,
+  staleStatementOrdinals,
+  argmaxByTest,
+  hashSpecContent,
+  MAX_CANDIDATES_PER_SPEC,
+  EMBEDDING_THRESHOLD,
+  JUDGE_SCORE_THRESHOLD,
+  type Assertion,
+  type MatchKind,
+  type SpecTestLink,
+  type TestChunk,
+  type JudgeCandidate,
+  type SpecInput,
+  type CandidateSelection,
+  type Judgment,
+} from './spec-judge.js';

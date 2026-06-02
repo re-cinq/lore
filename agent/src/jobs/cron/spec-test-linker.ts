@@ -1,276 +1,59 @@
-import { createHash } from "node:crypto";
 import {
   segmentStatements,
   classifyByHeuristic,
   buildIntroOrdinals,
   reassembleSpec,
+  isTestFile,
+  selectCandidates,
+  staleLinkKeys,
+  staleStatementOrdinals,
+  argmaxByTest,
+  deriveTestName,
+  parseEmbedding,
+  hashSpecContent,
+  MAX_CANDIDATES_PER_SPEC,
+  JUDGE_SCORE_THRESHOLD,
   type Statement,
   type Classification,
   type UntestableCategory,
+  type Assertion,
+  type TestChunk,
+  type JudgeCandidate,
+  type Judgment,
+  type SpecTestLink,
 } from "@re-cinq/lore-shared";
 import { query } from "../../db.js";
 import { callLLMWithTool } from "../../anthropic.js";
 import { isAssertionSource } from "./spec-drift-rules.js";
-import { isTestFile, normalizeTestName } from "../../lib/test-paths.js";
 
-/** Assertion shape shared with spec-drift's extractor (named code symbols). */
-interface Assertion {
-  name: string;
-  kind: "function" | "class" | "interface" | "type" | "endpoint" | "other";
-  description: string;
-}
+// Re-export shared symbols the agent codebase + tests have historically
+// imported from this module; keeps the public API stable.
+export {
+  isTestFile,
+  selectCandidates,
+  staleLinkKeys,
+  staleStatementOrdinals,
+  argmaxByTest,
+  deriveTestName,
+  parseEmbedding,
+  hashSpecContent,
+  MAX_CANDIDATES_PER_SPEC,
+  JUDGE_SCORE_THRESHOLD,
+  type TestChunk,
+  type JudgeCandidate,
+  type Judgment,
+  type SpecTestLink,
+};
+export {
+  specFeatureSlug,
+  hasDirectoryAffinity,
+  cosineSimilarity,
+  matchedAssertion,
+  type MatchKind,
+} from "@re-cinq/lore-shared";
 
-export type MatchKind = "assertion" | "directory" | "embedding";
-
-/** A persisted (spec, test) link row, minus the bookkeeping columns. */
-export interface SpecTestLink {
-  test_file: string;
-  test_name: string;
-  test_line: number | null;
-  symbol: string | null;
-  match_kind: MatchKind;
-  statement_ordinal: number | null;
-  statement_text: string | null;
-  match_score: number | null;
-}
-
-/** A candidate test chunk fed to candidate selection. */
-export interface TestChunk {
-  file_path: string;
-  content: string;
-  test_name: string;
-  test_line: number | null;
-  embedding: number[] | null;
-}
-
-/** A selected candidate carries its content so the judge can read it; the
- * content is never persisted. */
-export type JudgeCandidate = Omit<
-  SpecTestLink,
-  "statement_ordinal" | "statement_text" | "match_score"
-> & { content: string };
-
-interface SpecInput {
-  repo: string;
-  file_path: string;
-  content: string;
-  embedding: number[] | null;
-}
-
-interface CandidateSelection {
-  candidates: JudgeCandidate[];
-  truncated: boolean;
-  total: number;
-}
-
-export const MAX_CANDIDATES_PER_SPEC = 25;
-export const EMBEDDING_THRESHOLD = 0.75;
-export const JUDGE_SCORE_THRESHOLD = 0.5;
 const ACTIVITY_WINDOW_DAYS = 7;
 const CLASSIFIER_BATCH_LIMIT = 60;
-
-/** Strongest-first ranking so truncation keeps the best signals. */
-const KIND_RANK: Record<MatchKind, number> = { assertion: 3, directory: 2, embedding: 1 };
-
-// ── Pure matching helpers (unit-tested, no DB / no LLM) ──────────────
-
-/** `specs/local-task-runner/spec.md` → `local-task-runner`. Falls back to the
- * spec file's parent directory. */
-export function specFeatureSlug(specPath: string): string | null {
-  const parts = specPath.split("/").filter(Boolean);
-  const specsIdx = parts.indexOf("specs");
-  if (specsIdx >= 0 && parts.length > specsIdx + 2) return parts[specsIdx + 1];
-  if (parts.length >= 2) return parts[parts.length - 2];
-  return null;
-}
-
-function significantTokens(value: string): string[] {
-  return value
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token.length >= 4);
-}
-
-/** A test shares a feature directory with the spec when it overlaps at least
- * half of the spec slug's significant tokens (e.g. spec `local-task-runner`
- * ↔ test `local-runner.test.ts`). */
-export function hasDirectoryAffinity(specPath: string, testPath: string): boolean {
-  const slug = specFeatureSlug(specPath);
-  if (!slug) return false;
-  const slugTokens = new Set(significantTokens(slug));
-  if (slugTokens.size === 0) return false;
-  const testTokens = new Set(significantTokens(testPath));
-  let overlap = 0;
-  for (const token of slugTokens) if (testTokens.has(token)) overlap++;
-  return overlap >= Math.max(1, Math.ceil(slugTokens.size / 2));
-}
-
-export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length === 0 || a.length !== b.length) return 0;
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-/** First assertion symbol the test chunk literally references, or null. */
-export function matchedAssertion(content: string, assertions: Assertion[]): string | null {
-  const lower = content.toLowerCase();
-  for (const assertion of assertions) {
-    const name = assertion.name.toLowerCase();
-    if (name.length >= 3 && lower.includes(name)) return assertion.name;
-  }
-  return null;
-}
-
-/** Builds the normalized `describe › it` name from a chunk's AST metadata, or
- * null when the chunk names no test symbol. */
-export function deriveTestName(metadata: Record<string, unknown> | null): string | null {
-  if (!metadata) return null;
-  const it = metadata["symbol_name"];
-  if (typeof it !== "string" || it.length === 0) return null;
-  const parent = metadata["parent_symbol"] ?? metadata["describe"];
-  const describe = typeof parent === "string" ? parent : "";
-  return normalizeTestName(describe, it);
-}
-
-/** pgvector returns embeddings as `"[0.1,0.2,...]"`; parse defensively. */
-export function parseEmbedding(raw: unknown): number[] | null {
-  if (Array.isArray(raw)) return raw as number[];
-  if (typeof raw !== "string" || raw.length === 0) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function candidateKey(link: { test_file: string; test_name: string }): string {
-  return `${link.test_file} ${link.test_name}`;
-}
-
-/**
- * Pre-filters test chunks into judge candidates by three signals — assertion
- * overlap (strongest), directory affinity, embedding proximity. De-duplicates
- * by (test_file, test_name) keeping the strongest signal, then caps at
- * `maxCandidates` keeping the highest-ranked. Returns a `truncated` flag so the
- * caller can log dropped candidates (never silently under-report coverage).
- */
-export function selectCandidates(
-  spec: SpecInput,
-  assertions: Assertion[],
-  codeChunks: TestChunk[],
-  options: { maxCandidates?: number; embeddingThreshold?: number } = {},
-): CandidateSelection {
-  const maxCandidates = options.maxCandidates ?? MAX_CANDIDATES_PER_SPEC;
-  const threshold = options.embeddingThreshold ?? EMBEDDING_THRESHOLD;
-  const byKey = new Map<string, JudgeCandidate>();
-
-  for (const chunk of codeChunks) {
-    if (!isTestFile(chunk.file_path) || chunk.test_name.length === 0) continue;
-
-    const symbol = matchedAssertion(chunk.content, assertions);
-    let kind: MatchKind | null = null;
-    if (symbol) {
-      kind = "assertion";
-    } else if (hasDirectoryAffinity(spec.file_path, chunk.file_path)) {
-      kind = "directory";
-    } else if (
-      spec.embedding &&
-      chunk.embedding &&
-      cosineSimilarity(spec.embedding, chunk.embedding) >= threshold
-    ) {
-      kind = "embedding";
-    }
-    if (!kind) continue;
-
-    const candidate: JudgeCandidate = {
-      test_file: chunk.file_path,
-      test_name: chunk.test_name,
-      test_line: chunk.test_line,
-      symbol: kind === "assertion" ? symbol : null,
-      match_kind: kind,
-      content: chunk.content,
-    };
-    const key = candidateKey(candidate);
-    const existing = byKey.get(key);
-    if (!existing || KIND_RANK[kind] > KIND_RANK[existing.match_kind]) {
-      byKey.set(key, candidate);
-    }
-  }
-
-  const ranked = [...byKey.values()].sort(
-    (a, b) => KIND_RANK[b.match_kind] - KIND_RANK[a.match_kind],
-  );
-  return {
-    candidates: ranked.slice(0, maxCandidates),
-    truncated: ranked.length > maxCandidates,
-    total: ranked.length,
-  };
-}
-
-/** Existing links no longer confirmed this run — the rows to prune. */
-export function staleLinkKeys<T extends { test_file: string; test_name: string }>(
-  existing: T[],
-  confirmed: { test_file: string; test_name: string }[],
-): T[] {
-  const keep = new Set(confirmed.map(candidateKey));
-  return existing.filter((link) => !keep.has(candidateKey(link)));
-}
-
-/** Existing statement ordinals no longer present this run — to prune. */
-export function staleStatementOrdinals(
-  existingOrdinals: number[],
-  currentOrdinals: number[],
-): number[] {
-  const keep = new Set(currentOrdinals);
-  return existingOrdinals.filter((o) => !keep.has(o));
-}
-
-// ── Judge result + dedup ─────────────────────────────────────────────
-
-export interface Judgment {
-  test_file: string;
-  test_name: string;
-  test_line: number | null;
-  symbol: string | null;
-  match_kind: MatchKind;
-  matches: boolean;
-  statement_ordinal: number | null;
-  statement_text: string | null;
-  match_score: number;
-  rationale: string;
-}
-
-/**
- * Best-match-per-test reducer. For each (test_file, test_name), keep the row
- * with the highest `match_score`; drop everything below `threshold`. A
- * statement may be the best match for several tests; a test is only ever the
- * best match for one statement.
- */
-export function argmaxByTest(
-  judgments: Judgment[],
-  threshold = JUDGE_SCORE_THRESHOLD,
-): Judgment[] {
-  const best = new Map<string, Judgment>();
-  for (const j of judgments) {
-    if (!j.matches) continue;
-    if (j.match_score < threshold) continue;
-    const key = candidateKey(j);
-    const existing = best.get(key);
-    if (!existing || j.match_score > existing.match_score) {
-      best.set(key, j);
-    }
-  }
-  return [...best.values()];
-}
 
 // ── LLM judge (statement-level) ──────────────────────────────────────
 
@@ -592,10 +375,7 @@ async function persistLinks(
 }
 
 // ── Content-hash freshness gate ──────────────────────────────────────
-
-export function hashSpecContent(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
-}
+// `hashSpecContent` re-exported from @re-cinq/lore-shared at the top.
 
 async function getLastContentHash(
   schema: string,
@@ -615,18 +395,21 @@ async function getLastContentHash(
   }
 }
 
-async function recordContentHash(
+export async function recordContentHash(
   schema: string,
   repo: string,
   specPath: string,
   contentHash: string,
+  linkedBy: string,
 ): Promise<void> {
   await query(
-    `INSERT INTO ${schema}.spec_coverage_runs (repo, spec_path, content_hash, run_at)
-     VALUES ($1, $2, $3, now())
+    `INSERT INTO ${schema}.spec_coverage_runs (repo, spec_path, content_hash, run_at, linked_by)
+     VALUES ($1, $2, $3, now(), $4)
      ON CONFLICT (repo, spec_path)
-     DO UPDATE SET content_hash = EXCLUDED.content_hash, run_at = now()`,
-    [repo, specPath, contentHash],
+     DO UPDATE SET content_hash = EXCLUDED.content_hash,
+                   run_at       = now(),
+                   linked_by    = EXCLUDED.linked_by`,
+    [repo, specPath, contentHash, linkedBy],
   );
 }
 
@@ -717,6 +500,10 @@ export interface SpecTestLinkerOptions {
    * processed. Used by the post-ingest trigger so we don't sweep every team
    * schema on every push. The content-hash gate still skips unchanged specs. */
   repoFilter?: string;
+  /** Attribution written to spec_coverage_runs.linked_by. Defaults to `cron`
+   * for direct job-runner invocations; the webhook trigger sets `webhook`;
+   * the BYO-compute MCP `persist_spec_link` sets `local:{agent_id}`. */
+  linkedBy?: string;
 }
 
 export async function specTestLinkerJob(opts: SpecTestLinkerOptions = {}): Promise<string> {
@@ -725,7 +512,7 @@ export async function specTestLinkerJob(opts: SpecTestLinkerOptions = {}): Promi
     console.log("[job] spec-test-linker: no spec_test_links tables found (run migrations)");
     return "No spec_test_links tables found";
   }
-  const { repoFilter } = opts;
+  const { repoFilter, linkedBy = "cron" } = opts;
 
   let totalSpecs = 0;
   let totalSkipped = 0;
@@ -856,7 +643,7 @@ export async function specTestLinkerJob(opts: SpecTestLinkerOptions = {}): Promi
         }
         const confirmed = argmaxByTest(allJudgments);
         const pruned = await persistLinks(schema, head.repo, head.file_path, confirmed);
-        await recordContentHash(schema, head.repo, head.file_path, contentHash);
+        await recordContentHash(schema, head.repo, head.file_path, contentHash, linkedBy);
 
         totalSpecs++;
         totalLinks += confirmed.length;

@@ -1,3 +1,14 @@
+/**
+ * Path + name heuristics for tests. Used by:
+ *   - agent's spec-test-linker to filter `content_type='code'` chunks
+ *     down to candidate tests before the LLM judge runs
+ *   - mcp-server's spec-coverage-prepare to compose the same candidate
+ *     payload for the BYO-compute local linker
+ *
+ * Path-only — never reads file contents. Lives in shared so both
+ * packages import the same source of truth and stay in lock-step.
+ */
+
 const TEST_PATH_PATTERNS = [
   /\.test\./, // foo.test.ts, foo.test.tsx
   /\.spec\./, // foo.spec.ts
@@ -6,11 +17,7 @@ const TEST_PATH_PATTERNS = [
   /_test\.go$/, // foo_test.go
 ];
 
-/**
- * True when a file path looks like a test file, by convention. Used by the
- * spec-test linker to filter `content_type='code'` chunks down to candidate
- * tests before the LLM judge runs. Path-only — never reads file contents.
- */
+/** True when a file path looks like a test file, by convention. */
 export function isTestFile(filePath: string): boolean {
   return TEST_PATH_PATTERNS.some((pattern) => pattern.test(filePath));
 }
