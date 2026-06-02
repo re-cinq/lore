@@ -36,12 +36,14 @@ interface DailyUsage {
 }
 
 interface JobRun {
+  id: string;
   job_name: string;
   started_at: string;
   completed_at: string | null;
   status: string;
   result_summary: string | null;
   error: string | null;
+  log_path: string | null;
 }
 
 function formatDuration(started: string, completed: string | null): string {
@@ -112,7 +114,7 @@ export default async function AnalyticsPage() {
   );
 
   const jobRuns = await query<JobRun>(
-    `SELECT job_name, started_at, completed_at, status, result_summary, error
+    `SELECT id, job_name, started_at, completed_at, status, result_summary, error, log_path
     FROM pipeline.job_runs
     ORDER BY started_at DESC
     LIMIT 20`
@@ -252,19 +254,23 @@ export default async function AnalyticsPage() {
             <th>Duration</th>
             <th>Status</th>
             <th>Result</th>
+            <th>Logs</th>
           </tr>
         </thead>
         <tbody>
-          {jobRuns.map((r, i) => (
-            <tr key={i}>
+          {jobRuns.map((r) => (
+            <tr key={r.id}>
               <td><span className="badge">{r.job_name}</span></td>
               <td className="meta">{new Date(r.started_at).toLocaleString()}</td>
               <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{formatDuration(r.started_at, r.completed_at)}</td>
               <td><span className={`op-badge op-${r.status}`}>{r.status}</span></td>
               <td style={{fontSize:'var(--fs-sm)'}}>{r.error ? <span style={{color:'var(--danger)'}}>{r.error}</span> : (r.result_summary ?? '—')}</td>
+              <td style={{fontSize:'var(--fs-sm)'}}>
+                {r.log_path ? <a href={`/job-runs/${r.id}`}>view</a> : <span className="meta">—</span>}
+              </td>
             </tr>
           ))}
-          {jobRuns.length === 0 && <tr><td colSpan={5} className="meta" style={{textAlign:'center'}}>No job runs</td></tr>}
+          {jobRuns.length === 0 && <tr><td colSpan={6} className="meta" style={{textAlign:'center'}}>No job runs</td></tr>}
         </tbody>
       </table>
     </div>
