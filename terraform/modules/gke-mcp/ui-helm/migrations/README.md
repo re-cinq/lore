@@ -52,6 +52,24 @@ kubectl exec -n lore-db -it lore-db-1 -c postgres -- \
 3. `GRANT` to `lore` for anything the app reads (web-ui connects as `lore`).
 4. Deploy the UI chart (CI on merge to main, or `terraform apply`).
 
+### DDL inside the `pipeline` schema
+
+`setup-pipeline-schema.sh` runs as `postgres`, so on clusters provisioned
+before it grew its `ALTER … OWNER TO lore` block, `pipeline.*` was
+`postgres`-owned and `lore` only had `GRANT ALL`. A migration like
+`0003_job_runs_log_path.sql` that does
+`ALTER TABLE pipeline.job_runs ADD COLUMN` would fail with
+`must be owner of table` — `GRANT ALL` does not include ownership.
+
+The forward fix is in `setup-pipeline-schema.sh` (new clusters bootstrap
+with `lore` as the schema owner). For *existing* clusters the
+`lore-db-helm` chart adds a `pre-install,pre-upgrade` Hook Job
+(`templates/ownership-reconciler-job.yaml`) that runs an idempotent
+ownership reconcile as `postgres` via the primary pod's local socket
+(peer auth — no network superuser, no manual operator step). It re-runs
+on every `terraform apply`, so a stale cluster converges automatically
+on the next deploy.
+
 ### DDL outside the `lore` schema (team schemas)
 
 The runner connects as `lore`, which owns the `lore` schema but **not** the

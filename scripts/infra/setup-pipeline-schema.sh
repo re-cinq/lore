@@ -119,6 +119,32 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   GRANT USAGE ON SCHEMA pipeline TO lore;
   GRANT ALL ON ALL TABLES IN SCHEMA pipeline TO lore;
   ALTER DEFAULT PRIVILEGES IN SCHEMA pipeline GRANT ALL ON TABLES TO lore;
+
+  -- Hand the pipeline schema + tables to 'lore' so deploy-time migrations
+  -- (ui-helm/migrations, run as 'lore') can ALTER TABLE — GRANT ALL does
+  -- not include ownership, and ALTER TABLE needs the owner. Mirrors the
+  -- lore-schema handoff in setup-db.sh / migrations/README.md. Idempotent.
+  ALTER SCHEMA pipeline OWNER TO lore;
+  DO \$\$
+  DECLARE r record;
+  BEGIN
+    FOR r IN
+      SELECT c.relname, c.relkind
+      FROM pg_catalog.pg_class c
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'pipeline' AND c.relkind IN ('r','S','v','m','i')
+    LOOP
+      IF r.relkind = 'r' THEN
+        EXECUTE format('ALTER TABLE pipeline.%I OWNER TO lore', r.relname);
+      ELSIF r.relkind = 'S' THEN
+        EXECUTE format('ALTER SEQUENCE pipeline.%I OWNER TO lore', r.relname);
+      ELSIF r.relkind = 'v' THEN
+        EXECUTE format('ALTER VIEW pipeline.%I OWNER TO lore', r.relname);
+      ELSIF r.relkind = 'm' THEN
+        EXECUTE format('ALTER MATERIALIZED VIEW pipeline.%I OWNER TO lore', r.relname);
+      END IF;
+    END LOOP;
+  END \$\$;
 "
 
 echo "[lore] Pipeline schema created."
