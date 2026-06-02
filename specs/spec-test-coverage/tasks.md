@@ -64,28 +64,28 @@
 
 ## Phase 10 — API payload extension
 
-- [ ] T035 Extend `GET /api/repos/:owner/:repo/spec-coverage` in `mcp-server/src/routes.ts`: query `spec_statements` for the full statements array; compute `coverage.{testable, covered, untestable}`; include per-test `statement_ordinal` + `match_score`; payload shape per `data-model.md` §Coverage API payload
-- [ ] T036 [P] Tests for the new payload shape (route handler unit test or fixture-based)
+- [x] T035 Extend `GET /api/repos/:owner/:repo/spec-coverage` in `mcp-server/src/routes.ts`: query `spec_statements` for the full statements array; compute `coverage.{testable, covered, untestable}`; include per-test `statement_ordinal` + `match_score`; payload shape per `data-model.md` §Coverage API payload. Extracted `composeSpecCoverage()` as pure helper for testability.
+- [x] T036 [P] Tests for the new payload shape — `mcp-server/src/__tests__/spec-coverage.test.ts`, 6 tests covering coverage math, statement passthrough, per-test ordinal/score, legacy null-ordinal degradation, empty-statements fallback
 
 ## Phase 11 — CoverageBar component
 
-- [ ] T037 Build `web-ui/src/components/CoverageBar.tsx` — stacked three-segment bar (`tested / untested / fluff`), widths over **all** statements, caption `tested / (tested + untested)`, theme tokens `--success` / `--danger` / `--text-muted`, non-colour cues (label/icon per segment), muted-empty state when zero testable
-- [ ] T038 [P] Tests for `CoverageBar` (width math, empty state, caption formula, non-colour cue present per segment)
+- [x] T037 Build `web-ui/src/components/CoverageBar.tsx` — stacked three-segment bar (`tested / untested / fluff`), widths over **all** statements, caption `tested / (tested + untested)`, theme tokens `--success` / `--danger` / `--text-muted`, non-colour cues (label/icon per segment), muted-empty state when zero testable
+- [x] T038 [P] Tests for `CoverageBar` (width math, empty state, caption formula, non-colour cue present per segment) — 7 passing
 
 ## Phase 12 — SpecCard + per-repo specs page
 
-- [ ] T039 Update `web-ui/src/app/repos/[owner]/[repo]/specs/SpecCard.tsx` to replace inline test-count with `<CoverageBar>` + caption (mockup at spec.md §Card list)
-- [ ] T040 Update `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` to fetch the extended coverage payload; **Add Spec form preserved unchanged** (AC13)
+- [x] T039 Update `web-ui/src/app/repos/[owner]/[repo]/specs/SpecCard.tsx` to replace inline test-count with `<CoverageBar>` + caption (mockup at spec.md §Card list)
+- [x] T040 Update `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` to fetch the extended coverage payload; **Add Spec form preserved unchanged** (AC13)
 
 ## Phase 13 — SpecDetails statement highlighting
 
-- [ ] T041 Rehype highlight plugin in `web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx` (or sibling) that wraps each statement's longest contiguous text run in `<mark class="stmt-state-{green|red|grey}">`
-- [ ] T042 Hover popovers (reuse `HelpPopover` pattern): green → validating test names + source deep-links + rationale; grey → untestable category
-- [ ] T043 Add `<CoverageBar>` to the details header
-- [ ] T044 Flag list-only links (un-anchored) in the retained test list; pre-existing whole-spec rows degrade gracefully until next re-link (AC12)
-- [ ] T045 [P] Tests for the rehype plugin (full-statement contiguous wrap, formatting-mixed statement falls back without throwing)
+- [x] T041 Rehype highlight plugin in `web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx` (manual hast walker, not visit — visit mutation under-foot caused index drift) that wraps each statement's longest contiguous text run in `<mark class="stmt stmt-{tested|untested|narrative}">`
+- [x] T042 Hover popovers (lightweight onMouseOver delegation, no HelpPopover dependency): tested → validating test names + source links + rationales; untested → "no test yet" hint; narrative → category
+- [x] T043 Add `<CoverageBar>` to the details header (size="md")
+- [x] T044 Flag list-only links (un-anchored) and legacy null-ordinal rows in the retained test list (AC12)
+- [x] T045 [P] Tests for the rehype plugin (full-statement contiguous wrap, formatting-mixed statement falls back without throwing, legacy flag, list-only flag) — 6 passing
 
 ## Phase 14 — Verify (v2)
 
-- [ ] T046 Typecheck + test suites green across `shared/`, `agent/`, `mcp-server/`, `web-ui/`; all 13 v2 ACs satisfied
+- [x] T046 Typecheck + test suites green across all packages — shared 116, agent 400, mcp-server 204, web-ui 139 (859 tests total)
 - [ ] T019 Manual UI walkthrough — `npm start`, browse `/repos/{owner}/{repo}/specs`, verify `CoverageBar` on cards, hover green statement → tests + rationale, hover grey → category, red statement visibly a gap, non-colour cue visible, Add Spec form still works

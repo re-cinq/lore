@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 import Link from 'next/link';
 import { query, queryAllowMissing, getRepoSchema } from '@/lib/db';
 import { reassembleSpec, parseSpecTitle } from '@/lib/spec-summary';
-import SpecDetails, { type TestLink } from '../SpecDetails';
+import CoverageBar, { type CoverageCounts } from '@/components/CoverageBar';
+import SpecDetails, { type TestLink, type StatementInfo } from '../SpecDetails';
 
 interface SpecChunkRow {
   content: string;
@@ -16,6 +17,17 @@ interface LinkRow {
   symbol: string | null;
   match_kind: string;
   rationale: string;
+  statement_ordinal: number | null;
+  statement_text: string | null;
+  match_score: number | null;
+}
+
+interface StatementRow {
+  ordinal: number;
+  text: string;
+  kind: string;
+  testability: string;
+  category: string | null;
 }
 
 function blobUrl(repo: string, filePath: string, line: number | null): string {
@@ -56,10 +68,18 @@ export default async function RepoSpecDetail({
   }
 
   const links = await queryAllowMissing<LinkRow>(
-    `SELECT test_name, test_file, test_line, symbol, match_kind, rationale
+    `SELECT test_name, test_file, test_line, symbol, match_kind, rationale,
+            statement_ordinal, statement_text, match_score
      FROM ${schema}.spec_test_links
      WHERE repo = $1 AND spec_path = $2
      ORDER BY test_file, test_line NULLS LAST`,
+    [fullName, filePath],
+  );
+  const statementRows = await queryAllowMissing<StatementRow>(
+    `SELECT ordinal, text, kind, testability, category
+     FROM ${schema}.spec_statements
+     WHERE repo = $1 AND spec_path = $2
+     ORDER BY ordinal`,
     [fullName, filePath],
   );
 
@@ -72,8 +92,31 @@ export default async function RepoSpecDetail({
     symbol: link.symbol,
     match_kind: link.match_kind,
     rationale: link.rationale,
+    statement_ordinal: link.statement_ordinal,
+    match_score: link.match_score,
     url: blobUrl(fullName, link.test_file, link.test_line),
   }));
+  const statements: StatementInfo[] = statementRows.map((r) => ({
+    ordinal: r.ordinal,
+    text: r.text,
+    kind: r.kind,
+    testability: r.testability,
+    category: r.category,
+  }));
+
+  const coveredOrdinals = new Set(
+    links.map((l) => l.statement_ordinal).filter((o): o is number => o !== null),
+  );
+  const testableCount = statements.filter((s) => s.testability === 'testable').length;
+  const untestableCount = statements.filter((s) => s.testability === 'untestable').length;
+  const coveredCount = statements.filter(
+    (s) => s.testability === 'testable' && coveredOrdinals.has(s.ordinal),
+  ).length;
+  const coverage: CoverageCounts = {
+    testable: testableCount,
+    covered: coveredCount,
+    untestable: untestableCount,
+  };
 
   return (
     <div>
@@ -82,7 +125,10 @@ export default async function RepoSpecDetail({
       </div>
       <h1>{title}</h1>
       <p className="meta" style={{ fontFamily: 'var(--font-mono)', marginTop: 0, marginBottom: 16 }}>{filePath}</p>
-      <SpecDetails content={content} tests={tests} />
+      <div style={{ marginBottom: 20 }}>
+        <CoverageBar coverage={coverage} size="md" />
+      </div>
+      <SpecDetails content={content} tests={tests} statements={statements} />
     </div>
   );
 }

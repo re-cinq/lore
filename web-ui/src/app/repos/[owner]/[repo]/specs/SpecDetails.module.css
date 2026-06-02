@@ -1,0 +1,86 @@
+.specBody :global(mark.stmt) {
+  background: transparent;
+  color: inherit;
+  border-bottom: 2px solid transparent;
+  padding-bottom: 1px;
+  cursor: help;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.specBody :global(mark.stmt-tested) {
+  background: var(--success-bg, color-mix(in srgb, var(--success) 14%, transparent));
+  border-bottom-color: var(--success);
+}
+.specBody :global(mark.stmt-tested)::before {
+  content: '✓ ';
+  font-family: var(--font-mono);
+  color: var(--success);
+  font-weight: 700;
+}
+
+.specBody :global(mark.stmt-untested) {
+  background: var(--danger-bg, color-mix(in srgb, var(--danger) 14%, transparent));
+  border-bottom-color: var(--danger);
+}
+.specBody :global(mark.stmt-untested)::before {
+  content: '! ';
+  font-family: var(--font-mono);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.specBody :global(mark.stmt-narrative) {
+  color: var(--text-muted);
+  border-bottom: 1px dashed var(--text-muted);
+  opacity: 0.85;
+}
+
+.popover {
+  position: absolute;
+  z-index: 60;
+  width: 360px;
+  max-width: 80vw;
+  padding: 12px 14px;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.popoverTested strong { color: var(--success); }
+.popoverUntested strong { color: var(--danger); }
+.popoverNarrative strong { color: var(--text-muted); }
+
+.popoverHint {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.popoverTestList {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+
+.popoverTestList li + li {
+  margin-top: 6px;
+}
+
+.popoverRationale {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  margin-top: 2px;
+}
+
+.listOnlyTag {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-style: italic;
+}
