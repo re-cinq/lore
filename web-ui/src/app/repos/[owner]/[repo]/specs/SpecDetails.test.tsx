@@ -1,113 +1,107 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import SpecDetails, { type StatementInfo, type TestLink } from './SpecDetails';
-
-const testLink = (overrides: Partial<TestLink> = {}): TestLink => ({
-  name: 'x › claims',
-  file_path: 'src/x.test.ts',
-  line: 12,
-  symbol: null,
-  match_kind: 'directory',
-  rationale: 'covers the path',
-  statement_ordinal: 1,
-  match_score: 0.8,
-  url: 'https://github.com/re-cinq/lore/blob/HEAD/src/x.test.ts#L12',
-  ...overrides,
-});
+import SpecDetails, { type StatementInfo } from './SpecDetails';
 
 const stmt = (overrides: Partial<StatementInfo> = {}): StatementInfo => ({
   ordinal: 0,
   text: 'Default text.',
   kind: 'sentence',
-  testability: 'testable',
+  state: 'untested',
   category: null,
+  testLinks: [],
   ...overrides,
 });
 
-describe('SpecDetails rehype highlighter', () => {
-  it('wraps a contiguous plain-prose testable statement in a mark with state class', () => {
+describe('SpecDetails v3 (markdown-driven)', () => {
+  it('wraps a statement that carries a test link in the trailing paren with stmt-tested', () => {
+    const md = '## Acceptance Criteria\n\n- Claims a pending task. ([t](src/x.test.ts#L1))\n';
     const statements = [
-      stmt({ ordinal: 1, text: 'It claims a pending task.', testability: 'testable' }),
+      stmt({
+        ordinal: 0,
+        text: 'Claims a pending task. ([t](src/x.test.ts#L1))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+      }),
     ];
-    const { container } = render(
-      <SpecDetails
-        content={'## Section\n\nIt claims a pending task.\n'}
-        tests={[testLink({ statement_ordinal: 1 })]}
-        statements={statements}
-      />
-    );
-    const mark = container.querySelector('mark[data-ordinal="1"]');
+    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const mark = container.querySelector('mark[data-state="tested"]');
     expect(mark).not.toBeNull();
     expect(mark?.className).toContain('stmt-tested');
   });
 
-  it('paints an untestable statement narrative regardless of links', () => {
+  it('wraps an unlinked testable statement with stmt-untested (red)', () => {
+    const md = '## Acceptance Criteria\n\n- Re-queues a stale task.\n';
     const statements = [
-      stmt({ ordinal: 5, text: 'Background paragraph here.', testability: 'untestable', category: 'background' }),
+      stmt({
+        ordinal: 0,
+        text: 'Re-queues a stale task.',
+        kind: 'list-item',
+        state: 'untested',
+      }),
     ];
-    const { container } = render(
-      <SpecDetails
-        content={'## Background\n\nBackground paragraph here.\n'}
-        tests={[]}
-        statements={statements}
-      />
-    );
-    const mark = container.querySelector('mark[data-ordinal="5"]');
-    expect(mark?.className).toContain('stmt-narrative');
-  });
-
-  it('paints testable-without-link statements with the untested state', () => {
-    const statements = [
-      stmt({ ordinal: 2, text: 'Re-queues a stale task after thirty minutes.', testability: 'testable' }),
-    ];
-    const { container } = render(
-      <SpecDetails
-        content={'## A\n\nRe-queues a stale task after thirty minutes.\n'}
-        tests={[]}
-        statements={statements}
-      />
-    );
-    const mark = container.querySelector('mark[data-ordinal="2"]');
+    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const mark = container.querySelector('mark[data-state="untested"]');
     expect(mark?.className).toContain('stmt-untested');
   });
 
-  it('falls back gracefully when a statement spans inline formatting (no mark, no throw)', () => {
+  it('wraps a narrative-section statement with stmt-narrative (grey)', () => {
+    const md = '## Limitations\n\n- Cannot be enforced.\n';
     const statements = [
-      stmt({ ordinal: 1, text: 'It claims a pending task before GKE.', testability: 'testable' }),
+      stmt({
+        ordinal: 0,
+        text: 'Cannot be enforced.',
+        kind: 'list-item',
+        state: 'narrative',
+        category: 'limitation',
+      }),
     ];
-    const { container } = render(
-      <SpecDetails
-        content={'## A\n\nIt claims a **pending** task before GKE.\n'}
-        tests={[]}
-        statements={statements}
-      />
-    );
-    expect(container.querySelector('mark[data-ordinal="1"]')).toBeNull();
+    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    expect(container.querySelector('mark[data-state="narrative"]')).not.toBeNull();
   });
 
-  it('flags list-only links (statement that did not anchor inline)', () => {
+  it('does NOT decorate regular non-test links the author writes outside test parens', () => {
+    const md = '## A\n\nPer [ADR-015](adrs/ADR-015.md). ([t](src/x.test.ts#L1))\n';
     const statements = [
-      stmt({ ordinal: 1, text: 'It claims a pending task before **GKE**.', testability: 'testable' }),
+      stmt({
+        ordinal: 0,
+        text: 'Per [ADR-015](adrs/ADR-015.md). ([t](src/x.test.ts#L1))',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+      }),
     ];
-    render(
-      <SpecDetails
-        content={'## A\n\nIt claims a pending task before **GKE**.\n'}
-        tests={[testLink({ statement_ordinal: 1 })]}
-        statements={statements}
-      />
-    );
-    expect(screen.getByText('· list-only')).toBeInTheDocument();
+    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const adrLink = container.querySelector('a[href="adrs/ADR-015.md"]');
+    expect(adrLink?.className ?? '').not.toContain('stmt-test-link');
+    const testLink = container.querySelector('a[href="src/x.test.ts#L1"]');
+    expect(testLink).not.toBeNull();
   });
 
-  it('flags legacy whole-spec links (statement_ordinal=null) as legacy', () => {
-    render(
-      <SpecDetails
-        content={'## A\n\nx.\n'}
-        tests={[testLink({ statement_ordinal: null, match_score: null })]}
-        statements={[]}
-      />
-    );
-    expect(screen.getByText('· legacy')).toBeInTheDocument();
+  it('does NOT render the legacy tests[] list, the legacy TestLink prop, or list-only/legacy badges', () => {
+    const md = '## A\n\n- Plain.\n';
+    const statements = [stmt({ ordinal: 0, text: 'Plain.', state: 'untested' })];
+    render(<SpecDetails content={md} statements={statements} />);
+    expect(screen.queryByText(/Tests validating this spec/)).toBeNull();
+    expect(screen.queryByText(/list-only/)).toBeNull();
+    expect(screen.queryByText(/legacy/)).toBeNull();
+  });
+
+  it('falls back gracefully when a statement spans inline formatting (no wrap, no throw)', () => {
+    const md = '## A\n\n- It claims a **pending** task. ([t](src/x.test.ts#L1))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'It claims a pending task. ([t](src/x.test.ts#L1))',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+      }),
+    ];
+    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    // The exact-text match won't find the inline-formatting-mixed statement,
+    // but the rehype walker must not throw.
+    expect(container.querySelector('mark[data-state="tested"]')).toBeNull();
+    // The plain test link in the markdown still renders as an anchor.
+    expect(container.querySelector('a[href="src/x.test.ts#L1"]')).not.toBeNull();
   });
 });
