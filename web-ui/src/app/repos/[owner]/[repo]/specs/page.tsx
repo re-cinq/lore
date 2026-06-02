@@ -41,6 +41,15 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
     [fullName]
   );
 
+  const runRows = await queryAllowMissing<{ spec_path: string; run_at: string; linked_by: string | null }>(
+    `SELECT spec_path, run_at, linked_by
+     FROM ${schema}.spec_coverage_runs
+     WHERE repo = $1`,
+    [fullName]
+  );
+  const runByPath = new Map<string, { run_at: string; linked_by: string | null }>();
+  for (const row of runRows) runByPath.set(row.spec_path, { run_at: row.run_at, linked_by: row.linked_by });
+
   const linkRows = await queryAllowMissing<{ spec_path: string; statement_ordinal: number | null }>(
     `SELECT spec_path, statement_ordinal
      FROM ${schema}.spec_test_links
@@ -92,12 +101,15 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
       const covered = statements.filter(
         (s) => s.testability === 'testable' && coveredOrdinals.has(s.ordinal)
       ).length;
+      const run = runByPath.get(spec_path) ?? null;
       return {
         spec_path,
         title: parseSpecTitle(content, spec_path),
         summary: extractSummary(content),
         coverage: { testable, covered, untestable },
         test_count: linkCountByPath.get(spec_path) ?? 0,
+        last_linked_at: run?.run_at ?? null,
+        last_linked_by: run?.linked_by ?? null,
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title));
