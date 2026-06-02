@@ -723,6 +723,7 @@ pre {
 .tab-link:hover {
   color: var(--text);
   border-bottom-color: var(--border-hover);
+  text-decoration: none;
 }
 .tab-link.active {
   color: var(--accent);

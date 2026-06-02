@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { getRepoMeta } from '@/lib/github';
+import TabNav from './TabNav';
 
 export default async function RepoLayout({
   children,
@@ -26,11 +26,7 @@ export default async function RepoLayout({
       {meta?.description && (
         <p className="meta" style={{marginTop:0, marginBottom:'12px'}}>{meta.description}</p>
       )}
-      <nav className="tab-nav">
-        {tabs.map(t => (
-          <Link key={t.href} href={t.href} className="tab-link">{t.label}</Link>
-        ))}
-      </nav>
+      <TabNav tabs={tabs} base={base} />
       <div style={{marginTop:'16px'}}>
         {children}
       </div>
