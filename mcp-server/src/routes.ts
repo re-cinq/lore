@@ -22,6 +22,7 @@ import { onboardRepo } from "./repo-onboard.js";
 import { ingestFiles } from "./ingest.js";
 import { prepareSpecCoverage } from "./spec-coverage-prepare.js";
 import { persistSpecCoverage, type PersistRequest } from "./spec-coverage-persist.js";
+import { listStaleSpecCoverage } from "./spec-coverage-stale.js";
 import { resolveAgentId } from "./agent-id.js";
 import { getGitHubToken, getOctokit } from "./github-client.js";
 import {
@@ -1307,6 +1308,11 @@ export async function handleApiRoute(
   ) {
     await handleTaskByPr(req, res, pool);
   } else if (
+    /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage\/stale(\?|$)/.test(url) &&
+    method === "GET"
+  ) {
+    await handleSpecCoverageStale(req, res, pool);
+  } else if (
     /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage\/prepare(\?|$)/.test(url) &&
     method === "POST"
   ) {
@@ -1751,11 +1757,38 @@ function specSourceUrl(repo: string, filePath: string, line: number | null): str
   return line ? `${base}#L${line}` : base;
 }
 
+const SPEC_COVERAGE_STALE_RE =
+  /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage\/stale/;
+
 const SPEC_COVERAGE_PREPARE_RE =
   /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage\/prepare/;
 
 const SPEC_COVERAGE_PERSIST_RE =
   /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage\/persist/;
+
+async function handleSpecCoverageStale(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: Pool | null,
+): Promise<void> {
+  if (!pool) {
+    json(res, 503, { error: "database unavailable" });
+    return;
+  }
+  const m = (req.url || "").match(SPEC_COVERAGE_STALE_RE);
+  if (!m) {
+    json(res, 404, { error: "not found" });
+    return;
+  }
+  const repo = `${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
+  try {
+    const stale = await listStaleSpecCoverage(pool, repo);
+    json(res, 200, stale);
+  } catch (err) {
+    console.error("[spec-coverage/stale] error:", err);
+    json(res, 500, { error: (err as Error).message });
+  }
+}
 
 async function handleSpecCoveragePersist(
   req: IncomingMessage,
