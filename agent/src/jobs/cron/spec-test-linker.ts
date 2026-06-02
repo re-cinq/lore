@@ -712,12 +712,20 @@ interface CodeRow {
  * code in ACTIVITY_WINDOW_DAYS can't have new coverage, so scanning is pure
  * LLM waste.
  */
-export async function specTestLinkerJob(): Promise<string> {
+export interface SpecTestLinkerOptions {
+  /** When set, only specs whose `repo` column matches this `owner/name` are
+   * processed. Used by the post-ingest trigger so we don't sweep every team
+   * schema on every push. The content-hash gate still skips unchanged specs. */
+  repoFilter?: string;
+}
+
+export async function specTestLinkerJob(opts: SpecTestLinkerOptions = {}): Promise<string> {
   const schemas = await getLinkSchemas();
   if (schemas.length === 0) {
     console.log("[job] spec-test-linker: no spec_test_links tables found (run migrations)");
     return "No spec_test_links tables found";
   }
+  const { repoFilter } = opts;
 
   let totalSpecs = 0;
   let totalSkipped = 0;
@@ -727,21 +735,34 @@ export async function specTestLinkerJob(): Promise<string> {
   let truncatedSpecs = 0;
 
   for (const schema of schemas) {
-    const specs = await query<SpecRow>(
-      `SELECT repo, file_path, content, ingested_at, embedding
-       FROM ${schema}.chunks
-       WHERE content_type = 'spec'
-       ORDER BY repo, file_path, ingested_at`,
-    );
+    const specs = repoFilter
+      ? await query<SpecRow>(
+          `SELECT repo, file_path, content, ingested_at, embedding
+           FROM ${schema}.chunks
+           WHERE content_type = 'spec' AND repo = $1
+           ORDER BY file_path, ingested_at`,
+          [repoFilter],
+        )
+      : await query<SpecRow>(
+          `SELECT repo, file_path, content, ingested_at, embedding
+           FROM ${schema}.chunks
+           WHERE content_type = 'spec'
+           ORDER BY repo, file_path, ingested_at`,
+        );
     if (specs.length === 0) continue;
 
-    const activeRepoRows = await query<{ repo: string }>(
-      `SELECT DISTINCT repo FROM ${schema}.chunks
-       WHERE content_type = 'code'
-         AND ingested_at > now() - ($1 || ' days')::interval`,
-      [String(ACTIVITY_WINDOW_DAYS)],
-    );
-    const activeRepos = new Set(activeRepoRows.map((row) => row.repo));
+    // The 7-day activity window is a sweep optimisation; a triggered run
+    // for a known-just-ingested repo (`repoFilter`) bypasses it.
+    let activeRepos: Set<string> | null = null;
+    if (!repoFilter) {
+      const activeRepoRows = await query<{ repo: string }>(
+        `SELECT DISTINCT repo FROM ${schema}.chunks
+         WHERE content_type = 'code'
+           AND ingested_at > now() - ($1 || ' days')::interval`,
+        [String(ACTIVITY_WINDOW_DAYS)],
+      );
+      activeRepos = new Set(activeRepoRows.map((row) => row.repo));
+    }
 
     const codeCache = new Map<string, TestChunk[]>();
     const specsByPath = new Map<string, SpecRow[]>();
@@ -754,7 +775,8 @@ export async function specTestLinkerJob(): Promise<string> {
 
     for (const [key, chunks] of specsByPath) {
       const head = chunks[0];
-      if (!activeRepos.has(head.repo) || !isAssertionSource(head.file_path)) continue;
+      if (activeRepos && !activeRepos.has(head.repo)) continue;
+      if (!isAssertionSource(head.file_path)) continue;
 
       try {
         const fullContent = reassembleSpec(chunks);

@@ -98,7 +98,7 @@ gcloud auth for local dev.
 - `agent/src/jobs/loretask-watcher.ts` — polls LoreTasks, creates PRs, triggers auto-review
 - `agent/src/jobs/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
 - `agent/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons
-- `agent/src/health.ts` — exposes `POST /api/trigger/review-reactor` for mcp-server fan-out
+- `agent/src/health.ts` — exposes `POST /api/trigger/review-reactor`, `POST /api/trigger/auto-merge`, and `POST /api/trigger/spec-test-linker` for mcp-server fan-out. Last one is fire-and-forget post-ingest; the linker's content-hash gate elides work for unchanged specs.
 - `mcp-server/src/context-assembly.ts` — context assembly with YAML templates
 - `mcp-server/templates/` — YAML context assembly templates (default, review, implementation, research)
 - `mcp-server/src/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)
