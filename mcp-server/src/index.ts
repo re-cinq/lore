@@ -653,6 +653,45 @@ server.tool(
   }
 );
 
+// --- Job-run logs tool ---
+
+server.tool(
+  "get_job_logs",
+  "Fetch full stdout/stderr of a scheduled batch-job run (K8s CronJob pod). The log_path is recorded in pipeline.job_runs by the agent's job-runner.",
+  {
+    job_name: z.string().describe("Job name (e.g. context_reindex, spec_test_linker)."),
+    run_id: z.string().describe("UUID of the run, from pipeline.job_runs.id."),
+  },
+  async ({ job_name, run_id }) => {
+    try {
+      // Local-stdio mode → proxy to API
+      if (!process.env.LORE_DB_HOST) {
+        const apiUrl = process.env.LORE_API_URL;
+        const apiToken = process.env.LORE_INGEST_TOKEN;
+        if (apiUrl && apiToken) {
+          const params = new URLSearchParams({ job_name, run_id });
+          const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, {
+            headers: { "Authorization": `Bearer ${apiToken}` },
+          });
+          if (res.ok) return { content: [{ type: "text" as const, text: JSON.stringify(await res.json()) }] };
+        }
+        return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
+      }
+
+      // Direct GCS read (GKE mode)
+      const { Storage } = await import("@google-cloud/storage");
+      const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
+      const file = bucket.file(`__job_runs__/${job_name}/${run_id}/output.log`);
+      const [exists] = await file.exists();
+      if (!exists) return { content: [{ type: "text" as const, text: JSON.stringify({ logs: "", complete: true }) }] };
+      const [content] = await file.download();
+      return { content: [{ type: "text" as const, text: JSON.stringify({ logs: content.toString("utf-8"), complete: true }) }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+    }
+  }
+);
+
 // --- Developer cost visibility tool ---
 
 server.tool(

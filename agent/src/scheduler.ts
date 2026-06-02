@@ -1,5 +1,6 @@
 import cronParser from "cron-parser";
 import { query } from "./db.js";
+import { startJobRun, completeJobRun, failJobRun } from "./lib/job-run.js";
 
 export interface JobDef {
   name: string;
@@ -55,30 +56,15 @@ async function runJob(job: JobDef): Promise<void> {
   const start = Date.now();
   let status = "completed";
 
-  const rows = await query<{ id: string }>(
-    `INSERT INTO pipeline.job_runs (job_name, status)
-     VALUES ($1, 'running') RETURNING id`,
-    [job.name],
-  );
-  const runId = rows[0].id;
+  const runId = await startJobRun(job.name);
 
   try {
     const result = await job.handler();
-    await query(
-      `UPDATE pipeline.job_runs
-       SET completed_at = now(), status = 'completed', result_summary = $1
-       WHERE id = $2`,
-      [result, runId],
-    );
+    await completeJobRun(runId, result);
   } catch (err) {
     status = "failed";
     const message = err instanceof Error ? err.message : String(err);
-    await query(
-      `UPDATE pipeline.job_runs
-       SET completed_at = now(), status = 'failed', error = $1
-       WHERE id = $2`,
-      [message, runId],
-    );
+    await failJobRun(runId, message);
   } finally {
     running.delete(job.name);
     const durationMs = Date.now() - start;
