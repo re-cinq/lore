@@ -41,14 +41,37 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
     [fullName]
   );
 
-  const linkCounts = await queryAllowMissing<{ spec_path: string; count: string }>(
-    `SELECT spec_path, count(*)::int AS count
+  const linkRows = await queryAllowMissing<{ spec_path: string; statement_ordinal: number | null }>(
+    `SELECT spec_path, statement_ordinal
      FROM ${schema}.spec_test_links
-     WHERE repo = $1
-     GROUP BY spec_path`,
+     WHERE repo = $1`,
     [fullName]
   );
-  const countByPath = new Map(linkCounts.map((r) => [r.spec_path, Number(r.count)]));
+  const linksByPath = new Map<string, (number | null)[]>();
+  const linkCountByPath = new Map<string, number>();
+  for (const row of linkRows) {
+    const list = linksByPath.get(row.spec_path) ?? [];
+    list.push(row.statement_ordinal);
+    linksByPath.set(row.spec_path, list);
+    linkCountByPath.set(row.spec_path, (linkCountByPath.get(row.spec_path) ?? 0) + 1);
+  }
+
+  const statementRows = await queryAllowMissing<{
+    spec_path: string;
+    ordinal: number;
+    testability: string;
+  }>(
+    `SELECT spec_path, ordinal, testability
+     FROM ${schema}.spec_statements
+     WHERE repo = $1`,
+    [fullName]
+  );
+  const statementsByPath = new Map<string, { ordinal: number; testability: string }[]>();
+  for (const row of statementRows) {
+    const list = statementsByPath.get(row.spec_path) ?? [];
+    list.push({ ordinal: row.ordinal, testability: row.testability });
+    statementsByPath.set(row.spec_path, list);
+  }
 
   const chunksByPath = new Map<string, { content: string; ingested_at: string }[]>();
   for (const chunk of specChunks) {
@@ -60,11 +83,21 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
   const specs: SpecCardData[] = [...chunksByPath.entries()]
     .map(([spec_path, chunks]) => {
       const content = reassembleSpec(chunks);
+      const statements = statementsByPath.get(spec_path) ?? [];
+      const coveredOrdinals = new Set(
+        (linksByPath.get(spec_path) ?? []).filter((o): o is number => o !== null)
+      );
+      const testable = statements.filter((s) => s.testability === 'testable').length;
+      const untestable = statements.filter((s) => s.testability === 'untestable').length;
+      const covered = statements.filter(
+        (s) => s.testability === 'testable' && coveredOrdinals.has(s.ordinal)
+      ).length;
       return {
         spec_path,
         title: parseSpecTitle(content, spec_path),
         summary: extractSummary(content),
-        test_count: countByPath.get(spec_path) ?? 0,
+        coverage: { testable, covered, untestable },
+        test_count: linkCountByPath.get(spec_path) ?? 0,
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title));

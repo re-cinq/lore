@@ -1591,6 +1591,86 @@ interface LinkRow {
   symbol: string | null;
   match_kind: string;
   rationale: string;
+  statement_ordinal: number | null;
+  statement_text: string | null;
+  match_score: number | null;
+}
+
+interface StatementRow {
+  spec_path: string;
+  ordinal: number;
+  text: string;
+  kind: string;
+  testability: string;
+  category: string | null;
+}
+
+export interface SpecCoverageEntry {
+  spec_path: string;
+  title: string;
+  summary: string;
+  coverage: { testable: number; covered: number; untestable: number };
+  test_count: number;
+  statements: { ordinal: number; text: string; kind: string; testability: string; category: string | null }[];
+  tests: {
+    name: string;
+    file_path: string;
+    line: number | null;
+    symbol: string | null;
+    match_kind: string;
+    rationale: string;
+    statement_ordinal: number | null;
+    match_score: number | null;
+    url: string;
+  }[];
+}
+
+/**
+ * Compose the per-spec coverage payload. Pure so the math (covered = testable
+ * ordinals linked at least once; widths over testable + untestable) can be
+ * exercised without the route handler / pool.
+ */
+export function composeSpecCoverage(
+  repo: string,
+  specPath: string,
+  chunks: SpecChunkRow[],
+  statements: StatementRow[],
+  links: LinkRow[],
+): SpecCoverageEntry {
+  const content = reassembleSpec(chunks);
+  const coveredOrdinals = new Set(
+    links.map((l) => l.statement_ordinal).filter((o): o is number => o !== null),
+  );
+  const testable = statements.filter((s) => s.testability === "testable").length;
+  const untestable = statements.filter((s) => s.testability === "untestable").length;
+  const covered = statements.filter(
+    (s) => s.testability === "testable" && coveredOrdinals.has(s.ordinal),
+  ).length;
+  return {
+    spec_path: specPath,
+    title: parseSpecTitle(content, specPath),
+    summary: extractSummary(content),
+    coverage: { testable, covered, untestable },
+    test_count: links.length,
+    statements: statements.map((s) => ({
+      ordinal: s.ordinal,
+      text: s.text,
+      kind: s.kind,
+      testability: s.testability,
+      category: s.category,
+    })),
+    tests: links.map((link) => ({
+      name: link.test_name,
+      file_path: link.test_file,
+      line: link.test_line,
+      symbol: link.symbol,
+      match_kind: link.match_kind,
+      rationale: link.rationale,
+      statement_ordinal: link.statement_ordinal,
+      match_score: link.match_score,
+      url: specSourceUrl(repo, link.test_file, link.test_line),
+    })),
+  };
 }
 
 /** Resolve a repo to its chunk schema (team schema if present, else org_shared). */
@@ -1638,13 +1718,14 @@ async function handleSpecCoverage(
        WHERE content_type = 'spec' AND repo = $1`,
       [repo],
     );
-    // spec_test_links is added by a deploy-time migration; before it runs (or
-    // during the deploy hook window) treat it as no coverage rather than 500.
+    // spec_test_links + spec_statements are added by deploy-time migrations;
+    // before they run treat as no coverage rather than 500.
     let linkRows: LinkRow[] = [];
     try {
       linkRows = (
         await pool.query<LinkRow>(
-          `SELECT spec_path, test_file, test_name, test_line, symbol, match_kind, rationale
+          `SELECT spec_path, test_file, test_name, test_line, symbol, match_kind, rationale,
+                  statement_ordinal, statement_text, match_score
            FROM ${schema}.spec_test_links
            WHERE repo = $1
            ORDER BY spec_path, test_file, test_line NULLS LAST`,
@@ -1654,6 +1735,22 @@ async function handleSpecCoverage(
     } catch (err) {
       if ((err as { code?: string }).code !== "42P01") throw err;
       console.warn(`[spec-coverage] ${schema}.spec_test_links missing — returning specs with zero coverage`);
+    }
+
+    let statementRows: StatementRow[] = [];
+    try {
+      statementRows = (
+        await pool.query<StatementRow>(
+          `SELECT spec_path, ordinal, text, kind, testability, category
+           FROM ${schema}.spec_statements
+           WHERE repo = $1
+           ORDER BY spec_path, ordinal`,
+          [repo],
+        )
+      ).rows;
+    } catch (err) {
+      if ((err as { code?: string }).code !== "42P01") throw err;
+      console.warn(`[spec-coverage] ${schema}.spec_statements missing — returning empty statements`);
     }
 
     const chunksByPath = new Map<string, SpecChunkRow[]>();
@@ -1668,27 +1765,23 @@ async function handleSpecCoverage(
       list.push(row);
       linksByPath.set(row.spec_path, list);
     }
+    const statementsByPath = new Map<string, StatementRow[]>();
+    for (const row of statementRows) {
+      const list = statementsByPath.get(row.spec_path) ?? [];
+      list.push(row);
+      statementsByPath.set(row.spec_path, list);
+    }
 
     const payload = [...chunksByPath.entries()]
-      .map(([specPath, chunks]) => {
-        const content = reassembleSpec(chunks);
-        const links = linksByPath.get(specPath) ?? [];
-        return {
-          spec_path: specPath,
-          title: parseSpecTitle(content, specPath),
-          summary: extractSummary(content),
-          test_count: links.length,
-          tests: links.map((link) => ({
-            name: link.test_name,
-            file_path: link.test_file,
-            line: link.test_line,
-            symbol: link.symbol,
-            match_kind: link.match_kind,
-            rationale: link.rationale,
-            url: specSourceUrl(repo, link.test_file, link.test_line),
-          })),
-        };
-      })
+      .map(([specPath, chunks]) =>
+        composeSpecCoverage(
+          repo,
+          specPath,
+          chunks,
+          statementsByPath.get(specPath) ?? [],
+          linksByPath.get(specPath) ?? [],
+        ),
+      )
       .sort((a, b) => a.title.localeCompare(b.title));
 
     json(res, 200, payload);
