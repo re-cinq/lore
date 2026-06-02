@@ -19,7 +19,8 @@ import {
 } from "./jobs/cron/memory-lifecycle.js";
 import { reindexJob } from "./jobs/cron/reindex.js";
 import { specDriftJob } from "./jobs/cron/spec-drift.js";
-import { specTestLinkerJob } from "./jobs/cron/spec-test-linker.js";
+import { specCoverageBackfillJob } from "./jobs/cron/spec-coverage-backfill.js";
+import { validateSpecCoverageJob } from "./jobs/scheduled/spec-coverage-validate.js";
 import { ttlCleanupJob } from "./jobs/cron/ttl-cleanup.js";
 import {
   startJobRun,
@@ -39,7 +40,8 @@ export const dispatch: Record<string, JobHandler> = {
   autoresearch: autoresearchJob,
   gap_detection: gapDetectJob,
   spec_drift: specDriftJob,
-  spec_test_linker: specTestLinkerJob,
+  spec_coverage_backfill: specCoverageBackfillJob,
+  spec_coverage_validate: () => validateSpecCoverageJob(),
   memory_ttl: ttlCleanupJob,
 };
 
