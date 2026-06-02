@@ -1,6 +1,6 @@
-import { query } from "../db.js";
-import { platform } from "../platform.js";
-import { writeEpisodeWithCuration } from "../lib/episode-writer.js";
+import { query } from "../../db.js";
+import { platform } from "../../platform.js";
+import { writeEpisodeWithCuration } from "../../lib/episode-writer.js";
 import { parseTasks, inferPhaseDependencies } from "@re-cinq/lore-shared";
 
 /**

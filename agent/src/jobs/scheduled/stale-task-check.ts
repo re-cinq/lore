@@ -18,8 +18,8 @@
  *     tick even when no real progress is happening.
  */
 
-import { query } from "../db.js";
-import { platform } from "../platform.js";
+import { query } from "../../db.js";
+import { platform } from "../../platform.js";
 
 const STALE_THRESHOLD_HOURS = 6;
 

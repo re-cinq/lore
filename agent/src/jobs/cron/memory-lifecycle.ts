@@ -13,8 +13,8 @@
  *   Inspired by ByteRover's ACE Curator phase.
  */
 
-import { query } from "../db.js";
-import { callLLM } from "../anthropic.js";
+import { query } from "../../db.js";
+import { callLLM } from "../../anthropic.js";
 
 // ── Config ──────────────────────────────────────────────────────────
 

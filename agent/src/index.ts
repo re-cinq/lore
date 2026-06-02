@@ -7,21 +7,21 @@ import { registerJob, startScheduler, getJobStatus } from "./scheduler.js";
 import { startHealthServer } from "./health.js";
 
 import { loadApprovalConfig } from "./approval.js";
-import { approvalCheckJob } from "./jobs/approval-check.js";
-import { mergeCheckJob } from "./jobs/merge-check.js";
-import { ttlCleanupJob } from "./jobs/ttl-cleanup.js";
-import { reindexJob } from "./jobs/reindex.js";
-import { gapDetectJob } from "./jobs/gap-detect.js";
-import { specDriftJob } from "./jobs/spec-drift.js";
-import { specTestLinkerJob } from "./jobs/spec-test-linker.js";
-import { reviewReactorJob } from "./jobs/review-reactor.js";
-import { evalRunnerJob } from "./jobs/eval-runner.js";
-import { autoresearchJob } from "./jobs/autoresearch.js";
-import { contextCoreBuilderJob } from "./jobs/context-core-builder.js";
-import { loretaskWatcherJob } from "./jobs/loretask-watcher.js";
-import { specTaskExecutorJob } from "./jobs/spec-task-executor.js";
-import { importanceDecayJob, consolidationJob } from "./jobs/memory-lifecycle.js";
-import { staleTaskCheckJob } from "./jobs/stale-task-check.js";
+import { approvalCheckJob } from "./jobs/scheduled/approval-check.js";
+import { mergeCheckJob } from "./jobs/scheduled/merge-check.js";
+import { ttlCleanupJob } from "./jobs/cron/ttl-cleanup.js";
+import { reindexJob } from "./jobs/cron/reindex.js";
+import { gapDetectJob } from "./jobs/cron/gap-detect.js";
+import { specDriftJob } from "./jobs/cron/spec-drift.js";
+import { specTestLinkerJob } from "./jobs/cron/spec-test-linker.js";
+import { reviewReactorJob } from "./jobs/scheduled/review-reactor.js";
+import { evalRunnerJob } from "./jobs/cron/eval-runner.js";
+import { autoresearchJob } from "./jobs/cron/autoresearch.js";
+import { contextCoreBuilderJob } from "./jobs/cron/context-core-builder.js";
+import { loretaskWatcherJob } from "./jobs/scheduled/loretask-watcher.js";
+import { specTaskExecutorJob } from "./jobs/scheduled/spec-task-executor.js";
+import { importanceDecayJob, consolidationJob } from "./jobs/cron/memory-lifecycle.js";
+import { staleTaskCheckJob } from "./jobs/scheduled/stale-task-check.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");

@@ -10,8 +10,8 @@
  */
 
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
-import { query } from "../db.js";
-import { buildPrompt, getTaskTypeConfig } from "../config.js";
+import { query } from "../../db.js";
+import { buildPrompt, getTaskTypeConfig } from "../../config.js";
 
 const GROUP = "lore.re-cinq.com";
 const VERSION = "v1alpha1";
