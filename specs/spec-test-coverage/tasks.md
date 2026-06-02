@@ -88,4 +88,4 @@
 ## Phase 14 — Verify (v2)
 
 - [x] T046 Typecheck + test suites green across all packages — shared 116, agent 400, mcp-server 204, web-ui 139 (859 tests total)
-- [ ] T019 Manual UI walkthrough — `npm start`, browse `/repos/{owner}/{repo}/specs`, verify `CoverageBar` on cards, hover green statement → tests + rationale, hover grey → category, red statement visibly a gap, non-colour cue visible, Add Spec form still works
+- [ ] T019 Manual UI walkthrough — needs a logged-in human. **Smoke-tested non-interactively:** (a) `npx next build` compiles every route including `/repos/[owner]/[repo]/specs` (860 B) and `/repos/[owner]/[repo]/specs/[...path]` (2.76 kB w/ rehype client bundle); (b) migrations 0004/0005/0006 applied cleanly to a real local Postgres against a pre-existing team schema; (c) seed inserts of `chunks` + `spec_statements` + `spec_test_links` rows persisted under the v2 schema's constraints + indexes (CONFLICT-on-upsert path verified). The hover popover UX still needs eyes-on browser verification once a signed-in user (`/api/auth/signin`) can hit `/repos/{owner}/{repo}/specs`.
