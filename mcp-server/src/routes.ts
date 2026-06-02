@@ -1686,6 +1686,13 @@ export interface SpecCoverageEntry {
     match_score: number | null;
     url: string;
   }[];
+  last_linked_at: string | null;
+  last_linked_by: string | null;
+}
+
+export interface CoverageRunSummary {
+  run_at: string | Date;
+  linked_by: string | null;
 }
 
 /**
@@ -1699,6 +1706,7 @@ export function composeSpecCoverage(
   chunks: SpecChunkRow[],
   statements: StatementRow[],
   links: LinkRow[],
+  coverageRun?: CoverageRunSummary | null,
 ): SpecCoverageEntry {
   const content = reassembleSpec(chunks);
   const coveredOrdinals = new Set(
@@ -1733,6 +1741,12 @@ export function composeSpecCoverage(
       match_score: link.match_score,
       url: specSourceUrl(repo, link.test_file, link.test_line),
     })),
+    last_linked_at: coverageRun
+      ? (typeof coverageRun.run_at === "string"
+          ? coverageRun.run_at
+          : coverageRun.run_at.toISOString())
+      : null,
+    last_linked_by: coverageRun?.linked_by ?? null,
   };
 }
 
@@ -1922,6 +1936,23 @@ async function handleSpecCoverage(
       console.warn(`[spec-coverage] ${schema}.spec_statements missing — returning empty statements`);
     }
 
+    let runRows: Array<{ spec_path: string; run_at: string | Date; linked_by: string | null }> = [];
+    try {
+      runRows = (
+        await pool.query<{ spec_path: string; run_at: string | Date; linked_by: string | null }>(
+          `SELECT spec_path, run_at, linked_by
+           FROM ${schema}.spec_coverage_runs
+           WHERE repo = $1`,
+          [repo],
+        )
+      ).rows;
+    } catch (err) {
+      if ((err as { code?: string }).code !== "42P01") throw err;
+      console.warn(`[spec-coverage] ${schema}.spec_coverage_runs missing — no attribution`);
+    }
+    const runByPath = new Map<string, CoverageRunSummary>();
+    for (const r of runRows) runByPath.set(r.spec_path, { run_at: r.run_at, linked_by: r.linked_by });
+
     const chunksByPath = new Map<string, SpecChunkRow[]>();
     for (const row of specRows) {
       const list = chunksByPath.get(row.file_path) ?? [];
@@ -1949,6 +1980,7 @@ async function handleSpecCoverage(
           chunks,
           statementsByPath.get(specPath) ?? [],
           linksByPath.get(specPath) ?? [],
+          runByPath.get(specPath) ?? null,
         ),
       )
       .sort((a, b) => a.title.localeCompare(b.title));

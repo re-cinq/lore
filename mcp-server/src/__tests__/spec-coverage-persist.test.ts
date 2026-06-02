@@ -222,10 +222,11 @@ describe("persistSpecCoverage", () => {
       agent_id: "abc123",
     });
     expect(result.status).toBe(200);
-    const runWrites = state.calls.filter((q) => q.text.includes("spec_coverage_runs"));
+    const runWrites = state.calls.filter(
+      (q) => q.text.includes("INSERT INTO") && q.text.includes("spec_coverage_runs"),
+    );
     expect(runWrites.length).toBeGreaterThan(0);
-    const lastWrite = runWrites[runWrites.length - 1];
-    expect(lastWrite.params).toContain("local:abc123");
+    expect(runWrites[runWrites.length - 1].params).toContain("local:abc123");
   });
 
   it("defaults linked_by to 'local:unknown' when agent_id is absent", async () => {
@@ -241,9 +242,11 @@ describe("persistSpecCoverage", () => {
       judgments: [],
     });
     expect(result.status).toBe(200);
-    const runWrites = state.calls.filter((q) => q.text.includes("spec_coverage_runs"));
-    const lastWrite = runWrites[runWrites.length - 1];
-    expect(lastWrite.params).toContain("local:unknown");
+    const runWrites = state.calls.filter(
+      (q) => q.text.includes("INSERT INTO") && q.text.includes("spec_coverage_runs"),
+    );
+    expect(runWrites.length).toBeGreaterThan(0);
+    expect(runWrites[runWrites.length - 1].params).toContain("local:unknown");
   });
 
   it("writes spec_statements rows for each statement and prunes stale ordinals", async () => {

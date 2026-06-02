@@ -41,7 +41,7 @@ import {
   type MatchKind,
 } from "@re-cinq/lore-shared";
 import { resolvePrepareSchema } from "./spec-coverage-prepare.js";
-import { composeSpecCoverage, type SpecCoverageEntry } from "./routes.js";
+import { composeSpecCoverage, type SpecCoverageEntry, type CoverageRunSummary } from "./routes.js";
 
 export interface PersistClassification {
   ordinal: number;
@@ -352,5 +352,11 @@ async function refetchCoverageEntry(
      WHERE repo = $1 AND spec_path = $2`,
     [repo, specPath],
   );
-  return composeSpecCoverage(repo, specPath, chunkRows, statementRows, linkRows);
+  const { rows: runRows } = await pool.query<{ run_at: string | Date; linked_by: string | null }>(
+    `SELECT run_at, linked_by FROM ${schema}.spec_coverage_runs
+     WHERE repo = $1 AND spec_path = $2`,
+    [repo, specPath],
+  );
+  const run: CoverageRunSummary | null = runRows[0] ?? null;
+  return composeSpecCoverage(repo, specPath, chunkRows, statementRows, linkRows, run);
 }
