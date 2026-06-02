@@ -20,6 +20,7 @@ import { syncTasksToDb } from "./tasks.js";
 import { getTaskTypes } from "./pipeline-config.js";
 import { onboardRepo } from "./repo-onboard.js";
 import { ingestFiles } from "./ingest.js";
+import { prepareSpecCoverage } from "./spec-coverage-prepare.js";
 import { resolveAgentId } from "./agent-id.js";
 import { getGitHubToken, getOctokit } from "./github-client.js";
 import {
@@ -1299,6 +1300,11 @@ export async function handleApiRoute(
   ) {
     await handleTaskByPr(req, res, pool);
   } else if (
+    /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage\/prepare(\?|$)/.test(url) &&
+    method === "POST"
+  ) {
+    await handleSpecCoveragePrepare(req, res, pool);
+  } else if (
     /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage(\?|$)/.test(url) &&
     method === "GET"
   ) {
@@ -1731,6 +1737,44 @@ async function resolveCoverageSchema(pool: Pool, repo: string): Promise<string> 
 function specSourceUrl(repo: string, filePath: string, line: number | null): string {
   const base = `https://github.com/${repo}/blob/HEAD/${filePath}`;
   return line ? `${base}#L${line}` : base;
+}
+
+const SPEC_COVERAGE_PREPARE_RE =
+  /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage\/prepare/;
+
+async function handleSpecCoveragePrepare(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: Pool | null,
+): Promise<void> {
+  if (!pool) {
+    json(res, 503, { error: "database unavailable" });
+    return;
+  }
+  const m = (req.url || "").match(SPEC_COVERAGE_PREPARE_RE);
+  if (!m) {
+    json(res, 404, { error: "not found" });
+    return;
+  }
+  const repo = `${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
+
+  try {
+    const body = await readBody(req);
+    const { spec_path } = JSON.parse(body || "{}") as { spec_path?: string };
+    if (!spec_path || typeof spec_path !== "string") {
+      json(res, 400, { error: "required: spec_path (string)" });
+      return;
+    }
+    const payload = await prepareSpecCoverage(pool, repo, spec_path);
+    if (!payload) {
+      json(res, 404, { error: "no spec chunks at this path", spec_path });
+      return;
+    }
+    json(res, 200, payload);
+  } catch (err) {
+    console.error("[spec-coverage/prepare] error:", err);
+    json(res, 500, { error: (err as Error).message });
+  }
 }
 
 async function handleSpecCoverage(

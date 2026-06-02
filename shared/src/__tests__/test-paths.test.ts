@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isTestFile, normalizeTestName } from "./test-paths.js";
+import { isTestFile, normalizeTestName } from "../test-paths.js";
 
 describe("isTestFile", () => {
   it.each([
@@ -14,7 +14,7 @@ describe("isTestFile", () => {
   });
 
   it.each([
-    "agent/src/lib/test-paths.ts",
+    "shared/src/test-paths.ts",
     "mcp-server/src/routes.ts",
     "specs/local-task-runner/spec.md",
     "src/tested/handler.ts",
