@@ -63,6 +63,7 @@ v1 + v2 task lists (preserved below for history).
 - [ ] F-suggestion-throttle Rate-limit the first backfill run so the burst of suggestion-PRs is staggered (covers limitation 1).
 - [ ] F-ci-link-check Standalone CI workflow that runs the validate pass on every PR touching `specs/` so authors see broken links as a check, not after merge (parallel path to the cron).
 - [ ] F-format-tolerance Extend `parseTestLinksInStatement` to accept additional formats (mid-statement links, footnote-style refs) for authors who already write specs that way.
+- [x] F-local-on-demand `/lore-suggest-links` skill — subscription-billed on-demand single-spec sibling to the backfill cron. See [`specs/local-link-suggester/`](../local-link-suggester/).
 
 ---
 
