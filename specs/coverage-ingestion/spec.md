@@ -1,12 +1,15 @@
 # Feature Specification: Coverage Ingestion
 
+> **⚠️ Deferred — decoupled from [`spec-test-coverage` v3](../spec-test-coverage/spec.md).** This spec was originally drafted to feed `coverage_hits` into the v2 BYO-compute `prepare_spec_link` endpoint (and the cron's candidate pre-filter). Both of those consumers are removed in v3. **The data model and ingestion endpoint below remain valid as a future input to v3's backfill cron** — when the cron is choosing which test to suggest for a statement, execution-trace evidence is the strongest possible signal, far better than name overlap + directory affinity + embedding cosine. But this feature is **not blocking v3** and there is no scheduled implementation date. Picking this up requires re-wiring the consumer in `agent/src/jobs/cron/spec-coverage-backfill.ts` (v3 file) to call `selectCandidates` with a new `coverage` match_kind. Everything else in the spec below holds; only the consumer changes.
+
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Coverage Ingestion                       |
-| Status         | Draft                                    |
+| Status         | **Deferred** — not blocking `spec-test-coverage` v3 |
 | Created        | 2026-06-02                               |
+| Deferred       | 2026-06-02 — same day as v3 redesign     |
 | Owner          | Platform Engineering                     |
-| Benefits       | [`spec-test-coverage`](../spec-test-coverage/spec.md) (cron + webhook linker) and [`local-coverage-linker`](../local-coverage-linker/spec.md) (BYO-compute linker) |
+| Benefits       | [`spec-test-coverage` v3](../spec-test-coverage/spec.md) backfill cron (when implemented) — execution-trace evidence beats name-overlap guessing for the judge's candidate ranking |
 
 ## Problem Statement
 

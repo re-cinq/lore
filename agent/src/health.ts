@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { query, isDbAvailable } from "./db.js";
 import { runReviewReactorForPR } from "./jobs/scheduled/review-reactor.js";
-import { specTestLinkerJob } from "./jobs/cron/spec-test-linker.js";
+import { validateSpecCoverageJob } from "./jobs/scheduled/spec-coverage-validate.js";
 import { tryAutoMergeForCompletedTask } from "./jobs/auto-merge-trigger.js";
 
 const startTime = Date.now();
@@ -55,13 +55,13 @@ export function startHealthServer(
       return;
     }
 
-    // Internal trigger endpoint for post-ingest spec-test linker fan-out.
-    // mcp-server forwards a fire-and-forget POST here after a successful
-    // /api/ingest so freshly-edited specs (and new tests) get re-linked
-    // promptly instead of waiting for Monday's weekly sweep. The
-    // content-hash freshness gate inside the job makes triggered runs
-    // cheap when the spec hasn't actually changed.
-    if (req.method === "POST" && req.url === "/api/trigger/spec-test-linker") {
+    // Internal trigger endpoint for post-ingest spec-coverage validate
+    // (v3 of spec-test-coverage). mcp-server forwards a fire-and-forget
+    // POST here after a successful /api/ingest. The job parses each
+    // spec's inline test links and resolves them against the AST chunks;
+    // if any rot is found, it opens a `spec-link-rot` labelled issue on
+    // the repo. No DB writes. Replaces the v2 `/api/trigger/spec-test-linker`.
+    if (req.method === "POST" && req.url === "/api/trigger/spec-coverage-validate") {
       if (!authInternal(req)) {
         res.writeHead(401, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "unauthorized" }));
@@ -69,23 +69,19 @@ export function startHealthServer(
       }
       try {
         const body = await readBody(req);
-        const { repo, linked_by } = JSON.parse(body || "{}") as {
-          repo?: string;
-          linked_by?: string;
-        };
+        const { repo } = JSON.parse(body || "{}") as { repo?: string };
         if (!repo || !repo.includes("/")) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "required: repo (owner/name)" }));
           return;
         }
-        const linkedBy = linked_by || "webhook";
-        // Fire-and-forget — return 202 immediately so the webhook sender
-        // doesn't wait on segmentation + classifier + judge.
-        specTestLinkerJob({ repoFilter: repo, linkedBy }).catch((err) =>
-          console.error(`[agent] trigger spec-test-linker failed for ${repo}:`, err),
+        // Fire-and-forget — return 202 immediately so the webhook
+        // sender doesn't wait on segmentation + per-link resolution.
+        validateSpecCoverageJob({ repoFilter: repo }).catch((err) =>
+          console.error(`[agent] trigger spec-coverage-validate failed for ${repo}:`, err),
         );
         res.writeHead(202, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "accepted", repo, linked_by: linkedBy }));
+        res.end(JSON.stringify({ status: "accepted", repo }));
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: err.message }));

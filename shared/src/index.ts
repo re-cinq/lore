@@ -52,6 +52,10 @@ export {
   normalizeTestName,
 } from './test-paths.js';
 export {
+  parseTestLinksInStatement,
+  type TestLinkRef,
+} from './spec-link-parser.js';
+export {
   specFeatureSlug,
   hasDirectoryAffinity,
   cosineSimilarity,

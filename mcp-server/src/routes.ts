@@ -20,9 +20,6 @@ import { syncTasksToDb } from "./tasks.js";
 import { getTaskTypes } from "./pipeline-config.js";
 import { onboardRepo } from "./repo-onboard.js";
 import { ingestFiles } from "./ingest.js";
-import { prepareSpecCoverage } from "./spec-coverage-prepare.js";
-import { persistSpecCoverage, type PersistRequest } from "./spec-coverage-persist.js";
-import { listStaleSpecCoverage } from "./spec-coverage-stale.js";
 import { resolveAgentId } from "./agent-id.js";
 import { getGitHubToken, getOctokit } from "./github-client.js";
 import {
@@ -95,12 +92,6 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope }> = [
   {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$|\/)/,
     scope: "admin",
-  },
-  {
-    // BYO-compute persist writes spec_statements + spec_test_links +
-    // spec_coverage_runs in the developer's name; needs write scope.
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage\/persist(\?|$)/,
-    scope: "write",
   },
 ];
 
@@ -286,7 +277,7 @@ async function handleIngest(req: IncomingMessage, res: ServerResponse, pool: Poo
       ? result.results.some((r: { status?: string }) => r.status === "ingested" || r.status === "deleted")
       : false;
     if (landed) {
-      void triggerAgentSpecTestLinker(repo);
+      void triggerAgentSpecCoverageValidate(repo);
     }
   } catch (err: any) {
     console.error("[ingest] API error:", err.message);
@@ -671,20 +662,20 @@ async function triggerAgentReviewReactor(repo: string, prNumber: number): Promis
 }
 
 /**
- * Forward a spec-test-linker trigger to the agent. Fire-and-forget: the
- * agent returns 202 before segmenting + judging, so this won't block the
- * /api/ingest response. The content-hash gate inside the job makes
- * triggered runs cheap when nothing actually changed.
+ * Forward a spec-coverage-validate trigger to the agent. Fire-and-
+ * forget: the agent returns 202 before parsing + resolving, so this
+ * won't block the /api/ingest response. Replaces the v2
+ * triggerAgentSpecTestLinker.
  */
-export async function triggerAgentSpecTestLinker(repo: string): Promise<void> {
+export async function triggerAgentSpecCoverageValidate(repo: string): Promise<void> {
   const agentUrl = process.env.LORE_AGENT_URL;
   const token = process.env.LORE_AGENT_INTERNAL_TOKEN;
   if (!agentUrl || !token) {
-    console.warn("[ingest] LORE_AGENT_URL or LORE_AGENT_INTERNAL_TOKEN not set — skipping spec-test-linker trigger");
+    console.warn("[ingest] LORE_AGENT_URL or LORE_AGENT_INTERNAL_TOKEN not set — skipping spec-coverage-validate trigger");
     return;
   }
   try {
-    await fetch(`${agentUrl.replace(/\/+$/, "")}/api/trigger/spec-test-linker`, {
+    await fetch(`${agentUrl.replace(/\/+$/, "")}/api/trigger/spec-coverage-validate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -693,7 +684,7 @@ export async function triggerAgentSpecTestLinker(repo: string): Promise<void> {
       body: JSON.stringify({ repo }),
     });
   } catch (err: any) {
-    console.warn("[ingest] spec-test-linker trigger failed:", err.message);
+    console.warn("[ingest] spec-coverage-validate trigger failed:", err.message);
   }
 }
 
@@ -1307,26 +1298,6 @@ export async function handleApiRoute(
     method === "GET"
   ) {
     await handleTaskByPr(req, res, pool);
-  } else if (
-    /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage\/stale(\?|$)/.test(url) &&
-    method === "GET"
-  ) {
-    await handleSpecCoverageStale(req, res, pool);
-  } else if (
-    /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage\/prepare(\?|$)/.test(url) &&
-    method === "POST"
-  ) {
-    await handleSpecCoveragePrepare(req, res, pool);
-  } else if (
-    /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage\/persist(\?|$)/.test(url) &&
-    method === "POST"
-  ) {
-    await handleSpecCoveragePersist(req, res, pool);
-  } else if (
-    /^\/api\/repos\/[^/]+\/[^/]+\/spec-coverage(\?|$)/.test(url) &&
-    method === "GET"
-  ) {
-    await handleSpecCoverage(req, res, pool);
   } else {
     return false; // not handled
   }
@@ -1635,362 +1606,6 @@ async function handleTaskByPr(
   }
 }
 
-// ── Spec → test coverage (T011 — spec-test-coverage feature) ─────────
-
-const SPEC_COVERAGE_RE = /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage/;
-const COVERAGE_SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
-
-interface SpecChunkRow {
-  file_path: string;
-  content: string;
-  ingested_at: string | Date;
-}
-
-interface LinkRow {
-  spec_path: string;
-  test_file: string;
-  test_name: string;
-  test_line: number | null;
-  symbol: string | null;
-  match_kind: string;
-  rationale: string;
-  statement_ordinal: number | null;
-  statement_text: string | null;
-  match_score: number | null;
-}
-
-interface StatementRow {
-  spec_path: string;
-  ordinal: number;
-  text: string;
-  kind: string;
-  testability: string;
-  category: string | null;
-}
-
-export interface SpecCoverageEntry {
-  spec_path: string;
-  title: string;
-  summary: string;
-  coverage: { testable: number; covered: number; untestable: number };
-  test_count: number;
-  statements: { ordinal: number; text: string; kind: string; testability: string; category: string | null }[];
-  tests: {
-    name: string;
-    file_path: string;
-    line: number | null;
-    symbol: string | null;
-    match_kind: string;
-    rationale: string;
-    statement_ordinal: number | null;
-    match_score: number | null;
-    url: string;
-  }[];
-  last_linked_at: string | null;
-  last_linked_by: string | null;
-}
-
-export interface CoverageRunSummary {
-  run_at: string | Date;
-  linked_by: string | null;
-}
-
-/**
- * Compose the per-spec coverage payload. Pure so the math (covered = testable
- * ordinals linked at least once; widths over testable + untestable) can be
- * exercised without the route handler / pool.
- */
-export function composeSpecCoverage(
-  repo: string,
-  specPath: string,
-  chunks: SpecChunkRow[],
-  statements: StatementRow[],
-  links: LinkRow[],
-  coverageRun?: CoverageRunSummary | null,
-): SpecCoverageEntry {
-  const content = reassembleSpec(chunks);
-  const coveredOrdinals = new Set(
-    links.map((l) => l.statement_ordinal).filter((o): o is number => o !== null),
-  );
-  const testable = statements.filter((s) => s.testability === "testable").length;
-  const untestable = statements.filter((s) => s.testability === "untestable").length;
-  const covered = statements.filter(
-    (s) => s.testability === "testable" && coveredOrdinals.has(s.ordinal),
-  ).length;
-  return {
-    spec_path: specPath,
-    title: parseSpecTitle(content, specPath),
-    summary: extractSummary(content),
-    coverage: { testable, covered, untestable },
-    test_count: links.length,
-    statements: statements.map((s) => ({
-      ordinal: s.ordinal,
-      text: s.text,
-      kind: s.kind,
-      testability: s.testability,
-      category: s.category,
-    })),
-    tests: links.map((link) => ({
-      name: link.test_name,
-      file_path: link.test_file,
-      line: link.test_line,
-      symbol: link.symbol,
-      match_kind: link.match_kind,
-      rationale: link.rationale,
-      statement_ordinal: link.statement_ordinal,
-      match_score: link.match_score,
-      url: specSourceUrl(repo, link.test_file, link.test_line),
-    })),
-    last_linked_at: coverageRun
-      ? (typeof coverageRun.run_at === "string"
-          ? coverageRun.run_at
-          : coverageRun.run_at.toISOString())
-      : null,
-    last_linked_by: coverageRun?.linked_by ?? null,
-  };
-}
-
-/** Resolve a repo to its chunk schema (team schema if present, else org_shared). */
-async function resolveCoverageSchema(pool: Pool, repo: string): Promise<string> {
-  const { rows } = await pool.query(`SELECT team FROM lore.repos WHERE full_name = $1`, [repo]);
-  const team = rows[0]?.team;
-  if (team && COVERAGE_SCHEMA_RE.test(team)) {
-    const { rows: schemas } = await pool.query(
-      `SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`,
-      [team],
-    );
-    if (schemas.length > 0) return team;
-  }
-  return "org_shared";
-}
-
-/** GitHub blob link. Uses HEAD so the default branch resolves without storing
- * it; the line anchor is dropped when AST chunking did not capture a line. */
-function specSourceUrl(repo: string, filePath: string, line: number | null): string {
-  const base = `https://github.com/${repo}/blob/HEAD/${filePath}`;
-  return line ? `${base}#L${line}` : base;
-}
-
-const SPEC_COVERAGE_STALE_RE =
-  /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage\/stale/;
-
-const SPEC_COVERAGE_PREPARE_RE =
-  /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage\/prepare/;
-
-const SPEC_COVERAGE_PERSIST_RE =
-  /^\/api\/repos\/([^/]+)\/([^/]+)\/spec-coverage\/persist/;
-
-async function handleSpecCoverageStale(
-  req: IncomingMessage,
-  res: ServerResponse,
-  pool: Pool | null,
-): Promise<void> {
-  if (!pool) {
-    json(res, 503, { error: "database unavailable" });
-    return;
-  }
-  const m = (req.url || "").match(SPEC_COVERAGE_STALE_RE);
-  if (!m) {
-    json(res, 404, { error: "not found" });
-    return;
-  }
-  const repo = `${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
-  try {
-    const stale = await listStaleSpecCoverage(pool, repo);
-    json(res, 200, stale);
-  } catch (err) {
-    console.error("[spec-coverage/stale] error:", err);
-    json(res, 500, { error: (err as Error).message });
-  }
-}
-
-async function handleSpecCoveragePersist(
-  req: IncomingMessage,
-  res: ServerResponse,
-  pool: Pool | null,
-): Promise<void> {
-  if (!pool) {
-    json(res, 503, { error: "database unavailable" });
-    return;
-  }
-  const m = (req.url || "").match(SPEC_COVERAGE_PERSIST_RE);
-  if (!m) {
-    json(res, 404, { error: "not found" });
-    return;
-  }
-  const repo = `${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
-
-  try {
-    const body = await readBody(req);
-    const parsed = JSON.parse(body || "{}") as Partial<PersistRequest>;
-    if (
-      !parsed.spec_path || typeof parsed.spec_path !== "string" ||
-      !parsed.content_hash || typeof parsed.content_hash !== "string" ||
-      !Array.isArray(parsed.classifications) ||
-      !Array.isArray(parsed.judgments)
-    ) {
-      json(res, 400, {
-        error: "required: spec_path (string), content_hash (string), classifications (array), judgments (array)",
-      });
-      return;
-    }
-    const result = await persistSpecCoverage(pool, repo, parsed.spec_path, parsed as PersistRequest);
-    json(res, result.status, result.body);
-  } catch (err) {
-    console.error("[spec-coverage/persist] error:", err);
-    json(res, 500, { error: (err as Error).message });
-  }
-}
-
-async function handleSpecCoveragePrepare(
-  req: IncomingMessage,
-  res: ServerResponse,
-  pool: Pool | null,
-): Promise<void> {
-  if (!pool) {
-    json(res, 503, { error: "database unavailable" });
-    return;
-  }
-  const m = (req.url || "").match(SPEC_COVERAGE_PREPARE_RE);
-  if (!m) {
-    json(res, 404, { error: "not found" });
-    return;
-  }
-  const repo = `${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
-
-  try {
-    const body = await readBody(req);
-    const { spec_path } = JSON.parse(body || "{}") as { spec_path?: string };
-    if (!spec_path || typeof spec_path !== "string") {
-      json(res, 400, { error: "required: spec_path (string)" });
-      return;
-    }
-    const payload = await prepareSpecCoverage(pool, repo, spec_path);
-    if (!payload) {
-      json(res, 404, { error: "no spec chunks at this path", spec_path });
-      return;
-    }
-    json(res, 200, payload);
-  } catch (err) {
-    console.error("[spec-coverage/prepare] error:", err);
-    json(res, 500, { error: (err as Error).message });
-  }
-}
-
-async function handleSpecCoverage(
-  req: IncomingMessage,
-  res: ServerResponse,
-  pool: Pool | null,
-): Promise<void> {
-  if (!pool) {
-    json(res, 503, { error: "database unavailable" });
-    return;
-  }
-  const m = (req.url || "").match(SPEC_COVERAGE_RE);
-  if (!m) {
-    json(res, 404, { error: "not found" });
-    return;
-  }
-  const repo = `${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
-
-  try {
-    const schema = await resolveCoverageSchema(pool, repo);
-    const { rows: specRows } = await pool.query<SpecChunkRow>(
-      `SELECT file_path, content, ingested_at
-       FROM ${schema}.chunks
-       WHERE content_type = 'spec' AND repo = $1`,
-      [repo],
-    );
-    // spec_test_links + spec_statements are added by deploy-time migrations;
-    // before they run treat as no coverage rather than 500.
-    let linkRows: LinkRow[] = [];
-    try {
-      linkRows = (
-        await pool.query<LinkRow>(
-          `SELECT spec_path, test_file, test_name, test_line, symbol, match_kind, rationale,
-                  statement_ordinal, statement_text, match_score
-           FROM ${schema}.spec_test_links
-           WHERE repo = $1
-           ORDER BY spec_path, test_file, test_line NULLS LAST`,
-          [repo],
-        )
-      ).rows;
-    } catch (err) {
-      if ((err as { code?: string }).code !== "42P01") throw err;
-      console.warn(`[spec-coverage] ${schema}.spec_test_links missing — returning specs with zero coverage`);
-    }
-
-    let statementRows: StatementRow[] = [];
-    try {
-      statementRows = (
-        await pool.query<StatementRow>(
-          `SELECT spec_path, ordinal, text, kind, testability, category
-           FROM ${schema}.spec_statements
-           WHERE repo = $1
-           ORDER BY spec_path, ordinal`,
-          [repo],
-        )
-      ).rows;
-    } catch (err) {
-      if ((err as { code?: string }).code !== "42P01") throw err;
-      console.warn(`[spec-coverage] ${schema}.spec_statements missing — returning empty statements`);
-    }
-
-    let runRows: Array<{ spec_path: string; run_at: string | Date; linked_by: string | null }> = [];
-    try {
-      runRows = (
-        await pool.query<{ spec_path: string; run_at: string | Date; linked_by: string | null }>(
-          `SELECT spec_path, run_at, linked_by
-           FROM ${schema}.spec_coverage_runs
-           WHERE repo = $1`,
-          [repo],
-        )
-      ).rows;
-    } catch (err) {
-      if ((err as { code?: string }).code !== "42P01") throw err;
-      console.warn(`[spec-coverage] ${schema}.spec_coverage_runs missing — no attribution`);
-    }
-    const runByPath = new Map<string, CoverageRunSummary>();
-    for (const r of runRows) runByPath.set(r.spec_path, { run_at: r.run_at, linked_by: r.linked_by });
-
-    const chunksByPath = new Map<string, SpecChunkRow[]>();
-    for (const row of specRows) {
-      const list = chunksByPath.get(row.file_path) ?? [];
-      list.push(row);
-      chunksByPath.set(row.file_path, list);
-    }
-    const linksByPath = new Map<string, LinkRow[]>();
-    for (const row of linkRows) {
-      const list = linksByPath.get(row.spec_path) ?? [];
-      list.push(row);
-      linksByPath.set(row.spec_path, list);
-    }
-    const statementsByPath = new Map<string, StatementRow[]>();
-    for (const row of statementRows) {
-      const list = statementsByPath.get(row.spec_path) ?? [];
-      list.push(row);
-      statementsByPath.set(row.spec_path, list);
-    }
-
-    const payload = [...chunksByPath.entries()]
-      .map(([specPath, chunks]) =>
-        composeSpecCoverage(
-          repo,
-          specPath,
-          chunks,
-          statementsByPath.get(specPath) ?? [],
-          linksByPath.get(specPath) ?? [],
-          runByPath.get(specPath) ?? null,
-        ),
-      )
-      .sort((a, b) => a.title.localeCompare(b.title));
-
-    json(res, 200, payload);
-  } catch (err) {
-    console.error("[spec-coverage] error:", err);
-    json(res, 500, { error: (err as Error).message });
-  }
-}
 
 async function handleDarkFactorySettingsRoute(
   req: IncomingMessage,

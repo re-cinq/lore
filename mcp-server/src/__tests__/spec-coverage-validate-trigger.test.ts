@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { triggerAgentSpecTestLinker } from "../routes.js";
+import { triggerAgentSpecCoverageValidate } from "../routes.js";
 
-describe("triggerAgentSpecTestLinker", () => {
+describe("triggerAgentSpecCoverageValidate", () => {
   const originalFetch = globalThis.fetch;
   const originalEnv = { ...process.env };
 
@@ -15,13 +15,13 @@ describe("triggerAgentSpecTestLinker", () => {
     process.env = { ...originalEnv };
   });
 
-  it("POSTs the repo to /api/trigger/spec-test-linker with the bearer token", async () => {
+  it("POSTs the repo to /api/trigger/spec-coverage-validate with the bearer token", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
     globalThis.fetch = fetchMock as typeof fetch;
-    await triggerAgentSpecTestLinker("re-cinq/lore");
+    await triggerAgentSpecCoverageValidate("re-cinq/lore");
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://agent.internal:8080/api/trigger/spec-test-linker");
+    expect(url).toBe("http://agent.internal:8080/api/trigger/spec-coverage-validate");
     expect(init).toMatchObject({
       method: "POST",
       headers: {
@@ -36,15 +36,15 @@ describe("triggerAgentSpecTestLinker", () => {
     process.env.LORE_AGENT_URL = "http://agent.internal:8080/";
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
     globalThis.fetch = fetchMock as typeof fetch;
-    await triggerAgentSpecTestLinker("o/r");
-    expect(fetchMock.mock.calls[0][0]).toBe("http://agent.internal:8080/api/trigger/spec-test-linker");
+    await triggerAgentSpecCoverageValidate("o/r");
+    expect(fetchMock.mock.calls[0][0]).toBe("http://agent.internal:8080/api/trigger/spec-coverage-validate");
   });
 
   it("skips the call entirely when LORE_AGENT_URL is missing", async () => {
     delete process.env.LORE_AGENT_URL;
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as typeof fetch;
-    await triggerAgentSpecTestLinker("o/r");
+    await triggerAgentSpecCoverageValidate("o/r");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -52,12 +52,12 @@ describe("triggerAgentSpecTestLinker", () => {
     delete process.env.LORE_AGENT_INTERNAL_TOKEN;
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as typeof fetch;
-    await triggerAgentSpecTestLinker("o/r");
+    await triggerAgentSpecCoverageValidate("o/r");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("swallows fetch errors so a flaky agent never breaks the ingest response", async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("ECONNREFUSED")) as typeof fetch;
-    await expect(triggerAgentSpecTestLinker("o/r")).resolves.toBeUndefined();
+    await expect(triggerAgentSpecCoverageValidate("o/r")).resolves.toBeUndefined();
   });
 });

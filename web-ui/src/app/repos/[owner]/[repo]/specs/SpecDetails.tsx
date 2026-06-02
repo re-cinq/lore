@@ -5,55 +5,60 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import type { Root, Text, Element, ElementContent, RootContent } from 'hast';
+import { type TestLinkRef } from '@/lib/spec-link-parser';
 import readme from '../ReadmeBox.module.css';
 import styles from './SpecDetails.module.css';
 
-export interface TestLink {
-  name: string;
-  file_path: string;
-  line: number | null;
-  symbol: string | null;
-  match_kind: string;
-  rationale: string;
-  statement_ordinal: number | null;
-  match_score: number | null;
-  url: string;
-}
+export type StatementState = 'tested' | 'untested' | 'narrative';
 
 export interface StatementInfo {
   ordinal: number;
   text: string;
   kind: string;
-  testability: string;
+  state: StatementState;
+  /** Untestable category (intro / vision / limitation / etc.); null for testable. */
   category: string | null;
-}
-
-type State = 'tested' | 'untested' | 'narrative';
-
-function shortFile(filePath: string): string {
-  return filePath.split('/').pop() || filePath;
-}
-
-interface AnchoredOrdinals {
-  matched: Set<number>;
+  /** Parsed test links from the trailing parenthetical; empty for non-tested states. */
+  testLinks: TestLinkRef[];
 }
 
 /**
- * Rehype plugin: walk text nodes, for each testable statement try to find a
- * contiguous substring match in a single text node. When found, split the
- * text node into [before, <mark data-ordinal class>, after]. Statements
- * crossing inline formatting (bold / code / links) won't anchor — the always-
- * present test list below is the fallback so no link is silently lost.
+ * v3 SpecDetails renders the spec markdown and wraps each statement
+ * in `<mark>` with a state class derived from the author's inline
+ * test links. The author's `[label](path#Lline)` markdown links
+ * inside the trailing parenthetical of a statement keep their normal
+ * `<a>` rendering; the visual "this is a test link" cue comes from
+ * the surrounding statement wrap, not from special anchor styling.
+ *
+ * Statements that cross inline formatting (bold / inline code) won't
+ * match exactly against a single text node and silently fall back to
+ * "no wrap" — the rehype walker must not throw. The author can still
+ * see the test link as a plain anchor; the CoverageBar at the top of
+ * the page still counts it because the page handler computed state
+ * from the raw markdown, not from the rendered HTML.
  */
-function buildHighlighter(
-  statements: { ordinal: number; text: string; state: State }[],
-  out: AnchoredOrdinals,
-) {
-  // Match longer statements first so a long statement isn't pre-empted by a
-  // shorter one whose text happens to be a prefix.
-  const ordered = [...statements].sort((a, b) => b.text.length - a.text.length);
+/** A v3 statement may end with a trailing markdown test-link paren that
+ * react-markdown breaks into an `<a>` element — so the raw statement text
+ * won't be a contiguous text node. Strip the trailing paren so the matcher
+ * can still find the prefix as a plain text node. */
+function matcherText(statementText: string): string {
+  return statementText
+    .replace(/\s*\(\s*\[[^\]]+\]\([^)]+\)(?:\s*,\s*\[[^\]]+\]\([^)]+\))*\s*\)\s*\.?\s*$/, '')
+    .trim();
+}
 
-  function makeMark(text: string, ordinal: number, state: State): Element {
+function buildHighlighter(
+  statements: { ordinal: number; text: string; state: StatementState }[],
+) {
+  const enriched = statements.map((s) => ({
+    ordinal: s.ordinal,
+    text: s.text,
+    matcher: matcherText(s.text) || s.text,
+    state: s.state,
+  }));
+  const ordered = [...enriched].sort((a, b) => b.matcher.length - a.matcher.length);
+
+  function makeMark(text: string, ordinal: number, state: StatementState): Element {
     return {
       type: 'element',
       tagName: 'mark',
@@ -68,14 +73,13 @@ function buildHighlighter(
 
   function processTextNode(node: Text): ElementContent[] | null {
     for (const s of ordered) {
-      const idx = node.value.indexOf(s.text);
+      const idx = node.value.indexOf(s.matcher);
       if (idx < 0) continue;
-      out.matched.add(s.ordinal);
       const before = node.value.slice(0, idx);
-      const after = node.value.slice(idx + s.text.length);
+      const after = node.value.slice(idx + s.matcher.length);
       const parts: ElementContent[] = [];
       if (before) parts.push({ type: 'text', value: before });
-      parts.push(makeMark(s.text, s.ordinal, s.state));
+      parts.push(makeMark(s.matcher, s.ordinal, s.state));
       if (after) {
         const tail = { type: 'text', value: after } as Text;
         const recursed = processTextNode(tail);
@@ -133,38 +137,15 @@ function buildHighlighter(
   };
 }
 
-function statementState(s: StatementInfo, covered: Set<number>): State {
-  if (s.testability === 'untestable') return 'narrative';
-  return covered.has(s.ordinal) ? 'tested' : 'untested';
-}
-
 export default function SpecDetails({
   content,
-  tests,
   statements = [],
 }: {
   content: string;
-  tests: TestLink[];
   statements?: StatementInfo[];
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ ordinal: number; x: number; y: number } | null>(null);
-
-  const coveredOrdinals = useMemo(
-    () => new Set(tests.map((t) => t.statement_ordinal).filter((o): o is number => o !== null)),
-    [tests],
-  );
-
-  const testsByOrdinal = useMemo(() => {
-    const m = new Map<number, TestLink[]>();
-    for (const t of tests) {
-      if (t.statement_ordinal === null) continue;
-      const list = m.get(t.statement_ordinal) ?? [];
-      list.push(t);
-      m.set(t.statement_ordinal, list);
-    }
-    return m;
-  }, [tests]);
 
   const statementsByOrdinal = useMemo(() => {
     const m = new Map<number, StatementInfo>();
@@ -172,24 +153,15 @@ export default function SpecDetails({
     return m;
   }, [statements]);
 
-  const anchored = useMemo<AnchoredOrdinals>(() => ({ matched: new Set() }), [statements, content]);
-
   const plugin = useMemo(() => {
     if (statements.length === 0) return null;
     const enriched = statements.map((s) => ({
       ordinal: s.ordinal,
       text: s.text,
-      state: statementState(s, coveredOrdinals),
+      state: s.state,
     }));
-    return buildHighlighter(enriched, anchored);
-  }, [statements, coveredOrdinals, anchored]);
-
-  const unanchoredOrdinals = useMemo(() => {
-    if (statements.length === 0) return new Set<number>();
-    const all = new Set(statements.map((s) => s.ordinal));
-    for (const m of anchored.matched) all.delete(m);
-    return all;
-  }, [anchored, statements, plugin]);
+    return buildHighlighter(enriched);
+  }, [statements]);
 
   function handleMouseOver(e: React.MouseEvent<HTMLDivElement>) {
     const target = (e.target as HTMLElement).closest<HTMLElement>('mark[data-ordinal]');
@@ -211,9 +183,7 @@ export default function SpecDetails({
   }
 
   const rehypePlugins = plugin ? [rehypeRaw, plugin] : [rehypeRaw];
-
   const hovered = hover ? statementsByOrdinal.get(hover.ordinal) : null;
-  const hoveredTests = hover ? testsByOrdinal.get(hover.ordinal) ?? [] : [];
 
   return (
     <div>
@@ -232,33 +202,40 @@ export default function SpecDetails({
           {content}
         </ReactMarkdown>
         {hover && hovered && (
-          <div
-            className={styles.popover}
-            style={{ left: hover.x, top: hover.y }}
-            role="tooltip"
-          >
-            {hovered.testability === 'untestable' ? (
+          <div className={styles.popover} style={{ left: hover.x, top: hover.y }} role="tooltip">
+            {hovered.state === 'narrative' ? (
               <div className={styles.popoverNarrative}>
                 <strong>Narrative</strong>{hovered.category ? ` · ${hovered.category}` : ''}
                 <div className={styles.popoverHint}>
                   Excluded from the coverage denominator — context, not a verifiable requirement.
                 </div>
               </div>
-            ) : hoveredTests.length === 0 ? (
+            ) : hovered.state === 'untested' ? (
               <div className={styles.popoverUntested}>
                 <strong>Untested</strong>
                 <div className={styles.popoverHint}>
-                  This is a testable statement with no test linked to it yet.
+                  Add an inline test link at end of this statement:{' '}
+                  <code>([label](path/to/test.ts#L42))</code>
                 </div>
               </div>
             ) : (
               <div className={styles.popoverTested}>
-                <strong>{hoveredTests.length} test{hoveredTests.length === 1 ? '' : 's'} validate this</strong>
+                <strong>
+                  {hovered.testLinks.length} test{hovered.testLinks.length === 1 ? '' : 's'} validate this
+                </strong>
                 <ul className={styles.popoverTestList}>
-                  {hoveredTests.map((t, i) => (
-                    <li key={`${t.file_path}-${t.name}-${i}`}>
-                      <a href={t.url} target="_blank" rel="noreferrer">{t.name}</a>
-                      <div className={styles.popoverRationale}>{t.rationale}</div>
+                  {hovered.testLinks.map((t, i) => (
+                    <li key={`${t.path}-${t.line ?? ''}-${i}`}>
+                      <a
+                        href={`${t.path}${t.line ? `#L${t.line}` : ''}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {t.label}
+                      </a>
+                      <div className={styles.popoverRationale}>
+                        {t.path}{t.line ? `:${t.line}` : ''}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -267,47 +244,6 @@ export default function SpecDetails({
           </div>
         )}
       </div>
-
-      <h3 style={{ marginTop: 24 }}>Tests validating this spec ({tests.length})</h3>
-      {tests.length === 0 ? (
-        <p className="meta">○ No tests linked to this spec yet.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {tests.map((test, i) => {
-            const ordinal = test.statement_ordinal;
-            const listOnly = ordinal !== null && unanchoredOrdinals.has(ordinal);
-            const legacyRow = ordinal === null;
-            return (
-              <li key={`${test.file_path}-${test.name}-${i}`} style={{ borderTop: '1px solid var(--border)', padding: '8px 0' }}>
-                <details>
-                  <summary style={{ display: 'flex', justifyContent: 'space-between', gap: 12, cursor: 'pointer', alignItems: 'baseline' }}>
-                    <span>
-                      {test.name}
-                      {listOnly && <span className={styles.listOnlyTag} title="Validated statement could not be anchored inline (likely formatting-mixed)"> · list-only</span>}
-                      {legacyRow && <span className={styles.listOnlyTag} title="Pre-v2 link without a statement ordinal — degrades to list-only until the spec is re-linked"> · legacy</span>}
-                    </span>
-                    <a
-                      href={test.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', whiteSpace: 'nowrap' }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {shortFile(test.file_path)}{test.line ? `:${test.line}` : ''} ↗
-                    </a>
-                  </summary>
-                  <div className="meta" style={{ marginTop: 6, paddingLeft: 16 }}>
-                    └ judge: {test.rationale}
-                    {test.symbol && <> · symbol: <code>{test.symbol}</code></>}
-                    {' · match: '}{test.match_kind}
-                    {test.match_score !== null && <> · score: {test.match_score.toFixed(2)}</>}
-                  </div>
-                </details>
-              </li>
-            );
-          })}
-        </ul>
-      )}
     </div>
   );
 }
