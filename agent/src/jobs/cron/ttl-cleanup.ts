@@ -5,8 +5,8 @@ export async function ttlCleanupJob(): Promise<string> {
     `WITH expired AS (
        UPDATE memory.memories
        SET deleted = true, updated_at = now()
-       WHERE ttl_expires_at IS NOT NULL
-         AND ttl_expires_at < now()
+       WHERE expires_at IS NOT NULL
+         AND expires_at < now()
          AND deleted = false
        RETURNING id
      )
