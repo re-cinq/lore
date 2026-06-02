@@ -54,28 +54,21 @@ kubectl exec -n lore-db -it lore-db-1 -c postgres -- \
 
 ### DDL inside the `pipeline` schema
 
-Same shape as the lore-schema handoff above: `setup-pipeline-schema.sh` runs
-as `postgres`, so on clusters provisioned before that script grew its
-`ALTER … OWNER TO lore` block, `pipeline.*` is `postgres`-owned and `lore`
-only has `GRANT ALL`. A migration like `0003_job_runs_log_path.sql` that
-does `ALTER TABLE pipeline.job_runs ADD COLUMN` will fail with `must be
-owner of table` — `GRANT ALL` does not include ownership.
+`setup-pipeline-schema.sh` runs as `postgres`, so on clusters provisioned
+before it grew its `ALTER … OWNER TO lore` block, `pipeline.*` was
+`postgres`-owned and `lore` only had `GRANT ALL`. A migration like
+`0003_job_runs_log_path.sql` that does
+`ALTER TABLE pipeline.job_runs ADD COLUMN` would fail with
+`must be owner of table` — `GRANT ALL` does not include ownership.
 
-For clusters in that state, hand the schema and its tables over to `lore`
-once via the primary pod's local socket (no network superuser):
-
-```
-kubectl exec -n lore-db lore-db-1 -c postgres -- \
-  psql -d lore -c "ALTER SCHEMA pipeline OWNER TO lore;" \
-               -c "DO \$\$ DECLARE r record; BEGIN
-                     FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'pipeline' LOOP
-                       EXECUTE format('ALTER TABLE pipeline.%I OWNER TO lore', r.tablename);
-                     END LOOP;
-                   END \$\$;"
-```
-
-Then re-run the helm upgrade — the failed migration row was never inserted
-(each file is one transaction), so the runner will pick it up cleanly.
+The forward fix is in `setup-pipeline-schema.sh` (new clusters bootstrap
+with `lore` as the schema owner). For *existing* clusters the
+`lore-db-helm` chart adds a `pre-install,pre-upgrade` Hook Job
+(`templates/ownership-reconciler-job.yaml`) that runs an idempotent
+ownership reconcile as `postgres` via the primary pod's local socket
+(peer auth — no network superuser, no manual operator step). It re-runs
+on every `terraform apply`, so a stale cluster converges automatically
+on the next deploy.
 
 ### DDL outside the `lore` schema (team schemas)
 

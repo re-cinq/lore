@@ -1,0 +1,11 @@
+apiVersion: v2
+name: lore-db-helm
+description: |
+  Operational add-ons for the CNPG `lore-db` cluster. The cluster
+  itself is managed by terraform (`terraform/lore-db.tf`); this chart
+  adds chart-managed Jobs that need to talk to the primary as
+  `postgres` via the in-pod local socket — currently the
+  ownership-reconciler hook that keeps the `pipeline` schema owned by
+  `lore` so the ui-helm migration runner can ALTER its tables.
+version: 0.1.0
+appVersion: "0.1.0"
