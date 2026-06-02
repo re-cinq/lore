@@ -267,6 +267,18 @@ async function handleIngest(req: IncomingMessage, res: ServerResponse, pool: Poo
     }
     const result = await ingestFiles(pool, files, repo, commit || "HEAD");
     json(res, 200, result);
+    // Post-ingest fan-out: re-link tests against any changed specs (and let
+    // newly-ingested tests find a statement in unchanged specs). Fire-and-
+    // forget — the response has already been written; agent returns 202
+    // and the content-hash gate elides the work when nothing relevant
+    // changed. Gated on at least one file actually landing (no point
+    // firing for an all-skipped/all-error batch).
+    const landed = Array.isArray(result?.results)
+      ? result.results.some((r: { status?: string }) => r.status === "ingested" || r.status === "deleted")
+      : false;
+    if (landed) {
+      void triggerAgentSpecTestLinker(repo);
+    }
   } catch (err: any) {
     console.error("[ingest] API error:", err.message);
     json(res, 500, { error: err.message });
@@ -646,6 +658,33 @@ async function triggerAgentReviewReactor(repo: string, prNumber: number): Promis
     });
   } catch (err: any) {
     console.warn("[webhook] review-reactor trigger failed:", err.message);
+  }
+}
+
+/**
+ * Forward a spec-test-linker trigger to the agent. Fire-and-forget: the
+ * agent returns 202 before segmenting + judging, so this won't block the
+ * /api/ingest response. The content-hash gate inside the job makes
+ * triggered runs cheap when nothing actually changed.
+ */
+export async function triggerAgentSpecTestLinker(repo: string): Promise<void> {
+  const agentUrl = process.env.LORE_AGENT_URL;
+  const token = process.env.LORE_AGENT_INTERNAL_TOKEN;
+  if (!agentUrl || !token) {
+    console.warn("[ingest] LORE_AGENT_URL or LORE_AGENT_INTERNAL_TOKEN not set — skipping spec-test-linker trigger");
+    return;
+  }
+  try {
+    await fetch(`${agentUrl.replace(/\/+$/, "")}/api/trigger/spec-test-linker`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ repo }),
+    });
+  } catch (err: any) {
+    console.warn("[ingest] spec-test-linker trigger failed:", err.message);
   }
 }
 

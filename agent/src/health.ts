@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { query, isDbAvailable } from "./db.js";
 import { runReviewReactorForPR } from "./jobs/scheduled/review-reactor.js";
+import { specTestLinkerJob } from "./jobs/cron/spec-test-linker.js";
 import { tryAutoMergeForCompletedTask } from "./jobs/auto-merge-trigger.js";
 
 const startTime = Date.now();
@@ -47,6 +48,40 @@ export function startHealthServer(
         );
         res.writeHead(202, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ status: "accepted", repo, pr_number }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // Internal trigger endpoint for post-ingest spec-test linker fan-out.
+    // mcp-server forwards a fire-and-forget POST here after a successful
+    // /api/ingest so freshly-edited specs (and new tests) get re-linked
+    // promptly instead of waiting for Monday's weekly sweep. The
+    // content-hash freshness gate inside the job makes triggered runs
+    // cheap when the spec hasn't actually changed.
+    if (req.method === "POST" && req.url === "/api/trigger/spec-test-linker") {
+      if (!authInternal(req)) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "unauthorized" }));
+        return;
+      }
+      try {
+        const body = await readBody(req);
+        const { repo } = JSON.parse(body || "{}") as { repo?: string };
+        if (!repo || !repo.includes("/")) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "required: repo (owner/name)" }));
+          return;
+        }
+        // Fire-and-forget — return 202 immediately so the webhook sender
+        // doesn't wait on segmentation + classifier + judge.
+        specTestLinkerJob({ repoFilter: repo }).catch((err) =>
+          console.error(`[agent] trigger spec-test-linker failed for ${repo}:`, err),
+        );
+        res.writeHead(202, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "accepted", repo }));
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: err.message }));
