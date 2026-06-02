@@ -615,18 +615,21 @@ async function getLastContentHash(
   }
 }
 
-async function recordContentHash(
+export async function recordContentHash(
   schema: string,
   repo: string,
   specPath: string,
   contentHash: string,
+  linkedBy: string,
 ): Promise<void> {
   await query(
-    `INSERT INTO ${schema}.spec_coverage_runs (repo, spec_path, content_hash, run_at)
-     VALUES ($1, $2, $3, now())
+    `INSERT INTO ${schema}.spec_coverage_runs (repo, spec_path, content_hash, run_at, linked_by)
+     VALUES ($1, $2, $3, now(), $4)
      ON CONFLICT (repo, spec_path)
-     DO UPDATE SET content_hash = EXCLUDED.content_hash, run_at = now()`,
-    [repo, specPath, contentHash],
+     DO UPDATE SET content_hash = EXCLUDED.content_hash,
+                   run_at       = now(),
+                   linked_by    = EXCLUDED.linked_by`,
+    [repo, specPath, contentHash, linkedBy],
   );
 }
 
@@ -717,6 +720,10 @@ export interface SpecTestLinkerOptions {
    * processed. Used by the post-ingest trigger so we don't sweep every team
    * schema on every push. The content-hash gate still skips unchanged specs. */
   repoFilter?: string;
+  /** Attribution written to spec_coverage_runs.linked_by. Defaults to `cron`
+   * for direct job-runner invocations; the webhook trigger sets `webhook`;
+   * the BYO-compute MCP `persist_spec_link` sets `local:{agent_id}`. */
+  linkedBy?: string;
 }
 
 export async function specTestLinkerJob(opts: SpecTestLinkerOptions = {}): Promise<string> {
@@ -725,7 +732,7 @@ export async function specTestLinkerJob(opts: SpecTestLinkerOptions = {}): Promi
     console.log("[job] spec-test-linker: no spec_test_links tables found (run migrations)");
     return "No spec_test_links tables found";
   }
-  const { repoFilter } = opts;
+  const { repoFilter, linkedBy = "cron" } = opts;
 
   let totalSpecs = 0;
   let totalSkipped = 0;
@@ -856,7 +863,7 @@ export async function specTestLinkerJob(opts: SpecTestLinkerOptions = {}): Promi
         }
         const confirmed = argmaxByTest(allJudgments);
         const pruned = await persistLinks(schema, head.repo, head.file_path, confirmed);
-        await recordContentHash(schema, head.repo, head.file_path, contentHash);
+        await recordContentHash(schema, head.repo, head.file_path, contentHash, linkedBy);
 
         totalSpecs++;
         totalLinks += confirmed.length;

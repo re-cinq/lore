@@ -69,19 +69,23 @@ export function startHealthServer(
       }
       try {
         const body = await readBody(req);
-        const { repo } = JSON.parse(body || "{}") as { repo?: string };
+        const { repo, linked_by } = JSON.parse(body || "{}") as {
+          repo?: string;
+          linked_by?: string;
+        };
         if (!repo || !repo.includes("/")) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "required: repo (owner/name)" }));
           return;
         }
+        const linkedBy = linked_by || "webhook";
         // Fire-and-forget — return 202 immediately so the webhook sender
         // doesn't wait on segmentation + classifier + judge.
-        specTestLinkerJob({ repoFilter: repo }).catch((err) =>
+        specTestLinkerJob({ repoFilter: repo, linkedBy }).catch((err) =>
           console.error(`[agent] trigger spec-test-linker failed for ${repo}:`, err),
         );
         res.writeHead(202, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "accepted", repo }));
+        res.end(JSON.stringify({ status: "accepted", repo, linked_by: linkedBy }));
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: err.message }));
