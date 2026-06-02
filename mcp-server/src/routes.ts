@@ -77,6 +77,7 @@ const ROUTE_SCOPES: Record<string, TokenScope> = {
   "/api/ingest": "write",
   "/api/onboard": "admin",
   "/api/task-logs": "write",
+  "/api/job-run-logs": "read",
   "/api/webhook/github": "webhook",
   "/api/webhook/slack": "webhook",
   "/api/webhook/incident": "webhook",
@@ -1062,6 +1063,24 @@ async function handleGetTaskLogs(req: IncomingMessage, res: ServerResponse): Pro
   }
 }
 
+async function handleGetJobRunLogs(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = new URL(req.url!, "http://localhost");
+  const jobName = url.searchParams.get("job_name");
+  const runId = url.searchParams.get("run_id");
+  if (!jobName || !runId) { json(res, 400, { error: "required: job_name, run_id" }); return; }
+  try {
+    const { Storage } = await import("@google-cloud/storage");
+    const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
+    const file = bucket.file(`__job_runs__/${jobName}/${runId}/output.log`);
+    const [exists] = await file.exists();
+    if (!exists) { json(res, 200, { logs: "", complete: true }); return; }
+    const [content] = await file.download();
+    json(res, 200, { logs: content.toString("utf-8"), complete: true });
+  } catch (err: any) {
+    json(res, 500, { error: err.message });
+  }
+}
+
 async function handleIncidentWebhook(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
   if (!pool) { json(res, 503, { error: "database not available" }); return; }
   const body = await readBody(req);
@@ -1221,6 +1240,8 @@ export async function handleApiRoute(
     await handleTaskLogs(req, res);
   } else if (url.startsWith("/api/task-logs") && method === "GET") {
     await handleGetTaskLogs(req, res);
+  } else if (url.startsWith("/api/job-run-logs") && method === "GET") {
+    await handleGetJobRunLogs(req, res);
   } else if (url === "/api/webhook/incident" && method === "POST") {
     await handleIncidentWebhook(req, res, pool);
   } else if (url === "/api/tokens") {

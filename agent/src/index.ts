@@ -7,21 +7,12 @@ import { registerJob, startScheduler, getJobStatus } from "./scheduler.js";
 import { startHealthServer } from "./health.js";
 
 import { loadApprovalConfig } from "./approval.js";
-import { approvalCheckJob } from "./jobs/approval-check.js";
-import { mergeCheckJob } from "./jobs/merge-check.js";
-import { ttlCleanupJob } from "./jobs/ttl-cleanup.js";
-import { reindexJob } from "./jobs/reindex.js";
-import { gapDetectJob } from "./jobs/gap-detect.js";
-import { specDriftJob } from "./jobs/spec-drift.js";
-import { specTestLinkerJob } from "./jobs/spec-test-linker.js";
-import { reviewReactorJob } from "./jobs/review-reactor.js";
-import { evalRunnerJob } from "./jobs/eval-runner.js";
-import { autoresearchJob } from "./jobs/autoresearch.js";
-import { contextCoreBuilderJob } from "./jobs/context-core-builder.js";
-import { loretaskWatcherJob } from "./jobs/loretask-watcher.js";
-import { specTaskExecutorJob } from "./jobs/spec-task-executor.js";
-import { importanceDecayJob, consolidationJob } from "./jobs/memory-lifecycle.js";
-import { staleTaskCheckJob } from "./jobs/stale-task-check.js";
+import { approvalCheckJob } from "./jobs/scheduled/approval-check.js";
+import { mergeCheckJob } from "./jobs/scheduled/merge-check.js";
+import { reviewReactorJob } from "./jobs/scheduled/review-reactor.js";
+import { loretaskWatcherJob } from "./jobs/scheduled/loretask-watcher.js";
+import { specTaskExecutorJob } from "./jobs/scheduled/spec-task-executor.js";
+import { staleTaskCheckJob } from "./jobs/scheduled/stale-task-check.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
@@ -43,6 +34,9 @@ async function main(): Promise<void> {
     console.log(`[agent] Recovered ${recovered} stale tasks`);
   }
 
+  // In-process jobs: sub-minute, hot-path, or webhook-coupled. The 10
+  // batch jobs that used to live here now run as K8s CronJob pods via
+  // dist/job-runner.js — see ADR-019 and agent/src/jobs/cron/README.md.
   registerJob("merge_check", "*/1 * * * *", mergeCheckJob);
   registerJob("approval_check", "*/1 * * * *", approvalCheckJob);
   // Safety-net cron for review reactor. Primary trigger is the
@@ -50,18 +44,8 @@ async function main(): Promise<void> {
   // webhook delivery was dropped. Fires hourly Mon-Fri 07:07-17:07 UTC
   // (roughly 09-19 CET/CEST); the job itself gates on business hours.
   registerJob("review_reactor", "7 7-17 * * 1-5", reviewReactorJob);
-  registerJob("memory_ttl", "0 * * * *", ttlCleanupJob);
-  registerJob("context_reindex", "0 2 * * *", reindexJob);
-  registerJob("gap_detection", "0 9 * * 1", gapDetectJob);
-  registerJob("spec_drift", "0 10 * * 1", specDriftJob);
-  registerJob("spec_test_linker", "0 11 * * 1", specTestLinkerJob);
-  registerJob("eval_runner", "0 3 * * *", evalRunnerJob);
-  registerJob("context_core_builder", "0 4 * * *", contextCoreBuilderJob);
-  registerJob("autoresearch", "0 6 * * 1", autoresearchJob);
   registerJob("loretask_watcher", "*/1 * * * *", loretaskWatcherJob);
   registerJob("spec_task_executor", "*/1 * * * *", specTaskExecutorJob);
-  registerJob("importance_decay", "0 5 * * *", importanceDecayJob);    // daily 5 AM
-  registerJob("consolidation", "30 5 * * *", consolidationJob);        // daily 5:30 AM
   registerJob("stale_task_check", "17 * * * *", staleTaskCheckJob);    // hourly at :17
 
   startScheduler();

@@ -1,5 +1,5 @@
-import { query } from "../db.js";
-import { callLLMWithTool } from "../anthropic.js";
+import { query } from "../../db.js";
+import { callLLMWithTool } from "../../anthropic.js";
 import { isAssertionSource, shouldSkipDrift } from "./spec-drift-rules.js";
 
 interface SpecChunk {
