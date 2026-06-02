@@ -1,328 +1,375 @@
-# Feature Specification: Spec → Test Coverage
+# Feature Specification: Spec → Test Coverage (v3)
 
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Spec → Test Coverage                     |
-| Status         | Draft                                    |
+| Status         | Draft (v3) — supersedes v1 and v2        |
 | Created        | 2026-06-01                               |
+| Last redesign  | 2026-06-02 (v3, author-driven markdown links + cron-as-suggester) |
 | Owner          | Platform Engineering                     |
+| Supersedes     | [`local-coverage-linker`](../local-coverage-linker/spec.md) (BYO-compute persist path); defers [`coverage-ingestion`](../coverage-ingestion/spec.md) (decoupled from v3) |
 
 ## Problem Statement
 
-The per-repo specs page (`/repos/[owner]/[repo]/specs`) is a flat list
-of cards whose title is the raw `file_path` and whose body is a
-400-character `<pre>` dump of the chunk content. It answers "what specs
-exist" and nothing else.
+The per-repo specs page renders specifications as a flat list of cards.
+v1 added a test-count line. v2 added a statement-level coverage bar
+driven by a server-side LLM linker that wrote `spec_statements`,
+`spec_test_links`, and `spec_coverage_runs` per repo.
 
-It does not answer the question that actually matters for project
-health: **is this spec backed by tests, and where are they?**
+After shipping v2, three weaknesses became obvious:
 
-Lore already detects spec → *code* drift (`agent/src/jobs/spec-drift.ts`
-extracts named assertions from a spec via LLM and matches them against
-`content_type = 'code'` symbol metadata). The mirror image — spec → *test*
-coverage — does not exist. There is no persisted, queryable record of
-which tests validate which spec, so neither the UI nor any analysis job
-can reason about coverage.
+1. **The linker infers what the author already knows.** A spec author
+   knows which tests validate which behaviour better than any LLM
+   judge can guess from prose + test names + heuristic candidate
+   selection.
+2. **The persistence apparatus is overhead in service of
+   inference.** Three tables, a cron job, a post-ingest webhook
+   fan-out, a BYO-compute MCP path (`prepare`/`persist`/`stale`),
+   and a `/lore-link-coverage` skill all exist to render colored
+   marks on statements that could be marked once, in markdown, in
+   the spec.
+3. **Hallucination risk and drift.** Even with τ=0.5 + argmax-by-
+   test, the v2 judge occasionally picks the wrong statement. A
+   markdown link in the spec cannot hallucinate — it either resolves
+   to a real test or it doesn't. And the link travels with the spec
+   in git: the PR that adds the spec edit adds the test link too,
+   so reviewers see both at once instead of the cron silently
+   updating the DB hours later.
+
+v3 inverts: **author-written markdown links in `spec.md` are the
+source of truth.** The UI parses and colors them at render time. The
+cron survives, but its role shrinks from "write inferred links to
+the DB" to two clean responsibilities:
+
+- **Validate**: parse links in each spec, resolve them against the
+  AST-chunked test metadata in `{schema}.chunks`, and open a PR
+  comment (or issue) when a link rots (test deleted, renamed, or
+  line range moved).
+- **Backfill**: for testable statements with no link, run the v2
+  judge pipeline (segment → classify → candidate selection →
+  statement-level judge) and open a PR that **edits `spec.md` to add
+  the suggested links**. The author reviews and merges (or rejects)
+  the suggestion. The judge's output is markdown, not a DB row.
+
+No `spec_statements`, no `spec_test_links`, no `spec_coverage_runs`
+in the v3 happy path. The v2 tables, migrations, MCP tools, persist
+API, and `/lore-link-coverage` skill are scheduled for deletion in
+the v3 cleanup phase.
 
 ## Solution
 
-A **statement-level** spec → test linkage, persisted per-repo, surfaced as a
-spec that reads like a coverage heat-map:
+A **statement-level** spec → test linkage where the source of truth
+is markdown in `spec.md`:
 
-1. **A linker job** segments each spec into statements (prose sentences + list
-   items), classifies each as **testable** or **untestable** (narrative), then
-   for each candidate test asks an LLM judge which single statement it most
-   strongly validates (with a score + rationale). It writes statements to
-   `spec_statements` and confirmed links to `spec_test_links`.
-2. **A redesigned specs page** renders the spec markdown with each statement
-   coloured by state — **green** (testable + tested), **red** (testable +
-   untested), **grey** (untestable fluff) — hovering a green statement reveals
-   the validating test(s) with source links. A stacked three-colour
-   **coverage bar** with percentages sits on every card and atop the details
-   view. The flat linked-test list is retained below as a secondary index and
-   a fallback for links that can't anchor inline.
+```markdown
+## Acceptance Criteria
 
-The structured tables are the point: `spec_statements` + `spec_test_links` are
-first-class artifacts other jobs (gap detection, analytics, trust scoring) can
-query, not a render-time computation. Because every statement's state is
-persisted, "which requirements have no test?" becomes a single query.
+1. The runner claims a pending task before GKE picks it up.
+   ([validated by `runner.test.ts:88`](mcp-server/src/local-runner.test.ts#L88))
+2. Tasks survive rollout restarts via the lease backend.
+   ([validated by `lease-backend.test.ts:42`](agent/src/supervisor/lease.test.ts#L42),
+   [`lease-backend.test.ts:74`](agent/src/supervisor/lease.test.ts#L74))
+3. The runner re-queues a stale task after 30 minutes.
+   <!-- no link yet — cron's backfill pass will suggest one -->
+```
 
-### Design decisions (locked)
+**Format**: each statement carries an inline parenthetical at end of
+sentence / list item. The parenthetical contains one or more
+`[label](path#Lline)` markdown links pointing at the test file +
+line. Multiple links separated by commas. Statements with no link
+render as visible red gaps in the UI.
+
+### What the UI does
+
+The same `SpecDetails` rehype plugin that v2 used for statement
+highlighting now keys off the markdown link's `href`:
+
+- **Any `<a>` whose href passes `isTestFile()`** (shared helper, same
+  one the v2 linker used) → wrap the link in `class="stmt-tested"`,
+  AND wrap its enclosing statement in `class="stmt"` with state
+  `tested`.
+- **Statements with no test link** under a heading the section
+  heuristic marks **testable** → wrap in `class="stmt-untested"`
+  (red), counted as a visible gap.
+- **Statements under a narrative section** (Problem Statement /
+  Vision / Background / Clarifications / Open Questions / Limitations
+  / Rationale, plus the H1 intro) → wrap in `class="stmt-narrative"`
+  (grey), excluded from the coverage denominator. Reuses
+  `classifyByHeuristic()` from v2 unchanged.
+- **Any other `<a>`** (a regular link to an ADR, a Slack thread, an
+  external docs page) → renders unchanged, no special class.
+
+The `CoverageBar` math is now over **link presence**:
+
+- `covered` = statements with ≥1 test link
+- `untested` = testable statements with zero test links
+- `narrative` = untestable statements (per the section heuristic)
+- `tested / (tested + untested)` is the headline percentage; same as v2.
+
+### What the cron does
+
+Two passes, both repurposed from the v2 `agent/src/jobs/cron/spec-test-linker.ts`:
+
+```
+┌─── Validate pass (runs on every ingest, fire-and-forget) ─────────┐
+│  for each spec chunk in the just-ingested repo:                    │
+│    reassembleSpec → segmentStatements → parse markdown links per   │
+│    statement → for each link:                                      │
+│      - resolve `path#Lline` against {schema}.chunks                │
+│        (content_type='code', metadata.start_line, metadata.end_line)│
+│      - if no chunk matches OR the chunk no longer contains a test  │
+│        symbol on that line → flag as `link_rot`                    │
+│    if any flags: open a PR comment (or issue) with the broken-link │
+│    list. No DB writes. No spec edits.                              │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─── Backfill pass (weekly, Mon 11:00 UTC, manual trigger optional) ┐
+│  for each spec chunk:                                              │
+│    reassembleSpec → segmentStatements →                            │
+│    classifyByHeuristic + LLM-fallback → for each TESTABLE          │
+│    statement WITHOUT a test link:                                  │
+│      run the v2 judge pipeline (candidate selection + judge) to    │
+│      produce a suggested link.                                     │
+│    if any suggestions: open a PR titled                            │
+│      "Suggested test links for specs/X/spec.md"                    │
+│    body = inline diff that adds the suggested                      │
+│      `([validated by ...](path#Lline))` parentheticals.            │
+│    Author reviews + merges (or rejects).                           │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+The backfill PR is the **only** mechanism by which the cron writes
+anything. No DB rows. No silent state. Every cron action is
+reviewable as a git PR.
+
+### Decisions (locked)
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Match granularity | **Statement-level** — sentences + list items, not whole-spec | A test validates a specific claim; line-level signal is what reviewers want |
-| Test ↔ statement match | **LLM judge picks the single best statement** per candidate test (score + rationale) | Captures intent; one-best-per-test keeps highlights unambiguous |
-| Statement state | **Three-way: testable+tested (green) / testable+untested (red) / untestable (grey)** | Distinguishes a real gap from narrative prose so the coverage number isn't polluted |
-| Testable vs untestable | **Classifier** (section heuristic + LLM fallback), errs toward `testable` | Intro/vision/clarifications aren't gaps; a false-red is safe, a false-grey hides a gap |
-| Coverage signal | **Stacked three-colour bar + percentages** on card and details | One glance shows tested / untested / fluff composition |
-| Structured store | **`spec_statements` + `spec_test_links` tables + API endpoint** | Reusable by analytics / gap detection; matches `chunks` isolation model |
-| Test source | **Filter existing `content_type = 'code'` chunks** by path heuristics | No ingestion change; tests already present as code chunks |
-| Freshness | **Content-hash gate** — re-link a spec only when its content changed | Edited specs re-link promptly; unchanged specs cost zero LLM calls |
-| Scope | **Per-repo specs pages only (v1)** | `spec_test_links` is per-team-schema; the global `/specs` viewer is cross-content-type |
-| Test pass/fail status | **Not shown** | Out of scope — this feature maps tests to specs, it does not report run results |
+| Source of truth | **Markdown links in `spec.md`** | Git-tracked, author-reviewed, no hallucination, PR-co-located |
+| Link format | **Inline parenthetical at end of statement**: `Statement text. ([label](path#Lline))` | Lowest visual noise; works for prose + lists; rehype detects deterministically; multiple links comma-separated inside one paren |
+| Test-file detection | Reuse `isTestFile()` from `@re-cinq/lore-shared` on the `<a>` href's path component | Same heuristic the v2 linker used; one shared source of truth |
+| Statement segmentation | Reuse `segmentStatements()` + `classifyByHeuristic()` from `@re-cinq/lore-shared` | The ordinal contract still applies — UI + cron must agree on what counts as a statement |
+| Server-side state | **None.** The v2 tables (`spec_statements`, `spec_test_links`, `spec_coverage_runs`) are scheduled for deletion | Spec authors update the file; UI reads it; cron proposes via PR |
+| Cron — validate | **Runs on every ingest** (replaces the v2 fan-out webhook trigger). Pure resolution against `chunks`; no LLM. Outputs broken-link reports as PR comments. | Cheap; catches link rot promptly |
+| Cron — backfill | **Weekly schedule + manual trigger**. Runs the v2 judge pipeline but emits its output as **PR edits to `spec.md`**, not DB rows | Expensive; weekly is right cadence |
+| Backfill output target | **PR against the spec's own repo** adding the suggested markdown links inline | Author reviews in their normal git flow; no UI for "accept/reject suggestions" needed |
+| Validation output target | **PR comment** on the most recent open PR touching the spec, or an issue if none exists | Surfaces link rot at the right moment |
+| Coverage scope | Per-repo specs pages only (v2 limitation carries over) | The global `/specs` viewer doesn't get statement-level coloring |
+| Pass/fail status | **Not shown** (v2 limitation carries over) | Out of scope; this feature maps tests to statements, not run results |
+| v2 cleanup | A separate **Phase 4** drops the v2 tables, MCP tools, persist API, BYO-compute skill, and `local-coverage-linker` apparatus | Avoids "ghost state" once v3 ships |
 
 ## User Experience
 
-### Card list (redesigned)
+### Author flow
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│ Local Task Runner                                  [Details] │
-│ specs/local-task-runner/spec.md                              │
-│                                                              │
-│ A local task runner that runs inside the developer's Claude  │
-│ Code session, spawning background work in isolated git       │
-│ worktrees using their subscription instead of API credits.   │
-│                                                              │
-│ ████████████░░░░░░░░▓▓▓▓▓▓▓▓▓▓▓▓                             │
-│ 75% covered · 6 tested · 2 untested · 4 narrative            │
-└────────────────────────────────────────────────────────────┘
+Author edits specs/local-task-runner/spec.md, adding a new
+acceptance criterion:
+
+  3. The runner re-queues a stale task after 30 minutes.
+
+Author commits, opens PR.
+
+  Within minutes, the cron's validate pass runs on the new ingest:
+  - parses all the links in the spec
+  - no broken links found
+  - (silent — only comments on rot)
+
+  Mondays at 11:00 UTC, the cron's backfill pass runs:
+  - finds the new statement has no test link
+  - segment + classify → testable, no link → eligible
+  - judge pipeline finds a candidate test
+  - opens a PR:
+
+    "Suggested test links for specs/local-task-runner/spec.md"
+
+    --- a/specs/local-task-runner/spec.md
+    +++ b/specs/local-task-runner/spec.md
+    @@ -56,7 +56,8 @@
+       2. Tasks survive rollout restarts via the lease backend.
+          ([validated by lease-backend.test.ts:42](...))
+    -  3. The runner re-queues a stale task after 30 minutes.
+    +  3. The runner re-queues a stale task after 30 minutes.
+    +     ([validated by runner.test.ts:142](mcp-server/src/local-runner.test.ts#L142))
+
+  Author reviews, merges (or rejects with a comment explaining why
+  the suggestion misses).
 ```
 
-- **Title** — parsed from the spec's first H1, falling back to the
-  feature-directory name, falling back to `file_path`.
-- **Summary** — first non-heading paragraph of the spec (≤ ~280 chars),
-  not a raw character slice.
-- **Coverage bar** — the shared `CoverageBar`: a stacked three-colour bar
-  (green tested / red untested / grey narrative) with per-segment
-  percentages. Segment widths are over **all** statements; the headline
-  "% covered" caption is `tested / (tested + untested)` — fluff excluded, so a
-  narrative-heavy spec isn't penalised. Every colour also carries a non-colour
-  cue (label / icon) for accessibility. A spec with zero testable statements
-  shows a muted, empty bar.
+### UI flow
 
-### Details view
+The per-repo specs page (`/repos/:o/:r/specs`) renders the same
+`SpecCard` and `SpecDetails` as v2. Coverage math comes from
+parsing the spec markdown, not from a DB query.
 
-A linkable **route** (`/repos/:owner/:repo/specs/[...path]`, matching the
-existing per-repo detail route and the global `/specs/[...path]` pattern),
-opened by the card's **Details** button. Shows:
+- `SpecCard` shows: title, summary, `CoverageBar` (over link
+  presence), Details button.
+- `SpecDetails` renders the full markdown with statement coloring:
+  green statements have an inline `[validated by ...](...)` link;
+  hovering reveals the linked test name and source URL (the
+  popover content comes from the link itself — no rationale,
+  because nothing was inferred).
+- Red statements are visible gaps. No popover, just colour.
+- Grey statements (narrative) hover reveals the section category
+  (intro / vision / limitation / etc.).
 
-1. **The `CoverageBar`** (same component as the card) as the header.
-2. **The full spec**, rendered as formatted markdown (`react-markdown` +
-   `remark-gfm`, the same stack as `ReadmeBox.tsx`), reassembled from all
-   chunks for that `file_path`, with **each statement coloured by state**:
-   - **green** — testable and validated by ≥1 test; hovering reveals the
-     validating test name(s) + source deep-link(s) and the judge's rationale.
-   - **red** — testable but no test links to it (a visible gap).
-   - **grey** — untestable narrative (intro / vision / clarification / open
-     question / limitation / rationale); hover shows its category.
-3. **Matched tests list** (retained), each row: the `describe › it` name, a
-   source deep link (`{html_url}/blob/{ref}/{file_path}#L{line}`), and the
-   judge's rationale on expand. Links whose statement could not be anchored
-   inline (see Limitations) are flagged here so coverage is never silently
-   lost.
+### Cron diagnostics
 
+Every cron run records a log line per spec:
 ```
-████████████████████░░░░░░░░▓▓▓▓▓▓▓▓▓▓   75% covered · 4 narrative
-
-Full spec ───────────────────────────────────────────────────
-# Feature Specification: Local Task Runner
-
-[grey]  A local task runner that runs inside the developer's session …
-[green] It claims a pending task before GKE picks it up.   ← hover ↓
-          ┌──────────────────────────────────────────────┐
-          │ local-runner › claims pending task before GKE │
-          │ runner.test.ts:88 ↗                           │
-          │ judge: exercises the SKIP LOCKED claim query  │
-          └──────────────────────────────────────────────┘
-[red]   It re-queues a stale task after 30 minutes.        ← no test
-
-Tests validating this spec (12) ──────────────────────────────
-local-runner › claims pending task before GKE      runner.test.ts:88 ↗
-local-runner › spawns worktree on explicit run     runner.test.ts:42 ↗  (list-only)
+[job] spec-test-coverage: re-cinq/lore:specs/local-task-runner/spec.md
+  — 24 statements, 16 testable, 11 linked, 5 untested (suggestions in PR #492)
 ```
+
+Failed runs surface in the existing `pipeline.job_runs` table.
 
 ## Architecture
 
 ```
-┌─────────────────── Linker job (post-ingest + weekly sweep) ──────────────────┐
-│ for each spec chunk (content_type='spec', isAssertionSource):                 │
-│   0. hash reassembleSpec(spec); skip if unchanged (spec_coverage_runs)        │
-│   1. segmentStatements(spec)            → sentences + list items (deterministic)│
-│   2. classify each statement            → testable | untestable (+ category)  │
-│        section heuristic first, LLM fallback for ambiguous prose              │
-│   3. upsert statements → {schema}.spec_statements; prune dropped ordinals     │
-│   4. extractAssertions(spec)            ← reuse spec-drift LLM extraction      │
-│   5. candidate tests =                                                         │
-│        code chunks where file_path matches a TEST_PATH pattern                 │
-│        AND (references an assertion symbol  OR  embedding sim ≥ τ              │
-│             OR shares the spec's feature directory)                            │
-│   6. for each candidate: judge(testable statements, test)                     │
-│        → { matches, statement_ordinal, score, rationale }                     │
-│   7. keep max-score statement per test (best-match-per-test, ≥ τ_score)       │
-│   8. upsert confirmed links → {schema}.spec_test_links                         │
-│   9. delete stale links no longer confirmed this run; record content_hash     │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌──────  Author edits spec.md (with or without test links)  ─────────┐
+│  git push  →  GitHub Actions ingest  →  POST /api/ingest           │
+└────────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌──────  mcp-server /api/ingest  ───────────────────────────────────┐
+│  upsert chunks                                                     │
+│  fire-and-forget: POST /api/trigger/spec-coverage-validate          │
+│    (replaces the v2 spec-test-linker trigger)                      │
+└────────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌──────  agent /api/trigger/spec-coverage-validate  ────────────────┐
+│  scope: that one repo                                              │
+│  for each spec chunk:                                              │
+│    reassemble → segment → for each statement's links:              │
+│      resolve href #Lline against {schema}.chunks AST metadata      │
+│  if broken links found → open PR comment on latest open PR for the │
+│    spec's repo, OR open an issue                                   │
+└────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────── Web UI (per-repo only) ──────────────────────────────┐
-│ GET /api/repos/:owner/:repo/spec-coverage                                     │
-│   → [{ spec_path, title, summary,                                             │
-│        coverage:{ testable, covered, untestable },                            │
-│        statements:[{ ordinal, text, kind, testability, category }],           │
-│        tests:[{ name, file_path, line, statement_ordinal, match_score,        │
-│                 symbol, rationale, url }] }]                                   │
-│ page.tsx (server)  → SpecCard + CoverageBar from coverage payload            │
-│ SpecDetails.tsx (client) → rehype-highlighted markdown + CoverageBar + list  │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌──────  agent weekly CronJob spec-coverage-backfill  ──────────────┐
+│  for each repo, for each spec:                                     │
+│    reassemble → segment → classify (heuristic + LLM fallback) →    │
+│    for each TESTABLE statement WITH NO link:                       │
+│      selectCandidates → judgeLink → propose markdown link          │
+│    aggregate suggestions per spec → open one PR per spec with the  │
+│    suggested inline-link insertions                                │
+└────────────────────────────────────────────────────────────────────┘
+
+┌──────  Web UI per-repo specs page  ───────────────────────────────┐
+│  reads spec chunks ONLY (no spec_statements / spec_test_links /    │
+│  spec_coverage_runs queries)                                       │
+│  reassemble → segment → classifyByHeuristic →                      │
+│  rehype plugin: detect <a href> matching isTestFile,               │
+│    wrap statement state class                                      │
+│  CoverageBar: count statements with ≥1 test link as "covered"      │
+└────────────────────────────────────────────────────────────────────┘
 ```
-
-### Matching algorithm (cost-bounded LLM judge)
-
-A naive judge is `N_specs × N_tests` LLM calls. We bound it with a
-**candidate pre-filter** before the judge ever runs:
-
-1. **Assertion overlap** — reuse `extractAssertions()` from spec-drift to
-   get the spec's named symbols; a test file is a candidate if its chunk
-   content references any of those symbol names. (Strongest signal — the
-   test literally exercises a symbol the spec names.)
-2. **Directory affinity** — a test under the same feature path as the
-   spec (e.g. spec `specs/local-task-runner/` ↔ test `local-runner.test.ts`)
-   is a candidate.
-3. **Embedding proximity** — test chunks whose embedding cosine-similarity
-   to the spec exceeds τ (default 0.75) are candidates. (Optional/best-effort;
-   only for tests that have embeddings.)
-
-The union of candidates (capped at `MAX_CANDIDATES_PER_SPEC`, default 25)
-goes to the LLM judge. The judge is given the spec's **enumerated testable
-statements** and the test, and returns
-`{ matches, statement_ordinal, score, rationale }` — *which single statement*
-the test most strongly validates, not just a yes/no. Only `matches = true`
-rows with `score ≥ τ_score` (default 0.5) are persisted; the rationale and
-score are stored and shown in the details view.
-
-If the candidate cap is hit, the job **logs the truncation** (per the "no
-silent caps" rule) so coverage is never silently under-reported.
-
-**Best-match-per-test.** A test that scores against several statements is
-reduced to its single highest-scoring statement before persistence
-(`argmax(score)` per `(test_file, test_name)`). The existing
-`UNIQUE (repo, spec_path, test_file, test_name)` already permits one row per
-test per spec, so this needs no constraint change — only the dedup. A single
-statement may still be the best match for several tests (all listed on hover).
-
-### Statement segmentation and classification
-
-`segmentStatements(content)` (a deterministic pure function, shared by the
-linker and the renderer so ordinals agree) splits the reassembled spec into
-**statements**: prose paragraphs are split into sentences (`.?!` with an
-abbreviation guard), and each list item is its own statement. Headings, fenced
-code, and tables are excluded. It tracks each statement's enclosing heading.
-
-Each statement is then classified `testable` | `untestable`:
-
-1. **Section heuristic (cheap, high precision)** — statements under
-   `Problem Statement`, `Vision`, `Background`, `Clarifications`,
-   `Open Questions`, `Limitations`, `Rationale`, plus the H1/intro paragraph →
-   `untestable`, tagged with the matching `category`.
-2. **LLM fallback** — statements the heuristic doesn't catch get a batched
-   one-shot classification ("normative testable requirement, or narrative?").
-3. Acceptance Criteria / numbered requirement list items default to `testable`.
-
-The classifier **errs toward `testable`** when unsure: a false-red is a
-visible (harmless) gap, while a false-grey would hide a real gap.
-
-### API
-
-`GET /api/repos/:owner/:repo/spec-coverage` (read scope) — returns the
-coverage payload the page renders: per spec, the `coverage` counts, the full
-`statements` array (with `testability`/`category`), and the matched `tests`
-(each with `statement_ordinal` + `match_score` + source URL). Read-only; the
-page never computes matches or classification at render time. Bearer-auth via
-the existing `routes.ts` middleware. Full payload shape in
-[data-model.md](./data-model.md).
-
-### UI changes
-
-- `page.tsx` — thin server component that fetches the coverage payload (or
-  queries `spec_statements` + `spec_test_links` + `chunks` directly via
-  `db.ts`) and maps rows to `<SpecCard>`.
-- `SpecCard` — title, summary, `<CoverageBar>`, Details button.
-- `CoverageBar` (new, shared) — stacked three-segment bar
-  (`{ tested, untested, fluff }`) + percentages, used on the card and the
-  details header. Colours from theme tokens (`--success` / `--danger` /
-  `--text-muted`), each with a non-colour cue. Lives in `web-ui/src/components/`.
-- `SpecDetails` (client) — `react-markdown` render with a **rehype highlight
-  plugin** that wraps each matched statement's longest contiguous text run in
-  a `<mark>` carrying its state class, mapped to a hover-popover component;
-  plus the `CoverageBar` header and the retained test list. Reuses the
-  markdown stack and the `HelpPopover` hover pattern.
-- The existing "Add Spec" form is preserved unchanged.
 
 ## Data Model
 
-Three per-team-schema tables (mirroring `chunks` isolation): `spec_statements`
-(every classified statement), `spec_test_links` (one row per confirmed
-statement↔test link), `spec_coverage_runs` (content-hash freshness gate). The
-`spec_test_links` table is **extended** additively with `statement_ordinal`,
-`statement_text`, `match_score`. Full DDL, column notes, and the API payload
-shape in [data-model.md](./data-model.md).
+**No new tables in v3.** The v2 tables become unused; a cleanup
+migration drops them in Phase 4:
+
+```sql
+-- terraform/modules/gke-mcp/ui-helm/migrations/NNNN_drop_v2_spec_coverage_tables.sql
+DO $$ DECLARE s TEXT;
+BEGIN
+  FOR s IN
+    SELECT n.nspname FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relname IN ('spec_test_links','spec_statements','spec_coverage_runs')
+      AND c.relkind = 'r'
+  LOOP
+    EXECUTE format('DROP TABLE IF EXISTS %I.spec_test_links CASCADE', s);
+    EXECUTE format('DROP TABLE IF EXISTS %I.spec_statements CASCADE', s);
+    EXECUTE format('DROP TABLE IF EXISTS %I.spec_coverage_runs CASCADE', s);
+  END LOOP;
+END$$;
+```
+
+The validate pass needs no new tables either — it joins existing
+`{schema}.chunks` rows on `(file_path, metadata.start_line,
+metadata.end_line)` to resolve `path#Lline` link targets.
+
+## API
+
+### Endpoints removed (v2 → v3 cleanup, Phase 4)
+
+- `GET  /api/repos/:o/:r/spec-coverage`           → removed
+- `GET  /api/repos/:o/:r/spec-coverage/stale`     → removed
+- `POST /api/repos/:o/:r/spec-coverage/prepare`   → removed
+- `POST /api/repos/:o/:r/spec-coverage/persist`   → removed
+- `POST /api/trigger/spec-test-linker`            → removed (replaced
+  by `/api/trigger/spec-coverage-validate`)
+
+### Endpoint kept (renamed)
+
+`POST /api/trigger/spec-coverage-validate` — agent-side endpoint.
+Replaces `/api/trigger/spec-test-linker`. Body `{ repo }`. Returns
+202. Runs the validate pass in the background.
+
+No new HTTP API surface for the backfill — it runs from the
+CronJob via `node dist/job-runner.js spec_coverage_backfill`.
+
+### MCP tools removed
+
+- `prepare_spec_link`            → removed
+- `persist_spec_link`            → removed
+- `list_stale_spec_coverage`     → removed
+- `/lore-link-coverage` skill    → removed
 
 ## File Changes
 
 | File | Change |
 |------|--------|
-| `terraform/modules/gke-mcp/ui-helm/migrations/NNNN_spec_test_links.sql` | Existing: per-schema `spec_test_links` table + indexes |
-| `terraform/modules/gke-mcp/ui-helm/migrations/NNNN_spec_statements.sql` | New: `spec_statements` + `spec_coverage_runs` tables; additive `ALTER TABLE spec_test_links ADD COLUMN IF NOT EXISTS` (statement_ordinal, statement_text, match_score) + index |
-| `agent/src/lib/spec-segment.ts` | New: `segmentStatements()` (pure, deterministic, shared with web-ui) + statement classifier helpers |
-| `agent/src/jobs/spec-test-linker.ts` | Modify: content-hash gate, segment + classify statements, statement-level judge, best-match-per-test dedup, persist statements + scored links |
-| `agent/src/jobs/spec-test-linker.test.ts` | Modify: add tests for segmentation, section-heuristic classification, best-match dedup, ordinal stability |
-| `agent/src/lib/test-paths.ts` | Existing: `isTestFile()` + `normalizeTestName()` (pure, shared) |
-| `agent/src/index.ts` | Modify: post-ingest trigger for the linker in addition to the weekly schedule |
-| `mcp-server/src/routes.ts` | Modify: `spec-coverage` handler returns statements + coverage counts + per-test ordinal/score |
-| `web-ui/src/lib/spec-summary.ts` | Modify: add `segmentStatements()` (or import the shared impl) alongside `parseSpecTitle()` / `extractSummary()` |
-| `web-ui/src/components/CoverageBar.tsx` | New: shared stacked three-colour coverage bar + percentages |
-| `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` | Modify: coverage-driven cards with `<CoverageBar>`; keep Add Spec form |
-| `web-ui/src/app/repos/[owner]/[repo]/specs/SpecCard.tsx` | Modify: replace the inline test-count line with `<CoverageBar>` + caption |
-| `web-ui/src/app/repos/[owner]/[repo]/specs/[...path]/page.tsx` | Modify: pass statements to the renderer for highlighting |
-| `web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx` | Modify: rehype statement-highlight plugin + hover popovers + `CoverageBar` header; retain the test list |
+| `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` | Modify: drop `spec_statements` / `spec_test_links` / `spec_coverage_runs` queries; read chunks only; pass chunks to SpecCard which derives coverage from markdown link parsing |
+| `web-ui/src/app/repos/[owner]/[repo]/specs/[...path]/page.tsx` | Modify: same — chunks only; pass to SpecDetails |
+| `web-ui/src/app/repos/[owner]/[repo]/specs/SpecCard.tsx` + `SpecCardData` | Modify: accept content (or pre-derived counts); render `CoverageBar` from link-count math |
+| `web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx` | Modify: rehype plugin rewrites — instead of `data-ordinal` from DB, walk `<a>` elements, detect `isTestFile(href)`, wrap link + parent statement; statements without links classified via `classifyByHeuristic` from shared |
+| `web-ui/src/components/CoverageBar.tsx` | Modify: no change to component; only the callers' source data changes |
+| `agent/src/jobs/cron/spec-test-linker.ts` | **Rename + rewrite** as `agent/src/jobs/cron/spec-coverage-backfill.ts`. Reuses segment + classify + judge pipeline; output is a PR per spec with suggested inline-link insertions, not DB writes. Drops `persistStatements` / `persistLinks` / `recordContentHash` / `getLastContentHash` / `judgeLink` LLM call **kept** (it now informs link suggestions, not row writes). |
+| `agent/src/jobs/cron/spec-coverage-validate.ts` | NEW: lightweight validate pass. Parses markdown links from each spec, resolves href#Lline against `chunks.metadata`, opens PR comments on link rot |
+| `agent/src/health.ts` | Modify: rename `/api/trigger/spec-test-linker` → `/api/trigger/spec-coverage-validate`. Replaces the post-ingest fan-out target |
+| `agent/src/job-runner.ts` | Modify: dispatch entries → `spec_coverage_validate: validateJob, spec_coverage_backfill: backfillJob`; remove `spec_test_linker` |
+| `terraform/modules/gke-mcp/agent-helm/values.yaml` | Modify: rename CronJob entry to `spec-coverage-backfill`; same Mon 11:00 UTC schedule. Add a daily `spec-coverage-validate` cron entry for sweep-mode validation (in addition to the post-ingest trigger) |
+| `mcp-server/src/routes.ts` | Modify: remove `handleSpecCoverage`, `handleSpecCoverageStale`, `handleSpecCoveragePrepare`, `handleSpecCoveragePersist`. Repoint `handleIngest`'s fan-out to call `triggerAgentSpecCoverageValidate` |
+| `mcp-server/src/spec-coverage-prepare.ts` | Delete |
+| `mcp-server/src/spec-coverage-persist.ts` | Delete |
+| `mcp-server/src/spec-coverage-stale.ts` | Delete |
+| `mcp-server/src/index.ts` | Modify: remove `prepare_spec_link`, `persist_spec_link`, `list_stale_spec_coverage` MCP tool registrations |
+| `mcp-server/src/__tests__/spec-coverage*.test.ts` | Delete (or fold into validate/backfill tests as appropriate) |
+| `.claude/skills/lore-link-coverage/` | Delete |
+| `shared/src/spec-judge.ts` | **Keep** — backfill cron still uses `selectCandidates`, `judgeLink`, `argmaxByTest`, `hashSpecContent` for the suggestion pipeline |
+| `shared/src/spec-segment.ts` + `test-paths.ts` | Keep unchanged — UI + cron share them |
+| `terraform/modules/gke-mcp/ui-helm/migrations/NNNN_drop_v2_spec_coverage_tables.sql` | NEW: drop `spec_statements`, `spec_test_links`, `spec_coverage_runs` per team schema (Phase 4) |
+| `CLAUDE.md` | Modify: rewrite the spec-test-coverage paragraphs to describe v3; remove the `local-coverage-linker` MCP tool callouts |
+| `agent/src/lib/spec-link-parser.ts` | NEW: pure helper — `parseTestLinksInStatement(text): {label, path, line}[]` extracts the inline parentheticals; shared by validate + backfill + UI |
 
 ## Acceptance Criteria
 
-1. `spec_statements`, `spec_test_links`, and `spec_coverage_runs` exist per team schema with the documented columns; the additive `spec_test_links` statement columns apply idempotently to existing tables.
-2. The linker segments a spec into statements (sentences + list items) and classifies each as `testable` or `untestable` with a category; the segmentation is deterministic so the renderer reproduces identical ordinals.
-3. The linker skips any spec whose content hash is unchanged since its last run (freshness gate), and re-links promptly on a spec edit/re-ingest.
-4. The LLM judge persists only confirmed links with `match_score ≥ τ`, each carrying the validated `statement_ordinal`, score, and a non-empty rationale; candidate truncation is logged.
-5. A test that matches multiple statements highlights only its single best (`argmax score`) statement; a statement may be the best match for several tests.
-6. Re-running the linker prunes links and statements no longer present (no stale rows accumulate).
-7. `GET /api/repos/:owner/:repo/spec-coverage` returns, behind bearer auth, per-spec title, summary, coverage counts, the full statements array, and the matched test list with source URLs.
-8. Every card and the details header render a stacked three-colour `CoverageBar` (green tested / red untested / grey narrative) with percentages; segment widths sum to 100% of all statements and the "% covered" caption is tested/testable.
-9. The details view renders the full spec as formatted markdown with each statement coloured by state: green (tested, hover reveals validating test(s) + source links + rationale), red (testable, untested), grey (untestable, hover shows category).
-10. Untestable statements (intro / vision / clarification / open-question / limitation / rationale) are visibly de-emphasised and excluded from the coverage denominator.
-11. Every coverage colour carries a non-colour cue (label/icon) for accessibility.
-12. Links whose statement could not be anchored inline still appear in the retained full test list (no silent coverage loss); pre-existing whole-spec link rows degrade gracefully (no highlights) until the spec is re-linked.
-13. The existing "Add Spec" form continues to work unchanged.
+1. The per-repo specs page renders an `<a>` whose `href`'s path passes `isTestFile()` with the green `stmt-tested` class; regular links render unchanged.
+2. A statement carrying ≥1 test link counts as `covered` in the `CoverageBar`; the headline percentage is `covered / (covered + uncovered)`, with `narrative` excluded from the denominator (same formula as v2).
+3. A statement under a section heading the heuristic marks `untestable` (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale, plus the H1 intro) renders grey and is counted as `narrative`.
+4. A testable statement with no test link renders red and counts toward `uncovered`.
+5. Hovering a green statement reveals the linked test name(s) + source URL(s) extracted directly from the markdown link, no DB join.
+6. The per-repo specs page issues NO query against `spec_statements`, `spec_test_links`, or `spec_coverage_runs` (and the v3 cleanup migration drops these tables).
+7. `parseTestLinksInStatement(text)` extracts every `(...[label](path#Lline)...)` token at the end of a statement; multiple links comma-separated inside one paren are parsed as a list.
+8. The cron `spec_coverage_validate` runs on every successful `/api/ingest` for a repo, parses each spec's links, resolves them against `{schema}.chunks` AST metadata, and opens a PR comment listing broken links when any exist.
+9. The cron `spec_coverage_backfill` runs weekly (Mon 11:00 UTC) and on demand, segments + classifies + judges each spec's testable un-linked statements, and **opens a PR per spec** adding the suggested `([validated by ...](path#Lline))` parentheticals; no DB writes.
+10. The v2 MCP tools (`prepare_spec_link`, `persist_spec_link`, `list_stale_spec_coverage`), the persist API endpoints, and the `/lore-link-coverage` skill no longer exist in the repo.
+11. The v2 migrations remain intact (no destructive in-place rewrite of migration history); Phase 4's new migration `NNNN_drop_v2_spec_coverage_tables.sql` drops the now-unused tables idempotently.
+12. The cron's backfill PR is **the only** mechanism by which Lore writes a test link into the spec; everything else is read-only or comment-only.
 
 ## Limitations & Open Questions
 
-1. **Inline anchoring of formatted statements** — `react-markdown` splits a
-   statement that crosses inline formatting (bold, inline code, links) into
-   multiple text nodes, so the rehype plugin can't always wrap it as one
-   contiguous green run. Plain-prose sentences and plain list items highlight
-   cleanly; a formatting-mixed statement may not colour inline in v1. The
-   always-present full test list is the fallback so no link is silently lost
-   (the "no silent caps" rule), and each link records whether it anchored.
-2. **Classifier precision** — testable/untestable is a fuzzy judgment. The
-   section heuristic is high-precision; the LLM fallback is not perfect and
-   is biased toward `testable` so a misclassification surfaces a harmless red
-   rather than hiding a gap behind grey. A manual override is a possible
-   follow-up.
-3. **No pass/fail status** — this feature maps tests to statements; it does
-   not report whether those tests pass. Run status is explicitly out of scope
-   (could be a follow-up that joins CI results onto `spec_test_links`).
-4. **Details view: route, resolved** — uses the route
-   `/repos/:o/:r/specs/[...path]` (already built that way), for shareable
-   links and SSR markdown rather than a modal.
-5. **Judge cost** — bounded by the candidate cap and now further bounded by
-   the content-hash freshness gate (unchanged specs are skipped entirely).
-   Segmentation + classification add a small per-changed-spec LLM cost.
-6. **Test line numbers** — depend on AST chunk metadata capturing the
-   `it()` line (`chunks.metadata.start_line`). Where absent, the source link
-   points at the file, not the line.
-7. **Global `/specs` viewer** — out of scope for v1; highlighting and the
-   coverage bar live only on the per-repo specs pages because
-   `spec_test_links` is per-team-schema and the global viewer is
-   cross-content-type.
-8. **Auto-file a gap-fill task** for `testable` + uncovered (red) statements,
-   like spec-drift does for code divergence? Out of scope; `spec_statements`
-   makes it a trivial per-statement follow-up.
+1. **Backfill cost.** Existing specs across the org have ~zero markdown test links today. The first weekly backfill run will open one PR per spec with suggestions — potentially dozens of PRs at once. Mitigation: rate-limit the first run, or gate the backfill on a feature flag and ramp slowly. Document the burst.
+2. **Multiple test links per statement.** Format A handles this via comma-separation inside one paren. The rehype detection wraps all of them; the popover lists all of them. Tested.
+3. **Manually-added links may not match the cron's preferred format.** The validate pass tolerates any markdown link whose href passes `isTestFile()` — the parenthetical wrapper is the cron's emission style, not a requirement on the author. An author who writes `It [does the thing](src/x.test.ts#L42).` mid-statement also gets the green wrap.
+4. **Link rot UX.** The validate pass posts PR comments; comments on closed PRs aren't visible. Need a fallback: if no open PR exists for the spec's repo, open a `link-rot` labelled issue. Tracked as F-validate-fallback.
+5. **No pass/fail status.** Out of scope (v2 limitation carries). Coverage-ingestion (deferred spec) could later feed run-status into the UI.
+6. **Statement segmentation determinism.** The cron and UI must agree on what counts as a statement (so the backfill PR's inserted parenthetical lands on the right statement). `segmentStatements()` from shared is deterministic; this AC is verified by the existing shared test suite.
+7. **Cleanup of v2 data.** Phase 4 drops the tables. If a downstream tool reads them (none known), the drop is destructive. Audit before applying.
+8. **Local-coverage-linker is superseded.** The BYO-compute persist apparatus shipped in PR #483/#484 is removed by Phase 4. Authors who started using `/lore-link-coverage` (none yet, since it shipped today) lose that flow. The migration story: their committed links in the DB are dropped along with the tables; they should re-add as markdown in spec.md.
+9. **Coverage-ingestion remains deferred.** Could later feed the backfill cron's judge with execution-trace evidence (raising suggestion precision); not v3 scope.

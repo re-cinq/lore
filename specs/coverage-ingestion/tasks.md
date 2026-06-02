@@ -1,10 +1,10 @@
 # Tasks: Coverage Ingestion
 
+> **⚠️ Deferred — see [`spec-test-coverage` v3](../spec-test-coverage/spec.md).** v2 + `local-coverage-linker` are being torn down in v3 Phase 5; the original "feeds v2 candidate pre-filter" framing no longer applies. The migrations, parsers, endpoint, and storage tables in this spec all stand; only the **consumer** changes. If picked up later, the consumer becomes `agent/src/jobs/cron/spec-coverage-backfill.ts` (v3 file) — its `selectCandidates` gains a new `coverage` match_kind (rank 4) over the v3 backfill's existing assertion/directory/embedding signals.
+
 Implements [`specs/coverage-ingestion/spec.md`](./spec.md). Benefits
-[`spec-test-coverage`](../spec-test-coverage/spec.md) (cron + webhook
-linker) and [`local-coverage-linker`](../local-coverage-linker/spec.md)
-(BYO-compute linker). Either of those can ship first; this spec just
-makes them dramatically more precise once it lands.
+[`spec-test-coverage`](../spec-test-coverage/spec.md) v3 backfill cron
+(when picked up). **No scheduled implementation date.**
 
 ## Phase 1 — Data
 
