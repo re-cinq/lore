@@ -286,7 +286,7 @@ async function handleIngest(req: IncomingMessage, res: ServerResponse, pool: Poo
       ? result.results.some((r: { status?: string }) => r.status === "ingested" || r.status === "deleted")
       : false;
     if (landed) {
-      void triggerAgentSpecTestLinker(repo);
+      void triggerAgentSpecCoverageValidate(repo);
     }
   } catch (err: any) {
     console.error("[ingest] API error:", err.message);
@@ -671,20 +671,20 @@ async function triggerAgentReviewReactor(repo: string, prNumber: number): Promis
 }
 
 /**
- * Forward a spec-test-linker trigger to the agent. Fire-and-forget: the
- * agent returns 202 before segmenting + judging, so this won't block the
- * /api/ingest response. The content-hash gate inside the job makes
- * triggered runs cheap when nothing actually changed.
+ * Forward a spec-coverage-validate trigger to the agent. Fire-and-
+ * forget: the agent returns 202 before parsing + resolving, so this
+ * won't block the /api/ingest response. Replaces the v2
+ * triggerAgentSpecTestLinker.
  */
-export async function triggerAgentSpecTestLinker(repo: string): Promise<void> {
+export async function triggerAgentSpecCoverageValidate(repo: string): Promise<void> {
   const agentUrl = process.env.LORE_AGENT_URL;
   const token = process.env.LORE_AGENT_INTERNAL_TOKEN;
   if (!agentUrl || !token) {
-    console.warn("[ingest] LORE_AGENT_URL or LORE_AGENT_INTERNAL_TOKEN not set — skipping spec-test-linker trigger");
+    console.warn("[ingest] LORE_AGENT_URL or LORE_AGENT_INTERNAL_TOKEN not set — skipping spec-coverage-validate trigger");
     return;
   }
   try {
-    await fetch(`${agentUrl.replace(/\/+$/, "")}/api/trigger/spec-test-linker`, {
+    await fetch(`${agentUrl.replace(/\/+$/, "")}/api/trigger/spec-coverage-validate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -693,7 +693,7 @@ export async function triggerAgentSpecTestLinker(repo: string): Promise<void> {
       body: JSON.stringify({ repo }),
     });
   } catch (err: any) {
-    console.warn("[ingest] spec-test-linker trigger failed:", err.message);
+    console.warn("[ingest] spec-coverage-validate trigger failed:", err.message);
   }
 }
 
