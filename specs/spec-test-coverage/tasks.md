@@ -29,7 +29,63 @@
 - [x] T016 Rewrite `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx`: DB-direct coverage (spec chunks + link counts) → `SpecCard` list, **Add Spec form preserved unchanged**
 - [x] T017 [P] Styling reuses existing `spec-card` / `content-viewer` / `btn-secondary` classes + inline styles (no new CSS file needed)
 
-## Phase 5 — Verify
+## Phase 5 — Verify (v1)
 
 - [x] T018 Typecheck (shared/agent/mcp-server/web-ui all clean) + test suites green: shared 76, agent 368, web-ui 112. AC 1–10 satisfied by implementation.
-- [ ] T019 Manual UI walkthrough — BLOCKED in this env: no running stack / DB (Lore backend not configured locally; `assemble_context` confirmed). Needs deploy + a repo with linked specs.
+
+> **v1 → v2 transition.** Commit `87c7872` rewrote `spec.md` + `data-model.md` to add **statement-level** coverage (segmentation, classification, `CoverageBar`, hash-gate freshness, rehype highlighter) — **none of which were implemented**. v1 (whole-spec linking, flat test list) shipped in `ed947d4`. Phases 6–14 below close the v2 gap; T019 is deferred until v2 lands.
+
+## Phase 6 — v2 data migrations
+
+- [ ] T020 [P] Add migration `terraform/modules/gke-mcp/ui-helm/migrations/0004_spec_statements.sql` creating `{schema}.spec_statements` per team schema (idempotent, `UNIQUE (repo, spec_path, ordinal)`, `spec_statements_spec_idx`)
+- [ ] T021 [P] Add migration `terraform/modules/gke-mcp/ui-helm/migrations/0005_spec_coverage_runs.sql` creating `{schema}.spec_coverage_runs` (PK `(repo, spec_path)`, `content_hash`, `run_at`)
+- [ ] T022 [P] Add migration `terraform/modules/gke-mcp/ui-helm/migrations/0006_spec_test_links_statement_cols.sql` additive `ALTER TABLE {schema}.spec_test_links ADD COLUMN IF NOT EXISTS statement_ordinal INTEGER, statement_text TEXT, match_score REAL` + `spec_test_links_stmt_idx (repo, spec_path, statement_ordinal)`
+
+## Phase 7 — Statement segmentation (shared, pure)
+
+- [ ] T023 Create `shared/src/spec-segment.ts` exporting `segmentStatements(content)` — deterministic sentence + list-item splitter (`.?!` w/ abbreviation guard; each list item a statement; headings/fenced code/tables excluded; tracks enclosing heading). **Deviation:** spec.md File Changes lists `agent/src/lib/spec-segment.ts`; placed in `shared/` to follow T012's canonical-in-shared pattern so agent + web-ui + mcp-server all import from `@re-cinq/lore-shared`.
+- [ ] T024 [P] Unit tests `shared/src/__tests__/spec-segment.test.ts` (abbreviation guard, list items, headings/code/tables excluded, ordinal determinism across re-runs)
+- [ ] T025 Re-export `segmentStatements` (and the classifier helpers from T026) from `shared/src/index.ts`; verify agent + web-ui resolve them
+
+## Phase 8 — Statement classifier
+
+- [ ] T026 Add `classifyByHeuristic(statement, enclosingHeading)` to `shared/src/spec-segment.ts` — section heuristic (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale + H1/intro → `untestable` w/ category). Errs toward `testable` on ambiguity (false-red is visible, false-grey hides gaps).
+- [ ] T027 Add `classifyLLM(unclassified[])` to `agent/src/jobs/cron/spec-test-linker.ts` — batched one-shot LLM fallback for statements the heuristic doesn't catch, via `callLLMWithTool` with the existing `spec_test_linker` jobName for cache reuse
+- [ ] T028 [P] Tests for classifier — heuristic matches return correct category, ambiguous default `testable`, LLM fallback invoked only on `unknown`
+
+## Phase 9 — Linker refactor (statement-level + hash gate)
+
+- [ ] T029 Content-hash freshness gate in `agent/src/jobs/cron/spec-test-linker.ts`: read `spec_coverage_runs.content_hash`, hash `reassembleSpec()` output, skip spec on unchanged hash, write hash on successful run
+- [ ] T030 Refactor `judgeLink()` to accept the spec's enumerated testable statements and return `{ matches, statement_ordinal, score, rationale }`
+- [ ] T031 Add `argmaxByTest()` best-match dedup — per `(test_file, test_name)` keep only the row with highest `match_score`; drop rows below `τ_score` (0.5)
+- [ ] T032 Persist statements: upsert `spec_statements` rows; prune ordinals no longer present this run (matching `staleLinkKeys` pattern)
+- [ ] T033 Extend `persistLinks()` to write `statement_ordinal`, `statement_text`, `match_score` columns
+- [ ] T034 [P] Tests for hash gate, judge return shape, argmax dedup, statement upsert+prune, link statement-column writes
+
+## Phase 10 — API payload extension
+
+- [ ] T035 Extend `GET /api/repos/:owner/:repo/spec-coverage` in `mcp-server/src/routes.ts`: query `spec_statements` for the full statements array; compute `coverage.{testable, covered, untestable}`; include per-test `statement_ordinal` + `match_score`; payload shape per `data-model.md` §Coverage API payload
+- [ ] T036 [P] Tests for the new payload shape (route handler unit test or fixture-based)
+
+## Phase 11 — CoverageBar component
+
+- [ ] T037 Build `web-ui/src/components/CoverageBar.tsx` — stacked three-segment bar (`tested / untested / fluff`), widths over **all** statements, caption `tested / (tested + untested)`, theme tokens `--success` / `--danger` / `--text-muted`, non-colour cues (label/icon per segment), muted-empty state when zero testable
+- [ ] T038 [P] Tests for `CoverageBar` (width math, empty state, caption formula, non-colour cue present per segment)
+
+## Phase 12 — SpecCard + per-repo specs page
+
+- [ ] T039 Update `web-ui/src/app/repos/[owner]/[repo]/specs/SpecCard.tsx` to replace inline test-count with `<CoverageBar>` + caption (mockup at spec.md §Card list)
+- [ ] T040 Update `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` to fetch the extended coverage payload; **Add Spec form preserved unchanged** (AC13)
+
+## Phase 13 — SpecDetails statement highlighting
+
+- [ ] T041 Rehype highlight plugin in `web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx` (or sibling) that wraps each statement's longest contiguous text run in `<mark class="stmt-state-{green|red|grey}">`
+- [ ] T042 Hover popovers (reuse `HelpPopover` pattern): green → validating test names + source deep-links + rationale; grey → untestable category
+- [ ] T043 Add `<CoverageBar>` to the details header
+- [ ] T044 Flag list-only links (un-anchored) in the retained test list; pre-existing whole-spec rows degrade gracefully until next re-link (AC12)
+- [ ] T045 [P] Tests for the rehype plugin (full-statement contiguous wrap, formatting-mixed statement falls back without throwing)
+
+## Phase 14 — Verify (v2)
+
+- [ ] T046 Typecheck + test suites green across `shared/`, `agent/`, `mcp-server/`, `web-ui/`; all 13 v2 ACs satisfied
+- [ ] T019 Manual UI walkthrough — `npm start`, browse `/repos/{owner}/{repo}/specs`, verify `CoverageBar` on cards, hover green statement → tests + rationale, hover grey → category, red statement visibly a gap, non-colour cue visible, Add Spec form still works
