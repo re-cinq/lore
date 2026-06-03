@@ -75,15 +75,17 @@ Do not change the list page's `encodeURIComponent` to a bare path template
 literal — that would cause Next.js to split on `/` and produce multiple
 segments, breaking the decode logic.
 
-### Detail page shows all content types
+### Detail page is spec-only
 
-`/specs/[...path]/page.tsx` queries `WHERE file_path = $1` with **no**
-`content_type` filter. If the same file path was ingested under multiple
-content types (e.g. once as `spec` and once as `adrs`), all chunks appear.
-This is intentional — the detail page is a generic chunk viewer for any
-ingested path, not exclusively a spec viewer. The breadcrumb label "Context"
-(rather than "Specifications") is a remnant of this original scope; it should
-read "Specifications" to match the list page heading but has not been updated.
+`/specs/[...path]/page.tsx` queries `WHERE file_path = $1 AND content_type
+= 'spec'`, matching the list page. Source code (`content_type = 'code'`),
+ADRs, docs, and tasks at the same path are **not** shown — the specs
+section never renders source files. A non-spec path returns "Not Found".
+If a file was ingested as `spec` under more than one team schema, all
+those spec chunks still appear (sorted by `ingested_at DESC`, no dedup).
+The breadcrumb label "Context" (rather than "Specifications") is a remnant
+of the original generic-viewer scope; it should read "Specifications" to
+match the list page heading but has not been updated.
 
 ### Repo-specific specs page does not link to the detail view
 
