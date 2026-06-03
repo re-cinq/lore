@@ -566,7 +566,7 @@ cron is a safety net only.
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
   Mon-Fri via `LORE_BUSINESS_HOURS_{TZ,START,END,DAYS}` env vars).
-  Webhook-triggered runs are never gated by business hours.
+  Webhook-triggered runs are never gated by business hours. ([validated by `business-hours.test.ts:33`](agent/src/lib/business-hours.test.ts#L33))
 - FR-13.8: Webhook path silently degrades if `LORE_AGENT_URL` or
   `LORE_AGENT_INTERNAL_TOKEN` are missing — mcp-server logs a warning
   but continues accepting webhooks (safety-net cron covers the gap).

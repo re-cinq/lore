@@ -20,7 +20,8 @@ export default async function SpecDetailPage({ params }: { params: Promise<{ pat
     (schema, offset) => ({
       sql: `SELECT content, repo, ingested_at
             FROM ${schema}.chunks
-            WHERE file_path = $${offset} AND content_type = 'spec'`,
+            WHERE file_path = $${offset} AND content_type = 'spec'
+                  AND file_path LIKE '%.md'`,
       params: [filePath],
     }),
   );

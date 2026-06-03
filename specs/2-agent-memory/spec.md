@@ -372,7 +372,7 @@ The following capabilities were added beyond the original spec:
   agent B's private memories without explicit pool sharing).
 - All memory writes pass through `sanitizeContent()` / `redactSecrets()`
   to strip API keys, JWTs, private keys, connection strings, and
-  bearer tokens before storage.
+  bearer tokens before storage. ([validated by `redact.test.ts:5`](shared/src/redact.test.ts#L5), [`episode-writer.test.ts:21`](agent/src/lib/episode-writer.test.ts#L21))
 - Audit trail is immutable.
 
 ## Success Criteria (As Shipped)

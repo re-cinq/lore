@@ -8,9 +8,23 @@
  */
 
 import { createHash } from "node:crypto";
-import { query } from "../db.js";
-import { callLLM } from "../anthropic.js";
 import { redactSecrets } from "@re-cinq/lore-shared";
+import { callLLM as defaultCallLLM } from "../anthropic.js";
+import {
+  pgEpisodes,
+  pgMemories,
+  type EpisodeRepository,
+  type MemoryRepository,
+} from "../repositories/index.js";
+
+export interface WriteEpisodeDeps {
+  episodes: EpisodeRepository;
+}
+
+export interface CurationDeps extends WriteEpisodeDeps {
+  memories: MemoryRepository;
+  callLLM: typeof defaultCallLLM;
+}
 
 /**
  * Write an episode to memory.episodes. Fire-and-forget — never throws.
@@ -21,19 +35,19 @@ export async function writeEpisode(
   source: string,
   ref: string,
   agentId: string = "loretask-watcher",
+  deps: WriteEpisodeDeps = { episodes: pgEpisodes },
 ): Promise<string | null> {
   try {
     // Privacy filter: strip secrets/keys before storing in org-wide memory
     const safeContent = redactSecrets(content);
     const contentHash = createHash("sha256").update(safeContent).digest("hex");
-    const rows = await query<{ id: string }>(
-      `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (agent_id, content_hash) DO NOTHING
-       RETURNING id`,
-      [agentId, safeContent, contentHash, source, ref],
-    );
-    return rows[0]?.id || null;
+    return await deps.episodes.insert({
+      agentId,
+      content: safeContent,
+      contentHash,
+      source,
+      ref,
+    });
   } catch {
     return null;
   }
@@ -49,16 +63,21 @@ export async function writeEpisodeWithCuration(
   ref: string,
   agentId: string = "loretask-watcher",
   taskId?: string,
+  deps: CurationDeps = {
+    episodes: pgEpisodes,
+    memories: pgMemories,
+    callLLM: defaultCallLLM,
+  },
 ): Promise<void> {
   // Write the episode first (always)
-  const episodeId = await writeEpisode(content, source, ref, agentId);
+  const episodeId = await writeEpisode(content, source, ref, agentId, deps);
 
   // Skip curation if no API key or episode was a duplicate
   if (!episodeId || !process.env.ANTHROPIC_API_KEY) return;
 
   // Extract a lesson learned via Haiku
   try {
-    const result = await callLLM({
+    const result = await deps.callLLM({
       prompt: `Extract one concise lesson learned from this task outcome. Focus on what went well, what went wrong, or what pattern should be remembered for future tasks. Return just the lesson in 1-2 sentences. If there's nothing notable, respond with "SKIP".\n\n${content.substring(0, 4000)}`,
       systemPrompt: "You are a post-task curator extracting reusable lessons from agent task outcomes.",
       maxTokens: 256,
@@ -71,12 +90,7 @@ export async function writeEpisodeWithCuration(
 
     // Store as a memory entry
     const key = `auto-curation/${ref.replace(/[^a-zA-Z0-9\-\/]/g, "_")}`;
-    await query(
-      `INSERT INTO memory.memories (agent_id, key, value, version)
-       VALUES ($1, $2, $3, 1)
-       ON CONFLICT (agent_id, key, version) DO UPDATE SET value = EXCLUDED.value`,
-      [agentId, key, lesson],
-    );
+    await deps.memories.upsert({ agentId, key, value: lesson });
   } catch {
     // Curation is best-effort — never block task processing
   }

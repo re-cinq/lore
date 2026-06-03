@@ -23,6 +23,7 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
       sql: `SELECT repo, count(*)::int as count
             FROM ${schema}.chunks
             WHERE content_type = 'spec' AND repo IS NOT NULL
+                  AND file_path LIKE '%.md'
             GROUP BY repo`,
       params: [],
     }),
@@ -46,7 +47,8 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
           sql: `SELECT file_path, repo, ingested_at,
                        substring(content, 1, 200) as excerpt
                 FROM ${schema}.chunks
-                WHERE content_type = 'spec' AND repo = $${offset}`,
+                WHERE content_type = 'spec' AND repo = $${offset}
+                      AND file_path LIKE '%.md'`,
           params: [repo.trim()],
         };
       }
@@ -54,7 +56,7 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
         sql: `SELECT file_path, repo, ingested_at,
                      substring(content, 1, 200) as excerpt
               FROM ${schema}.chunks
-              WHERE content_type = 'spec'`,
+              WHERE content_type = 'spec' AND file_path LIKE '%.md'`,
         params: [],
       };
     },
