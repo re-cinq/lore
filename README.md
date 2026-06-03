@@ -109,6 +109,107 @@ The agent service decides which mode to use based on the task type configured in
 
 <p align="center"><img src="badges/architecture.svg" width="680" alt="Architecture overview" /></p>
 
+### System Topology
+
+How the pieces connect at runtime. The local MCP server proxies every operation to the GKE backend, so all context and memory is org-wide.
+
+```mermaid
+flowchart TB
+    subgraph local["Developer machine"]
+        CC["Claude Code"]
+        MCPL["Lore MCP server<br/>(stdio, local)"]
+        LR["Local task runner<br/>(worktrees, background Claude Code)"]
+        CC <-->|"MCP protocol"| MCPL
+        MCPL -.->|"spawns"| LR
+    end
+
+    subgraph gke["GKE cluster"]
+        MCP["MCP server<br/>(Streamable HTTP)"]
+        AGENT["Lore Agent<br/>worker + scheduler + HTTP :8080"]
+        CTRL["LoreTask controller"]
+        POD["Ephemeral Job pods<br/>(claude-runner image)"]
+        UI["Web UI (Next.js)"]
+        DB[("PostgreSQL + pgvector<br/>chunks · memory · pipeline")]
+    end
+
+    subgraph github["GitHub"]
+        GH["Repos · PRs · Issues"]
+        GHA["Actions:<br/>ingest-context.yml"]
+    end
+
+    SLACK["Slack /lore"]
+
+    MCPL -->|"proxy all ops (LORE_API_URL)"| MCP
+    GHA -->|"POST /api/ingest (changed files)"| MCP
+    GH -->|"webhooks: PR · review · comment"| MCP
+    SLACK -->|"slash command"| MCP
+    MCP -->|"read / write"| DB
+    MCP -->|"POST /api/trigger/*"| AGENT
+    UI --> DB
+    AGENT -->|"poll pending tasks"| DB
+    AGENT -->|"create CR"| CTRL
+    CTRL -->|"spawn"| POD
+    POD -->|"commit + push"| GH
+    AGENT -->|"open PR (GitHub App)"| GH
+```
+
+### Task Lifecycle
+
+How one pipeline task goes from created to merged. Simple tasks call the Anthropic API inline; code tasks run in isolated Job pods.
+
+```mermaid
+flowchart TB
+    START(["Task created<br/>MCP · Web UI · Slack · Issue label"]) --> Q["pipeline.tasks<br/>status = pending"]
+    Q --> W["Agent worker<br/>polls every 10s"]
+    W --> TYPE{"task_type?"}
+    TYPE -->|"feature-request / onboard"| LLM["Direct Anthropic API<br/>generate spec / docs"]
+    TYPE -->|"implementation / review / general"| CR["Create LoreTask CR"]
+    CR --> CTRL["LoreTask controller"]
+    CTRL --> POD["Job pod:<br/>clone → Claude Code →<br/>validate (lint/typecheck) →<br/>commit → push"]
+    POD --> WATCH["loretask_watcher (1m)"]
+    LLM --> PR["Open PR (GitHub App)"]
+    WATCH --> PR
+    PR --> REVIEW{"auto_review?"}
+    REVIEW -->|"yes"| RR["Review Job →<br/>APPROVED / CHANGES_REQUESTED"]
+    REVIEW -->|"no"| HUMAN["Human review"]
+    RR --> MERGE{"dark-factory<br/>auto-merge gates?"}
+    MERGE -->|"green CI + approved + paths + trust"| SQUASH["Squash-merge"]
+    MERGE -->|"otherwise"| HUMAN
+```
+
+### Scheduling &amp; Ingestion
+
+Two live scheduling layers (split per ADR-019). Hot-path jobs run inside the agent pod; heavy batch jobs run as isolated K8s CronJob pods via `node dist/job-runner.js <job>`. Context reaches the vector store two ways: the push-triggered `/api/ingest` doorbell (immediate, changed files only) and the nightly `context-reindex` crawl (full reconciliation, deletes orphans).
+
+```mermaid
+flowchart LR
+    subgraph inproc["In-process scheduler (agent pod · 30s tick)"]
+        direction TB
+        J1["merge_check · 1m"]
+        J2["approval_check · 1m"]
+        J3["review_reactor · hourly Mon-Fri (webhook safety net)"]
+        J4["loretask_watcher · 1m"]
+        J5["spec_task_executor · 1m"]
+        J6["stale_task_check · hourly"]
+    end
+
+    subgraph k8scron["K8s CronJobs (ADR-019)"]
+        direction TB
+        C1["context-reindex · 0 2 * * *<br/>full repo crawl + embeddings"]
+        C2["spec-coverage-validate · daily"]
+        C3["spec-coverage-backfill · weekly"]
+        C4["spec-drift / gap-detection · weekly"]
+        C5["memory-ttl / importance-decay / consolidation"]
+        C6["eval-runner · daily · autoresearch · weekly"]
+    end
+
+    PUSH["git push to main<br/>(whitelisted paths incl. specs/**)"] -->|"GitHub Action → POST /api/ingest"| ING["ingestFiles(): classify →<br/>upsert chunks → embed"]
+    C1 --> ING
+    ING --> DB[("{team}.chunks<br/>+ pgvector embeddings")]
+```
+
+> Note: a legacy GCP Cloud Scheduler nightly (`lore-nightly-full-reindex` in `terraform/.../cloud-scheduler.tf`) still calls the `delegate_task` tool that was removed with Klaus (ADR-007). It is superseded by the `context-reindex` CronJob above and is safe to remove.
+
 ### Key Components
 
 | Component | What it does |
