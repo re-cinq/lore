@@ -124,6 +124,7 @@ describe("selectCandidates", () => {
   const spec: SpecInput = {
     repo: "re-cinq/lore",
     file_path: "specs/local-task-runner/spec.md",
+    content: "spec body",
     embedding: [1, 0],
   };
   const assertions: Assertion[] = [{ name: "runTaskLocally", kind: "function", description: "" }];
