@@ -109,6 +109,26 @@ function computeCost(
   );
 }
 
+/**
+ * Record a failed LLM call so it surfaces in the task's LLM Calls table
+ * instead of vanishing into pod stdout. Best-effort — never let the logging
+ * insert mask the original API error.
+ */
+async function recordFailedCall(
+  taskId: string | undefined,
+  jobName: string | undefined,
+  model: string,
+  durationMs: number,
+  message: string,
+): Promise<void> {
+  await query(
+    `INSERT INTO pipeline.llm_calls
+       (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)
+     VALUES ($1, $2, $3, 0, 0, 0, $4, 'failed', $5)`,
+    [taskId || null, jobName || null, model, durationMs, message],
+  ).catch(() => {});
+}
+
 export async function callLLM(params: {
   prompt: string;
   systemPrompt?: string;
@@ -119,10 +139,10 @@ export async function callLLM(params: {
 }): Promise<LLMResult> {
   const model = params.model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
   const maxTokens = params.maxTokens || DEFAULT_MAX_TOKENS;
+  const start = Date.now();
 
   try {
     const client = new Anthropic();
-    const start = Date.now();
 
     const prefixHash = computeCachePrefixHash(params.systemPrompt, undefined);
 
@@ -189,6 +209,13 @@ export async function callLLM(params: {
     };
   } catch (err) {
     console.error("[agent] LLM call failed:", err);
+    await recordFailedCall(
+      params.taskId,
+      params.jobName,
+      model,
+      Date.now() - start,
+      (err as Error).message,
+    );
     throw err;
   }
 }
@@ -206,10 +233,10 @@ export async function callLLMWithTool<T>(params: {
 }): Promise<ToolResult<T>> {
   const model = params.model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
   const maxTokens = params.maxTokens || DEFAULT_MAX_TOKENS;
+  const start = Date.now();
 
   try {
     const client = new Anthropic();
-    const start = Date.now();
 
     const tools = buildCacheableTools(
       params.toolName,
@@ -299,6 +326,13 @@ export async function callLLMWithTool<T>(params: {
     };
   } catch (err) {
     console.error("[agent] LLM tool call failed:", err);
+    await recordFailedCall(
+      params.taskId,
+      params.jobName,
+      model,
+      Date.now() - start,
+      (err as Error).message,
+    );
     throw err;
   }
 }
