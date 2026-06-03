@@ -16,10 +16,13 @@
 --
 -- Discovered via pg_catalog (privilege-filtered information_schema would hide
 -- schemas). Runner is 'lore', which owns its own schemas but NOT the per-team
--- schemas (e.g. payments) — those are owned by their team roles. Skip any
--- chunks table the runner cannot DELETE from rather than aborting the whole
--- migration (and with it the pre-upgrade hook and the UI rollout). The
--- web-ui filters spec rows by `.md` extension at query time, so residual
+-- schemas (e.g. payments) — those are owned by their team roles. The loop reads
+-- only world-readable pg_catalog, then attempts the DELETE per schema inside a
+-- subtransaction. Probing privileges in the SELECT itself (has_table_privilege
+-- on a name the runner can't resolve) raised 'permission denied for schema
+-- pg_toast' and aborted the whole migration — so the check lives where it
+-- belongs: catch insufficient_privilege on the DELETE and skip that schema.
+-- The web-ui filters spec rows by `.md` extension at query time, so residual
 -- mis-classified rows in unowned schemas stay hidden there regardless.
 -- Idempotent: safe to re-run.
 
@@ -32,12 +35,16 @@ BEGIN
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relname = 'chunks' AND c.relkind = 'r'
-      AND has_table_privilege(current_user, format('%I.chunks', n.nspname), 'DELETE')
   LOOP
-    EXECUTE format($q$
-      DELETE FROM %I.chunks
-      WHERE content_type = 'spec'
-        AND file_path ~ '\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp)$'
-    $q$, s);
+    BEGIN
+      EXECUTE format($q$
+        DELETE FROM %I.chunks
+        WHERE content_type = 'spec'
+          AND file_path ~ '\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp)$'
+      $q$, s);
+    EXCEPTION
+      WHEN insufficient_privilege THEN
+        RAISE NOTICE 'skip %.chunks (insufficient privilege for runner)', s;
+    END;
   END LOOP;
 END$$;
