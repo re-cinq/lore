@@ -324,6 +324,28 @@ export class GitHubPlatform implements CodePlatform {
     } catch { return []; }
   }
 
+  async listTree(repo: string, ref?: string): Promise<string[]> {
+    const ok = await octokit();
+    const [owner, repoName] = split(repo);
+    try {
+      const branch = ref || (await this.getDefaultBranch(repo));
+      const { data } = await ok.rest.git.getTree({
+        owner,
+        repo: repoName,
+        tree_sha: branch,
+        recursive: "true",
+      });
+      if (data.truncated) {
+        console.warn(`[github] listTree(${repo}) truncated — seed coverage may be incomplete`);
+      }
+      return (data.tree || [])
+        .filter((e) => e.type === "blob" && typeof e.path === "string")
+        .map((e) => e.path as string);
+    } catch {
+      return [];
+    }
+  }
+
   async listCommitsSince(repo: string, since: string): Promise<Array<{ sha: string; files: string[] }>> {
     const ok = await octokit();
     const [owner, repoName] = split(repo);
