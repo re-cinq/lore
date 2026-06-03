@@ -205,7 +205,7 @@ Add a step at the end of each build workflow (after deploy):
 2. CI blocks deploy if integration tests fail
 3. Smoke tests run after every deploy
 4. Smoke test failure creates a GitHub Issue
-5. Redaction patterns have 100% coverage
-6. Task routing logic has tests for every task type
+5. Redaction patterns have 100% coverage ([validated by `redact.test.ts:7`](agent/src/lib/redact.test.ts#L7))
+6. Task routing logic has tests for every task type ([validated by `orchestrator.test.ts:8`](agent/src/supervisor/orchestrator.test.ts#L8), [`worker.test.ts:57`](agent/src/worker.test.ts#L57))
 7. Watcher re-entry guard has a test
-8. 409 CR handling has a test
+8. 409 CR handling has a test ([validated by `k8s-errors.test.ts:5`](agent/src/lib/k8s-errors.test.ts#L5))
