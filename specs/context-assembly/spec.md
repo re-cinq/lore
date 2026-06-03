@@ -87,7 +87,7 @@ Templates are centrally managed — tune once, every agent benefits.
 3. Lower-priority sections are truncated or omitted to fit.
 
 **Acceptance Criteria:**
-- Output never exceeds `max_tokens`.
+- Output never exceeds `max_tokens`. ([validated by `context-assembly.test.ts:87`](mcp-server/src/context-assembly.test.ts#L87))
 - Higher-priority sections are preserved; lower-priority ones
   are trimmed.
 - If the budget is very small, only the most essential context

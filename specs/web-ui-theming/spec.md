@@ -95,7 +95,7 @@ font-size literal remains in `src/`.
 
 ## Verification
 
-- `npm test` — 30 tests pass (theme-core resolver/parsers + icon-map key parity).
+- `npm test` — 30 tests pass (theme-core resolver/parsers + icon-map key parity). ([validated by `theme-core.test.ts:54`](web-ui/src/lib/theme/theme-core.test.ts#L54))
 - `npx tsc --noEmit` — clean. `npm run build` — succeeds; `/_not-found`
   prerenders static; `next/font` + Iconify offline registration compile.
 - Regression greps return zero: no hex/`rgb()`/named-color literals and no

@@ -105,7 +105,7 @@ available to agents. They are the authoritative interface.
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
   (cosine similarity >= 0.92). Does not require the agent to
-  structure the input — unstructured prose is fine.
+  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:52`](mcp-server/src/routes/episode.test.ts#L52), [`facts.test.ts:174`](mcp-server/src/facts.test.ts#L174), [`graph.test.ts:42`](mcp-server/src/graph.test.ts#L42))
 
 ### Knowledge Graph
 
@@ -126,10 +126,10 @@ available to agents. They are the authoritative interface.
 
 Agent ID is resolved in this priority order:
 
-1. Explicit `agent_id` parameter on any tool call.
-2. `LORE_AGENT_ID` environment variable.
-3. `~/.lore/agent-id` file (stable per machine across sessions).
-4. Auto-generated UUID (written to `~/.lore/agent-id` for future use).
+1. Explicit `agent_id` parameter on any tool call. ([validated by `agent-id.test.ts:32`](mcp-server/src/agent-id.test.ts#L32))
+2. `LORE_AGENT_ID` environment variable. ([validated by `agent-id.test.ts:40`](mcp-server/src/agent-id.test.ts#L40))
+3. `~/.lore/agent-id` file (stable per machine across sessions). ([validated by `agent-id.test.ts:48`](mcp-server/src/agent-id.test.ts#L48))
+4. Auto-generated UUID (written to `~/.lore/agent-id` for future use). ([validated by `agent-id.test.ts:55`](mcp-server/src/agent-id.test.ts#L55))
 
 Lore Agent pods use their pod name. This ensures memories written by
 cluster agents are attributable to a specific pod even after restart.
