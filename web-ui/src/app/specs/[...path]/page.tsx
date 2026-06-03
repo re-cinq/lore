@@ -1,86 +1,90 @@
 export const dynamic = "force-dynamic";
 import Link from 'next/link';
 import { queryAllChunks } from '@/lib/db';
+import { reassembleSpec, parseSpecTitle } from '@/lib/spec-summary';
+import CoverageBar from '@/components/CoverageBar';
+import { deriveCoverageFromMarkdown } from '@/lib/spec-coverage-derive';
+import SpecDetails, { type StatementInfo } from '@/app/repos/[owner]/[repo]/specs/SpecDetails';
 
-interface ChunkDetail {
-  id: string;
-  file_path: string;
-  content_type: string;
+interface SpecChunkRow {
   content: string;
-  team: string | null;
   repo: string | null;
-  author: string | null;
   ingested_at: string;
-  metadata: any;
 }
 
 export default async function SpecDetailPage({ params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const filePath = path.map(decodeURIComponent).join('/');
 
-  const allChunks = await queryAllChunks<ChunkDetail>(
+  const allChunks = await queryAllChunks<SpecChunkRow>(
     (schema, offset) => ({
-      sql: `SELECT id, file_path, content_type, content, team, repo, author, ingested_at, metadata
+      sql: `SELECT content, repo, ingested_at
             FROM ${schema}.chunks
             WHERE file_path = $${offset} AND content_type = 'spec'`,
       params: [filePath],
     }),
   );
-  const chunks = allChunks.sort((a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime());
 
-  if (chunks.length === 0) {
+  if (allChunks.length === 0) {
     return (
       <div>
         <div className="breadcrumb">
-          <Link href="/specs">Context</Link> / {filePath}
+          <Link href="/specs">Specifications</Link> / {filePath}
         </div>
         <h1>Not Found</h1>
         <div className="empty-state">
-          <p>No content found for path &quot;{filePath}&quot;.</p>
+          <p>No spec found at &quot;{filePath}&quot;.</p>
         </div>
       </div>
     );
   }
 
+  // A file_path is normally unique to one repo, but the global view spans
+  // every team schema — group by repo so each repo's spec reassembles and
+  // scores independently rather than concatenating across repos.
+  const byRepo = new Map<string, SpecChunkRow[]>();
+  for (const chunk of allChunks) {
+    const key = chunk.repo ?? 'unknown';
+    const group = byRepo.get(key) ?? byRepo.set(key, []).get(key)!;
+    group.push(chunk);
+  }
+
+  const specs = [...byRepo.entries()].map(([repo, chunks]) => {
+    const content = reassembleSpec(chunks);
+    const { statements, counts } = deriveCoverageFromMarkdown(content);
+    return { repo, content, title: parseSpecTitle(content, filePath), statements, counts };
+  });
+
   return (
     <div>
       <div className="breadcrumb">
-        <Link href="/specs">Context</Link> / <strong>{filePath}</strong>
+        <Link href="/specs">Specifications</Link> / <strong>{specs[0].title}</strong>
       </div>
+      <h1>{specs[0].title}</h1>
+      <p className="meta" style={{ fontFamily: 'var(--font-mono)', marginTop: 0, marginBottom: 16 }}>{filePath}</p>
 
-      {chunks.map((chunk, i) => (
-        <div key={chunk.id}>
-          {i === 0 && <h1 style={{ fontFamily: 'var(--font-mono)', fontSize: 16 }}>{chunk.file_path}</h1>}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-            <span className="badge badge-blue">{chunk.content_type}</span>
-            {chunk.team && <span className="meta">team: {chunk.team}</span>}
-            {chunk.repo && <span className="meta">repo: {chunk.repo}</span>}
-            {chunk.author && <span className="meta">author: {chunk.author}</span>}
-            <span className="meta">ingested: {new Date(chunk.ingested_at).toLocaleString()}</span>
+      {specs.map((spec, i) => {
+        const repoLink = spec.repo && spec.repo.includes('/')
+          ? `/repos/${spec.repo}/specs/${encodeURIComponent(filePath)}`
+          : null;
+        return (
+          <div key={spec.repo} style={{ marginBottom: 24 }}>
+            {(spec.repo || repoLink) && (
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+                {spec.repo && <span className="meta">repo: {spec.repo}</span>}
+                {repoLink && <Link href={repoLink} className="meta">view in repo →</Link>}
+              </div>
+            )}
+            <div style={{ marginBottom: 20 }}>
+              <CoverageBar coverage={spec.counts} size="md" />
+            </div>
+            <SpecDetails content={spec.content} statements={spec.statements as StatementInfo[]} />
+            {i < specs.length - 1 && (
+              <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '24px 0' }} />
+            )}
           </div>
-
-          <div className="content-viewer">
-            <pre>{chunk.content}</pre>
-          </div>
-
-          {chunk.metadata && (
-            <details style={{ marginTop: 12 }}>
-              <summary className="meta" style={{ cursor: 'pointer' }}>Metadata</summary>
-              <pre style={{ marginTop: 8, fontSize: 11 }}>{JSON.stringify(chunk.metadata, null, 2)}</pre>
-            </details>
-          )}
-
-          {i < chunks.length - 1 && (
-            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '24px 0' }} />
-          )}
-        </div>
-      ))}
-
-      {chunks.length > 1 && (
-        <p className="meta" style={{ marginTop: 16 }}>
-          {chunks.length} chunk{chunks.length !== 1 ? 's' : ''} for this file path.
-        </p>
-      )}
+        );
+      })}
     </div>
   );
 }

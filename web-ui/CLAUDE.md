@@ -75,17 +75,20 @@ Do not change the list page's `encodeURIComponent` to a bare path template
 literal — that would cause Next.js to split on `/` and produce multiple
 segments, breaking the decode logic.
 
-### Detail page is spec-only
+### Detail page renders specs richly (spec-only)
 
 `/specs/[...path]/page.tsx` queries `WHERE file_path = $1 AND content_type
-= 'spec'`, matching the list page. Source code (`content_type = 'code'`),
-ADRs, docs, and tasks at the same path are **not** shown — the specs
-section never renders source files. A non-spec path returns "Not Found".
-If a file was ingested as `spec` under more than one team schema, all
-those spec chunks still appear (sorted by `ingested_at DESC`, no dedup).
-The breadcrumb label "Context" (rather than "Specifications") is a remnant
-of the original generic-viewer scope; it should read "Specifications" to
-match the list page heading but has not been updated.
+= 'spec'`, matching the list page — source code (`content_type = 'code'`),
+ADRs, docs, and tasks are **not** shown; a non-spec path returns "Not Found".
+It then reuses the **same render pipeline as the per-repo detail page**:
+`reassembleSpec` → `deriveCoverageFromMarkdown` → `CoverageBar` +
+`SpecDetails` (imported from `app/repos/[owner]/[repo]/specs/SpecDetails`),
+so the global view shows the markdown with the coverage bar and
+statement-level coloring, not a raw `<pre>` dump. Because the global view
+spans every team schema, chunks are grouped by `repo` and each group
+reassembles/scores independently (normally one group); each carries a
+"view in repo →" link to the canonical per-repo page. Breadcrumb reads
+"Specifications".
 
 ### Repo-specific specs page does not link to the detail view
 
