@@ -32,6 +32,11 @@ spec:
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
+            - name: LORE_INGEST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ingestTokenSecret.name }}
+                  key: {{ .Values.ingestTokenSecret.key }}
             - name: LORE_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
