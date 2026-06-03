@@ -1,5 +1,10 @@
 # Contributing
 
+For a full local-development walkthrough — running the whole stack, the project
+layout, the tech stack, and design principles — see
+[docs/building-lore/contributing.md](docs/building-lore/contributing.md). This
+file covers the quick start, code conventions, and the PR checklist.
+
 ## Getting Started
 
 Run the install script once to set up your environment:
