@@ -15,7 +15,13 @@
 -- yaml specs are untouched.
 --
 -- Discovered via pg_catalog (privilege-filtered information_schema would hide
--- schemas). Runner is 'lore'. Idempotent: safe to re-run.
+-- schemas). Runner is 'lore', which owns its own schemas but NOT the per-team
+-- schemas (e.g. payments) — those are owned by their team roles. Skip any
+-- chunks table the runner cannot DELETE from rather than aborting the whole
+-- migration (and with it the pre-upgrade hook and the UI rollout). The
+-- web-ui filters spec rows by `.md` extension at query time, so residual
+-- mis-classified rows in unowned schemas stay hidden there regardless.
+-- Idempotent: safe to re-run.
 
 DO $$
 DECLARE
@@ -26,6 +32,7 @@ BEGIN
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relname = 'chunks' AND c.relkind = 'r'
+      AND has_table_privilege(current_user, format('%I.chunks', n.nspname), 'DELETE')
   LOOP
     EXECUTE format($q$
       DELETE FROM %I.chunks
