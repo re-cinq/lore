@@ -1,4 +1,9 @@
-import { query, queryOne } from "../db.js";
+import {
+  pgBaseline,
+  pgTasks,
+  type BaselineRepository,
+  type TasksRepository,
+} from "../repositories/index.js";
 
 interface RepoCounters {
   /**
@@ -17,11 +22,12 @@ interface RepoCounters {
   /** Median hours from PR open to merge for bot PRs in the window. */
   median_time_to_merge_hours: number;
   _job_pods_source: "static_baseline" | "otel";
+  [key: string]: unknown;
 }
 
-interface TaskRow {
-  issues_count: string | null;
-  median_ttm: string | null;
+export interface BaselineDeps {
+  tasks: TasksRepository;
+  baseline: BaselineRepository;
 }
 
 /**
@@ -37,46 +43,30 @@ interface TaskRow {
 export async function captureBaselineForRepo(
   repo: string,
   windowDays = 30,
+  deps: BaselineDeps = { tasks: pgTasks, baseline: pgBaseline },
+  now: Date = new Date(),
 ): Promise<string> {
-  const nowRow = await queryOne<{ now: Date }>(`SELECT now() AS now`);
-  if (!nowRow) throw new Error("DB unreachable");
-  const windowEnd = nowRow.now;
+  const windowEnd = now;
   const windowStart = new Date(
     windowEnd.getTime() - windowDays * 24 * 3600 * 1000,
   );
 
-  const tasksRow = await queryOne<TaskRow>(
-    `SELECT
-       count(*) FILTER (WHERE pr_url IS NOT NULL)::text AS issues_count,
-       (
-         percentile_cont(0.5) WITHIN GROUP (
-           ORDER BY EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600
-         )
-       )::text AS median_ttm
-     FROM pipeline.tasks
-     WHERE target_repo = $1
-       AND created_at >= $2
-       AND created_at < $3`,
-    [repo, windowStart, windowEnd],
-  );
+  const stats = await deps.tasks.baselineStats(repo, windowStart, windowEnd);
 
-  const issuesCount = parseInt(tasksRow?.issues_count ?? "0", 10);
   const counters: RepoCounters = {
     job_pods_per_impl_task_p50: 4,
-    issues_per_week: (issuesCount * 7) / windowDays,
+    issues_per_week: (stats.issues_count * 7) / windowDays,
     bot_pr_no_human_review_share: 0,
-    median_time_to_merge_hours: tasksRow?.median_ttm
-      ? parseFloat(tasksRow.median_ttm)
-      : 0,
+    median_time_to_merge_hours: stats.median_ttm_hours ?? 0,
     _job_pods_source: "static_baseline",
   };
 
-  await query(
-    `INSERT INTO pipeline.dark_factory_baseline
-       (repo, window_start, window_end, counters)
-     VALUES ($1, $2, $3, $4)`,
-    [repo, windowStart, windowEnd, JSON.stringify(counters)],
-  );
+  await deps.baseline.insert({
+    repo,
+    window_start: windowStart,
+    window_end: windowEnd,
+    counters,
+  });
 
   return (
     `Captured baseline for ${repo} ` +
@@ -90,19 +80,17 @@ export async function captureBaselineForRepo(
  * Snapshot every repo that has at least one task on file in the window.
  * Tolerates per-repo failures (logs and moves on).
  */
-export async function captureBaselineAllRepos(): Promise<string> {
-  const repos = await query<{ target_repo: string }>(
-    `SELECT DISTINCT target_repo
-       FROM pipeline.tasks
-      WHERE target_repo IS NOT NULL
-      ORDER BY target_repo`,
-  );
+export async function captureBaselineAllRepos(
+  deps: BaselineDeps = { tasks: pgTasks, baseline: pgBaseline },
+  now: Date = new Date(),
+): Promise<string> {
+  const repos = await deps.tasks.distinctTargetRepos();
   const summaries: string[] = [];
-  for (const r of repos) {
+  for (const repo of repos) {
     try {
-      summaries.push(await captureBaselineForRepo(r.target_repo));
+      summaries.push(await captureBaselineForRepo(repo, 30, deps, now));
     } catch (err) {
-      console.error(`[baseline] Failed for ${r.target_repo}:`, err);
+      console.error(`[baseline] Failed for ${repo}:`, err);
     }
   }
   return `Captured baselines for ${summaries.length}/${repos.length} repos`;

@@ -15,7 +15,17 @@
 import { Octokit } from "octokit";
 import { createAppAuth } from "@octokit/auth-app";
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
-import { query } from "../db.js";
+import {
+  pgRepos,
+  pgTasks,
+  type ReposRepository,
+  type TasksRepository,
+} from "../repositories/index.js";
+
+export interface PrPolicyDeps {
+  tasks: TasksRepository;
+  repos: ReposRepository;
+}
 
 export interface PrForAutoMerge {
   repo: string;
@@ -69,17 +79,9 @@ export async function resolvePrForTaskFromDb(
   taskId: string,
   settings: ResolvedDarkFactorySettings,
   octokit: Octokit,
+  deps: PrPolicyDeps = { tasks: pgTasks, repos: pgRepos },
 ): Promise<PrForAutoMerge | null> {
-  const rows = await query<{
-    pr_number: number | null;
-    target_repo: string | null;
-    target_branch: string | null;
-  }>(
-    `SELECT pr_number, target_repo, target_branch
-       FROM pipeline.tasks WHERE id = $1`,
-    [taskId],
-  );
-  const row = rows[0];
+  const row = await deps.tasks.prInfo(taskId);
   if (!row?.pr_number || !row.target_repo) return null;
 
   const [owner, repoName] = row.target_repo.split("/");
@@ -147,21 +149,8 @@ export async function resolvePrForTaskFromDb(
 
   let trustLevel: ResolvedDarkFactorySettings["auto_merge"]["min_trust"] =
     "docs";
-  try {
-    const r = await query<{ settings: { trust?: { level?: string } } }>(
-      `SELECT settings FROM lore.repos WHERE full_name = $1`,
-      [row.target_repo],
-    );
-    const lvl = r[0]?.settings?.trust?.level as
-      | "docs"
-      | "tests"
-      | "implementation"
-      | "full"
-      | undefined;
-    if (lvl) trustLevel = lvl;
-  } catch {
-    // Default already set.
-  }
+  const lvl = await deps.repos.trustLevel(row.target_repo);
+  if (lvl) trustLevel = lvl;
 
   return {
     repo: row.target_repo,
