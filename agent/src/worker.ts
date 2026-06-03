@@ -12,6 +12,12 @@ import { platform } from "./platform.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
 import { writeEpisode } from "./lib/episode-writer.js";
+import {
+  classifyError,
+  summarizeFailures,
+  TaskFailure,
+  type StepFailure,
+} from "./lib/error-classify.js";
 import type { PipelineTask } from "@re-cinq/lore-shared";
 import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT } from "@re-cinq/lore-shared";
 
@@ -375,18 +381,22 @@ async function processTask(task: any): Promise<void> {
       );
     }
   } catch (err: any) {
+    const failureReason: string = err.message;
+    const meta =
+      err instanceof TaskFailure
+        ? { error: failureReason, details: err.details }
+        : { error: failureReason, ...classifyError(failureReason) };
     await setStatus(task.id, "failed", {
-      failure_reason: err.message,
+      failure_reason: failureReason,
     });
-    await insertEvent(task.id, "running", "failed", {
-      error: err.message,
-    });
+    await insertEvent(task.id, "running", "failed", meta);
     // Update issue with failure
     if (issueNumber) {
-      await platform().commentOnIssue(targetRepo, issueNumber, `Task failed: \`${err.message}\``).catch(() => {});
+      const hint = "hint" in meta && meta.hint ? ` — ${meta.hint}` : "";
+      await platform().commentOnIssue(targetRepo, issueNumber, `Task failed: \`${failureReason}\`${hint}`).catch(() => {});
       await platform().addIssueLabel(targetRepo, issueNumber, "lore-failed").catch(() => {});
     }
-    console.error(`[agent] Task ${task.id} failed: ${err.message}`);
+    console.error(`[agent] Task ${task.id} failed: ${failureReason}`);
   }
 }
 
@@ -825,6 +835,7 @@ export async function handleOnboard(
   await platform().createBranch(targetRepo, branchName);
 
   const committed: string[] = [];
+  const failures: StepFailure[] = [];
 
   // Always (re)install the ingest workflow. commitFile upserts, and the
   // coarse static-file skip below would wrongly skip it on any repo that
@@ -841,6 +852,7 @@ export async function handleOnboard(
     console.log(`[agent] Onboard: committed ${LORE_INGEST_WORKFLOW_PATH} (workflow)`);
   } catch (err: any) {
     console.error(`[agent] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${err.message}`);
+    failures.push({ step: LORE_INGEST_WORKFLOW_PATH, error: err.message });
   }
 
   // 5. Commit static files first
@@ -852,6 +864,7 @@ export async function handleOnboard(
         console.log(`[agent] Onboard: committed ${sf.path} (static)`);
       } catch (err: any) {
         console.error(`[agent] Onboard: failed ${sf.path}: ${err.message}`);
+        failures.push({ step: sf.path, error: err.message });
       }
     }
   }
@@ -879,12 +892,19 @@ export async function handleOnboard(
       console.log(`[agent] Onboard: committed ${file.path} (${text.length} chars)`);
     } catch (err: any) {
       console.error(`[agent] Onboard: failed to generate ${file.path}: ${err.message}`);
+      failures.push({ step: file.path, error: err.message });
       // Continue with other files — don't fail the whole task
     }
   }
 
   if (committed.length === 0) {
-    throw new Error("Failed to generate any onboarding files");
+    const { summary, details } = summarizeFailures(failures);
+    throw new TaskFailure(
+      summary
+        ? `Failed to generate any onboarding files — ${summary}`
+        : "Failed to generate any onboarding files",
+      details,
+    );
   }
 
   // 6. Create PR
