@@ -8,6 +8,7 @@ on:
       - 'AGENTS.md'
       - 'adrs/**'
       - 'runbooks/**'
+      - 'specs/**'
       - 'teams/**'
       - '.specify/**'
       - 'scripts/klaus-prompts/**'
