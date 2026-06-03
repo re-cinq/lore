@@ -1,6 +1,6 @@
 import { query, getPool } from "../../db.js";
 import { platform } from "../../platform.js";
-import { chunkFile } from "@re-cinq/lore-shared";
+import { chunkFile, classifyFile } from "@re-cinq/lore-shared";
 
 interface OnboardedRepo {
   full_name: string;
@@ -32,21 +32,6 @@ export function selectSeedFiles(treePaths: string[]): string[] {
       classifyFile(path) !== null &&
       (SEED_EXACT.has(path) || SEED_PREFIXES.some((prefix) => path.startsWith(prefix))),
   );
-}
-
-// ── File classification (mirrors mcp-server/src/ingest.ts) ──────────
-
-function classifyFile(path: string): string | null {
-  // Skip binary / non-textual files
-  if (/\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|pdf|zip|tar|gz|lock)$/i.test(path)) return null;
-
-  if (path.endsWith("CLAUDE.md") || path.endsWith("AGENTS.md") || path.endsWith("CODEOWNERS")) return "doc";
-  if (/(?:^|\/)adrs\//.test(path)) return "adr";
-  if (/(?:^|\/)specs\//.test(path) || path.startsWith(".specify/")) return "spec";
-  if (/(?:^|\/)runbooks\//.test(path)) return "doc";
-  if (/\.(ts|js|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp)$/.test(path)) return "code";
-  if (path.endsWith(".md") || path.endsWith(".yaml") || path.endsWith(".yml")) return "doc";
-  return null; // skip unknown file types
 }
 
 // ── Schema resolution ────────────────────────────────────────────────
