@@ -9,6 +9,8 @@
  */
 
 import { initPool } from "./db.js";
+import { setPlatform } from "./platform.js";
+import { GitHubPlatform } from "./github.js";
 import { anthropicCostSyncJob } from "./jobs/cron/anthropic-cost-sync.js";
 import { autoresearchJob } from "./jobs/cron/autoresearch.js";
 import { contextCoreBuilderJob } from "./jobs/cron/context-core-builder.js";
@@ -109,6 +111,11 @@ export async function runJobByName(jobName: string): Promise<number> {
   }
 
   initPool();
+  // A CronJob pod runs one job in a fresh process. The long-lived agent wires
+  // the code platform at startup (index.ts); this entrypoint must do the same,
+  // or every platform()-using job (reindex, spec-drift, gap-detect, …) throws
+  // "No code platform configured" and silently no-ops while exiting 0.
+  setPlatform(new GitHubPlatform());
 
   const runId = await startJobRun(jobName);
   const buffer: string[] = [];
