@@ -1,3 +1,6 @@
+# lore-ingest-version: 2
+# Canonical source: shared/src/ingest-workflow.ts (LORE_INGEST_WORKFLOW_CONTENT).
+# This file is reference-only; the agent installs the workflow from that constant.
 name: Lore Context Ingest
 
 on:

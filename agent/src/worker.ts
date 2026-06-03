@@ -13,7 +13,7 @@ import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
 import { writeEpisode } from "./lib/episode-writer.js";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { linkifyMarkdown } from "@re-cinq/lore-shared";
+import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT } from "@re-cinq/lore-shared";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -766,7 +766,7 @@ const ADR_TOPICS = [
   { slug: "deployment", prompt: "Write an ADR for the deployment approach. Look at Dockerfile, CI workflows, Kubernetes manifests, serverless configs. Describe what was chosen and why." },
 ];
 
-async function handleOnboard(
+export async function handleOnboard(
   task: any,
   targetRepo: string,
   branchName: string,
@@ -824,8 +824,26 @@ async function handleOnboard(
   // 4. Create branch
   await platform().createBranch(targetRepo, branchName);
 
-  // 5. Commit static files first
   const committed: string[] = [];
+
+  // Always (re)install the ingest workflow. commitFile upserts, and the
+  // coarse static-file skip below would wrongly skip it on any repo that
+  // already has a .github directory — which is most of them.
+  try {
+    await platform().commitFile(
+      targetRepo,
+      branchName,
+      LORE_INGEST_WORKFLOW_PATH,
+      LORE_INGEST_WORKFLOW_CONTENT,
+      `lore: add ${LORE_INGEST_WORKFLOW_PATH}`,
+    );
+    committed.push(LORE_INGEST_WORKFLOW_PATH);
+    console.log(`[agent] Onboard: committed ${LORE_INGEST_WORKFLOW_PATH} (workflow)`);
+  } catch (err: any) {
+    console.error(`[agent] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${err.message}`);
+  }
+
+  // 5. Commit static files first
   for (const sf of ONBOARD_STATIC_FILES) {
     if (!existingFiles.has(sf.path) && !existingFiles.has(sf.path.split("/")[0])) {
       try {
