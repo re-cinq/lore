@@ -47,6 +47,38 @@ function matcherText(statementText: string): string {
     .trim();
 }
 
+/** Reduce a statement's markdown to the plain text react-markdown renders:
+ * links collapse to their label and emphasis markers vanish — but ONLY
+ * outside code spans. Markdown does not process link/emphasis syntax inside
+ * backticks, so a code span's content is kept verbatim (e.g. a literal
+ * `([label](path#Lline))` example). Used to match a statement whose inline
+ * code / bold splits the rendered output across several HAST nodes. */
+function plainText(statementText: string): string {
+  return matcherText(statementText)
+    .split(/(`[^`]*`)/)
+    .map((part) =>
+      part.startsWith('`') && part.endsWith('`')
+        ? part.slice(1, -1)
+        : part
+            .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/\*([^*]+)\*/g, '$1'),
+    )
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Concatenate the rendered text of a HAST node and its descendants,
+ * whitespace-collapsed — the string a reader actually sees. */
+function renderedText(node: ElementContent | RootContent): string {
+  if (node.type === 'text') return node.value;
+  if (node.type === 'element' && node.children) {
+    return node.children.map(renderedText).join('');
+  }
+  return '';
+}
+
 function buildHighlighter(
   statements: { ordinal: number; text: string; state: StatementState }[],
 ) {
@@ -54,27 +86,61 @@ function buildHighlighter(
     ordinal: s.ordinal,
     text: s.text,
     matcher: matcherText(s.text) || s.text,
+    plain: plainText(s.text),
     state: s.state,
   }));
   const ordered = [...enriched].sort((a, b) => b.matcher.length - a.matcher.length);
+  const used = new Set<number>();
+
+  function markProps(ordinal: number, state: StatementState) {
+    return {
+      className: ['stmt', `stmt-${state}`],
+      dataOrdinal: String(ordinal),
+      dataState: state,
+    };
+  }
 
   function makeMark(text: string, ordinal: number, state: StatementState): Element {
     return {
       type: 'element',
       tagName: 'mark',
-      properties: {
-        className: ['stmt', `stmt-${state}`],
-        dataOrdinal: String(ordinal),
-        dataState: state,
-      },
+      properties: markProps(ordinal, state),
       children: [{ type: 'text', value: text }],
     };
   }
 
+  /** Fallback for statements whose inline code / bold splits the rendered
+   * text across multiple HAST children: when a block element's full rendered
+   * text begins with a statement's plain text, wrap that element's children
+   * in a single `<mark>`. Returns true when it claimed the element. */
+  function tryBlockMatch(node: Element): boolean {
+    if (node.tagName !== 'p' && node.tagName !== 'li') return false;
+    if (!node.children || node.children.length === 0) return false;
+    const rendered = renderedText(node).replace(/\s+/g, ' ').trim();
+    for (const s of ordered) {
+      if (used.has(s.ordinal) || !s.plain) continue;
+      if (rendered.startsWith(s.plain)) {
+        used.add(s.ordinal);
+        node.children = [
+          {
+            type: 'element',
+            tagName: 'mark',
+            properties: markProps(s.ordinal, s.state),
+            children: node.children,
+          },
+        ];
+        return true;
+      }
+    }
+    return false;
+  }
+
   function processTextNode(node: Text): ElementContent[] | null {
     for (const s of ordered) {
+      if (used.has(s.ordinal)) continue;
       const idx = node.value.indexOf(s.matcher);
       if (idx < 0) continue;
+      used.add(s.ordinal);
       const before = node.value.slice(0, idx);
       const after = node.value.slice(idx + s.matcher.length);
       const parts: ElementContent[] = [];
@@ -112,6 +178,9 @@ function buildHighlighter(
       next.push(child);
     }
     if (changed) node.children = next;
+    // Fallback only when the contiguous-text-node match found nothing here:
+    // a statement fragmented by inline code / bold gets a whole-element wrap.
+    if (!changed) tryBlockMatch(node);
   }
 
   return function plugin() {
