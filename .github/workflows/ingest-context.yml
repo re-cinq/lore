@@ -32,9 +32,15 @@ jobs:
         if: steps.changes.outputs.files != '[]'
         env:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL }}
+          LORE_API_URL: ${{ vars.LORE_API_URL }}
           FILES: ${{ steps.changes.outputs.files }}
         run: |
+          # Misconfiguration (unset URL) is a hard error — a missing var must
+          # never silently fall back to a placeholder and report success.
+          if [ -z "${LORE_API_URL}" ]; then
+            echo "::error::LORE_API_URL repository variable is not set — context was NOT ingested"
+            exit 1
+          fi
           curl -sf -X POST \
             -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
             -H "Content-Type: application/json" \
@@ -43,5 +49,5 @@ jobs:
               \"repo\": \"${{ github.repository }}\",
               \"commit\": \"${{ github.sha }}\"
             }" \
-            "${LORE_INGEST_URL:-https://your-lore-api.example.com}/api/ingest" \
-            || echo "::warning::Could not reach Lore ingest endpoint"
+            "${LORE_API_URL}/api/ingest" \
+            || echo "::warning::Lore ingest endpoint returned an error (transient — not blocking merge)"
