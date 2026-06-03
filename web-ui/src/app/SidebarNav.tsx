@@ -8,6 +8,7 @@ const links = [
   { href: '/', label: 'Repos' },
   { href: '/pipeline', label: 'Pipeline' },
   { href: '/analytics', label: 'Analytics' },
+  { href: '/spend', label: 'Spend' },
   { href: '/search', label: 'Search' },
   { href: '/episodes', label: 'Episodes' },
   { href: '/graph', label: 'Graph' },

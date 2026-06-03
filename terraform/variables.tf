@@ -36,6 +36,12 @@ variable "anthropic_api_key" {
   sensitive = true
 }
 
+variable "anthropic_admin_api_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
 variable "db_password" {
   type      = string
   sensitive = true

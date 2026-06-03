@@ -1,5 +1,5 @@
 locals {
-  secrets = {
+  secrets = merge({
     "lore-github-app-id"              = var.github_app_id
     "lore-github-app-private-key"     = var.github_app_private_key
     "lore-github-app-installation-id" = var.github_app_installation_id
@@ -13,7 +13,9 @@ locals {
     "lore-github-oauth-client-id"     = var.github_oauth_client_id
     "lore-github-oauth-client-secret" = var.github_oauth_client_secret
     "lore-nextauth-secret"            = var.nextauth_secret
-  }
+    }, var.anthropic_admin_api_key != "" ? {
+    "lore-anthropic-admin-api-key" = var.anthropic_admin_api_key
+  } : {})
 }
 
 resource "google_secret_manager_secret" "lore" {
