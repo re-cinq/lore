@@ -103,6 +103,9 @@ export interface CodePlatform {
   // ── Repo Content ──
   getFileContent(repo: string, path: string, ref?: string): Promise<string | null>;
   listDirectory(repo: string, path: string): Promise<string[]>;
+  /** Recursively list every file (blob) path in the repo at `ref`
+   *  (defaults to the repo's default branch). */
+  listTree(repo: string, ref?: string): Promise<string[]>;
   listCommitsSince(repo: string, since: string): Promise<Array<{ sha: string; files: string[] }>>;
 
   // ── PR Details ──

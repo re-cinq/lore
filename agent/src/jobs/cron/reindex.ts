@@ -17,13 +17,22 @@ const GCP_PROJECT = process.env.GCP_PROJECT || "";
 const GCP_REGION = process.env.GCP_REGION || "europe-west1";
 const VERTEX_MODEL = "text-embedding-005";
 
-/** Default files to ingest for repos with no prior ingestion. */
-const SEED_PATHS = [
-  "CLAUDE.md",
-  "AGENTS.md",
-  "adrs/",
-  ".specify/spec.md",
-];
+/** Root-level files and directory prefixes seeded for repos with no prior
+ *  ingestion. Prefixes match recursively, so nested specs (`specs/<feature>/
+ *  spec.md`) are covered — not just the flat `.specify/spec.md` convention. */
+const SEED_EXACT = new Set(["CLAUDE.md", "AGENTS.md"]);
+const SEED_PREFIXES = ["adrs/", "specs/", ".specify/"];
+
+/** Filters a full repo file tree down to the seed set: supported content
+ *  types (per classifyFile) that live under a seed root. Pure — unit-tested
+ *  in reindex-seed.test.ts. */
+export function selectSeedFiles(treePaths: string[]): string[] {
+  return treePaths.filter(
+    (path) =>
+      classifyFile(path) !== null &&
+      (SEED_EXACT.has(path) || SEED_PREFIXES.some((prefix) => path.startsWith(prefix))),
+  );
+}
 
 // ── File classification (mirrors mcp-server/src/ingest.ts) ──────────
 
@@ -138,29 +147,8 @@ async function getChangedFiles(
 // ── Seed files for first-time repos ─────────────────────────────────
 
 async function getSeedFiles(fullName: string): Promise<string[]> {
-  const paths: string[] = [];
-
-  for (const seedPath of SEED_PATHS) {
-    try {
-      if (seedPath.endsWith("/")) {
-        // Directory — list contents
-        const dirPath = seedPath.replace(/\/$/, "");
-        const entries = await platform().listDirectory(fullName, dirPath);
-        for (const entry of entries) {
-          paths.push(`${dirPath}/${entry}`);
-        }
-      } else {
-        // Single file — check existence
-        const content = await platform().getFileContent(fullName, seedPath);
-        if (content !== null) {
-          paths.push(seedPath);
-        }
-      }
-    } catch {
-      // File/dir doesn't exist, skip
-    }
-  }
-  return paths;
+  const tree = await platform().listTree(fullName);
+  return selectSeedFiles(tree);
 }
 
 // ── Ingest a single file ────────────────────────────────────────────

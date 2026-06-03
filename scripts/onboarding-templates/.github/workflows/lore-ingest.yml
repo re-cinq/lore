@@ -31,6 +31,7 @@ jobs:
         env:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
           LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL }}
+          FILES: ${{ steps.changes.outputs.files }}
         run: |
           curl -sf -X POST \
             -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
@@ -40,7 +41,5 @@ jobs:
               \"repo\": \"${{ github.repository }}\",
               \"commit\": \"${{ github.sha }}\"
             }" \
-            "${LORE_INGEST_URL:-${LORE_INGEST_URL}}/api/ingest" \
+            "${LORE_INGEST_URL}/api/ingest" \
             || echo "::warning::Could not reach Lore ingest endpoint"
-          env:
-            FILES: ${{ steps.changes.outputs.files }}
