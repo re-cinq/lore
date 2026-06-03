@@ -52,6 +52,14 @@ export {
   normalizeTestName,
 } from './test-paths.js';
 export {
+  LORE_INGEST_WORKFLOW_PATH,
+  LORE_INGEST_WORKFLOW_VERSION,
+  LORE_INGEST_WORKFLOW_CONTENT,
+  ingestWorkflowStatus,
+  parseIngestWorkflowVersion,
+  type IngestWorkflowStatus,
+} from './ingest-workflow.js';
+export {
   parseTestLinksInStatement,
   type TestLinkRef,
 } from './spec-link-parser.js';

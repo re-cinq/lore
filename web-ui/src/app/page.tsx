@@ -1,5 +1,9 @@
 export const dynamic = "force-dynamic";
 import { query } from '@/lib/db';
+import { getRepoFileContent, isGitHubConfigured } from '@/lib/github';
+import { LORE_INGEST_WORKFLOW_PATH, ingestWorkflowStatus, type IngestWorkflowStatus } from '@/lib/ingest-workflow';
+import { fixIngestWorkflows } from './actions';
+import FixIngestButton from '@/components/FixIngestButton';
 import Link from 'next/link';
 
 interface Repo {
@@ -31,6 +35,12 @@ function freshnessIndicator(lastIngestedAt: string | null): { color: string; lab
   }
 }
 
+function ingestBadge(status: IngestWorkflowStatus | undefined): { label: string; color: string } | null {
+  if (status === 'missing') return { label: 'no ingest workflow', color: 'var(--danger)' };
+  if (status === 'stale') return { label: 'ingest workflow outdated', color: 'var(--warning)' };
+  return null;
+}
+
 export default async function HomePage() {
   // Query repos with activity summary
   const repos = await query<Repo>(`
@@ -42,11 +52,31 @@ export default async function HomePage() {
     ORDER BY r.onboarded_at DESC
   `);
 
+  // Per-repo ingest-workflow alignment. Skipped entirely when the GitHub
+  // App isn't configured so we never false-flag every repo as missing.
+  const ingestStatus = new Map<string, IngestWorkflowStatus>();
+  if (isGitHubConfigured()) {
+    const statuses = await Promise.all(
+      repos.map(r =>
+        getRepoFileContent(r.full_name, LORE_INGEST_WORKFLOW_PATH)
+          .then(ingestWorkflowStatus)
+          .catch(() => 'aligned' as IngestWorkflowStatus),
+      ),
+    );
+    repos.forEach((r, i) => ingestStatus.set(r.full_name, statuses[i]));
+  }
+  const misaligned = repos
+    .filter(r => { const s = ingestStatus.get(r.full_name); return s === 'missing' || s === 'stale'; })
+    .map(r => r.full_name);
+
   return (
     <div>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <h1>Repositories</h1>
-        <Link href="/onboard"><button>+ Add Repo</button></Link>
+        <div style={{display:'flex', gap:'0.5rem', alignItems:'center'}}>
+          <FixIngestButton repos={misaligned} action={fixIngestWorkflows} />
+          <Link href="/onboard"><button>+ Add Repo</button></Link>
+        </div>
       </div>
       <div className="repo-grid">
         {repos.map(r => (
@@ -69,6 +99,14 @@ export default async function HomePage() {
               {r.team && <span className="badge">{r.team}</span>}
               <span className="meta">{r.task_count} tasks</span>
               {r.active_agents > 0 && <span className="badge badge-green">{r.active_agents} running</span>}
+              {(() => {
+                const badge = ingestBadge(ingestStatus.get(r.full_name));
+                return badge ? (
+                  <span className="badge" title={`${badge.label} — fixable from the dashboard`} style={{ backgroundColor: badge.color, color: '#fff' }}>
+                    ⚠ {badge.label}
+                  </span>
+                ) : null;
+              })()}
             </div>
             <div className="meta">
               {r.last_ingested_at
