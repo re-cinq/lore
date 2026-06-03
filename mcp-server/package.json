@@ -10,7 +10,8 @@
     "start:watch": "node --watch-path=./dist --watch-path=../shared/dist dist/index.js",
     "dev": "tsc --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@re-cinq/lore-shared": "*",
