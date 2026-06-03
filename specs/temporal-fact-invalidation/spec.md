@@ -104,7 +104,7 @@ available for historical queries.
   new fact and search existing valid facts for high-similarity
   matches (cosine similarity >= threshold).
 - FR-2.2: For each match above threshold, set `valid_to = now()`
-  and `invalidated_by = new_fact_id` on the old fact.
+  and `invalidated_by = new_fact_id` on the old fact. ([validated by `facts.test.ts:174`](mcp-server/src/facts.test.ts#L174))
 - FR-2.3: Threshold configurable via `LORE_FACT_SIMILARITY_THRESHOLD`
   env var (default: 0.92).
 - FR-2.4: Contradiction detection runs inline during fact
