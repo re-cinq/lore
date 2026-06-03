@@ -23,6 +23,14 @@ Usage:
     secretKeyRef:
       name: {{ .Values.anthropicKeySecret.name }}
       key: {{ .Values.anthropicKeySecret.key }}
+{{- if .Values.anthropicAdminKeySecret }}
+- name: ANTHROPIC_ADMIN_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.anthropicAdminKeySecret.name }}
+      key: {{ .Values.anthropicAdminKeySecret.key }}
+      optional: true
+{{- end }}
 - name: GITHUB_APP_ID
   valueFrom:
     secretKeyRef:

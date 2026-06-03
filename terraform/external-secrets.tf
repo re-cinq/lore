@@ -64,14 +64,21 @@ resource "kubectl_manifest" "es_agent_anthropic" {
       target = {
         name = "lore-anthropic-key"
       }
-      data = [
+      data = concat([
         {
           secretKey = "anthropic-api-key"
           remoteRef = {
             key = "lore-anthropic-api-key"
           }
         },
-      ]
+        ], var.anthropic_admin_api_key != "" ? [
+        {
+          secretKey = "anthropic-admin-key"
+          remoteRef = {
+            key = "lore-anthropic-admin-api-key"
+          }
+        },
+      ] : [])
     }
   })
 
