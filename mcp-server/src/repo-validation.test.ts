@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { detectTooling, runValidation, formatValidationOutput } from "../repo-validation.js";
+import { detectTooling, runValidation, formatValidationOutput } from "./repo-validation.js";
 
 // ---------------------------------------------------------------------------
 // Helpers — create temp directories with config files for detection tests

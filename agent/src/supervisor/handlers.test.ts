@@ -2,9 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import {
   createProductionRetrospectiveHandler,
   createProductionHandlers,
-} from "../supervisor/handlers.js";
+} from "./handlers.js";
 import type { WorkflowNode } from "../workflow/loader.js";
-import type { NodeContext } from "../supervisor/graph-executor.js";
+import type { NodeContext } from "./graph-executor.js";
 
 const node: WorkflowNode = {
   id: "retrospective",

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createServer } from "node:http";
-import { getHealthStatus, setPool } from "../db.js";
+import { getHealthStatus, setPool } from "./db.js";
 
 // ── Unit tests for getHealthStatus ─────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Octokit } from "octokit";
-import { escalate, renderEscalationBody } from "../lib/escalation.js";
+import { escalate, renderEscalationBody } from "./escalation.js";
 
 // Avoid touching the real DB / audit log in unit tests.
 vi.mock("../db.js", () => ({

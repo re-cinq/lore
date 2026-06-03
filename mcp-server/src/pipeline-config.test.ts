@@ -5,7 +5,7 @@ import {
   getTaskTypes,
   getDefaultRepo,
   buildPrompt,
-} from "../pipeline-config.js";
+} from "./pipeline-config.js";
 import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -21,7 +21,6 @@ describe("loadTaskTypes", () => {
     // Point directly at the repo's task-types.yaml
     const yamlPath = join(
       import.meta.dirname,
-      "..",
       "..",
       "..",
       "scripts",
@@ -69,7 +68,6 @@ describe("getTaskTypeConfig", () => {
   beforeAll(() => {
     const yamlPath = join(
       import.meta.dirname,
-      "..",
       "..",
       "..",
       "scripts",
@@ -122,7 +120,6 @@ describe("buildPrompt", () => {
       import.meta.dirname,
       "..",
       "..",
-      "..",
       "scripts",
       "task-types.yaml",
     );
@@ -171,7 +168,6 @@ describe("getDefaultRepo", () => {
   beforeAll(() => {
     const yamlPath = join(
       import.meta.dirname,
-      "..",
       "..",
       "..",
       "scripts",

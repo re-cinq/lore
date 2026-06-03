@@ -3,7 +3,7 @@ import {
   proposeLinkInsertions,
   pickStatementsForBackfill,
   type Suggestion,
-} from "../spec-coverage-backfill.js";
+} from "./spec-coverage-backfill.js";
 import type { Statement, Classification } from "@re-cinq/lore-shared";
 
 const heuristic = (testability: "testable" | "untestable", category: Classification["category"] = null): Classification => ({

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveDarkFactorySettings } from "../lib/dark-factory.js";
+import { resolveDarkFactorySettings } from "./dark-factory.js";
 
 describe("resolveDarkFactorySettings (agent-side resolver)", () => {
   it("returns opt-out posture for null partial", () => {

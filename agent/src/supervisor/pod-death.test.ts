@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { FileLeaseBackend } from "../supervisor/lease.js";
-import { runSupervisor } from "../supervisor/index.js";
+import { FileLeaseBackend } from "./lease.js";
+import { runSupervisor } from "./index.js";
 
 /**
  * Chaos test for SC2 (pod-death survival, T028). Simulates a

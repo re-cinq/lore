@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { redactSecrets } from "../lib/redact.js";
+import { redactSecrets } from "./redact.js";
 
 describe("redactSecrets", () => {
   // ── API keys ──────────────────────────────────────────────────────

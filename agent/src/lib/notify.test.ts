@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decideNotify } from "../lib/notify.js";
+import { decideNotify } from "./notify.js";
 
 describe("decideNotify", () => {
   it("fires escalation regardless of channels", () => {

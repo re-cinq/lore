@@ -5,11 +5,11 @@ import * as path from "node:path";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import type { Octokit } from "octokit";
-import { runSupervisor } from "../supervisor/index.js";
-import { FileLeaseBackend } from "../supervisor/lease.js";
+import { runSupervisor } from "./index.js";
+import { FileLeaseBackend } from "./lease.js";
 import { parseWorkflow } from "../workflow/loader.js";
-import { createAgentHandler } from "../supervisor/agent-handler.js";
-import { createProductionHandlers } from "../supervisor/handlers.js";
+import { createAgentHandler } from "./agent-handler.js";
+import { createProductionHandlers } from "./handlers.js";
 import type { LLMResult } from "../anthropic.js";
 
 const execFile = promisify(execFileCb);

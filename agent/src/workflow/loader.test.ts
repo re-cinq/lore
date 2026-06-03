@@ -5,7 +5,7 @@ import {
   parseWorkflow,
   loadWorkflowDir,
   WorkflowLoadError,
-} from "../workflow/loader.js";
+} from "./loader.js";
 
 const linearGraph = `
 name: gap-fill

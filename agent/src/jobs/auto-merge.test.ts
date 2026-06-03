@@ -3,7 +3,7 @@ import {
   evaluateAutoMerge,
   type AutoMergePolicyInputs,
   type DarkFactoryAutoMerge,
-} from "../jobs/auto-merge.js";
+} from "./auto-merge.js";
 
 const DEFAULT_AUTO_MERGE: DarkFactoryAutoMerge = {
   paths: ["specs/**", "adrs/**", "*.md", "CLAUDE.md", ".claude/**"],

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadTemplates, assembleContext } from '../context-assembly.js';
+import { loadTemplates, assembleContext } from './context-assembly.js';
 import { join } from 'node:path';
 
 // ── Token estimation ────────────────────────────────────────────────
@@ -49,7 +49,7 @@ describe('truncateToTokens', () => {
 
 describe('loadTemplates', () => {
   it('loads templates from the templates directory', () => {
-    const templateDir = join(import.meta.dirname, '..', '..', 'templates');
+    const templateDir = join(import.meta.dirname, '..', 'templates');
     // This should not throw
     loadTemplates(templateDir);
   });
