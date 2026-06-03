@@ -6,9 +6,9 @@ import {
   type IterationMaxExceededInfo,
   type NodeHandlers,
   type NodeResult,
-} from "../supervisor/graph-executor.js";
+} from "./graph-executor.js";
 import { parseWorkflow, type Workflow } from "../workflow/loader.js";
-import type { LeaseBackend } from "../supervisor/lease.js";
+import type { LeaseBackend } from "./lease.js";
 
 // ── Fixtures ────────────────────────────────────────────────────────────
 

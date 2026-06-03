@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 // logic in main(): env validation, workflow lookup, and reason → exit
 // code mapping. The supervisor itself is well-tested elsewhere.
 const runSupervisorMock = vi.fn();
-vi.mock("../supervisor/index.js", () => ({
+vi.mock("./index.js", () => ({
   runSupervisor: (...args: unknown[]) => runSupervisorMock(...args),
 }));
 
@@ -29,7 +29,7 @@ vi.mock("../db.js", () => ({
 }));
 
 const { main, MissingEnvError } = await import(
-  "../supervisor/runner-cli.js"
+  "./runner-cli.js"
 );
 
 const REQUIRED = {

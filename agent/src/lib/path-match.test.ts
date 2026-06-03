@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { allPathsMatch, matchingPatterns } from "../lib/path-match.js";
+import { allPathsMatch, matchingPatterns } from "./path-match.js";
 
 const DEFAULT_ALLOWLIST = [
   "specs/**",

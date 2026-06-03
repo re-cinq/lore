@@ -5,7 +5,7 @@ import {
   formatBrokenLinksReport,
   type ChunkLineRange,
   type BrokenLink,
-} from "../spec-coverage-validate.js";
+} from "./spec-coverage-validate.js";
 import type { TestLinkRef } from "@re-cinq/lore-shared";
 
 const ref = (path: string, line: number | null = null): TestLinkRef => ({

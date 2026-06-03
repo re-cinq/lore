@@ -5,9 +5,9 @@ import * as path from "node:path";
 import {
   createAgentHandler,
   extractJsonFiles,
-} from "../supervisor/agent-handler.js";
+} from "./agent-handler.js";
 import type { WorkflowNode } from "../workflow/loader.js";
-import type { NodeContext } from "../supervisor/graph-executor.js";
+import type { NodeContext } from "./graph-executor.js";
 import type { LLMResult } from "../anthropic.js";
 
 const node: WorkflowNode = {

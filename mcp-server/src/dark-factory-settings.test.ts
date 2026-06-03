@@ -4,7 +4,7 @@ import {
   resolveSettings,
   twoKeyFieldsTouched,
   trustMeets,
-} from "../dark-factory-settings.js";
+} from "./dark-factory-settings.js";
 
 describe("parseDarkFactorySettings", () => {
   it("accepts an empty patch", () => {

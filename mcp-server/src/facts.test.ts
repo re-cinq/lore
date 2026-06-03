@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { callClaude } from '../facts.js';
+import { callClaude } from './facts.js';
 
 // Mocked CLI integration: callClaude falls back to the `claude` CLI when no
 // API key is set. We mock child_process so the real binary is never spawned —

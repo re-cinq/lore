@@ -16,7 +16,7 @@ import {
   validateRepoMatch,
   type LocalRunnerConfig,
   type PendingTask,
-} from "../local-runner.js";
+} from "./local-runner.js";
 
 // ---------------------------------------------------------------------------
 // slugify — private in local-runner.ts, copied here for unit testing

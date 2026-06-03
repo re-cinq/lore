@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildBranchName,
   isDarkFactoryEligible,
-} from "../supervisor/orchestrator.js";
+} from "./orchestrator.js";
 
 describe("isDarkFactoryEligible (worker dispatch gate)", () => {
   it("routes gap-fill through the supervisor", () => {

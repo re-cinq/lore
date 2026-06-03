@@ -5,7 +5,7 @@ import * as path from "node:path";
 import {
   DbLeaseBackend,
   FileLeaseBackend,
-} from "../supervisor/lease.js";
+} from "./lease.js";
 
 // ── pg.Pool mock ───────────────────────────────────────────────────────
 

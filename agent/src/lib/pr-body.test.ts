@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { prFooter } from "../lib/pr-body.js";
+import { prFooter } from "./pr-body.js";
 
 describe("prFooter (T047)", () => {
   it("emits Lore-Task only when no issue exists", () => {

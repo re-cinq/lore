@@ -3,7 +3,7 @@ import {
   decideIssueCreate,
   decideReviewMode,
   type DarkFactoryRepoSettings,
-} from "../lib/dark-factory.js";
+} from "./dark-factory.js";
 
 describe("decideIssueCreate", () => {
   const opt: DarkFactoryRepoSettings = { enabled: true };

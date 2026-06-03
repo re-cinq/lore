@@ -4,7 +4,7 @@ import {
   computeCachePrefixHash,
   analyzeCacheBreak,
   __resetCacheStateForTests,
-} from "../lib/prompt-cache.js";
+} from "./prompt-cache.js";
 
 // Note: `shouldUse1hTTL` / `getCacheControl` latch on LORE_CACHE_1H_JOBS
 // at module load time. Changing process.env here doesn't affect them
@@ -12,7 +12,7 @@ import {
 // and cover parsing logic by exercising the public API's observable
 // behavior (1h for auto-curation, 5m for an unknown job).
 
-import { shouldUse1hTTL, getCacheControl } from "../lib/prompt-cache.js";
+import { shouldUse1hTTL, getCacheControl } from "./prompt-cache.js";
 
 describe("djb2Hash", () => {
   it("is deterministic across runs", () => {

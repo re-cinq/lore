@@ -16,8 +16,8 @@ vi.mock("../lib/pr-policy.js", () => ({
 
 const evaluateAndMergeMock = vi.fn();
 
-vi.mock("../jobs/auto-merge.js", async (orig) => {
-  const actual = await orig<typeof import("../jobs/auto-merge.js")>();
+vi.mock("./auto-merge.js", async (orig) => {
+  const actual = await orig<typeof import("./auto-merge.js")>();
   return {
     ...actual,
     evaluateAndMerge: (...args: unknown[]) => evaluateAndMergeMock(...args),
@@ -25,7 +25,7 @@ vi.mock("../jobs/auto-merge.js", async (orig) => {
 });
 
 const { tryAutoMergeForCompletedTask } = await import(
-  "../jobs/auto-merge-trigger.js"
+  "./auto-merge-trigger.js"
 );
 
 beforeEach(() => {
