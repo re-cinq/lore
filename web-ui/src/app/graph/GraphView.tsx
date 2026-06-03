@@ -1,0 +1,144 @@
+export interface Entity {
+  id: string;
+  name: string;
+  entity_type: string;
+  repo: string | null;
+  edge_count: number;
+  updated_at: string;
+}
+
+export interface Edge {
+  source_name: string;
+  source_type: string;
+  relation_type: string;
+  target_name: string;
+  target_type: string;
+  valid_from: string;
+  valid_to: string | null;
+  source_label: string;
+}
+
+export interface Stats {
+  entity_count: number;
+  active_edge_count: number;
+  invalidated_edge_count: number;
+}
+
+export interface EntityTypeCount {
+  entity_type: string;
+  cnt: number;
+}
+
+export interface GraphViewProps {
+  /** The selected entity name, or undefined when none is being explored. */
+  entity?: string;
+  /** The active entity-type filter, or undefined for "all". */
+  type?: string;
+  /** Whether invalidated edges are shown for the selected entity. */
+  showInvalid: boolean;
+  stats: Stats;
+  entityTypes: EntityTypeCount[];
+  entities: Entity[];
+  edges: Edge[];
+}
+
+/**
+ * Presentational view for the knowledge graph explorer. Pure render — the
+ * container (`page.tsx`) runs the queries against `memory.*` and passes the
+ * resolved view-model down.
+ */
+export default function GraphView({ entity, type, showInvalid, stats, entityTypes, entities, edges }: GraphViewProps) {
+  return (
+    <div>
+      <h1>Knowledge Graph</h1>
+      <p className="meta" style={{ marginBottom: 12 }}>
+        Live knowledge graph built from episodes and memories. Entities and relationships are extracted automatically.
+      </p>
+
+      <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <div className="stat-card">
+          <div className="stat-value">{stats.entity_count}</div>
+          <div className="stat-label">Entities</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{stats.active_edge_count}</div>
+          <div className="stat-label">Active edges</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{stats.invalidated_edge_count}</div>
+          <div className="stat-label">Invalidated edges</div>
+        </div>
+      </div>
+
+      {entityTypes.length > 0 && (
+        <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <a href="/graph" className={!type ? 'op-badge op-search' : 'op-badge'}>all</a>
+          {entityTypes.map(t => (
+            <a key={t.entity_type} href={`/graph?type=${t.entity_type}`}
+               className={type === t.entity_type ? 'op-badge op-search' : 'op-badge'}>
+              {t.entity_type} ({t.cnt})
+            </a>
+          ))}
+        </div>
+      )}
+
+      <h2>Entities</h2>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Type</th><th>Repo</th><th>Edges</th><th>Updated</th><th></th></tr>
+        </thead>
+        <tbody>
+          {entities.map(e => (
+            <tr key={e.id} style={entity?.toLowerCase() === e.name.toLowerCase() ? { background: 'var(--border)' } : {}}>
+              <td><strong>{e.name}</strong></td>
+              <td><span className="op-badge">{e.entity_type}</span></td>
+              <td>{e.repo || '—'}</td>
+              <td>{e.edge_count}</td>
+              <td>{new Date(e.updated_at).toLocaleDateString()}</td>
+              <td><a href={`/graph?entity=${encodeURIComponent(e.name)}${type ? `&type=${type}` : ''}`}>explore</a></td>
+            </tr>
+          ))}
+          {entities.length === 0 && (
+            <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>
+              No entities yet. Write episodes to populate the graph.
+            </td></tr>
+          )}
+        </tbody>
+      </table>
+
+      {entity && (
+        <>
+          <h2>Relationships for &quot;{entity}&quot;</h2>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <a href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? '' : '&show_invalid=1'}`} style={{ fontSize: 'var(--fs-sm)' }}>
+              {showInvalid ? 'Hide invalidated' : 'Show invalidated edges'}
+            </a>
+          </div>
+          <table>
+            <thead>
+              <tr><th>Source</th><th>Relation</th><th>Target</th><th>Since</th><th>Status</th><th>From</th></tr>
+            </thead>
+            <tbody>
+              {edges.map((e, i) => (
+                <tr key={i} style={e.valid_to ? { opacity: 0.5 } : {}}>
+                  <td><strong>{e.source_name}</strong> <span className="meta">({e.source_type})</span></td>
+                  <td><span className="op-badge">{e.relation_type}</span></td>
+                  <td><strong>{e.target_name}</strong> <span className="meta">({e.target_type})</span></td>
+                  <td>{new Date(e.valid_from).toLocaleDateString()}</td>
+                  <td>{e.valid_to
+                    ? <span className="op-badge op-delete">invalidated {new Date(e.valid_to).toLocaleDateString()}</span>
+                    : <span className="op-badge op-write">active</span>
+                  }</td>
+                  <td><span className="meta">{e.source_label}</span></td>
+                </tr>
+              ))}
+              {edges.length === 0 && (
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No relationships found for this entity.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
