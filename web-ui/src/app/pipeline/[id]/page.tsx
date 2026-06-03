@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import PRStatusCard from './PRStatusCard';
 import TaskLogs from './TaskLogs';
 import Timeline from './Timeline';
+import FailurePanel from './FailurePanel';
 import Linkified from '@/components/Linkified';
 
 interface Task {
@@ -37,6 +38,8 @@ interface LlmCall {
   input_tokens: number;
   output_tokens: number;
   duration_ms: number;
+  status: string | null;
+  error: string | null;
   created_at: string;
 }
 
@@ -91,10 +94,12 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   );
 
   const llmCalls = await query<LlmCall>(
-    `SELECT model, input_tokens, output_tokens, duration_ms, created_at
+    `SELECT model, input_tokens, output_tokens, duration_ms, status, error, created_at
      FROM pipeline.llm_calls WHERE task_id = $1 ORDER BY created_at`,
     [id]
   );
+
+  const failedEvent = events.find(e => e.to_status === 'failed');
 
   return (
     <div>
@@ -136,6 +141,10 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           )}
         </div>
       </div>
+
+      {task.status === 'failed' && failedEvent?.metadata && (
+        <FailurePanel metadata={failedEvent.metadata} repo={task.target_repo} />
+      )}
 
       {/* Feedback form — visible when task has a PR and isn't in a terminal state */}
       {task.pr_url && !['merged', 'cancelled'].includes(task.status) && (
@@ -180,12 +189,22 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
       {llmCalls.length > 0 ? (
         <table>
           <thead>
-            <tr><th>Model</th><th>Tokens (in/out)</th><th>Duration</th><th>Time</th></tr>
+            <tr><th>Model</th><th>Status</th><th>Tokens (in/out)</th><th>Duration</th><th>Time</th></tr>
           </thead>
           <tbody>
             {llmCalls.map((c, i) => (
               <tr key={i}>
                 <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{c.model}</td>
+                <td>
+                  {c.status === 'failed'
+                    ? <span className="badge badge-red" title={c.error ?? undefined}>failed</span>
+                    : <span className="op-badge op-pr-created">success</span>}
+                  {c.status === 'failed' && c.error && (
+                    <div className="meta" style={{fontSize:'var(--fs-xs)', marginTop:'2px', maxWidth:'40ch'}}>
+                      <Linkified text={c.error} repo={task.target_repo} />
+                    </div>
+                  )}
+                </td>
                 <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
                 <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
                 <td className="meta">{new Date(c.created_at).toLocaleString()}</td>
