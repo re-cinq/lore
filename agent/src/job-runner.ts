@@ -9,6 +9,7 @@
  */
 
 import { initPool } from "./db.js";
+import { anthropicCostSyncJob } from "./jobs/cron/anthropic-cost-sync.js";
 import { autoresearchJob } from "./jobs/cron/autoresearch.js";
 import { contextCoreBuilderJob } from "./jobs/cron/context-core-builder.js";
 import { evalRunnerJob } from "./jobs/cron/eval-runner.js";
@@ -43,6 +44,7 @@ export const dispatch: Record<string, JobHandler> = {
   spec_coverage_backfill: specCoverageBackfillJob,
   spec_coverage_validate: () => validateSpecCoverageJob(),
   memory_ttl: ttlCleanupJob,
+  anthropic_cost_sync: anthropicCostSyncJob,
 };
 
 export function resolveJob(name: string): JobHandler | null {

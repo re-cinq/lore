@@ -73,6 +73,14 @@ resource "helm_release" "lore_agent" {
     value = "anthropic-api-key"
   }
   set {
+    name  = "anthropicAdminKeySecret.name"
+    value = "lore-anthropic-key"
+  }
+  set {
+    name  = "anthropicAdminKeySecret.key"
+    value = "anthropic-admin-key"
+  }
+  set {
     name  = "githubAppSecret.name"
     value = "github-app-credentials"
   }
