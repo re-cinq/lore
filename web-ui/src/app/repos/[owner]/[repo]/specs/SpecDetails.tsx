@@ -185,6 +185,10 @@ function buildHighlighter(
 
   return function plugin() {
     return function transformer(tree: Root) {
+      // react-markdown re-runs this transform on every render against a fresh
+      // tree; the shared matcher state must start empty each time or a second
+      // render finds every statement already claimed and wraps nothing.
+      used.clear();
       const rootChildren: RootContent[] = [];
       let rootChanged = false;
       for (const child of tree.children) {
