@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import CoverageBar, { type CoverageCounts } from '@/components/CoverageBar';
+import InlineMarkdown from '@/components/InlineMarkdown';
 
 export interface SpecCardData {
   spec_path: string;
@@ -28,7 +29,7 @@ export default function SpecCard({
         </Link>
       </div>
       <span className="meta" style={{ fontFamily: 'var(--font-mono)' }}>{spec.spec_path}</span>
-      {spec.summary && <p style={{ marginTop: 8 }}>{spec.summary}</p>}
+      {spec.summary && <p style={{ marginTop: 8 }}><InlineMarkdown text={spec.summary} /></p>}
       <div style={{ marginTop: 10 }}>
         <CoverageBar coverage={spec.coverage} />
       </div>

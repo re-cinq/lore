@@ -38,7 +38,7 @@ export default async function RepoSpecs({ params }: { params: Promise<{ owner: s
   const specChunks = await query<{ file_path: string; content: string; ingested_at: string }>(
     `SELECT file_path, content, ingested_at
      FROM ${schema}.chunks
-     WHERE content_type = 'spec' AND repo = $1`,
+     WHERE content_type = 'spec' AND repo = $1 AND file_path LIKE '%.md'`,
     [fullName]
   );
 
