@@ -13,9 +13,29 @@ interface RepoTeam {
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
-const GCP_PROJECT = process.env.GCP_PROJECT || "";
 const GCP_REGION = process.env.GCP_REGION || "europe-west1";
 const VERTEX_MODEL = "text-embedding-005";
+
+// The agent/CronJob env sets no project var (gcpProject defaults to ""), so an
+// empty project produced a malformed Vertex URL — `projects//locations` — and a
+// 400. Resolve from env, then fall back to the GKE metadata server (the same
+// source getAccessToken() already uses). Cached for the process lifetime.
+let cachedProject: string | null = null;
+async function getProjectId(): Promise<string> {
+  if (cachedProject !== null) return cachedProject;
+  const fromEnv = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
+  if (fromEnv) return (cachedProject = fromEnv);
+  try {
+    const res = await fetch(
+      "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+      { headers: { "Metadata-Flavor": "Google" } },
+    );
+    if (res.ok) return (cachedProject = (await res.text()).trim());
+  } catch {
+    // fall through to empty
+  }
+  return (cachedProject = "");
+}
 
 /** Root-level files and directory prefixes seeded for repos with no prior
  *  ingestion. Prefixes match recursively, so nested specs (`specs/<feature>/
@@ -81,10 +101,15 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
     console.error("[job] No access token available for Vertex AI");
     return null;
   }
+  const project = await getProjectId();
+  if (!project) {
+    console.error("[job] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)");
+    return null;
+  }
 
   try {
     const res = await fetch(
-      `https://${GCP_REGION}-aiplatform.googleapis.com/v1/projects/${GCP_PROJECT}/locations/${GCP_REGION}/publishers/google/models/${VERTEX_MODEL}:predict`,
+      `https://${GCP_REGION}-aiplatform.googleapis.com/v1/projects/${project}/locations/${GCP_REGION}/publishers/google/models/${VERTEX_MODEL}:predict`,
       {
         method: "POST",
         headers: {
