@@ -428,7 +428,7 @@ async function handleMemory(req: IncomingMessage, res: ServerResponse, pool: Poo
   try {
     const { action, key, value, agent_id, ttl, query: searchQuery, limit, version, pool_name, repo } = JSON.parse(body);
     let result: any;
-    const embedding = (action === "write" || action === "search") && (value || searchQuery) ? await getQueryEmbedding(value || searchQuery || "") : null;
+    const embedding = (action === "write" || action === "search") && (value || searchQuery) ? await getQueryEmbedding(value || searchQuery) : null;
 
     switch (action) {
       case "write":
@@ -561,10 +561,8 @@ async function readFileFromGitHub(repo: string, path: string, ref: string): Prom
 }
 
 async function handleSpecPRMerge(payload: any, pool: Pool | null, res: ServerResponse): Promise<void> {
-  if (payload.action !== "closed" || !payload.pull_request?.merged) {
-    json(res, 200, { skipped: true, reason: "not a merged PR" });
-    return;
-  }
+  // Callers gate on action === "closed" && pull_request.merged before
+  // dispatching here, so no need to re-check.
   if (!pool) { json(res, 503, { error: "database not available" }); return; }
 
   const pr = payload.pull_request;
@@ -744,7 +742,7 @@ async function handleCheckEvent(payload: any, res: ServerResponse): Promise<void
   // A check can be associated with multiple PRs (e.g., the same head
   // SHA appears on more than one PR). Fan out to all of them.
   for (const pr of prList) {
-    triggerAgentAutoMerge(repo, pr.number).catch(() => {});
+    void triggerAgentAutoMerge(repo, pr.number);
   }
   json(res, 200, {
     triggered: "auto-merge",
@@ -767,7 +765,7 @@ async function handlePullRequestReviewTrigger(payload: any, res: ServerResponse)
   const repo: string = payload.repository?.full_name;
   const prNumber: number | undefined = payload.pull_request?.number;
   if (!repo || !prNumber) return false;
-  triggerAgentReviewReactor(repo, prNumber).catch(() => {});
+  void triggerAgentReviewReactor(repo, prNumber);
   json(res, 200, { triggered: "review-reactor", repo, pr_number: prNumber, via: "pull_request" });
   return true;
 }
@@ -783,7 +781,7 @@ async function handlePullRequestReviewEvent(payload: any, res: ServerResponse): 
     json(res, 400, { error: "missing repo or pr_number" });
     return;
   }
-  triggerAgentReviewReactor(repo, prNumber).catch(() => {});
+  void triggerAgentReviewReactor(repo, prNumber);
   json(res, 200, { triggered: "review-reactor", repo, pr_number: prNumber, via: "pull_request_review" });
 }
 
@@ -835,7 +833,7 @@ async function handleGitHubWebhook(req: IncomingMessage, res: ServerResponse, po
       const repo: string = payload.repository?.full_name;
       const prNumber: number | undefined = payload.pull_request?.number;
       if (repo && prNumber) {
-        triggerAgentAutoMerge(repo, prNumber).catch(() => {});
+        void triggerAgentAutoMerge(repo, prNumber);
       }
     }
     return;
@@ -867,7 +865,7 @@ async function handleGitHubWebhook(req: IncomingMessage, res: ServerResponse, po
       const repo: string = payload.repository?.full_name;
       const prNumber: number | undefined = payload.issue?.number;
       if (repo && prNumber) {
-        triggerAgentReviewReactor(repo, prNumber).catch(() => {});
+        void triggerAgentReviewReactor(repo, prNumber);
         json(res, 200, { triggered: "review-reactor", repo, pr_number: prNumber, via: "issue_comment" });
         return;
       }
@@ -1052,8 +1050,8 @@ async function handleSlackWebhook(req: IncomingMessage, res: ServerResponse, poo
     return;
   }
 
-  if (!pool) { json(res, 503, { error: "database not available" }); return; }
-
+  // A truthy targetRepo can only come from the pool lookup above, so pool is
+  // non-null here.
   const contextBundle = { slack_channel_id: channelId, slack_user: userName };
   try {
     const taskResult = await createTask(description, taskType, targetRepo, `slack:${userName}`, contextBundle, priority);
@@ -1213,6 +1211,53 @@ async function handleTokens(req: IncomingMessage, res: ServerResponse, pool: Poo
 
 // ── Main router ─────────────────────────────────────────────────────
 
+type RouteHandler = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: Pool | null,
+) => Promise<void>;
+
+type RouteMatcher = (url: string, method: string) => boolean;
+
+interface ApiRoute {
+  match: RouteMatcher;
+  handle: RouteHandler;
+}
+
+const exact = (path: string, verb: string): RouteMatcher =>
+  (url, method) => url === path && method === verb;
+const prefix = (path: string, verb: string): RouteMatcher =>
+  (url, method) => url.startsWith(path) && method === verb;
+const pattern = (re: RegExp, verb: string): RouteMatcher =>
+  (url, method) => re.test(url) && method === verb;
+const path = (matcher: (url: string) => boolean): RouteMatcher =>
+  (url) => matcher(url);
+
+// Order matters: specific regex routes precede the broad /api/tasks prefix.
+const API_ROUTES: ApiRoute[] = [
+  { match: path((url) => url === "/healthz"), handle: handleHealthz },
+  { match: prefix("/api/repo-status", "GET"), handle: handleRepoStatus },
+  { match: exact("/api/ingest", "POST"), handle: handleIngest },
+  { match: exact("/api/onboard", "POST"), handle: handleOnboard },
+  { match: prefix("/api/context", "GET"), handle: handleContext },
+  { match: prefix("/api/task/", "GET"), handle: (req, res) => handleGetTask(req, res) },
+  { match: pattern(/^\/api\/tasks\/[^/]+\/timeline(\?|$)/, "GET"), handle: handleTaskTimeline },
+  { match: pattern(/^\/api\/tasks\/by-pr\/[^/]+\/[^/]+\/[0-9]+(\?|$)/, "GET"), handle: handleTaskByPr },
+  { match: prefix("/api/tasks", "GET"), handle: (req, res) => handleListTasks(req, res) },
+  { match: exact("/api/task", "POST"), handle: handleTaskPost },
+  { match: exact("/api/memory", "POST"), handle: handleMemory },
+  { match: exact("/api/episode", "POST"), handle: handleEpisode },
+  { match: exact("/api/session-summary", "POST"), handle: handleSessionSummary },
+  { match: exact("/api/webhook/github", "POST"), handle: handleGitHubWebhook },
+  { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
+  { match: exact("/api/task-logs", "POST"), handle: (req, res) => handleTaskLogs(req, res) },
+  { match: prefix("/api/task-logs", "GET"), handle: (req, res) => handleGetTaskLogs(req, res) },
+  { match: prefix("/api/job-run-logs", "GET"), handle: (req, res) => handleGetJobRunLogs(req, res) },
+  { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
+  { match: path((url) => url === "/api/tokens"), handle: handleTokens },
+  { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
+];
+
 export async function handleApiRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -1249,58 +1294,9 @@ export async function handleApiRoute(
     }
   }
 
-  if (url === "/healthz") {
-    await handleHealthz(req, res, pool);
-  } else if (url.startsWith("/api/repo-status") && method === "GET") {
-    await handleRepoStatus(req, res, pool);
-  } else if (url === "/api/ingest" && method === "POST") {
-    await handleIngest(req, res, pool);
-  } else if (url === "/api/onboard" && method === "POST") {
-    await handleOnboard(req, res, pool);
-  } else if (url.startsWith("/api/context") && method === "GET") {
-    await handleContext(req, res, pool);
-  } else if (url.startsWith("/api/task/") && method === "GET") {
-    await handleGetTask(req, res);
-  } else if (url.startsWith("/api/tasks") && method === "GET") {
-    await handleListTasks(req, res);
-  } else if (url === "/api/task" && method === "POST") {
-    await handleTaskPost(req, res, pool);
-  } else if (url === "/api/memory" && method === "POST") {
-    await handleMemory(req, res, pool);
-  } else if (url === "/api/episode" && method === "POST") {
-    await handleEpisode(req, res, pool);
-  } else if (url === "/api/session-summary" && method === "POST") {
-    await handleSessionSummary(req, res, pool);
-  } else if (url === "/api/webhook/github" && method === "POST") {
-    await handleGitHubWebhook(req, res, pool);
-  } else if (url === "/api/webhook/slack" && method === "POST") {
-    await handleSlackWebhook(req, res, pool);
-  } else if (url === "/api/task-logs" && method === "POST") {
-    await handleTaskLogs(req, res);
-  } else if (url.startsWith("/api/task-logs") && method === "GET") {
-    await handleGetTaskLogs(req, res);
-  } else if (url.startsWith("/api/job-run-logs") && method === "GET") {
-    await handleGetJobRunLogs(req, res);
-  } else if (url === "/api/webhook/incident" && method === "POST") {
-    await handleIncidentWebhook(req, res, pool);
-  } else if (url === "/api/tokens") {
-    await handleTokens(req, res, pool);
-  } else if (
-    /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)
-  ) {
-    await handleDarkFactorySettingsRoute(req, res, pool);
-  } else if (
-    /^\/api\/tasks\/[^/]+\/timeline(\?|$)/.test(url) && method === "GET"
-  ) {
-    await handleTaskTimeline(req, res, pool);
-  } else if (
-    /^\/api\/tasks\/by-pr\/[^/]+\/[^/]+\/[0-9]+(\?|$)/.test(url) &&
-    method === "GET"
-  ) {
-    await handleTaskByPr(req, res, pool);
-  } else {
-    return false; // not handled
-  }
+  const route = API_ROUTES.find((r) => r.match(url, method));
+  if (!route) return false;
+  await route.handle(req, res, pool);
   return true;
 }
 
@@ -1360,7 +1356,7 @@ async function handleTaskTimeline(
     json(res, 503, { error: "database unavailable" });
     return;
   }
-  const m = (req.url || "").match(TIMELINE_RE);
+  const m = req.url!.match(TIMELINE_RE);
   if (!m) {
     json(res, 404, { error: "not found" });
     return;
@@ -1538,11 +1534,8 @@ async function handleTaskByPr(
     json(res, 503, { error: "database unavailable" });
     return;
   }
-  const m = (req.url || "").match(BY_PR_RE);
-  if (!m) {
-    json(res, 404, { error: "not found" });
-    return;
-  }
+  // The dispatcher only routes here on a full BY_PR_RE match, so m is non-null.
+  const m = req.url!.match(BY_PR_RE)!;
   const owner = decodeURIComponent(m[1]);
   const repoName = decodeURIComponent(m[2]);
   const prNumber = Number.parseInt(m[3], 10);
@@ -1616,11 +1609,8 @@ async function handleDarkFactorySettingsRoute(
     json(res, 503, { error: "database unavailable" });
     return;
   }
-  const m = (req.url || "").match(DARK_FACTORY_PATH_RE);
-  if (!m) {
-    json(res, 404, { error: "not found" });
-    return;
-  }
+  // The dispatcher only routes here on a full DARK_FACTORY_PATH_RE match.
+  const m = req.url!.match(DARK_FACTORY_PATH_RE)!;
   const owner = decodeURIComponent(m[1]);
   const repoName = decodeURIComponent(m[2]);
   const repo = `${owner}/${repoName}`;
