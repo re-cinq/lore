@@ -25,7 +25,7 @@ function featureDir(filePath: string): string | null {
   return null;
 }
 
-/** First real prose paragraph (skips headings, tables, code fences, lists),
+/** First real prose paragraph (skips headings, tables, blockquotes, code fences, lists),
  * whitespace-collapsed and truncated to `maxLength` with an ellipsis. */
 export function extractSummary(content: string, maxLength = 280): string {
   const paragraphs = content.split(/\n\s*\n/);
@@ -36,7 +36,7 @@ export function extractSummary(content: string, maxLength = 280): string {
       .filter(Boolean);
     if (lines.length === 0) continue;
     const first = lines[0];
-    if (first.startsWith("#") || first.startsWith("|") || first.startsWith("```") || /^[-*]\s/.test(first)) {
+    if (first.startsWith("#") || first.startsWith("|") || first.startsWith(">") || first.startsWith("```") || /^[-*]\s/.test(first)) {
       continue;
     }
     const text = lines.join(" ").replace(/\s+/g, " ").trim();

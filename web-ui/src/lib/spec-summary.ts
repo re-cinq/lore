@@ -33,7 +33,7 @@ export function extractSummary(content: string, maxLength = 280): string {
       .filter(Boolean);
     if (lines.length === 0) continue;
     const first = lines[0];
-    if (first.startsWith("#") || first.startsWith("|") || first.startsWith("```") || /^[-*]\s/.test(first)) {
+    if (first.startsWith("#") || first.startsWith("|") || first.startsWith(">") || first.startsWith("```") || /^[-*]\s/.test(first)) {
       continue;
     }
     const text = lines.join(" ").replace(/\s+/g, " ").trim();

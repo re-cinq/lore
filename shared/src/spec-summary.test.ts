@@ -45,6 +45,12 @@ describe("extractSummary", () => {
   it("returns an empty string when there is no paragraph", () => {
     expect(extractSummary("# Only A Heading")).toBe("");
   });
+
+  it("skips a leading blockquote note and returns the first prose paragraph", () => {
+    const content =
+      "# Title\n\n> **Note:** This spec was updated after shipping.\n> Several features were not exposed.\n\nThe real summary paragraph.";
+    expect(extractSummary(content)).toBe("The real summary paragraph.");
+  });
 });
 
 describe("reassembleSpec", () => {
