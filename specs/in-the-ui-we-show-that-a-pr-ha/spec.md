@@ -126,9 +126,9 @@ show a small status indicator next to the PR link (fetched client-side).
 
 ## Acceptance Criteria
 
-1. Task detail page shows live PR status badge when a PR exists
-2. Check results (pass/fail) visible without going to GitHub
-3. Review status (who approved, who requested changes) visible
+1. Task detail page shows live PR status badge when a PR exists ([validated by `github.test.ts:32`](web-ui/src/lib/github.test.ts#L32))
+2. Check results (pass/fail) visible without going to GitHub ([validated by `github.test.ts:44`](web-ui/src/lib/github.test.ts#L44))
+3. Review status (who approved, who requested changes) visible ([validated by `github.test.ts:52`](web-ui/src/lib/github.test.ts#L52))
 4. MCP tool `get_pr_status` returns structured PR state
 5. Graceful fallback when GitHub API is unavailable
 6. No database migrations required
