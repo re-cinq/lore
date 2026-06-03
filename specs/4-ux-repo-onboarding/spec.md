@@ -166,7 +166,7 @@ The system MUST onboard new repos by creating a PR.
   template, workflows.
 - FR-2.4: Opens a PR with description explaining what each file does.
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
-  until merged).
+  until merged). ([validated by `onboard.test.ts:11`](web-ui/src/lib/onboard.test.ts#L11))
 - FR-2.6: After merge, adds repo to the registry and triggers
   initial ingestion.
 

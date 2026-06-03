@@ -191,11 +191,11 @@ repo B
 - FR-5.1: Add `computeTransferScore(factText: string): number`
   function in `memory-search.ts`.
 - FR-5.2: Portable keywords boost score: `error`, `pattern`,
-  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`.
+  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:24`](mcp-server/src/transfer-score.test.ts#L24))
 - FR-5.3: Local keywords reduce score: `config`, `deploy`, `url`,
-  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`.
+  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:30`](mcp-server/src/transfer-score.test.ts#L30))
 - FR-5.4: Base score 0.5, each portable keyword +0.15, each local
-  keyword -0.15, clamped to [0, 1].
+  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:48`](mcp-server/src/transfer-score.test.ts#L48))
 - FR-5.5: Cross-repo queries in `context-assembly.ts` filter to
   `transfer_score >= 0.5`.
 
@@ -213,11 +213,11 @@ repo B
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
-  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`.
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`.
+  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-lifecycle.test.ts:69`](agent/src/jobs/cron/memory-lifecycle.test.ts#L69))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`. ([validated by `memory-lifecycle.test.ts:58`](agent/src/jobs/cron/memory-lifecycle.test.ts#L58))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
-  `retrieval_count >= 5`, `+2` if `>= 20`.
-- FR-7.4: Stale-confidence facts get `-1` penalty.
+  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-lifecycle.test.ts:101`](agent/src/jobs/cron/memory-lifecycle.test.ts#L101))
+- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-lifecycle.test.ts:117`](agent/src/jobs/cron/memory-lifecycle.test.ts#L117))
 
 ## Non-Functional Requirements
 

@@ -119,17 +119,17 @@ accumulation period required.
   same text using the same LLM call (extend the extraction prompt
   to also return entities and relationships).
 - FR-2.2: Output format: list of `{name, type}` entities and
-  `{source, target, relation}` edges.
+  `{source, target, relation}` edges. ([validated by `graph.test.ts:42`](mcp-server/src/graph.test.ts#L42))
 - FR-2.3: Entity names are normalized (lowercase, trimmed) for
-  deduplication.
+  deduplication. ([validated by `graph.test.ts:63`](mcp-server/src/graph.test.ts#L63))
 - FR-2.4: If entity extraction fails, facts are still stored.
-  Graph update is best-effort.
+  Graph update is best-effort. ([validated by `graph.test.ts:80`](mcp-server/src/graph.test.ts#L80))
 
 ### FR-3: Temporal Edge Invalidation
 
 - FR-3.1: When a new edge contradicts an existing one (same
   source + relation type but different target), the old edge
-  gets `valid_to = now()`.
+  gets `valid_to = now()`. ([validated by `graph.test.ts:118`](mcp-server/src/graph.test.ts#L118))
 - FR-3.2: Example: `auth-service --uses--> Express` is
   invalidated when `auth-service --uses--> Hono` is added.
 - FR-3.3: Non-contradictory edges (different relation types, or
