@@ -87,21 +87,54 @@ describe('SpecDetails v3 (markdown-driven)', () => {
     expect(screen.queryByText(/legacy/)).toBeNull();
   });
 
-  it('falls back gracefully when a statement spans inline formatting (no wrap, no throw)', () => {
+  it('wraps a statement that spans inline bold formatting with stmt-tested', () => {
     const md = '## A\n\n- It claims a **pending** task. ([t](src/x.test.ts#L1))\n';
     const statements = [
       stmt({
         ordinal: 0,
-        text: 'It claims a pending task. ([t](src/x.test.ts#L1))',
+        text: 'It claims a **pending** task. ([t](src/x.test.ts#L1))',
         state: 'tested',
         testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
       }),
     ];
     const { container } = render(<SpecDetails content={md} statements={statements} />);
-    // The exact-text match won't find the inline-formatting-mixed statement,
-    // but the rehype walker must not throw.
-    expect(container.querySelector('mark[data-state="tested"]')).toBeNull();
-    // The plain test link in the markdown still renders as an anchor.
+    const mark = container.querySelector('mark[data-state="tested"]');
+    expect(mark?.className).toContain('stmt-tested');
     expect(container.querySelector('a[href="src/x.test.ts#L1"]')).not.toBeNull();
+  });
+
+  it('wraps a statement containing inline code (backticks) with stmt-tested', () => {
+    const md =
+      '## Acceptance Criteria\n\n- A statement carrying a test link counts as `covered` in the `CoverageBar`. ([t](src/x.test.ts#L1))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'A statement carrying a test link counts as `covered` in the `CoverageBar`. ([t](src/x.test.ts#L1))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+      }),
+    ];
+    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const mark = container.querySelector('mark[data-state="tested"]');
+    expect(mark?.className).toContain('stmt-tested');
+    expect(mark?.getAttribute('data-ordinal')).toEqual('0');
+    expect(container.querySelector('code')?.textContent).toEqual('covered');
+  });
+
+  it('wraps a code-span statement whose backticks contain literal link/emphasis syntax', () => {
+    const md =
+      '## Acceptance Criteria\n\n- The cron emits a `([validated by ...](path#Lline))` parenthetical. ([t](src/x.test.ts#L1))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'The cron emits a `([validated by ...](path#Lline))` parenthetical. ([t](src/x.test.ts#L1))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+      }),
+    ];
+    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    expect(container.querySelector('mark[data-state="tested"]')?.className).toContain('stmt-tested');
   });
 });
