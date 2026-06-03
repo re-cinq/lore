@@ -1,17 +1,5 @@
 import { describe, it, expect } from "vitest";
-
-// ── Ingest file type classification (copied from ingest.ts) ─────────
-
-function classifyFile(path: string): string | null {
-  if (/\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|pdf|zip|tar|gz|lock)$/i.test(path)) return null;
-  if (path.endsWith('CLAUDE.md') || path.endsWith('AGENTS.md') || path.endsWith('CODEOWNERS')) return 'doc';
-  if (/(?:^|\/)adrs\//.test(path)) return 'adr';
-  if (/(?:^|\/)specs\//.test(path) || path.startsWith('.specify/')) return 'spec';
-  if (/(?:^|\/)runbooks\//.test(path)) return 'doc';
-  if (/\.(ts|js|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp)$/.test(path)) return 'code';
-  if (path.endsWith('.md') || path.endsWith('.yaml') || path.endsWith('.yml')) return 'doc';
-  return null;
-}
+import { classifyFile } from "@re-cinq/lore-shared";
 
 describe("classifyFile", () => {
   it("classifies CLAUDE.md as doc", () => {
@@ -35,6 +23,11 @@ describe("classifyFile", () => {
     expect(classifyFile("src/index.ts")).toBe("code");
     expect(classifyFile("main.go")).toBe("code");
     expect(classifyFile("lib/auth.py")).toBe("code");
+  });
+
+  it("classifies source files under a nested specs/ dir as code, not spec", () => {
+    expect(classifyFile("web-ui/src/app/specs/page.tsx")).toBe("code");
+    expect(classifyFile("web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx")).toBe("code");
   });
 
   it("skips binary files", () => {
