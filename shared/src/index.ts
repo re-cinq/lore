@@ -87,3 +87,5 @@ export {
   type CandidateSelection,
   type Judgment,
 } from './spec-judge.js';
+
+export { classifyFile, type ContentType } from './content-classify.js';
