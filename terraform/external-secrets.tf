@@ -597,6 +597,37 @@ resource "kubectl_manifest" "es_ui_db_password" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+resource "kubectl_manifest" "es_ui_ingest_token" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-ingest-token"
+      namespace = "lore-ui"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-ingest-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-ingest-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 resource "kubectl_manifest" "es_ui_oauth" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"

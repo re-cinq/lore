@@ -49,6 +49,10 @@ resource "helm_release" "lore_ui" {
     name  = "env.LORE_LOG_BUCKET"
     value = "lore-task-logs-${var.project_id}"
   }
+  set {
+    name  = "env.LORE_API_URL"
+    value = "http://lore-mcp.mcp-servers.svc.cluster.local:3000"
+  }
 
   # Secrets
   set {
@@ -58,6 +62,14 @@ resource "helm_release" "lore_ui" {
   set {
     name  = "dbPasswordSecret.key"
     value = "password"
+  }
+  set {
+    name  = "ingestTokenSecret.name"
+    value = "lore-ingest-token"
+  }
+  set {
+    name  = "ingestTokenSecret.key"
+    value = "token"
   }
   set {
     name  = "githubAppSecret.name"
