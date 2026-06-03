@@ -122,6 +122,24 @@ describe('SpecDetails v3 (markdown-driven)', () => {
     expect(container.querySelector('code')?.textContent).toEqual('covered');
   });
 
+  it('keeps the highlight on re-render (matcher state is not stale across transforms)', () => {
+    const md =
+      '## Acceptance Criteria\n\n- A statement carrying a test link counts as `covered`. ([t](src/x.test.ts#L1))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'A statement carrying a test link counts as `covered`. ([t](src/x.test.ts#L1))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+      }),
+    ];
+    const { container, rerender } = render(<SpecDetails content={md} statements={statements} />);
+    expect(container.querySelector('mark[data-state="tested"]')).not.toBeNull();
+    rerender(<SpecDetails content={md} statements={statements} />);
+    expect(container.querySelector('mark[data-state="tested"]')).not.toBeNull();
+  });
+
   it('wraps a code-span statement whose backticks contain literal link/emphasis syntax', () => {
     const md =
       '## Acceptance Criteria\n\n- The cron emits a `([validated by ...](path#Lline))` parenthetical. ([t](src/x.test.ts#L1))\n';
