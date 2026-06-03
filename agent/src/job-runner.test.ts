@@ -27,8 +27,20 @@ vi.mock("./db.js", () => ({
   query: vi.fn(),
   initPool: vi.fn(),
 }));
+vi.mock("./lib/job-run.js", () => ({
+  startJobRun: vi.fn().mockResolvedValue("run-1"),
+  completeJobRun: vi.fn(),
+  failJobRun: vi.fn(),
+}));
+vi.mock("./lib/log-storage.js", () => ({
+  jobRunLogKey: vi.fn(() => "logs/key"),
+  writeJobRunLogs: vi.fn(),
+}));
+vi.mock("./github.js", () => ({ GitHubPlatform: vi.fn() }));
+vi.mock("./platform.js", () => ({ setPlatform: vi.fn(), platform: vi.fn() }));
 
-import { dispatch, resolveJob } from "./job-runner.js";
+import { dispatch, resolveJob, runJobByName } from "./job-runner.js";
+import { setPlatform } from "./platform.js";
 
 describe("dispatch map", () => {
   it.each(EXPECTED_JOBS)("resolves %s to a handler function", (name) => {
@@ -49,5 +61,31 @@ describe("resolveJob", () => {
   it("returns null for an unknown name", () => {
     expect(resolveJob("nope")).toBeNull();
     expect(resolveJob("")).toBeNull();
+  });
+});
+
+describe("runJobByName platform wiring", () => {
+  // Regression: the CronJob entrypoint must configure the code platform
+  // before running a job. Without it, every platform()-using batch job
+  // (reindex, spec-drift, gap-detect, …) throws "No code platform
+  // configured" and silently no-ops while still exiting 0.
+  it("configures the code platform before invoking the job handler", async () => {
+    const order: string[] = [];
+    vi.mocked(setPlatform).mockImplementation(() => {
+      order.push("setPlatform");
+    });
+    const handler = vi.fn(async () => {
+      order.push("handler");
+      return "ok";
+    });
+    dispatch.__platform_probe = handler;
+    try {
+      const code = await runJobByName("__platform_probe");
+      expect(code).toBe(0);
+      expect(setPlatform).toHaveBeenCalledOnce();
+      expect(order).toEqual(["setPlatform", "handler"]);
+    } finally {
+      delete dispatch.__platform_probe;
+    }
   });
 });
