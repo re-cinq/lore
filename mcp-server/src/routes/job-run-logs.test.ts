@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
-import { makeReq, makeRes, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "./helpers/http-mock.js";
+import { makeReq, makeRes, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../test-helpers/http-mock.js";
 
 const storage = vi.hoisted(() => {
   const file = { save: vi.fn(), exists: vi.fn(), download: vi.fn() };

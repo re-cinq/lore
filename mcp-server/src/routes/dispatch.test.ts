@@ -7,7 +7,7 @@ import {
   useRateLimitSafeClock,
   AUTH,
   LEGACY_TOKEN,
-} from "./helpers/http-mock.js";
+} from "../test-helpers/http-mock.js";
 
 // handleHealthz is the only dispatch-reachable handler here that touches a
 // collaborator module; everything else short-circuits on pool/secret guards.

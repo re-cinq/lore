@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatTrailers } from "@re-cinq/lore-shared";
-import { buildTimeline } from "../routes/task-timeline.js";
+import { buildTimeline } from "./task-timeline.js";
 
 function commit(sha: string, message: string, date: string | null) {
   return { sha, commit: { message, committer: date === null ? null : { date } } };

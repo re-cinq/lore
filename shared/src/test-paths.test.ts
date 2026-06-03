@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isTestFile, normalizeTestName } from "../test-paths.js";
+import { isTestFile, normalizeTestName } from "./test-paths.js";
 
 describe("isTestFile", () => {
   it.each([

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
-import { makeReq, makeRes, makePool, useRateLimitSafeClock } from "./helpers/http-mock.js";
+import { makeReq, makeRes, makePool, useRateLimitSafeClock } from "../test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
 

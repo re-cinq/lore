@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatTrailers, parseTrailers } from "../commit-trailers.js";
+import { formatTrailers, parseTrailers } from "./commit-trailers.js";
 
 describe("formatTrailers", () => {
   it("formats minimal trailer block", () => {

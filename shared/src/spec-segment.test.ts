@@ -3,7 +3,7 @@ import {
   segmentStatements,
   classifyByHeuristic,
   buildIntroOrdinals,
-} from "../spec-segment.js";
+} from "./spec-segment.js";
 
 describe("segmentStatements", () => {
   it("splits prose paragraphs into sentences", () => {

@@ -5,7 +5,7 @@ import {
   LORE_INGEST_WORKFLOW_CONTENT,
   ingestWorkflowStatus,
   parseIngestWorkflowVersion,
-} from "../ingest-workflow.js";
+} from "./ingest-workflow.js";
 
 describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
   it("targets the workflows path", () => {

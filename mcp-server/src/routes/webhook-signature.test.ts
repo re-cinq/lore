@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
-import { verifyGitHubSignature, verifySlackSignature } from "../routes/webhooks.js";
+import { verifyGitHubSignature, verifySlackSignature } from "./webhooks.js";
 
 const SECRET = "shhh";
 

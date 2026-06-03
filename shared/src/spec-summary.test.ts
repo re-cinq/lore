@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSpecTitle, extractSummary, reassembleSpec } from "../spec-summary.js";
+import { parseSpecTitle, extractSummary, reassembleSpec } from "./spec-summary.js";
 
 describe("parseSpecTitle", () => {
   it("returns the first H1 stripped of the hash", () => {

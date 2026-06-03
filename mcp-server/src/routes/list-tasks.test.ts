@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
-import { makeReq, makeRes, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "./helpers/http-mock.js";
+import { makeReq, makeRes, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../test-helpers/http-mock.js";
 
 vi.mock("../pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
 
