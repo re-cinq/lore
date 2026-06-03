@@ -75,6 +75,12 @@ anthropicKeySecret:
   name: lore-agent-anthropic-key
   key: anthropic-api-key
 
+# Optional Admin API key (sk-ant-admin…) for the anthropic-cost-sync cron.
+# Absent → the cron no-ops and the /spend page degrades to Lore-computed costs.
+anthropicAdminKeySecret:
+  name: lore-agent-anthropic-key
+  key: anthropic-admin-key
+
 githubAppSecret:
   name: lore-agent-github-app
   appIdKey: app-id
@@ -162,6 +168,9 @@ cronJobs:
   - name: context-core-builder
     job: context_core_builder
     schedule: "0 4 * * *"
+  - name: anthropic-cost-sync
+    job: anthropic_cost_sync
+    schedule: "0 7 * * *"  # daily, after the prior billing day settles
 
   # Heavy LLM / embedding jobs — bigger memory + longer deadline
   - name: context-reindex

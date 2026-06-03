@@ -1,0 +1,184 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { handleApiRoute } from "../routes.js";
+import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../test-helpers/http-mock.js";
+
+vi.mock("../db.js", () => ({ getHealthStatus: vi.fn(), isDbAvailable: vi.fn(), getQueryEmbedding: vi.fn() }));
+vi.mock("../memory.js", () => ({
+  isMemoryDbAvailable: vi.fn(),
+  writeMemory: vi.fn(),
+  readMemory: vi.fn(),
+  deleteMemory: vi.fn(),
+  listMemories: vi.fn(),
+}));
+vi.mock("../memory-file.js", () => ({
+  writeMemoryFile: vi.fn(),
+  readMemoryFile: vi.fn(),
+  deleteMemoryFile: vi.fn(),
+  listMemoriesFile: vi.fn(),
+  searchMemoryFile: vi.fn(),
+}));
+vi.mock("../memory-search.js", () => ({ searchMemories: vi.fn() }));
+
+import { getQueryEmbedding } from "../db.js";
+import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "../memory.js";
+import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "../memory-file.js";
+import { searchMemories } from "../memory-search.js";
+
+const originalEnv = { ...process.env };
+
+function post(url: string, body: unknown, pool: any = makePool()) {
+  const res = makeRes();
+  return handleApiRoute(makeReq({ url, method: "POST", headers: AUTH, body }), res, pool).then(() => res);
+}
+
+describe("POST /api/memory", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    vi.mocked(getQueryEmbedding).mockResolvedValue([0.1, 0.2] as any);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.clearAllMocks();
+  });
+
+  it("writes via DB when memory DB available", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(writeMemory).mockResolvedValue({ id: 1 } as any);
+    const res = await post("/api/memory", { action: "write", key: "k", value: "v" });
+    expect(res.json).toEqual({ id: 1 });
+    expect(getQueryEmbedding).toHaveBeenCalledWith("v");
+  });
+
+  it("writes via file fallback when memory DB unavailable", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    vi.mocked(writeMemoryFile).mockResolvedValue({ id: "f" } as any);
+    const res = await post("/api/memory", { action: "write", key: "k", value: "v" });
+    expect(res.json).toEqual({ id: "f" });
+  });
+
+  it("returns 400 when write is missing value", async () => {
+    const res = await post("/api/memory", { action: "write", key: "k" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("reads via DB", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(readMemory).mockResolvedValue({ value: "v" } as any);
+    const res = await post("/api/memory", { action: "read", key: "k", version: "3" });
+    expect(res.json).toEqual({ value: "v" });
+    expect(readMemory).toHaveBeenCalledWith("k", undefined, 3);
+  });
+
+  it("reads full history via DB with version=all", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(readMemory).mockResolvedValue([{ v: 1 }] as any);
+    await post("/api/memory", { action: "read", key: "k", version: "all" });
+    expect(readMemory).toHaveBeenCalledWith("k", undefined, "all");
+  });
+
+  it("reads latest via DB when no version given", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(readMemory).mockResolvedValue({ v: 1 } as any);
+    await post("/api/memory", { action: "read", key: "k" });
+    expect(readMemory).toHaveBeenCalledWith("k", undefined, undefined);
+  });
+
+  it("reads a numeric version via file fallback", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    vi.mocked(readMemoryFile).mockResolvedValue({ v: 2 } as any);
+    await post("/api/memory", { action: "read", key: "k", version: "2" });
+    expect(readMemoryFile).toHaveBeenCalledWith("k", undefined, 2);
+  });
+
+  it("reads full history via file with version=all", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    vi.mocked(readMemoryFile).mockResolvedValue([{ v: 1 }] as any);
+    await post("/api/memory", { action: "read", key: "k", version: "all" });
+    expect(readMemoryFile).toHaveBeenCalledWith("k", undefined, "all");
+  });
+
+  it("reads latest via file fallback when no version given", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    vi.mocked(readMemoryFile).mockResolvedValue({ v: 1 } as any);
+    await post("/api/memory", { action: "read", key: "k" });
+    expect(readMemoryFile).toHaveBeenCalledWith("k", undefined, undefined);
+  });
+
+  it("writes with undefined embedding when the embedder returns falsy", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(getQueryEmbedding).mockResolvedValue(null as any);
+    vi.mocked(writeMemory).mockResolvedValue({ id: 1 } as any);
+    await post("/api/memory", { action: "write", key: "k", value: "v" });
+    expect(writeMemory).toHaveBeenCalledWith("k", "v", undefined, undefined, undefined, undefined);
+  });
+
+  it("returns 400 when read is missing key", async () => {
+    const res = await post("/api/memory", { action: "read" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("searches via DB", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(searchMemories).mockResolvedValue([{ m: 1 }] as any);
+    const res = await post("/api/memory", { action: "search", query: "q" });
+    expect(res.json).toEqual([{ m: 1 }]);
+    expect(getQueryEmbedding).toHaveBeenCalledWith("q");
+  });
+
+  it("searches via file fallback", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    vi.mocked(searchMemoryFile).mockResolvedValue([] as any);
+    await post("/api/memory", { action: "search", query: "q" });
+    expect(searchMemoryFile).toHaveBeenCalledWith("q", undefined, 10);
+  });
+
+  it("returns 400 when search is missing query", async () => {
+    const res = await post("/api/memory", { action: "search" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("deletes via DB", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(deleteMemory).mockResolvedValue({ ok: true } as any);
+    const res = await post("/api/memory", { action: "delete", key: "k" });
+    expect(res.json).toEqual({ ok: true });
+  });
+
+  it("deletes via file fallback", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    vi.mocked(deleteMemoryFile).mockResolvedValue({ ok: 1 } as any);
+    await post("/api/memory", { action: "delete", key: "k" });
+    expect(deleteMemoryFile).toHaveBeenCalled();
+  });
+
+  it("returns 400 when delete is missing key", async () => {
+    const res = await post("/api/memory", { action: "delete" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("lists via DB", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(listMemories).mockResolvedValue([{ k: 1 }] as any);
+    await post("/api/memory", { action: "list" });
+    expect(listMemories).toHaveBeenCalledWith(undefined, 50, 0);
+  });
+
+  it("lists via file fallback", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    vi.mocked(listMemoriesFile).mockResolvedValue([] as any);
+    await post("/api/memory", { action: "list" });
+    expect(listMemoriesFile).toHaveBeenCalled();
+  });
+
+  it("returns 400 for an unknown action", async () => {
+    const res = await post("/api/memory", { action: "frobnicate" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 500 on invalid JSON", async () => {
+    const res = makeRes();
+    await handleApiRoute(makeReq({ url: "/api/memory", method: "POST", headers: AUTH, body: "{bad" }), res, makePool() as any);
+    expect(res.statusCode).toBe(500);
+  });
+});
