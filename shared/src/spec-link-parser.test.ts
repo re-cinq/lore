@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseTestLinksInStatement } from "../spec-link-parser.js";
+import { parseTestLinksInStatement } from "./spec-link-parser.js";
 
 describe("parseTestLinksInStatement", () => {
   it("returns an empty array when the statement has no trailing parenthetical", () => {

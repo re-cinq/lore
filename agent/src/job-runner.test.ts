@@ -20,6 +20,7 @@ const EXPECTED_JOBS = [
   "spec_coverage_backfill",
   "spec_coverage_validate",
   "memory_ttl",
+  "anthropic_cost_sync",
 ];
 
 vi.mock("./db.js", () => ({
@@ -35,7 +36,7 @@ describe("dispatch map", () => {
     expect(typeof handler).toBe("function");
   });
 
-  it("exposes exactly the 11 batch jobs (no extras, no gaps)", () => {
+  it("exposes exactly the 12 batch jobs (no extras, no gaps)", () => {
     expect(Object.keys(dispatch).sort()).toEqual([...EXPECTED_JOBS].sort());
   });
 });

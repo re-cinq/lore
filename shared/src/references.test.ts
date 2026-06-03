@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseReferences, linkifyMarkdown } from "../references.js";
+import { parseReferences, linkifyMarkdown } from "./references.js";
 
 const ctx = { repo: "re-cinq/lore", branch: "main", uiUrl: "https://lore.example" };
 const uuid = "fb964a3c-2c4c-4de6-b76c-cebe715b51a9";

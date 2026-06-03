@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import { handleApiRoute } from "../routes.js";
-import { makeReq, makeRes, makePool, useRateLimitSafeClock } from "./helpers/http-mock.js";
+import { makeReq, makeRes, makePool, useRateLimitSafeClock } from "../test-helpers/http-mock.js";
 
 vi.mock("../pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
 vi.mock("../tasks.js", () => ({ syncTasksToDb: vi.fn() }));
