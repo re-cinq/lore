@@ -1,18 +1,6 @@
 export const dynamic = "force-dynamic";
-import Link from 'next/link';
 import { queryAllChunks } from '@/lib/db';
-
-interface Spec {
-  file_path: string;
-  repo: string | null;
-  ingested_at: string;
-  excerpt: string;
-}
-
-interface RepoCount {
-  repo: string;
-  count: number;
-}
+import SpecsListView, { type SpecListItem, type RepoCount } from './SpecsListView';
 
 export default async function SpecsPage({ searchParams }: { searchParams: Promise<{ repo?: string }> }) {
   const { repo } = await searchParams;
@@ -40,7 +28,7 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
     .sort((a, b) => b.count - a.count);
 
   // Fetch specs across all schemas, always filtered to content_type = 'spec'
-  const allSpecs = await queryAllChunks<Spec>(
+  const allSpecs = await queryAllChunks<SpecListItem>(
     (schema, offset) => {
       if (repo && repo.trim()) {
         return {
@@ -64,7 +52,7 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
   // A spec.md is stored as multiple chunk rows; collapse to one entry per
   // (repo, file_path), keeping the most-recently-ingested chunk. Without this
   // the list shows duplicate cards and silently drops specs past a row cap.
-  const latestByPath = new Map<string, Spec>();
+  const latestByPath = new Map<string, SpecListItem>();
   for (const s of allSpecs) {
     const key = `${s.repo ?? ''}::${s.file_path}`;
     const prev = latestByPath.get(key);
@@ -76,62 +64,5 @@ export default async function SpecsPage({ searchParams }: { searchParams: Promis
     (a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime(),
   );
 
-  return (
-    <div>
-      <h1>Specifications</h1>
-      <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
-        <p className="meta" style={{ margin: 0 }}>
-          This is the global view across all repos. For repo-specific specs, visit{' '}
-          <Link href="/">Repositories</Link> and select a repo.
-        </p>
-      </div>
-      <p className="meta" style={{ marginBottom: 16 }}>
-        Browse ingested spec files from across all repos.
-      </p>
-
-      <div className="filter-buttons">
-        <Link href="/specs" className={!repo ? 'active' : ''}>
-          All repos
-        </Link>
-        {repos.map(r => (
-          <Link
-            key={r.repo}
-            href={`/specs?repo=${encodeURIComponent(r.repo)}`}
-            className={repo === r.repo ? 'active' : ''}
-          >
-            {r.repo} ({r.count})
-          </Link>
-        ))}
-      </div>
-
-      <p className="meta" style={{ marginBottom: 16 }}>
-        {specs.length} spec{specs.length !== 1 ? 's' : ''}{repo ? ` in "${repo}"` : ''}
-      </p>
-
-      {specs.map((s) => (
-        <div key={`${s.repo ?? ''}-${s.file_path}`} className="spec-card">
-          <h3>
-            <Link href={`/specs/${encodeURIComponent(s.file_path)}`}>
-              {s.file_path}
-            </Link>
-          </h3>
-          <span className="badge badge-blue">spec</span>
-          {s.repo && (
-            <span className="meta" style={{ marginLeft: 8 }}>
-              <Link href={`/repos/${s.repo}`}>{s.repo}</Link>
-            </span>
-          )}
-          <span className="meta" style={{ marginLeft: 8 }}>
-            {new Date(s.ingested_at).toLocaleString()}
-          </span>
-          <pre>{s.excerpt}...</pre>
-        </div>
-      ))}
-      {specs.length === 0 && (
-        <div className="empty-state">
-          <p>No specs ingested yet{repo ? ` for repo "${repo}"` : ''}.</p>
-        </div>
-      )}
-    </div>
-  );
+  return <SpecsListView activeRepo={repo} repos={repos} specs={specs} />;
 }
