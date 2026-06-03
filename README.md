@@ -24,6 +24,55 @@ Lore is the shared context layer that makes Claude Code organization-aware. Deve
 
 Beyond context, Lore is an **agent operating system**. It runs background agents that onboard repos, detect documentation gaps, check for spec drift, and review PRs — all producing pull requests that humans review and merge.
 
+### The Context Lifecycle
+
+Context is **collected** from repos and agent activity, **stored** in PostgreSQL (vectors + knowledge graph), and **pulled** on demand into Claude Code. Every session can feed new learnings back in, so the store compounds over time.
+
+```mermaid
+flowchart LR
+    subgraph collect["1 · Collect / Create"]
+        direction TB
+        SRC["Repo files<br/>CLAUDE.md · ADRs · runbooks · specs · code"]
+        PRH["PR history &amp; outcomes<br/>(merge-check)"]
+        SESS["Agent sessions<br/>episodes · tool calls (Stop hook)"]
+        MEMW["Explicit memory<br/>write_memory · write_episode"]
+    end
+
+    subgraph store["2 · Store — PostgreSQL + pgvector"]
+        direction TB
+        CHUNKS[("chunks<br/>content + 768-d embeddings<br/>schema-per-team")]
+        EPIS[("episodes / memories")]
+        FACTS[("facts<br/>temporal validity · confidence")]
+        GRAPH[("entities + edges<br/>knowledge graph")]
+    end
+
+    subgraph pull["3 · Pull / Retrieve"]
+        direction TB
+        ASM["assemble_context<br/>one-call, token-budgeted bundle"]
+        SEARCH["search_context · search_memory<br/>hybrid: vector + BM25 (RRF)"]
+        QG["query_graph"]
+    end
+
+    SRC -->|"ingest: chunk + embed"| CHUNKS
+    PRH --> EPIS
+    SESS --> EPIS
+    MEMW --> EPIS
+    EPIS -->|"LLM fact extraction"| FACTS
+    EPIS -->|"entity extraction"| GRAPH
+
+    CHUNKS --> ASM
+    FACTS --> ASM
+    GRAPH --> ASM
+    CHUNKS --> SEARCH
+    FACTS --> SEARCH
+    GRAPH --> QG
+
+    ASM --> CC["Claude Code<br/>&amp; background agents"]
+    SEARCH --> CC
+    QG --> CC
+    CC -.->|"new learnings feed back"| MEMW
+```
+
 ## Six Ways to Use Lore
 
 ### Flow 1: Developer with Claude Code (local)
