@@ -1,14 +1,20 @@
 import { trace } from "@opentelemetry/api";
-import { query } from "../db.js";
 import { writeAuditLog } from "../lib/audit.js";
+import {
+  pgAuditLog,
+  pgLeases,
+  type AuditLogRepository,
+  type LeaseRepository,
+} from "../repositories/index.js";
 
 const tracer = trace.getTracer("lore.lease");
 
-interface ExpiredLease {
-  branch_name: string;
-  task_id: string;
-  holder: string;
-  expires_at: Date;
+/** Grace beyond TTL absorbing clock skew between supervisor pod and DB. */
+const GRACE_MS = 5 * 60 * 1000;
+
+export interface LeaseReaperDeps {
+  leases: LeaseRepository;
+  audit: AuditLogRepository;
 }
 
 /**
@@ -17,28 +23,31 @@ interface ExpiredLease {
  * grace beyond TTL absorbs clock skew between the supervisor pod and
  * the database. Scheduled at 60s tick by the agent's job runner.
  */
-export async function leaseReaperJob(): Promise<string> {
+export async function leaseReaperJob(
+  deps: LeaseReaperDeps = { leases: pgLeases, audit: pgAuditLog },
+  now: Date = new Date(),
+): Promise<string> {
   return await tracer.startActiveSpan("lore.lease.expired", async (span) => {
     try {
-      const expired = await query<ExpiredLease>(
-        `DELETE FROM pipeline.task_leases
-          WHERE expires_at < now() - interval '5 minutes'
-        RETURNING branch_name, task_id, holder, expires_at`,
-      );
+      const cutoff = new Date(now.getTime() - GRACE_MS);
+      const expired = await deps.leases.deleteExpired(cutoff);
 
       for (const lease of expired) {
-        await writeAuditLog({
-          event_type: "lease_expired",
-          task_id: lease.task_id,
-          payload: {
-            branch_name: lease.branch_name,
-            previous_holder: lease.holder,
-            expired_at:
-              lease.expires_at instanceof Date
-                ? lease.expires_at.toISOString()
-                : String(lease.expires_at),
+        await writeAuditLog(
+          {
+            event_type: "lease_expired",
+            task_id: lease.task_id,
+            payload: {
+              branch_name: lease.branch_name,
+              previous_holder: lease.holder,
+              expired_at:
+                lease.expires_at instanceof Date
+                  ? lease.expires_at.toISOString()
+                  : String(lease.expires_at),
+            },
           },
-        });
+          deps.audit,
+        );
       }
 
       span.setAttribute("expired_count", expired.length);
