@@ -1,0 +1,47 @@
+export const dynamic = "force-dynamic";
+
+import { queryAllChunks } from '@/lib/db';
+import ContextFileView, {
+  type ContextFileGroup,
+  type ContextFileChunk,
+} from '@/app/repos/[owner]/[repo]/context/ContextFileView';
+
+interface ContextFileRow extends ContextFileChunk {
+  repo: string | null;
+}
+
+const chunkOrder = (c: ContextFileChunk) =>
+  Number(c.metadata?.chunk_index ?? c.metadata?.start_line ?? 0);
+
+export default async function GlobalContextFile({
+  params,
+}: {
+  params: Promise<{ path: string[] }>;
+}) {
+  const { path } = await params;
+  const filePath = path.map(decodeURIComponent).join('/');
+
+  const rows = await queryAllChunks<ContextFileRow>((schema, offset) => ({
+    sql: `SELECT id, content_type, content, metadata, repo
+          FROM ${schema}.chunks
+          WHERE file_path = $${offset}`,
+    params: [filePath],
+  }));
+
+  // A file path is normally unique to one repo, but the global view spans every
+  // team schema — group by repo so each repo's chunks render independently.
+  const byRepo = new Map<string, ContextFileRow[]>();
+  for (const row of rows) {
+    const key = row.repo ?? 'unknown';
+    const group = byRepo.get(key) ?? byRepo.set(key, []).get(key)!;
+    group.push(row);
+  }
+
+  const groups: ContextFileGroup[] = [...byRepo.entries()].map(([repo, chunks]) => ({
+    repo,
+    repoHref: repo.includes('/') ? `/repos/${repo}/context/${encodeURIComponent(filePath)}` : null,
+    chunks: [...chunks].sort((a, b) => chunkOrder(a) - chunkOrder(b)),
+  }));
+
+  return <ContextFileView filePath={filePath} contextLink="/context" groups={groups} />;
+}
