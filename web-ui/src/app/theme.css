@@ -18,6 +18,7 @@
   --font-ui: var(--font-inter), system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-sans: var(--font-ui);
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --font-heading: var(--font-ui);
 
   /* Type scale — referenced by globals.css; never hardcode font-size elsewhere. */
   --fs-xs: 12px;
@@ -106,21 +107,26 @@
 }
 
 /* ============================================================== RETRO ===== */
-/* Amber CRT monitor, after watkinslabs/vscode-theme-generator "amber_monitor":*/
-/* VT323, sharp corners, pale-amber text on warm near-black, amber accent.     */
+/* Tokyo Night terminal (cubeyond ansi-ink-phile): GohuFont bitmap body text,   */
+/* IBM Plex Mono titles + code, sharp corners, soft blue-grey on #1a1b26.       */
 
 [data-theme-family='retro'] {
-  --font-ui: var(--font-vt323), 'Courier New', monospace;
+  /* GohuFont for regular/body text; IBM Plex Mono for headings and code. */
+  --font-ui: var(--font-gohu), ui-monospace, 'Courier New', monospace;
   --font-sans: var(--font-ui);
-  --font-mono: var(--font-ui);
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, 'Courier New', monospace;
+  --font-heading: var(--font-ibm-plex-mono), ui-monospace, 'Courier New', monospace;
 
-  /* VT323 has a small x-height, so the whole scale is bumped to read like Inter. */
-  --fs-xs: 15px;
-  --fs-sm: 17px;
-  --fs-base: 19px;
-  --fs-md: 21px;
-  --fs-lg: 24px;
-  --fs-xl: 30px;
+  /* GohuFont (body) is a bitmap traced from a 14px cell (em 2048, 1px ≈ 146.3u):
+     it is pixel-crisp ONLY at 14px and integer multiples (28/42). So every
+     body/regular size is pinned to 14px — there is no crisp size below it.
+     Headings use IBM Plex Mono (a real outline) and keep a normal larger scale. */
+  --fs-xs: 14px;
+  --fs-sm: 14px;
+  --fs-base: 14px;
+  --fs-md: 18px;
+  --fs-lg: 20px;
+  --fs-xl: 28px;
 
   --radius-sm: 2px;
   --radius: 4px;
@@ -133,66 +139,66 @@
 [data-theme-family='retro'][data-color-scheme='dark'] {
   --color-scheme: dark;
 
-  --bg: #141413;
-  --bg-surface: #1e1d1b;
-  --bg-hover: #252525;
-  --bg-elevated: #252526;
+  --bg: #1a1b26;
+  --bg-surface: #24283b;
+  --bg-hover: #292e42;
+  --bg-elevated: #24283b;
 
-  --border: #38352c;
-  --border-hover: #5a5648;
-  --focus-ring: #ff9542;
+  --border: #3b4261;
+  --border-hover: #545c7e;
+  --focus-ring: #7aa2f7;
 
-  --text: #fdffb6;
-  --text-muted: #9c9468;
-  --text-on-accent: #141413;
+  --text: #c0caf5;
+  --text-muted: #7982a9;
+  --text-on-accent: #1a1b26;
 
-  --accent: #ff9542;
-  --accent-hover: #ffb066;
+  --accent: #7aa2f7;
+  --accent-hover: #89b4ff;
 
-  --success: #5cb85c;
-  --warning: #ff8300;
-  --danger: #ff3c38;
-  --info: #ffc080;
-  --success-bg: #16240f;
-  --warning-bg: #2a1c05;
-  --danger-bg: #2e0f0e;
-  --info-bg: #2a2113;
+  --success: #9ece6a;
+  --warning: #e0af68;
+  --danger: #f7768e;
+  --info: #7dcfff;
+  --success-bg: #1c2517;
+  --warning-bg: #2a2417;
+  --danger-bg: #2d1b22;
+  --info-bg: #16242b;
 
   --shadow: none;
   --shadow-lg: 0 0 10px var(--accent);
 
-  --glass-bg: rgba(20, 20, 19, 0.72);
+  --glass-bg: rgba(26, 27, 38, 0.72);
   --glass-border: var(--border);
 }
 
 [data-theme-family='retro'][data-color-scheme='light'] {
   --color-scheme: light;
 
-  /* Amber-on-paper: clean near-white surfaces, amber kept only as the accent. */
-  --bg: #f3f2ef;
+  /* Tokyo Night Day: the official light counterpart for the light scheme. */
+  --bg: #e1e2e7;
   --bg-surface: #ffffff;
-  --bg-hover: #eae9e4;
+  --bg-hover: #d5d6db;
   --bg-elevated: #ffffff;
 
-  --border: #d9d7d0;
-  --border-hover: #bbb8ae;
-  --focus-ring: #c2570a;
+  --border: #c4c8da;
+  --border-hover: #a8aecb;
+  --focus-ring: #2e7de9;
 
-  --text: #1f1d18;
-  --text-muted: #6a665c;
+  --text: #3760bf;
+  --text-muted: #848cb5;
   --text-on-accent: #ffffff;
 
-  --accent: #c2570a;
-  --accent-hover: #a4490a;
+  --accent: #2e7de9;
+  --accent-hover: #1a68d4;
 
-  --success: #1f7a33;
-  --warning: #b35e00;
-  --danger: #c0322e;
-  --info: #8a5a12;
-  --success-bg: #e3efe1;
-  --warning-bg: #f6ead2;
-  --danger-bg: #f6dedd;
-  --info-bg: #f1e7d4;
+  --success: #587539;
+  --warning: #8c6c3e;
+  --danger: #f52a65;
+  --info: #007197;
+  --success-bg: #e3efd9;
+  --warning-bg: #f3ecdd;
+  --danger-bg: #fbdce4;
+  --info-bg: #d9eef3;
 
   --shadow: none;
   --shadow-lg: 0 0 8px var(--accent);

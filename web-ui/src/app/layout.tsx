@@ -5,7 +5,7 @@ import SidebarNav from './SidebarNav';
 import SessionWrapper from './SessionWrapper';
 import UserMenu from './UserMenu';
 import { ThemeProvider } from '@/lib/theme/ThemeProvider';
-import { inter, vt323 } from '@/lib/theme/fonts';
+import { inter, ibmPlexMono, gohu } from '@/lib/theme/fonts';
 import { THEME_SCRIPT } from '@/lib/theme/theme-script';
 import './theme.css';
 import 'highlight.js/styles/github.css';
@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${vt323.variable}`}>
+    <html lang="en" className={`${inter.variable} ${ibmPlexMono.variable} ${gohu.variable}`}>
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <ThemeProvider>

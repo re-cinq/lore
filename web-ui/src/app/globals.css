@@ -231,6 +231,15 @@ tbody tr:hover {
 
 /* Headings */
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading, var(--font-ui));
+}
+
 h1 {
   font-size: var(--fs-xl);
   font-weight: 600;
