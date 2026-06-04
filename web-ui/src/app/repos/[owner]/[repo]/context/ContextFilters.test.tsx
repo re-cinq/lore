@@ -1,6 +1,26 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+
+vi.mock('next/link', () => ({
+  __esModule: true,
+  default: ({
+    href,
+    className,
+    children,
+  }: {
+    href: string;
+    className?: string;
+    children: React.ReactNode;
+  }) => (
+    <a href={href} className={className}>
+      {children}
+    </a>
+  ),
+  useLinkStatus: () => ({ pending: false }),
+}));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 import ContextFilters from './ContextFilters';
 
 describe('ContextFilters', () => {
@@ -32,18 +52,10 @@ describe('ContextFilters', () => {
     );
   });
 
-  it('seeds the search box and preserves the active type via a hidden field', () => {
-    const { container } = render(
+  it('seeds the search box from the active query', () => {
+    render(
       <ContextFilters basePath="/repos/o/r/context" types={['doc']} activeType="doc" q="foo" />,
     );
-    const form = container.querySelector('form.search-form');
-    expect(form).toHaveAttribute('action', '/repos/o/r/context');
-    expect(container.querySelector<HTMLInputElement>('input[name="q"]')?.value).toEqual('foo');
-    expect(container.querySelector<HTMLInputElement>('input[name="type"]')?.value).toEqual('doc');
-  });
-
-  it('omits the hidden type field when no type is active', () => {
-    const { container } = render(<ContextFilters basePath="/context" types={['doc']} />);
-    expect(container.querySelector('input[name="type"]')).toBeNull();
+    expect(screen.getByLabelText('Search context')).toHaveValue('foo');
   });
 });

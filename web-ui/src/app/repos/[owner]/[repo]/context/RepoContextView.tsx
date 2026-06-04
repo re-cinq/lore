@@ -1,6 +1,8 @@
 import HelpPopover from '@/components/HelpPopover';
 import ContextFilters from './ContextFilters';
 import ContextCard from './ContextCard';
+import LoadMore from './LoadMore';
+import { CONTEXT_PAGE_SIZE } from './pagination';
 import { type ChunkMeta } from '@/lib/chunk-presenter';
 
 export interface RepoContextChunk {
@@ -22,6 +24,8 @@ export interface RepoContextViewProps {
   /** Distinct content_types present in this repo (drives the filter chips). */
   types: string[];
   chunks: RepoContextChunk[];
+  /** Whether more chunks exist beyond the first server-rendered page. */
+  hasMore?: boolean;
 }
 
 function emptyMessage(q?: string, type?: string): string {
@@ -36,7 +40,15 @@ function emptyMessage(q?: string, type?: string): string {
  * filtered + ranked chunks) and hands the view-model down. Each chunk renders
  * as a rich card linking to its per-file detail page.
  */
-export default function RepoContextView({ owner, repo, type, q, types, chunks }: RepoContextViewProps) {
+export default function RepoContextView({
+  owner,
+  repo,
+  type,
+  q,
+  types,
+  chunks,
+  hasMore = false,
+}: RepoContextViewProps) {
   const base = `/repos/${owner}/${repo}/context`;
   const fullName = `${owner}/${repo}`;
   return (
@@ -59,21 +71,32 @@ export default function RepoContextView({ owner, repo, type, q, types, chunks }:
       <ContextFilters basePath={base} types={types} activeType={type} q={q} />
 
       <p className="meta">
-        {chunks.length} chunk{chunks.length === 1 ? '' : 's'}
+        {hasMore ? `showing first ${chunks.length}` : `${chunks.length}`} chunk
+        {chunks.length === 1 ? '' : 's'}
         {q ? ` matching “${q}”` : ''}
       </p>
 
       {chunks.length === 0 ? (
         <p className="meta">{emptyMessage(q, type)}</p>
       ) : (
-        chunks.map((c) => (
-          <ContextCard
-            key={c.id}
-            chunk={c}
-            repo={fullName}
-            detailHref={`${base}/${encodeURIComponent(c.file_path)}`}
+        <>
+          {chunks.map((c) => (
+            <ContextCard
+              key={c.id}
+              chunk={c}
+              repo={fullName}
+              detailHref={`${base}/${encodeURIComponent(c.file_path)}`}
+            />
+          ))}
+          <LoadMore
+            owner={owner}
+            repo={repo}
+            q={q}
+            type={type}
+            initialOffset={CONTEXT_PAGE_SIZE}
+            hasMore={hasMore}
           />
-        ))
+        </>
       )}
     </div>
   );
