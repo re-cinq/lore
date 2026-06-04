@@ -24,6 +24,7 @@ export default defineConfig({
         'src/lib/auth-options.ts',
         'src/lib/session.ts',
         'src/lib/github.ts',
+        'src/lib/api-error.ts',
         'src/lib/theme/fonts.ts',
         'src/lib/theme/theme-script.ts',
         'src/middleware.ts',

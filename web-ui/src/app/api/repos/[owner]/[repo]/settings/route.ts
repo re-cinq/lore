@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
+import { serverError } from '@/lib/api-error';
 
 export async function GET(
   _request: NextRequest,
@@ -17,8 +18,8 @@ export async function GET(
       return NextResponse.json({ error: 'Repo not found' }, { status: 404 });
     }
     return NextResponse.json(repoData);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError('settings.GET', err);
   }
 }
 
@@ -72,7 +73,7 @@ export async function POST(
     );
 
     return NextResponse.json(updated);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError('settings.POST', err);
   }
 }

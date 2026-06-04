@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
 import { getPRDetails, isGitHubConfigured } from '@/lib/github';
+import { serverError } from '@/lib/api-error';
 
 interface Task {
   target_repo: string;
@@ -25,7 +26,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     const details = await getPRDetails(task.target_repo, task.pr_number);
     return NextResponse.json(details);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError('pr-status', err);
   }
 }

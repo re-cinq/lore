@@ -90,6 +90,17 @@ export LORE_DB_NAME=lore
 export LORE_DB_USER=postgres
 export LORE_DB_PASSWORD=lore
 
+# 2a. Internal API token shared by the web-ui ↔ mcp-server proxy routes.
+#     The web-ui proxies /api/pipeline/.../timeline and /api/repos/.../context-preview
+#     to the mcp-server; both sides must present the SAME LORE_INGEST_TOKEN, which
+#     the mcp-server accepts via its legacy full-access path. Without this the
+#     proxy routes return "LORE_API_URL/LORE_INGEST_TOKEN not configured".
+#     A fixed localhost-only token keeps the backend (here) and the Next.js
+#     web-ui (web-ui/.env.local) in sync without a generation/copy step; both
+#     honour any pre-set value so you can override for a real backend.
+export LORE_API_URL="${LORE_API_URL:-http://localhost:3001}"
+export LORE_INGEST_TOKEN="${LORE_INGEST_TOKEN:-lore-local-dev-token}"
+
 # 2b. web-ui auth (NextAuth). Needs a URL + secret locally. Generate the secret
 #     once and persist it (gitignored) so sessions survive restarts. GitHub OAuth
 #     creds must be supplied by the user (exported before 'npm start').
@@ -148,7 +159,7 @@ setsid npx concurrently -k \
   -c "blue,green,greenBright,magenta,magentaBright,cyan" \
   "npm run dev -w @re-cinq/lore-shared" \
   "npm run dev -w @re-cinq/lore-mcp" \
-  "PORT=3001 npm run start:watch -w @re-cinq/lore-mcp" \
+  "MCP_TRANSPORT=http PORT=3001 npm run start:watch -w @re-cinq/lore-mcp" \
   "npm run dev -w @re-cinq/lore-agent" \
   "npm run start:watch -w @re-cinq/lore-agent" \
   "npm --prefix web-ui run dev" &
