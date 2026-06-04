@@ -1,0 +1,46 @@
+/* One context list row — co-located with ContextCard.tsx. The card has no
+   border of its own; the clamped .readme box inside ChunkBody supplies the
+   surface, so cards don't double-border. */
+
+.card {
+  margin-bottom: 20px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.path {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--accent);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.path:hover {
+  text-decoration: underline;
+}
+
+.repo {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.date {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.subhead {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}

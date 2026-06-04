@@ -3,77 +3,75 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import RepoContextView, { type RepoContextChunk } from './RepoContextView';
 
-const chunk = (over: Partial<RepoContextChunk>): RepoContextChunk => ({
+const chunk = (over: Partial<RepoContextChunk> = {}): RepoContextChunk => ({
   id: '1',
   file_path: 'docs/readme.md',
   content_type: 'doc',
   content: 'Hello context',
   ingested_at: '2026-06-03T10:00:00Z',
+  metadata: null,
   ...over,
 });
 
 describe('RepoContextView', () => {
   it('renders the chunk count line from the chunks length', () => {
-    render(<RepoContextView types={['doc']} chunks={[chunk({ id: 'a' }), chunk({ id: 'b' })]} />);
-    expect(screen.getByText('2 chunks ingested')).toBeInTheDocument();
-  });
-
-  it('renders one capitalized pluralized heading per type in the types list', () => {
     render(
       <RepoContextView
-        types={['doc', 'spec']}
-        chunks={[chunk({ id: 'a', content_type: 'doc' }), chunk({ id: 'b', content_type: 'spec' })]}
-      />,
-    );
-    expect(screen.getByRole('heading', { level: 3, name: 'docs' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: 'specs' })).toBeInTheDocument();
-  });
-
-  it('renders a spec-card with file path, type badge and truncated content for each chunk', () => {
-    render(
-      <RepoContextView
+        owner="o"
+        repo="r"
         types={['doc']}
-        chunks={[chunk({ id: 'a', file_path: 'docs/a.md', content_type: 'doc', content: 'First' })]}
+        chunks={[chunk({ id: 'a' }), chunk({ id: 'b' })]}
       />,
     );
-    expect(screen.getByRole('heading', { level: 3, name: 'docs/a.md' })).toBeInTheDocument();
-    expect(screen.getByText('doc', { selector: 'span.badge' })).toBeInTheDocument();
-    expect(screen.getByText('First...')).toBeInTheDocument();
+    expect(screen.getByText('2 chunks')).toBeInTheDocument();
   });
 
-  it('groups chunks under their own content_type heading only', () => {
+  it('links each chunk file path to its detail route', () => {
     render(
       <RepoContextView
-        types={['doc', 'adr']}
-        chunks={[
-          chunk({ id: 'a', file_path: 'docs/a.md', content_type: 'doc' }),
-          chunk({ id: 'b', file_path: 'adrs/b.md', content_type: 'adr' }),
-        ]}
+        owner="o"
+        repo="r"
+        types={['doc']}
+        chunks={[chunk({ file_path: 'specs/a/spec.md' })]}
       />,
     );
-    expect(screen.getByText('doc', { selector: 'span.badge' })).toBeInTheDocument();
-    expect(screen.getByText('adr', { selector: 'span.badge' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: 'docs/a.md' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: 'adrs/b.md' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'specs/a/spec.md' })).toHaveAttribute(
+      'href',
+      '/repos/o/r/context/specs%2Fa%2Fspec.md',
+    );
   });
 
-  it('renders the help popover trigger button', () => {
-    render(<RepoContextView types={['doc']} chunks={[chunk({})]} />);
-    expect(screen.getByRole('button', { name: 'How context is used' })).toBeInTheDocument();
+  it('renders a chip per detected type and a search box', () => {
+    const { container } = render(
+      <RepoContextView owner="o" repo="r" types={['doc', 'code']} chunks={[chunk()]} />,
+    );
+    expect(screen.getByRole('link', { name: 'doc' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'code' })).toBeInTheDocument();
+    expect(container.querySelector('form.search-form')).not.toBeNull();
   });
 
-  it('renders the lead description text', () => {
-    render(<RepoContextView types={['doc']} chunks={[chunk({})]} />);
-    expect(
-      screen.getByText('Conventions, ADRs, specs, and code ingested from this repo that agents use as context.'),
-    ).toBeInTheDocument();
+  it('shows the search-scoped empty state with the query', () => {
+    render(<RepoContextView owner="o" repo="r" q="widgets" types={['doc']} chunks={[]} />);
+    expect(screen.getByText('No context matches “widgets”.')).toBeInTheDocument();
   });
 
-  it('shows the empty state and no type headings when there are no chunks', () => {
-    render(<RepoContextView types={[]} chunks={[]} />);
+  it('shows the type-scoped empty state when a type filter yields nothing', () => {
+    render(<RepoContextView owner="o" repo="r" type="spec" types={['spec']} chunks={[]} />);
+    expect(screen.getByText('No spec context ingested yet.')).toBeInTheDocument();
+  });
+
+  it('shows the fresh-repo empty state when there are no chunks, type or query', () => {
+    render(<RepoContextView owner="o" repo="r" types={[]} chunks={[]} />);
     expect(
       screen.getByText('No context ingested yet. Context will appear after the nightly ingestion runs.'),
     ).toBeInTheDocument();
-    expect(screen.getByText('0 chunks ingested')).toBeInTheDocument();
+  });
+
+  it('renders the help popover trigger and lead description', () => {
+    render(<RepoContextView owner="o" repo="r" types={['doc']} chunks={[chunk()]} />);
+    expect(screen.getByRole('button', { name: 'How context is used' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Conventions, ADRs, specs, and code ingested from this repo that agents use as context.'),
+    ).toBeInTheDocument();
   });
 });

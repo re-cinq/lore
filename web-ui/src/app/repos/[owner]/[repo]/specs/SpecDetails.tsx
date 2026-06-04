@@ -6,26 +6,13 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import type { Root, Text, Element, ElementContent, RootContent } from 'hast';
 import { type TestLinkRef } from '@/lib/spec-link-parser';
+import { resolveHref } from '@/lib/github-links';
 import readme from '../ReadmeBox.module.css';
 import styles from './SpecDetails.module.css';
 
-/** Resolve a spec-markdown href for display in the web UI. Repo-relative
- * paths (test links, ADR/doc refs) can't resolve inside the app, so point
- * them at the file on GitHub (and open in a new tab); absolute URLs and
- * in-page anchors are left untouched. */
-export function resolveHref(
-  rawHref: string,
-  repo: string,
-  branch: string,
-): { href: string; external: boolean } {
-  if (!rawHref || /^(https?:|mailto:|tel:|#|\/\/)/i.test(rawHref)) {
-    return { href: rawHref, external: /^https?:/i.test(rawHref) };
-  }
-  // Only rewrite when we know the owner/name repo; otherwise leave as-is.
-  if (!repo.includes('/')) return { href: rawHref, external: false };
-  const clean = rawHref.replace(/^\.?\//, '');
-  return { href: `https://github.com/${repo}/blob/${branch}/${clean}`, external: true };
-}
+// Re-exported so existing importers (and tests) of SpecDetails keep working
+// after the helper moved to the shared github-links module.
+export { resolveHref };
 
 export type StatementState = 'tested' | 'untested' | 'narrative';
 
