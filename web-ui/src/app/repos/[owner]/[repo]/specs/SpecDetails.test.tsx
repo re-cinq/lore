@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import SpecDetails, { type StatementInfo } from './SpecDetails';
+import { render, screen, fireEvent } from '@testing-library/react';
+import SpecDetails, { resolveHref, type StatementInfo } from './SpecDetails';
+
+const REPO = 're-cinq/lore';
+const gh = (path: string) => `https://github.com/${REPO}/blob/main/${path}`;
 
 const stmt = (overrides: Partial<StatementInfo> = {}): StatementInfo => ({
   ordinal: 0,
@@ -12,6 +15,9 @@ const stmt = (overrides: Partial<StatementInfo> = {}): StatementInfo => ({
   testLinks: [],
   ...overrides,
 });
+
+const renderSpec = (content: string, statements: StatementInfo[], repo = REPO) =>
+  render(<SpecDetails repo={repo} content={content} statements={statements} />);
 
 describe('SpecDetails v3 (markdown-driven)', () => {
   it('wraps a statement that carries a test link in the trailing paren with stmt-tested', () => {
@@ -25,7 +31,7 @@ describe('SpecDetails v3 (markdown-driven)', () => {
         testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
       }),
     ];
-    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const { container } = renderSpec(md, statements);
     const mark = container.querySelector('mark[data-state="tested"]');
     expect(mark).not.toBeNull();
     expect(mark?.className).toContain('stmt-tested');
@@ -41,7 +47,7 @@ describe('SpecDetails v3 (markdown-driven)', () => {
         state: 'untested',
       }),
     ];
-    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const { container } = renderSpec(md, statements);
     const mark = container.querySelector('mark[data-state="untested"]');
     expect(mark?.className).toContain('stmt-untested');
   });
@@ -57,11 +63,33 @@ describe('SpecDetails v3 (markdown-driven)', () => {
         category: 'limitation',
       }),
     ];
-    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const { container } = renderSpec(md, statements);
     expect(container.querySelector('mark[data-state="narrative"]')).not.toBeNull();
   });
 
-  it('does NOT decorate regular non-test links the author writes outside test parens', () => {
+  it('renders an inline test link as an absolute GitHub URL opening in a new tab', () => {
+    const md =
+      '## A\n\n- Redacts secrets. ([validated by `redact.test.ts:7`](agent/src/lib/redact.test.ts#L7))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'Redacts secrets. ([validated by `redact.test.ts:7`](agent/src/lib/redact.test.ts#L7))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 'validated by redact.test.ts:7', path: 'agent/src/lib/redact.test.ts', line: 7 }],
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+    const link = container.querySelector<HTMLAnchorElement>(
+      `a[href="${gh('agent/src/lib/redact.test.ts#L7')}"]`,
+    );
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('target')).toEqual('_blank');
+    expect(link?.getAttribute('rel')).toEqual('noopener noreferrer');
+    expect(link?.querySelector('code')?.textContent).toEqual('redact.test.ts:7');
+  });
+
+  it('rewrites a non-test author link (ADR) to GitHub without the test-link cue', () => {
     const md = '## A\n\nPer [ADR-015](adrs/ADR-015.md). ([t](src/x.test.ts#L1))\n';
     const statements = [
       stmt({
@@ -71,17 +99,53 @@ describe('SpecDetails v3 (markdown-driven)', () => {
         testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
       }),
     ];
-    const { container } = render(<SpecDetails content={md} statements={statements} />);
-    const adrLink = container.querySelector('a[href="adrs/ADR-015.md"]');
+    const { container } = renderSpec(md, statements);
+    const adrLink = container.querySelector(`a[href="${gh('adrs/ADR-015.md')}"]`);
     expect(adrLink?.className ?? '').not.toContain('stmt-test-link');
-    const testLink = container.querySelector('a[href="src/x.test.ts#L1"]');
-    expect(testLink).not.toBeNull();
+    expect(adrLink?.getAttribute('target')).toEqual('_blank');
+    expect(container.querySelector(`a[href="${gh('src/x.test.ts#L1')}"]`)).not.toBeNull();
+  });
+
+  it('leaves links relative (no new tab) when the repo is not owner/name', () => {
+    const md = '## A\n\n- Claims a pending task. ([t](src/x.test.ts#L1))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'Claims a pending task. ([t](src/x.test.ts#L1))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+      }),
+    ];
+    const { container } = renderSpec(md, statements, 'unknown');
+    const link = container.querySelector<HTMLAnchorElement>('a[href="src/x.test.ts#L1"]');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('target')).toBeNull();
+  });
+
+  it('points the hover popover test link at GitHub and opens it in a new tab', () => {
+    const md = '## Acceptance Criteria\n\n- Claims a pending task. ([t](src/x.test.ts#L1))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'Claims a pending task. ([t](src/x.test.ts#L1))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+    fireEvent.mouseOver(container.querySelector('mark[data-ordinal="0"]')!);
+    const link = screen.getByRole('tooltip').querySelector('a');
+    expect(link?.getAttribute('href')).toEqual(gh('src/x.test.ts#L1'));
+    expect(link?.getAttribute('target')).toEqual('_blank');
+    expect(link?.getAttribute('rel')).toEqual('noopener noreferrer');
   });
 
   it('does NOT render the legacy tests[] list, the legacy TestLink prop, or list-only/legacy badges', () => {
     const md = '## A\n\n- Plain.\n';
     const statements = [stmt({ ordinal: 0, text: 'Plain.', state: 'untested' })];
-    render(<SpecDetails content={md} statements={statements} />);
+    renderSpec(md, statements);
     expect(screen.queryByText(/Tests validating this spec/)).toBeNull();
     expect(screen.queryByText(/list-only/)).toBeNull();
     expect(screen.queryByText(/legacy/)).toBeNull();
@@ -97,10 +161,10 @@ describe('SpecDetails v3 (markdown-driven)', () => {
         testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
       }),
     ];
-    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const { container } = renderSpec(md, statements);
     const mark = container.querySelector('mark[data-state="tested"]');
     expect(mark?.className).toContain('stmt-tested');
-    expect(container.querySelector('a[href="src/x.test.ts#L1"]')).not.toBeNull();
+    expect(container.querySelector(`a[href="${gh('src/x.test.ts#L1')}"]`)).not.toBeNull();
   });
 
   it('wraps a statement containing inline code (backticks) with stmt-tested', () => {
@@ -115,7 +179,7 @@ describe('SpecDetails v3 (markdown-driven)', () => {
         testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
       }),
     ];
-    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const { container } = renderSpec(md, statements);
     const mark = container.querySelector('mark[data-state="tested"]');
     expect(mark?.className).toContain('stmt-tested');
     expect(mark?.getAttribute('data-ordinal')).toEqual('0');
@@ -134,9 +198,11 @@ describe('SpecDetails v3 (markdown-driven)', () => {
         testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
       }),
     ];
-    const { container, rerender } = render(<SpecDetails content={md} statements={statements} />);
+    const { container, rerender } = render(
+      <SpecDetails repo={REPO} content={md} statements={statements} />,
+    );
     expect(container.querySelector('mark[data-state="tested"]')).not.toBeNull();
-    rerender(<SpecDetails content={md} statements={statements} />);
+    rerender(<SpecDetails repo={REPO} content={md} statements={statements} />);
     expect(container.querySelector('mark[data-state="tested"]')).not.toBeNull();
   });
 
@@ -152,7 +218,53 @@ describe('SpecDetails v3 (markdown-driven)', () => {
         testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
       }),
     ];
-    const { container } = render(<SpecDetails content={md} statements={statements} />);
+    const { container } = renderSpec(md, statements);
     expect(container.querySelector('mark[data-state="tested"]')?.className).toContain('stmt-tested');
+  });
+});
+
+describe('resolveHref', () => {
+  it('rewrites a repo-relative path to a GitHub blob URL marked external', () => {
+    expect(resolveHref('agent/src/x.test.ts#L7', 're-cinq/lore', 'main')).toEqual({
+      href: 'https://github.com/re-cinq/lore/blob/main/agent/src/x.test.ts#L7',
+      external: true,
+    });
+  });
+
+  it('strips a leading ./ before building the GitHub URL', () => {
+    expect(resolveHref('./adrs/ADR-1.md', 're-cinq/lore', 'main').href).toEqual(
+      'https://github.com/re-cinq/lore/blob/main/adrs/ADR-1.md',
+    );
+  });
+
+  it('uses the given branch in the GitHub URL', () => {
+    expect(resolveHref('a.ts', 'o/r', 'develop').href).toEqual(
+      'https://github.com/o/r/blob/develop/a.ts',
+    );
+  });
+
+  it('leaves an absolute https URL unchanged and marks it external', () => {
+    expect(resolveHref('https://example.com/x', 're-cinq/lore', 'main')).toEqual({
+      href: 'https://example.com/x',
+      external: true,
+    });
+  });
+
+  it('leaves an in-page anchor unchanged and not external', () => {
+    expect(resolveHref('#section', 're-cinq/lore', 'main')).toEqual({
+      href: '#section',
+      external: false,
+    });
+  });
+
+  it('leaves a relative path unchanged when repo is not owner/name', () => {
+    expect(resolveHref('src/x.test.ts#L1', 'unknown', 'main')).toEqual({
+      href: 'src/x.test.ts#L1',
+      external: false,
+    });
+  });
+
+  it('returns empty external false for an empty href', () => {
+    expect(resolveHref('', 're-cinq/lore', 'main')).toEqual({ href: '', external: false });
   });
 });

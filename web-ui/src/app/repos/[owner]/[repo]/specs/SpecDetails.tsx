@@ -9,6 +9,24 @@ import { type TestLinkRef } from '@/lib/spec-link-parser';
 import readme from '../ReadmeBox.module.css';
 import styles from './SpecDetails.module.css';
 
+/** Resolve a spec-markdown href for display in the web UI. Repo-relative
+ * paths (test links, ADR/doc refs) can't resolve inside the app, so point
+ * them at the file on GitHub (and open in a new tab); absolute URLs and
+ * in-page anchors are left untouched. */
+export function resolveHref(
+  rawHref: string,
+  repo: string,
+  branch: string,
+): { href: string; external: boolean } {
+  if (!rawHref || /^(https?:|mailto:|tel:|#|\/\/)/i.test(rawHref)) {
+    return { href: rawHref, external: /^https?:/i.test(rawHref) };
+  }
+  // Only rewrite when we know the owner/name repo; otherwise leave as-is.
+  if (!repo.includes('/')) return { href: rawHref, external: false };
+  const clean = rawHref.replace(/^\.?\//, '');
+  return { href: `https://github.com/${repo}/blob/${branch}/${clean}`, external: true };
+}
+
 export type StatementState = 'tested' | 'untested' | 'narrative';
 
 export interface StatementInfo {
@@ -213,9 +231,14 @@ function buildHighlighter(
 export default function SpecDetails({
   content,
   statements = [],
+  repo,
+  branch = 'main',
 }: {
   content: string;
   statements?: StatementInfo[];
+  /** owner/name of the spec's repo, used to resolve relative links to GitHub. */
+  repo: string;
+  branch?: string;
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ ordinal: number; x: number; y: number } | null>(null);
@@ -258,6 +281,24 @@ export default function SpecDetails({
   const rehypePlugins = plugin ? [rehypeRaw, plugin] : [rehypeRaw];
   const hovered = hover ? statementsByOrdinal.get(hover.ordinal) : null;
 
+  // Rewrite repo-relative markdown links (test links, ADR/doc refs) to GitHub
+  // so they resolve and open in a new tab instead of a dead in-app href.
+  const mdComponents = useMemo(
+    () => ({
+      a(props: React.ComponentPropsWithoutRef<'a'> & { node?: unknown }) {
+        const { href, children, node: _node, ...rest } = props;
+        const { href: resolved, external } = resolveHref(href ?? '', repo, branch);
+        const ext = external ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+        return (
+          <a href={resolved} {...ext} {...rest}>
+            {children}
+          </a>
+        );
+      },
+    }),
+    [repo, branch],
+  );
+
   return (
     <div>
       <div
@@ -271,6 +312,7 @@ export default function SpecDetails({
           remarkPlugins={[remarkGfm]}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           rehypePlugins={rehypePlugins as any}
+          components={mdComponents}
         >
           {content}
         </ReactMarkdown>
@@ -300,9 +342,9 @@ export default function SpecDetails({
                   {hovered.testLinks.map((t, i) => (
                     <li key={`${t.path}-${t.line ?? ''}-${i}`}>
                       <a
-                        href={`${t.path}${t.line ? `#L${t.line}` : ''}`}
+                        href={resolveHref(`${t.path}${t.line ? `#L${t.line}` : ''}`, repo, branch).href}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                       >
                         {t.label}
                       </a>
