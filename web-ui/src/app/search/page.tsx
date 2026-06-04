@@ -1,25 +1,13 @@
 export const dynamic = "force-dynamic";
 import { query, queryAllChunks } from '@/lib/db';
-
-interface SearchResult {
-  key: string;
-  value: string;
-  agent_id: string;
-  score: number;
-  source: 'memory' | 'fact' | 'chunk' | 'episode';
-  repo: string | null;
-}
-
-interface Repo {
-  full_name: string;
-}
+import SearchView, { type SearchResult, type SearchRepoOption } from './SearchView';
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; repo?: string }> }) {
   const { q, repo } = await searchParams;
   let results: SearchResult[] = [];
 
   // Populate repo filter dropdown
-  const repos = await query<Repo>(`SELECT full_name FROM lore.repos ORDER BY full_name`);
+  const repos = await query<SearchRepoOption>(`SELECT full_name FROM lore.repos ORDER BY full_name`);
 
   if (q) {
     // Search memories using inline to_tsvector (no generated column on memory.memories)
@@ -74,63 +62,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     chunkResults.sort((a, b) => b.score - a.score);
     chunkResults.splice(20);
 
-    // Merge and sort by score descending
+    // Merge and sort by score descending, capped at 30
     const allResults = [...memoryResults, ...factResults, ...chunkResults];
-
-    // If repo filter is active, only include chunk results (scoped) plus memories/facts
-    if (repo) {
-      results = allResults
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 30);
-    } else {
-      results = allResults
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 30);
-    }
+    results = allResults
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 30);
   }
 
-  return (
-    <div>
-      <h1>Search Memories</h1>
-      <form method="get" className="search-form">
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <select name="repo" defaultValue={repo || ''} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)' }}>
-            <option value="">All repos</option>
-            {repos.map(r => (
-              <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
-            ))}
-          </select>
-        </div>
-        <input type="text" name="q" defaultValue={q || ''} placeholder="Search across all agent memories, facts, and repo chunks..." />
-        <button type="submit">Search</button>
-      </form>
-      {q && (
-        <p className="meta" style={{ marginBottom: 16 }}>
-          {results.length} result{results.length !== 1 ? 's' : ''} for &quot;{q}&quot;
-          {repo && <> in <strong>{repo}</strong></>}
-        </p>
-      )}
-      {results.map((r, i) => (
-        <div key={i} className="search-result">
-          <div className="result-header">
-            <strong>{r.key}</strong>
-            <span className="meta">
-              agent: {r.agent_id.substring(0, 8)}... · score: {r.score.toFixed(3)}
-              {r.repo && <> · repo: <strong>{r.repo}</strong></>}
-            </span>
-          </div>
-          <pre>{r.value}</pre>
-          <div className="result-source">
-            source: <span className={`op-badge ${r.source === 'fact' ? 'op-search' : r.source === 'chunk' ? 'op-write' : 'op-read'}`}>{r.source}</span>
-            {r.repo && <span className="badge" style={{ marginLeft: '0.5rem' }}>{r.repo}</span>}
-          </div>
-        </div>
-      ))}
-      {q && results.length === 0 && (
-        <div className="empty-state">
-          <p>No results found. Try a different search term.</p>
-        </div>
-      )}
-    </div>
-  );
+  return <SearchView q={q} repo={repo} repos={repos} results={results} />;
 }
