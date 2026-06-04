@@ -965,3 +965,37 @@ textarea:focus-visible,
     gap: 8px;
   }
 }
+
+/* Syntax highlighting (highlight.js) for code chunks in the context viewer.
+   The base github.css theme is imported in layout.tsx for light schemes; the
+   .readme pre box owns the surface so we drop the theme's own background, and
+   a small token-mapped patch handles dark schemes (both theme families). */
+.hljs {
+  background: transparent;
+  padding: 0;
+}
+[data-color-scheme='dark'] .hljs {
+  color: var(--text);
+}
+[data-color-scheme='dark'] .hljs-keyword,
+[data-color-scheme='dark'] .hljs-built_in,
+[data-color-scheme='dark'] .hljs-type,
+[data-color-scheme='dark'] .hljs-selector-tag {
+  color: var(--accent);
+}
+[data-color-scheme='dark'] .hljs-string,
+[data-color-scheme='dark'] .hljs-attr,
+[data-color-scheme='dark'] .hljs-regexp {
+  color: var(--success);
+}
+[data-color-scheme='dark'] .hljs-comment,
+[data-color-scheme='dark'] .hljs-quote {
+  color: var(--text-muted);
+  font-style: italic;
+}
+[data-color-scheme='dark'] .hljs-number,
+[data-color-scheme='dark'] .hljs-literal,
+[data-color-scheme='dark'] .hljs-title,
+[data-color-scheme='dark'] .hljs-section {
+  color: var(--warning);
+}

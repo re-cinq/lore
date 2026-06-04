@@ -8,6 +8,7 @@ import { ThemeProvider } from '@/lib/theme/ThemeProvider';
 import { inter, vt323 } from '@/lib/theme/fonts';
 import { THEME_SCRIPT } from '@/lib/theme/theme-script';
 import './theme.css';
+import 'highlight.js/styles/github.css';
 import './globals.css';
 
 export const metadata: Metadata = {

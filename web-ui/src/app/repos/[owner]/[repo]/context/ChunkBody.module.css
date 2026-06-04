@@ -1,0 +1,46 @@
+/* Chunk renderer chrome — co-located with ChunkBody.tsx.
+   The markdown/code body itself reuses the .readme styles from
+   ReadmeBox.module.css; this module only adds the header row and the
+   list-mode preview clamp. */
+
+.chunkHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.headerLabel {
+  overflow-wrap: anywhere;
+}
+
+.headerLink {
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.headerLink:hover {
+  text-decoration: underline;
+}
+
+/* List-mode excerpt: clamp the rendered body and fade it out at the bottom. */
+.previewBox {
+  position: relative;
+  max-height: 220px;
+  overflow: hidden;
+}
+.previewBox::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  background: linear-gradient(to bottom, transparent, var(--bg-surface));
+  pointer-events: none;
+}

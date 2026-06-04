@@ -3,18 +3,41 @@ export const dynamic = "force-dynamic";
 import { queryAllChunks } from '@/lib/db';
 import ContextView, { type ContextChunk } from './ContextView';
 
-export default async function ContextPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
-  const { type } = await searchParams;
+interface RankedChunk extends ContextChunk {
+  rank: number;
+}
 
-  const allChunks = await queryAllChunks<ContextChunk>(
-    (schema, offset) => ({
-      sql: `SELECT id, file_path, content_type, substring(content, 1, 300) as content, ingested_at
-            FROM ${schema}.chunks
-            WHERE ($${offset}::text IS NULL OR content_type = $${offset})`,
-      params: [type || null],
-    }),
-  );
-  const chunks = allChunks.sort((a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime()).slice(0, 50);
+export default async function ContextPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string; q?: string }>;
+}) {
+  const { type, q } = await searchParams;
 
-  return <ContextView type={type} chunks={chunks} />;
+  // Data-driven chips: distinct content types across every schema (unaffected
+  // by the active filter/search so chips never disappear).
+  const typeRows = await queryAllChunks<{ content_type: string }>((schema) => ({
+    sql: `SELECT DISTINCT content_type FROM ${schema}.chunks`,
+    params: [],
+  }));
+  const types = [...new Set(typeRows.map((r) => r.content_type).filter(Boolean))];
+
+  const allChunks = await queryAllChunks<RankedChunk>((schema, offset) => ({
+    sql: `SELECT id, file_path, content_type, repo, metadata,
+                 substring(content, 1, 300) as content, ingested_at,
+                 CASE WHEN $${offset + 1}::text IS NULL THEN 0
+                      ELSE ts_rank(search_tsv, websearch_to_tsquery('english', $${offset + 1})) END as rank
+          FROM ${schema}.chunks
+          WHERE ($${offset}::text IS NULL OR content_type = $${offset})
+            AND ($${offset + 1}::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $${offset + 1}))`,
+    params: [type || null, q || null],
+  }));
+
+  const chunks = allChunks
+    .sort((a, b) =>
+      q ? b.rank - a.rank : new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime(),
+    )
+    .slice(0, 50);
+
+  return <ContextView type={type} q={q} types={types} chunks={chunks} />;
 }
