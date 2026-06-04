@@ -180,7 +180,7 @@ The system MUST reorganize the UI around repos.
 - FR-3.3: Overview tab shows: recent tasks, active agents, context
   freshness, latest PRs.
 - FR-3.4: Tasks tab shows pipeline tasks filtered to this repo. ([validated by `RepoTasksView.test.tsx:30`](web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L30))
-- FR-3.5: Context tab shows CLAUDE.md, ADRs, runbooks for this repo. ([validated by `RepoContextView.test.tsx:44`](web-ui/src/app/repos/[owner]/[repo]/context/RepoContextView.test.tsx#L44))
+- FR-3.5: Context tab shows CLAUDE.md, ADRs, runbooks for this repo. ([validated by `RepoContextView.test.tsx:64`](web-ui/src/app/repos/[owner]/[repo]/context/RepoContextView.test.tsx#L64))
 - FR-3.6: Specs tab shows .specify/ specs for this repo. ([validated by `RepoSpecsView.test.tsx:18`](web-ui/src/app/repos/[owner]/[repo]/specs/RepoSpecsView.test.tsx#L18))
 - FR-3.7: Agents tab shows agent memories scoped to this repo. ([validated by `RepoAgentsView.test.tsx:36`](web-ui/src/app/repos/[owner]/[repo]/agents/RepoAgentsView.test.tsx#L36))
 - FR-3.8: Global search, audit, and shared pools remain as
