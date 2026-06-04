@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { serverError } from '@/lib/api-error';
 
 export async function GET() {
   try {
@@ -18,7 +19,7 @@ export async function GET() {
     ];
 
     return NextResponse.json({ onboarded, available });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError('repos', err);
   }
 }

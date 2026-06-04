@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { serverError } from '@/lib/api-error';
 import { Storage } from '@google-cloud/storage';
 
 const BUCKET = process.env.LORE_LOG_BUCKET || "lore-task-logs";
@@ -73,7 +74,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       status: task.status,
       totalSize: content.length,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError('logs', err);
   }
 }

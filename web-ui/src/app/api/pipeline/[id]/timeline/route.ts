@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
+import { serverError } from "@/lib/api-error";
 
 interface Task {
   id: string;
@@ -78,9 +79,6 @@ export async function GET(
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: (err as Error).message },
-      { status: 500 },
-    );
+    return serverError("timeline", err);
   }
 }
