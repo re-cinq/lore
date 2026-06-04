@@ -442,6 +442,41 @@ pre {
   background: var(--accent);
   color: var(--text-on-accent);
 }
+.chip-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  vertical-align: -1px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: chip-spin 0.6s linear infinite;
+}
+@keyframes chip-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Load-more pager (context list) */
+
+.load-more {
+  display: block;
+  margin: 8px auto 24px;
+  padding: 10px 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--fs-base);
+}
+.load-more:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.load-more:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 /* Search results */
 

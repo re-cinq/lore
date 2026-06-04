@@ -1,4 +1,6 @@
 import { orderTypes, labelForType, contextHref } from '@/lib/content-types';
+import SearchForm from './SearchForm';
+import FilterChip from './FilterChip';
 
 export interface ContextFiltersProps {
   /** List route the form + chips point at (`/context` or `/repos/o/r/context`). */
@@ -10,34 +12,24 @@ export interface ContextFiltersProps {
 }
 
 /**
- * Keyword search box + data-driven content-type chips. A GET `<form>` keeps the
- * whole thing server-rendered (no client state): searching navigates to
- * `?q=…`, the hidden `type` field preserves the active filter, and each chip
- * preserves the active query. Pure render.
+ * Keyword search box + data-driven content-type chips. The search box and chips
+ * navigate client-side (SearchForm / FilterChip) so each shows a loading state
+ * while its results load; the chip set is data-driven and preserves the active
+ * query. Pure render.
  */
 export default function ContextFilters({ basePath, types, activeType, q }: ContextFiltersProps) {
   const ordered = orderTypes(types);
   return (
     <>
-      <form className="search-form" method="get" action={basePath}>
-        <input
-          type="text"
-          name="q"
-          defaultValue={q ?? ''}
-          placeholder="Search context…"
-          aria-label="Search context"
-        />
-        {activeType ? <input type="hidden" name="type" value={activeType} /> : null}
-        <button type="submit">Search</button>
-      </form>
+      <SearchForm basePath={basePath} activeType={activeType} q={q} />
       <div className="filter-form">
-        <a href={contextHref(basePath, undefined, q)} className={!activeType ? 'active' : ''}>
+        <FilterChip href={contextHref(basePath, undefined, q)} active={!activeType}>
           All
-        </a>
+        </FilterChip>
         {ordered.map((t) => (
-          <a key={t} href={contextHref(basePath, t, q)} className={activeType === t ? 'active' : ''}>
+          <FilterChip key={t} href={contextHref(basePath, t, q)} active={activeType === t}>
             {labelForType(t)}
-          </a>
+          </FilterChip>
         ))}
       </div>
     </>

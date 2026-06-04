@@ -1,6 +1,26 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+
+vi.mock('next/link', () => ({
+  __esModule: true,
+  default: ({
+    href,
+    className,
+    children,
+  }: {
+    href: string;
+    className?: string;
+    children: React.ReactNode;
+  }) => (
+    <a href={href} className={className}>
+      {children}
+    </a>
+  ),
+  useLinkStatus: () => ({ pending: false }),
+}));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 import RepoContextView, { type RepoContextChunk } from './RepoContextView';
 
 const chunk = (over: Partial<RepoContextChunk> = {}): RepoContextChunk => ({

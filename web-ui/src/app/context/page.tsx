@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { queryAllChunks } from '@/lib/db';
+import { previewBlock } from '@/lib/preview-block';
 import ContextView, { type ContextChunk } from './ContextView';
 
 interface RankedChunk extends ContextChunk {
@@ -37,7 +38,8 @@ export default async function ContextPage({
     .sort((a, b) =>
       q ? b.rank - a.rank : new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime(),
     )
-    .slice(0, 50);
+    .slice(0, 50)
+    .map((c) => ({ ...c, content: previewBlock(c.content, c.content_type) }));
 
   return <ContextView type={type} q={q} types={types} chunks={chunks} />;
 }
