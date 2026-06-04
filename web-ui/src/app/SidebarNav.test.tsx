@@ -22,7 +22,7 @@ vi.mock('next/link', async (importOriginal) => {
 
 import SidebarNav from './SidebarNav';
 
-// The nine primary links plus the trailing "+ Add Repo" entry, in render order.
+// The ten primary links plus the trailing "+ Add Repo" entry, in render order.
 const PRIMARY_LINKS = [
   { href: '/', label: 'Repos' },
   { href: '/pipeline', label: 'Pipeline' },
@@ -31,6 +31,7 @@ const PRIMARY_LINKS = [
   { href: '/search', label: 'Search' },
   { href: '/episodes', label: 'Episodes' },
   { href: '/graph', label: 'Graph' },
+  { href: '/agents', label: 'Agents' },
   { href: '/audit', label: 'Audit' },
   { href: '/settings', label: 'Settings' },
 ];

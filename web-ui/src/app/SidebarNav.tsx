@@ -12,6 +12,7 @@ const links = [
   { href: '/search', label: 'Search' },
   { href: '/episodes', label: 'Episodes' },
   { href: '/graph', label: 'Graph' },
+  { href: '/agents', label: 'Agents' },
   { href: '/audit', label: 'Audit' },
   { href: '/settings', label: 'Settings' },
 ];
