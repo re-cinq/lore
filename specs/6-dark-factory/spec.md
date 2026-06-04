@@ -284,7 +284,7 @@ fewer PRs, each carrying genuine human-decision weight.
 **Acceptance Criteria:**
 - Every Lore-authored PR has a `Lore-Task: <uuid>` in its body and on the final commit's trailer.
 - Web-ui resolves the UUID in one click and displays branch + commits + episode side-by-side.
-- The reverse direction (task page → PR) also resolves.
+- The reverse direction (task page → PR) also resolves. ([validated by `TaskDetailView.test.tsx:125`](web-ui/src/app/pipeline/[id]/TaskDetailView.test.tsx#L125))
 
 ## Functional Requirements
 
@@ -327,8 +327,8 @@ fewer PRs, each carrying genuine human-decision weight.
 ### FR5 — Observability
 
 - **FR5.1** OpenTelemetry traces MUST cover supervisor phase transitions; each phase produces a span linked to its commit SHA.
-- **FR5.2** A repo dashboard view (web-ui) MUST surface: tasks run dark this week, tasks auto-merged, tasks escalated, current trust level, current `dark_factory` settings.
-- **FR5.3** The web-ui task detail page MUST resolve `Lore-Task: <uuid>` from a PR URL and render the branch's stage timeline.
+- **FR5.2** A repo dashboard view (web-ui) MUST surface: tasks run dark this week, tasks auto-merged, tasks escalated, current trust level, current `dark_factory` settings. ([validated by `RepoOverviewView.test.tsx:81`](web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L81))
+- **FR5.3** The web-ui task detail page MUST resolve `Lore-Task: <uuid>` from a PR URL and render the branch's stage timeline. ([validated by `Timeline.test.tsx:149`](web-ui/src/app/pipeline/[id]/Timeline.test.tsx#L149))
 
 ## Success Criteria
 

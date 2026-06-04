@@ -27,7 +27,7 @@ icon set. The current dark-only look is replaced.
 - **Elegant** — Figma-like. `Inter` font, rounded corners, soft shadows, and a
   subtle frosted-glass feel (translucent + `backdrop-filter` blur) on elevated
   surfaces. Palette modeled on apple.com/mac (light `#f5f5f7`/`#1d1d1f`/`#0071e3`,
-  dark `#000`/`#f5f5f7`/`#2997ff`). Icons: **Lucide**.
+  dark `#000`/`#f5f5f7`/`#2997ff`). Icons: **Lucide**. ([validated by `Icon.test.tsx:41`](web-ui/src/components/Icon.test.tsx#L41))
 - **Retro** — Amber CRT terminal, after `watkinslabs/vscode-theme-generator`
   "amber_monitor". `VT323` font, sharp corners (radius 0), pale-amber text
   (`#fdffb6`) on warm near-black (`#141413`), amber accent (`#ff8000`),
@@ -46,9 +46,9 @@ Icon.tsx    → renders Lucide (elegant) or Pixelarticons (retro) by family
 ```
 
 Two independent axes, persisted separately in `localStorage`
-(`lore-theme-family`, `lore-color-scheme`). `scheme = auto` resolves to
+(`lore-theme-family`, `lore-color-scheme`). ([validated by `ThemeProvider.test.tsx:220`](web-ui/src/lib/theme/ThemeProvider.test.tsx#L220)) `scheme = auto` resolves to
 light/dark via `prefers-color-scheme` and updates live on OS change. The
-resolved scheme is what reaches the DOM, so CSS never matches `auto`.
+resolved scheme is what reaches the DOM, so CSS never matches `auto`. ([validated by `ThemeProvider.test.tsx:272`](web-ui/src/lib/theme/ThemeProvider.test.tsx#L272))
 
 ### What Changed
 
