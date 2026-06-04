@@ -207,7 +207,7 @@ resident process.
    `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
    pass after the move.
 7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:39`](agent/src/job-runner.test.ts#L39))
+8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:51`](agent/src/job-runner.test.ts#L51))
 
 ## File Changes
 
