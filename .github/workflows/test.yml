@@ -35,7 +35,8 @@ jobs:
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui
             install: npm install --prefix web-ui
-            test: npm test --prefix web-ui
+            # Run with coverage so the vitest.config.ts thresholds gate CI.
+            test: npm run test:coverage --prefix web-ui
 
     steps:
       - uses: actions/checkout@v5
