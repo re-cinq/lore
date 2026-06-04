@@ -25,7 +25,8 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     ttl_seconds  INTEGER,
     expires_at   TIMESTAMPTZ,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    metadata     JSONB
+    metadata     JSONB,
+    repo         TEXT
   );
 
   CREATE UNIQUE INDEX IF NOT EXISTS memories_agent_key_version_idx
@@ -83,6 +84,12 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS retrieval_count INT DEFAULT 0;
   ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS last_retrieved_at TIMESTAMPTZ;
   ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS half_life_days INT DEFAULT 60;
+
+  -- Repo-scoped memories: write/list/search by repo (see migration 0012).
+  ALTER TABLE memory.memories ADD COLUMN IF NOT EXISTS repo TEXT;
+  CREATE INDEX IF NOT EXISTS memories_repo_idx
+    ON memory.memories (repo)
+    WHERE is_deleted = FALSE;
 
   -- Confidence tiers on facts
   ALTER TABLE memory.facts ADD COLUMN IF NOT EXISTS confidence TEXT DEFAULT 'observed';
