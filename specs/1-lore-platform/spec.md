@@ -216,7 +216,7 @@ system is performing.
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
-  duplicate work.
+  duplicate work. ([validated by `PipelineListView.test.tsx:149`](web-ui/src/app/pipeline/PipelineListView.test.tsx#L149))
 - Watcher posts the PR link and any Slack notifications on completion.
 
 ### Scenario 8: Automated Gap Detection (Phase 2)
@@ -395,7 +395,7 @@ pipeline tasks and GitHub Issues.
   status comments and is closed when the PR is created.
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
-  Configured via the settings UI or `lore.settings` table.
+  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:84`](web-ui/src/app/settings/SettingsView.test.tsx#L84))
 
 ### FR-5: Spec-Driven Feature Workflow
 
@@ -765,7 +765,7 @@ non-terminal states and resolve them without manual intervention.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps).
+- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:21`](web-ui/src/app/gaps/GapsView.test.tsx#L21), [`GraphView.test.tsx:31`](web-ui/src/app/graph/GraphView.test.tsx#L31), [`AnalyticsView.test.tsx:57`](web-ui/src/app/analytics/AnalyticsView.test.tsx#L57), [`TaskLogs.test.tsx:43`](web-ui/src/app/pipeline/[id]/TaskLogs.test.tsx#L43), [`OnboardView.test.tsx:8`](web-ui/src/app/onboard/OnboardView.test.tsx#L8))
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).
