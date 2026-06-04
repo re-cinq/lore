@@ -3,6 +3,7 @@ import { query } from '@/lib/db';
 import { getSession } from '@/lib/session';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import PipelineCreateView from './PipelineCreateView';
 
 async function createTask(formData: FormData) {
   'use server';
@@ -35,40 +36,5 @@ export default async function CreateTaskPage() {
     `SELECT full_name FROM lore.repos ORDER BY full_name`
   );
 
-  return (
-    <div>
-      <h1>Create Task</h1>
-      <form action={createTask} className="task-form">
-        <label>Description</label>
-        <textarea name="description" rows={4} required placeholder="What should the agent do? Be specific..." />
-
-        <label>Task Type</label>
-        <select name="task_type">
-          <option value="general">General</option>
-          <option value="runbook">Runbook</option>
-          <option value="implementation">Implementation</option>
-          <option value="gap-fill">Gap Fill</option>
-        </select>
-
-        <label>Target Repository</label>
-        {onboardedRepos.length > 0 ? (
-          <select name="target_repo">
-            {onboardedRepos.map((r) => (
-              <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
-            ))}
-          </select>
-        ) : (
-          <input name="target_repo" defaultValue="re-cinq/lore" placeholder="owner/repo" />
-        )}
-
-        <label style={{display:'flex', alignItems:'center', gap:'8px', cursor:'pointer'}}>
-          <input type="checkbox" name="priority" value="immediate" />
-          <span>Execute immediately</span>
-          <span className="meta" style={{fontSize:'var(--fs-xs)'}}>— runs on GKE now instead of waiting for local pickup</span>
-        </label>
-
-        <button type="submit">Create Task</button>
-      </form>
-    </div>
-  );
+  return <PipelineCreateView onboardedRepos={onboardedRepos} createTaskAction={createTask} />;
 }

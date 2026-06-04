@@ -3,9 +3,7 @@ import { query, queryOne, getRepoSchema } from '@/lib/db';
 import { getReadme, checkRepoFiles } from '@/lib/github';
 import { computeEnrollmentChecks } from '@/lib/enrollment';
 import { reonboard } from './actions';
-import Link from 'next/link';
-import ReadmeBox from './ReadmeBox';
-import EnrollmentSection from '@/components/EnrollmentSection';
+import RepoOverviewView, { type RecentTask } from './RepoOverviewView';
 
 export default async function RepoOverview({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo: repoName } = await params;
@@ -103,60 +101,18 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
   }
 
   return (
-    <div>
-      {readme && (
-        <ReadmeBox markdown={readme.markdown} rawBaseUrl={readme.rawBaseUrl} htmlUrl={readme.htmlUrl} />
-      )}
-
-      <EnrollmentSection checks={enrollmentChecks} reonboardAction={reonboard.bind(null, fullName)} />
-
-      <div className="spec-card" style={{marginBottom:'16px', padding:'16px'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'8px'}}>
-          <h3 style={{margin:0}}>Dark Factory</h3>
-          <Link href={`/repos/${owner}/${repoName}/settings`} className="meta">configure →</Link>
-        </div>
-        <div style={{display:'flex',gap:'24px',flexWrap:'wrap'}}>
-          <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Mode</div>
-            <div style={{fontWeight:600,marginTop:'2px'}}>
-              {darkFactoryEnabled ? <span style={{color:'var(--success)'}}>Enabled</span> : <span className="meta">Off (legacy)</span>}
-            </div>
-          </div>
-          <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Trust</div>
-            <div style={{fontWeight:600,marginTop:'2px'}}>{trustLevel}</div>
-          </div>
-          <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Tasks (7d)</div>
-            <div style={{fontWeight:600,marginTop:'2px'}}>{darkTasksWeek}</div>
-          </div>
-          <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Auto-merged (7d)</div>
-            <div style={{fontWeight:600,marginTop:'2px',color: autoMergedWeek > 0 ? 'var(--success)' : undefined}}>{autoMergedWeek}</div>
-          </div>
-          <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Escalations (7d)</div>
-            <div style={{fontWeight:600,marginTop:'2px',color: escalationsWeek > 0 ? 'var(--danger)' : undefined}}>{escalationsWeek}</div>
-          </div>
-        </div>
-      </div>
-
-      <h2>Recent Tasks</h2>
-      {recentTasks.length > 0 ? (
-        <table>
-          <thead><tr><th>Task</th><th>Status</th><th>PR</th><th>Created</th></tr></thead>
-          <tbody>
-            {recentTasks.map((t: any) => (
-              <tr key={t.id}>
-                <td><Link href={`/pipeline/${t.id}`}>{t.description.substring(0, 60)}...</Link></td>
-                <td><span className={`op-badge op-${t.status}`}>{t.status}</span></td>
-                <td>{t.pr_url ? <a href={t.pr_url} target="_blank">PR</a> : '—'}</td>
-                <td className="meta">{new Date(t.created_at).toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : <p className="meta">No tasks yet. <Link href={`/repos/${owner}/${repoName}/tasks`}>Create one</Link></p>}
-    </div>
+    <RepoOverviewView
+      owner={owner}
+      repo={repoName}
+      readme={readme}
+      enrollmentChecks={enrollmentChecks}
+      darkFactoryEnabled={darkFactoryEnabled}
+      trustLevel={trustLevel}
+      darkTasksWeek={darkTasksWeek}
+      autoMergedWeek={autoMergedWeek}
+      escalationsWeek={escalationsWeek}
+      recentTasks={recentTasks as RecentTask[]}
+      reonboardAction={reonboard.bind(null, fullName)}
+    />
   );
 }
