@@ -47,7 +47,7 @@ export default function SpecDetailView({ fullName, filePath, specsLink, spec }: 
       <div style={{ marginBottom: 20 }}>
         <CoverageBar coverage={spec.counts} size="md" />
       </div>
-      <SpecDetails content={spec.content} statements={spec.statements} />
+      <SpecDetails repo={fullName} content={spec.content} statements={spec.statements} />
     </div>
   );
 }

@@ -79,7 +79,7 @@ export default async function SpecDetailPage({ params }: { params: Promise<{ pat
             <div style={{ marginBottom: 20 }}>
               <CoverageBar coverage={spec.counts} size="md" />
             </div>
-            <SpecDetails content={spec.content} statements={spec.statements as StatementInfo[]} />
+            <SpecDetails repo={spec.repo} content={spec.content} statements={spec.statements as StatementInfo[]} />
             {i < specs.length - 1 && (
               <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '24px 0' }} />
             )}
