@@ -15,6 +15,7 @@ export default async function RepoLayout({
     { href: base, label: 'Overview' },
     { href: `${base}/tasks`, label: 'Tasks' },
     { href: `${base}/context`, label: 'Context' },
+    { href: `${base}/assembled`, label: 'Assembled' },
     { href: `${base}/specs`, label: 'Specs' },
     { href: `${base}/agents`, label: 'Agents' },
     { href: `${base}/settings`, label: 'Settings' },
