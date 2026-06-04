@@ -3,6 +3,7 @@ import { query } from '@/lib/db';
 import { createOnboardTask } from '@/lib/onboard';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import OnboardView from './OnboardView';
 
 async function onboardRepo(formData: FormData) {
   'use server';
@@ -31,25 +32,7 @@ async function onboardRepo(formData: FormData) {
 }
 
 export default async function OnboardPage() {
-  const onboarded = await query(`SELECT full_name FROM lore.repos`);
-  const onboardedSet = new Set(onboarded.map((r: any) => r.full_name));
+  const onboarded = await query<{ full_name: string }>(`SELECT full_name FROM lore.repos`);
 
-  return (
-    <div>
-      <h1>Add Repository</h1>
-      <p className="meta">Onboard a repository to Lore. This will create a PR on the target repo with CLAUDE.md, AGENTS.md, PR template, and CI workflows.</p>
-
-      <form action={onboardRepo} className="task-form" style={{maxWidth:'500px', marginTop:'24px'}}>
-        <label>Repository (owner/name)</label>
-        <input type="text" name="full_name" required placeholder="re-cinq/my-service"
-          pattern="[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+"
-          title="Format: owner/repo" />
-        <p className="meta" style={{fontSize:'var(--fs-xs)', marginTop:'4px'}}>
-          The GitHub App must have access to this repo.
-          {onboarded.length > 0 && ` Already onboarded: ${onboarded.map((r: any) => r.full_name).join(', ')}`}
-        </p>
-        <button type="submit" style={{marginTop:'12px'}}>Onboard Repository</button>
-      </form>
-    </div>
-  );
+  return <OnboardView onboarded={onboarded} onboardRepoAction={onboardRepo} />;
 }
