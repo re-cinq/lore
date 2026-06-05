@@ -102,3 +102,56 @@ describe('assembleContext', () => {
     expect(result.sections.some(s => s.truncated)).toBe(true);
   });
 });
+
+describe('assembleContext — traceable XML output', () => {
+  it('emits XML-tagged documents carrying provenance, with markdown contained', async () => {
+    const mockPool = {
+      query: async (sql: string) => {
+        if (sql.includes("content_type = 'adr'")) {
+          return { rows: [{ content: '## Decision\n\nuse X', file_path: 'adrs/ADR-016.md', score: 0.83 }] };
+        }
+        return { rows: [] };
+      },
+    };
+    const result = await assembleContext(mockPool, 'dark factory', 'implementation', 8000, 'o/r');
+    expect(result.text).toContain('<context query="dark factory"');
+    expect(result.text).toContain('<document source="adrs/ADR-016.md" type="adr" relevance="0.83"');
+    // The chunk's own `##` heading lives inside the tag, not colliding with the skeleton.
+    expect(result.text).toContain('## Decision');
+  });
+
+  it('ranks ADRs by ts_rank against the query, not recency', async () => {
+    let adrSql = '';
+    const mockPool = {
+      query: async (sql: string) => {
+        if (sql.includes("content_type = 'adr'")) { adrSql = sql; }
+        return { rows: [] };
+      },
+    };
+    await assembleContext(mockPool, 'auth middleware', 'implementation', 8000, 'o/r');
+    expect(adrSql).toContain('ts_rank');
+    expect(adrSql).toContain('websearch_to_tsquery');
+  });
+
+  it('does not pull ADRs into the repo/Conventions source', async () => {
+    let repoSql = '';
+    const mockPool = {
+      query: async (sql: string) => {
+        if (sql.includes("content_type IN ('doc', 'spec')")) { repoSql = sql; }
+        return { rows: [] };
+      },
+    };
+    await assembleContext(mockPool, 'x', 'implementation', 8000, 'o/r');
+    expect(repoSql).toContain("'doc', 'spec'");
+    expect(repoSql).not.toContain("'adr'");
+  });
+
+  it('debug trace reports per-section status and omit reason for empty sources', async () => {
+    const mockPool = { query: async () => ({ rows: [] }) };
+    const result = await assembleContext(mockPool, 'x', 'implementation', 8000, 'o/r', undefined, false, false, true);
+    expect(result.trace).toBeDefined();
+    expect(result.trace?.budget.total).toBe(8000);
+    const adr = result.trace?.sections.find(s => s.source === 'adrs');
+    expect(adr).toMatchObject({ included: false, status: 'empty', omitReason: 'no results' });
+  });
+});

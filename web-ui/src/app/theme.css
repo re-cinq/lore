@@ -8,6 +8,15 @@
 
 :root {
   --transition: 150ms ease;
+
+  /* HUD tag-chip palette for the assembled-context tag tree. Intentionally
+     theme-independent — the chip is a black "terminal readout" straddling the
+     box border in every theme (the "fancy movie" look). Kept here in the token
+     file so components reference vars, never raw hex. */
+  --hud-chip-bg: #000000;
+  --hud-chip-fg: #e6e6e6;
+  --hud-chip-tag: #7aa2f7;
+  --hud-chip-attr: #9ece6a;
 }
 
 /* ============================================================ ELEGANT ===== */

@@ -14,6 +14,7 @@ export async function GET(
   const url = new URL(req.url);
   const query = url.searchParams.get("query");
   const template = url.searchParams.get("template") || "implementation";
+  const debug = url.searchParams.get("debug") === "1" ? "&debug=1" : "";
   if (!query) {
     return NextResponse.json({ error: "query is required" }, { status: 400 });
   }
@@ -41,7 +42,7 @@ export async function GET(
     }
 
     const upstream = await fetch(
-      `${apiUrl}/api/context?repo=${encodeURIComponent(fullName)}&query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}`,
+      `${apiUrl}/api/context?repo=${encodeURIComponent(fullName)}&query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}${debug}`,
       { headers: { Authorization: `Bearer ${apiToken}` } },
     );
     const body = await upstream.text();
