@@ -19,7 +19,7 @@ import {
   type StepFailure,
 } from "./lib/error-classify.js";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT } from "@re-cinq/lore-shared";
+import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION } from "@re-cinq/lore-shared";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -808,6 +808,19 @@ export async function handleOnboard(
       continue;
     }
     toGenerate.push({ path: f.path, prompt: f.prompt });
+  }
+
+  // Test-interface CI workflow (project-test-interface AC11): scaffold a
+  // per-toolchain lore-tests.yml only when the repo has NOT already declared a
+  // test-command manifest. A repo with .lore/test-commands.yml is reported
+  // "configured" and scaffolds nothing (idempotent — AC12); declining the
+  // scaffold leaves the repo in documented fallback mode with no error.
+  const loreTestsPath = ".github/workflows/lore-tests.yml";
+  const hasManifest = existingFiles.has(".lore/test-commands.yml");
+  if (hasManifest) {
+    console.log("[agent] Onboard: test interface already configured (.lore/test-commands.yml present) — skipping lore-tests.yml");
+  } else if (!existingFiles.has(loreTestsPath)) {
+    toGenerate.push({ path: loreTestsPath, prompt: LORE_TESTS_INSTRUCTION });
   }
 
   // ADRs: generate if no adrs/ directory exists

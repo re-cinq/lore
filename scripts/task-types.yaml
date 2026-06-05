@@ -140,6 +140,7 @@ task_types:
          - .github/workflows/pr-description-check.yml: CI for PR quality
          - .github/workflows/spec-agent.yml: spec PR triggers agent
          - .github/workflows/lore-ingest.yml: push triggers ingestion
+         - .github/workflows/lore-tests.yml: per-toolchain test runner that runs the .lore/test-commands.yml commands on push/PR and POSTs results to /api/repos/:owner/:repo/test-report (only when the repo declares a .lore/test-commands.yml manifest; one job per detected toolchain, subdir-scoped for monorepos)
 
       6. Output format — JSON object with ALL files:
          {

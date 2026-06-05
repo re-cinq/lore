@@ -1,5 +1,15 @@
-import { describe, it, expect } from "vitest";
-import { executionRefusal, runTestsList, runTestsRun, listTestsTool } from "./spec-trace-tools.js";
+import { describe, it, expect, afterEach } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  executionRefusal,
+  runTestsList,
+  runTestsRun,
+  listTestsTool,
+  runTestTool,
+  loadTestCommandManifest,
+} from "./spec-trace-tools.js";
 import type { TestCommandManifest } from "@re-cinq/lore-shared";
 
 describe("executionRefusal", () => {
@@ -60,6 +70,55 @@ describe("listTestsTool", () => {
     expect(JSON.parse(text)).toEqual([
       { id: "t1", name: "first test", file: "src/a.test.ts", startLine: 1, endLine: 5 },
     ]);
+  });
+});
+
+describe("runTestTool", () => {
+  it("returns the CI-or-local refusal without running the run command on the cluster", async () => {
+    const manifest: TestCommandManifest = {
+      list: "x",
+      run: "printf 'SHOULD_NOT_RUN'",
+      coverage_format: "json",
+      cwd: ".",
+      path_prefix_strip: "",
+    };
+    const text = await runTestTool(
+      { LORE_DB_HOST: "10.0.0.5" },
+      manifest,
+      "src/a.test.ts::my test",
+      process.cwd(),
+    );
+    expect(text).toMatch(/CI|local/i);
+  });
+});
+
+describe("loadTestCommandManifest", () => {
+  let repoRoot: string;
+
+  afterEach(() => {
+    if (repoRoot) rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  it("returns the manifest parsed from .lore/test-commands.yml", () => {
+    repoRoot = mkdtempSync(join(tmpdir(), "lore-"));
+    mkdirSync(join(repoRoot, ".lore"));
+    writeFileSync(
+      join(repoRoot, ".lore", "test-commands.yml"),
+      'list: "npm run -s test:list-json"\n' +
+        'run: "npm run -s test:run-json -- {selector}"\n' +
+        'coverage_format: "json"\n',
+    );
+
+    expect(loadTestCommandManifest(repoRoot)).toMatchObject({
+      list: "npm run -s test:list-json",
+      run: "npm run -s test:run-json -- {selector}",
+      coverage_format: "json",
+    });
+  });
+
+  it("returns null when no .lore/test-commands.yml exists", () => {
+    repoRoot = mkdtempSync(join(tmpdir(), "lore-"));
+    expect(loadTestCommandManifest(repoRoot)).toBeNull();
   });
 });
 
