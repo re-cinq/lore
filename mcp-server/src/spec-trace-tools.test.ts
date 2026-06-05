@@ -9,6 +9,7 @@ import {
   listTestsTool,
   runTestTool,
   loadTestCommandManifest,
+  buildTestReport,
 } from "./spec-trace-tools.js";
 import type { TestCommandManifest } from "@re-cinq/lore-shared";
 
@@ -119,6 +120,47 @@ describe("loadTestCommandManifest", () => {
   it("returns null when no .lore/test-commands.yml exists", () => {
     repoRoot = mkdtempSync(join(tmpdir(), "lore-"));
     expect(loadTestCommandManifest(repoRoot)).toBeNull();
+  });
+});
+
+describe("buildTestReport", () => {
+  it("assembles commit, branch, descriptors, and per-descriptor results", async () => {
+    const manifest: TestCommandManifest = {
+      list: `printf '[{"id":"t1","name":"first","file":"a.test.ts","startLine":1,"endLine":2}]'`,
+      run: `printf '{"passed":true,"covered":[{"file":"a.ts","startLine":3,"endLine":4}]}'`,
+      coverage_format: "json",
+      cwd: ".",
+      path_prefix_strip: "",
+    };
+
+    const report = await buildTestReport({}, manifest, process.cwd(), {
+      commit: "c1",
+      branch: "main",
+    });
+
+    expect(report).toEqual({
+      commit: "c1",
+      branch: "main",
+      tests: [{ id: "t1", name: "first", file: "a.test.ts", startLine: 1, endLine: 2 }],
+      results: [{ id: "t1", passed: true, covered: [{ file: "a.ts", startLine: 3, endLine: 4 }] }],
+    });
+  });
+
+  it("refuses to run manifest commands on the shared cluster when LORE_DB_HOST is set", async () => {
+    const manifest: TestCommandManifest = {
+      list: "printf 'SHOULD_NOT_RUN'",
+      run: "printf 'SHOULD_NOT_RUN'",
+      coverage_format: "json",
+      cwd: ".",
+      path_prefix_strip: "",
+    };
+
+    await expect(
+      buildTestReport({ LORE_DB_HOST: "10.0.0.5" }, manifest, process.cwd(), {
+        commit: "c1",
+        branch: "main",
+      }),
+    ).rejects.toThrow(/CI|local/i);
   });
 });
 

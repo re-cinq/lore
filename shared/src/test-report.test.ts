@@ -27,6 +27,22 @@ describe("parseTestDescriptors", () => {
     ]);
   });
 
+  it("carries the suite chain outermost to innermost", () => {
+    const result = parseTestDescriptors([
+      { id: "t1", name: "first", file: "a.test.ts", suite: ["Outer", "Inner"] },
+    ]);
+    expect(result).toEqual([
+      { id: "t1", name: "first", file: "a.test.ts", suite: ["Outer", "Inner"] },
+    ]);
+  });
+
+  it("omits a suite array holding a non-string element", () => {
+    const result = parseTestDescriptors([
+      { id: "t1", name: "first", file: "a.test.ts", suite: ["Outer", 3] },
+    ]);
+    expect(result).toEqual([{ id: "t1", name: "first", file: "a.test.ts" }]);
+  });
+
   it("omits optional fields a descriptor does not declare", () => {
     const [descriptor] = parseTestDescriptors([
       { id: "pkg/store_test.go::TestClaim", name: "TestClaim", file: "pkg/store_test.go" },
