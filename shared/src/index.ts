@@ -52,6 +52,20 @@ export {
   normalizeTestName,
 } from './test-paths.js';
 export {
+  parseTestCommandManifest,
+  resolveTestCommandManifest,
+  substituteSelector,
+  type TestCommandManifest,
+  type CoverageFormat,
+} from './test-command-manifest.js';
+export {
+  parseTestDescriptors,
+  parseRunResult,
+  type TestDescriptor,
+  type CoveredChunk,
+  type RunResult,
+} from './test-report.js';
+export {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_VERSION,
   LORE_INGEST_WORKFLOW_CONTENT,
