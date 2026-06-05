@@ -5,6 +5,7 @@ import { reassembleSpec, parseSpecTitle } from '@/lib/spec-summary';
 import CoverageBar from '@/components/CoverageBar';
 import { deriveCoverageFromMarkdown } from '@/lib/spec-coverage-derive';
 import SpecDetails, { type StatementInfo } from '@/app/repos/[owner]/[repo]/specs/SpecDetails';
+import styles from './page.module.css';
 
 interface SpecChunkRow {
   content: string;
@@ -62,26 +63,26 @@ export default async function SpecDetailPage({ params }: { params: Promise<{ pat
         <Link href="/specs">Specifications</Link> / <strong>{specs[0].title}</strong>
       </div>
       <h1>{specs[0].title}</h1>
-      <p className="meta" style={{ fontFamily: 'var(--font-mono)', marginTop: 0, marginBottom: 16 }}>{filePath}</p>
+      <p className={`meta ${styles.path}`}>{filePath}</p>
 
       {specs.map((spec, i) => {
         const repoLink = spec.repo && spec.repo.includes('/')
           ? `/repos/${spec.repo}/specs/${encodeURIComponent(filePath)}`
           : null;
         return (
-          <div key={spec.repo} style={{ marginBottom: 24 }}>
+          <div key={spec.repo} className={styles.specGroup}>
             {(spec.repo || repoLink) && (
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+              <div className={styles.repoRow}>
                 {spec.repo && <span className="meta">repo: {spec.repo}</span>}
                 {repoLink && <Link href={repoLink} className="meta">view in repo →</Link>}
               </div>
             )}
-            <div style={{ marginBottom: 20 }}>
+            <div className={styles.barWrap}>
               <CoverageBar coverage={spec.counts} size="md" />
             </div>
             <SpecDetails repo={spec.repo} content={spec.content} statements={spec.statements as StatementInfo[]} />
             {i < specs.length - 1 && (
-              <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '24px 0' }} />
+              <hr className={styles.divider} />
             )}
           </div>
         );

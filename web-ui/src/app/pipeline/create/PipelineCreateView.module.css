@@ -1,0 +1,12 @@
+/* Create-task form — co-located with PipelineCreateView.tsx. */
+
+.priorityLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.priorityHint {
+  font-size: var(--fs-xs);
+}

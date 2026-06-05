@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
+import styles from './PRStatusCard.module.css';
 
 type PRStatus =
   | 'draft'
@@ -50,7 +51,7 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
 
   if (error) {
     return (
-      <div className="spec-card" style={{ marginTop: '12px' }}>
+      <div className={`spec-card ${styles.card}`}>
         <strong>PR Status:</strong>{' '}
         <span className="meta">Status unavailable — </span>
         <a href={prUrl} target="_blank">View on GitHub</a>
@@ -60,7 +61,7 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
 
   if (!details) {
     return (
-      <div className="spec-card" style={{ marginTop: '12px' }}>
+      <div className={`spec-card ${styles.card}`}>
         <strong>PR Status:</strong> <span className="meta">Loading…</span>
       </div>
     );
@@ -74,39 +75,39 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
   const changesRequested = details.reviews.filter(r => r.state === 'CHANGES_REQUESTED');
 
   return (
-    <div className="spec-card" style={{ marginTop: '12px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+    <div className={`spec-card ${styles.card}`}>
+      <div className={styles.statusRow}>
         <strong>PR Status:</strong>
         <span
-          className="status-pill"
-          style={{ ['--pill-color' as string]: color, fontSize: 'var(--fs-sm)' }}
+          className={`status-pill ${styles.pill}`}
+          style={{ ['--pill-color' as string]: color }}
         >
           {details.computed_status}
         </span>
-        <a href={details.html_url} target="_blank" style={{ fontSize: 'var(--fs-sm)' }}>
+        <a href={details.html_url} target="_blank" className={styles.titleLink}>
           #{details.number} {details.title}
         </a>
       </div>
 
       {details.checks.length > 0 && (
-        <div style={{ fontSize: 'var(--fs-sm)', marginBottom: '4px' }}>
+        <div className={styles.checksRow}>
           <strong>Checks:</strong>{' '}
-          {passingChecks > 0 && <span style={{ color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Icon name="check" size={13} /> {passingChecks} passing</span>}
-          {failingChecks > 0 && <span style={{ color: 'var(--danger)', marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Icon name="error" size={13} /> {failingChecks} failing</span>}
-          {pendingChecks > 0 && <span style={{ color: 'var(--text-muted)', marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Icon name="pending" size={13} /> {pendingChecks} pending</span>}
+          {passingChecks > 0 && <span className={styles.passing}><Icon name="check" size={13} /> {passingChecks} passing</span>}
+          {failingChecks > 0 && <span className={styles.failing}><Icon name="error" size={13} /> {failingChecks} failing</span>}
+          {pendingChecks > 0 && <span className={styles.pending}><Icon name="pending" size={13} /> {pendingChecks} pending</span>}
         </div>
       )}
 
       {(approvals.length > 0 || changesRequested.length > 0) && (
-        <div style={{ fontSize: 'var(--fs-sm)' }}>
+        <div className={styles.reviewsRow}>
           <strong>Reviews:</strong>{' '}
           {approvals.length > 0 && (
-            <span style={{ color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+            <span className={styles.approved}>
               <Icon name="check" size={13} /> Approved by {approvals.map(r => r.user).join(', ')}
             </span>
           )}
           {changesRequested.length > 0 && (
-            <span style={{ color: 'var(--warning)', marginLeft: '8px' }}>
+            <span className={styles.changesRequested}>
               Changes requested by {changesRequested.map(r => r.user).join(', ')}
             </span>
           )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import styles from "./TaskLogs.module.css";
 
 interface LogsResponse {
   logs: string | null;
@@ -8,37 +9,6 @@ interface LogsResponse {
   totalSize: number;
   error?: string;
 }
-
-const TERMINAL_STYLE: React.CSSProperties = {
-  background: "var(--bg)",
-  color: "var(--text)",
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-  fontSize: 'var(--fs-xs)',
-  lineHeight: "1.5",
-  padding: "16px",
-  borderRadius: "var(--radius-sm)",
-  overflowY: "auto",
-  maxHeight: "500px",
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-all",
-  border: "1px solid var(--border)",
-};
-
-const HEADER_STYLE: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  marginBottom: "8px",
-};
-
-const PULSE_STYLE: React.CSSProperties = {
-  width: "8px",
-  height: "8px",
-  borderRadius: "var(--radius-pill)",
-  background: "var(--success)",
-  display: "inline-block",
-  animation: "pulse 1.5s ease-in-out infinite",
-};
 
 const ACTIVE_STATES = new Set(["running"]);
 const POLL_INTERVAL_MS = 5_000;
@@ -119,48 +89,41 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
   const isFailed = status === "failed" || status === "cancelled";
 
   return (
-    <div style={{ marginTop: "24px" }}>
-      <h2 style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+    <div className={styles.wrap}>
+      <h2 className={styles.heading}>
         Agent Output
-        {isRunning && <span style={PULSE_STYLE} />}
-        {isDone && <span className="op-badge op-pr-created" style={{ fontSize: 'var(--fs-xs)' }}>Completed</span>}
-        {isInReview && <span className="op-badge op-running" style={{ fontSize: 'var(--fs-xs)' }}>In Review</span>}
-        {isFailed && <span className="op-badge op-failed" style={{ fontSize: 'var(--fs-xs)' }}>Failed</span>}
+        {isRunning && <span className={styles.pulse} />}
+        {isDone && <span className={`op-badge op-pr-created ${styles.statusBadge}`}>Completed</span>}
+        {isInReview && <span className={`op-badge op-running ${styles.statusBadge}`}>In Review</span>}
+        {isFailed && <span className={`op-badge op-failed ${styles.statusBadge}`}>Failed</span>}
       </h2>
 
       {accessDenied && (
-        <p style={{ color: "var(--danger)", fontSize: 'var(--fs-sm)' }}>
+        <p className={styles.error}>
           Access denied — you do not have access to this repository.
         </p>
       )}
 
       {error && !accessDenied && (
-        <p style={{ color: "var(--danger)", fontSize: 'var(--fs-sm)' }}>Failed to load logs: {error}</p>
+        <p className={styles.error}>Failed to load logs: {error}</p>
       )}
 
       {!accessDenied && logs === null && !error ? (
-        <p className="meta" style={{ fontStyle: "italic" }}>
+        <p className={`meta ${styles.placeholder}`}>
           Logs will appear when the agent starts.
         </p>
       ) : !accessDenied && logs !== null ? (
-        <div style={TERMINAL_STYLE}>
+        <div className={styles.terminal}>
           {logs}
           <div ref={bottomRef} />
         </div>
       ) : null}
 
       {isRunning && !accessDenied && (
-        <p className="meta" style={{ marginTop: "6px", fontSize: 'var(--fs-xs)' }}>
+        <p className={`meta ${styles.polling}`}>
           Polling every 5s{totalSize > 0 ? ` — ${(totalSize / 1024).toFixed(1)} KB received` : ""}
         </p>
       )}
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-      `}</style>
     </div>
   );
 }

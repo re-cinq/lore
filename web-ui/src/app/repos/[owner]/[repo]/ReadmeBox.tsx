@@ -37,8 +37,7 @@ export default function ReadmeBox({
       {collapsible && (
         <button
           type="button"
-          className="btn-secondary"
-          style={{ marginTop: '12px' }}
+          className={`btn-secondary ${styles.toggle}`}
           onClick={() => setExpanded(e => !e)}
         >
           {expanded ? 'Read less' : 'Read more'}

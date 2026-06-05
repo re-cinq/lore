@@ -1,3 +1,5 @@
+import styles from './EpisodesView.module.css';
+
 export interface EpisodeRow {
   id: string;
   agent_id: string;
@@ -46,7 +48,7 @@ export default function EpisodesView({
   return (
     <div>
       <h1>Episodes</h1>
-      <p className="meta" style={{ marginBottom: 12 }}>
+      <p className={`meta ${styles.intro}`}>
         Passively ingested text blobs — conversations, reviews, observations. Facts and graph entities are extracted automatically.
       </p>
       <form method="get" className="filter-form">
@@ -56,7 +58,7 @@ export default function EpisodesView({
         </select>
         <button type="submit">Filter</button>
       </form>
-      <p className="meta" style={{ marginBottom: 12 }}>{totalCount} episodes</p>
+      <p className={`meta ${styles.count}`}>{totalCount} episodes</p>
       <table>
         <thead>
           <tr><th>Time</th><th>Agent</th><th>Source</th><th>Ref</th><th>Facts</th><th>Content</th></tr>
@@ -69,11 +71,11 @@ export default function EpisodesView({
               <td><span className={`op-badge op-${e.source}`}>{e.source}</span></td>
               <td>{e.ref || '—'}</td>
               <td>{e.fact_count}</td>
-              <td><pre style={{ margin: 0, whiteSpace: 'pre-wrap', maxWidth: '400px' }}>{e.content_preview}{e.content_preview.length >= 300 ? '...' : ''}</pre></td>
+              <td><pre className={styles.contentPre}>{e.content_preview}{e.content_preview.length >= 300 ? '...' : ''}</pre></td>
             </tr>
           ))}
           {episodes.length === 0 && (
-            <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>
+            <tr><td colSpan={6} className={styles.emptyCell}>
               No episodes yet. Use the <code>write_episode</code> MCP tool to ingest text.
             </td></tr>
           )}

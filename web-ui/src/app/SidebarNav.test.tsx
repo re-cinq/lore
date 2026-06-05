@@ -70,18 +70,14 @@ describe('SidebarNav rendering', () => {
     expect(rendered).toEqual(ALL_LINKS.map((l) => l.label));
   });
 
-  it('applies the inline style overrides to the Add Repo link only', () => {
+  it('applies the distinguishing module class to the Add Repo link only', () => {
     render(<SidebarNav />);
     const addRepo = linkByLabel('+ Add Repo');
-    // The style prop SidebarNav passes through to the extra NavLink.
-    expect(addRepo.style.marginTop).toBe('12px');
-    expect(addRepo.style.textAlign).toBe('center');
-    expect(addRepo.style.background).toBe('var(--bg-hover)');
+    // The module class SidebarNav passes through to the extra NavLink.
+    expect(addRepo.className).toContain('addRepo');
 
-    // A primary link carries no such inline styling.
-    const repos = linkByLabel('Repos');
-    expect(repos.style.marginTop).toBe('');
-    expect(repos.style.textAlign).toBe('');
+    // A primary link carries no such class.
+    expect(linkByLabel('Repos').className).not.toContain('addRepo');
   });
 });
 
@@ -156,8 +152,8 @@ describe('SidebarNav active-link highlighting', () => {
     expect(addRepo.className).toContain('active');
     expect(addRepo).toHaveAttribute('aria-current', 'page');
 
-    // The Add Repo link keeps its inline styling regardless of active state.
-    expect(addRepo.style.marginTop).toBe('12px');
+    // The Add Repo link keeps its distinguishing class regardless of active state.
+    expect(addRepo.className).toContain('addRepo');
 
     // No primary link is active on /onboard.
     for (const { label } of PRIMARY_LINKS) {

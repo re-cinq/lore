@@ -2,6 +2,7 @@ import Link from 'next/link';
 import ReadmeBox from './ReadmeBox';
 import EnrollmentSection from '@/components/EnrollmentSection';
 import { type Check } from '@/lib/enrollment';
+import styles from './RepoOverviewView.module.css';
 
 export interface RepoReadme {
   markdown: string;
@@ -60,33 +61,33 @@ export default function RepoOverviewView({
 
       <EnrollmentSection checks={enrollmentChecks} reonboardAction={reonboardAction} />
 
-      <div className="spec-card" style={{marginBottom:'16px', padding:'16px'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'8px'}}>
-          <h3 style={{margin:0}}>Dark Factory</h3>
+      <div className={`spec-card ${styles.dfCard}`}>
+        <div className={styles.dfHead}>
+          <h3 className={styles.dfTitle}>Dark Factory</h3>
           <Link href={`/repos/${owner}/${repo}/settings`} className="meta">configure →</Link>
         </div>
-        <div style={{display:'flex',gap:'24px',flexWrap:'wrap'}}>
+        <div className={styles.stats}>
           <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Mode</div>
-            <div style={{fontWeight:600,marginTop:'2px'}}>
-              {darkFactoryEnabled ? <span style={{color:'var(--success)'}}>Enabled</span> : <span className="meta">Off (legacy)</span>}
+            <div className={`meta ${styles.statLabel}`}>Mode</div>
+            <div className={styles.statValue}>
+              {darkFactoryEnabled ? <span className={styles.success}>Enabled</span> : <span className="meta">Off (legacy)</span>}
             </div>
           </div>
           <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Trust</div>
-            <div style={{fontWeight:600,marginTop:'2px'}}>{trustLevel}</div>
+            <div className={`meta ${styles.statLabel}`}>Trust</div>
+            <div className={styles.statValue}>{trustLevel}</div>
           </div>
           <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Tasks (7d)</div>
-            <div style={{fontWeight:600,marginTop:'2px'}}>{darkTasksWeek}</div>
+            <div className={`meta ${styles.statLabel}`}>Tasks (7d)</div>
+            <div className={styles.statValue}>{darkTasksWeek}</div>
           </div>
           <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Auto-merged (7d)</div>
-            <div style={{fontWeight:600,marginTop:'2px',color: autoMergedWeek > 0 ? 'var(--success)' : undefined}}>{autoMergedWeek}</div>
+            <div className={`meta ${styles.statLabel}`}>Auto-merged (7d)</div>
+            <div className={`${styles.statValue}${autoMergedWeek > 0 ? ` ${styles.success}` : ''}`}>{autoMergedWeek}</div>
           </div>
           <div>
-            <div className="meta" style={{fontSize:'var(--fs-xs)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Escalations (7d)</div>
-            <div style={{fontWeight:600,marginTop:'2px',color: escalationsWeek > 0 ? 'var(--danger)' : undefined}}>{escalationsWeek}</div>
+            <div className={`meta ${styles.statLabel}`}>Escalations (7d)</div>
+            <div className={`${styles.statValue}${escalationsWeek > 0 ? ` ${styles.danger}` : ''}`}>{escalationsWeek}</div>
           </div>
         </div>
       </div>

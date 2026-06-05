@@ -1,3 +1,5 @@
+import styles from './GraphView.module.css';
+
 export interface Entity {
   id: string;
   name: string;
@@ -51,11 +53,11 @@ export default function GraphView({ entity, type, showInvalid, stats, entityType
   return (
     <div>
       <h1>Knowledge Graph</h1>
-      <p className="meta" style={{ marginBottom: 12 }}>
+      <p className={`meta ${styles.intro}`}>
         Live knowledge graph built from episodes and memories. Entities and relationships are extracted automatically.
       </p>
 
-      <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+      <div className={styles.statRow}>
         <div className="stat-card">
           <div className="stat-value">{stats.entity_count}</div>
           <div className="stat-label">Entities</div>
@@ -71,7 +73,7 @@ export default function GraphView({ entity, type, showInvalid, stats, entityType
       </div>
 
       {entityTypes.length > 0 && (
-        <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div className={styles.filterRow}>
           <a href="/graph" className={!type ? 'op-badge op-search' : 'op-badge'}>all</a>
           {entityTypes.map(t => (
             <a key={t.entity_type} href={`/graph?type=${t.entity_type}`}
@@ -89,7 +91,7 @@ export default function GraphView({ entity, type, showInvalid, stats, entityType
         </thead>
         <tbody>
           {entities.map(e => (
-            <tr key={e.id} style={entity?.toLowerCase() === e.name.toLowerCase() ? { background: 'var(--border)' } : {}}>
+            <tr key={e.id} className={entity?.toLowerCase() === e.name.toLowerCase() ? styles.activeRow : undefined}>
               <td><strong>{e.name}</strong></td>
               <td><span className="op-badge">{e.entity_type}</span></td>
               <td>{e.repo || '—'}</td>
@@ -99,7 +101,7 @@ export default function GraphView({ entity, type, showInvalid, stats, entityType
             </tr>
           ))}
           {entities.length === 0 && (
-            <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>
+            <tr><td colSpan={6} className={styles.emptyCell}>
               No entities yet. Write episodes to populate the graph.
             </td></tr>
           )}
@@ -109,8 +111,8 @@ export default function GraphView({ entity, type, showInvalid, stats, entityType
       {entity && (
         <>
           <h2>Relationships for &quot;{entity}&quot;</h2>
-          <div style={{ marginBottom: '0.5rem' }}>
-            <a href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? '' : '&show_invalid=1'}`} style={{ fontSize: 'var(--fs-sm)' }}>
+          <div className={styles.invalidToggle}>
+            <a href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? '' : '&show_invalid=1'}`} className={styles.invalidToggleLink}>
               {showInvalid ? 'Hide invalidated' : 'Show invalidated edges'}
             </a>
           </div>
@@ -120,7 +122,7 @@ export default function GraphView({ entity, type, showInvalid, stats, entityType
             </thead>
             <tbody>
               {edges.map((e, i) => (
-                <tr key={i} style={e.valid_to ? { opacity: 0.5 } : {}}>
+                <tr key={i} className={e.valid_to ? styles.invalidatedRow : undefined}>
                   <td><strong>{e.source_name}</strong> <span className="meta">({e.source_type})</span></td>
                   <td><span className="op-badge">{e.relation_type}</span></td>
                   <td><strong>{e.target_name}</strong> <span className="meta">({e.target_type})</span></td>
@@ -133,7 +135,7 @@ export default function GraphView({ entity, type, showInvalid, stats, entityType
                 </tr>
               ))}
               {edges.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No relationships found for this entity.</td></tr>
+                <tr><td colSpan={6} className={styles.emptyCell}>No relationships found for this entity.</td></tr>
               )}
             </tbody>
           </table>

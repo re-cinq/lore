@@ -1,0 +1,22 @@
+.repoFilter {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.repoSelect {
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.resultCount {
+  margin-bottom: 16px;
+}
+
+.repoBadge {
+  margin-left: 0.5rem;
+}

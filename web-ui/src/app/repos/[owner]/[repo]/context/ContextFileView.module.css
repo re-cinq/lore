@@ -1,0 +1,30 @@
+.path {
+  font-family: var(--font-mono);
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.group {
+  margin-bottom: 24px;
+}
+
+.groupHeader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.hr {
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.chunkRule {
+  margin: 20px 0;
+}
+
+.groupRule {
+  margin: 24px 0;
+}

@@ -1,3 +1,5 @@
+import styles from './PipelineCreateView.module.css';
+
 export interface PipelineCreateViewProps {
   /** Onboarded repos for the target-repo dropdown. */
   onboardedRepos: { full_name: string }[];
@@ -38,10 +40,10 @@ export default function PipelineCreateView({ onboardedRepos, createTaskAction }:
           <input name="target_repo" defaultValue="re-cinq/lore" placeholder="owner/repo" />
         )}
 
-        <label style={{display:'flex', alignItems:'center', gap:'8px', cursor:'pointer'}}>
+        <label className={styles.priorityLabel}>
           <input type="checkbox" name="priority" value="immediate" />
           <span>Execute immediately</span>
-          <span className="meta" style={{fontSize:'var(--fs-xs)'}}>— runs on GKE now instead of waiting for local pickup</span>
+          <span className={`meta ${styles.priorityHint}`}>— runs on GKE now instead of waiting for local pickup</span>
         </label>
 
         <button type="submit">Create Task</button>

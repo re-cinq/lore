@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import ChunkBody from './ChunkBody';
 import { type ChunkMeta } from '@/lib/chunk-presenter';
+import styles from './ContextFileView.module.css';
 
 export interface ContextFileChunk {
   id: string;
@@ -25,8 +26,6 @@ export interface ContextFileViewProps {
   /** One group per repo. Per-repo detail passes a single group. */
   groups: ContextFileGroup[];
 }
-
-const hr = { border: 'none', borderTop: '1px solid var(--border)' } as const;
 
 function basename(filePath: string): string {
   return filePath.split('/').pop() || filePath;
@@ -63,22 +62,14 @@ export default function ContextFileView({ filePath, contextLink, groups }: Conte
         <Link href={contextLink}>Context</Link> / <strong>{basename(filePath)}</strong>
       </div>
       <h1>{basename(filePath)}</h1>
-      <p className="meta" style={{ fontFamily: 'var(--font-mono)', marginTop: 0, marginBottom: 16 }}>
+      <p className={`meta ${styles.path}`}>
         {filePath}
       </p>
 
       {groups.map((g, gi) => (
-        <div key={g.repo} style={{ marginBottom: 24 }}>
+        <div key={g.repo} className={styles.group}>
           {showGroupHeader && (
-            <div
-              style={{
-                display: 'flex',
-                gap: 12,
-                alignItems: 'center',
-                marginBottom: 12,
-                flexWrap: 'wrap',
-              }}
-            >
+            <div className={styles.groupHeader}>
               <span className="meta">repo: {g.repo}</span>
               {g.repoHref && (
                 <Link href={g.repoHref} className="meta">
@@ -97,10 +88,10 @@ export default function ContextFileView({ filePath, contextLink, groups }: Conte
                 branch={g.branch ?? 'main'}
                 metadata={c.metadata ?? undefined}
               />
-              {i < g.chunks.length - 1 && <hr style={{ ...hr, margin: '20px 0' }} />}
+              {i < g.chunks.length - 1 && <hr className={`${styles.hr} ${styles.chunkRule}`} />}
             </div>
           ))}
-          {gi < groups.length - 1 && <hr style={{ ...hr, margin: '24px 0' }} />}
+          {gi < groups.length - 1 && <hr className={`${styles.hr} ${styles.groupRule}`} />}
         </div>
       ))}
     </div>

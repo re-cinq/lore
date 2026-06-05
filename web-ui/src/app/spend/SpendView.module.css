@@ -1,0 +1,47 @@
+/* Claude API Spend view — co-located with SpendView.tsx. All values static;
+   nothing here is computed at render. */
+
+.cards {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.card {
+  flex: 1;
+  min-width: 180px;
+}
+
+.figure {
+  font-size: var(--fs-xl);
+  font-weight: bold;
+}
+
+.figureInfo {
+  font-size: var(--fs-xl);
+  font-weight: bold;
+  color: var(--info);
+}
+
+.subnote {
+  font-size: var(--fs-xs);
+}
+
+.warningCard {
+  margin-bottom: 24px;
+  border-color: var(--warning);
+}
+
+.warningNote {
+  margin-top: 4px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.center {
+  text-align: center;
+}

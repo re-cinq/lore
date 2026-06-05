@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import HelpPopover from '@/components/HelpPopover';
 import { formatCost, shortAgentId, truncate, displayCreatedBy } from '@/lib/task-presenter';
+import styles from './RepoTasksView.module.css';
 
 export interface RepoTaskRow {
   id: string;
@@ -28,9 +29,9 @@ export interface RepoTasksViewProps {
 export default function RepoTasksView({ owner, repo, tasks }: RepoTasksViewProps) {
   return (
     <div>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-          <h2 style={{margin:0}}>Tasks</h2>
+      <div className={styles.header}>
+        <div className={styles.heading}>
+          <h2 className={styles.title}>Tasks</h2>
           <HelpPopover label="How tasks work">
             <p>Tasks are units of work you delegate to Lore agents for this repo.</p>
             <ul>
@@ -42,7 +43,7 @@ export default function RepoTasksView({ owner, repo, tasks }: RepoTasksViewProps
         </div>
         <Link href={`/repos/${owner}/${repo}/tasks/create`}><button>+ New Task</button></Link>
       </div>
-      <p className="meta" style={{marginTop:'-4px', marginBottom:'16px'}}>
+      <p className={`meta ${styles.intro}`}>
         Pipeline tasks targeting this repo. Delegate work to agents and track their status, PRs, and history.
       </p>
       <table>
@@ -60,7 +61,7 @@ export default function RepoTasksView({ owner, repo, tasks }: RepoTasksViewProps
               <td className="meta">{new Date(t.created_at).toLocaleString()}</td>
             </tr>
           ))}
-          {tasks.length === 0 && <tr><td colSpan={8} className="meta" style={{textAlign:'center'}}>No tasks for this repo</td></tr>}
+          {tasks.length === 0 && <tr><td colSpan={8} className={`meta ${styles.emptyCell}`}>No tasks for this repo</td></tr>}
         </tbody>
       </table>
     </div>

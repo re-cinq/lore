@@ -127,7 +127,7 @@ describe('TaskLogs', () => {
     const { container } = render(<TaskLogs taskId="t1" initialStatus="running" />);
     await settle();
 
-    expect(container.querySelector('span[style*="animation"]')).not.toBeNull();
+    expect(container.querySelector('span[class*="pulse"]')).not.toBeNull();
     // 2048 bytes / 1024 = 2.0 KB received.
     expect(screen.getByText(/Polling every 5s — 2\.0 KB received/)).toBeInTheDocument();
   });

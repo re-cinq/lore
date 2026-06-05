@@ -2,33 +2,18 @@
 
 import Markdown from '@/components/Markdown';
 import type { TagNode } from './tag-tree';
+import styles from './TagBox.module.css';
 
 /** The monospace attribute chip that straddles the top border of each box —
  *  black "terminal readout" with a colored tag name and green attribute values. */
 function TagChip({ tag, attrs }: { tag: string; attrs: [string, string][] }) {
   return (
-    <span
-      style={{
-        position: 'absolute',
-        top: '-10px',
-        left: '12px',
-        maxWidth: 'calc(100% - 24px)',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        padding: '1px 8px',
-        borderRadius: 'var(--radius-sm)',
-        background: 'var(--hud-chip-bg)',
-        color: 'var(--hud-chip-fg)',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--fs-xs)',
-      }}
-    >
-      <span style={{ color: 'var(--hud-chip-tag)' }}>{tag}</span>
+    <span className={styles.chip}>
+      <span className={styles.chipTag}>{tag}</span>
       {attrs.map(([k, v]) => (
         <span key={k}>
           {' '}
-          {k}=<span style={{ color: 'var(--hud-chip-attr)' }}>&quot;{v}&quot;</span>
+          {k}=<span className={styles.chipVal}>&quot;{v}&quot;</span>
         </span>
       ))}
     </span>
@@ -40,22 +25,11 @@ function TagChip({ tag, attrs }: { tag: string; attrs: [string, string][] }) {
 export default function TagBox({ node, raw, depth = 0 }: { node: TagNode; raw: boolean; depth?: number }) {
   const isLeaf = node.content !== undefined;
   return (
-    <div
-      style={{
-        position: 'relative',
-        marginTop: '16px',
-        padding: '18px 12px 12px',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        background: depth % 2 === 1 ? 'var(--bg)' : 'var(--bg-surface)',
-      }}
-    >
+    <div className={`${styles.box} ${depth % 2 === 1 ? styles.alt : ''}`}>
       <TagChip tag={node.tag} attrs={node.attrs} />
       {isLeaf ? (
         raw ? (
-          <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)' }}>
-            {node.content}
-          </pre>
+          <pre className={styles.raw}>{node.content}</pre>
         ) : (
           <Markdown markdown={node.content ?? ''} />
         )

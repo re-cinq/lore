@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import PRStatusBadge from './PRStatusBadge';
+import styles from './PipelineListView.module.css';
 
 export interface PipelineTaskRow {
   id: string;
@@ -32,7 +33,7 @@ const STATUSES = ['pending', 'queued', 'running', 'pr-created', 'review', 'merge
 export default function PipelineListView({ activeStatus, tasks }: PipelineListViewProps) {
   return (
     <div>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+      <div className={styles.header}>
         <h1>Pipeline</h1>
         <Link href="/pipeline/create"><button>+ Create Task</button></Link>
       </div>
@@ -56,8 +57,8 @@ export default function PipelineListView({ activeStatus, tasks }: PipelineListVi
               <td><span className={`op-badge op-${t.status}`}>{t.status}</span></td>
               <td>
                 {t.status === 'pending' && t.priority === 'normal' ? (
-                  <form action={`/api/pipeline/${t.id}/run-now`} method="POST" style={{display:'inline'}}>
-                    <button type="submit" style={{background:'var(--accent)',color:'var(--text-on-accent)',border:'none',padding:'2px 10px',borderRadius:'var(--radius-sm)',cursor:'pointer',fontSize:'var(--fs-xs)'}}>
+                  <form action={`/api/pipeline/${t.id}/run-now`} method="POST" className={styles.runNowForm}>
+                    <button type="submit" className={styles.runNowBtn}>
                       Run Now
                     </button>
                   </form>
@@ -65,7 +66,7 @@ export default function PipelineListView({ activeStatus, tasks }: PipelineListVi
                   <span className={t.priority === 'immediate' ? 'badge badge-red' : 'meta'}>{t.priority}</span>
                 )}
               </td>
-              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>
+              <td className={styles.repoCell}>
                 {t.target_repo ? (
                   <Link href={`/repos/${t.target_repo}`}>{t.target_repo}</Link>
                 ) : '—'}
@@ -73,7 +74,7 @@ export default function PipelineListView({ activeStatus, tasks }: PipelineListVi
               <td>{t.agent_id ? t.agent_id.substring(0, 12) + '...' : '—'}</td>
               <td>
                 {t.pr_url ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className={styles.prCell}>
                     <a href={t.pr_url} target="_blank">PR</a>
                     {t.pr_number && <PRStatusBadge taskId={t.id} />}
                   </span>
@@ -82,7 +83,7 @@ export default function PipelineListView({ activeStatus, tasks }: PipelineListVi
               <td className="meta">{new Date(t.created_at).toLocaleString()}</td>
             </tr>
           ))}
-          {tasks.length === 0 && <tr><td colSpan={8} className="meta" style={{textAlign:'center'}}>No tasks</td></tr>}
+          {tasks.length === 0 && <tr><td colSpan={8} className={`meta ${styles.emptyCell}`}>No tasks</td></tr>}
         </tbody>
       </table>
     </div>

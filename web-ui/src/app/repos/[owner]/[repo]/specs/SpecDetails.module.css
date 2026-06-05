@@ -1,3 +1,7 @@
+.specBody {
+  position: relative;
+}
+
 .specBody :global(mark.stmt) {
   background: transparent;
   color: inherit;

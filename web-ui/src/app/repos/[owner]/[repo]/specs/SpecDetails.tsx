@@ -293,7 +293,6 @@ export default function SpecDetails({
         className={`${readme.readme} ${styles.specBody}`}
         onMouseOver={handleMouseOver}
         onMouseLeave={handleMouseLeave}
-        style={{ position: 'relative' }}
       >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}

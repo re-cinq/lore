@@ -1,0 +1,79 @@
+/* Task detail view — co-located with TaskDetailView.tsx. */
+
+.failureText {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.runNowBtn {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.cancelBtn {
+  background: var(--danger);
+  color: var(--text-on-accent);
+  border: none;
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.feedbackCard {
+  margin-top: 16px;
+}
+
+.feedbackHeading {
+  margin: 0 0 8px 0;
+}
+
+.feedbackLede {
+  margin-bottom: 8px;
+}
+
+.feedbackTextarea {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.feedbackBtn {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  padding: 8px 20px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.event {
+  margin-bottom: 12px;
+}
+
+.eventTime {
+  margin-left: 12px;
+}
+
+.eventMeta {
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.callError {
+  font-size: var(--fs-xs);
+  margin-top: 2px;
+  max-width: 40ch;
+}

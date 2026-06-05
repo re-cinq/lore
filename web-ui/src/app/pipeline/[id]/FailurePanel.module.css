@@ -1,0 +1,51 @@
+/* Structured failure metadata panel — co-located with FailurePanel.tsx. */
+
+.card {
+  margin-top: 16px;
+  border-left: 3px solid var(--danger);
+}
+
+.heading {
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headingLabel {
+  color: var(--danger);
+}
+
+.error {
+  margin: 0 0 8px 0;
+}
+
+.hint {
+  margin: 0 0 8px 0;
+}
+
+.details {
+  margin-top: 8px;
+}
+
+.detail {
+  margin-bottom: 8px;
+}
+
+.detailStep {
+  font-size: var(--fs-sm);
+}
+
+.detailBadge {
+  margin-left: 8px;
+}
+
+.detailError {
+  margin: 4px 0 0 0;
+  font-size: var(--fs-sm);
+}
+
+.detailHint {
+  margin: 2px 0 0 0;
+  font-size: var(--fs-xs);
+}

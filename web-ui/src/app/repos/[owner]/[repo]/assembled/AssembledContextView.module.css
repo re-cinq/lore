@@ -1,0 +1,162 @@
+/* Prompt-debug view for the Assembled tab — co-located with
+   AssembledContextView.tsx. Static styling lives here; only the computed budget
+   bar width stays inline (see CoverageBar for the same pattern). */
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+}
+
+.lede {
+  margin: 6px 0 12px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.select {
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.error {
+  color: var(--danger);
+}
+
+/* Budget summary */
+
+.summary {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.summaryRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.spacer {
+  margin-left: auto;
+}
+
+.summaryMeta {
+  margin: 0 0 4px;
+}
+
+/* Shared used/total bar */
+
+.bar {
+  height: 6px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+}
+
+.barFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+/* Per-section trace card */
+
+.card {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cardTitle {
+  font-weight: 600;
+}
+
+.barWrap {
+  margin-top: 6px;
+}
+
+.docs {
+  margin-top: 8px;
+}
+
+.docsSummary {
+  cursor: pointer;
+}
+
+.docList {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.docItem {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Assembled prompt */
+
+.promptHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.promptTitle {
+  margin: 0;
+}
+
+.sourcesTitle {
+  margin-bottom: 8px;
+}
+
+.fallback {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}

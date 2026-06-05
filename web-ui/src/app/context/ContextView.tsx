@@ -1,6 +1,7 @@
 import ContextFilters from '@/app/repos/[owner]/[repo]/context/ContextFilters';
 import ContextCard from '@/app/repos/[owner]/[repo]/context/ContextCard';
 import { type ChunkMeta } from '@/lib/chunk-presenter';
+import styles from './ContextView.module.css';
 
 export interface ContextChunk {
   id: string;
@@ -32,8 +33,8 @@ export default function ContextView({ type, q, types, chunks }: ContextViewProps
   return (
     <div>
       <h1>Organization Context</h1>
-      <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
-        <p className="meta" style={{ margin: 0 }}>
+      <div className={styles.notice}>
+        <p className={`meta ${styles.noticeText}`}>
           This is the global view across all repos. For repo-specific context, visit{' '}
           <a href="/">Repositories</a> and select a repo.
         </p>

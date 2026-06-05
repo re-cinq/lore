@@ -7,6 +7,7 @@ import { badgeClassForType, labelForType } from '@/lib/content-types';
 import { buildTagTree } from './tag-tree';
 import TagBox from './TagBox';
 import type { AssembledResult, TraceSection } from './trace-types';
+import styles from './AssembledContextView.module.css';
 
 export type { AssembledResult } from './trace-types';
 
@@ -41,12 +42,13 @@ function statusLabel(section: TraceSection): string {
   return `omitted · ${section.omitReason ?? section.status}`;
 }
 
-/** A horizontal used/total bar reused for budget + per-section allocation. */
+/** A horizontal used/total bar reused for budget + per-section allocation.
+ *  The fill width is the one genuinely dynamic value, kept inline. */
 function Bar({ used, total }: { used: number; total: number }) {
   const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
   return (
-    <div style={{ height: '6px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-sm)' }}>
-      <div data-token-bar style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)', borderRadius: 'var(--radius-sm)' }} />
+    <div className={styles.bar}>
+      <div data-token-bar className={styles.barFill} style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -55,29 +57,29 @@ function Bar({ used, total }: { used: number; total: number }) {
  *  and (expandable) every document that contributed, with provenance. */
 function TraceCard({ owner, repo, section }: { owner: string; repo: string; section: TraceSection }) {
   return (
-    <div style={{ marginBottom: '10px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-surface)' }}>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-        <span style={{ fontWeight: 600 }}>{section.header}</span>
+    <div className={styles.card}>
+      <div className={styles.cardHead}>
+        <span className={styles.cardTitle}>{section.header}</span>
         <span className="badge badge-gray">{section.source}</span>
         <span className="meta">P{section.priority}</span>
         <span className={statusBadgeClass(section)}>{statusLabel(section)}</span>
-        <span className="meta" style={{ marginLeft: 'auto' }}>
+        <span className={`meta ${styles.spacer}`}>
           {section.finalTokens} / {section.allocatedBudget || section.rawTokens} tok
         </span>
       </div>
       {section.allocatedBudget > 0 && (
-        <div style={{ marginTop: '6px' }}>
+        <div className={styles.barWrap}>
           <Bar used={section.finalTokens} total={section.allocatedBudget} />
         </div>
       )}
       {section.items.length > 0 && (
-        <details style={{ marginTop: '8px' }}>
-          <summary className="meta" style={{ cursor: 'pointer' }}>
+        <details className={styles.docs}>
+          <summary className={`meta ${styles.docsSummary}`}>
             {section.items.length} contributing document{section.items.length === 1 ? '' : 's'}
           </summary>
-          <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <ul className={styles.docList}>
             {section.items.map((item, i) => (
-              <li key={i} style={{ display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+              <li key={i} className={styles.docItem}>
                 {item.content_type && <span className={badgeClassForType(item.content_type)}>{labelForType(item.content_type)}</span>}
                 {item.source_path ? (
                   <a href={`/repos/${owner}/${repo}/context/${encodeURIComponent(item.source_path)}`}>{item.source_path}</a>
@@ -121,8 +123,8 @@ export default function AssembledContextView({
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <h2 style={{ margin: 0 }}>Assembled Context</h2>
+      <div className={styles.titleRow}>
+        <h2 className={styles.title}>Assembled Context</h2>
         <HelpPopover label="Prompt debug view">
           <p>This is the exact context block a dev session receives on turn 1 — the output of <code>assemble_context</code> — plus a full trace of <em>how and why</em> it was assembled.</p>
           <ul>
@@ -132,29 +134,21 @@ export default function AssembledContextView({
           </ul>
         </HelpPopover>
       </div>
-      <p className="meta" style={{ marginTop: '6px', marginBottom: '12px' }}>
+      <p className={`meta ${styles.lede}`}>
         The turn-1 context block, assembled live for your query and template, with a trace of every assembly decision.
       </p>
 
-      <form
-        onSubmit={(e) => { e.preventDefault(); if (canSubmit) onSubmit(); }}
-        style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}
-      >
+      <form onSubmit={(e) => { e.preventDefault(); if (canSubmit) onSubmit(); }} className={styles.form}>
         <textarea
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           placeholder="Describe the task, like a dev session would…"
           rows={2}
-          style={{ width: '100%', resize: 'vertical', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+          className={styles.textarea}
         />
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className={styles.controls}>
           <label htmlFor="template" className="meta">Template</label>
-          <select
-            id="template"
-            value={template}
-            onChange={(e) => onTemplateChange(e.target.value)}
-            style={{ padding: '6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
-          >
+          <select id="template" value={template} onChange={(e) => onTemplateChange(e.target.value)} className={styles.select}>
             {templates.map((t) => (<option key={t} value={t}>{t}</option>))}
           </select>
           <button type="submit" className="btn" disabled={!canSubmit}>
@@ -164,7 +158,7 @@ export default function AssembledContextView({
       </form>
 
       {loading && <p className="meta">Assembling context…</p>}
-      {error && <p style={{ color: 'var(--danger)' }}>Context unavailable: {error}</p>}
+      {error && <p className={styles.error}>Context unavailable: {error}</p>}
 
       {!loading && !error && result && (
         result.text === null && !trace ? (
@@ -172,29 +166,29 @@ export default function AssembledContextView({
         ) : trace ? (
           <div>
             {/* Inputs + budget summary */}
-            <div style={{ marginBottom: '16px', padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-surface)' }}>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '8px' }}>
+            <div className={styles.summary}>
+              <div className={styles.summaryRow}>
                 <span className="badge badge-gray">template: {trace.template}</span>
                 <span className="badge badge-gray">budget: {trace.effectiveBudget}</span>
                 {trace.crossRepo && <span className="badge badge-blue">cross-repo</span>}
                 {trace.freshness.state !== 'fresh' && <span className="badge badge-yellow">{trace.freshness.state}</span>}
-                <span className="meta" style={{ marginLeft: 'auto' }}>{trace.timingsMs.total} ms</span>
+                <span className={`meta ${styles.spacer}`}>{trace.timingsMs.total} ms</span>
               </div>
-              <p className="meta" style={{ margin: '0 0 4px' }}>
+              <p className={`meta ${styles.summaryMeta}`}>
                 {trace.budget.used} / {trace.budget.total} tokens used · {trace.budget.leftover} left
               </p>
               <Bar used={trace.budget.used} total={trace.budget.total} />
             </div>
 
             {/* Per-section trace */}
-            <h3 style={{ marginBottom: '8px' }}>Sources</h3>
+            <h3 className={styles.sourcesTitle}>Sources</h3>
             {trace.sections.map((s) => (
               <TraceCard key={`${s.header}-${s.source}`} owner={owner} repo={repo} section={s} />
             ))}
 
             {/* Final prompt as nested tag tree */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px' }}>
-              <h3 style={{ margin: 0 }}>Assembled prompt</h3>
+            <div className={styles.promptHead}>
+              <h3 className={styles.promptTitle}>Assembled prompt</h3>
               <button type="button" className="btn btn-ghost" onClick={() => setRaw((v) => !v)}>
                 {raw ? 'Rendered' : 'Raw'}
               </button>
@@ -206,7 +200,7 @@ export default function AssembledContextView({
           </div>
         ) : (
           /* Fallback when the trace is unavailable: plain assembled text. */
-          <div style={{ marginTop: '12px', padding: '16px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+          <div className={styles.fallback}>
             <Markdown markdown={result.text ?? ''} />
           </div>
         )

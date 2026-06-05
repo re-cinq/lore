@@ -1,3 +1,5 @@
+import styles from './RepoTaskCreateView.module.css';
+
 export interface RepoTaskCreateViewProps {
   fullName: string;
   /** Server action wired to the create-task form ("actions up"). */
@@ -14,7 +16,7 @@ export default function RepoTaskCreateView({ fullName, createTaskAction }: RepoT
   return (
     <div>
       <h2>New Task for {fullName}</h2>
-      <form action={createTaskAction} className="task-form" style={{maxWidth:'600px'}}>
+      <form action={createTaskAction} className={`task-form ${styles.form}`}>
         <input type="hidden" name="target_repo" value={fullName} />
 
         <label>Task Type</label>
@@ -29,10 +31,10 @@ export default function RepoTaskCreateView({ fullName, createTaskAction }: RepoT
         <label>Description</label>
         <textarea name="description" rows={5} required placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions." />
 
-        <label style={{display:'flex', alignItems:'center', gap:'8px', cursor:'pointer'}}>
+        <label className={styles.checkboxLabel}>
           <input type="checkbox" name="priority" value="immediate" />
           <span>Execute immediately</span>
-          <span className="meta" style={{fontSize:'var(--fs-xs)'}}>— runs on GKE now instead of waiting for local pickup</span>
+          <span className={`meta ${styles.hint}`}>— runs on GKE now instead of waiting for local pickup</span>
         </label>
 
         <button type="submit">Create Task</button>

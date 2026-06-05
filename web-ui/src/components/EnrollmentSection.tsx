@@ -4,6 +4,7 @@ import CopyButton from './CopyButton';
 import ReonboardButton from './ReonboardButton';
 import Icon from './Icon';
 import type { IconName } from './icon-map';
+import styles from './EnrollmentSection.module.css';
 
 const STATUS: Record<CheckStatus, { icon: IconName; color: string }> = {
   pass: { icon: 'check', color: 'var(--success)' },
@@ -16,14 +17,14 @@ function CheckRow({ check, reonboardAction }: { check: Check; reonboardAction?: 
   const s = STATUS[check.status];
   return (
     <div className="enroll-row">
-      <span style={{ color: s.color, display: 'flex', flexShrink: 0 }}>
+      <span className={styles.statusIcon} style={{ color: s.color }}>
         <Icon name={s.icon} size={14} />
       </span>
-      <span style={{ flexShrink: 0 }}>{check.label}</span>
+      <span className={styles.label}>{check.label}</span>
       <span className="enroll-dots" />
-      {check.detail && <span className="meta" style={{ fontSize: 'var(--fs-xs)' }}>{check.detail}</span>}
+      {check.detail && <span className={`meta ${styles.detail}`}>{check.detail}</span>}
       {check.link && (
-        <a href={check.link.href} target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--fs-xs)' }}>
+        <a href={check.link.href} target="_blank" rel="noopener noreferrer" className={styles.link}>
           {check.link.text}
         </a>
       )}
@@ -36,8 +37,8 @@ function CheckRow({ check, reonboardAction }: { check: Check; reonboardAction?: 
 
 function CommandRow({ command }: { command: string }) {
   return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-      <pre style={{ flex: 1, margin: 0 }}>{command}</pre>
+    <div className={styles.commandRow}>
+      <pre className={styles.command}>{command}</pre>
       <CopyButton text={command} />
     </div>
   );
@@ -55,15 +56,15 @@ function Step({
   alt?: { label: string; command: string };
 }) {
   return (
-    <li style={{ marginBottom: '14px' }}>
-      <div style={{ marginBottom: '2px' }}>{label}</div>
+    <li className={styles.step}>
+      <div className={styles.stepLabel}>{label}</div>
       {note && (
-        <div className="meta" style={{ fontSize: 'var(--fs-xs)', marginBottom: '6px' }}>{note}</div>
+        <div className={`meta ${styles.stepNote}`}>{note}</div>
       )}
       <CommandRow command={command} />
       {alt && (
         <>
-          <div className="meta" style={{ fontSize: 'var(--fs-xs)', margin: '6px 0 4px' }}>{alt.label}</div>
+          <div className={`meta ${styles.altLabel}`}>{alt.label}</div>
           <CommandRow command={alt.command} />
         </>
       )}
@@ -84,9 +85,9 @@ export default function EnrollmentSection({
   const { passed, total } = passSummary(checks);
 
   return (
-    <div className="spec-card" style={{ marginBottom: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-        <h3 style={{ margin: 0 }}>Enrollment</h3>
+    <div className={`spec-card ${styles.section}`}>
+      <div className={styles.header}>
+        <h3 className={styles.heading}>Enrollment</h3>
         <HelpPopover label="What enrollment checks mean">
           <p>These checks show whether this repo is wired into Lore and whether you&apos;ve set it up locally.</p>
           <ul>
@@ -95,20 +96,20 @@ export default function EnrollmentSection({
             <li>The <strong>local setup</strong> steps run on your machine and can&apos;t be auto-verified.</li>
           </ul>
         </HelpPopover>
-        <span className="meta" style={{ marginLeft: 'auto', fontSize: 'var(--fs-xs)' }}>{passed}/{total} checks passing</span>
+        <span className={`meta ${styles.summary}`}>{passed}/{total} checks passing</span>
       </div>
 
-      <div className="meta" style={{ fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+      <div className={`meta ${styles.groupLabel}`}>
         Repo integration
       </div>
-      <div style={{ marginBottom: '20px' }}>
+      <div className={styles.checks}>
         {checks.map(c => <CheckRow key={c.id} check={c} reonboardAction={reonboardAction} />)}
       </div>
 
-      <div className="meta" style={{ fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+      <div className={`meta ${styles.groupLabel}`}>
         Your local setup
       </div>
-      <ol style={{ paddingLeft: '1.4em', margin: 0 }}>
+      <ol className={styles.steps}>
         <Step
           label="Install Lore (once per machine) — configures the MCP server, skills, hooks, statusline, and agent ID."
           note="Needs git, Node.js ≥18, and the Claude Code CLI. Clones into ~/.re-cinq/lore, builds the MCP server, and registers it in your Claude config. Idempotent — safe to re-run."
@@ -118,7 +119,7 @@ export default function EnrollmentSection({
         <Step label="Open this repo and start Claude Code — org context loads automatically." command="claude" />
         <Step label="Verify context loads." command={'claude "how do we handle auth in this repo?"'} />
       </ol>
-      <p className="meta" style={{ fontSize: 'var(--fs-xs)', marginTop: '8px', marginBottom: 0 }}>
+      <p className={`meta ${styles.footnote}`}>
         These run on your machine and aren&apos;t auto-verified — completing step 2 flips <strong>Used locally via MCP</strong> green once a session summary is recorded.
       </p>
     </div>

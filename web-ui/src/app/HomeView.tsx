@@ -1,6 +1,7 @@
 import { type IngestWorkflowStatus } from '@/lib/ingest-workflow';
 import FixIngestButton from '@/components/FixIngestButton';
 import Link from 'next/link';
+import styles from './HomeView.module.css';
 
 export interface Repo {
   full_name: string;
@@ -55,9 +56,9 @@ function ingestBadge(status: IngestWorkflowStatus | undefined): { label: string;
 export default function HomeView({ repos, ingestStatus, misaligned, fixIngestWorkflows }: HomeViewProps) {
   return (
     <div>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+      <div className={styles.header}>
         <h1>Repositories</h1>
-        <div style={{display:'flex', gap:'0.5rem', alignItems:'center'}}>
+        <div className={styles.headerActions}>
           <FixIngestButton repos={misaligned} action={fixIngestWorkflows} />
           <Link href="/onboard"><button>+ Add Repo</button></Link>
         </div>
@@ -65,17 +66,11 @@ export default function HomeView({ repos, ingestStatus, misaligned, fixIngestWor
       <div className="repo-grid">
         {repos.map(r => (
           <Link key={r.full_name} href={`/repos/${r.owner}/${r.name}`} className="repo-card">
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <h3 className={styles.cardTitle}>
               <span
                 title={freshnessIndicator(r.last_ingested_at).label}
-                style={{
-                  display: 'inline-block',
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  backgroundColor: freshnessIndicator(r.last_ingested_at).color,
-                  flexShrink: 0,
-                }}
+                className={styles.freshnessDot}
+                style={{ backgroundColor: freshnessIndicator(r.last_ingested_at).color }}
               />
               {r.full_name}
             </h3>
@@ -86,7 +81,7 @@ export default function HomeView({ repos, ingestStatus, misaligned, fixIngestWor
               {(() => {
                 const badge = ingestBadge(ingestStatus.get(r.full_name));
                 return badge ? (
-                  <span className="badge" title={`${badge.label} — fixable from the dashboard`} style={{ backgroundColor: badge.color, color: '#fff' }}>
+                  <span className={`badge ${styles.ingestBadge}`} title={`${badge.label} — fixable from the dashboard`} style={{ backgroundColor: badge.color }}>
                     ⚠ {badge.label}
                   </span>
                 ) : null;

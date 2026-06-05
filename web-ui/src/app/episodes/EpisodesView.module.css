@@ -1,0 +1,19 @@
+.intro {
+  margin-bottom: 12px;
+}
+
+.count {
+  margin-bottom: 12px;
+}
+
+.contentPre {
+  margin: 0;
+  white-space: pre-wrap;
+  max-width: 400px;
+}
+
+.emptyCell {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+}
