@@ -15,6 +15,7 @@ export interface TestDescriptor {
   file: string;
   startLine?: number;
   endLine?: number;
+  suite?: string[];
   spec?: string;
   passed?: boolean;
 }
@@ -39,6 +40,8 @@ export function parseTestDescriptors(raw: unknown): TestDescriptor[] {
     };
     if (typeof entry.startLine === "number") descriptor.startLine = entry.startLine;
     if (typeof entry.endLine === "number") descriptor.endLine = entry.endLine;
+    if (Array.isArray(entry.suite) && entry.suite.every((s) => typeof s === "string"))
+      descriptor.suite = entry.suite as string[];
     if (typeof entry.spec === "string") descriptor.spec = entry.spec;
     if (typeof entry.passed === "boolean") descriptor.passed = entry.passed;
     return descriptor;

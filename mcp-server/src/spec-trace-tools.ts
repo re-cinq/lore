@@ -8,6 +8,8 @@
  * `loadTestCommandManifest` reads `<repoRoot>/.lore/test-commands.yml`.
  * `listTestsTool` / `runTestTool` are the orchestrators the tool
  * registrations call: gate → manifest precondition → run → JSON.
+ * `buildTestReport` is the full-suite orchestrator: it gates, lists,
+ * runs every descriptor, and assembles the `/test-report` body.
  * See `specs/project-test-interface/contracts/test-commands.md`.
  */
 
@@ -79,6 +81,31 @@ export async function runTestTool(
 
   const result = await runTestsRun(manifest.run, selector, manifest.cwd || cwd);
   return JSON.stringify(result);
+}
+
+interface TestReport {
+  commit: string;
+  branch: string;
+  tests: TestDescriptor[];
+  results: (RunResult & { id: string })[];
+}
+
+export async function buildTestReport(
+  env: NodeJS.ProcessEnv,
+  manifest: TestCommandManifest,
+  cwd: string,
+  meta: { commit: string; branch: string },
+): Promise<TestReport> {
+  const refusal = executionRefusal(env);
+  if (refusal) throw new Error(refusal);
+  const tests = await runTestsList(manifest.list, cwd);
+  const results = await Promise.all(
+    tests.map(async (descriptor) => ({
+      id: descriptor.id,
+      ...(await runTestsRun(manifest.run, descriptor.id, cwd)),
+    })),
+  );
+  return { commit: meta.commit, branch: meta.branch, tests, results };
 }
 
 export function loadTestCommandManifest(repoRoot: string): TestCommandManifest | null {
