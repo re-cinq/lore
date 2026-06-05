@@ -66,6 +66,7 @@ export {
   type TestDescriptor,
   type CoveredChunk,
   type RunResult,
+  type TaggedRunResult,
 } from './test-report.js';
 export {
   LORE_INGEST_WORKFLOW_PATH,

@@ -10,6 +10,7 @@ import {
   runTestTool,
   loadTestCommandManifest,
   buildTestReport,
+  stripPathPrefix,
 } from "./spec-trace-tools.js";
 import type { TestCommandManifest } from "@re-cinq/lore-shared";
 
@@ -44,6 +45,12 @@ describe("runTestsList", () => {
     await expect(
       runTestsList(`sleep 1 && printf '[]'`, process.cwd(), 50),
     ).rejects.toThrow();
+  });
+
+  it("rejects naming the list command when stdout is not JSON", async () => {
+    await expect(
+      runTestsList(`printf 'not json'`, process.cwd()),
+    ).rejects.toThrow(/tests\.list|list command/i);
   });
 });
 
@@ -152,6 +159,30 @@ describe("buildTestReport", () => {
     });
   });
 
+  it("strips path_prefix_strip from descriptor and covered-chunk file paths", async () => {
+    const manifest: TestCommandManifest = {
+      list: `printf '[{"id":"t1","name":"a","file":"pkg/src/a.test.ts"}]'`,
+      run: `printf '{"passed":true,"covered":[{"file":"pkg/src/a.ts","startLine":1,"endLine":1}]}'`,
+      coverage_format: "json",
+      cwd: ".",
+      path_prefix_strip: "pkg/",
+    };
+
+    const report = await buildTestReport({}, manifest, process.cwd(), {
+      commit: "c1",
+      branch: "main",
+    });
+
+    expect(report).toEqual({
+      commit: "c1",
+      branch: "main",
+      tests: [{ id: "t1", name: "a", file: "src/a.test.ts" }],
+      results: [
+        { id: "t1", passed: true, covered: [{ file: "src/a.ts", startLine: 1, endLine: 1 }] },
+      ],
+    });
+  });
+
   it("skips a descriptor whose run command exits non-zero and resolves with empty results", async () => {
     const manifest: TestCommandManifest = {
       list: `printf '[{"id":"t1","name":"a","file":"a.ts"}]'`,
@@ -245,5 +276,19 @@ describe("runTestsRun", () => {
         50,
       ),
     ).rejects.toThrow();
+  });
+
+  it("rejects naming the run command when output is not JSON", async () => {
+    await expect(
+      runTestsRun("printf 'not json'", "some-selector", process.cwd()),
+    ).rejects.toThrow(/tests\.run|run command/i);
+  });
+});
+
+describe("stripPathPrefix", () => {
+  it("removes a matching leading prefix", () => {
+    expect(stripPathPrefix("services/api/src/a.ts", "services/api/")).toEqual(
+      "src/a.ts",
+    );
   });
 });

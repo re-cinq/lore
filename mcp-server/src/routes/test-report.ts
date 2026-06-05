@@ -10,12 +10,8 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
-import type { TestDescriptor, RunResult } from "@re-cinq/lore-shared";
+import type { TestDescriptor, TaggedRunResult } from "@re-cinq/lore-shared";
 import { json, readJsonBody, requireCommit } from "./http.js";
-
-// A `tests.run` result tagged with the descriptor id it belongs to, so the
-// report can join results back to their tests for the `violated` count.
-type TaggedRunResult = RunResult & { id: string };
 
 interface TestReportBody {
   commit?: string;

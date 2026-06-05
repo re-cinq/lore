@@ -31,6 +31,9 @@ export interface RunResult {
   covered: CoveredChunk[];
 }
 
+// A `tests.run` result tagged with the descriptor `id` it belongs to (the join key for `test-report`).
+export type TaggedRunResult = RunResult & { id: string };
+
 export function parseTestDescriptors(raw: unknown): TestDescriptor[] {
   return asArray(raw, "test descriptors").map((entry) => {
     const descriptor: TestDescriptor = {

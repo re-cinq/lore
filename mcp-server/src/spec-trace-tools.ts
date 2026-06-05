@@ -26,6 +26,8 @@ import {
   resolveTestCommandManifest,
   type TestDescriptor,
   type RunResult,
+  type CoveredChunk,
+  type TaggedRunResult,
   type TestCommandManifest,
 } from "@re-cinq/lore-shared";
 
@@ -39,10 +41,45 @@ function resolveCwd(manifest: TestCommandManifest, cwd: string): string {
   return join(cwd, manifest.cwd || ".");
 }
 
+export function stripPathPrefix(file: string, prefix: string): string {
+  if (prefix && file.startsWith(prefix)) {
+    return file.slice(prefix.length);
+  }
+  return file;
+}
+
+export function stripDescriptorPaths(
+  descriptors: TestDescriptor[],
+  prefix: string,
+): TestDescriptor[] {
+  return descriptors.map((descriptor) => ({
+    ...descriptor,
+    file: stripPathPrefix(descriptor.file, prefix),
+  }));
+}
+
+export function stripCoveredPaths(result: RunResult, prefix: string): RunResult {
+  return {
+    ...result,
+    covered: result.covered.map((chunk: CoveredChunk) => ({
+      ...chunk,
+      file: stripPathPrefix(chunk.file, prefix),
+    })),
+  };
+}
+
 export function executionRefusal(env: NodeJS.ProcessEnv): string | null {
   return env.LORE_DB_HOST
     ? "Test commands run only in a trusted sandbox — run in CI or locally."
     : null;
+}
+
+export function parseCommandJson(stdout: string, what: string): unknown {
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    throw new Error(`${what} command did not emit valid JSON: ${stdout.slice(0, 200)}`);
+  }
 }
 
 export async function runTestsList(
@@ -53,7 +90,7 @@ export async function runTestsList(
   const { stdout } = await execShell(listCommand, { cwd, timeout: timeoutMs });
 
   /// TODO: return an xml format list and error that is interpreded better by the ai models
-  return parseTestDescriptors(JSON.parse(stdout));
+  return parseTestDescriptors(parseCommandJson(stdout, "tests.list"));
 }
 
 export async function runTestsRun(
@@ -63,7 +100,7 @@ export async function runTestsRun(
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<RunResult> {
   const { stdout } = await execShell(substituteSelector(runCommand, selector), { cwd, timeout: timeoutMs });
-  return parseRunResult(JSON.parse(stdout));
+  return parseRunResult(parseCommandJson(stdout, "tests.run"));
 }
 
 export async function listTestsTool(
@@ -77,7 +114,7 @@ export async function listTestsTool(
   if (!manifest) return NO_MANIFEST;
 
   const descriptors = await runTestsList(manifest.list, resolveCwd(manifest, cwd));
-  return JSON.stringify(descriptors);
+  return JSON.stringify(stripDescriptorPaths(descriptors, manifest.path_prefix_strip));
 }
 
 export async function runTestTool(
@@ -92,14 +129,14 @@ export async function runTestTool(
   if (!manifest) return NO_MANIFEST;
 
   const result = await runTestsRun(manifest.run, selector, resolveCwd(manifest, cwd));
-  return JSON.stringify(result);
+  return JSON.stringify(stripCoveredPaths(result, manifest.path_prefix_strip));
 }
 
 interface TestReport {
   commit: string;
   branch: string;
   tests: TestDescriptor[];
-  results: (RunResult & { id: string })[];
+  results: TaggedRunResult[];
 }
 
 export async function buildTestReport(
@@ -111,11 +148,15 @@ export async function buildTestReport(
   const refusal = executionRefusal(env);
   if (refusal) throw new Error(refusal);
   const runCwd = resolveCwd(manifest, cwd);
-  const tests = await runTestsList(manifest.list, runCwd);
+  const prefix = manifest.path_prefix_strip;
+  const tests = stripDescriptorPaths(await runTestsList(manifest.list, runCwd), prefix);
 
   const runOrSkip = (descriptor: TestDescriptor) =>
     runTestsRun(manifest.run, descriptor.id, runCwd)
-      .then((run) => ({ id: descriptor.id, ...run }))
+      .then((run) => ({
+        id: descriptor.id,
+        ...stripCoveredPaths(run, prefix),
+      }))
       .catch((err) => {
         const reason = err instanceof Error ? err.message : String(err);
         console.warn(`[trace] skipping ${descriptor.id}: ${reason}`);
