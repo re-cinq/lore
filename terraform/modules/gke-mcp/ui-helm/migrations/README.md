@@ -90,3 +90,42 @@ creates objects there (e.g. `0002_spec_test_links.sql`) needs two things:
 - **Schema discovery via `pg_catalog`, not `information_schema`.** The latter is
   privilege-filtered, so as `lore` it hides tables with no grant and a discovery
   loop silently creates nothing. Iterate `pg_catalog.pg_class`/`pg_namespace`.
+
+### 0013 / 0014 — hippo-memory + audit_log backfill, and the prod drift they fix
+
+A prod audit (2026-06-05) found the deployed code was ahead of the schema:
+`memory.facts.confidence` (ADR-016 hippo-memory) was missing, so every
+`searchMemories()` threw `column f.confidence does not exist` — silently dropping
+**memory + episodes from all assembled context, org-wide**. `pipeline.audit_log`
+(dark factory) was also absent. Both were added to the baseline setup scripts but
+never backfilled onto clusters bootstrapped earlier.
+
+- **`0014_dark_factory_audit_log.sql` self-heals on deploy.** `pipeline` is owned
+  by `lore` (the runner), so the `CREATE TABLE IF NOT EXISTS pipeline.audit_log`
+  applies cleanly through this channel — no operator step.
+
+- **`0013_memory_hippo_columns.sql` cannot self-heal where `memory` is
+  superuser-owned.** Like `memory.memories.repo` in 0012, the ALTERs need table
+  ownership the `lore` runner lacks, so the migration catches
+  `insufficient_privilege` and skips with a NOTICE. **Prod convergence is the same
+  local-socket, peer-auth path used elsewhere here** (no network superuser): re-run
+  the idempotent baseline — which already declares these columns — as `postgres`
+  via the primary pod's socket:
+
+  ```
+  kubectl exec -n lore-db lore-db-1 -c postgres -- \
+    psql -d lore -f /path/to/scripts/infra/setup-memory-schema.sql   # or pipe the script
+  ```
+
+  (Or fold the hippo ALTERs into the `ownership-reconciler-job` so it converges
+  automatically on the next `terraform apply`, mirroring the ownership reconcile.)
+
+- **`data.chunks` "permission denied" is a missing runtime grant**, not a
+  migration: `lore` has `CREATE/USAGE` on the `data` team schema (above) but no
+  `SELECT` on its tables. Grant it once via the same local socket:
+
+  ```
+  kubectl exec -n lore-db lore-db-1 -c postgres -- \
+    psql -d lore -c "GRANT SELECT ON ALL TABLES IN SCHEMA data TO lore;
+                     ALTER DEFAULT PRIVILEGES IN SCHEMA data GRANT SELECT ON TABLES TO lore;"
+  ```
