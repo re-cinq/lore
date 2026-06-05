@@ -58,7 +58,7 @@ export async function handleCoverageRoute(
 function normalizeByFormat(body: CoverageBody): CoverageGroup[] {
   if (body.coverage) return body.coverage;
   if (body.format === "lcov" && typeof body.payload === "string") {
-    return groupByFile(parseLcov(body.payload));
+    return parseLcovGroups(body.payload);
   }
   if (body.format === "cobertura" && typeof body.payload === "string") {
     return groupByFile(parseCobertura(body.payload));
@@ -92,21 +92,45 @@ function countCoverage(groups: CoverageGroup[]): CoverageCounts {
   };
 }
 
-export function parseLcov(lcov: string): CoveredChunk[] {
-  const chunks: CoveredChunk[] = [];
+/**
+ * One parsed LCOV record: the source file, its test name (`TN:`, falling
+ * back to the file when absent), and the covered lines collapsed into
+ * ranges. The sole authority on how to read an LCOV record — both
+ * `parseLcov` and `parseLcovGroups` build on it so the split / SF / TN /
+ * DA-filter knowledge lives in exactly one place.
+ */
+function lcovRecords(lcov: string): CoverageGroup[] {
+  const records: CoverageGroup[] = [];
 
   for (const record of lcov.split(/^end_of_record$/m)) {
     const file = record.match(/^SF:(.+)$/m)?.[1];
     if (!file) continue;
+    const test = record.match(/^TN:(.+)$/m)?.[1] ?? file;
 
     const coveredLines = [...record.matchAll(/^DA:(\d+),(\d+)$/gm)]
       .filter((match) => Number(match[2]) > 0)
       .map((match) => Number(match[1]));
 
-    chunks.push(...collapseIntoRanges(file, coveredLines));
+    records.push({ test, covered: collapseIntoRanges(file, coveredLines) });
   }
 
-  return chunks;
+  return records;
+}
+
+export function parseLcov(lcov: string): CoveredChunk[] {
+  return lcovRecords(lcov).flatMap((record) => record.covered);
+}
+
+export function parseLcovGroups(lcov: string): CoverageGroup[] {
+  const byTest = new Map<string, CoveredChunk[]>();
+
+  for (const { test, covered } of lcovRecords(lcov)) {
+    const merged = byTest.get(test) ?? [];
+    merged.push(...covered);
+    byTest.set(test, merged);
+  }
+
+  return [...byTest].map(([test, covered]) => ({ test, covered }));
 }
 
 export function parseCobertura(xml: string): CoveredChunk[] {
