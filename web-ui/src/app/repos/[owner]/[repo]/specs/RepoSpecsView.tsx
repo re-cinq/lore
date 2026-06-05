@@ -1,5 +1,6 @@
 import HelpPopover from '@/components/HelpPopover';
 import SpecCard, { type SpecCardData } from './SpecCard';
+import TestCommandsSetup from './TestCommandsSetup';
 import styles from './RepoSpecsView.module.css';
 
 export interface RepoSpecsViewProps {
@@ -62,6 +63,10 @@ export default function RepoSpecsView({ owner, repo, specs, addSpecAction }: Rep
 
         <button type="submit">Add Spec</button>
       </form>
+
+      <section className={styles.setup}>
+        <TestCommandsSetup />
+      </section>
 
       {specs.map((spec) => (
         <SpecCard key={spec.spec_path} owner={owner} repo={repo} spec={spec} />

@@ -18,6 +18,15 @@
   margin-bottom: 2rem;
 }
 
+/* Second page section. A top divider + breathing room separate it from the
+   Add-Spec form above and the spec cards below, so the "Set up test commands"
+   <h2> reads as its own section, not the tail of the form. */
+.setup {
+  margin: 2rem 0;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+
 .pathInput {
   font-family: var(--font-mono);
 }

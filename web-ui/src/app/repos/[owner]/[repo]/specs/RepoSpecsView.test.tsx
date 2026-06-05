@@ -34,6 +34,11 @@ describe('RepoSpecsView', () => {
     expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument();
   });
 
+  it('surfaces the Set up test commands section', () => {
+    render(<RepoSpecsView owner="re-cinq" repo="lore" specs={[]} addSpecAction={noop} />);
+    expect(screen.getByRole('heading', { name: /set up test commands/i })).toBeInTheDocument();
+  });
+
   it('wires the Add-Spec form to the injected action with hidden owner/repo', () => {
     const { container } = render(
       <RepoSpecsView owner="re-cinq" repo="lore" specs={[]} addSpecAction={noop} />,

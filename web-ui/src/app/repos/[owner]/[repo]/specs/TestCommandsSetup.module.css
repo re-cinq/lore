@@ -1,0 +1,24 @@
+/* The prompt and its copy button form one bounded code block. The button
+   anchors to the block's top-right corner (the established code-block-with-copy
+   arrangement) instead of floating full-width above the prompt. */
+.block {
+  position: relative;
+}
+
+.heading {
+  margin: 0;
+}
+
+.block :global(.btn-secondary) {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+
+/* Prose prompt, not code — wrap like .content-viewer pre rather than
+   inheriting the global `pre` rule's horizontal scroll. Background, border,
+   padding and mono font all come from the global `pre` style. */
+.prompt {
+  white-space: pre-wrap;
+}
