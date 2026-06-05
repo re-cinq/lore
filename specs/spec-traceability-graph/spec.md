@@ -49,7 +49,9 @@ Statement —IMPLEMENTED_BY→ CodeChunk            (direct, or transitively via
 Statement —IN_SECTION→ Section —IN_SPEC→ Spec
 AcceptanceCriterion —IN_SPEC→ Spec   (parallel to Section; traced like a Statement)
 Statement | AcceptanceCriterion —DECIDED_BY→ ADR    (the "why")
-Repo —IN_REPO→ {Spec, ADR, CodeChunk, TestChunk, Coverage}   (root of everything)
+TestChunk —IN_SUITE→ TestSuite —PARENT_SUITE→ TestSuite …   (nested describe blocks)
+TestSuite —VALIDATES_SPEC→ Spec                     (a whole suite declared against a spec)
+Repo —IN_REPO→ {Spec, ADR, CodeChunk, TestChunk, TestSuite, Coverage}   (root of everything)
 ```
 
 Three properties make it reliable and cheap:
@@ -203,13 +205,14 @@ Full DQL schema in [`data-model.md`](./data-model.md). Node summary:
 | `Statement` | `repo\|spec\|ordinal` | `text`, `text_hash`, `kind`, `testability`, `category`, `drifted`, `drift_reason`, `embedding` |
 | `AcceptanceCriterion` | `repo\|spec\|ac\|ordinal` | `ordinal`, `label`, `text`, `text_hash`, `drifted`, `drift_reason`, `embedding` (child of `Spec`, not `Section`; traced like a `Statement`) |
 | `CodeChunk` | Postgres chunk UUID | `file_path`, `symbol_name`, `symbol_type`, `start/end_line`, `content_hash`, `embedding` |
-| `TestChunk` | Postgres chunk UUID | `file_path`, `test_name`, `symbol_name`, `link_label`, `start/end_line`, `content_hash`, `embedding` |
+| `TestChunk` | Postgres chunk UUID | `file_path`, `test_name`, `symbol_name`, `link_label`, `start/end_line`, `content_hash`, `embedding`; `suite` → enclosing `TestSuite` |
+| `TestSuite` | `repo\|file_path\|suite_chain` | `name`, `file_path`; `parent` → enclosing suite (nests); `spec` → a Spec it's declared against |
 | `Coverage` | `repo\|test_file\|test_name` | `tool`, `commit`, `generated_at`, `line_count` |
 | `ADR` | `repo\|adr_number` | `number`, `title`, `status`, `content_hash`, `embedding` |
 
 Edges: `IN_REPO`, `IN_SPEC`, `IN_SECTION`, `VALIDATED_BY`, `IMPLEMENTED_BY`
-(with an `evidence` tier), `DECIDED_BY`, `SUPERSEDES`, `HAS_COVERAGE`,
-`COVERS`.
+(with an `evidence` tier), `DECIDED_BY`, `SUPERSEDES`, `IN_SUITE`,
+`PARENT_SUITE`, `VALIDATES_SPEC`, `HAS_COVERAGE`, `COVERS`.
 
 The graph is **reversible**: `recomputeSpecFile()` walks it back to a
 `spec.md` that hashes to the projected `Spec.content_hash` (round-trip

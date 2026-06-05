@@ -26,7 +26,8 @@ projection is idempotent. `CodeChunk`/`TestChunk` mirror Postgres
 
 ```
 type Repo       { Repo.xid Repo.name
-                  Repo.specs Repo.adrs Repo.code_chunks Repo.test_chunks Repo.coverage }
+                  Repo.specs Repo.adrs Repo.code_chunks
+                  Repo.test_chunks Repo.test_suites Repo.coverage }
 type Spec       { Spec.xid Spec.repo Spec.file_path Spec.content_hash
                   Spec.sections Spec.acceptance_criteria }
 type Section    { Section.xid Section.spec Section.heading Section.level
@@ -54,7 +55,9 @@ type TestChunk  { TestChunk.xid TestChunk.repo TestChunk.file_path
                   TestChunk.test_name TestChunk.symbol_name TestChunk.link_label
                   TestChunk.start_line TestChunk.end_line
                   TestChunk.content_hash TestChunk.chunk_id TestChunk.embedding
-                  TestChunk.coverage }
+                  TestChunk.coverage TestChunk.suite }
+type TestSuite  { TestSuite.xid TestSuite.repo TestSuite.name TestSuite.file_path
+                  TestSuite.parent TestSuite.spec }
 type Coverage   { Coverage.xid Coverage.test Coverage.repo Coverage.tool
                   Coverage.commit Coverage.generated_at Coverage.line_count
                   Coverage.covers }
@@ -66,7 +69,7 @@ type Coverage   { Coverage.xid Coverage.test Coverage.repo Coverage.tool
 |---|---|---|
 | `Repo.specs` / `Spec.repo` | Repo ↔ Spec | `IN_REPO` (root → spec) |
 | `Repo.adrs` | Repo → ADR | `IN_REPO` (root → ADR) |
-| `Repo.code_chunks` / `Repo.test_chunks` / `Repo.coverage` | Repo → CodeChunk \| TestChunk \| Coverage | `IN_REPO` (root → chunk/coverage) |
+| `Repo.code_chunks` / `Repo.test_chunks` / `Repo.test_suites` / `Repo.coverage` | Repo → CodeChunk \| TestChunk \| TestSuite \| Coverage | `IN_REPO` (root → chunk/suite/coverage) |
 | `Spec.sections` / `Section.spec` | Spec ↔ Section | `IN_SPEC` |
 | `Spec.acceptance_criteria` / `AcceptanceCriterion.spec` | Spec ↔ AcceptanceCriterion | `IN_SPEC` (the testable contract, hung directly off the spec — not nested in a Section) |
 | `Section.statements` / `Statement.section` | Section ↔ Statement | `IN_SECTION` |
@@ -75,6 +78,9 @@ type Coverage   { Coverage.xid Coverage.test Coverage.repo Coverage.tool
 | `Statement.decided_by` / `AcceptanceCriterion.decided_by` | Statement \| AcceptanceCriterion → ADR | `DECIDED_BY` (the decision the clause rests on — answers "why is this here") |
 | `ADR.supersedes` | ADR → ADR | `SUPERSEDES` (MADR lifecycle; reverse = superseded_by) |
 | `TestChunk.coverage` | TestChunk → Coverage | `HAS_COVERAGE` |
+| `TestChunk.suite` | TestChunk → TestSuite | `IN_SUITE` (test's innermost suite; reverse = the suite's tests) |
+| `TestSuite.parent` | TestSuite → TestSuite | `PARENT_SUITE` (suite nesting; reverse = child suites; root/file-level suites have none) |
+| `TestSuite.spec` | TestSuite → Spec | `VALIDATES_SPEC` (a whole suite declared against a spec — the suite-level analog of `VALIDATED_BY`; reverse = the spec's suites) |
 | `Coverage.covers` | Coverage → CodeChunk | `COVERS` (execution proof, by line overlap) |
 
 ## Predicate & index definitions
@@ -89,6 +95,7 @@ Coverage.xid: string @index(hash) @upsert .
 AcceptanceCriterion.xid: string @index(hash) @upsert .
 Repo.xid: string @index(hash) @upsert .
 ADR.xid:  string @index(hash) @upsert .
+TestSuite.xid: string @index(hash) @upsert .
 
 # Repo (root — every other node is reachable from here)
 Repo.name:            string @index(hash) .          # org/name
@@ -96,6 +103,7 @@ Repo.specs:           [uid] @reverse @count .
 Repo.adrs:            [uid] @reverse @count .
 Repo.code_chunks:     [uid] @reverse @count .
 Repo.test_chunks:     [uid] @reverse @count .
+Repo.test_suites:     [uid] @reverse @count .
 Repo.coverage:        [uid] @reverse @count .
 
 # Spec / Section
@@ -165,6 +173,14 @@ TestChunk.content_hash: string @index(hash) .
 TestChunk.chunk_id:     string @index(hash) .
 TestChunk.embedding:    float32vector @index(hnsw(metric:"cosine")) .
 TestChunk.coverage:     uid @reverse .
+TestChunk.suite:        uid @reverse .                # innermost enclosing suite
+
+# TestSuite (describe block / class / file-level grouping; nests via parent)
+TestSuite.repo:         string @index(hash) .
+TestSuite.name:         string @index(term) .         # the describe()/class title; file basename for the root
+TestSuite.file_path:    string @index(hash) .
+TestSuite.parent:       uid @reverse .                # enclosing suite; reverse = child suites
+TestSuite.spec:         uid @reverse .                # optional: a Spec this suite is declared against
 
 # Coverage
 Coverage.test:          uid @reverse .
@@ -197,6 +213,7 @@ ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 | `AcceptanceCriterion` | `repo\|file_path\|ac\|ordinal` |
 | `ADR` | `repo\|adr_number` |
 | `CodeChunk` / `TestChunk` | Postgres chunk UUID (fallback `repo\|file_path\|symbol_name`) |
+| `TestSuite` | `repo\|file_path\|suite_chain` (`>`-joined describe names, outermost→innermost) |
 | `Coverage` | `repo\|test_file\|test_name` |
 
 ## Evidence tiers on `IMPLEMENTED_BY` / `VALIDATED_BY`
@@ -258,6 +275,16 @@ contract clause with no test behind it.
    node (upserted by `repo|adr_number`). `projectAdrFile()` is the sibling
    unit that projects the ADR itself (number, title, status, `supersedes`)
    and attaches it via `Repo.adrs`.
+
+`TestSuite` nodes are **not** built here — they're seeded by the
+test-ingestion path ([`project-test-interface`](../project-test-interface/spec.md)).
+When a test descriptor carries its `suite` chain, that unit upserts one
+`TestSuite` per chain element by `xid = repo|file_path|suite_chain`, sets
+`TestSuite.parent` to the enclosing element (file-level root has none),
+links the `TestChunk` to the innermost via `TestChunk.suite`, and — when a
+suite declares a spec anchor — sets `TestSuite.spec` (`VALIDATES_SPEC`).
+Upserts are idempotent, so the same suite shared by many tests is created
+once.
 
 ### Recompute (graph → markdown, the reverse unit)
 

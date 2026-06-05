@@ -232,6 +232,7 @@ Wire schemas are defined in
     "name": "human title",     // → TestChunk.test_name
     "file": "repo/rel/path",
     "startLine": 88, "endLine": 121,
+    "suite": ["Outer", "Inner"],   // optional; enclosing describe/class chain, outermost→innermost → TestSuite nesting
     "spec": "specs/x/spec.md#14",  // optional; one anchor (statement|AC)
     "passed": true } ]             // optional snapshot if list also ran
 
@@ -249,7 +250,7 @@ sandbox posts; idempotent on `commit`.
 // request
 {
   "commit": "abc123…", "branch": "main",
-  "tests":   [ { "id": "file::name", "name": "…", "file": "…", "startLine": 88, "endLine": 121, "spec": "specs/x/spec.md#14" } ],
+  "tests":   [ { "id": "file::name", "name": "…", "file": "…", "startLine": 88, "endLine": 121, "suite": ["Outer", "Inner"], "spec": "specs/x/spec.md#14" } ],
   "results": [ { "id": "file::name", "passed": false, "covered": [ { "file": "…", "startLine": 42, "endLine": 58 } ] } ]
 }
 // 200
@@ -299,6 +300,12 @@ graph](../spec-traceability-graph/data-model.md):
 
 - `TestChunk` — `test_name`, `file_path`, `start_line`/`end_line` (from
   the descriptor range), `xid` = runner-native `id` (fallback chunk UUID).
+- `TestSuite` — one per element of the descriptor's `suite` chain
+  (`xid = repo|file_path|suite_chain`), nested via `TestSuite.parent`; the
+  `TestChunk` links to the innermost via `TestChunk.suite` (`IN_SUITE`).
+  When a suite name resolves to a spec `path`/`path#ordinal` anchor
+  (deterministic, same grammar as the test `spec` field), `TestSuite.spec`
+  (`VALIDATES_SPEC`) is set — a whole suite declared against a spec.
 - `Coverage` (`xid = repo|test_file|test_name`) + `COVERS` edges to
   `CodeChunk` by line overlap.
 - `VALIDATED_BY` (one-to-one) from the `Statement`/`AcceptanceCriterion`
@@ -316,7 +323,7 @@ Wire shapes (descriptor + covered chunk) live in the contract.
 | `shared/src/test-command-manifest.ts` | NEW: Zod schema + loader (`.lore/test-commands.yml` / settings; polyglot list) |
 | `agent/src/spec-trace/test-command-runner.ts` | NEW: sandboxed `tests.list`/`tests.run` executor + trust-context gate + timeout/flaky guard |
 | `mcp-server/src/routes/coverage.ts` | NEW/absorbed: bulk LCOV/Cobertura parsers + `POST /coverage` (from coverage-ingestion) |
-| `mcp-server/src/routes/test-report.ts` | NEW: `POST /test-report` handler → graph fan-out |
+| `mcp-server/src/routes/test-report.ts` | NEW: `POST /test-report` handler → graph fan-out (seeds `TestChunk` + nested `TestSuite` chain from each descriptor's `suite`) |
 | `agent/src/spec-trace/ingest-coverage.ts` | Modify: consume command output, `test-report`, and bulk upload → `Coverage`/`COVERS` |
 | `agent/src/spec-trace/drift-check-file.ts` | Modify: `violated` distinct from `drifted`; flaky guard before flagging |
 | `mcp-server/src/index.ts` | Modify: register MCP tools `list_tests` / `run_test` / `query_trace` (Zod inputs) |
@@ -330,14 +337,15 @@ Wire shapes (descriptor + covered chunk) live in the contract.
 | `web-ui/src/app/repos/[owner]/[repo]/specs/` (+ onboarding result) | Modify: "Set up test commands" action that renders the prompt with copy-to-clipboard |
 | `.claude/skills/lore-test-commands/SKILL.md` | NEW: same prompt exposed as a `/lore-test-commands` skill for in-terminal use |
 | `specs/coverage-ingestion/spec.md` | Modify: status → **Superseded by** this spec |
-| `specs/spec-traceability-graph/data-model.md` | Modify: add `violated` + `violation_reason` to `Statement` + `AcceptanceCriterion` |
+| `specs/spec-traceability-graph/data-model.md` | Modify: add `violated` + `violation_reason` to `Statement` + `AcceptanceCriterion`; add the `TestSuite` node (`parent` nesting, `spec` link) + `TestChunk.suite` |
 | `specs/spec-traceability-graph/spec.md` | Modify: point test discovery/coverage at this authoritative spec (contract moved here) |
 | `CLAUDE.md` | Modify: document the manifest, the two endpoints, and the MCP tools |
 
 ## Acceptance Criteria
 
 1. The manifest (`.lore/test-commands.yml` / `lore.repos.settings.test_commands`) is parsed and validated (required `list`/`run`, `{selector}` in `run`, known `coverage_format`); a polyglot list with per-`cwd` entries is supported; settings win over the file; an absent manifest resolves to null so the caller falls back (pattern detection + bulk upload) with no error. ([validated by `normalizes a minimal valid manifest`](shared/src/test-command-manifest.test.ts#L9), [validated by `throws when the run command is missing`](shared/src/test-command-manifest.test.ts#L26), [validated by `throws when the run command omits the {selector} placeholder`](shared/src/test-command-manifest.test.ts#L32), [validated by `throws on an unknown coverage_format`](shared/src/test-command-manifest.test.ts#L38), [validated by `normalizes a polyglot array into one entry per manifest`](shared/src/test-command-manifest.test.ts#L44), [validated by `prefers settings over the file`](shared/src/test-command-manifest.test.ts#L73), [validated by `returns null when neither settings nor file declare a manifest`](shared/src/test-command-manifest.test.ts#L69))
-2. `tests.list` output is parsed into descriptors `{id, name, file, startLine, endLine, spec?, passed?}`; each seeds a `TestChunk` with the line range and `test_name`; the runner-native `id` is stored verbatim as the selector. ([validated by `parses a descriptor carrying every field`](shared/src/test-report.test.ts#L5), [validated by `omits optional fields a descriptor does not declare`](shared/src/test-report.test.ts#L30), [validated by `throws when the required %s is missing`](shared/src/test-report.test.ts#L41))
+2. `tests.list` output is parsed into descriptors `{id, name, file, startLine, endLine, suite?, spec?, passed?}`; each seeds a `TestChunk` with the line range and `test_name`; the runner-native `id` is stored verbatim as the selector. ([validated by `parses a descriptor carrying every field`](shared/src/test-report.test.ts#L5), [validated by `omits optional fields a descriptor does not declare`](shared/src/test-report.test.ts#L30), [validated by `throws when the required %s is missing`](shared/src/test-report.test.ts#L41))
+2a. A descriptor's `suite` chain seeds one idempotent `TestSuite` per element (`xid = repo|file_path|suite_chain`), nested via `TestSuite.parent` outermost→innermost; the `TestChunk` links to the innermost via `TestChunk.suite`; a suite shared by many tests is created once. When a suite name resolves to a spec `path`/`path#ordinal` anchor, `TestSuite.spec` (`VALIDATES_SPEC`) is set; descriptors with no `suite` still seed the bare `TestChunk` (suites are optional).
 3. When a descriptor carries `spec`, exactly one `VALIDATED_BY` edge (`evidence = generated-provenance`) is created to the single `Statement` or `AcceptanceCriterion` at that `path#ordinal` anchor.
 4. `tests.run <id>` output `{passed, covered[]}` upserts one `Coverage` node (`xid = repo|test_file|test_name`) + `COVERS` edges to each overlapping `CodeChunk`; re-running for the same `(id, commit)` is idempotent. ([validated by `parses passed + a list of covered chunks`](shared/src/test-report.test.ts#L49), [validated by `throws when a covered chunk is missing its line bounds`](shared/src/test-report.test.ts#L60))
 5. A failing validating test sets `violated=true` + `violation_reason` on its `Statement`/`AcceptanceCriterion` and opens/labels a `spec-violated` issue — distinct from `drifted`; the flag is raised only after the flaky guard confirms (N consecutive failures or a re-run confirm).
