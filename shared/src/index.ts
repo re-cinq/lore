@@ -103,3 +103,4 @@ export {
 } from './spec-judge.js';
 
 export { classifyFile, type ContentType } from './content-classify.js';
+export { TEST_COMMAND_SETUP_PROMPT } from './test-command-setup-prompt.js';
