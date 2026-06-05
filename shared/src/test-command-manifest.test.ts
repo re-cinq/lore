@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   decideTestInterfaceCheck,
+  isManifestDeclared,
   parseTestCommandManifest,
   resolveTestCommandManifest,
   substituteSelector,
@@ -105,6 +106,12 @@ describe("decideTestInterfaceCheck", () => {
         settingsTestCommands: { list: "x", run: "y {selector}", coverage_format: "json" },
       }),
     ).toEqual({ status: "configured" });
+  });
+});
+
+describe("isManifestDeclared", () => {
+  it("returns false when neither a file nor settings declare a manifest", () => {
+    expect(isManifestDeclared({})).toBe(false);
   });
 });
 
