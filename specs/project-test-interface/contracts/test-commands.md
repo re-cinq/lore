@@ -42,6 +42,7 @@ stdout: an array of test descriptors. Exit 0 on success.
     "name": "claims pending task before GKE picks it up",
     "file": "mcp-server/src/local-runner.test.ts",
     "startLine": 88, "endLine": 121,
+    "suite": ["local-runner", "claim"],              // optional; describe/class chain, outermost→innermost
     "spec": "specs/local-task-runner/spec.md#14",   // optional; one anchor
     "passed": true }                                 // optional snapshot
 ]
@@ -53,13 +54,15 @@ stdout: an array of test descriptors. Exit 0 on success.
 | `name` | yes | Human-readable test title → `TestChunk.test_name` |
 | `file` | yes | Repo-relative path (after `path_prefix_strip`) |
 | `startLine`/`endLine` | no | 1-based line **range** of the test → `TestChunk.start_line`/`end_line`; omitted when the runner can't report it |
+| `suite` | no | Enclosing `describe`/class chain, **outermost→innermost** → one nested `TestSuite` per element (`xid = repo\|file_path\|suite_chain`), `TestChunk.suite` → innermost. A suite name resolving to a spec anchor sets `TestSuite.spec` (`VALIDATES_SPEC`). Omitted for flat/un-nested tests. |
 | `spec` | no | **One** `path#ordinal` anchor → a single `Statement` *or* `AcceptanceCriterion` the test validates. **Stamped by generation**; seeds the one-to-one `VALIDATED_BY` (`generated-provenance`). Absent for human/legacy tests. |
 | `passed` | no | Pass/fail snapshot if listing also ran the test |
 
 Effect: seeds/authoritative-sources `TestChunk` nodes (`xid` = runner-native
 `id`, `test_name`, `file_path`, line range) regardless of language or
-file-name convention; when `spec` is present, also the one-to-one
-`VALIDATED_BY` link.
+file-name convention; when `suite` is present, the nested `TestSuite` chain
+(+ `TestChunk.suite`, + `TestSuite.spec` for spec-anchored suite names);
+when `spec` is present, also the one-to-one `VALIDATED_BY` link.
 
 ## `tests.run <id>` — run one test, return covered code + pass/fail
 
