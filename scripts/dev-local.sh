@@ -34,8 +34,10 @@ docker compose -f "$ROOT/compose.yaml" up -d --wait \
   || fail "backing services did not become healthy — check 'docker compose logs'"
 log "Postgres ready on localhost:5432 (db=lore user=postgres password=lore); Dgraph ready on localhost:9080 (gRPC) / :8081 (HTTP)"
 
-# 1b. Apply schema DDL (idempotent — CREATE ... IF NOT EXISTS).
+# 1b. Apply schema DDL — Postgres (CREATE ... IF NOT EXISTS) + Dgraph DQL
+#     (/alter). Both idempotent.
 bash "$ROOT/scripts/infra/setup-local-schema.sh"
+DGRAPH_HTTP="http://localhost:8081" bash "$ROOT/scripts/infra/setup-memory-dgraph-schema.sh"
 
 # 2. Local DB env defaults — propagate to every child process below.
 export LORE_DB_HOST=localhost

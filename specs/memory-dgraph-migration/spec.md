@@ -234,7 +234,7 @@ of the node types and how they map from Postgres:
 7. The backfill Job exits non-zero unless row-count parity holds per table and retrieval top-K Jaccard ≥ 0.8 on a sampled query set.
 8. `ShadowMemoryStore` serves reads from the primary even when the shadow throws, emits a `lore.memory.shadow_divergence` metric, and logs (never swallows) shadow errors.
 9. Dgraph runs under ACL with a scoped `lore-memory-app` runtime user; the guardian credential is used only by a `pre-install` bootstrap Job; runtime creds come from ESO + Secret Manager + Workload Identity with no value hardcoded in any chart.
-10. `scripts/dev-local.sh` brings up a local Dgraph container and applies the schema; `LORE_MEMORY_BACKEND=dgraph npm start` exercises the memory MCP tools end-to-end with no Postgres `memory.*` access.
+10. `scripts/dev-local.sh` brings up a local Dgraph container and applies the schema; `LORE_MEMORY_BACKEND=dgraph npm start` exercises the memory MCP tools end-to-end with no Postgres `memory.*` access. ([validated by `declares the HNSW vector index and the xid upsert index`](shared/src/__tests__/setup-memory-dgraph-schema.test.ts#L45), [validated by `is idempotent — a second apply leaves the predicate schema unchanged`](shared/src/__tests__/setup-memory-dgraph-schema.test.ts#L55))
 11. Rollback is a single Helm value (`LORE_MEMORY_BACKEND=postgres`) + rollout; Postgres `memory.*` remains read-only and queryable for the rollback window.
 
 ## Limitations & Open Questions
