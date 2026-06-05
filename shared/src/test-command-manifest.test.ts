@@ -1,0 +1,90 @@
+import { describe, it, expect } from "vitest";
+import {
+  parseTestCommandManifest,
+  resolveTestCommandManifest,
+  substituteSelector,
+} from "./test-command-manifest.js";
+
+describe("parseTestCommandManifest", () => {
+  it("normalizes a minimal valid manifest into a one-element list with defaults", () => {
+    const result = parseTestCommandManifest({
+      list: "npm run -s test:list-json",
+      run: "npm run -s test:run-json -- {selector}",
+      coverage_format: "lcov",
+    });
+    expect(result).toEqual([
+      {
+        list: "npm run -s test:list-json",
+        run: "npm run -s test:run-json -- {selector}",
+        coverage_format: "lcov",
+        cwd: ".",
+        path_prefix_strip: "",
+      },
+    ]);
+  });
+
+  it("throws when the run command is missing", () => {
+    expect(() =>
+      parseTestCommandManifest({ list: "vitest list", coverage_format: "lcov" }),
+    ).toThrow(/run/);
+  });
+
+  it("throws when the run command omits the {selector} placeholder", () => {
+    expect(() =>
+      parseTestCommandManifest({ list: "vitest list", run: "vitest run", coverage_format: "lcov" }),
+    ).toThrow(/\{selector\}/);
+  });
+
+  it("throws on an unknown coverage_format", () => {
+    expect(() =>
+      parseTestCommandManifest({ list: "vitest list", run: "vitest run {selector}", coverage_format: "html" }),
+    ).toThrow(/coverage_format/);
+  });
+
+  it("normalizes a polyglot array into one entry per manifest", () => {
+    const result = parseTestCommandManifest([
+      { list: "vitest list", run: "vitest run {selector}", coverage_format: "lcov", cwd: "web" },
+      { list: "pytest --collect-only", run: "pytest {selector}", coverage_format: "cobertura", cwd: "api" },
+    ]);
+    expect(result.map((m) => m.cwd)).toEqual(["web", "api"]);
+    expect(result).toHaveLength(2);
+  });
+
+  it("preserves a provided cwd and path_prefix_strip", () => {
+    const [manifest] = parseTestCommandManifest({
+      list: "go test ./... -list .*",
+      run: "go test -run {selector} -coverprofile=/dev/stdout ./...",
+      coverage_format: "json",
+      cwd: "services/api",
+      path_prefix_strip: "services/api/",
+    });
+    expect(manifest).toMatchObject({ cwd: "services/api", path_prefix_strip: "services/api/" });
+  });
+});
+
+describe("resolveTestCommandManifest", () => {
+  const settings = { list: "from-settings", run: "from-settings {selector}", coverage_format: "json" };
+  const file = { list: "from-file", run: "from-file {selector}", coverage_format: "lcov" };
+
+  it("returns null when neither settings nor file declare a manifest", () => {
+    expect(resolveTestCommandManifest({})).toBeNull();
+  });
+
+  it("prefers settings over the file when both are present", () => {
+    const result = resolveTestCommandManifest({ settings, file });
+    expect(result?.[0].list).toBe("from-settings");
+  });
+
+  it("falls back to the file when settings are absent", () => {
+    const result = resolveTestCommandManifest({ file });
+    expect(result?.[0].list).toBe("from-file");
+  });
+});
+
+describe("substituteSelector", () => {
+  it("replaces every {selector} placeholder with the runner-native id", () => {
+    expect(substituteSelector("vitest run {selector} --coverage", "a.test.ts::keeps {selector}")).toBe(
+      "vitest run a.test.ts::keeps {selector} --coverage",
+    );
+  });
+});
