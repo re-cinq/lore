@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import styles from './AuditView.module.css';
 
 export interface AuditEntryRow {
   id: string;
@@ -62,7 +63,7 @@ export default function AuditView({
         </select>
         <button type="submit">Filter</button>
       </form>
-      <p className="meta" style={{ marginBottom: 12 }}>{totalCount} total entries</p>
+      <p className={`meta ${styles.count}`}>{totalCount} total entries</p>
       <table>
         <thead>
           <tr><th>Time</th><th>Agent</th><th>Operation</th><th>Key</th><th>Pool</th><th>Details</th></tr>
@@ -79,7 +80,7 @@ export default function AuditView({
             </tr>
           ))}
           {entries.length === 0 && (
-            <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No audit entries found</td></tr>
+            <tr><td colSpan={6} className={styles.emptyCell}>No audit entries found</td></tr>
           )}
         </tbody>
       </table>

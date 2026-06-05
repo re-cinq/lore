@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import styles from './PoolDetailView.module.css';
 
 export interface PoolEntryRow {
   id: string;
@@ -38,7 +39,7 @@ export default function PoolDetailView({ poolName, found, createdBy, createdAt, 
         <Link href="/pools">Pools</Link> / <strong>{poolName}</strong>
       </div>
       <h1>{poolName}</h1>
-      <p className="meta" style={{ marginBottom: 16 }}>
+      <p className={`meta ${styles.summary}`}>
         Created by {createdBy.substring(0, 12)}... on {new Date(createdAt).toLocaleString()} · {entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}
       </p>
       <table>
@@ -49,8 +50,8 @@ export default function PoolDetailView({ poolName, found, createdBy, createdAt, 
           {entries.map(e => (
             <tr key={e.id}>
               <td><strong>{e.key}</strong></td>
-              <td style={{ maxWidth: 400 }}>
-                <pre style={{ margin: 0, background: 'transparent', border: 'none', padding: 0, fontSize: 12 }}>
+              <td className={styles.valueCell}>
+                <pre className={styles.valuePre}>
                   {e.value.length > 200 ? e.value.substring(0, 200) + '...' : e.value}
                 </pre>
               </td>
@@ -60,7 +61,7 @@ export default function PoolDetailView({ poolName, found, createdBy, createdAt, 
             </tr>
           ))}
           {entries.length === 0 && (
-            <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>No entries in this pool</td></tr>
+            <tr><td colSpan={5} className={styles.emptyCell}>No entries in this pool</td></tr>
           )}
         </tbody>
       </table>

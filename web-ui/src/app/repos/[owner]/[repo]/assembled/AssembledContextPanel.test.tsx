@@ -13,8 +13,32 @@ function jsonResponse(payload: unknown, status = 200) {
 }
 
 const sampleResult = {
-  text: 'Assembled body text.',
+  text: '<context></context>',
   sections: [{ header: 'Conventions', tokens: 1200, truncated: false }],
+  trace: {
+    query: 'add auth',
+    template: 'implementation',
+    effectiveBudget: 8000,
+    crossRepo: false,
+    templateSections: [],
+    sections: [
+      {
+        header: 'Conventions',
+        source: 'repo',
+        priority: 1,
+        status: 'ok',
+        allocatedBudget: 4000,
+        rawTokens: 1200,
+        finalTokens: 1200,
+        truncated: false,
+        included: true,
+        items: [{ text: 'CLAUDE', tokens: 1200, source_path: 'CLAUDE.md', content_type: 'doc' }],
+      },
+    ],
+    budget: { total: 8000, used: 1200, leftover: 6800 },
+    freshness: { state: 'fresh', message: '' },
+    timingsMs: { total: 5, perSource: {} },
+  },
 };
 
 async function flush() {
@@ -58,11 +82,11 @@ describe('AssembledContextPanel', () => {
     await flush();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/repos/re-cinq/lore/context-preview?query=add%20auth%20%26%20roles&template=review',
+      '/api/repos/re-cinq/lore/context-preview?query=add%20auth%20%26%20roles&template=review&debug=1',
     );
   });
 
-  it('renders the assembled result after a successful fetch', async () => {
+  it('renders the assembled trace after a successful fetch', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(sampleResult)));
     render(<AssembledContextPanel owner="re-cinq" repo="lore" />);
 
@@ -70,7 +94,7 @@ describe('AssembledContextPanel', () => {
     submit();
     await flush();
 
-    expect(screen.getByText('1200 / 8000 tokens')).toBeInTheDocument();
+    expect(screen.getByText('1200 / 8000 tokens used · 6800 left')).toBeInTheDocument();
     expect(screen.getByText('Conventions')).toBeInTheDocument();
   });
 

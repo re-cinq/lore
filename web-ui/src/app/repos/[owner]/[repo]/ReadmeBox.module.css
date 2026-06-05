@@ -112,3 +112,7 @@
 }
 .readme th { background: var(--bg-surface); font-weight: 600; color: var(--text); }
 .readme tbody tr:nth-child(2n) td { background: var(--bg-hover); }
+
+.toggle {
+  margin-top: 12px;
+}

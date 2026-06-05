@@ -1,0 +1,33 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.heading {
+  margin: 0;
+}
+
+.intro {
+  margin-top: 6px;
+  margin-bottom: 16px;
+}
+
+.form {
+  max-width: 600px;
+  margin-bottom: 2rem;
+}
+
+.pathInput {
+  font-family: var(--font-mono);
+}
+
+.pathHint {
+  font-size: var(--fs-xs);
+}
+
+.content {
+  width: 100%;
+  font-family: var(--font-mono);
+  resize: vertical;
+}

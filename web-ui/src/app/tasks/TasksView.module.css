@@ -1,0 +1,44 @@
+/* Global tasks view — co-located with TasksView.tsx. All static styling. */
+
+.banner {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.bannerText {
+  margin: 0;
+}
+
+.section {
+  margin-bottom: 2rem;
+}
+
+.textarea {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.th {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}

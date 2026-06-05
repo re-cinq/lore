@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import styles from './SpecsListView.module.css';
 
 export interface SpecListItem {
   file_path: string;
@@ -28,13 +29,13 @@ export default function SpecsListView({ activeRepo, repos, specs }: SpecsListVie
   return (
     <div>
       <h1>Specifications</h1>
-      <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
-        <p className="meta" style={{ margin: 0 }}>
+      <div className={styles.notice}>
+        <p className={`meta ${styles.noticeText}`}>
           This is the global view across all repos. For repo-specific specs, visit{' '}
           <Link href="/">Repositories</Link> and select a repo.
         </p>
       </div>
-      <p className="meta" style={{ marginBottom: 16 }}>
+      <p className={`meta ${styles.intro}`}>
         Browse ingested spec files from across all repos.
       </p>
 
@@ -53,7 +54,7 @@ export default function SpecsListView({ activeRepo, repos, specs }: SpecsListVie
         ))}
       </div>
 
-      <p className="meta" style={{ marginBottom: 16 }}>
+      <p className={`meta ${styles.count}`}>
         {specs.length} spec{specs.length !== 1 ? 's' : ''}{activeRepo ? ` in "${activeRepo}"` : ''}
       </p>
 
@@ -66,11 +67,11 @@ export default function SpecsListView({ activeRepo, repos, specs }: SpecsListVie
           </h3>
           <span className="badge badge-blue">spec</span>
           {s.repo && (
-            <span className="meta" style={{ marginLeft: 8 }}>
+            <span className={`meta ${styles.repoMeta}`}>
               <Link href={`/repos/${s.repo}`}>{s.repo}</Link>
             </span>
           )}
-          <span className="meta" style={{ marginLeft: 8 }}>
+          <span className={`meta ${styles.repoMeta}`}>
             {new Date(s.ingested_at).toLocaleString()}
           </span>
           <pre>{s.excerpt}...</pre>

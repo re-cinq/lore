@@ -1,3 +1,5 @@
+import styles from './SpendView.module.css';
+
 export interface OrgMtdRow {
   billed_usd: number;
   input_tokens: number;
@@ -57,43 +59,43 @@ export default function SpendView({
 
       {/* Month-to-date totals */}
       <h2>Month to Date</h2>
-      <div style={{display:'flex', gap:'16px', marginBottom:'24px', flexWrap:'wrap'}}>
-        <div className="spec-card" style={{flex:1, minWidth:'180px'}}>
+      <div className={styles.cards}>
+        <div className={`spec-card ${styles.card}`}>
           <div className="meta">Billed cost (Anthropic)</div>
-          <div style={{fontSize:'var(--fs-xl)', fontWeight:'bold'}}>
+          <div className={styles.figure}>
             {orgAvailable ? usd(orgMtd.billed_usd) : '—'}
           </div>
-          <div className="meta" style={{fontSize:'var(--fs-xs)'}}>
+          <div className={`meta ${styles.subnote}`}>
             {orgAvailable
               ? `as of ${new Date(orgMtd.as_of as string).toLocaleString()}`
               : 'admin key not configured'}
           </div>
         </div>
-        <div className="spec-card" style={{flex:1, minWidth:'180px'}}>
+        <div className={`spec-card ${styles.card}`}>
           <div className="meta">Lore-computed cost</div>
-          <div style={{fontSize:'var(--fs-xl)', fontWeight:'bold', color:'var(--info)'}}>
+          <div className={styles.figureInfo}>
             {usd(loreComputedUsd)}
           </div>
-          <div className="meta" style={{fontSize:'var(--fs-xs)'}}>estimate from token counts</div>
+          <div className={`meta ${styles.subnote}`}>estimate from token counts</div>
         </div>
-        <div className="spec-card" style={{flex:1, minWidth:'180px'}}>
+        <div className={`spec-card ${styles.card}`}>
           <div className="meta">Input Tokens</div>
-          <div style={{fontSize:'var(--fs-xl)', fontWeight:'bold'}}>
+          <div className={styles.figure}>
             {orgAvailable ? Number(orgMtd.input_tokens).toLocaleString() : '—'}
           </div>
         </div>
-        <div className="spec-card" style={{flex:1, minWidth:'180px'}}>
+        <div className={`spec-card ${styles.card}`}>
           <div className="meta">Output Tokens</div>
-          <div style={{fontSize:'var(--fs-xl)', fontWeight:'bold'}}>
+          <div className={styles.figure}>
             {orgAvailable ? Number(orgMtd.output_tokens).toLocaleString() : '—'}
           </div>
         </div>
       </div>
 
       {!orgAvailable && (
-        <div className="spec-card" style={{marginBottom:'24px', borderColor:'var(--warning)'}}>
+        <div className={`spec-card ${styles.warningCard}`}>
           <strong>Org-wide billed cost unavailable.</strong>
-          <div className="meta" style={{marginTop:'4px'}}>
+          <div className={`meta ${styles.warningNote}`}>
             Set <code>ANTHROPIC_ADMIN_KEY</code> (an <code>sk-ant-admin…</code> key) on the
             agent so the daily <code>anthropic-cost-sync</code> cron can pull Anthropic&apos;s
             authoritative Cost report. Showing Lore-computed estimates only.
@@ -112,11 +114,11 @@ export default function SpendView({
             <tr key={r.model || '(non-token)'}>
               <td><span className="badge">{r.model || '(non-token)'}</span></td>
               <td>{usd(r.cost_usd)}</td>
-              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(r.input_tokens).toLocaleString()}</td>
-              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(r.output_tokens).toLocaleString()}</td>
+              <td className={styles.mono}>{Number(r.input_tokens).toLocaleString()}</td>
+              <td className={styles.mono}>{Number(r.output_tokens).toLocaleString()}</td>
             </tr>
           ))}
-          {orgByModel.length === 0 && <tr><td colSpan={4} className="meta" style={{textAlign:'center'}}>No billed data yet</td></tr>}
+          {orgByModel.length === 0 && <tr><td colSpan={4} className={`meta ${styles.center}`}>No billed data yet</td></tr>}
         </tbody>
       </table>
 
@@ -130,7 +132,7 @@ export default function SpendView({
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {orgDaily.length === 0 && <tr><td colSpan={2} className="meta" style={{textAlign:'center'}}>No billed data yet</td></tr>}
+          {orgDaily.length === 0 && <tr><td colSpan={2} className={`meta ${styles.center}`}>No billed data yet</td></tr>}
         </tbody>
       </table>
 
@@ -141,12 +143,12 @@ export default function SpendView({
         <tbody>
           {loreByRepo.map(r => (
             <tr key={r.target_repo}>
-              <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{r.target_repo}</td>
+              <td className={styles.mono}>{r.target_repo}</td>
               <td>{Number(r.tasks).toLocaleString()}</td>
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {loreByRepo.length === 0 && <tr><td colSpan={3} className="meta" style={{textAlign:'center'}}>No data</td></tr>}
+          {loreByRepo.length === 0 && <tr><td colSpan={3} className={`meta ${styles.center}`}>No data</td></tr>}
         </tbody>
       </table>
 
@@ -161,7 +163,7 @@ export default function SpendView({
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {loreByTaskType.length === 0 && <tr><td colSpan={3} className="meta" style={{textAlign:'center'}}>No data</td></tr>}
+          {loreByTaskType.length === 0 && <tr><td colSpan={3} className={`meta ${styles.center}`}>No data</td></tr>}
         </tbody>
       </table>
     </div>

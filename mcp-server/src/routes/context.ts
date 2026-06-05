@@ -8,10 +8,11 @@ export async function handleContext(req: IncomingMessage, res: ServerResponse, p
   const repo = url.searchParams.get("repo");
   const query = url.searchParams.get("query");
   const template = url.searchParams.get("template") || "default";
+  const debug = url.searchParams.get("debug") === "1" || url.searchParams.get("debug") === "true";
   try {
     if (query && pool) {
-      const result = await assembleContext(pool, query, template, 8000, repo || undefined);
-      json(res, 200, { text: result.text || null, sections: result.sections });
+      const result = await assembleContext(pool, query, template, 8000, repo || undefined, undefined, undefined, undefined, debug);
+      json(res, 200, { text: result.text || null, sections: result.sections, trace: result.trace });
     } else {
       const parts: string[] = [];
       if (repo && pool) {

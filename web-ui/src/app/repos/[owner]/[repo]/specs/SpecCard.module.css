@@ -1,0 +1,26 @@
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+}
+
+.details {
+  flex-shrink: 0;
+}
+
+.path {
+  font-family: var(--font-mono);
+}
+
+.summary {
+  margin-top: 8px;
+}
+
+.bar {
+  margin-top: 10px;
+}

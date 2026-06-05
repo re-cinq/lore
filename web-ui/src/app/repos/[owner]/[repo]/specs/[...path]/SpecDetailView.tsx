@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import CoverageBar, { type CoverageCounts } from '@/components/CoverageBar';
 import SpecDetails, { type StatementInfo } from '../SpecDetails';
+import styles from './SpecDetailView.module.css';
 
 /** The resolved spec, or null when no spec exists at the path. */
 export interface SpecDetailData {
@@ -43,8 +44,8 @@ export default function SpecDetailView({ fullName, filePath, specsLink, spec }: 
         <Link href={specsLink}>Specifications</Link> / <strong>{spec.title}</strong>
       </div>
       <h1>{spec.title}</h1>
-      <p className="meta" style={{ fontFamily: 'var(--font-mono)', marginTop: 0, marginBottom: 16 }}>{filePath}</p>
-      <div style={{ marginBottom: 20 }}>
+      <p className={`meta ${styles.path}`}>{filePath}</p>
+      <div className={styles.bar}>
         <CoverageBar coverage={spec.counts} size="md" />
       </div>
       <SpecDetails repo={fullName} content={spec.content} statements={spec.statements} />

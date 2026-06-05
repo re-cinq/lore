@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import NavLink from '@/components/NavLink';
 import { isNavActive } from '@/lib/nav-active';
+import styles from './SidebarNav.module.css';
 
 const links = [
   { href: '/', label: 'Repos' },
@@ -29,7 +30,7 @@ export default function SidebarNav() {
         href="/onboard"
         label="+ Add Repo"
         active={isNavActive(pathname, '/onboard', '/')}
-        style={{ marginTop: '12px', background: 'var(--bg-hover)', textAlign: 'center', borderRadius: 'var(--radius-sm)', color: 'var(--text)', fontSize: 'var(--fs-sm)' }}
+        className={styles.addRepo}
       />
     </nav>
   );

@@ -1,4 +1,5 @@
 import Linkified from '@/components/Linkified';
+import styles from './FailurePanel.module.css';
 
 interface FailureDetail {
   step: string;
@@ -43,39 +44,39 @@ export default function FailurePanel({
   if (!metadata?.error && !metadata?.details?.length) return null;
 
   return (
-    <div className="spec-card" style={{ marginTop: '16px', borderLeft: '3px solid var(--danger)' }}>
-      <h3 style={{ margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ color: 'var(--danger)' }}>Failure</span>
+    <div className={`spec-card ${styles.card}`}>
+      <h3 className={styles.heading}>
+        <span className={styles.headingLabel}>Failure</span>
         {metadata.category && <span className="badge badge-red">{categoryLabel(metadata.category)}</span>}
       </h3>
 
       {metadata.error && (
-        <p style={{ margin: '0 0 8px 0' }}>
+        <p className={styles.error}>
           <Linkified text={metadata.error} repo={repo} />
         </p>
       )}
 
       {metadata.hint && (
-        <p className="meta" style={{ margin: '0 0 8px 0' }}>
+        <p className={`meta ${styles.hint}`}>
           <strong>How to fix:</strong> <Linkified text={metadata.hint} repo={repo} />
         </p>
       )}
 
       {metadata.details && metadata.details.length > 0 && (
-        <div className="memory-list" style={{ marginTop: '8px' }}>
+        <div className={`memory-list ${styles.details}`}>
           {metadata.details.map((d, i) => (
-            <div key={i} className="version" style={{ marginBottom: '8px' }}>
-              <code style={{ fontSize: 'var(--fs-sm)' }}>{d.step}</code>
+            <div key={i} className={`version ${styles.detail}`}>
+              <code className={styles.detailStep}>{d.step}</code>
               {d.category && (
-                <span className="badge badge-red" style={{ marginLeft: '8px' }}>
+                <span className={`badge badge-red ${styles.detailBadge}`}>
                   {categoryLabel(d.category)}
                 </span>
               )}
-              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--fs-sm)' }}>
+              <p className={styles.detailError}>
                 <Linkified text={d.error} repo={repo} />
               </p>
               {d.hint && (
-                <p className="meta" style={{ margin: '2px 0 0 0', fontSize: 'var(--fs-xs)' }}>
+                <p className={`meta ${styles.detailHint}`}>
                   {d.hint}
                 </p>
               )}

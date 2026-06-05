@@ -1,0 +1,4 @@
+.button {
+  font-size: var(--fs-xs);
+  padding: 4px 10px;
+}

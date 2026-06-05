@@ -1,6 +1,7 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
+import styles from './UserMenu.module.css';
 
 export default function UserMenu() {
   const { data: session } = useSession();
@@ -8,23 +9,22 @@ export default function UserMenu() {
   if (!session?.user) return null;
 
   return (
-    <div style={{ marginTop: 'auto', padding: '16px', borderTop: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+    <div className={styles.menu}>
+      <div className={styles.row}>
         {session.user.image && (
           <img
             src={session.user.image}
             alt="avatar"
-            style={{ width: 32, height: 32, borderRadius: 'var(--radius-pill)' }}
+            className={styles.avatar}
           />
         )}
-        <span style={{ color: 'var(--text)', fontSize: 'var(--fs-base)' }}>
+        <span className={styles.name}>
           {session.user.name || session.user.email}
         </span>
       </div>
       <button
         onClick={() => signOut()}
-        className="btn-secondary"
-        style={{ width: '100%', padding: '6px 12px', fontSize: 'var(--fs-sm)' }}
+        className={`btn-secondary ${styles.signOut}`}
       >
         Sign out
       </button>

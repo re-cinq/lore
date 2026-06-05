@@ -1,0 +1,48 @@
+/* Analytics dashboard view — co-located with AnalyticsView.tsx. Static styling
+   lives here; every styled value below is fixed, not derived from row data. */
+
+.statsRow {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.statCard {
+  flex: 1;
+  min-width: 150px;
+}
+
+.statValue {
+  font-size: var(--fs-xl);
+  font-weight: bold;
+}
+
+.statValueSuccess {
+  color: var(--success);
+}
+
+.statValueDanger {
+  color: var(--danger);
+}
+
+.statValueWarning {
+  color: var(--warning);
+}
+
+.monoCell {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.emptyCell {
+  text-align: center;
+}
+
+.smallCell {
+  font-size: var(--fs-sm);
+}
+
+.error {
+  color: var(--danger);
+}

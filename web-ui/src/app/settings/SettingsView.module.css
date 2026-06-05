@@ -1,0 +1,87 @@
+/* Org-wide settings view — co-located with SettingsView.tsx. Static styling
+   lives here; the form values themselves carry no dynamic styling. */
+
+.appearanceCard {
+  max-width: 600px;
+  margin-bottom: 24px;
+}
+
+.appearanceNote {
+  font-size: var(--fs-xs);
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.statsRow {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.statCard {
+  flex: 1;
+}
+
+.statValue {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+}
+
+.form {
+  max-width: 600px;
+}
+
+.fieldNote {
+  font-size: var(--fs-xs);
+  margin-top: 2px;
+}
+
+.labelSpaced {
+  margin-top: 16px;
+}
+
+.tokenInput {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.regenerateForm {
+  margin-top: 8px;
+}
+
+.regenerateButton {
+  font-size: var(--fs-xs);
+  padding: 6px 12px;
+}
+
+.regenerateNote {
+  margin-left: 8px;
+  font-size: var(--fs-xs);
+}
+
+.sectionHeading {
+  margin-top: 32px;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reposTextarea {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.installPre {
+  margin: 0;
+  font-size: var(--fs-sm);
+  overflow-x: auto;
+}

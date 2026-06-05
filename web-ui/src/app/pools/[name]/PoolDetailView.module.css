@@ -1,0 +1,21 @@
+.summary {
+  margin-bottom: 16px;
+}
+
+.valueCell {
+  max-width: 400px;
+}
+
+.valuePre {
+  margin: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: var(--fs-xs);
+}
+
+.emptyCell {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+}

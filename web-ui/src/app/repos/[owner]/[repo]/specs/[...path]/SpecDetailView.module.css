@@ -1,0 +1,9 @@
+.path {
+  font-family: var(--font-mono);
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.bar {
+  margin-bottom: 20px;
+}
