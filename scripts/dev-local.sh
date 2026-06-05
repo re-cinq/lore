@@ -10,10 +10,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-PG_CONTAINER="lore-postgres"
-PG_IMAGE="pgvector/pgvector:pg16"
-PG_DATA_DIR="$ROOT/.lore-pgdata"
-
 log() { echo "[lore] $*"; }
 fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
@@ -24,61 +20,19 @@ if [ -f "$ROOT/.env.local" ]; then
   set -a; . "$ROOT/.env.local"; set +a
 fi
 
-command -v docker >/dev/null 2>&1 || fail "docker not found — needed for local Postgres"
+command -v docker >/dev/null 2>&1 || fail "docker not found — needed for local Postgres + Dgraph"
+docker compose version >/dev/null 2>&1 || fail "docker compose v2 not found — needed for the local services"
 
-# 1. Ensure Postgres is up. The :5432 host publish and the data bind mount are
-#    fixed at create time, so a pre-existing container missing either is recreated
-#    (docker start cannot add them). Inspecting config works while stopped too.
-pg_config_ok() {
-  local bindings mounts
-  bindings="$(docker inspect -f '{{json .HostConfig.PortBindings}}' "$PG_CONTAINER" 2>/dev/null)"
-  mounts="$(docker inspect -f '{{range .Mounts}}{{println .Source}}{{end}}' "$PG_CONTAINER" 2>/dev/null)"
-  [[ "$bindings" == *'"5432/tcp"'* ]] && grep -qxF "$PG_DATA_DIR" <<<"$mounts"
-}
-
-create_pg() {
-  log "Creating Postgres container '$PG_CONTAINER' ($PG_IMAGE), data in $PG_DATA_DIR"
-  mkdir -p "$PG_DATA_DIR"
-  docker run --name "$PG_CONTAINER" \
-    -e POSTGRES_PASSWORD=lore -e POSTGRES_DB=lore \
-    -v "$PG_DATA_DIR:/var/lib/postgresql/data" \
-    -p 5432:5432 -d "$PG_IMAGE" >/dev/null
-}
-
-# Probe the *host* port — that is what the components actually connect to. The
-# in-container pg_isready can pass while the host publish is inactive (a docker
-# start that never re-established the forward), which looks healthy but isn't.
-host_pg_ready() {
-  local i
-  for i in $(seq 1 "${1:-30}"); do
-    (exec 3<>/dev/tcp/127.0.0.1/5432) 2>/dev/null && { exec 3>&-; return 0; }
-    sleep 1
-  done
-  return 1
-}
-
-if docker ps -a --format '{{.Names}}' | grep -qx "$PG_CONTAINER" && ! pg_config_ok; then
-  log "Existing '$PG_CONTAINER' lacks the :5432 publish or $PG_DATA_DIR mount — recreating"
-  docker rm -f "$PG_CONTAINER" >/dev/null
-fi
-
-if docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
-  log "Postgres container '$PG_CONTAINER' already running"
-elif docker ps -a --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
-  log "Starting existing Postgres container '$PG_CONTAINER'"
-  docker start "$PG_CONTAINER" >/dev/null
-else
-  create_pg
-fi
-
-log "Waiting for Postgres on localhost:5432..."
-if ! host_pg_ready 30; then
-  log "Container is up but localhost:5432 is unreachable — recreating once to republish"
-  docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
-  create_pg
-  host_pg_ready 30 || fail "Postgres did not become reachable on localhost:5432"
-fi
-log "Postgres ready on localhost:5432 (db=lore user=postgres password=lore)"
+# 1. Bring up the backing services (Postgres + Dgraph) from compose.yaml and wait
+#    for their healthchecks. compose.yaml is the single source of truth for the
+#    local DBs (same container names + bind-mounted, git-ignored .lore-*data dirs
+#    as the standalone `npm run db:up`/`dgraph:up` scripts), so data persists
+#    across restarts. Idempotent: re-running starts/recreates only what's needed.
+#    Dgraph HTTP is published on :8081 (host) to avoid the agent's :8080.
+log "Bringing up backing services (Postgres + Dgraph) via docker compose..."
+docker compose -f "$ROOT/compose.yaml" up -d --wait \
+  || fail "backing services did not become healthy — check 'docker compose logs'"
+log "Postgres ready on localhost:5432 (db=lore user=postgres password=lore); Dgraph ready on localhost:9080 (gRPC) / :8081 (HTTP)"
 
 # 1b. Apply schema DDL (idempotent — CREATE ... IF NOT EXISTS).
 bash "$ROOT/scripts/infra/setup-local-schema.sh"
