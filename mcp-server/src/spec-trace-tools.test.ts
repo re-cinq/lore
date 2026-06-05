@@ -39,6 +39,12 @@ describe("runTestsList", () => {
       { id: "t1", name: "first test", file: "src/a.test.ts", startLine: 1, endLine: 5 },
     ]);
   });
+
+  it("rejects when the command outlives the timeout", async () => {
+    await expect(
+      runTestsList(`sleep 1 && printf '[]'`, process.cwd(), 50),
+    ).rejects.toThrow();
+  });
 });
 
 describe("listTestsTool", () => {
@@ -146,6 +152,59 @@ describe("buildTestReport", () => {
     });
   });
 
+  it("skips a descriptor whose run command exits non-zero and resolves with empty results", async () => {
+    const manifest: TestCommandManifest = {
+      list: `printf '[{"id":"t1","name":"a","file":"a.ts"}]'`,
+      run: "sh -c 'exit 1'",
+      coverage_format: "json",
+      cwd: ".",
+      path_prefix_strip: "",
+    };
+
+    const report = await buildTestReport({}, manifest, process.cwd(), {
+      commit: "c1",
+      branch: "main",
+    });
+
+    expect(report).toEqual({
+      commit: "c1",
+      branch: "main",
+      tests: [{ id: "t1", name: "a", file: "a.ts" }],
+      results: [],
+    });
+  });
+
+  it("runs list and run commands in manifest.cwd resolved under the passed cwd", async () => {
+    const root = mkdtempSync(join(tmpdir(), "lore-"));
+    mkdirSync(join(root, "pkg"));
+    writeFileSync(join(root, "pkg", "list.json"), '[{"id":"t1","name":"a","file":"a.ts"}]');
+    writeFileSync(join(root, "pkg", "run.json"), '{"passed":true,"covered":[]}');
+
+    const manifest: TestCommandManifest = {
+      list: "cat list.json",
+      run: "cat run.json",
+      coverage_format: "json",
+      cwd: "pkg",
+      path_prefix_strip: "",
+    };
+
+    try {
+      const report = await buildTestReport({}, manifest, root, {
+        commit: "c1",
+        branch: "main",
+      });
+
+      expect(report).toEqual({
+        commit: "c1",
+        branch: "main",
+        tests: [{ id: "t1", name: "a", file: "a.ts" }],
+        results: [{ id: "t1", passed: true, covered: [] }],
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("refuses to run manifest commands on the shared cluster when LORE_DB_HOST is set", async () => {
     const manifest: TestCommandManifest = {
       list: "printf 'SHOULD_NOT_RUN'",
@@ -175,5 +234,16 @@ describe("runTestsRun", () => {
       passed: true,
       covered: [{ file: "src/a.test.ts::my test", startLine: 1, endLine: 1 }],
     });
+  });
+
+  it("rejects when the command outlives the timeout", async () => {
+    await expect(
+      runTestsRun(
+        `sleep 1 && printf '{"passed":true,"covered":[]}'`,
+        "x",
+        process.cwd(),
+        50,
+      ),
+    ).rejects.toThrow();
   });
 });
