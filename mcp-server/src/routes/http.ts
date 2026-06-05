@@ -9,6 +9,17 @@ export function json(res: ServerResponse, code: number, body: unknown): void {
   res.writeHead(code, { "Content-Type": "application/json" }).end(JSON.stringify(body));
 }
 
+/**
+ * Shared guard for the per-commit projection routes (`/coverage`,
+ * `/test-report`): a non-empty `commit` is mandatory. Writes the 400 and
+ * returns false when absent so the one error string has a single home.
+ */
+export function requireCommit(body: { commit?: string }, res: ServerResponse): boolean {
+  if (typeof body.commit === "string" && body.commit.length > 0) return true;
+  json(res, 400, { error: "required: commit" });
+  return false;
+}
+
 export function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
     let body = "";
