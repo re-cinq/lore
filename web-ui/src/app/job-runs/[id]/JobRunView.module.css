@@ -1,0 +1,17 @@
+.card {
+  margin-bottom: 16px;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.output {
+  background: var(--bg-mono);
+  padding: 12px;
+  overflow-x: auto;
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  max-height: 70vh;
+}

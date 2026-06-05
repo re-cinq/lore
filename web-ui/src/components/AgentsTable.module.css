@@ -1,0 +1,23 @@
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.heading {
+  margin: 0;
+}
+
+.intro {
+  margin-top: 6px;
+  margin-bottom: 16px;
+}
+
+.toggle {
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.emptyCell {
+  text-align: center;
+}

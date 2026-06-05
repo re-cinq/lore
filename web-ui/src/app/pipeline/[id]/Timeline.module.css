@@ -1,0 +1,81 @@
+/* Stage-commit timeline — co-located with Timeline.tsx. */
+
+.card {
+  margin-top: 16px;
+}
+
+.heading {
+  margin: 0;
+  margin-bottom: 12px;
+}
+
+.deletedBanner {
+  padding: 8px 12px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  margin-bottom: 12px;
+}
+
+.unavailable {
+  color: var(--danger);
+}
+
+.list {
+  padding-left: 0;
+  list-style: none;
+  margin: 0;
+}
+
+.item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.iconCol {
+  width: 28px;
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.stage {
+  font-weight: 600;
+}
+
+.summary {
+  margin-top: 4px;
+  font-size: var(--fs-sm);
+}
+
+.commitLink {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.lease {
+  margin-top: 12px;
+  font-size: var(--fs-xs);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

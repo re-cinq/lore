@@ -93,6 +93,30 @@ Templates are centrally managed — tune once, every agent benefits.
 - If the budget is very small, only the most essential context
   is returned.
 
+### Scenario 4: Traceable Assembly (Prompt Debug View)
+
+**Actor:** A developer (or platform engineer) debugging why a session got the
+context it did, via the web-ui **Assembled** tab.
+
+**Flow:**
+1. The tab calls `/api/context?...&debug=1`.
+2. Assembly returns, alongside the prompt, a **trace**: per-section status,
+   allocated budget, the exact documents pulled (path, type, tokens, relevance,
+   ingested date), and the reason any section was omitted.
+3. The tab renders inputs + budget summary + per-section trace cards + the prompt
+   as a nested `context → section → document` tag tree.
+
+**Acceptance Criteria:**
+- A `debug=1` assembly returns a per-section trace carrying each source's status
+  and, when omitted, the reason (no results / no rule matched / budget exhausted).
+  ([validated by `context-assembly.test.ts:149`](mcp-server/src/context-assembly.test.ts#L149))
+- The trace maps 1:1 to a nested `context/section/document` tag tree, dropping
+  omitted sections and marking only the last document of a truncated section.
+  ([validated by `tag-tree.test.ts:46`](web-ui/src/app/repos/[owner]/[repo]/assembled/tag-tree.test.ts#L46), [`tag-tree.test.ts:56`](web-ui/src/app/repos/[owner]/[repo]/assembled/tag-tree.test.ts#L56))
+- The debug view renders an included source card and an omitted one with its
+  reason, links every contributing document to its context detail page, and shows
+  the prompt as the tag tree. ([validated by `AssembledContextView.test.tsx:135`](web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L135), [`AssembledContextView.test.tsx:142`](web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L142), [`AssembledContextView.test.tsx:148`](web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L148))
+
 ## Functional Requirements
 
 ### FR-1: assemble_context MCP Tool
@@ -118,6 +142,13 @@ The tool retrieves from all available sources:
 - FR-2.5: **Graph** — related entities and relationships
   (from `query_graph` logic, 1-hop).
 - FR-2.6: Each source is retrieved in parallel.
+- FR-2.7: **Relevance ranking.** Local `repo` and `adrs` sources rank by
+  `ts_rank(search_tsv, websearch_to_tsquery(...))` against the query, not by
+  recency — so the ADR a task actually needs is not buried behind whatever was
+  ingested most recently. ([validated by `context-assembly.test.ts:123`](mcp-server/src/context-assembly.test.ts#L123))
+- FR-2.8: **No cross-section duplication.** The `repo`/Conventions source pulls
+  only `doc`/`spec` (never `adr`, which is its own section), and chunks sharing a
+  `file_path` are de-duplicated, keeping the highest-scoring copy. ([validated by `context-assembly.test.ts:136`](mcp-server/src/context-assembly.test.ts#L136), [`context-assembly-format.test.ts:23`](mcp-server/src/context-assembly-format.test.ts#L23))
 
 ### FR-3: Template System
 
@@ -151,23 +182,25 @@ The tool retrieves from all available sources:
 
 ### FR-5: Output Format
 
-- FR-5.1: Output is a single text string with markdown headers
-  for each section.
+- FR-5.1: Output is a single **XML-tagged** string: `<context>` wraps one
+  `<section>` per included template section, each wrapping one `<document>`
+  per contributing chunk. Provenance lives in tag attributes (`source`, `type`,
+  `relevance`, `tokens`, `truncated`); the chunk's own markdown is contained
+  inside the tag, so document headings and YAML `---` fences cannot collide with
+  the structural skeleton. ([validated by `context-assembly-format.test.ts:63`](mcp-server/src/context-assembly-format.test.ts#L63), [`context-assembly-format.test.ts:41`](mcp-server/src/context-assembly-format.test.ts#L41), [`context-assembly.test.ts:107`](mcp-server/src/context-assembly.test.ts#L107))
 - FR-5.2: Format:
-  ```
-  ## Conventions
-  <repo context content>
-
-  ## Architecture Decisions
-  <relevant ADRs>
-
-  ## Agent Memory
-  <relevant memories and facts>
-
-  ## Related Entities
-  <graph context>
+  ```xml
+  <context query="…" template="implementation" budget="8000">
+    <section name="Architecture Decisions" source="adrs" priority="1">
+      <document source="adrs/ADR-016-dark-factory.md" type="adr" relevance="0.83" tokens="640">
+      …content…
+      </document>
+    </section>
+  </context>
   ```
 - FR-5.3: Empty sections are omitted from output.
+- FR-5.4: A truncated document carries `truncated="true"` rather than an inline
+  `...(truncated)` marker. ([validated by `context-assembly-format.test.ts:56`](mcp-server/src/context-assembly-format.test.ts#L56))
 
 ## Non-Functional Requirements
 
@@ -180,10 +213,12 @@ The tool retrieves from all available sources:
 
 ### NFR-2: Observability
 
-- Audit log records each `assemble_context` call with: query,
-  template used, sources hit, total tokens returned.
-- Debug mode returns per-section token counts and which sections
-  were truncated.
+- Debug mode (`debug=1`) returns a full assembly trace: per-section status,
+  allocated budget, raw vs final tokens, truncation, omit reason, and the
+  contributing documents with provenance. ([validated by `context-assembly.test.ts:149`](mcp-server/src/context-assembly.test.ts#L149))
+- Audit log records each `assemble_context` call with: query, template used,
+  sources hit, total tokens returned. *(Audit-log persistence is tracked as
+  follow-up — the in-memory trace lands first.)*
 
 ## Scope Boundaries
 

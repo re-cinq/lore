@@ -1,0 +1,29 @@
+.menu {
+  margin-top: auto;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+}
+
+.name {
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+
+.signOut {
+  width: 100%;
+  padding: 6px 12px;
+  font-size: var(--fs-sm);
+}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import styles from "./JobRunView.module.css";
 
 export interface JobRunRow {
   id: string;
@@ -33,7 +34,7 @@ export default function JobRunView({ id, run, logs }: JobRunViewProps) {
       <p><Link href="/analytics">← Back to analytics</Link></p>
       <h1><span className="badge">{run.job_name}</span> <span className={`op-badge op-${run.status}`}>{run.status}</span></h1>
 
-      <div className="spec-card" style={{marginBottom: "16px"}}>
+      <div className={`spec-card ${styles.card}`}>
         <div><span className="meta">Run ID:</span> <code>{run.id}</code></div>
         <div><span className="meta">Started:</span> {new Date(run.started_at).toLocaleString()}</div>
         {run.completed_at && (
@@ -43,7 +44,7 @@ export default function JobRunView({ id, run, logs }: JobRunViewProps) {
           <div><span className="meta">Summary:</span> {run.result_summary}</div>
         )}
         {run.error && (
-          <div style={{color: "var(--danger)"}}><span className="meta">Error:</span> {run.error}</div>
+          <div className={styles.error}><span className="meta">Error:</span> {run.error}</div>
         )}
         {run.log_path && (
           <div><span className="meta">Log path:</span> <code>{run.log_path}</code></div>
@@ -58,15 +59,7 @@ export default function JobRunView({ id, run, logs }: JobRunViewProps) {
             : "No log_path recorded for this run (in-process jobs do not yet capture per-run output)."}
         </p>
       ) : (
-        <pre style={{
-          background: "var(--bg-mono)",
-          padding: "12px",
-          overflowX: "auto",
-          fontSize: "var(--fs-sm)",
-          fontFamily: "var(--font-mono)",
-          whiteSpace: "pre-wrap",
-          maxHeight: "70vh",
-        }}>{logs}</pre>
+        <pre className={styles.output}>{logs}</pre>
       )}
     </div>
   );

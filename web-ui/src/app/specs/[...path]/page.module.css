@@ -1,0 +1,27 @@
+.path {
+  font-family: var(--font-mono);
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.specGroup {
+  margin-bottom: 24px;
+}
+
+.repoRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.barWrap {
+  margin-bottom: 20px;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}

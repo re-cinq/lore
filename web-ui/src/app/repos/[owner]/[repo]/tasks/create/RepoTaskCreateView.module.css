@@ -1,0 +1,16 @@
+/* Per-repo "New Task" form — co-located with RepoTaskCreateView.tsx. Static. */
+
+.form {
+  max-width: 600px;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.hint {
+  font-size: var(--fs-xs);
+}

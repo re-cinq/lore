@@ -1,22 +1,60 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import AssembledContextView, {
-  TOKEN_BUDGET,
-  type AssembledResult,
-  type AssembledContextViewProps,
-} from './AssembledContextView';
+import AssembledContextView, { type AssembledContextViewProps } from './AssembledContextView';
+import type { AssemblyTrace } from './trace-types';
 
-const result = (over: Partial<AssembledResult> = {}): AssembledResult => ({
-  text: 'Assembled **context** body.',
+const trace = (over: Partial<AssemblyTrace> = {}): AssemblyTrace => ({
+  query: 'add auth',
+  template: 'implementation',
+  effectiveBudget: 8000,
+  crossRepo: false,
+  templateSections: [],
   sections: [
-    { header: 'Conventions', tokens: 4000, truncated: false },
-    { header: 'Agent Memory', tokens: 1000, truncated: true },
+    {
+      header: 'Architecture Decisions',
+      source: 'adrs',
+      priority: 1,
+      status: 'ok',
+      allocatedBudget: 3000,
+      rawTokens: 640,
+      finalTokens: 640,
+      truncated: false,
+      included: true,
+      items: [
+        {
+          text: '## Decision\n\nuse X',
+          tokens: 640,
+          source_path: 'adrs/ADR-016.md',
+          content_type: 'adr',
+          score: 0.83,
+          ingested_at: '2026-05-01T00:00:00.000Z',
+        },
+      ],
+    },
+    {
+      header: 'Directory Rules',
+      source: 'rules',
+      priority: 1,
+      status: 'no-match',
+      allocatedBudget: 0,
+      rawTokens: 0,
+      finalTokens: 0,
+      truncated: false,
+      included: false,
+      omitReason: 'no rule matched the query',
+      items: [],
+    },
   ],
+  budget: { total: 8000, used: 640, leftover: 7360 },
+  freshness: { state: 'fresh', message: '' },
+  timingsMs: { total: 42, perSource: { adrs: 10 } },
   ...over,
 });
 
 const baseProps = (over: Partial<AssembledContextViewProps> = {}): AssembledContextViewProps => ({
+  owner: 're-cinq',
+  repo: 'lore',
   query: 'add auth',
   template: 'implementation',
   templates: ['default', 'implementation', 'review', 'research'],
@@ -35,125 +73,90 @@ function submitForm(container: HTMLElement) {
   fireEvent.submit(form);
 }
 
-describe('AssembledContextView', () => {
-  it('renders the heading and the help popover trigger', () => {
+describe('AssembledContextView — form + state', () => {
+  it('renders the heading and the prompt-debug help popover trigger', () => {
     render(<AssembledContextView {...baseProps()} />);
     expect(screen.getByRole('heading', { level: 2, name: 'Assembled Context' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'What sessions receive' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prompt debug view' })).toBeInTheDocument();
   });
 
   it('renders one template option per templates entry, with the current one selected', () => {
     render(<AssembledContextView {...baseProps({ template: 'review' })} />);
     const select = screen.getByLabelText('Template') as HTMLSelectElement;
     expect(select.value).toBe('review');
-    expect(screen.getByRole('option', { name: 'research' })).toBeInTheDocument();
     expect(select.querySelectorAll('option')).toHaveLength(4);
   });
 
-  it('pushes query edits up via onQueryChange', () => {
+  it('pushes query and template edits up via callbacks', () => {
     const onQueryChange = vi.fn();
-    render(<AssembledContextView {...baseProps({ query: '', onQueryChange })} />);
-    fireEvent.change(screen.getByPlaceholderText(/Describe the task/), { target: { value: 'fix bug' } });
-    expect(onQueryChange).toHaveBeenCalledWith('fix bug');
-  });
-
-  it('pushes template edits up via onTemplateChange', () => {
     const onTemplateChange = vi.fn();
-    render(<AssembledContextView {...baseProps({ onTemplateChange })} />);
+    render(<AssembledContextView {...baseProps({ query: '', onQueryChange, onTemplateChange })} />);
+    fireEvent.change(screen.getByPlaceholderText(/Describe the task/), { target: { value: 'fix bug' } });
     fireEvent.change(screen.getByLabelText('Template'), { target: { value: 'research' } });
+    expect(onQueryChange).toHaveBeenCalledWith('fix bug');
     expect(onTemplateChange).toHaveBeenCalledWith('research');
   });
 
-  it('disables submit when the query is blank or whitespace only', () => {
-    render(<AssembledContextView {...baseProps({ query: '   ' })} />);
-    expect(screen.getByRole('button', { name: 'Assemble' })).toBeDisabled();
-  });
-
-  it('disables submit while loading', () => {
-    render(<AssembledContextView {...baseProps({ loading: true })} />);
-    expect(screen.getByRole('button', { name: 'Assembling…' })).toBeDisabled();
-  });
-
-  it('fires onSubmit when the form is submitted with a non-empty query', () => {
+  it('disables submit when blank/whitespace or loading, and fires onSubmit otherwise', () => {
     const onSubmit = vi.fn();
-    const { container } = render(<AssembledContextView {...baseProps({ onSubmit })} />);
+    const { container, rerender } = render(<AssembledContextView {...baseProps({ query: '   ' })} />);
+    expect(screen.getByRole('button', { name: 'Assemble' })).toBeDisabled();
+    rerender(<AssembledContextView {...baseProps({ loading: true })} />);
+    expect(screen.getByRole('button', { name: 'Assembling…' })).toBeDisabled();
+    rerender(<AssembledContextView {...baseProps({ onSubmit })} />);
     submitForm(container);
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
-  it('does not fire onSubmit when the form is submitted with a blank query', () => {
-    const onSubmit = vi.fn();
-    const { container } = render(<AssembledContextView {...baseProps({ query: '  ', onSubmit })} />);
-    submitForm(container);
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('renders the loading state', () => {
-    render(<AssembledContextView {...baseProps({ loading: true })} />);
+  it('renders loading and error states', () => {
+    const { rerender } = render(<AssembledContextView {...baseProps({ loading: true })} />);
     expect(screen.getByText('Assembling context…')).toBeInTheDocument();
-  });
-
-  it('renders the error state with the message', () => {
-    render(<AssembledContextView {...baseProps({ error: 'HTTP 500' })} />);
+    rerender(<AssembledContextView {...baseProps({ error: 'HTTP 500' })} />);
     expect(screen.getByText('Context unavailable: HTTP 500')).toBeInTheDocument();
   });
 
-  it('renders the empty state when a result has null text', () => {
+  it('renders the empty state when a result has null text and no trace', () => {
     render(<AssembledContextView {...baseProps({ result: { text: null, sections: [] } })} />);
     expect(
       screen.getByText('No context assembled — the repo may not be onboarded or ingested yet.'),
     ).toBeInTheDocument();
   });
+});
 
-  it('renders the total-vs-budget line summing the section tokens', () => {
-    render(<AssembledContextView {...baseProps({ result: result() })} />);
-    expect(screen.getByText(`5000 / ${TOKEN_BUDGET} tokens`)).toBeInTheDocument();
+describe('AssembledContextView — assembly trace', () => {
+  const withTrace = (over: Partial<AssemblyTrace> = {}) =>
+    baseProps({ result: { text: '<context></context>', trace: trace(over) } });
+
+  it('renders the budget summary from the trace', () => {
+    render(<AssembledContextView {...withTrace()} />);
+    expect(screen.getByText('640 / 8000 tokens used · 7360 left')).toBeInTheDocument();
   });
 
-  it('renders a row per section with its header and token count', () => {
-    render(<AssembledContextView {...baseProps({ result: result() })} />);
-    expect(screen.getByText('Conventions')).toBeInTheDocument();
-    expect(screen.getByText('Agent Memory')).toBeInTheDocument();
-    expect(screen.getByText('4000 tokens')).toBeInTheDocument();
-    expect(screen.getByText('1000 tokens')).toBeInTheDocument();
+  it('renders an included source card and an omitted one with its reason', () => {
+    render(<AssembledContextView {...withTrace()} />);
+    expect(screen.getByText('Architecture Decisions')).toBeInTheDocument();
+    expect(screen.getByText('included')).toBeInTheDocument();
+    expect(screen.getByText('omitted · no rule matched the query')).toBeInTheDocument();
   });
 
-  it('shows the truncated badge only on truncated sections', () => {
-    render(<AssembledContextView {...baseProps({ result: result() })} />);
-    expect(screen.getAllByText('truncated', { selector: 'span.badge' })).toHaveLength(1);
+  it('links each contributing document to its context detail page', () => {
+    render(<AssembledContextView {...withTrace()} />);
+    const link = screen.getByRole('link', { name: 'adrs/ADR-016.md' });
+    expect(link).toHaveAttribute('href', '/repos/re-cinq/lore/context/adrs%2FADR-016.md');
   });
 
-  it('sizes each section bar proportionally to the token budget, clamped at 100%', () => {
-    const { container } = render(
-      <AssembledContextView
-        {...baseProps({
-          result: {
-            text: 'x',
-            sections: [
-              { header: 'Half', tokens: 4000, truncated: false },
-              { header: 'Over', tokens: 12000, truncated: false },
-            ],
-          },
-        })}
-      />,
-    );
-    const bars = Array.from(container.querySelectorAll<HTMLElement>('[data-token-bar]'));
-    expect(bars[0].style.width).toBe('50%');
-    expect(bars[1].style.width).toBe('100%');
+  it('renders the assembled prompt as a nested context/section/document tag tree', () => {
+    render(<AssembledContextView {...withTrace()} />);
+    expect(screen.getByText('context')).toBeInTheDocument();
+    expect(screen.getByText('section')).toBeInTheDocument();
+    expect(screen.getByText('document')).toBeInTheDocument();
+    // document body renders as markdown (the chunk's own heading, contained)
+    expect(screen.getByRole('heading', { level: 2, name: 'Decision' })).toBeInTheDocument();
   });
 
-  it('renders the assembled text as formatted markdown (heading, bold, blockquote)', () => {
-    render(
-      <AssembledContextView
-        {...baseProps({ result: result({ text: '## Section\n\n> **Heads up** stale' }) })}
-      />,
-    );
-    expect(screen.getByRole('heading', { level: 2, name: 'Section' })).toBeInTheDocument();
-    expect(screen.getByText('Heads up', { selector: 'strong' })).toBeInTheDocument();
-  });
-
-  it('renders the breakdown without crashing when sections are absent', () => {
-    render(<AssembledContextView {...baseProps({ result: { text: 'only text' } })} />);
-    expect(screen.getByText(`0 / ${TOKEN_BUDGET} tokens`)).toBeInTheDocument();
+  it('toggles the prompt body between rendered markdown and raw text', () => {
+    render(<AssembledContextView {...withTrace()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
+    expect(screen.getByText(/## Decision/)).toBeInTheDocument();
   });
 });

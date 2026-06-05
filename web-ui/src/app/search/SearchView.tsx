@@ -1,3 +1,5 @@
+import styles from './SearchView.module.css';
+
 export interface SearchResult {
   key: string;
   value: string;
@@ -36,8 +38,8 @@ export default function SearchView({ q, repo, repos, results }: SearchViewProps)
     <div>
       <h1>Search Memories</h1>
       <form method="get" className="search-form">
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <select name="repo" defaultValue={repo || ''} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)' }}>
+        <div className={styles.repoFilter}>
+          <select name="repo" defaultValue={repo || ''} className={styles.repoSelect}>
             <option value="">All repos</option>
             {repos.map(r => (
               <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
@@ -48,7 +50,7 @@ export default function SearchView({ q, repo, repos, results }: SearchViewProps)
         <button type="submit">Search</button>
       </form>
       {q && (
-        <p className="meta" style={{ marginBottom: 16 }}>
+        <p className={`meta ${styles.resultCount}`}>
           {results.length} result{results.length !== 1 ? 's' : ''} for &quot;{q}&quot;
           {repo && <> in <strong>{repo}</strong></>}
         </p>
@@ -65,7 +67,7 @@ export default function SearchView({ q, repo, repos, results }: SearchViewProps)
           <pre>{r.value}</pre>
           <div className="result-source">
             source: <span className={`op-badge ${sourceBadgeClass(r.source)}`}>{r.source}</span>
-            {r.repo && <span className="badge" style={{ marginLeft: '0.5rem' }}>{r.repo}</span>}
+            {r.repo && <span className={`badge ${styles.repoBadge}`}>{r.repo}</span>}
           </div>
         </div>
       ))}

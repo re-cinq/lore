@@ -1,0 +1,64 @@
+/* Live PR status card — co-located with PRStatusCard.tsx. */
+
+.card {
+  margin-top: 12px;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.pill {
+  font-size: var(--fs-sm);
+}
+
+.titleLink {
+  font-size: var(--fs-sm);
+}
+
+.checksRow {
+  font-size: var(--fs-sm);
+  margin-bottom: 4px;
+}
+
+.reviewsRow {
+  font-size: var(--fs-sm);
+}
+
+.passing {
+  color: var(--success);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.failing {
+  color: var(--danger);
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pending {
+  color: var(--text-muted);
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.approved {
+  color: var(--success);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.changesRequested {
+  color: var(--warning);
+  margin-left: 8px;
+}

@@ -1,3 +1,5 @@
+import styles from './OnboardView.module.css';
+
 export interface OnboardViewProps {
   /** Already-onboarded repos, used for the count + the "Already onboarded: …" hint. */
   onboarded: { full_name: string }[];
@@ -17,16 +19,16 @@ export default function OnboardView({ onboarded, onboardRepoAction }: OnboardVie
       <h1>Add Repository</h1>
       <p className="meta">Onboard a repository to Lore. This will create a PR on the target repo with CLAUDE.md, AGENTS.md, PR template, and CI workflows.</p>
 
-      <form action={onboardRepoAction} className="task-form" style={{maxWidth:'500px', marginTop:'24px'}}>
+      <form action={onboardRepoAction} className={`task-form ${styles.form}`}>
         <label>Repository (owner/name)</label>
         <input type="text" name="full_name" required placeholder="re-cinq/my-service"
           pattern="[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+"
           title="Format: owner/repo" />
-        <p className="meta" style={{fontSize:'var(--fs-xs)', marginTop:'4px'}}>
+        <p className={`meta ${styles.hint}`}>
           The GitHub App must have access to this repo.
           {onboarded.length > 0 && ` Already onboarded: ${onboarded.map((r) => r.full_name).join(', ')}`}
         </p>
-        <button type="submit" style={{marginTop:'12px'}}>Onboard Repository</button>
+        <button type="submit" className={styles.submit}>Onboard Repository</button>
       </form>
     </div>
   );

@@ -1,0 +1,47 @@
+/* Nested tag-tree boxes for the assembled-context prompt — co-located with
+   TagBox.tsx. Each tag is a bordered box; the attribute chip straddles the top
+   border (the "terminal readout" look). Alternating depths swap surface. */
+
+.box {
+  position: relative;
+  margin-top: 16px;
+  padding: 18px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.alt {
+  background: var(--bg);
+}
+
+.chip {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--hud-chip-bg);
+  color: var(--hud-chip-fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.chipTag {
+  color: var(--hud-chip-tag);
+}
+
+.chipVal {
+  color: var(--hud-chip-attr);
+}
+
+.raw {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}

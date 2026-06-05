@@ -4,6 +4,7 @@ import { useState } from 'react';
 import HelpPopover from '@/components/HelpPopover';
 import { formatCost, truncate, displayCreatedBy } from '@/lib/task-presenter';
 import type { AgentKind } from '@/lib/agent-classify';
+import styles from './AgentsTable.module.css';
 
 export interface AgentRow {
   agent_id: string;
@@ -45,8 +46,8 @@ export default function AgentsTable({ agents, intro }: AgentsTableProps) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <h2 style={{ margin: 0 }}>Agents</h2>
+      <div className={styles.head}>
+        <h2 className={styles.heading}>Agents</h2>
         <HelpPopover label="What agents are">
           <p>Two kinds of agents show up here:</p>
           <ul>
@@ -67,7 +68,7 @@ export default function AgentsTable({ agents, intro }: AgentsTableProps) {
         </HelpPopover>
       </div>
       {intro && (
-        <p className="meta" style={{ marginTop: '6px', marginBottom: '16px' }}>
+        <p className={`meta ${styles.intro}`}>
           {intro}
         </p>
       )}
@@ -75,10 +76,9 @@ export default function AgentsTable({ agents, intro }: AgentsTableProps) {
       {taskAgentCount > 0 && (
         <button
           type="button"
-          className="badge"
+          className={`badge ${styles.toggle}`}
           aria-pressed={showTaskAgents}
           onClick={() => setShowTaskAgents((v) => !v)}
-          style={{ marginBottom: '12px', cursor: 'pointer' }}
         >
           {showTaskAgents
             ? 'Hide task agents'
@@ -125,7 +125,7 @@ export default function AgentsTable({ agents, intro }: AgentsTableProps) {
           ))}
           {visible.length === 0 && (
             <tr>
-              <td colSpan={columnCount} className="meta" style={{ textAlign: 'center' }}>
+              <td colSpan={columnCount} className={`meta ${styles.emptyCell}`}>
                 No agents to show yet
               </td>
             </tr>

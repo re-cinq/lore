@@ -1,5 +1,6 @@
 import { getRepoMeta } from '@/lib/github';
 import TabNav from './TabNav';
+import styles from './layout.module.css';
 
 export default async function RepoLayout({
   children,
@@ -23,12 +24,12 @@ export default async function RepoLayout({
 
   return (
     <div>
-      <h1 style={{marginBottom:'4px'}}>{owner}/{repo}</h1>
+      <h1 className={styles.title}>{owner}/{repo}</h1>
       {meta?.description && (
-        <p className="meta" style={{marginTop:0, marginBottom:'12px'}}>{meta.description}</p>
+        <p className={`meta ${styles.desc}`}>{meta.description}</p>
       )}
       <TabNav tabs={tabs} base={base} />
-      <div style={{marginTop:'16px'}}>
+      <div className={styles.body}>
         {children}
       </div>
     </div>

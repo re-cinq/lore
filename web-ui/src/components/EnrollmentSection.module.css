@@ -1,0 +1,91 @@
+/* Repo enrollment checklist — co-located with EnrollmentSection.tsx. Only the
+   per-status icon color is computed at render (from check.status) and stays
+   inline; everything else is static. */
+
+.statusIcon {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.label {
+  flex-shrink: 0;
+}
+
+.detail {
+  font-size: var(--fs-xs);
+}
+
+.link {
+  font-size: var(--fs-xs);
+}
+
+.commandRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.command {
+  flex: 1;
+  margin: 0;
+}
+
+.step {
+  margin-bottom: 14px;
+}
+
+.stepLabel {
+  margin-bottom: 2px;
+}
+
+.stepNote {
+  font-size: var(--fs-xs);
+  margin-bottom: 6px;
+}
+
+.altLabel {
+  font-size: var(--fs-xs);
+  margin: 6px 0 4px;
+}
+
+.section {
+  margin-bottom: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.heading {
+  margin: 0;
+}
+
+.summary {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+}
+
+.groupLabel {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.checks {
+  margin-bottom: 20px;
+}
+
+.steps {
+  padding-left: 1.4em;
+  margin: 0;
+}
+
+.footnote {
+  font-size: var(--fs-xs);
+  margin-top: 8px;
+  margin-bottom: 0;
+}

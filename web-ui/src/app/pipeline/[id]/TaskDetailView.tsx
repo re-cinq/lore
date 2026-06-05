@@ -3,6 +3,7 @@ import TaskLogs from './TaskLogs';
 import Timeline from './Timeline';
 import FailurePanel from './FailurePanel';
 import Linkified from '@/components/Linkified';
+import styles from './TaskDetailView.module.css';
 
 export interface TaskDetailTask {
   id: string;
@@ -74,21 +75,21 @@ export default function TaskDetailView({
         {task.pr_url && task.pr_number && (
           <PRStatusCard taskId={task.id} prUrl={task.pr_url} />
         )}
-        {task.failure_reason && <p><strong>Failure:</strong> <span style={{color:'var(--danger)'}}><Linkified text={task.failure_reason} repo={task.target_repo} /></span></p>}
+        {task.failure_reason && <p><strong>Failure:</strong> <span className={styles.failureText}><Linkified text={task.failure_reason} repo={task.target_repo} /></span></p>}
         {task.review_iteration > 0 && <p><strong>Review iterations:</strong> {task.review_iteration}</p>}
         <p><strong>Created by:</strong> {task.created_by}</p>
         <p className="meta">Created: {new Date(task.created_at).toLocaleString()} · Updated: {new Date(task.updated_at).toLocaleString()}</p>
-        <div style={{display:'flex', gap:'8px', marginTop:'12px'}}>
+        <div className={styles.actions}>
           {task.status === 'pending' && (task.priority || 'normal') === 'normal' && (
             <form action={`/api/pipeline/${task.id}/run-now`} method="POST">
-              <button type="submit" style={{background:'var(--accent)',color:'var(--text-on-accent)',border:'none',padding:'6px 16px',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>
+              <button type="submit" className={styles.runNowBtn}>
                 Run Now
               </button>
             </form>
           )}
           {!['merged', 'failed', 'cancelled'].includes(task.status) && (
             <form action={`/api/pipeline/${task.id}/cancel`} method="POST">
-              <button type="submit" style={{background:'var(--danger)',color:'var(--text-on-accent)',border:'none',padding:'6px 16px',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>
+              <button type="submit" className={styles.cancelBtn}>
                 Cancel Task
               </button>
             </form>
@@ -102,9 +103,9 @@ export default function TaskDetailView({
 
       {/* Feedback form — visible when task has a PR and isn't in a terminal state */}
       {task.pr_url && !['merged', 'cancelled'].includes(task.status) && (
-        <div className="spec-card" style={{ marginTop: '16px' }}>
-          <h3 style={{ margin: '0 0 8px 0' }}>Give Feedback</h3>
-          <p className="meta" style={{ marginBottom: '8px' }}>
+        <div className={`spec-card ${styles.feedbackCard}`}>
+          <h3 className={styles.feedbackHeading}>Give Feedback</h3>
+          <p className={`meta ${styles.feedbackLede}`}>
             Tell the agent what to change. A revision task will be created on the same branch.
           </p>
           <form action={submitFeedback}>
@@ -114,9 +115,9 @@ export default function TaskDetailView({
               rows={3}
               required
               placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
-              style={{ width: '100%', marginBottom: '8px' }}
+              className={styles.feedbackTextarea}
             />
-            <button type="submit" style={{ background: 'var(--accent)', color: 'var(--text-on-accent)', border: 'none', padding: '8px 20px', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
+            <button type="submit" className={styles.feedbackBtn}>
               Request Revision
             </button>
           </form>
@@ -130,11 +131,11 @@ export default function TaskDetailView({
       <h2>Event Timeline</h2>
       <div className="memory-list">
         {events.map(e => (
-          <div key={e.id} className="version" style={{marginBottom:'12px'}}>
+          <div key={e.id} className={`version ${styles.event}`}>
             <span className={`op-badge op-${e.to_status}`}>{e.to_status}</span>
             {e.from_status && <span className="meta"> ← {e.from_status}</span>}
-            <span className="meta" style={{marginLeft:'12px'}}>{new Date(e.created_at).toLocaleString()}</span>
-            {e.metadata && <pre style={{marginTop:'4px',fontSize:'var(--fs-xs)'}}>{JSON.stringify(e.metadata, null, 2)}</pre>}
+            <span className={`meta ${styles.eventTime}`}>{new Date(e.created_at).toLocaleString()}</span>
+            {e.metadata && <pre className={styles.eventMeta}>{JSON.stringify(e.metadata, null, 2)}</pre>}
           </div>
         ))}
       </div>
@@ -148,19 +149,19 @@ export default function TaskDetailView({
           <tbody>
             {llmCalls.map((c, i) => (
               <tr key={i}>
-                <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{c.model}</td>
+                <td className={styles.mono}>{c.model}</td>
                 <td>
                   {c.status === 'failed'
                     ? <span className="badge badge-red" title={c.error ?? undefined}>failed</span>
                     : <span className="op-badge op-pr-created">success</span>}
                   {c.status === 'failed' && c.error && (
-                    <div className="meta" style={{fontSize:'var(--fs-xs)', marginTop:'2px', maxWidth:'40ch'}}>
+                    <div className={`meta ${styles.callError}`}>
                       <Linkified text={c.error} repo={task.target_repo} />
                     </div>
                   )}
                 </td>
-                <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
-                <td style={{fontFamily:'var(--font-mono)', fontSize:'var(--fs-sm)'}}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
+                <td className={styles.mono}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
+                <td className={styles.mono}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
                 <td className="meta">{new Date(c.created_at).toLocaleString()}</td>
               </tr>
             ))}

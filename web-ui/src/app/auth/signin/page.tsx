@@ -1,14 +1,15 @@
 'use client';
 import { signIn } from 'next-auth/react';
+import styles from './page.module.css';
 
 export default function SignIn() {
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg)' }}>
-      <div style={{ textAlign: 'center' }}>
-        <h1 style={{ color: 'var(--text)', marginBottom: '24px' }}>Lore</h1>
-        <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Sign in to access the platform</p>
+    <div className={styles.wrap}>
+      <div className={styles.panel}>
+        <h1 className={styles.title}>Lore</h1>
+        <p className={styles.subtitle}>Sign in to access the platform</p>
         <button onClick={() => signIn('github', { callbackUrl: '/' })}
-          style={{ padding: '12px 24px', background: 'var(--bg-surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: 'var(--fs-base)' }}>
+          className={styles.button}>
           Sign in with GitHub
         </button>
       </div>

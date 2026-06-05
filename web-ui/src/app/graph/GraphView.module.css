@@ -1,0 +1,39 @@
+.intro {
+  margin-bottom: 12px;
+}
+
+.statRow {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.filterRow {
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.activeRow {
+  background: var(--border);
+}
+
+.emptyCell {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+}
+
+.invalidToggle {
+  margin-bottom: 0.5rem;
+}
+
+.invalidToggleLink {
+  font-size: var(--fs-sm);
+}
+
+.invalidatedRow {
+  opacity: 0.5;
+}

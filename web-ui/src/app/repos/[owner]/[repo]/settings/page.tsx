@@ -3,6 +3,7 @@ import { query, queryOne } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { parseSettingsForm } from '@/lib/settings-form';
 import HelpPopover from '@/components/HelpPopover';
+import styles from './page.module.css';
 
 interface Repo { full_name: string }
 
@@ -55,8 +56,8 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
 
   return (
     <div>
-      <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-        <h2 style={{margin:0}}>Settings</h2>
+      <div className={styles.titleRow}>
+        <h2 className={styles.title}>Settings</h2>
         <HelpPopover label="How settings are applied">
           <p>Per-repo configuration, merged over the global <code>task-types.yaml</code> defaults — repo values win.</p>
           <ul>
@@ -66,10 +67,10 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
           </ul>
         </HelpPopover>
       </div>
-      <p className="meta" style={{marginTop:'6px', marginBottom:'16px'}}>
+      <p className={`meta ${styles.lede}`}>
         Per-repo configuration: team, trust level, task types, auto-review, cross-repo links, and integrations.
       </p>
-      <form action={saveSettings} className="task-form" style={{maxWidth:'500px'}}>
+      <form action={saveSettings} className={`task-form ${styles.form}`}>
         <input type="hidden" name="full_name" value={fullName} />
 
         <label>Team</label>
@@ -104,7 +105,7 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
             <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
           ))}
         </select>
-        <span className="meta" style={{fontSize:'var(--fs-xs)'}}>Hold Cmd/Ctrl to select multiple. Linked repos will automatically get this repo added to their cross-repo list.</span>
+        <span className={`meta ${styles.hint}`}>Hold Cmd/Ctrl to select multiple. Linked repos will automatically get this repo added to their cross-repo list.</span>
 
         <button type="submit">Save Settings</button>
       </form>

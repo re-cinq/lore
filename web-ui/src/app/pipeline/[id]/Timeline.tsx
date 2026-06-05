@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/components/icon-map";
+import styles from "./Timeline.module.css";
 
 interface TimelineCommit {
   sha: string;
@@ -98,7 +99,7 @@ export default function Timeline({
 
   if (loading) {
     return (
-      <div className="spec-card" style={{ marginTop: "16px" }}>
+      <div className={`spec-card ${styles.card}`}>
         <div className="meta">Loading timeline…</div>
       </div>
     );
@@ -106,8 +107,8 @@ export default function Timeline({
 
   if (error) {
     return (
-      <div className="spec-card" style={{ marginTop: "16px" }}>
-        <div style={{ color: "var(--danger)" }}>Timeline unavailable: {error}</div>
+      <div className={`spec-card ${styles.card}`}>
+        <div className={styles.unavailable}>Timeline unavailable: {error}</div>
       </div>
     );
   }
@@ -115,20 +116,11 @@ export default function Timeline({
   if (!data) return null;
 
   return (
-    <div className="spec-card" style={{ marginTop: "16px" }}>
-      <h3 style={{ margin: 0, marginBottom: "12px" }}>Stage Timeline</h3>
+    <div className={`spec-card ${styles.card}`}>
+      <h3 className={styles.heading}>Stage Timeline</h3>
 
       {data.branch_deleted && (
-        <div
-          style={{
-            padding: "8px 12px",
-            background: "var(--danger-bg)",
-            border: "1px solid var(--danger)",
-            borderRadius: "var(--radius-sm)",
-            color: "var(--danger)",
-            marginBottom: "12px",
-          }}
-        >
+        <div className={styles.deletedBanner}>
           Branch <code>{data.branch_name}</code> has been deleted on the
           remote. Showing last cached state.
         </div>
@@ -145,31 +137,15 @@ export default function Timeline({
         <div className="meta">No stage commits yet.</div>
       )}
 
-      <ol style={{ paddingLeft: 0, listStyle: "none", margin: 0 }}>
+      <ol className={styles.list}>
         {data.commits.map((c) => (
-          <li
-            key={c.sha}
-            style={{
-              padding: "10px 0",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              gap: "12px",
-              alignItems: "flex-start",
-            }}
-          >
-            <div style={{ width: "28px", display: "flex", justifyContent: "center", paddingTop: "2px" }}>
+          <li key={c.sha} className={styles.item}>
+            <div className={styles.iconCol}>
               <Icon name={NODE_ICON[c.stage] ?? "bullet"} size={18} />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "8px",
-                  alignItems: "baseline",
-                  flexWrap: "wrap",
-                }}
-              >
-                <span style={{ fontWeight: 600 }}>{c.stage}</span>
+            <div className={styles.body}>
+              <div className={styles.row}>
+                <span className={styles.stage}>{c.stage}</span>
                 <span className="meta">iter {c.iteration}</span>
                 <span
                   className="status-pill"
@@ -184,7 +160,7 @@ export default function Timeline({
                   {formatDuration(c.duration_ms)}
                 </span>
               </div>
-              <div style={{ marginTop: "4px", fontSize: 'var(--fs-sm)' }}>
+              <div className={styles.summary}>
                 {c.summary}
               </div>
               {data.repo && (
@@ -192,8 +168,7 @@ export default function Timeline({
                   href={`https://github.com/${data.repo}/commit/${c.sha}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="meta"
-                  style={{ fontFamily: "var(--font-mono)", fontSize: 'var(--fs-xs)', display: "inline-flex", alignItems: "center", gap: "3px" }}
+                  className={`meta ${styles.commitLink}`}
                 >
                   {c.sha.substring(0, 7)} <Icon name="external" size={11} />
                 </a>
@@ -204,10 +179,7 @@ export default function Timeline({
       </ol>
 
       {data.lease?.held && (
-        <div
-          className="meta"
-          style={{ marginTop: "12px", fontSize: 'var(--fs-xs)', display: "flex", alignItems: "center", gap: "4px" }}
-        >
+        <div className={`meta ${styles.lease}`}>
           <Icon name="lock" size={12} /> Lease held by <code>{data.lease.holder}</code>
           {data.lease.expires_at &&
             ` (expires ${new Date(data.lease.expires_at).toLocaleTimeString()})`}

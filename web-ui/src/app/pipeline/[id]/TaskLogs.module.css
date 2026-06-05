@@ -1,0 +1,63 @@
+/* Live Job log viewer — co-located with TaskLogs.tsx. */
+
+.wrap {
+  margin-top: 24px;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.statusBadge {
+  font-size: var(--fs-xs);
+}
+
+.pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--success);
+  display: inline-block;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
+.placeholder {
+  font-style: italic;
+}
+
+.terminal {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  overflow-y: auto;
+  max-height: 500px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid var(--border);
+}
+
+.polling {
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}

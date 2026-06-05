@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import CoverageBar, { type CoverageCounts } from '@/components/CoverageBar';
 import InlineMarkdown from '@/components/InlineMarkdown';
+import styles from './SpecCard.module.css';
 
 export interface SpecCardData {
   spec_path: string;
@@ -22,15 +23,15 @@ export default function SpecCard({
 
   return (
     <div className="spec-card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-        <h3 style={{ margin: 0 }}>{spec.title}</h3>
-        <Link href={detailHref} className="btn-secondary" style={{ flexShrink: 0 }}>
+      <div className={styles.head}>
+        <h3 className={styles.title}>{spec.title}</h3>
+        <Link href={detailHref} className={`btn-secondary ${styles.details}`}>
           Details
         </Link>
       </div>
-      <span className="meta" style={{ fontFamily: 'var(--font-mono)' }}>{spec.spec_path}</span>
-      {spec.summary && <p style={{ marginTop: 8 }}><InlineMarkdown text={spec.summary} /></p>}
-      <div style={{ marginTop: 10 }}>
+      <span className={`meta ${styles.path}`}>{spec.spec_path}</span>
+      {spec.summary && <p className={styles.summary}><InlineMarkdown text={spec.summary} /></p>}
+      <div className={styles.bar}>
         <CoverageBar coverage={spec.coverage} />
       </div>
     </div>

@@ -20,7 +20,7 @@ export default function AssembledContextPanel({ owner, repo }: { owner: string; 
   const assemble = async () => {
     setLoading(true);
     try {
-      const url = `/api/repos/${owner}/${repo}/context-preview?query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}`;
+      const url = `/api/repos/${owner}/${repo}/context-preview?query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}&debug=1`;
       const r = await fetch(url);
       if (!r.ok) {
         setError(`HTTP ${r.status}`);
@@ -39,6 +39,8 @@ export default function AssembledContextPanel({ owner, repo }: { owner: string; 
 
   return (
     <AssembledContextView
+      owner={owner}
+      repo={repo}
       query={query}
       template={template}
       templates={TEMPLATES}

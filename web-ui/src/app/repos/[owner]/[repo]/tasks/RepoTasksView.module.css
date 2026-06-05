@@ -1,0 +1,24 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+}
+
+.intro {
+  margin-top: -4px;
+  margin-bottom: 16px;
+}
+
+.emptyCell {
+  text-align: center;
+}

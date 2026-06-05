@@ -4,6 +4,7 @@ import ContextCard from './ContextCard';
 import LoadMore from './LoadMore';
 import { CONTEXT_PAGE_SIZE } from './pagination';
 import { type ChunkMeta } from '@/lib/chunk-presenter';
+import styles from './RepoContextView.module.css';
 
 export interface RepoContextChunk {
   id: string;
@@ -53,8 +54,8 @@ export default function RepoContextView({
   const fullName = `${owner}/${repo}`;
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <h2 style={{ margin: 0 }}>Context</h2>
+      <div className={styles.header}>
+        <h2 className={styles.title}>Context</h2>
         <HelpPopover label="How context is used">
           <p>Context is everything Lore has ingested about this repo — conventions, ADRs, specs, and code — stored as embedded chunks.</p>
           <ul>
@@ -64,7 +65,7 @@ export default function RepoContextView({
           </ul>
         </HelpPopover>
       </div>
-      <p className="meta" style={{ marginTop: '6px', marginBottom: '12px' }}>
+      <p className={`meta ${styles.intro}`}>
         Conventions, ADRs, specs, and code ingested from this repo that agents use as context.
       </p>
 
