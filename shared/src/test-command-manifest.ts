@@ -32,9 +32,13 @@ export function resolveTestCommandManifest(sources: {
   settings?: unknown;
   file?: unknown;
 }): TestCommandManifest[] | null {
-  const declared = sources.settings ?? sources.file;
-  if (declared === undefined || declared === null) return null;
-  return parseTestCommandManifest(declared);
+  if (!isManifestDeclared(sources)) return null;
+  return parseTestCommandManifest(sources.settings ?? sources.file);
+}
+
+/** True when either declaration site supplies a manifest (file or settings non-null). */
+export function isManifestDeclared(sources: { file?: unknown; settings?: unknown }): boolean {
+  return (sources.settings ?? sources.file) != null;
 }
 
 export type TestInterfaceCheck =
@@ -51,7 +55,7 @@ export function decideTestInterfaceCheck(sources: {
 }): TestInterfaceCheck {
   const declared =
     sources.manifestFileDeclared ||
-    (sources.settingsTestCommands !== undefined && sources.settingsTestCommands !== null);
+    isManifestDeclared({ settings: sources.settingsTestCommands });
   if (declared) return { status: "configured" };
   return {
     status: "scaffold",
