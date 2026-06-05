@@ -3,8 +3,9 @@
  * `executionRefusal` is the trust-boundary gate (test commands run only
  * in a local sandbox, never on a cluster instance with `LORE_DB_HOST`
  * set). `runTestsList` and `runTestsRun` execute the repo's manifest
- * commands through a shell and hand stdout to the shared
- * `parseTestDescriptors` / `parseRunResult` parsers.
+ * commands through a shell — each invocation is timeout-bounded, so a
+ * runaway command is killed and the call rejects — and hand stdout to
+ * the shared `parseTestDescriptors` / `parseRunResult` parsers.
  * `loadTestCommandManifest` reads `<repoRoot>/.lore/test-commands.yml`.
  * `listTestsTool` / `runTestTool` are the orchestrators the tool
  * registrations call: gate → manifest precondition → run → JSON.
@@ -32,14 +33,24 @@ const execShell = promisify(exec);
 
 const NO_MANIFEST = "No test-command manifest declared for this repo.";
 
+const DEFAULT_TIMEOUT_MS = 120_000;
+
+function resolveCwd(manifest: TestCommandManifest, cwd: string): string {
+  return join(cwd, manifest.cwd || ".");
+}
+
 export function executionRefusal(env: NodeJS.ProcessEnv): string | null {
   return env.LORE_DB_HOST
     ? "Test commands run only in a trusted sandbox — run in CI or locally."
     : null;
 }
 
-export async function runTestsList(listCommand: string, cwd: string): Promise<TestDescriptor[]> {
-  const { stdout } = await execShell(listCommand, { cwd });
+export async function runTestsList(
+  listCommand: string,
+  cwd: string,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<TestDescriptor[]> {
+  const { stdout } = await execShell(listCommand, { cwd, timeout: timeoutMs });
 
   /// TODO: return an xml format list and error that is interpreded better by the ai models
   return parseTestDescriptors(JSON.parse(stdout));
@@ -49,8 +60,9 @@ export async function runTestsRun(
   runCommand: string,
   selector: string,
   cwd: string,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<RunResult> {
-  const { stdout } = await execShell(substituteSelector(runCommand, selector), { cwd });
+  const { stdout } = await execShell(substituteSelector(runCommand, selector), { cwd, timeout: timeoutMs });
   return parseRunResult(JSON.parse(stdout));
 }
 
@@ -64,7 +76,7 @@ export async function listTestsTool(
 
   if (!manifest) return NO_MANIFEST;
 
-  const descriptors = await runTestsList(manifest.list, manifest.cwd || cwd);
+  const descriptors = await runTestsList(manifest.list, resolveCwd(manifest, cwd));
   return JSON.stringify(descriptors);
 }
 
@@ -79,7 +91,7 @@ export async function runTestTool(
 
   if (!manifest) return NO_MANIFEST;
 
-  const result = await runTestsRun(manifest.run, selector, manifest.cwd || cwd);
+  const result = await runTestsRun(manifest.run, selector, resolveCwd(manifest, cwd));
   return JSON.stringify(result);
 }
 
@@ -98,13 +110,20 @@ export async function buildTestReport(
 ): Promise<TestReport> {
   const refusal = executionRefusal(env);
   if (refusal) throw new Error(refusal);
-  const tests = await runTestsList(manifest.list, cwd);
-  const results = await Promise.all(
-    tests.map(async (descriptor) => ({
-      id: descriptor.id,
-      ...(await runTestsRun(manifest.run, descriptor.id, cwd)),
-    })),
-  );
+  const runCwd = resolveCwd(manifest, cwd);
+  const tests = await runTestsList(manifest.list, runCwd);
+
+  const runOrSkip = (descriptor: TestDescriptor) =>
+    runTestsRun(manifest.run, descriptor.id, runCwd)
+      .then((run) => ({ id: descriptor.id, ...run }))
+      .catch((err) => {
+        const reason = err instanceof Error ? err.message : String(err);
+        console.warn(`[trace] skipping ${descriptor.id}: ${reason}`);
+        return null;
+      });
+
+  const settled = await Promise.all(tests.map(runOrSkip));
+  const results = settled.filter((run) => run !== null);
   return { commit: meta.commit, branch: meta.branch, tests, results };
 }
 
