@@ -37,6 +37,28 @@ export function resolveTestCommandManifest(sources: {
   return parseTestCommandManifest(declared);
 }
 
+export type TestInterfaceCheck =
+  | { status: "configured" }
+  | { status: "scaffold"; files: string[] };
+
+/**
+ * Onboard-time decision: a repo with no declared test-command manifest gets
+ * both interface files scaffolded; otherwise it is already configured.
+ */
+export function decideTestInterfaceCheck(sources: {
+  manifestFileDeclared: boolean;
+  settingsTestCommands?: unknown;
+}): TestInterfaceCheck {
+  const declared =
+    sources.manifestFileDeclared ||
+    (sources.settingsTestCommands !== undefined && sources.settingsTestCommands !== null);
+  if (declared) return { status: "configured" };
+  return {
+    status: "scaffold",
+    files: [".lore/test-commands.yml", ".github/workflows/lore-tests.yml"],
+  };
+}
+
 /** Substitute the runner-native test id into a `run` command's {selector} placeholder. */
 export function substituteSelector(run: string, selector: string): string {
   return run.replaceAll("{selector}", selector);

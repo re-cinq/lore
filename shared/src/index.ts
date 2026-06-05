@@ -54,9 +54,11 @@ export {
 export {
   parseTestCommandManifest,
   resolveTestCommandManifest,
+  decideTestInterfaceCheck,
   substituteSelector,
   type TestCommandManifest,
   type CoverageFormat,
+  type TestInterfaceCheck,
 } from './test-command-manifest.js';
 export {
   parseTestDescriptors,

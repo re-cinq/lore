@@ -19,7 +19,7 @@ import {
   type StepFailure,
 } from "./lib/error-classify.js";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION } from "@re-cinq/lore-shared";
+import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck } from "@re-cinq/lore-shared";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -769,6 +769,14 @@ const ONBOARD_FILES: { path: string; description: string; prompt: string }[] = [
   },
 ];
 
+/**
+ * Onboard scaffold prompt for the suggested `.lore/test-commands.yml` manifest
+ * (project-test-interface AC12). Language-agnostic — the agent detects the real
+ * runner. The team reviews and adjusts the suggestion in the onboarding PR.
+ */
+const TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT =
+  "Generate a suggested `.lore/test-commands.yml` test-command manifest for this repository. Detect the actual test framework and coverage tooling from the repo's build files and config — never assume a runner. Declare three keys: `list` (a shell command that prints to stdout a JSON array of test descriptors `{id, name, file, startLine, endLine, spec?}`, where `id` is the framework's native, stable test node id), `run` (a shell command containing the literal `{selector}` placeholder that runs the single test named by that id with coverage and prints `{passed, covered:[{file, startLine, endLine}]}` or emits an lcov/cobertura report), and `coverage_format` (one of lcov | cobertura | json). For a monorepo, emit a top-level list with one entry per package, each carrying its own `cwd`. This is a suggested scaffold the team reviews and adjusts — do not change any test behaviour.";
+
 /** ADR files are generated dynamically based on what's in the repo. */
 const ADR_TOPICS = [
   { slug: "language-choice", prompt: "Write an ADR for the language/framework choice. Look at package.json, go.mod, Cargo.toml, etc. to determine what was chosen and why it makes sense for this project." },
@@ -810,17 +818,39 @@ export async function handleOnboard(
     toGenerate.push({ path: f.path, prompt: f.prompt });
   }
 
-  // Test-interface CI workflow (project-test-interface AC11): scaffold a
-  // per-toolchain lore-tests.yml only when the repo has NOT already declared a
-  // test-command manifest. A repo with .lore/test-commands.yml is reported
-  // "configured" and scaffolds nothing (idempotent — AC12); declining the
-  // scaffold leaves the repo in documented fallback mode with no error.
-  const loreTestsPath = ".github/workflows/lore-tests.yml";
-  const hasManifest = existingFiles.has(".lore/test-commands.yml");
-  if (hasManifest) {
-    console.log("[agent] Onboard: test interface already configured (.lore/test-commands.yml present) — skipping lore-tests.yml");
-  } else if (!existingFiles.has(loreTestsPath)) {
-    toGenerate.push({ path: loreTestsPath, prompt: LORE_TESTS_INSTRUCTION });
+  // Test-interface check (project-test-interface AC12): when the repo declares
+  // NO test-command manifest (neither a .lore/test-commands.yml file nor
+  // lore.repos.settings.test_commands), scaffold the suggested manifest +
+  // per-toolchain lore-tests.yml in the onboarding PR. A repo that already
+  // declares one is reported "configured" and scaffolds nothing (idempotent).
+  // Declining (not merging the scaffold) leaves the repo in documented fallback
+  // mode with no error — the scaffold is a suggestion, never enforced.
+  let settingsTestCommands: unknown;
+  try {
+    const rows = await query<{ settings: any }>(
+      `SELECT settings FROM lore.repos WHERE full_name = $1`,
+      [targetRepo],
+    );
+    settingsTestCommands = rows[0]?.settings?.test_commands;
+  } catch (err: any) {
+    console.warn(`[agent] Onboard: could not read repo settings for test-interface check: ${err.message}`);
+  }
+  const interfaceCheck = decideTestInterfaceCheck({
+    manifestFileDeclared: existingFiles.has(".lore/test-commands.yml"),
+    settingsTestCommands,
+  });
+  if (interfaceCheck.status === "configured") {
+    console.log("[agent] Onboard: test interface already configured — scaffolding nothing");
+  } else {
+    for (const scaffoldPath of interfaceCheck.files) {
+      if (existingFiles.has(scaffoldPath)) continue;
+      toGenerate.push({
+        path: scaffoldPath,
+        prompt: scaffoldPath === ".github/workflows/lore-tests.yml"
+          ? LORE_TESTS_INSTRUCTION
+          : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+      });
+    }
   }
 
   // ADRs: generate if no adrs/ directory exists

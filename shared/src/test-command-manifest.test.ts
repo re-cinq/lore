@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  decideTestInterfaceCheck,
   parseTestCommandManifest,
   resolveTestCommandManifest,
   substituteSelector,
@@ -78,6 +79,32 @@ describe("resolveTestCommandManifest", () => {
   it("falls back to the file when settings are absent", () => {
     const result = resolveTestCommandManifest({ file });
     expect(result?.[0].list).toBe("from-file");
+  });
+});
+
+describe("decideTestInterfaceCheck", () => {
+  it("scaffolds both files when no manifest is declared", () => {
+    expect(
+      decideTestInterfaceCheck({ manifestFileDeclared: false, settingsTestCommands: null }),
+    ).toEqual({
+      status: "scaffold",
+      files: [".lore/test-commands.yml", ".github/workflows/lore-tests.yml"],
+    });
+  });
+
+  it("reports configured when the .lore/test-commands.yml file is declared", () => {
+    expect(
+      decideTestInterfaceCheck({ manifestFileDeclared: true, settingsTestCommands: null }),
+    ).toEqual({ status: "configured" });
+  });
+
+  it("reports configured when settings declare test_commands without a file", () => {
+    expect(
+      decideTestInterfaceCheck({
+        manifestFileDeclared: false,
+        settingsTestCommands: { list: "x", run: "y {selector}", coverage_format: "json" },
+      }),
+    ).toEqual({ status: "configured" });
   });
 });
 
