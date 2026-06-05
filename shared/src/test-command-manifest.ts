@@ -1,3 +1,13 @@
+/**
+ * Parser + resolver for the per-repo test-command manifest — the optional
+ * `.lore/test-commands.yml` file (or `lore.repos.settings.test_commands`)
+ * that declares the project's own `list`/`run` commands so Lore discovers
+ * tests and per-test coverage through the repo's runner instead of
+ * guessing. Supports a polyglot array (one entry per package) and lets
+ * settings win over the file. See
+ * `specs/project-test-interface/contracts/test-commands.md`.
+ */
+
 export type CoverageFormat = "lcov" | "cobertura" | "json";
 
 export interface TestCommandManifest {
