@@ -126,6 +126,11 @@ export {
   type RankedItem,
 } from './memory-ranking.js';
 
+export {
+  backfillMemoryToDgraph,
+  type BackfillReport,
+} from './backfill-memory.js';
+
 export { classifyFile, type ContentType } from './content-classify.js';
 export { TEST_COMMAND_SETUP_PROMPT } from './test-command-setup-prompt.js';
 export { LORE_TESTS_INSTRUCTION } from './lore-tests-instruction.js';
