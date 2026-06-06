@@ -14,7 +14,8 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { searchMemories, computeTransferScore } from './memory-search.js';
+import { searchMemories } from './memory-search.js';
+import { computeTransferScore } from '@re-cinq/lore-shared';
 import { queryLiveGraph } from './graph.js';
 import {
   dedupeItems,

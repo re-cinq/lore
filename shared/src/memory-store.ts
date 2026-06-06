@@ -14,6 +14,19 @@
  */
 export type PgPool = { query(text: string, params?: unknown[]): Promise<{ rows: any[] }> };
 
+/**
+ * The Dgraph client port the Dgraph backend depends on. Owned by the seam
+ * module so the contract lives with the interface, not the implementation —
+ * the real `dgraph-js-http` DgraphClient satisfies it structurally.
+ */
+export interface DgraphTxn {
+  queryWithVars(query: string, vars: Record<string, string>): Promise<{ data: any }>;
+  mutate(req: { setJson?: unknown; commitNow?: boolean }): Promise<unknown>;
+  discard(): Promise<unknown>;
+}
+
+export type DgraphClientPort = { newTxn(): DgraphTxn };
+
 // ── Result types ─────────────────────────────────────────────────────
 
 export interface WriteResult {

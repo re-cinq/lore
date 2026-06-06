@@ -9,6 +9,7 @@
 
 import { getQueryEmbedding } from './db.js';
 import { resolveAgentId } from './agent-id.js';
+import { diversify, rrfMerge } from '@re-cinq/lore-shared';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -21,10 +22,6 @@ export interface MemorySearchResult {
   id?: string;
   confidence?: string;
 }
-
-// ── RRF constant (matches db.ts hybrid search) ─────────────────────
-
-const RRF_K = 60;
 
 // ── Main entry point ────────────────────────────────────────────────
 
@@ -79,25 +76,14 @@ export async function searchMemories(
     keywordSearchFacts(pool, query, agent, includeInvalidated),
   ]);
 
-  // Merge via RRF
-  const merged = rrfMerge(vectorMemories, vectorFacts, keywordMemories, keywordFacts);
+  // Merge via RRF. Each list arrives in contiguous rank order (SQL
+  // ROW_NUMBER + LIMIT 20), so the shared rrfMerge's index-based rank
+  // equals each row's rank — identical fusion scores.
+  const merged = rrfMerge([vectorMemories, vectorFacts, keywordMemories, keywordFacts]);
 
-  // Sort descending by score, apply session diversification, then limit.
-  // Session diversification: cap at MAX_PER_SOURCE results from any single
-  // source key (agent_id + source combo) to prevent one verbose session
-  // from dominating search results. Inspired by agentmemory.
-  const MAX_PER_SOURCE = 3;
-  const sorted = merged.sort((a, b) => b.score - a.score);
-  const sourceCounts = new Map<string, number>();
-  let results: MemorySearchResult[] = [];
-  for (const r of sorted) {
-    const sourceKey = `${r.agent_id}::${r.source}`;
-    const count = sourceCounts.get(sourceKey) || 0;
-    if (count >= MAX_PER_SOURCE) continue;
-    sourceCounts.set(sourceKey, count + 1);
-    results.push(r);
-    if (results.length >= limit) break;
-  }
+  // Sort descending by score, cap per agent_id::source, then limit.
+  // Prevents one verbose session from dominating search results.
+  let results: MemorySearchResult[] = diversify(merged, limit);
 
   // Graph augmentation: enrich results with 1-hop graph neighbors
   if (graphAugmentEnabled && results.length > 0) {
@@ -135,11 +121,6 @@ interface RankedRow {
   rank: number;
   id?: string;
   confidence?: string;
-}
-
-/** Composite key for deduplication across result sets */
-function resultKey(r: { key: string; agent_id: string; source: string; value: string }): string {
-  return `${r.agent_id}::${r.source}::${r.key}::${r.value}`;
 }
 
 // ── Vector searches ─────────────────────────────────────────────────
@@ -266,45 +247,6 @@ async function keywordSearchFacts(
   }));
 }
 
-// ── Reciprocal Rank Fusion ──────────────────────────────────────────
-
-function rrfMerge(
-  vectorMemories: RankedRow[],
-  vectorFacts: RankedRow[],
-  keywordMemories: RankedRow[],
-  keywordFacts: RankedRow[],
-): MemorySearchResult[] {
-  const scoreMap = new Map<string, { row: RankedRow; score: number }>();
-
-  function addScores(rows: RankedRow[], rankField: 'rank'): void {
-    for (const row of rows) {
-      const k = resultKey(row);
-      const rrfScore = 1.0 / (RRF_K + row[rankField]);
-      const existing = scoreMap.get(k);
-      if (existing) {
-        existing.score += rrfScore;
-      } else {
-        scoreMap.set(k, { row, score: rrfScore });
-      }
-    }
-  }
-
-  addScores(vectorMemories, 'rank');
-  addScores(vectorFacts, 'rank');
-  addScores(keywordMemories, 'rank');
-  addScores(keywordFacts, 'rank');
-
-  return Array.from(scoreMap.values()).map(({ row, score }) => ({
-    key: row.key,
-    value: row.value,
-    score,
-    agent_id: row.agent_id,
-    source: row.source,
-    id: row.id,
-    confidence: row.confidence,
-  }));
-}
-
 // ── Retrieval strengthening ─────────────────────────────────────────
 
 async function strengthenRetrievals(pool: any, results: MemorySearchResult[]): Promise<void> {
@@ -337,23 +279,6 @@ async function strengthenRetrievals(pool: any, results: MemorySearchResult[]): P
   }
 
   await Promise.all(ops);
-}
-
-// ── Transfer scoring for cross-repo facts ───────────────────────────
-
-const PORTABLE_KEYWORDS = ['error', 'pattern', 'gotcha', 'rule', 'convention', 'best-practice', 'anti-pattern'];
-const LOCAL_KEYWORDS = ['config', 'deploy', 'url', 'auth', 'secret', 'env', 'port', 'hostname', 'endpoint'];
-
-export function computeTransferScore(text: string): number {
-  const lower = text.toLowerCase();
-  let score = 0.5;
-  for (const kw of PORTABLE_KEYWORDS) {
-    if (lower.includes(kw)) score += 0.15;
-  }
-  for (const kw of LOCAL_KEYWORDS) {
-    if (lower.includes(kw)) score -= 0.15;
-  }
-  return Math.max(0, Math.min(1, score));
 }
 
 // ── Entity cache for graph augmentation ─────────────────────────────

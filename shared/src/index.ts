@@ -112,8 +112,19 @@ export {
   type MemoryStore,
   type WriteResult,
   type PgPool,
+  type DgraphClientPort,
 } from './memory-store.js';
 export { PostgresMemoryStore } from './postgres-memory-store.js';
+export { DgraphMemoryStore } from './dgraph-memory-store.js';
+export {
+  rrfMerge,
+  RRF_K,
+  computeTransferScore,
+  diversify,
+  scoreImportance,
+  type MemorySearchResult,
+  type RankedItem,
+} from './memory-ranking.js';
 
 export { classifyFile, type ContentType } from './content-classify.js';
 export { TEST_COMMAND_SETUP_PROMPT } from './test-command-setup-prompt.js';
