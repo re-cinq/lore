@@ -43,4 +43,34 @@ describe("selectMemoryStore", () => {
     process.env.LORE_MEMORY_BACKEND = "dgraph";
     expect(() => selectMemoryStore({ pgPool: {} })).toThrow(/dgraph/i);
   });
+
+  it("returns a dgraph store when dgraph backend is selected with a client", () => {
+    const dgraph = { newTxn: () => { throw new Error("unused"); } };
+    process.env.LORE_MEMORY_BACKEND = "dgraph";
+    const store = selectMemoryStore({ dgraph });
+    expect(store.backend).toBe("dgraph");
+  });
+
+  it("rolls back to postgres on the single value LORE_MEMORY_BACKEND=postgres", () => {
+    process.env.LORE_MEMORY_BACKEND = "postgres";
+    const store = selectMemoryStore({ pgPool: {} });
+    expect(store.backend).toBe("postgres");
+  });
+
+  it("flips the served backend with only the LORE_MEMORY_BACKEND value (cutover and rollback)", () => {
+    const dgraph = { newTxn: () => { throw new Error("unused"); } };
+
+    process.env.LORE_MEMORY_BACKEND = "dgraph";
+    expect(selectMemoryStore({ pgPool: {}, dgraph }).backend).toBe("dgraph");
+
+    process.env.LORE_MEMORY_BACKEND = "postgres";
+    expect(selectMemoryStore({ pgPool: {}, dgraph }).backend).toBe("postgres");
+  });
+
+  it("throws on an unrecognized LORE_MEMORY_BACKEND value instead of silently serving postgres", () => {
+    process.env.LORE_MEMORY_BACKEND = "redis";
+    expect(() => selectMemoryStore({ pgPool: {} })).toThrow(
+      /redis|unknown|invalid|LORE_MEMORY_BACKEND|postgres.*dgraph/i,
+    );
+  });
 });

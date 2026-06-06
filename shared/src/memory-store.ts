@@ -2,8 +2,8 @@
  * Memory store abstraction.
  *
  * The seam Lore's memory layer talks to. Grows method-by-method as
- * later cycles triangulate the surface. Postgres is the only backend
- * today; Dgraph arrives via the migration without touching callers.
+ * later cycles triangulate the surface. Both Postgres and Dgraph backends
+ * are wired; `LORE_MEMORY_BACKEND` selects one without touching callers.
  */
 
 // ── Ports ────────────────────────────────────────────────────────────
@@ -65,12 +65,16 @@ export interface MemoryStore {
 // ── Selection ────────────────────────────────────────────────────────
 
 import { PostgresMemoryStore } from "./postgres-memory-store.js";
+import { DgraphMemoryStore } from "./dgraph-memory-store.js";
 
 export function selectMemoryStore(clients: { pgPool?: unknown; dgraph?: unknown }): MemoryStore {
   const backend = process.env.LORE_MEMORY_BACKEND ?? "postgres";
   if (backend === "dgraph") {
     if (!clients.dgraph) throw new Error("LORE_MEMORY_BACKEND=dgraph but no dgraph client provided");
-    throw new Error("DgraphMemoryStore not yet implemented (Phase 2)");
+    return new DgraphMemoryStore(clients.dgraph as DgraphClientPort);
+  }
+  if (backend !== "postgres") {
+    throw new Error(`Unknown LORE_MEMORY_BACKEND="${backend}" (valid: postgres, dgraph)`);
   }
   if (!clients.pgPool) throw new Error("LORE_MEMORY_BACKEND=postgres but no pgPool client provided");
   return new PostgresMemoryStore(clients.pgPool as PgPool);
