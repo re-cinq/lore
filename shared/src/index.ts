@@ -105,6 +105,16 @@ export {
   type Judgment,
 } from './spec-judge.js';
 
+export {
+  memoryStore,
+  setMemoryStore,
+  selectMemoryStore,
+  type MemoryStore,
+  type WriteResult,
+  type PgPool,
+} from './memory-store.js';
+export { PostgresMemoryStore } from './postgres-memory-store.js';
+
 export { classifyFile, type ContentType } from './content-classify.js';
 export { TEST_COMMAND_SETUP_PROMPT } from './test-command-setup-prompt.js';
 export { LORE_TESTS_INSTRUCTION } from './lore-tests-instruction.js';
