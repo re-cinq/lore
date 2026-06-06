@@ -115,6 +115,7 @@ export {
   type DgraphClientPort,
 } from './memory-store.js';
 export { PostgresMemoryStore } from './postgres-memory-store.js';
+export { ShadowMemoryStore } from './shadow-memory-store.js';
 export { DgraphMemoryStore } from './dgraph-memory-store.js';
 export {
   rrfMerge,
@@ -130,6 +131,14 @@ export {
   backfillMemoryToDgraph,
   type BackfillReport,
 } from './backfill-memory.js';
+
+export {
+  evaluateParityGates,
+  jaccard,
+  meanTopkJaccard,
+  type ParitySummary,
+  type GateResult,
+} from './backfill-parity.js';
 
 export { classifyFile, type ContentType } from './content-classify.js';
 export { TEST_COMMAND_SETUP_PROMPT } from './test-command-setup-prompt.js';
