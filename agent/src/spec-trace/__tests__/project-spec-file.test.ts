@@ -12,7 +12,7 @@ import {
   segmentBlocks,
 } from "@re-cinq/lore-shared";
 import { projectSpecFile } from "../project-spec-file.js";
-import { recomputeSpecFile } from "../recompute-spec-file.js";
+import { recomputeFile } from "../recompute-spec-file.js";
 
 /**
  * projectSpecFile (spec-traceability-graph, Phase 1 projection unit) — writes
@@ -478,7 +478,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     ].join("\n");
 
     await projectSpecFile(repo, filePath, content, dgraphClient);
-    const recomputed = await recomputeSpecFile(repo, filePath, dgraphClient);
+    const recomputed = await recomputeFile(repo, filePath, dgraphClient);
 
     expect(recomputed).toBe(content);
   });
@@ -493,7 +493,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     await projectSpecFile(repo, filePath, longContent, dgraphClient);
     await projectSpecFile(repo, filePath, shortContent, dgraphClient);
 
-    const recomputed = await recomputeSpecFile(repo, filePath, dgraphClient);
+    const recomputed = await recomputeFile(repo, filePath, dgraphClient);
 
     expect(recomputed).toBe(shortContent);
   });

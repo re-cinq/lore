@@ -1,8 +1,10 @@
 import { createServer } from "node:http";
+import { createDgraphClient } from "@re-cinq/lore-shared";
 import { query, isDbAvailable } from "./db.js";
 import { runReviewReactorForPR } from "./jobs/scheduled/review-reactor.js";
 import { validateSpecCoverageJob } from "./jobs/scheduled/spec-coverage-validate.js";
 import { tryAutoMergeForCompletedTask } from "./jobs/auto-merge-trigger.js";
+import { ingestSpecTrace } from "./spec-trace/ingest-spec-trace.js";
 
 const startTime = Date.now();
 
@@ -82,6 +84,50 @@ export function startHealthServer(
         );
         res.writeHead(202, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ status: "accepted", repo }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // Internal trigger endpoint for spec-traceability projection.
+    // mcp-server forwards a fire-and-forget POST here after a successful
+    // /test-report or /coverage ingest; the dispatcher projects the
+    // payload into Dgraph by `kind`. Returns 202 "skipped" when
+    // LORE_DGRAPH_HTTP is unset so the projection stays opt-in until the
+    // Dgraph cluster is provisioned.
+    if (req.method === "POST" && req.url === "/api/trigger/spec-trace") {
+      if (!authInternal(req)) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "unauthorized" }));
+        return;
+      }
+      try {
+        const body = await readBody(req);
+        const { repo, kind, payload } = JSON.parse(body || "{}") as {
+          repo?: string;
+          kind?: string;
+          payload?: unknown;
+        };
+        if (!repo || !kind) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "required: repo, kind" }));
+          return;
+        }
+        const dgraph = createDgraphClient();
+        if (!dgraph) {
+          res.writeHead(202, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "skipped", reason: "LORE_DGRAPH_HTTP not configured" }));
+          return;
+        }
+        // Fire-and-forget — return 202 immediately so the trigger sender
+        // doesn't block on the graph projection.
+        ingestSpecTrace(dgraph, repo, kind, payload).catch((err) =>
+          console.error(`[agent] trigger spec-trace failed for ${repo} (${kind}):`, err),
+        );
+        res.writeHead(202, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "accepted", repo, kind }));
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: err.message }));

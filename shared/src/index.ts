@@ -157,6 +157,7 @@ export {
 } from './backfill-parity.js';
 
 export { auditDgraphAcl } from './dgraph-acl-policy.js';
+export { createDgraphClient } from './dgraph-client.js';
 export { classifyFile, type ContentType } from './content-classify.js';
 export { TEST_COMMAND_SETUP_PROMPT } from './test-command-setup-prompt.js';
 export { LORE_TESTS_INSTRUCTION } from './lore-tests-instruction.js';

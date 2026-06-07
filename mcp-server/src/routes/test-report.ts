@@ -4,14 +4,17 @@
  * descriptors plus per-test `tests.run` results; the handler folds them
  * into the graph counts (test chunks, `validated_by` spec links,
  * coverage nodes, `covers` edges, and spec violations) and echoes them.
- * Graph persistence is a deferred seam — no DB write yet.
+ * Graph persistence now happens out-of-band: after counting, the handler
+ * fires a fire-and-forget spec-trace trigger to the agent (no longer a
+ * pure no-op count). The trigger no-ops when the agent env is unset.
  * See `specs/project-test-interface/contracts/test-commands.md`.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import type { TestDescriptor, TaggedRunResult } from "@re-cinq/lore-shared";
-import { json, readJsonBody, requireCommit } from "./http.js";
+import { json, readJsonBody, repoFromReposUrl, requireCommit } from "./http.js";
+import { triggerAgentSpecTrace } from "./helpers.js";
 
 interface TestReportBody {
   commit?: string;
@@ -39,6 +42,9 @@ export async function handleTestReport(
   const body = (await readJsonBody(req)) as TestReportBody;
 
   if (!requireCommit(body, res)) return;
+
+  const repo = repoFromReposUrl(req.url);
+  if (repo) void triggerAgentSpecTrace(repo, "test-report", body);
 
   json(res, 200, countReport(body));
 }

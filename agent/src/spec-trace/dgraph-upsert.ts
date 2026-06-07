@@ -30,6 +30,7 @@ export type SpecTraceNodeType =
   | "Section"
   | "Statement"
   | "TestChunk"
+  | "TestSuite"
   | "CodeChunk"
   | "AcceptanceCriterion"
   | "Block"
@@ -93,6 +94,28 @@ async function setEmptyStrings(
   await withTxn(dgraph, async (txn) => {
     await txn.mutate({
       setNquads: predicates.map((predicate) => `<${uid}> <${predicate}> "" .`).join("\n"),
+      commitNow: true,
+    });
+  });
+}
+
+/**
+ * Removes a predicate entirely from a node via the `<uid> <pred> * .` N-Quad
+ * delete. This is the clean way to clear a scalar: writing `predicate: ""`
+ * through a JSON `set` would corrupt the value to `"[]"` (see
+ * {@link splitEmptyStringFields}), so a recovered Statement drops its
+ * `violation_reason` by deleting the predicate rather than blanking it. The
+ * predicate name is a hardcoded graph identifier, never user text, so no value
+ * escaping is needed.
+ */
+export async function deletePredicate(
+  dgraph: DgraphClientPort,
+  uid: string,
+  predicate: string,
+): Promise<void> {
+  await withTxn(dgraph, async (txn) => {
+    await txn.mutate({
+      deleteNquads: `<${uid}> <${predicate}> * .`,
       commitNow: true,
     });
   });

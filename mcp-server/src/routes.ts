@@ -8,4 +8,4 @@
  */
 
 export { handleApiRoute } from "./routes/index.js";
-export { triggerAgentSpecCoverageValidate } from "./routes/helpers.js";
+export { triggerAgentSpecCoverageValidate, triggerAgentSpecTrace } from "./routes/helpers.js";
