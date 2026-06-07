@@ -88,6 +88,32 @@ describe.skipIf(!reachable)("setup-spec-trace-schema applier (live Dgraph)", () 
     }
   });
 
+  it("lists Statement.violated and Statement.violation_reason in the Statement type", async () => {
+    const res = await fetch(`${DGRAPH_HTTP}/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/dql" },
+      body: "schema(type: Statement) {}",
+    });
+    const types = (await res.json()).data.types as Array<{ name: string; fields: Array<{ name: string }> }>;
+    const statement = types.find((t) => t.name === "Statement");
+    const fields = (statement?.fields ?? []).map((f) => f.name);
+    expect(fields).toContain("Statement.violated");
+    expect(fields).toContain("Statement.violation_reason");
+  });
+
+  it("lists AcceptanceCriterion.violated and AcceptanceCriterion.violation_reason in the type", async () => {
+    const res = await fetch(`${DGRAPH_HTTP}/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/dql" },
+      body: "schema(type: AcceptanceCriterion) {}",
+    });
+    const types = (await res.json()).data.types as Array<{ name: string; fields: Array<{ name: string }> }>;
+    const ac = types.find((t) => t.name === "AcceptanceCriterion");
+    const fields = (ac?.fields ?? []).map((f) => f.name);
+    expect(fields).toContain("AcceptanceCriterion.violated");
+    expect(fields).toContain("AcceptanceCriterion.violation_reason");
+  });
+
   it("is idempotent — a second apply leaves the predicate schema unchanged", async () => {
     const sortByPred = (s: Array<Record<string, unknown>>) =>
       [...s].sort((a, b) => String(a.predicate).localeCompare(String(b.predicate)));
