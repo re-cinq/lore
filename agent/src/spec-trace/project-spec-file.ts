@@ -38,10 +38,10 @@ import {
   parseCodeLinksInStatement,
   buildIntroOrdinals,
   classifyByHeuristic,
-  segmentBlocks,
 } from "@re-cinq/lore-shared";
 import type { Classification, DgraphClientPort, SpecLinkRef } from "@re-cinq/lore-shared";
 import { withTxn, upsertByXid, type SpecTraceNodeType } from "./dgraph-upsert.js";
+import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
 
 /**
  * The fixed addressing context for one spec-file projection: the injected
@@ -264,26 +264,19 @@ async function projectAcceptanceCriteria(context: ProjectionContext, acSegments:
 }
 
 /**
- * Projects the lossless source layer: one Block node per
- * {@link segmentBlocks} run (xid = `${repo}|${filePath}|block|${ordinal}`),
- * carrying its ordinal/kind/verbatim text (+ heading level), linked back to the
- * Spec via `Block.spec`. Re-projection pruning is a LATER facet.
+ * Projects the lossless source layer via the shared {@link projectDocumentBlocks}
+ * writer — one Block node per source block, linked back to the Spec via
+ * `Block.spec` and also carrying `Block.file_path` — then prunes the Blocks that
+ * a re-projection orphaned. Pruning goes through the file-scoped
+ * {@link pruneOrphanBlocksByFile}, the single authoritative Block sweep shared
+ * with the ADR path: every Block carries `Block.file_path`, so the `(file_path,
+ * repo)` index reaches the same Blocks the `~Block.spec` reverse edge would,
+ * without needing a Spec parent.
  */
 async function projectBlocks(context: ProjectionContext, content: string): Promise<void> {
   const { dgraph, repo, filePath, specUid } = context;
-  const blocks = segmentBlocks(content);
-  for (const block of blocks) {
-    await upsertByXid(dgraph, "Block", `${repo}|${filePath}|block|${block.ordinal}`, {
-      "Block.repo": repo,
-      "Block.spec": { uid: specUid },
-      "Block.ordinal": block.ordinal,
-      "Block.kind": block.kind,
-      "Block.text": block.text,
-      ...(block.level !== undefined ? { "Block.level": block.level } : {}),
-    });
-  }
-  const validBlockXids = new Set(blocks.map((block) => `${repo}|${filePath}|block|${block.ordinal}`));
-  await pruneOrphans(context, "Block", validBlockXids);
+  const validBlockXids = await projectDocumentBlocks(dgraph, repo, filePath, content, specUid);
+  await pruneOrphanBlocksByFile(dgraph, repo, filePath, validBlockXids);
 }
 
 export async function projectSpecFile(
