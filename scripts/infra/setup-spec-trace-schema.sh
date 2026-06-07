@@ -167,6 +167,8 @@ type AcceptanceCriterion {
   AcceptanceCriterion.decided_by
   AcceptanceCriterion.drifted
   AcceptanceCriterion.drift_reason
+  AcceptanceCriterion.violated
+  AcceptanceCriterion.violation_reason
 }
 type ADR {
   ADR.xid
@@ -195,6 +197,8 @@ type Statement {
   Statement.decided_by
   Statement.drifted
   Statement.drift_reason
+  Statement.violated
+  Statement.violation_reason
 }
 type CodeChunk {
   CodeChunk.xid

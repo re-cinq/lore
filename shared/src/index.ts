@@ -78,7 +78,10 @@ export {
 } from './ingest-workflow.js';
 export {
   parseTestLinksInStatement,
+  parseCodeLinksInStatement,
+  type SpecLinkRef,
   type TestLinkRef,
+  type CodeLinkRef,
 } from './spec-link-parser.js';
 export {
   specFeatureSlug,

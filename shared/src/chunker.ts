@@ -10,6 +10,7 @@
 import Parser from 'web-tree-sitter';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 export interface Chunk {
@@ -21,6 +22,7 @@ export interface Chunk {
     end_line?: number;
     section_title?: string;
     chunk_index: number;
+    content_hash?: string;
   };
 }
 
@@ -318,9 +320,34 @@ function chunkSlidingWindow(content: string): Chunk[] {
   return chunks;
 }
 
+// ── Content hashing ─────────────────────────────────────────────────
+
+/**
+ * Stamp each chunk with the sha256 of its own content.
+ *
+ * Applied at the single `chunkFile` chokepoint so every chunking path
+ * (AST, markdown, sliding-window) yields hashed chunks without each
+ * emit site repeating the hash logic. The hash is over `chunk.content`
+ * only, so it is stable across re-ingest of identical content.
+ */
+function stampContentHash(chunks: Chunk[]): Chunk[] {
+  for (const chunk of chunks) {
+    chunk.metadata.content_hash = createHash('sha256').update(chunk.content).digest('hex');
+  }
+  return chunks;
+}
+
 // ── Public API ──────────────────────────────────────────────────────
 
 export async function chunkFile(
+  content: string,
+  filePath: string,
+  contentType: string,
+): Promise<Chunk[]> {
+  return stampContentHash(await chunkFileRaw(content, filePath, contentType));
+}
+
+async function chunkFileRaw(
   content: string,
   filePath: string,
   contentType: string,

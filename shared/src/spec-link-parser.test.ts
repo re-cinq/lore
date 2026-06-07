@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { parseTestLinksInStatement } from "./spec-link-parser.js";
+import {
+  parseTestLinksInStatement,
+  parseCodeLinksInStatement,
+} from "./spec-link-parser.js";
 
 describe("parseTestLinksInStatement", () => {
   it("returns an empty array when the statement has no trailing parenthetical", () => {
@@ -88,5 +91,16 @@ describe("parseTestLinksInStatement", () => {
       "Statement. ([validated by  the   runner test](src/x.test.ts#L42))",
     );
     expect(out[0].label).toBe("validated by the runner test");
+  });
+});
+
+describe("parseCodeLinksInStatement", () => {
+  it("parses a single non-test code link into one code-link ref", () => {
+    const out = parseCodeLinksInStatement(
+      "Runs the task. ([impl](mcp-server/src/runner.ts#L88)).",
+    );
+    expect(out).toEqual([
+      { label: "impl", path: "mcp-server/src/runner.ts", line: 88 },
+    ]);
   });
 });

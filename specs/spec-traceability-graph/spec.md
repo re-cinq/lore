@@ -245,7 +245,7 @@ invariant), so the projection is lossless by construction.
 ## Acceptance Criteria
 
 1. `segmentStatements`/`classifyByHeuristic` live in `shared/` and are imported unchanged by web-ui, agent, and mcp-server; existing segmentation tests stay green.
-2. `chunker.ts` writes `metadata.content_hash = sha256(chunk.content)` at both ingest paths; identical content yields an identical hash; changed content yields a different one.
+2. `chunker.ts` writes `metadata.content_hash = sha256(chunk.content)` at both ingest paths; identical content yields an identical hash; changed content yields a different one. ([validated by `stamps content_hash`](shared/src/chunker.test.ts#L6))
 3. `projectSpecFile()` is a pure, idempotent, zero-LLM unit: given a spec, it upserts `Spec`/`Section`/`Statement` nodes keyed by deterministic `xid`, sets `Statement.text_hash`, and is a no-op when `Spec.content_hash` is unchanged.
 4. Generation provenance is captured from all three forms — inline spec link, `// lore:validates` annotation, and `Lore-Validates:` commit trailer — by deterministic parsers, with zero LLM calls; conflicting forms resolve to the most specific and log the discrepancy.
 5. `ingestCoverageReport()` parses LCOV and Cobertura (zero-LLM), upserts one `Coverage` node per test + `COVERS` edges by line-range overlap to `CodeChunk`s, drops unmatched lines with a logged count, and is idempotent on `commit`.

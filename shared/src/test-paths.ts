@@ -15,6 +15,11 @@ const TEST_PATH_PATTERNS = [
   /_test\./, // foo_test.py
   /(^|\/)__tests__\//, // __tests__/foo.ts
   /_test\.go$/, // foo_test.go
+  /(^|\/)test_[^/]*\.py$/, // pytest leading: test_user.py
+  /Tests?\.(java|kt)$/, // JUnit / Kotlin: CalculatorTest(s).java|kt
+  /_spec\.rb$/, // RSpec: user_spec.rb
+  /Tests?\.cs$/, // .NET: CalculatorTest(s).cs
+  /Test\.php$/, // PHP: CalculatorTest.php
 ];
 
 /** True when a file path looks like a test file, by convention. */

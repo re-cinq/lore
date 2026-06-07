@@ -38,7 +38,8 @@ type AcceptanceCriterion { AcceptanceCriterion.xid AcceptanceCriterion.spec
                   AcceptanceCriterion.embedding
                   AcceptanceCriterion.validated_by AcceptanceCriterion.implemented_by
                   AcceptanceCriterion.decided_by
-                  AcceptanceCriterion.drifted AcceptanceCriterion.drift_reason }
+                  AcceptanceCriterion.drifted AcceptanceCriterion.drift_reason
+                  AcceptanceCriterion.violated AcceptanceCriterion.violation_reason }
 type ADR        { ADR.xid ADR.repo ADR.number ADR.title ADR.status
                   ADR.file_path ADR.content_hash ADR.embedding ADR.supersedes }
 type Statement  { Statement.xid Statement.spec Statement.section Statement.ordinal
@@ -46,7 +47,8 @@ type Statement  { Statement.xid Statement.spec Statement.section Statement.ordin
                   Statement.testability Statement.category
                   Statement.embedding
                   Statement.validated_by Statement.implemented_by Statement.decided_by
-                  Statement.drifted Statement.drift_reason }
+                  Statement.drifted Statement.drift_reason
+                  Statement.violated Statement.violation_reason }
 type CodeChunk  { CodeChunk.xid CodeChunk.repo CodeChunk.file_path
                   CodeChunk.symbol_name CodeChunk.symbol_type
                   CodeChunk.start_line CodeChunk.end_line
