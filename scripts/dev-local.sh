@@ -38,6 +38,7 @@ log "Postgres ready on localhost:5432 (db=lore user=postgres password=lore); Dgr
 #     (/alter). Both idempotent.
 bash "$ROOT/scripts/infra/setup-local-schema.sh"
 DGRAPH_HTTP="http://localhost:8081" bash "$ROOT/scripts/infra/setup-memory-dgraph-schema.sh"
+DGRAPH_HTTP="http://localhost:8081" bash "$ROOT/scripts/infra/setup-spec-trace-schema.sh"
 
 # 2. Local DB env defaults — propagate to every child process below.
 export LORE_DB_HOST=localhost
