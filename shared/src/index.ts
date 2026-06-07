@@ -41,6 +41,12 @@ export {
   reassembleSpec,
 } from './spec-summary.js';
 export {
+  segmentBlocks,
+  reassembleBlocks,
+  type Block,
+  type BlockKind,
+} from './spec-blocks.js';
+export {
   segmentStatements,
   classifyByHeuristic,
   buildIntroOrdinals,

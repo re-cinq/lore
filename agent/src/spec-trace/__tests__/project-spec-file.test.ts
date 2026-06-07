@@ -9,8 +9,10 @@ import {
   parseCodeLinksInStatement,
   buildIntroOrdinals,
   classifyByHeuristic,
+  segmentBlocks,
 } from "@re-cinq/lore-shared";
 import { projectSpecFile } from "../project-spec-file.js";
+import { recomputeSpecFile } from "../recompute-spec-file.js";
 
 /**
  * projectSpecFile (spec-traceability-graph, Phase 1 projection unit) — writes
@@ -65,11 +67,18 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         `query nodes($repo: string) {
           specs(func: eq(Spec.repo, $repo)) { uid }
           root(func: eq(Repo.xid, $repo)) { uid }
+          blocks(func: eq(Block.repo, $repo)) { uid }
         }`,
         { $repo: repo },
       );
-      const data = res.data as { specs?: { uid: string }[]; root?: { uid: string }[] };
-      const uids = [...(data.specs ?? []), ...(data.root ?? [])].map((node) => node.uid);
+      const data = res.data as {
+        specs?: { uid: string }[];
+        root?: { uid: string }[];
+        blocks?: { uid: string }[];
+      };
+      const uids = [...(data.specs ?? []), ...(data.root ?? []), ...(data.blocks ?? [])].map(
+        (node) => node.uid,
+      );
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -357,6 +366,40 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     });
   });
 
+  it("projects ordered Block nodes reconstructing heading, blank, and paragraph source off the Spec", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const content = "## Overview\n\nThe widget emits a click event.";
+    const expectedBlocks = segmentBlocks(content);
+    expect(expectedBlocks).toHaveLength(3);
+
+    await projectSpecFile(repo, filePath, content, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($xid: string) {
+        spec(func: eq(Spec.xid, $xid)) {
+          blocks: ~Block.spec {
+            Block.ordinal Block.kind Block.text Block.level
+          }
+        }
+      }`,
+      { $xid: `${repo}|${filePath}` },
+    )) as { spec?: { blocks?: Record<string, unknown>[] }[] };
+    const blocks = [...(data.spec?.[0]?.blocks ?? [])].sort(
+      (left, right) => (left["Block.ordinal"] as number) - (right["Block.ordinal"] as number),
+    );
+
+    expect(
+      blocks.map((block) => ({
+        ordinal: block["Block.ordinal"],
+        kind: block["Block.kind"],
+        text: block["Block.text"],
+      })),
+    ).toEqual(expectedBlocks.map((block) => ({ ordinal: block.ordinal, kind: block.kind, text: block.text })));
+    expect(blocks[0]["Block.level"]).toBe(2);
+  });
+
   it("projects Acceptance Criteria items as AcceptanceCriterion nodes off the Spec and not as Statements", async () => {
     const repo = `test-proj/${randomUUID()}`;
     createdRepo = repo;
@@ -413,5 +456,45 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { $xid: `${repo}|${filePath}` },
     )) as { spec?: { stmts?: Record<string, unknown>[] }[] };
     expect(stmtData.spec?.[0]?.stmts ?? []).toEqual([]);
+  });
+
+  it("recomputes the exact source of a multi-kind document from its projected Blocks", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const content = [
+      "# Title",
+      "",
+      "Intro paragraph.",
+      "",
+      "## Section",
+      "",
+      "- item one",
+      "- item two",
+      "",
+      "```ts",
+      "const x = 1;",
+      "```",
+    ].join("\n");
+
+    await projectSpecFile(repo, filePath, content, dgraphClient);
+    const recomputed = await recomputeSpecFile(repo, filePath, dgraphClient);
+
+    expect(recomputed).toBe(content);
+  });
+
+  it("recomputes the shorter source when re-projecting fewer blocks prunes the orphaned Blocks", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const longContent = ["# Title", "", "Para one.", "", "Para two."].join("\n");
+    const shortContent = "# Title";
+
+    await projectSpecFile(repo, filePath, longContent, dgraphClient);
+    await projectSpecFile(repo, filePath, shortContent, dgraphClient);
+
+    const recomputed = await recomputeSpecFile(repo, filePath, dgraphClient);
+
+    expect(recomputed).toBe(shortContent);
   });
 });

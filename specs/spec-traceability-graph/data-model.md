@@ -29,7 +29,9 @@ type Repo       { Repo.xid Repo.name
                   Repo.specs Repo.adrs Repo.code_chunks
                   Repo.test_chunks Repo.test_suites Repo.coverage }
 type Spec       { Spec.xid Spec.repo Spec.file_path Spec.content_hash
-                  Spec.sections Spec.acceptance_criteria }
+                  Spec.blocks Spec.sections Spec.acceptance_criteria }
+type Block      { Block.xid Block.spec Block.repo Block.ordinal
+                  Block.kind Block.text Block.level }
 type Section    { Section.xid Section.spec Section.heading Section.level
                   Section.ordinal Section.statements }
 type AcceptanceCriterion { AcceptanceCriterion.xid AcceptanceCriterion.spec
@@ -72,6 +74,7 @@ type Coverage   { Coverage.xid Coverage.test Coverage.repo Coverage.tool
 | `Repo.specs` / `Spec.repo` | Repo ↔ Spec | `IN_REPO` (root → spec) |
 | `Repo.adrs` | Repo → ADR | `IN_REPO` (root → ADR) |
 | `Repo.code_chunks` / `Repo.test_chunks` / `Repo.test_suites` / `Repo.coverage` | Repo → CodeChunk \| TestChunk \| TestSuite \| Coverage | `IN_REPO` (root → chunk/suite/coverage) |
+| `Spec.blocks` / `Block.spec` | Spec ↔ Block | `IN_SPEC` (the **lossless source layer** — every block of the markdown in document order; reconstruction reads these) |
 | `Spec.sections` / `Section.spec` | Spec ↔ Section | `IN_SPEC` |
 | `Spec.acceptance_criteria` / `AcceptanceCriterion.spec` | Spec ↔ AcceptanceCriterion | `IN_SPEC` (the testable contract, hung directly off the spec — not nested in a Section) |
 | `Section.statements` / `Statement.section` | Section ↔ Statement | `IN_SECTION` |
@@ -98,6 +101,7 @@ AcceptanceCriterion.xid: string @index(hash) @upsert .
 Repo.xid: string @index(hash) @upsert .
 ADR.xid:  string @index(hash) @upsert .
 TestSuite.xid: string @index(hash) @upsert .
+Block.xid: string @index(hash) @upsert .
 
 # Repo (root — every other node is reachable from here)
 Repo.name:            string @index(hash) .          # org/name
@@ -112,8 +116,17 @@ Repo.coverage:        [uid] @reverse @count .
 Spec.repo:            string @index(hash) .
 Spec.file_path:       string @index(hash) .
 Spec.content_hash:    string .                       # projection freshness gate
+Spec.blocks:          [uid] @reverse @count .
 Spec.sections:        [uid] @reverse @count .
 Spec.acceptance_criteria: [uid] @reverse @count .
+
+# Block (lossless source layer — the document as an ordered, verbatim block stream)
+Block.spec:           uid @reverse .
+Block.repo:           string @index(hash) .
+Block.ordinal:        int .                           # document-global block position (total order)
+Block.kind:           string @index(hash) .           # heading|paragraph|list-item|code|table|blank
+Block.text:           string .                         # VERBATIM source for this block
+Block.level:          int .                            # heading depth where kind=heading
 Section.spec:         uid @reverse .
 Section.heading:      string @index(term) .
 Section.level:        int .                          # heading depth (# = 1) — for recompute
@@ -210,6 +223,7 @@ ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 |---|---|
 | `Repo` | `org/name` |
 | `Spec` | `repo\|file_path` |
+| `Block` | `repo\|file_path\|block\|ordinal` |
 | `Section` | `repo\|file_path\|section_ordinal` |
 | `Statement` | `repo\|file_path\|ordinal` |
 | `AcceptanceCriterion` | `repo\|file_path\|ac\|ordinal` |
@@ -248,31 +262,45 @@ contract clause with no test behind it.
 `projectSpecFile(repo, file_path, content, dgraph)`:
 
 0. Upsert the `Repo` root by `xid = org/name` and attach the `Spec` via
-   `Repo.specs` — every node below threads back to this root.
-1. `segmentStatements(content)` → upsert `Spec`/`Section`/`Statement` by
-   `xid`; set `Statement.text_hash` and **verbatim** `text`; record
-   `Section.level` (heading depth) and document-global `ordinal`s; gate the
-   whole unit on `Spec.content_hash` (no-op if unchanged). The **Acceptance
-   Criteria** heading is special-cased: its numbered list items are
-   projected as `AcceptanceCriterion` nodes hung directly off the `Spec`
+   `Repo.specs` — every node below threads back to this root. Gate the whole
+   unit on `Spec.content_hash` (no-op if unchanged).
+1. **Lossless source layer (the reconstruction substrate).**
+   `segmentBlocks(content)` partitions the markdown into an ordered, verbatim
+   block stream (`heading|paragraph|list-item|code|table|blank`) and upserts
+   one `Block` per block — `xid = repo|file_path|block|ordinal`, verbatim
+   `Block.text`, `Block.kind`, document-global `Block.ordinal`, `Block.level`
+   for headings — attached via `Spec.blocks`. Orphaned blocks from a prior
+   (longer) projection are pruned via the `~Block.spec` reverse-edge sweep.
+   This layer is **byte-lossless by construction**: it keeps paragraphs whole
+   (never sentence-split) and captures every line — including code fences,
+   tables, and blank lines — so `reassembleBlocks` reproduces the source
+   exactly. It is what `recomputeSpecFile` reads.
+2. **Testable semantic overlay.** `segmentStatements(content)` → upsert
+   `Spec`/`Section`/`Statement` by `xid`; set `Statement.text_hash` and
+   **verbatim** `text`; record `Section.level` (heading depth) and
+   document-global `ordinal`s. This layer is lossy (sentence-split, drops
+   code/tables) by design — it exists for spec→test traceability, NOT
+   reconstruction (the Block layer owns that). The **Acceptance Criteria**
+   heading is special-cased: its numbered list items are projected as
+   `AcceptanceCriterion` nodes hung directly off the `Spec`
    (`Spec.acceptance_criteria`) — not as a `Section` of `Statement`s — so
    the testable contract is first-class and traced on its own edges. Each
    carries `ordinal` (document-global position), optional `label`, `text`,
    `text_hash`, and an `embedding`.
-2. For each **statement and each `AcceptanceCriterion`**,
+3. For each **statement and each `AcceptanceCriterion`**,
    `parseTestLinksInStatement()` → for each test link `resolveTestLink()`
    against chunks → upsert `TestChunk` (with `test_name`/`link_label` +
    `content_hash`) + `VALIDATED_BY` (from the `Statement` or the
    `AcceptanceCriterion`). The link grammar and resolver are identical for
    both node types — ACs carry the same inline `([validated by …](path))`
    parentheticals; only the source node differs.
-3. Code links (non-test paths) → `IMPLEMENTED_BY` (`evidence=human-linked`
+4. Code links (non-test paths) → `IMPLEMENTED_BY` (`evidence=human-linked`
    or `generated-provenance`), again from either a `Statement` or an
    `AcceptanceCriterion`.
-4. Generation provenance (`provenance.ts`): parse the inline link, the
+5. Generation provenance (`provenance.ts`): parse the inline link, the
    `// lore:validates` annotation, and the `Lore-Validates:` trailer; the
    most specific wins; discrepancies logged.
-5. ADR links (paths under `adrs/`, or `per ADR-NNN` references) →
+6. ADR links (paths under `adrs/`, or `per ADR-NNN` references) →
    `DECIDED_BY` from the `Statement`/`AcceptanceCriterion` to the `ADR`
    node (upserted by `repo|adr_number`). `projectAdrFile()` is the sibling
    unit that projects the ADR itself (number, title, status, `supersedes`)
@@ -291,24 +319,28 @@ once.
 ### Recompute (graph → markdown, the reverse unit)
 
 `recomputeSpecFile(repo, file_path, dgraph)` reconstructs `spec.md` from
-the graph — the inverse of `projectSpecFile`:
+the graph — the inverse of `projectSpecFile`, reading the **Block layer**:
 
-1. Load the `Spec`, its `Section`s and `AcceptanceCriterion`s, and each
-   section's `Statement`s.
-2. Merge them into one stream ordered by document-global `ordinal`, emit
-   each `Section` as a heading at `Section.level`, each `Statement` as its
-   verbatim `text`, and the AC set under its `## Acceptance Criteria`
-   heading using `label` + `text`.
-3. **Round-trip invariant:** `sha256(recompute) == Spec.content_hash`. The
-   same hash that gates projection verifies recompute — divergence means
-   the projection dropped information and is a lossiness bug, caught by a
-   test, not discovered in production.
+1. Load the `Spec`'s `Block`s via the `~Block.spec` reverse edge.
+2. Sort by `Block.ordinal` (Dgraph does not guarantee child order) and
+   `reassembleBlocks` them — rejoin the verbatim `Block.text`s with `"\n"`,
+   the exact inverse of the line-partition `segmentBlocks` performed.
 
-Default fidelity is **canonical-markdown equivalence** (normalized
-whitespace, hashed after the same normalization applied at projection).
-Byte-exact reproduction would additionally require storing inter-block
-whitespace verbatim; out of scope unless a consumer needs the original
-bytes rather than an equivalent document.
+**Round-trip invariant — byte-exact:** `recomputeSpecFile(...) === content`
+and therefore `sha256(recompute) === Spec.content_hash`. Because the Block
+layer stores every line verbatim (paragraphs whole, code fences and tables
+and blank lines intact) and `reassembleBlocks`/`segmentBlocks` are true
+inverses of `split("\n")`/`join("\n")`, reconstruction is **lossless to the
+byte**, not merely canonical-equivalent. Divergence is a lossiness bug,
+caught by a test, not discovered in production.
+
+> The earlier semantic layer (`Section`/`Statement`/`AcceptanceCriterion`)
+> is **not** used for reconstruction — it is lossy by design (sentence-split,
+> drops code/tables/headings-as-structure). Recompute reads only the Block
+> layer. **ADRs and memories** that need the same round-trip guarantee must
+> likewise be projected into a Block layer; an `ADR` node today is
+> metadata-only (`number`/`title`/`status`/`content_hash`) and is therefore
+> **reference-only, not reconstructable** until it grows a Block projection.
 
 ### Test-name resolution (best-effort, language-pluggable)
 

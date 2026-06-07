@@ -28,6 +28,7 @@ CodeChunk.xid: string @index(hash) @upsert .
 TestChunk.xid: string @index(hash) @upsert .
 Coverage.xid: string @index(hash) @upsert .
 AcceptanceCriterion.xid: string @index(hash) @upsert .
+Block.xid: string @index(hash) @upsert .
 Repo.xid: string @index(hash) @upsert .
 ADR.xid: string @index(hash) @upsert .
 TestSuite.xid: string @index(hash) @upsert .
@@ -64,6 +65,13 @@ AcceptanceCriterion.drifted: bool @index(bool) .
 AcceptanceCriterion.drift_reason: string .
 AcceptanceCriterion.violated: bool @index(bool) .
 AcceptanceCriterion.violation_reason: string .
+
+Block.spec: uid @reverse .
+Block.repo: string @index(hash) .
+Block.ordinal: int .
+Block.kind: string @index(hash) .
+Block.text: string .
+Block.level: int .
 
 Statement.spec: uid @reverse .
 Statement.section: uid @reverse .
@@ -169,6 +177,15 @@ type AcceptanceCriterion {
   AcceptanceCriterion.drift_reason
   AcceptanceCriterion.violated
   AcceptanceCriterion.violation_reason
+}
+type Block {
+  Block.xid
+  Block.spec
+  Block.repo
+  Block.ordinal
+  Block.kind
+  Block.text
+  Block.level
 }
 type ADR {
   ADR.xid

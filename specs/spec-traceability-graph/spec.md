@@ -223,15 +223,16 @@ invariant), so the projection is lossless by construction.
 | File | Change |
 |------|--------|
 | `shared/src/spec-segment.ts` | Move from `web-ui/src/lib/` so agent + mcp-server + web-ui share `segmentStatements`/`classifyByHeuristic` |
+| `shared/src/spec-blocks.ts` | NEW: `segmentBlocks`/`reassembleBlocks` — the **lossless** block layer (verbatim, whole-paragraph, captures code/tables/blanks) that backs source reconstruction |
 | `shared/src/spec-link-parser.ts` | Reuse `parseTestLinksInStatement`; add a code-link parse (non-test paths) for `IMPLEMENTED_BY` |
 | `shared/src/test-paths.ts` | Broaden `isTestFile` across languages (pytest `test_*.py`, JUnit `*Test.java`, Rust `#[test]`, RSpec `_spec.rb`, .NET, …) |
 | `shared/src/chunker.ts` | Compute `metadata.content_hash = sha256(chunk.content)`; (optional) add tree-sitter grammars (Rust/Java/Kotlin/C#/Ruby/PHP/C/C++/Swift) |
 | `shared/src/commit-trailers.ts` | Add `Lore-Validates:` to the trailer vocabulary (parse/format) |
 | `mcp-server/src/ingest.ts`, `agent/src/jobs/cron/reindex.ts` | Persist `content_hash` at both ingest paths |
 | _Test interface_ (`mcp-server/src/routes/coverage.ts`, `/test-report`, `test-command-runner.ts`, `list_tests`/`run_test` MCP tools, CI templates) | **Owned by [`project-test-interface`](../project-test-interface/spec.md)** (built first); this graph consumes its posted output |
-| `agent/src/spec-trace/project-spec-file.ts` | NEW: per-spec projection unit (upsert Repo root → Spec/Section/Statement + Acceptance Criteria heading → AcceptanceCriterion; parse links → VALIDATED_BY/IMPLEMENTED_BY/DECIDED_BY) |
+| `agent/src/spec-trace/project-spec-file.ts` | NEW: per-spec projection unit (upsert Repo root → **lossless `Block` layer** via `segmentBlocks` + the Section/Statement/AcceptanceCriterion semantic overlay; parse links → VALIDATED_BY/IMPLEMENTED_BY/DECIDED_BY; prune orphans by reverse-edge sweep) |
 | `agent/src/spec-trace/project-adr-file.ts` | NEW: per-ADR projection unit (parse MADR → ADR node: number/title/status/supersedes; attach via Repo.adrs) |
-| `agent/src/spec-trace/recompute-spec-file.ts` | NEW: reverse unit (graph → spec.md); asserts the round-trip invariant `sha256(recompute) == Spec.content_hash` |
+| `agent/src/spec-trace/recompute-spec-file.ts` | NEW: reverse unit (graph → spec.md) — reads the `Block` layer (`~Block.spec`, ordered) → `reassembleBlocks`; **byte-exact** round-trip `recompute === content` (∴ `sha256(recompute) == Spec.content_hash`) |
 | `agent/src/spec-trace/ingest-coverage.ts` | NEW: per-report unit (parse → Coverage + COVERS) |
 | `agent/src/spec-trace/drift-check-file.ts` | NEW: per-changed-file unit (hash compare → reverse-traverse → flag) |
 | `agent/src/spec-trace/provenance.ts` | NEW: parse inline link + `// lore:validates` annotation + `Lore-Validates:` trailer |
@@ -246,7 +247,7 @@ invariant), so the projection is lossless by construction.
 
 1. `segmentStatements`/`classifyByHeuristic` live in `shared/` and are imported unchanged by web-ui, agent, and mcp-server; existing segmentation tests stay green.
 2. `chunker.ts` writes `metadata.content_hash = sha256(chunk.content)` at both ingest paths; identical content yields an identical hash; changed content yields a different one. ([validated by `stamps content_hash`](shared/src/chunker.test.ts#L6))
-3. `projectSpecFile()` is a pure, idempotent, zero-LLM unit: given a spec, it upserts `Spec`/`Section`/`Statement` nodes keyed by deterministic `xid`, sets `Statement.text_hash`, and is a no-op when `Spec.content_hash` is unchanged.
+3. `projectSpecFile()` is a pure, idempotent, zero-LLM unit: given a spec, it upserts the lossless `Block` layer plus the `Spec`/`Section`/`Statement` semantic overlay (deterministic `xid`s), sets `Statement.text_hash`, prunes orphaned children on re-projection (reverse-edge sweep), and is a no-op when `Spec.content_hash` is unchanged.
 4. Generation provenance is captured from all three forms — inline spec link, `// lore:validates` annotation, and `Lore-Validates:` commit trailer — by deterministic parsers, with zero LLM calls; conflicting forms resolve to the most specific and log the discrepancy.
 5. `ingestCoverageReport()` parses LCOV and Cobertura (zero-LLM), upserts one `Coverage` node per test + `COVERS` edges by line-range overlap to `CodeChunk`s, drops unmatched lines with a logged count, and is idempotent on `commit`.
 6. `IMPLEMENTED_BY`/`VALIDATED_BY` edges carry an `evidence` tier; a statement reachable through the coverage chain reads `execution-verified`, an author/generated inline link with no coverage reads `claimed`/`generated-provenance`, and a linked test that covers nothing relevant is flagged `link-unproven`.
@@ -256,6 +257,7 @@ invariant), so the projection is lossless by construction.
 10. Vectors: `CodeChunk`/`TestChunk` mirror chunk embeddings and each `Statement` is embedded once; `similar_to` returns candidate links for an un-linked statement deterministically (no LLM), and cosine distance grades drift severity.
 11. The graph is a derived projection only — no DB linker tables are reintroduced; deleting the entire graph and re-running the units from markdown + chunks + coverage reproduces it exactly.
 12. Drift surfaces via a `spec-drift`-labelled issue (reusing the broken-links report shape) and a per-statement badge on the spec-detail page; `violated` (from `project-test-interface`) surfaces as `spec-violated`.
+13. The source is reconstructable from the graph **losslessly**: `projectSpecFile` stores the document as an ordered, verbatim `Block` stream (`segmentBlocks`: heading/paragraph/list-item/code/table/blank, paragraphs kept whole, code fences and tables and blank lines captured), and `recomputeSpecFile` reads those blocks (ordered by `Block.ordinal`) and `reassembleBlocks` reproduces the original byte-for-byte — `recompute === content`, so `sha256(recompute) == Spec.content_hash`. Re-projecting shorter content prunes the orphaned blocks so the round-trip tracks the current source. ([validated by `round-trips a single-paragraph source verbatim`](shared/src/spec-blocks.test.ts#L5), [validated by `recomputes the exact source of a multi-kind document from its projected Blocks`](agent/src/spec-trace/__tests__/project-spec-file.test.ts#L461))
 
 ## Limitations & Open Questions
 

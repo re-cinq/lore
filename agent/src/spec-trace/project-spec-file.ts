@@ -18,7 +18,9 @@
  *   - one AcceptanceCriterion node per segment under the "Acceptance Criteria"
  *     heading (xid = `${repo}|${filePath}|ac|${ordinal}`), reachable from the
  *     Spec via `Spec.acceptance_criteria`; these segments are projected as
- *     AcceptanceCriterion nodes instead of Statements.
+ *     AcceptanceCriterion nodes instead of Statements,
+ *   - one Block node per source block (xid = `${repo}|${filePath}|block|${ordinal}`)
+ *     forming the lossless source layer, reachable from the Spec via `Block.spec`.
  *
  * Freshness gate: before any write, the persisted `Spec.content_hash` is
  * compared to `sha256(content)`. An unchanged hash is a no-op — nothing is
@@ -36,8 +38,10 @@ import {
   parseCodeLinksInStatement,
   buildIntroOrdinals,
   classifyByHeuristic,
+  segmentBlocks,
 } from "@re-cinq/lore-shared";
-import type { Classification, DgraphClientPort, DgraphTxn, SpecLinkRef } from "@re-cinq/lore-shared";
+import type { Classification, DgraphClientPort, SpecLinkRef } from "@re-cinq/lore-shared";
+import { withTxn, upsertByXid, type SpecTraceNodeType } from "./dgraph-upsert.js";
 
 /**
  * The fixed addressing context for one spec-file projection: the injected
@@ -60,58 +64,6 @@ function sha256(text: string): string {
 
 /** Statements under this heading become AcceptanceCriterion nodes, not Statements. */
 const ACCEPTANCE_CRITERIA_HEADING = "Acceptance Criteria";
-
-/**
- * Node types in the spec-traceability graph. This unit writes Repo, Spec,
- * Section, Statement, TestChunk, CodeChunk, and AcceptanceCriterion, all
- * upserted by xid through {@link upsertByXid}.
- */
-type SpecTraceNodeType = "Repo" | "Spec" | "Section" | "Statement" | "TestChunk" | "CodeChunk" | "AcceptanceCriterion";
-
-/** Runs `fn` inside a fresh transaction, always discarding it afterwards. */
-async function withTxn<T>(dgraph: DgraphClientPort, fn: (txn: DgraphTxn) => Promise<T>): Promise<T> {
-  const txn = dgraph.newTxn();
-  try {
-    return await fn(txn);
-  } finally {
-    await txn.discard().catch(() => {});
-  }
-}
-
-/** Extracts the assigned uid of a blank node from a commitNow mutation result. */
-function newUid(mutateResult: unknown, label: string): string {
-  return (mutateResult as { data?: { uids?: Record<string, string> } }).data?.uids?.[label] as string;
-}
-
-/**
- * Upserts a node identified by its `<Type>.xid` predicate: reuse the existing
- * uid if the xid is already present, otherwise create a fresh blank node. Extra
- * `fields` are applied in both branches. Returns the node's uid.
- */
-async function upsertByXid(
-  dgraph: DgraphClientPort,
-  nodeType: SpecTraceNodeType,
-  xid: string,
-  fields: Record<string, unknown>,
-): Promise<string> {
-  return withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query find($xid: string) { found(func: eq(${nodeType}.xid, $xid), first: 1) { uid } }`,
-      { $xid: xid },
-    );
-    const existing = res.data?.found?.[0]?.uid as string | undefined;
-    if (existing) {
-      await txn.mutate({ setJson: { uid: existing, ...fields }, commitNow: true });
-      return existing;
-    }
-    const label = nodeType.toLowerCase();
-    const created = await txn.mutate({
-      setJson: { uid: `_:${label}`, "dgraph.type": nodeType, [`${nodeType}.xid`]: xid, ...fields },
-      commitNow: true,
-    });
-    return newUid(created, label);
-  });
-}
 
 /** Reads the persisted Spec.content_hash for an xid, or undefined when no Spec exists yet. */
 async function readSpecContentHash(dgraph: DgraphClientPort, specXid: string): Promise<string | undefined> {
@@ -311,6 +263,29 @@ async function projectAcceptanceCriteria(context: ProjectionContext, acSegments:
   }
 }
 
+/**
+ * Projects the lossless source layer: one Block node per
+ * {@link segmentBlocks} run (xid = `${repo}|${filePath}|block|${ordinal}`),
+ * carrying its ordinal/kind/verbatim text (+ heading level), linked back to the
+ * Spec via `Block.spec`. Re-projection pruning is a LATER facet.
+ */
+async function projectBlocks(context: ProjectionContext, content: string): Promise<void> {
+  const { dgraph, repo, filePath, specUid } = context;
+  const blocks = segmentBlocks(content);
+  for (const block of blocks) {
+    await upsertByXid(dgraph, "Block", `${repo}|${filePath}|block|${block.ordinal}`, {
+      "Block.repo": repo,
+      "Block.spec": { uid: specUid },
+      "Block.ordinal": block.ordinal,
+      "Block.kind": block.kind,
+      "Block.text": block.text,
+      ...(block.level !== undefined ? { "Block.level": block.level } : {}),
+    });
+  }
+  const validBlockXids = new Set(blocks.map((block) => `${repo}|${filePath}|block|${block.ordinal}`));
+  await pruneOrphans(context, "Block", validBlockXids);
+}
+
 export async function projectSpecFile(
   repo: string,
   filePath: string,
@@ -345,5 +320,6 @@ export async function projectSpecFile(
   await pruneOrphans(context, "Statement", validStatementXids);
 
   await projectAcceptanceCriteria(context, acSegments);
+  await projectBlocks(context, content);
   return { projected: true };
 }

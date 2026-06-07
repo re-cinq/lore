@@ -21,7 +21,7 @@ export type PgPool = { query(text: string, params?: unknown[]): Promise<{ rows: 
  */
 export interface DgraphTxn {
   queryWithVars(query: string, vars: Record<string, string>): Promise<{ data: any }>;
-  mutate(req: { setJson?: unknown; deleteNquads?: string; commitNow?: boolean }): Promise<unknown>;
+  mutate(req: { setJson?: unknown; setNquads?: string; deleteNquads?: string; commitNow?: boolean }): Promise<unknown>;
   discard(): Promise<unknown>;
 }
 
