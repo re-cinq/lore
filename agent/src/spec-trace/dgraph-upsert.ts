@@ -1,0 +1,133 @@
+/**
+ * spec-traceability-graph — shared Dgraph upsert primitives.
+ *
+ * The generic, facet-agnostic building blocks every spec-trace writer needs:
+ *   - {@link withTxn}     — run a unit of work in a fresh, always-discarded txn,
+ *   - {@link newUid}      — pull the assigned uid of a blank node out of a result,
+ *   - {@link upsertByXid} — idempotent create-or-update keyed on `<Type>.xid`.
+ *
+ * Extracted from `project-spec-file.ts` once a second consumer
+ * (`ingest-coverage.ts`) appeared, so the upsert idiom has a single home. The
+ * projection-specific projectors (projectSections, projectStatement,
+ * pruneOrphans, …) stay with their facet; only these primitives live here.
+ *
+ * Mirrors the canonical `withTxn`/`newUid`/`upsertEntity` idiom in
+ * `shared/src/dgraph-memory-store.ts`. Talks only to the injected
+ * {@link DgraphClientPort}; never imports the driver.
+ */
+
+import type { DgraphClientPort, DgraphTxn } from "@re-cinq/lore-shared";
+
+/**
+ * Node types in the spec-traceability graph, all upserted by xid through
+ * {@link upsertByXid}: the Phase 1 projection writes Repo, Spec, Section,
+ * Statement, TestChunk, CodeChunk, and AcceptanceCriterion; Phase 3 coverage
+ * ingest adds Coverage.
+ */
+export type SpecTraceNodeType =
+  | "Repo"
+  | "Spec"
+  | "Section"
+  | "Statement"
+  | "TestChunk"
+  | "CodeChunk"
+  | "AcceptanceCriterion"
+  | "Block"
+  | "Coverage";
+
+/** Runs `fn` inside a fresh transaction, always discarding it afterwards. */
+export async function withTxn<T>(
+  dgraph: DgraphClientPort,
+  fn: (txn: DgraphTxn) => Promise<T>,
+): Promise<T> {
+  const txn = dgraph.newTxn();
+  try {
+    return await fn(txn);
+  } finally {
+    await txn.discard().catch(() => {});
+  }
+}
+
+/** Extracts the assigned uid of a blank node from a commitNow mutation result. */
+export function newUid(mutateResult: unknown, label: string): string {
+  return (mutateResult as { data?: { uids?: Record<string, string> } }).data?.uids?.[label] as string;
+}
+
+/**
+ * Dgraph mishandles empty-string scalar values sent through a JSON `set`
+ * mutation: `""` is stored verbatim as the two-character literal `"[]"`. Empty
+ * strings round-trip correctly only via N-Quads, so we split them out of the
+ * JSON payload and write them with a dedicated N-Quads set keyed on the node's
+ * uid. (A blank source block carries `Block.text: ""`, the first predicate that
+ * exercises this path.)
+ */
+function splitEmptyStringFields(fields: Record<string, unknown>): {
+  jsonFields: Record<string, unknown>;
+  emptyStringPredicates: string[];
+} {
+  const jsonFields: Record<string, unknown> = {};
+  const emptyStringPredicates: string[] = [];
+  for (const [predicate, value] of Object.entries(fields)) {
+    if (value === "") {
+      emptyStringPredicates.push(predicate);
+    } else {
+      jsonFields[predicate] = value;
+    }
+  }
+  return { jsonFields, emptyStringPredicates };
+}
+
+/**
+ * Writes each predicate's value as an empty string via N-Quads — the only
+ * representation Dgraph round-trips an empty scalar through (see
+ * {@link splitEmptyStringFields} for why JSON `set` corrupts it). The N-Quad
+ * value is a hardcoded empty literal `""`, never user text, so no value
+ * escaping is needed here. Uses the port's `setNquads` mutation directly.
+ */
+async function setEmptyStrings(
+  dgraph: DgraphClientPort,
+  uid: string,
+  predicates: string[],
+): Promise<void> {
+  if (!predicates.length) return;
+  await withTxn(dgraph, async (txn) => {
+    await txn.mutate({
+      setNquads: predicates.map((predicate) => `<${uid}> <${predicate}> "" .`).join("\n"),
+      commitNow: true,
+    });
+  });
+}
+
+/**
+ * Upserts a node identified by its `<Type>.xid` predicate: reuse the existing
+ * uid if the xid is already present, otherwise create a fresh blank node. Extra
+ * `fields` are applied in both branches. Returns the node's uid.
+ */
+export async function upsertByXid(
+  dgraph: DgraphClientPort,
+  nodeType: SpecTraceNodeType,
+  xid: string,
+  fields: Record<string, unknown>,
+): Promise<string> {
+  return withTxn(dgraph, async (txn) => {
+    const { jsonFields, emptyStringPredicates } = splitEmptyStringFields(fields);
+    const res = await txn.queryWithVars(
+      `query find($xid: string) { found(func: eq(${nodeType}.xid, $xid), first: 1) { uid } }`,
+      { $xid: xid },
+    );
+    const existing = res.data?.found?.[0]?.uid as string | undefined;
+    if (existing) {
+      await txn.mutate({ setJson: { uid: existing, ...jsonFields }, commitNow: true });
+      await setEmptyStrings(dgraph, existing, emptyStringPredicates);
+      return existing;
+    }
+    const label = nodeType.toLowerCase();
+    const created = await txn.mutate({
+      setJson: { uid: `_:${label}`, "dgraph.type": nodeType, [`${nodeType}.xid`]: xid, ...jsonFields },
+      commitNow: true,
+    });
+    const uid = newUid(created, label);
+    await setEmptyStrings(dgraph, uid, emptyStringPredicates);
+    return uid;
+  });
+}

@@ -18,6 +18,7 @@ from [`memory-dgraph-migration`](../memory-dgraph-migration/tasks.md) T004.
 - [ ] T204 RED: test `sha256(chunk.content)` is stable for identical content and differs for changed content. GREEN: compute `metadata.content_hash` in `shared/src/chunker.ts`. REFACTOR.
 - [ ] T205 Persist `content_hash` at both ingest paths (`mcp-server/src/ingest.ts`, `agent/src/jobs/cron/reindex.ts`); test the metadata round-trips through a chunk insert.
 - [ ] T206 [P] (Optional, incremental) add a tree-sitter grammar (e.g. Rust) + test symbol extraction; confirm the sliding-window fallback still yields file+line chunks for an un-grammared language.
+- [x] T207 `shared/src/spec-blocks.ts` — `segmentBlocks`/`reassembleBlocks`: the **lossless** block layer. Dominant invariant `reassembleBlocks(segmentBlocks(content)) === content` triangulated per content kind (paragraph, blank, heading+level, fenced code as one block, table, list-item). Paragraphs kept whole (never sentence-split); barrel-exported.
 
 ## Phase 1 — Projection unit
 
@@ -25,6 +26,9 @@ from [`memory-dgraph-migration`](../memory-dgraph-migration/tasks.md) T004.
 - [ ] T211 GREEN: implement `projectSpecFile()`; resolve links via `resolveTestLink`; test-name fallback chain (label → AST symbol → language pattern). REFACTOR.
 - [ ] T212 [P] Test: re-running on unchanged content (same `Spec.content_hash`) is a no-op; a reworded statement changes `Statement.text_hash`.
 - [ ] T213 [P] Test: zero LLM calls during projection (assert no LLM client invocation).
+- [x] T214 `projectSpecFile` also projects the **lossless `Block` layer** against real Dgraph: one `Block` node per `segmentBlocks` block (`xid=repo|file_path|block|ordinal`, verbatim `Block.text`, `Block.kind`, `Block.ordinal`, `Block.level`), attached via `Spec.blocks`. Schema adds `Block.*` predicates + `type Block`. (Gotcha: Dgraph JSON `set` corrupts empty-string scalars → blank-block `text:""` written via `setNquads`.)
+- [x] T215 `agent/src/spec-trace/recompute-spec-file.ts` — `recomputeSpecFile()` reads `~Block.spec` ordered by `Block.ordinal` → `reassembleBlocks`; **byte-exact** round-trip test `recompute === content` for a multi-kind document (headings/paragraphs/lists/code fence) through the live graph.
+- [x] T216 [P] Block pruning on re-projection: re-projecting shorter content prunes orphaned `Block` nodes (`~Block.spec` sweep) so `recompute` tracks the current source.
 
 ## Phase 2 — Generation-time provenance
 
