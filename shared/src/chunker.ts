@@ -44,26 +44,22 @@ const EXT_TO_GRAMMAR: Record<string, string> = {
   '.go': 'tree-sitter-go.wasm',
 };
 
-/** Node types that represent top-level declarations, per grammar. */
+/** Node types that represent top-level declarations, per grammar.
+ * TS/TSX share one set, as do JS/JSX — defined once and aliased. */
+const TS_DECLARATIONS = new Set([
+  'function_declaration', 'class_declaration', 'interface_declaration',
+  'type_alias_declaration', 'enum_declaration', 'export_statement',
+  'lexical_declaration', 'variable_declaration',
+]);
+const JS_DECLARATIONS = new Set([
+  'function_declaration', 'class_declaration', 'export_statement',
+  'lexical_declaration', 'variable_declaration',
+]);
 const DECLARATION_TYPES: Record<string, Set<string>> = {
-  '.ts': new Set([
-    'function_declaration', 'class_declaration', 'interface_declaration',
-    'type_alias_declaration', 'enum_declaration', 'export_statement',
-    'lexical_declaration', 'variable_declaration',
-  ]),
-  '.tsx': new Set([
-    'function_declaration', 'class_declaration', 'interface_declaration',
-    'type_alias_declaration', 'enum_declaration', 'export_statement',
-    'lexical_declaration', 'variable_declaration',
-  ]),
-  '.js': new Set([
-    'function_declaration', 'class_declaration', 'export_statement',
-    'lexical_declaration', 'variable_declaration',
-  ]),
-  '.jsx': new Set([
-    'function_declaration', 'class_declaration', 'export_statement',
-    'lexical_declaration', 'variable_declaration',
-  ]),
+  '.ts': TS_DECLARATIONS,
+  '.tsx': TS_DECLARATIONS,
+  '.js': JS_DECLARATIONS,
+  '.jsx': JS_DECLARATIONS,
   '.py': new Set([
     'function_definition', 'class_definition', 'decorated_definition',
   ]),
@@ -72,6 +68,13 @@ const DECLARATION_TYPES: Record<string, Set<string>> = {
     'var_declaration', 'const_declaration',
   ]),
 };
+
+/** A single chunk spanning the whole file — the shared fallback when a
+ * chunker finds no internal boundaries (no declarations, no headings,
+ * a short file, or an AST parse failure). */
+function wholeFileChunk(content: string, extra?: Partial<Chunk['metadata']>): Chunk[] {
+  return [{ content, metadata: { chunk_index: 0, ...extra } }];
+}
 
 async function initParser(): Promise<void> {
   await Parser.init();
@@ -180,7 +183,7 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
 
   if (decls.length === 0) {
     // No declarations found -- return whole file as one chunk
-    return [{ content, metadata: { chunk_index: 0 } }];
+    return wholeFileChunk(content);
   }
 
   const chunks: Chunk[] = [];
@@ -259,7 +262,7 @@ function chunkMarkdown(content: string): Chunk[] {
   }
 
   if (matches.length === 0) {
-    return [{ content, metadata: { chunk_index: 0 } }];
+    return wholeFileChunk(content);
   }
 
   const chunks: Chunk[] = [];
@@ -298,7 +301,7 @@ function chunkSlidingWindow(content: string): Chunk[] {
   const chunks: Chunk[] = [];
 
   if (lines.length <= WINDOW) {
-    return [{ content, metadata: { chunk_index: 0, start_line: 1, end_line: lines.length } }];
+    return wholeFileChunk(content, { start_line: 1, end_line: lines.length });
   }
 
   let start = 0;
@@ -347,6 +350,22 @@ export async function chunkFile(
   return stampContentHash(await chunkFileRaw(content, filePath, contentType));
 }
 
+/** Build the JSONB `metadata` payload persisted with a chunk at ingest.
+ * Spreads the chunk's own metadata (carrying `content_hash`) and stamps the
+ * ingest provenance, so both ingest paths persist the same shape. `commit`
+ * is included only when supplied. */
+export function buildIngestedChunkMetadata(
+  chunk: Chunk,
+  opts: { filePath: string; ingestedBy: string; commit?: string },
+): Record<string, unknown> {
+  return {
+    ...chunk.metadata,
+    file_path: opts.filePath,
+    ingested_by: opts.ingestedBy,
+    ...(opts.commit !== undefined ? { commit: opts.commit } : {}),
+  };
+}
+
 async function chunkFileRaw(
   content: string,
   filePath: string,
@@ -374,7 +393,7 @@ async function chunkFileRaw(
     p.setLanguage(lang);
     const tree = p.parse(content);
     const chunks = chunkCodeAST(tree, content, ext);
-    return chunks.length > 0 ? chunks : [{ content, metadata: { chunk_index: 0 } }];
+    return chunks.length > 0 ? chunks : wholeFileChunk(content);
   } catch (err) {
     console.error(`[chunker] AST parse failed for ${filePath}, falling back to sliding window:`, err);
     return chunkSlidingWindow(content);

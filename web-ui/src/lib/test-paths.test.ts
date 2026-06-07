@@ -2,25 +2,42 @@ import { describe, it, expect } from "vitest";
 import { isTestFile, normalizeTestName } from "./test-paths";
 
 describe("isTestFile", () => {
-  it.each([
-    "mcp-server/src/local-runner.test.ts",
-    "web-ui/src/lib/spec-summary.test.tsx",
-    "agent/src/jobs/spec-test-linker.spec.ts",
-    "api/handlers_test.py",
-    "src/__tests__/router.ts",
-    "pkg/store/store_test.go",
-  ])("returns true for test path %s", (filePath) => {
-    expect(isTestFile(filePath)).toBe(true);
-  });
-
-  it.each([
-    "web-ui/src/lib/test-paths.ts",
-    "mcp-server/src/routes.ts",
-    "specs/local-task-runner/spec.md",
-    "src/tested/handler.ts",
-    "pkg/store/store.go",
-  ])("returns false for non-test path %s", (filePath) => {
-    expect(isTestFile(filePath)).toBe(false);
+  it("recognizes test-path conventions across languages and rejects production paths", () => {
+    const testPaths = [
+      "mcp-server/src/local-runner.test.ts", // JS/TS .test.
+      "web-ui/src/lib/spec-summary.test.tsx", // JSX/TSX .test.
+      "agent/src/jobs/spec-test-linker.spec.ts", // JS/TS .spec.
+      "src/__tests__/router.ts", // __tests__ dir
+      "pkg/store/store_test.go", // Go
+      "api/tests/test_user.py", // pytest leading test_
+      "api/user_test.py", // pytest trailing _test
+      "src/main/CalculatorTest.java", // JUnit
+      "src/test/CalculatorTests.kt", // Kotlin
+      "src/store/store_test.rs", // Rust
+      "spec/models/user_spec.rb", // RSpec
+      "Tests/CalculatorTests.cs", // .NET
+      "tests/CalculatorTest.php", // PHP
+    ];
+    const productionPaths = [
+      "shared/src/test-paths.ts",
+      "mcp-server/src/routes.ts",
+      "specs/local-task-runner/spec.md",
+      "src/tested/handler.ts",
+      "pkg/store/store.go",
+      "app/foo.py",
+      "src/Production.java",
+      "src/foo.rs",
+      "lib/foo.rb",
+      "src/Service.cs",
+      "src/Controller.php",
+    ];
+    expect({
+      tests: testPaths.map(isTestFile),
+      production: productionPaths.map(isTestFile),
+    }).toEqual({
+      tests: testPaths.map(() => true),
+      production: productionPaths.map(() => false),
+    });
   });
 });
 

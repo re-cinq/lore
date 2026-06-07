@@ -1,6 +1,6 @@
 import { query, getPool } from "../../db.js";
 import { platform } from "../../platform.js";
-import { chunkFile, classifyFile } from "@re-cinq/lore-shared";
+import { chunkFile, classifyFile, buildIngestedChunkMetadata } from "@re-cinq/lore-shared";
 
 interface OnboardedRepo {
   full_name: string;
@@ -209,7 +209,7 @@ async function ingestFile(
         schema,
         fullName,
         filePath,
-        JSON.stringify({ ...chunk.metadata, file_path: filePath, ingested_by: "reindex-job" }),
+        JSON.stringify(buildIngestedChunkMetadata(chunk, { filePath, ingestedBy: "reindex-job" })),
       ],
     );
 
