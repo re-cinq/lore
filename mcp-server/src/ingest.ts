@@ -8,7 +8,7 @@
 
 import { getOctokit, isAppConfigured as isConfigured } from './github-client.js';
 import { getQueryEmbedding } from './db.js';
-import { chunkFile, classifyFile } from '@re-cinq/lore-shared';
+import { chunkFile, classifyFile, buildIngestedChunkMetadata } from '@re-cinq/lore-shared';
 
 export interface IngestResult {
   file: string;
@@ -151,7 +151,7 @@ export async function ingestFiles(
             schema,
             repo,
             filePath,
-            JSON.stringify({ ...chunk.metadata, commit, file_path: filePath, ingested_by: 'api' }),
+            JSON.stringify(buildIngestedChunkMetadata(chunk, { filePath, ingestedBy: 'api', commit })),
           ],
         );
 

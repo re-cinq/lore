@@ -33,7 +33,8 @@
  *   - the parenthetical contains no links the parser keeps.
  */
 
-import { isTestFile } from "./test-paths.js";
+import { isTestFile, isDocFile } from "./test-paths.js";
+import { segmentStatements, type Statement } from "./spec-segment.js";
 
 /** A resolved `[label](path#Lline)` link parsed from a statement's
  * trailing parenthetical. Shared shape for both test and code links. */
@@ -54,10 +55,13 @@ export type CodeLinkRef = SpecLinkRef;
 const LINK_INSIDE_PAREN_RE = /\[([^\]]+)\]\(([^)]+)\)/g;
 
 /** Find the trailing balanced parenthetical at the end of the statement,
- * tolerating an optional period + trailing whitespace. Markdown links
- * themselves contain `()`, so a naive `\(([^()]*)\)` regex fails — this
- * walks backward and counts paren depth. */
-function findTrailingParenInner(s: string): string | null {
+ * tolerating an optional period + trailing whitespace. Returns the index of
+ * the opening `(` and the inner content span, or null when there is none.
+ * Markdown links themselves contain `()`, so a naive `\(([^()]*)\)` regex
+ * fails — this walks backward and counts paren depth. */
+function findTrailingParenSpan(
+  s: string,
+): { open: number; innerStart: number; innerEnd: number } | null {
   let end = s.length;
   while (end > 0 && /[\s.]/.test(s[end - 1])) end--;
   if (end === 0 || s[end - 1] !== ")") return null;
@@ -68,34 +72,39 @@ function findTrailingParenInner(s: string): string | null {
     if (c === ")") depth++;
     else if (c === "(") {
       depth--;
-      if (depth === 0) return s.slice(i + 1, end - 1);
+      if (depth === 0) return { open: i, innerStart: i + 1, innerEnd: end - 1 };
     }
   }
   return null;
+}
+
+/** Turn a `[label](path#Lline)` regex match into a normalized link ref. */
+function linkRefFromMatch(match: RegExpMatchArray): SpecLinkRef {
+  const label = match[1].replace(/\s+/g, " ").trim();
+  const href = match[2].trim();
+  const hashIdx = href.indexOf("#L");
+  const rawPath = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+  const path = rawPath.replace(/^\/+/, "");
+  let line: number | null = null;
+  if (hashIdx >= 0) {
+    const n = Number(href.slice(hashIdx + 2));
+    line = Number.isFinite(n) ? n : null;
+  }
+  return { label, path, line };
 }
 
 function parseLinksInStatement(
   statement: string,
   keepPath: (path: string) => boolean,
 ): SpecLinkRef[] {
-  const inner = findTrailingParenInner(statement);
-  if (inner === null) return [];
+  const span = findTrailingParenSpan(statement);
+  if (span === null) return [];
+  const inner = statement.slice(span.innerStart, span.innerEnd);
 
   const refs: SpecLinkRef[] = [];
   for (const match of inner.matchAll(LINK_INSIDE_PAREN_RE)) {
-    const label = match[1].replace(/\s+/g, " ").trim();
-    const href = match[2].trim();
-    const hashIdx = href.indexOf("#L");
-    const rawPath = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
-    const path = rawPath.replace(/^\/+/, "");
-    if (!keepPath(path)) continue;
-
-    let line: number | null = null;
-    if (hashIdx >= 0) {
-      const n = Number(href.slice(hashIdx + 2));
-      line = Number.isFinite(n) ? n : null;
-    }
-    refs.push({ label, path, line });
+    const ref = linkRefFromMatch(match);
+    if (keepPath(ref.path)) refs.push(ref);
   }
   return refs;
 }
@@ -105,7 +114,39 @@ export function parseTestLinksInStatement(statement: string): TestLinkRef[] {
   return parseLinksInStatement(statement, isTestFile);
 }
 
-/** Keeps only links whose path is NOT a test file (IMPLEMENTED_BY edges). */
+/** Keeps only links whose path is source code — neither a test file nor
+ * prose documentation (so ADR/docs `.md` refs do not become IMPLEMENTED_BY
+ * code links). */
 export function parseCodeLinksInStatement(statement: string): CodeLinkRef[] {
-  return parseLinksInStatement(statement, (path) => !isTestFile(path));
+  return parseLinksInStatement(statement, (path) => !isTestFile(path) && !isDocFile(path));
+}
+
+/** Find would-be coverage links (test or source, not prose docs) that sit
+ * in a NON-trailing parenthetical, where the trailing-only parsers silently
+ * ignore them. Used by the validate cron to warn authors about misplaced
+ * links. */
+export function findMisplacedCoverageLinks(statement: string): SpecLinkRef[] {
+  const span = findTrailingParenSpan(statement);
+  const trailingOpen = span ? span.open : statement.length;
+
+  const refs: SpecLinkRef[] = [];
+  for (const match of statement.matchAll(LINK_INSIDE_PAREN_RE)) {
+    if ((match.index ?? 0) >= trailingOpen) continue; // in/after the trailing paren — fine
+    const ref = linkRefFromMatch(match);
+    if (isDocFile(ref.path)) continue; // prose doc link, not a coverage link
+    refs.push(ref);
+  }
+  return refs;
+}
+
+/** Segment a spec's markdown and pair each statement with its trailing
+ * test links — the shared loop behind both the validate cron and the
+ * web-ui coverage derivation. */
+export function linksForStatements(
+  content: string,
+): Array<{ statement: Statement; testLinks: TestLinkRef[] }> {
+  return segmentStatements(content).map((statement) => ({
+    statement,
+    testLinks: parseTestLinksInStatement(statement.text),
+  }));
 }

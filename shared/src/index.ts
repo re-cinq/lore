@@ -1,4 +1,4 @@
-export { chunkFile, type Chunk } from './chunker.js';
+export { chunkFile, buildIngestedChunkMetadata, type Chunk } from './chunker.js';
 export { redactSecrets } from './redact.js';
 export { parseTasks, inferPhaseDependencies, type ParsedTask } from './tasks.js';
 export {
@@ -49,6 +49,7 @@ export {
 } from './spec-segment.js';
 export {
   isTestFile,
+  isDocFile,
   normalizeTestName,
 } from './test-paths.js';
 export {
@@ -79,6 +80,8 @@ export {
 export {
   parseTestLinksInStatement,
   parseCodeLinksInStatement,
+  linksForStatements,
+  findMisplacedCoverageLinks,
   type SpecLinkRef,
   type TestLinkRef,
   type CodeLinkRef,

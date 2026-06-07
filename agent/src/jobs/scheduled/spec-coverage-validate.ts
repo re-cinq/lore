@@ -24,8 +24,8 @@
  */
 
 import {
-  segmentStatements,
-  parseTestLinksInStatement,
+  linksForStatements,
+  findMisplacedCoverageLinks,
   reassembleSpec,
   type TestLinkRef,
 } from "@re-cinq/lore-shared";
@@ -38,7 +38,10 @@ export interface ChunkLineRange {
   end_line: number | null;
 }
 
-export type BrokenLinkReason = "file-missing" | "line-out-of-range";
+export type BrokenLinkReason =
+  | "file-missing"
+  | "line-out-of-range"
+  | "non-trailing-link";
 
 export interface BrokenLink {
   spec_path: string;
@@ -72,12 +75,20 @@ export function collectBrokenLinks(
   chunks: ChunkLineRange[],
 ): BrokenLink[] {
   const out: BrokenLink[] = [];
-  for (const s of segmentStatements(content)) {
-    for (const link of parseTestLinksInStatement(s.text)) {
+  for (const { statement, testLinks } of linksForStatements(content)) {
+    for (const link of testLinks) {
       const r = resolveTestLink(link, chunks);
       if (!r.ok) {
-        out.push({ spec_path: specPath, statement_text: s.text, link, reason: r.reason });
+        out.push({ spec_path: specPath, statement_text: statement.text, link, reason: r.reason });
       }
+    }
+    for (const link of findMisplacedCoverageLinks(statement.text)) {
+      out.push({
+        spec_path: specPath,
+        statement_text: statement.text,
+        link,
+        reason: "non-trailing-link",
+      });
     }
   }
   return out;
@@ -92,9 +103,9 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
     bySpec.set(b.spec_path, list);
   }
   const lines: string[] = [
-    "**Broken test links detected**",
+    "**Broken or misplaced test links detected**",
     "",
-    `${broken.length} link${broken.length === 1 ? "" : "s"} across ${bySpec.size} spec${bySpec.size === 1 ? "" : "s"} don't resolve to a known test chunk.`,
+    `${broken.length} link${broken.length === 1 ? "" : "s"} across ${bySpec.size} spec${bySpec.size === 1 ? "" : "s"} don't resolve to a known test chunk or sit outside the trailing parenthetical.`,
     "",
   ];
   for (const [specPath, list] of bySpec) {

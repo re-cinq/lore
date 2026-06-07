@@ -8,11 +8,10 @@
  */
 
 import {
-  segmentStatements,
   buildIntroOrdinals,
   classifyByHeuristic,
 } from './spec-segment';
-import { parseTestLinksInStatement, type TestLinkRef } from './spec-link-parser';
+import { linksForStatements, type TestLinkRef } from './spec-link-parser';
 
 export type StatementState = 'tested' | 'untested' | 'narrative';
 
@@ -31,12 +30,11 @@ export interface DerivedCoverage {
 }
 
 export function deriveCoverageFromMarkdown(content: string): DerivedCoverage {
-  const segments = segmentStatements(content);
-  const introOrdinals = buildIntroOrdinals(segments);
+  const withLinks = linksForStatements(content);
+  const introOrdinals = buildIntroOrdinals(withLinks.map((w) => w.statement));
 
-  const statements: DerivedStatement[] = segments.map((s) => {
+  const statements: DerivedStatement[] = withLinks.map(({ statement: s, testLinks }) => {
     const c = classifyByHeuristic(s, introOrdinals);
-    const testLinks = parseTestLinksInStatement(s.text);
     let state: StatementState;
     if (c.testability === 'untestable') {
       state = 'narrative';

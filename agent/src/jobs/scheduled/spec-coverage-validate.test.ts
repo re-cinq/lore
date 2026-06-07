@@ -96,6 +96,19 @@ describe("collectBrokenLinks", () => {
   it("returns empty when the spec has no test links at all", () => {
     expect(collectBrokenLinks("x", "## A\n\nPlain prose.\n", chunks)).toEqual([]);
   });
+
+  it("flags a coverage link placed outside the trailing parenthetical", () => {
+    const md = "## A\n\n- Returns ([t](src/x.test.ts#L42)) the value\n";
+    const out = collectBrokenLinks("specs/x/spec.md", md, chunks);
+    expect(out).toEqual([
+      {
+        spec_path: "specs/x/spec.md",
+        statement_text: "Returns ([t](src/x.test.ts#L42)) the value",
+        link: { label: "t", path: "src/x.test.ts", line: 42 },
+        reason: "non-trailing-link",
+      },
+    ]);
+  });
 });
 
 describe("formatBrokenLinksReport", () => {
