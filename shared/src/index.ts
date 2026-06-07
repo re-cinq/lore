@@ -3,9 +3,12 @@ export { redactSecrets } from './redact.js';
 export { parseTasks, inferPhaseDependencies, type ParsedTask } from './tasks.js';
 export {
   formatTrailers,
+  formatValidatesTrailer,
   parseTrailers,
+  parseValidatesTrailers,
   lastStageOnBranch,
   type Trailers,
+  type ProvenanceRef,
 } from './commit-trailers.js';
 export {
   resolveDarkFactorySettings,
@@ -119,6 +122,7 @@ export {
   type WriteResult,
   type PgPool,
   type DgraphClientPort,
+  type DgraphTxn,
 } from './memory-store.js';
 export { PostgresMemoryStore } from './postgres-memory-store.js';
 export { ShadowMemoryStore } from './shadow-memory-store.js';
