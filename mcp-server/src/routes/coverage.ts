@@ -4,13 +4,18 @@
  * {@link CoveredChunk} shape shared with `tests.run` and `test-report`.
  * The line-number → contiguous-range collapse is format-independent and
  * lives in `collapseIntoRanges` so a sibling Cobertura parser can reuse it.
+ * After counting, the handler fires a fire-and-forget spec-trace trigger to
+ * the agent with the NORMALIZED groups (no longer a pure no-op count), so
+ * lcov/cobertura payloads are parsed mcp-server-side. The trigger no-ops when
+ * the agent env is unset.
  * See `specs/project-test-interface/contracts/test-commands.md`.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import type { CoveredChunk } from "@re-cinq/lore-shared";
-import { json, readJsonBody, requireCommit } from "./http.js";
+import { json, readJsonBody, repoFromReposUrl, requireCommit } from "./http.js";
+import { triggerAgentSpecTrace } from "./helpers.js";
 
 interface CoverageGroup {
   test: string;
@@ -46,7 +51,12 @@ export async function handleCoverageRoute(
     return;
   }
 
-  json(res, 200, countCoverage(normalizeByFormat(body)));
+  const groups = normalizeByFormat(body);
+
+  const repo = repoFromReposUrl(req.url);
+  if (repo) void triggerAgentSpecTrace(repo, "coverage", { commit: body.commit, coverage: groups });
+
+  json(res, 200, countCoverage(groups));
 }
 
 /**

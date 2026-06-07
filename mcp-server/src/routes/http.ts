@@ -20,6 +20,19 @@ export function requireCommit(body: { commit?: string }, res: ServerResponse): b
   return false;
 }
 
+const REPO_FROM_REPOS_URL = /^\/api\/repos\/([^/]+)\/([^/]+)\//;
+
+/**
+ * Pull the `owner/name` repo slug out of an `/api/repos/:o/:r/...` URL.
+ * Returns null when the URL is absent or doesn't match, so callers fire
+ * their per-repo side-effects only on a real match — the sole home for
+ * this regex + the `req.url` non-null dance.
+ */
+export function repoFromReposUrl(url: string | undefined): string | null {
+  const match = url?.match(REPO_FROM_REPOS_URL);
+  return match ? `${match[1]}/${match[2]}` : null;
+}
+
 export function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
     let body = "";

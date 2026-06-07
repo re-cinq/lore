@@ -6,9 +6,9 @@
  * `reassembleBlocks`. For any projected document this returns the verbatim
  * original source; a never-projected file (no Block nodes) returns `null`, while
  * a genuinely empty document (one `blank` block) returns `""`. `recomputeFile` is
- * the single authoritative reconstruction path (by `Block.file_path`);
- * `recomputeSpecFile` is a thin alias for spec call sites — specs carry
- * `Block.file_path` too, so it just delegates.
+ * the single authoritative reconstruction path, keyed by `Block.file_path` — it
+ * serves specs and ADRs alike, since every projected document's Block layer
+ * carries `file_path`.
  */
 
 import type { DgraphClientPort, Block } from "@re-cinq/lore-shared";
@@ -45,21 +45,7 @@ export function sourceFromBlockRows(rows: BlockRow[]): string | null {
 }
 
 /**
- * Reconstructs a spec's source from its Block layer. Specs carry
- * `Block.file_path`, so this delegates to {@link recomputeFile} — the single
- * authoritative reconstruction path — rather than re-deriving the same logic via
- * the `~Block.spec` reverse edge.
- */
-export async function recomputeSpecFile(
-  repo: string,
-  filePath: string,
-  dgraph: DgraphClientPort,
-): Promise<string | null> {
-  return recomputeFile(repo, filePath, dgraph);
-}
-
-/**
- * Generic source reconstruction by `Block.file_path` — works for any ingested
+ * Source reconstruction by `Block.file_path` — works for any ingested
  * document (specs, ADRs) whose Block layer is keyed by file_path, with no
  * dependence on a Spec parent. Reads the file's Block rows, then hands them to
  * {@link sourceFromBlockRows}: `null` for a never-projected file (no rows), `""`

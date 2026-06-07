@@ -127,6 +127,30 @@ export async function triggerAgentSpecCoverageValidate(repo: string): Promise<vo
 }
 
 /**
+ * Forward a spec-trace projection trigger to the agent. Fire-and-forget:
+ * the agent returns 202 before projecting into Dgraph, so this never blocks
+ * the test-report / coverage route response. `kind` selects the ingest path
+ * ("test-report" | "coverage"); `payload` is the route's already-parsed body.
+ */
+export async function triggerAgentSpecTrace(repo: string, kind: string, payload: unknown): Promise<void> {
+  const agentUrl = process.env.LORE_AGENT_URL;
+  const token = process.env.LORE_AGENT_INTERNAL_TOKEN;
+  if (!agentUrl || !token) {
+    console.warn("[spec-trace] LORE_AGENT_URL or LORE_AGENT_INTERNAL_TOKEN not set — skipping spec-trace trigger");
+    return;
+  }
+  try {
+    await fetch(`${agentUrl.replace(/\/+$/, "")}/api/trigger/spec-trace`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ repo, kind, payload }),
+    });
+  } catch (err: any) {
+    console.warn("[spec-trace] spec-trace trigger failed:", err.message);
+  }
+}
+
+/**
  * Forward an auto-merge re-trigger to the agent. Same shape as the
  * review-reactor forwarder. Used by `check_run.completed` /
  * `check_suite.completed` webhook handlers so dark-mode PRs re-evaluate
