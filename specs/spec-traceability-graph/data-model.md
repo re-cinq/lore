@@ -30,8 +30,8 @@ type Repo       { Repo.xid Repo.name
                   Repo.test_chunks Repo.test_suites Repo.coverage }
 type Spec       { Spec.xid Spec.repo Spec.file_path Spec.content_hash
                   Spec.blocks Spec.sections Spec.acceptance_criteria }
-type Block      { Block.xid Block.spec Block.repo Block.ordinal
-                  Block.kind Block.text Block.level }
+type Block      { Block.xid Block.spec Block.repo Block.file_path
+                  Block.ordinal Block.kind Block.text Block.level }
 type Section    { Section.xid Section.spec Section.heading Section.level
                   Section.ordinal Section.statements }
 type AcceptanceCriterion { AcceptanceCriterion.xid AcceptanceCriterion.spec
@@ -121,8 +121,9 @@ Spec.sections:        [uid] @reverse @count .
 Spec.acceptance_criteria: [uid] @reverse @count .
 
 # Block (lossless source layer — the document as an ordered, verbatim block stream)
-Block.spec:           uid @reverse .
+Block.spec:           uid @reverse .                  # set for Spec docs (traversal); ADRs have none
 Block.repo:           string @index(hash) .
+Block.file_path:      string @index(hash) .           # the document this block belongs to — reconstruction key
 Block.ordinal:        int .                           # document-global block position (total order)
 Block.kind:           string @index(hash) .           # heading|paragraph|list-item|code|table|blank
 Block.text:           string .                         # VERBATIM source for this block
@@ -269,12 +270,14 @@ contract clause with no test behind it.
    block stream (`heading|paragraph|list-item|code|table|blank`) and upserts
    one `Block` per block — `xid = repo|file_path|block|ordinal`, verbatim
    `Block.text`, `Block.kind`, document-global `Block.ordinal`, `Block.level`
-   for headings — attached via `Spec.blocks`. Orphaned blocks from a prior
-   (longer) projection are pruned via the `~Block.spec` reverse-edge sweep.
-   This layer is **byte-lossless by construction**: it keeps paragraphs whole
-   (never sentence-split) and captures every line — including code fences,
-   tables, and blank lines — so `reassembleBlocks` reproduces the source
-   exactly. It is what `recomputeSpecFile` reads.
+   for headings, and `Block.file_path` (the reconstruction key) — attached via
+   `Spec.blocks`. The shared `projectDocumentBlocks` writer does this for both
+   specs and ADRs. Orphaned blocks from a prior (longer) projection are pruned
+   by `pruneOrphanBlocksByFile` (the `file_path`+`repo` index sweep, used by
+   both document types). This layer is **byte-lossless by construction**: it
+   keeps paragraphs whole (never sentence-split) and captures every line —
+   including code fences, tables, and blank lines — so `reassembleBlocks`
+   reproduces the source exactly. It is what `recomputeFile` reads.
 2. **Testable semantic overlay.** `segmentStatements(content)` → upsert
    `Spec`/`Section`/`Statement` by `xid`; set `Statement.text_hash` and
    **verbatim** `text`; record `Section.level` (heading depth) and
@@ -318,29 +321,38 @@ once.
 
 ### Recompute (graph → markdown, the reverse unit)
 
-`recomputeSpecFile(repo, file_path, dgraph)` reconstructs `spec.md` from
-the graph — the inverse of `projectSpecFile`, reading the **Block layer**:
+`recomputeFile(repo, file_path, dgraph)` reconstructs any projected document
+from the graph — the inverse of the Block projection, and **document-agnostic**:
 
-1. Load the `Spec`'s `Block`s via the `~Block.spec` reverse edge.
+1. Load the document's `Block`s by `eq(Block.file_path, file_path)` filtered
+   on `Block.repo` (the `file_path`+`repo` index — works for any document,
+   no parent-node dependency).
 2. Sort by `Block.ordinal` (Dgraph does not guarantee child order) and
    `reassembleBlocks` them — rejoin the verbatim `Block.text`s with `"\n"`,
    the exact inverse of the line-partition `segmentBlocks` performed.
 
-**Round-trip invariant — byte-exact:** `recomputeSpecFile(...) === content`
-and therefore `sha256(recompute) === Spec.content_hash`. Because the Block
-layer stores every line verbatim (paragraphs whole, code fences and tables
-and blank lines intact) and `reassembleBlocks`/`segmentBlocks` are true
-inverses of `split("\n")`/`join("\n")`, reconstruction is **lossless to the
-byte**, not merely canonical-equivalent. Divergence is a lossiness bug,
-caught by a test, not discovered in production.
+`recomputeSpecFile(repo, file_path, dgraph)` is a thin alias of `recomputeFile`
+(specs and ADRs reconstruct through the same reader).
 
-> The earlier semantic layer (`Section`/`Statement`/`AcceptanceCriterion`)
-> is **not** used for reconstruction — it is lossy by design (sentence-split,
-> drops code/tables/headings-as-structure). Recompute reads only the Block
-> layer. **ADRs and memories** that need the same round-trip guarantee must
-> likewise be projected into a Block layer; an `ADR` node today is
-> metadata-only (`number`/`title`/`status`/`content_hash`) and is therefore
-> **reference-only, not reconstructable** until it grows a Block projection.
+**Round-trip invariant — byte-exact:** `recomputeFile(...) === content` and
+therefore `sha256(recompute) === content_hash`. Because the Block layer stores
+every line verbatim (paragraphs whole, code fences and tables and blank lines
+intact) and `reassembleBlocks`/`segmentBlocks` are true inverses of
+`split("\n")`/`join("\n")`, reconstruction is **lossless to the byte**, not
+merely canonical-equivalent. Divergence is a lossiness bug, caught by a test,
+not discovered in production.
+
+> The semantic layer (`Section`/`Statement`/`AcceptanceCriterion`) is **not**
+> used for reconstruction — it is lossy by design (sentence-split, drops
+> code/tables/headings-as-structure). Recompute reads only the Block layer.
+> **ADRs** are now reconstructable the same way: `projectAdrFile` projects an
+> ADR's Block layer (keyed by `Block.file_path`, pruned on re-projection by
+> `pruneOrphanBlocksByFile`) and `recomputeFile` reconstructs it byte-exact —
+> the ADR **metadata** node (`number`/`title`/`status`) is a separate, optional
+> overlay for `DECIDED_BY`/`SUPERSEDES`, not needed for reconstruction.
+> **Memories** are not multi-block markdown documents: `Memory.value` and
+> `Episode` content are already stored verbatim, so they reconstruct directly
+> (read the value) without a Block layer.
 
 ### Test-name resolution (best-effort, language-pluggable)
 

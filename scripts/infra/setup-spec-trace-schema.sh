@@ -68,6 +68,7 @@ AcceptanceCriterion.violation_reason: string .
 
 Block.spec: uid @reverse .
 Block.repo: string @index(hash) .
+Block.file_path: string @index(hash) .
 Block.ordinal: int .
 Block.kind: string @index(hash) .
 Block.text: string .
@@ -182,6 +183,7 @@ type Block {
   Block.xid
   Block.spec
   Block.repo
+  Block.file_path
   Block.ordinal
   Block.kind
   Block.text
