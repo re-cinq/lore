@@ -13,7 +13,8 @@
     "db:schema": "bash scripts/infra/setup-local-schema.sh",
     "dgraph:up": "docker start lore-dgraph 2>/dev/null || (mkdir -p .lore-dgraphdata && docker run --name lore-dgraph -v \"$PWD/.lore-dgraphdata:/dgraph\" -p 8081:8080 -p 9080:9080 -d dgraph/standalone:v24.0.0)",
     "dgraph:down": "docker rm -f lore-dgraph",
-    "dgraph:schema": "bash scripts/infra/setup-memory-dgraph-schema.sh",
+    "dgraph:schema": "bash scripts/infra/setup-memory-dgraph-schema.sh && bash scripts/infra/setup-spec-trace-schema.sh",
+    "trace:schema": "bash scripts/infra/setup-spec-trace-schema.sh",
     "services:up": "docker compose up -d --wait",
     "services:down": "docker compose down"
   },
