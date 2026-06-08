@@ -4,14 +4,10 @@
  * queryTrace (stub today). No retrieval logic is reimplemented here.
  */
 
+import type { LiveGraphResult } from "./live-graph.js";
+
 export interface AssembledContext {
   text: string;
-}
-
-export interface GraphEdge {
-  entity: string;
-  relation: string;
-  relatedEntity: string;
 }
 
 export interface DocRef {
@@ -21,7 +17,7 @@ export interface DocRef {
 
 export interface KnowledgePort {
   assembleContext(repo: string, query: string): Promise<AssembledContext>;
-  queryLiveGraph(repo: string, term?: string): Promise<GraphEdge[]>;
+  queryLiveGraph(repo: string, term?: string): Promise<LiveGraphResult[]>;
   queryTrace(repo: string, query: string): Promise<string>;
   listSpecs(repo: string): Promise<DocRef[]>;
   listAdrs(repo: string): Promise<DocRef[]>;

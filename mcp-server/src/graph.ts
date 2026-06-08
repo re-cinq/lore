@@ -24,15 +24,7 @@ interface GraphExtractionResult {
   edges: ExtractedGraphEdge[];
 }
 
-export interface LiveGraphResult {
-  entity: string;
-  entity_type: string;
-  relation: string;
-  related_entity: string;
-  related_type: string;
-  direction: 'outgoing' | 'incoming';
-  valid_from: string;
-}
+// LiveGraphResult relocated to @re-cinq/lore-shared (single source); re-exported below.
 
 // ── LLM entity extraction ──────────────────────────────────────────
 
@@ -170,71 +162,7 @@ export async function extractAndUpdateGraph(
 
 // ── Live graph query ────────────────────────────────────────────────
 
-export async function queryLiveGraph(
-  pool: any,
-  entity?: string,
-  relationType?: string,
-  repo?: string,
-  includeInvalidated: boolean = false,
-): Promise<LiveGraphResult[]> {
-  const validFilter = includeInvalidated ? '' : 'AND e.valid_to IS NULL';
-
-  if (entity) {
-    const { rows } = await pool.query(
-      `SELECT
-         s.name as entity, s.entity_type,
-         e.relation_type as relation,
-         t.name as related_entity, t.entity_type as related_type,
-         'outgoing' as direction,
-         e.valid_from
-       FROM memory.edges e
-       JOIN memory.entities s ON s.id = e.source_id
-       JOIN memory.entities t ON t.id = e.target_id
-       WHERE LOWER(s.name) = LOWER($1)
-         ${validFilter}
-         AND ($2::text IS NULL OR e.relation_type = $2)
-         AND ($3::text IS NULL OR s.repo = $3 OR s.repo IS NULL)
-       UNION ALL
-       SELECT
-         t.name as entity, t.entity_type,
-         e.relation_type as relation,
-         s.name as related_entity, s.entity_type as related_type,
-         'incoming' as direction,
-         e.valid_from
-       FROM memory.edges e
-       JOIN memory.entities s ON s.id = e.source_id
-       JOIN memory.entities t ON t.id = e.target_id
-       WHERE LOWER(t.name) = LOWER($1)
-         ${validFilter}
-         AND ($2::text IS NULL OR e.relation_type = $2)
-         AND ($3::text IS NULL OR t.repo = $3 OR t.repo IS NULL)
-       ORDER BY valid_from DESC
-       LIMIT 50`,
-      [entity, relationType || null, repo || null],
-    );
-    return rows;
-  }
-
-  const { rows } = await pool.query(
-    `SELECT
-       s.name as entity, s.entity_type,
-       e.relation_type as relation,
-       t.name as related_entity, t.entity_type as related_type,
-       'outgoing' as direction,
-       e.valid_from
-     FROM memory.edges e
-     JOIN memory.entities s ON s.id = e.source_id
-     JOIN memory.entities t ON t.id = e.target_id
-     WHERE 1=1
-       ${validFilter}
-       AND ($1::text IS NULL OR e.relation_type = $1)
-       AND ($2::text IS NULL OR s.repo = $2 OR s.repo IS NULL)
-     ORDER BY e.created_at DESC
-     LIMIT 50`,
-    [relationType || null, repo || null],
-  );
-  return rows;
-}
+export { queryLiveGraph, type LiveGraphResult } from "@re-cinq/lore-shared";
 
 // ══════════════════════════════════════════════════════════════════════
 // Static graph (legacy file-based, fallback when DB is unavailable)

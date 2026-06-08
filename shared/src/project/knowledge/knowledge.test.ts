@@ -10,7 +10,17 @@ import type { KnowledgePort } from "./knowledge-port.js";
 function fakeKnowledge(): KnowledgePort {
   return {
     assembleContext: async (repo, query) => ({ text: `[${repo}] ${query}` }),
-    queryLiveGraph: async (repo) => [{ entity: repo, relation: "uses", relatedEntity: "pgvector" }],
+    queryLiveGraph: async (repo) => [
+      {
+        entity: repo,
+        entity_type: "service",
+        relation: "uses",
+        related_entity: "pgvector",
+        related_type: "technology",
+        direction: "outgoing",
+        valid_from: "t",
+      },
+    ],
     queryTrace: async () => "trace not yet available",
     listSpecs: async (repo) => (repo === "re-cinq/lore" ? [{ path: "specs/x/spec.md", title: "X" }] : []),
     listAdrs: async () => [],

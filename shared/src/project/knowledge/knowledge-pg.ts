@@ -1,8 +1,8 @@
 import type { PgPool } from "../../memory-store.js";
+import { queryLiveGraph, type LiveGraphResult } from "./live-graph.js";
 import type {
   KnowledgePort,
   AssembledContext,
-  GraphEdge,
   DocRef,
 } from "./knowledge-port.js";
 
@@ -22,25 +22,8 @@ export class PgKnowledge implements KnowledgePort {
     throw new Error("knowledge.assembleContext needs the relocated context-assembly module (pending)");
   }
 
-  async queryLiveGraph(repo: string, term?: string): Promise<GraphEdge[]> {
-    const sql = term
-      ? `SELECT s.name as entity, e.relation_type as relation, t.name as related_entity
-           FROM memory.edges e
-           JOIN memory.entities s ON s.id = e.source_id
-           JOIN memory.entities t ON t.id = e.target_id
-          WHERE LOWER(s.name) = LOWER($1) AND e.valid_to IS NULL
-            AND ($2::text IS NULL OR s.repo = $2 OR s.repo IS NULL)
-          ORDER BY e.valid_from DESC LIMIT 50`
-      : `SELECT s.name as entity, e.relation_type as relation, t.name as related_entity
-           FROM memory.edges e
-           JOIN memory.entities s ON s.id = e.source_id
-           JOIN memory.entities t ON t.id = e.target_id
-          WHERE e.valid_to IS NULL
-            AND ($1::text IS NULL OR s.repo = $1 OR s.repo IS NULL)
-          ORDER BY e.created_at DESC LIMIT 50`;
-    const params = term ? [term, repo] : [repo];
-    const { rows } = await this.pool.query(sql, params);
-    return rows.map((r) => ({ entity: r.entity, relation: r.relation, relatedEntity: r.related_entity }));
+  queryLiveGraph(repo: string, term?: string): Promise<LiveGraphResult[]> {
+    return queryLiveGraph(this.pool, term, undefined, repo, false);
   }
 
   queryTrace(): Promise<string> {

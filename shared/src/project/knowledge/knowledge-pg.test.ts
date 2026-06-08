@@ -22,13 +22,16 @@ describe("PgKnowledge", () => {
   it("queries the live graph bound to the repo and maps to GraphEdge", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const pg = new PgKnowledge(
-      fakePool(capture, [[{ entity: "lore", relation: "uses", related_entity: "pgvector" }]]),
+      fakePool(capture, [[{ entity: "lore", entity_type: "service", relation: "uses", related_entity: "pgvector", related_type: "tech", direction: "outgoing", valid_from: "t" }]]),
     );
 
     const edges = await pg.queryLiveGraph("re-cinq/lore");
 
-    expect(capture[0].params).toEqual(["re-cinq/lore"]);
-    expect(edges).toEqual([{ entity: "lore", relation: "uses", relatedEntity: "pgvector" }]);
+    // Delegates to the shared queryLiveGraph (no-entity branch → [relationType||null, repo||null]).
+    expect(capture[0].params).toEqual([null, "re-cinq/lore"]);
+    expect(edges).toEqual([
+      { entity: "lore", entity_type: "service", relation: "uses", related_entity: "pgvector", related_type: "tech", direction: "outgoing", valid_from: "t" },
+    ]);
   });
 
   it("resolves the team schema then lists specs from its chunks", async () => {

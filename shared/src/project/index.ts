@@ -38,13 +38,9 @@ export type { NotifyPort, NotifyLevel, NotifyResult } from "./notify/notify-port
 export { Notify } from "./notify/notify.js";
 export { decideNotify, type NotifySettings } from "./notify/notify-decision.js";
 
-export type {
-  KnowledgePort,
-  AssembledContext,
-  GraphEdge,
-  DocRef,
-} from "./knowledge/knowledge-port.js";
+export type { KnowledgePort, AssembledContext, DocRef } from "./knowledge/knowledge-port.js";
 export { KnowledgeView } from "./knowledge/knowledge.js";
+export { queryLiveGraph, type LiveGraphResult } from "./knowledge/live-graph.js";
 
 export type { TestRunnerPort, TestRunReport } from "./test-runner/test-runner-port.js";
 export { TestSuite } from "./test-runner/test-suite.js";

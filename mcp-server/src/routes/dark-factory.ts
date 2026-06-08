@@ -2,10 +2,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import {
   parseDarkFactorySettings,
-  resolveSettings,
   twoKeyFieldsTouched,
   type DarkFactorySettings,
 } from "../dark-factory-settings.js";
+import { projectFor } from "../project-boot.js";
 import { verifyApproval, TwoKeyError } from "../dark-factory-authz.js";
 import { getOctokit } from "../github-client.js";
 import { json, readJsonBody } from "./http.js";
@@ -43,21 +43,16 @@ export async function handleDarkFactorySettingsRoute(
 async function handleGetDarkFactorySettings(
   repo: string,
   res: ServerResponse,
-  pool: Pool,
+  _pool: Pool,
 ): Promise<void> {
   try {
-    const { rows } = await pool.query(
-      `SELECT settings FROM lore.repos WHERE full_name = $1`,
-      [repo],
-    );
-    if (rows.length === 0) {
+    const project = await projectFor(repo);
+    const settings = await project.settings.resolveOrNull();
+    if (settings === null) {
       json(res, 404, { error: "repo not onboarded", repo });
       return;
     }
-    const partial = (rows[0].settings?.dark_factory ?? null) as
-      | DarkFactorySettings
-      | null;
-    json(res, 200, resolveSettings(partial));
+    json(res, 200, settings);
   } catch (err) {
     console.error("[dark-factory] GET settings failed:", err);
     json(res, 500, { error: "internal" });
