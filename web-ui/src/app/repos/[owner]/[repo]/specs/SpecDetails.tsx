@@ -25,6 +25,8 @@ export interface StatementInfo {
   category: string | null;
   /** Parsed test links from the trailing parenthetical; empty for non-tested states. */
   testLinks: TestLinkRef[];
+  /** Graph-sourced — the statement's graph node is violated/drifted. */
+  drifted?: boolean;
 }
 
 /**
@@ -84,8 +86,17 @@ function renderedText(node: ElementContent | RootContent): string {
   return '';
 }
 
+/** The per-statement, graph-and-state facets that decide how a `<mark>` is
+ * tagged. Bundled so a new facet (evidence count, severity, …) adds one field
+ * here instead of another positional arg at every call site. */
+interface MarkMeta {
+  ordinal: number;
+  state: StatementState;
+  drifted?: boolean;
+}
+
 function buildHighlighter(
-  statements: { ordinal: number; text: string; state: StatementState }[],
+  statements: { ordinal: number; text: string; state: StatementState; drifted?: boolean }[],
 ) {
   const enriched = statements.map((s) => ({
     ordinal: s.ordinal,
@@ -93,23 +104,25 @@ function buildHighlighter(
     matcher: matcherText(s.text) || s.text,
     plain: plainText(s.text),
     state: s.state,
+    drifted: s.drifted,
   }));
   const ordered = [...enriched].sort((a, b) => b.matcher.length - a.matcher.length);
   const used = new Set<number>();
 
-  function markProps(ordinal: number, state: StatementState) {
+  function markProps(meta: MarkMeta) {
     return {
-      className: ['stmt', `stmt-${state}`],
-      dataOrdinal: String(ordinal),
-      dataState: state,
+      className: ['stmt', `stmt-${meta.state}`, ...(meta.drifted ? ['stmt-drifted'] : [])],
+      dataOrdinal: String(meta.ordinal),
+      dataState: meta.state,
+      ...(meta.drifted ? { dataDrifted: 'true' } : {}),
     };
   }
 
-  function makeMark(text: string, ordinal: number, state: StatementState): Element {
+  function makeMark(text: string, meta: MarkMeta): Element {
     return {
       type: 'element',
       tagName: 'mark',
-      properties: markProps(ordinal, state),
+      properties: markProps(meta),
       children: [{ type: 'text', value: text }],
     };
   }
@@ -130,7 +143,7 @@ function buildHighlighter(
           {
             type: 'element',
             tagName: 'mark',
-            properties: markProps(s.ordinal, s.state),
+            properties: markProps(s),
             children: node.children,
           },
         ];
@@ -150,7 +163,7 @@ function buildHighlighter(
       const after = node.value.slice(idx + s.matcher.length);
       const parts: ElementContent[] = [];
       if (before) parts.push({ type: 'text', value: before });
-      parts.push(makeMark(s.matcher, s.ordinal, s.state));
+      parts.push(makeMark(s.matcher, s));
       if (after) {
         const tail = { type: 'text', value: after } as Text;
         const recursed = processTextNode(tail);
@@ -215,6 +228,71 @@ function buildHighlighter(
   };
 }
 
+/** Presentational inner content of the hover tooltip: the optional drift
+ * notice followed by the state-specific block (narrative / untested / tested).
+ * SpecDetails owns the positioning wrapper + `role="tooltip"`; this renders
+ * only the children. Needs `repo`/`branch` to resolve test-link hrefs. */
+function StatementPopover({
+  statement,
+  repo,
+  branch,
+}: {
+  statement: StatementInfo;
+  repo: string;
+  branch: string;
+}) {
+  return (
+    <>
+      {statement.drifted && (
+        <div className={styles.popoverDrift}>
+          <strong>Drifted</strong>
+          <div className={styles.popoverHint}>
+            The implementation changed since the validating test last passed.
+          </div>
+        </div>
+      )}
+      {statement.state === 'narrative' ? (
+        <div className={styles.popoverNarrative}>
+          <strong>Narrative</strong>{statement.category ? ` · ${statement.category}` : ''}
+          <div className={styles.popoverHint}>
+            Excluded from the coverage denominator — context, not a verifiable requirement.
+          </div>
+        </div>
+      ) : statement.state === 'untested' ? (
+        <div className={styles.popoverUntested}>
+          <strong>Untested</strong>
+          <div className={styles.popoverHint}>
+            Add an inline test link at end of this statement:{' '}
+            <code>([label](path/to/test.ts#L42))</code>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.popoverTested}>
+          <strong>
+            {statement.testLinks.length} test{statement.testLinks.length === 1 ? '' : 's'} validate this
+          </strong>
+          <ul className={styles.popoverTestList}>
+            {statement.testLinks.map((t, i) => (
+              <li key={`${t.path}-${t.line ?? ''}-${i}`}>
+                <a
+                  href={resolveHref(`${t.path}${t.line ? `#L${t.line}` : ''}`, repo, branch).href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t.label}
+                </a>
+                <div className={styles.popoverRationale}>
+                  {t.path}{t.line ? `:${t.line}` : ''}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function SpecDetails({
   content,
   statements = [],
@@ -242,6 +320,7 @@ export default function SpecDetails({
       ordinal: s.ordinal,
       text: s.text,
       state: s.state,
+      drifted: s.drifted,
     }));
     return buildHighlighter(enriched);
   }, [statements]);
@@ -304,44 +383,7 @@ export default function SpecDetails({
         </ReactMarkdown>
         {hover && hovered && (
           <div className={styles.popover} style={{ left: hover.x, top: hover.y }} role="tooltip">
-            {hovered.state === 'narrative' ? (
-              <div className={styles.popoverNarrative}>
-                <strong>Narrative</strong>{hovered.category ? ` · ${hovered.category}` : ''}
-                <div className={styles.popoverHint}>
-                  Excluded from the coverage denominator — context, not a verifiable requirement.
-                </div>
-              </div>
-            ) : hovered.state === 'untested' ? (
-              <div className={styles.popoverUntested}>
-                <strong>Untested</strong>
-                <div className={styles.popoverHint}>
-                  Add an inline test link at end of this statement:{' '}
-                  <code>([label](path/to/test.ts#L42))</code>
-                </div>
-              </div>
-            ) : (
-              <div className={styles.popoverTested}>
-                <strong>
-                  {hovered.testLinks.length} test{hovered.testLinks.length === 1 ? '' : 's'} validate this
-                </strong>
-                <ul className={styles.popoverTestList}>
-                  {hovered.testLinks.map((t, i) => (
-                    <li key={`${t.path}-${t.line ?? ''}-${i}`}>
-                      <a
-                        href={resolveHref(`${t.path}${t.line ? `#L${t.line}` : ''}`, repo, branch).href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {t.label}
-                      </a>
-                      <div className={styles.popoverRationale}>
-                        {t.path}{t.line ? `:${t.line}` : ''}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <StatementPopover statement={hovered} repo={repo} branch={branch} />
           </div>
         )}
       </div>
