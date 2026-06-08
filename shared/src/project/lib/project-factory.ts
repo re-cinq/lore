@@ -1,4 +1,5 @@
 import type { PgPool, DgraphClientPort } from "../../memory-store.js";
+import type { ProjectProviders } from "./providers.js";
 import { Project } from "./project.js";
 
 /**
@@ -10,13 +11,16 @@ import { Project } from "./project.js";
  *
  * Async because adapter modules are imported on demand; it is a boot-time
  * composition root, called once per repo. env defaults to process.env for the
- * trust gates and ambient GitHub/git auth.
+ * trust gates and ambient GitHub/git auth. `providers` optionally injects
+ * clients for capabilities beyond pg+dgraph (LLM/k8s/embeddings) — methods that
+ * need an absent provider throw a clear error.
  */
 export async function createProject(
   fullName: string,
   pgPool: PgPool,
   dgraphClient: DgraphClientPort,
   env: NodeJS.ProcessEnv = process.env,
+  providers: ProjectProviders = {},
 ): Promise<Project> {
   const ports = new Map<string, unknown>();
 
@@ -47,8 +51,8 @@ export async function createProject(
   const { ExecTestRunner } = await import("../test-runner/test-runner-exec.js");
   ports.set("tests", new ExecTestRunner());
 
-  const { AgentRunnerLocal } = await import("../agents/agent-runner-local.js");
-  ports.set("agents", new AgentRunnerLocal(env));
+  const { AgentRunner } = await import("../agents/agent-runner.js");
+  ports.set("agents", new AgentRunner(env, { k8s: providers.k8s, llm: providers.llm }));
 
   return new Project(fullName, ports, env);
 }

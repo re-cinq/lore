@@ -18,6 +18,9 @@ export interface AgentRunOpts {
   prompt?: string;
   workDir?: string;
   model?: string;
+  branch?: string;
+  taskType?: string;
+  description?: string;
 }
 
 export interface AgentRunnerPort {
