@@ -262,7 +262,7 @@ export async function driftCheckFile(
       await markCoverageStale(dgraph, coverage.uid);
     }
 
-    const symbol = chunk["CodeChunk.symbol_name"] ?? replacement.symbolName;
+    const symbol = chunk["CodeChunk.symbol_name"] ?? replacement.symbolName ?? replacement.filePath;
     const driftReason = `code-content-changed (${symbol})`;
     await driftChunkStatements(dgraph, chunk, driftReason, drifted, replacement.embedding);
   }
