@@ -1,5 +1,5 @@
 import type { Octokit } from "octokit";
-import type { GitHubPort, IssueRef, IssueFilter, IssueState } from "./github-port.js";
+import type { GitHubPort, IssueRef, IssueFilter, IssueState, CloseReason } from "./github-port.js";
 import type {
   PullRequestsPort,
   PullRef,
@@ -75,6 +75,112 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return (data.tree ?? [])
       .filter((e) => e.type === "blob" && typeof e.path === "string")
       .map((e) => e.path as string);
+  }
+
+  getDefaultBranch(repo: string): Promise<string> {
+    return this.defaultBranch(repo);
+  }
+
+  async getIssue(repo: string, number: number): Promise<IssueRef | null> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    try {
+      const { data } = await ok.rest.issues.get({ owner, repo: name, issue_number: number });
+      return {
+        repo,
+        number: data.number,
+        title: data.title,
+        state: data.state as IssueState,
+        labels: data.labels.map((l) => (typeof l === "string" ? l : l.name ?? "")).filter(Boolean),
+        url: data.html_url,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async getIssueLabels(repo: string, number: number): Promise<string[]> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.issues.get({ owner, repo: name, issue_number: number });
+    return data.labels.map((l) => (typeof l === "string" ? l : l.name ?? "")).filter(Boolean);
+  }
+
+  async createIssue(repo: string, title: string, body: string, labels: string[] = ["lore-managed"]): Promise<IssueRef> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.issues.create({ owner, repo: name, title, body, labels });
+    return { repo, number: data.number, title, state: "open", labels, url: data.html_url };
+  }
+
+  async commentOnIssue(repo: string, number: number, body: string): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    await ok.rest.issues.createComment({ owner, repo: name, issue_number: number, body });
+  }
+
+  async closeIssue(repo: string, number: number, reason: CloseReason = "completed"): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    await ok.rest.issues.update({ owner, repo: name, issue_number: number, state: "closed", state_reason: reason });
+  }
+
+  async addIssueLabel(repo: string, number: number, label: string): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    await ok.rest.issues.addLabels({ owner, repo: name, issue_number: number, labels: [label] });
+  }
+
+  async removeIssueLabel(repo: string, number: number, label: string): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    try {
+      await ok.rest.issues.removeLabel({ owner, repo: name, issue_number: number, name: label });
+    } catch {
+      /* label might not exist */
+    }
+  }
+
+  async createBranch(repo: string, branch: string, base = "main"): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data: ref } = await ok.rest.git.getRef({ owner, repo: name, ref: `heads/${base}` });
+    try {
+      await ok.rest.git.createRef({ owner, repo: name, ref: `refs/heads/${branch}`, sha: ref.object.sha });
+    } catch (err) {
+      if ((err as { status?: number }).status === 422) {
+        await ok.rest.git.deleteRef({ owner, repo: name, ref: `heads/${branch}` });
+        await ok.rest.git.createRef({ owner, repo: name, ref: `refs/heads/${branch}`, sha: ref.object.sha });
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  async commitFile(repo: string, branch: string, path: string, content: string, message: string): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    let sha: string | undefined;
+    for (const ref of [branch, "main"]) {
+      try {
+        const { data } = await ok.rest.repos.getContent({ owner, repo: name, path, ref });
+        if (!Array.isArray(data) && "sha" in data) {
+          sha = data.sha;
+          break;
+        }
+      } catch {
+        /* not found on this ref */
+      }
+    }
+    await ok.rest.repos.createOrUpdateFileContents({
+      owner,
+      repo: name,
+      path,
+      branch,
+      message,
+      content: Buffer.from(content).toString("base64"),
+      ...(sha ? { sha } : {}),
+    });
   }
 
   // ── PullRequestsPort ────────────────────────────────────────────────

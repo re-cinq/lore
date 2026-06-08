@@ -6,6 +6,7 @@
  */
 
 export type IssueState = "open" | "closed";
+export type CloseReason = "completed" | "not_planned";
 
 export interface IssueRef {
   repo: string;
@@ -13,6 +14,7 @@ export interface IssueRef {
   title: string;
   state: IssueState;
   labels: string[];
+  url?: string;
 }
 
 export interface IssueFilter {
@@ -22,8 +24,21 @@ export interface IssueFilter {
 
 export interface GitHubPort {
   readonly name: string;
+  // reads
   listIssues(repo: string, filter?: IssueFilter): Promise<IssueRef[]>;
+  getIssue(repo: string, number: number): Promise<IssueRef | null>;
   getFileContent(repo: string, path: string, ref?: string): Promise<string | null>;
   listDirectory(repo: string, path: string): Promise<string[]>;
   listTree(repo: string, ref?: string): Promise<string[]>;
+  getDefaultBranch(repo: string): Promise<string>;
+  getIssueLabels(repo: string, number: number): Promise<string[]>;
+  // issue writes
+  createIssue(repo: string, title: string, body: string, labels?: string[]): Promise<IssueRef>;
+  commentOnIssue(repo: string, number: number, body: string): Promise<void>;
+  closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
+  addIssueLabel(repo: string, number: number, label: string): Promise<void>;
+  removeIssueLabel(repo: string, number: number, label: string): Promise<void>;
+  // API writes (no clone) — branch + single-file commit
+  createBranch(repo: string, branch: string, base?: string): Promise<void>;
+  commitFile(repo: string, branch: string, path: string, content: string, message: string): Promise<void>;
 }

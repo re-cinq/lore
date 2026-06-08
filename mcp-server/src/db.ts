@@ -18,7 +18,7 @@ const VERTEX_MODEL = "text-embedding-005";
 // Schema allow-list to prevent SQL injection
 const VALID_SCHEMAS = new Set(["org_shared", "payments", "platform", "mobile", "data"]);
 
-function getPool(): Pool {
+export function getPool(): Pool {
   if (!pool) throw new Error("Database not configured");
   return pool;
 }

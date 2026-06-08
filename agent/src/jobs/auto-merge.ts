@@ -1,7 +1,7 @@
 import { trace } from "@opentelemetry/api";
-import { Octokit } from "octokit";
 import { allPathsMatch, matchingPatterns } from "../lib/path-match.js";
 import { writeAuditLog } from "../lib/audit.js";
+import { projectFor } from "../project-boot.js";
 
 const tracer = trace.getTracer("lore.auto_merge");
 
@@ -115,7 +115,6 @@ export function evaluateAutoMerge(
 }
 
 export interface AutoMergeJobInputs {
-  octokit: Octokit;
   taskId: string;
   repo: string; // "owner/repo"
   prNumber: number;
@@ -144,7 +143,6 @@ export async function evaluateAndMerge(
         if (decision.outcome === "merged") {
           try {
             await mergeWithBackoff({
-              octokit: inputs.octokit,
               repo: inputs.repo,
               prNumber: inputs.prNumber,
             });
@@ -194,11 +192,9 @@ export async function evaluateAndMerge(
  * Throws on final failure so the caller records the deferral.
  */
 async function mergeWithBackoff(opts: {
-  octokit: Octokit;
   repo: string;
   prNumber: number;
 }): Promise<void> {
-  const [owner, name] = opts.repo.split("/");
   // Same trade-off as escalation.ts: 5s tail beats 21s while holding
   // the supervisor lease. On final failure, evaluateAndMerge degrades
   // to deferred:api_failure and the PR sits open for a human merge.
@@ -206,12 +202,8 @@ async function mergeWithBackoff(opts: {
 
   for (let attempt = 0; attempt < delays.length; attempt++) {
     try {
-      await opts.octokit.rest.pulls.merge({
-        owner,
-        repo: name,
-        pull_number: opts.prNumber,
-        merge_method: "squash",
-      });
+      const project = await projectFor(opts.repo);
+      await project.pulls.merge(opts.prNumber, "squash");
       return;
     } catch (err) {
       if (attempt === delays.length - 1) throw err;

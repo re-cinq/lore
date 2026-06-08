@@ -1,8 +1,10 @@
 import type { GitHubPort } from "../lib/github-port.js";
 
 /**
- * project.repo — read-only file access over the GitHub API (no clone). Writes
- * live on the Workspace returned by Project.cache(); reads-for-context are here.
+ * project.repo — GitHub file access over the API, repo bound. READS need no
+ * clone. The branch + single-file WRITES are also GitHub-API operations (no
+ * clone) — that's the existing PR-build flow, preserved here. The clone-based
+ * Workspace (Project.cache()) is the separate path for bulk local edits.
  */
 export class RepoFiles {
   constructor(
@@ -20,5 +22,17 @@ export class RepoFiles {
 
   tree(ref?: string): Promise<string[]> {
     return this.github.listTree(this.repo, ref);
+  }
+
+  defaultBranch(): Promise<string> {
+    return this.github.getDefaultBranch(this.repo);
+  }
+
+  createBranch(branch: string, base?: string): Promise<void> {
+    return this.github.createBranch(this.repo, branch, base);
+  }
+
+  commitFile(branch: string, path: string, content: string, message: string): Promise<void> {
+    return this.github.commitFile(this.repo, branch, path, content, message);
   }
 }
