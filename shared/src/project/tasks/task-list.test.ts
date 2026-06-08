@@ -30,6 +30,8 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
     pending: async (repo) => byStatus(repo, "pending"),
     running: async (repo) => byStatus(repo, "running"),
     executed: async (repo) => byStatus(repo, "merged"),
+    create: async (input) => ({ task_id: "new", task_type: input.taskType ?? "general", status: "pending" }),
+    retry: async (id) => ({ task_id: "new", status: "pending", retry_of: id }),
     list: async () => ({ tasks: rows, total: rows.length }),
     getById: async (id) => rows.find((r) => r.id === id) ?? null,
     getWithEvents: async (id) => {

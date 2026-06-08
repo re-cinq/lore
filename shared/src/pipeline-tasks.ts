@@ -8,6 +8,99 @@ import type { PgPool } from "./memory-store.js";
  * task-id-keyed, cross-repo operations. Behavior is byte-for-byte the original.
  */
 
+/** Trust level → allowed task types. The createTask gate reads
+ *  lore.repos.settings.trust.level. Relocated from mcp's pipeline.ts. */
+const TRUST_LEVELS: Record<string, string[]> = {
+  docs: ["gap-fill", "runbook"],
+  tests: ["gap-fill", "runbook", "review"],
+  implementation: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general"],
+  full: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", "onboard"],
+};
+
+export interface CreateTaskInput {
+  description: string;
+  taskType?: string;
+  /** Already resolved by the caller (mcp applies getDefaultRepo). */
+  targetRepo?: string;
+  createdBy?: string;
+  contextBundle?: any;
+  priority?: string;
+  taskGroupId?: string;
+  contextRefs?: { fact_ids: string[]; memory_ids: string[] };
+}
+
+export async function createTask(pool: PgPool, input: CreateTaskInput): Promise<any> {
+  const taskType = input.taskType ?? "general";
+  const repo = input.targetRepo;
+  const createdBy = input.createdBy ?? "ui";
+  if (input.description.length > 10000) throw new Error("Description too long (max 10000 chars)");
+
+  if (repo) {
+    try {
+      const { rows: repoRows } = await pool.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
+      if (repoRows.length > 0) {
+        const settings = repoRows[0].settings || {};
+        const trustLevel = settings.trust?.level;
+        if (trustLevel && TRUST_LEVELS[trustLevel]) {
+          const allowed = TRUST_LEVELS[trustLevel];
+          if (!allowed.includes(taskType)) {
+            throw new Error(`Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(", ")}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.message.includes("not allowed at trust level")) throw err;
+      // Non-trust errors are non-fatal
+    }
+  }
+
+  const resolvedPriority = input.priority === "immediate" ? "immediate" : "normal";
+  const contextJson = input.contextBundle ? JSON.stringify(input.contextBundle) : null;
+  let rows: any[];
+  if (input.taskGroupId) {
+    const result = await pool.query(
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, status, priority, created_at`,
+      [input.description, taskType, repo, createdBy, contextJson, resolvedPriority, input.taskGroupId],
+    );
+    rows = result.rows;
+  } else {
+    const result = await pool.query(
+      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, status, priority, created_at`,
+      [input.description, taskType, repo, createdBy, contextJson, resolvedPriority],
+    );
+    rows = result.rows;
+  }
+  const task = rows[0];
+  if (input.contextRefs && (input.contextRefs.fact_ids.length > 0 || input.contextRefs.memory_ids.length > 0)) {
+    await pool
+      .query(`UPDATE pipeline.tasks SET context_refs = $1 WHERE id = $2`, [JSON.stringify(input.contextRefs), task.id])
+      .catch(() => {});
+  }
+  await recordEvent(pool, task.id, null, "pending", { created_by: createdBy, priority: resolvedPriority });
+  return { task_id: task.id, task_type: taskType, status: task.status, priority: task.priority, created_at: task.created_at };
+}
+
+export async function retryTask(pool: PgPool, taskId: string): Promise<any> {
+  const task = await getTask(pool, taskId);
+  if (!task) throw new Error("Task not found");
+  if (task.status !== "failed" && task.status !== "needs-human-help") {
+    throw new Error(`Cannot retry task in ${task.status} state (must be failed or needs-human-help)`);
+  }
+  const result = await createTask(pool, {
+    description: task.description,
+    taskType: task.task_type,
+    targetRepo: task.target_repo,
+    createdBy: `retry:${task.created_by}`,
+    contextBundle: { ...(task.context_bundle || {}), retry_of: taskId },
+  });
+  await updateTaskStatus(pool, taskId, "retried", { retried_as: result.task_id });
+  return { task_id: result.task_id, status: result.status, retry_of: taskId };
+}
+
 export async function getTask(pool: PgPool, taskId: string): Promise<any> {
   const { rows: tasks } = await pool.query(`SELECT * FROM pipeline.tasks WHERE id = $1`, [taskId]);
   if (tasks.length === 0) return null;

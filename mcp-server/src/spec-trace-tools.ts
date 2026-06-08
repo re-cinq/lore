@@ -14,15 +14,10 @@
  * See `specs/project-test-interface/contracts/test-commands.md`.
  */
 
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
 import {
-  parseTestDescriptors,
-  parseRunResult,
-  substituteSelector,
   resolveTestCommandManifest,
   executionRefusal,
   type TestDescriptor,
@@ -36,11 +31,7 @@ import {
 // back-compat with existing importers.
 export { executionRefusal };
 
-const execShell = promisify(exec);
-
 const NO_MANIFEST = "No test-command manifest declared for this repo.";
-
-const DEFAULT_TIMEOUT_MS = 120_000;
 
 function resolveCwd(manifest: TestCommandManifest, cwd: string): string {
   return join(cwd, manifest.cwd || ".");
@@ -73,34 +64,15 @@ export function stripCoveredPaths(result: RunResult, prefix: string): RunResult 
   };
 }
 
-export function parseCommandJson(stdout: string, what: string): unknown {
-  try {
-    return JSON.parse(stdout);
-  } catch {
-    throw new Error(`${what} command did not emit valid JSON: ${stdout.slice(0, 200)}`);
-  }
-}
-
-export async function runTestsList(
-  listCommand: string,
-  cwd: string,
-  timeoutMs: number = DEFAULT_TIMEOUT_MS,
-): Promise<TestDescriptor[]> {
-  const { stdout } = await execShell(listCommand, { cwd, timeout: timeoutMs });
-
-  /// TODO: return an xml format list and error that is interpreded better by the ai models
-  return parseTestDescriptors(parseCommandJson(stdout, "tests.list"));
-}
-
-export async function runTestsRun(
-  runCommand: string,
-  selector: string,
-  cwd: string,
-  timeoutMs: number = DEFAULT_TIMEOUT_MS,
-): Promise<RunResult> {
-  const { stdout } = await execShell(substituteSelector(runCommand, selector), { cwd, timeout: timeoutMs });
-  return parseRunResult(parseCommandJson(stdout, "tests.run"));
-}
+// runTestsList/runTestsRun/parseCommandJson are single-sourced in shared
+// (project/test-runner/test-runner-exec — also backing the ExecTestRunner
+// adapter); imported for local use + re-exported for existing importers.
+import {
+  runTestsList,
+  runTestsRun,
+  parseCommandJson,
+} from "@re-cinq/lore-shared/project/test-runner/test-runner-exec.js";
+export { runTestsList, runTestsRun, parseCommandJson };
 
 export async function listTestsTool(
   env: NodeJS.ProcessEnv,
