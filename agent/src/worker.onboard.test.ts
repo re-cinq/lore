@@ -27,7 +27,10 @@ vi.mock("./anthropic.js", () => ({
   callLLM: (...a: unknown[]) => callLLM(...a),
   callLLMWithTool: vi.fn(),
 }));
-vi.mock("./db.js", () => ({ query: (...a: unknown[]) => query(...a) }));
+vi.mock("./db.js", () => ({
+  query: (...a: unknown[]) => query(...a),
+  getPool: () => ({ query: async () => ({ rows: [] }) }),
+}));
 vi.mock("./lib/episode-writer.js", () => ({ writeEpisode: (...a: unknown[]) => writeEpisode(...a) }));
 vi.mock("./github.js", () => ({ GitHubPlatform: class { createLabels = createLabels; } }));
 

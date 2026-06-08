@@ -5,7 +5,7 @@
  * and creates branches + PRs with the results.
  */
 
-import { query } from "./db.js";
+import { query, getPool } from "./db.js";
 import { callLLM, callLLMWithTool } from "./anthropic.js";
 import { generateArtifactCopy } from "./lib/artifact-copy.js";
 import { projectFor } from "./project-boot.js";
@@ -19,7 +19,7 @@ import {
   type StepFailure,
 } from "./lib/error-classify.js";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck } from "@re-cinq/lore-shared";
+import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck, setTaskStatus, recordTaskEvent } from "@re-cinq/lore-shared";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -33,47 +33,20 @@ function slugify(text: string): string {
 
 // ── Status transition helpers ─────────────────────────────────────────
 
-async function setStatus(
-  taskId: string,
-  status: string,
-  extra: Record<string, unknown> = {},
-): Promise<void> {
-  // Allowlist of permitted column names to prevent SQL injection via dynamic keys
-  const ALLOWED_COLUMNS = new Set([
-    "pr_url", "pr_number", "target_branch", "failure_reason", "agent_id",
-    "log_url", "claimed_by", "claimed_at", "issue_number", "issue_url",
-    "review_iteration", "actor", "priority",
-  ]);
-
-  const setClauses = ["status = $1", "updated_at = now()"];
-  const params: unknown[] = [status];
-  let idx = 2;
-
-  for (const [key, value] of Object.entries(extra)) {
-    if (!ALLOWED_COLUMNS.has(key)) continue; // skip unknown columns
-    setClauses.push(`${key} = $${idx}`);
-    params.push(value);
-    idx++;
-  }
-  params.push(taskId);
-
-  await query(
-    `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`,
-    params as any[],
-  );
+// setStatus + insertEvent are single-sourced in @re-cinq/lore-shared
+// (pipeline-tasks: setTaskStatus + recordEvent). These thin wrappers keep the
+// agent's call sites and bind the agent's pg pool.
+function setStatus(taskId: string, status: string, extra: Record<string, unknown> = {}): Promise<void> {
+  return setTaskStatus(getPool(), taskId, status, extra);
 }
 
-async function insertEvent(
+function insertEvent(
   taskId: string,
   fromStatus: string,
   toStatus: string,
   metadata: Record<string, unknown> = {},
 ): Promise<void> {
-  await query(
-    `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
-     VALUES ($1, $2, $3, $4)`,
-    [taskId, fromStatus, toStatus, JSON.stringify(metadata)],
-  );
+  return recordTaskEvent(getPool(), taskId, fromStatus, toStatus, metadata);
 }
 
 // ── Crash recovery ────────────────────────────────────────────────────

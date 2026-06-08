@@ -30,7 +30,23 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
     pending: async (repo) => byStatus(repo, "pending"),
     running: async (repo) => byStatus(repo, "running"),
     executed: async (repo) => byStatus(repo, "merged"),
+    list: async () => ({ tasks: rows, total: rows.length }),
     getById: async (id) => rows.find((r) => r.id === id) ?? null,
+    getWithEvents: async (id) => {
+      const r = rows.find((x) => x.id === id);
+      return r ? { ...r, events: [] } : null;
+    },
+    setStatus: async (id, status) => {
+      const r = rows.find((x) => x.id === id);
+      if (r) r.status = status;
+    },
+    updateStatus: async (id, status) => {
+      const r = rows.find((x) => x.id === id);
+      if (r) r.status = status;
+    },
+    recordEvent: async () => {},
+    cancel: async (id) => ({ task_id: id, status: "cancelled" }),
+    markMerged: async (id) => ({ task_id: id, status: "merged" }),
     transition: async (id, action: TaskAction) => {
       const r = rows.find((x) => x.id === id)!;
       r.status = action === "cancel" ? "cancelled" : action === "retry" ? "retried" : "running-local";
