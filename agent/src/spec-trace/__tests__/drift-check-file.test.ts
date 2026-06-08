@@ -703,4 +703,58 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     expect(statementData.stmt?.[0]?.["Statement.drifted"]).toBe(true);
     expect(statementData.stmt?.[0]?.["Statement.drift_reason"]).toBe("line-out-of-range");
   });
+
+  it("falls back to the file path in drift_reason when the changed chunk has no symbol_name", async () => {
+    const repo = `drift/${randomUUID()}`;
+    createdRepo = repo;
+    const statementXid = `${repo}|specs/foo/spec.md|7`;
+    createdStatementXid = statementXid;
+
+    const seededCodeChunk = await dgraphClient.newTxn().mutate({
+      setJson: {
+        uid: "_:cc",
+        "dgraph.type": "CodeChunk",
+        "CodeChunk.xid": `${repo}|src/widget.rb|10`,
+        "CodeChunk.repo": repo,
+        "CodeChunk.file_path": "src/widget.rb",
+        "CodeChunk.start_line": 10,
+        "CodeChunk.end_line": 20,
+        "CodeChunk.content_hash": "OLDHASH",
+      },
+      commitNow: true,
+    });
+    const ccUid = seededCodeChunk.data.uids.cc;
+
+    await dgraphClient.newTxn().mutate({
+      setJson: {
+        uid: "_:stmt",
+        "dgraph.type": "Statement",
+        "Statement.xid": statementXid,
+        "Statement.ordinal": 7,
+        "Statement.text": "The widget emits a click.",
+        "Statement.implemented_by": [{ uid: ccUid }],
+      },
+      commitNow: true,
+    });
+
+    await driftCheckFile(
+      repo,
+      "src/widget.rb",
+      [{ filePath: "src/widget.rb", startLine: 12, endLine: 18, contentHash: "NEWHASH" }],
+      dgraphClient,
+    );
+
+    const statementData = (await readGraph(
+      `query q($sx: string) {
+        stmt(func: eq(Statement.xid, $sx)) {
+          Statement.drifted Statement.drift_reason
+        }
+      }`,
+      { $sx: statementXid },
+    )) as { stmt?: Record<string, unknown>[] };
+
+    const stmt = statementData.stmt?.[0] ?? {};
+    expect(stmt["Statement.drifted"]).toBe(true);
+    expect(stmt["Statement.drift_reason"]).toBe("code-content-changed (src/widget.rb)");
+  });
 });
