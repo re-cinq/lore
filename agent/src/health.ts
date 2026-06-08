@@ -252,6 +252,17 @@ export function startHealthServer(
     }
   });
 
-  server.listen(port);
-  console.log(`[agent] Health server on :${port}/healthz`);
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(
+        `[agent] Health server port ${port} already in use — another agent instance is running. Exiting.`,
+      );
+    } else {
+      console.error("[agent] Health server error:", err);
+    }
+    process.exit(1);
+  });
+  server.listen(port, () => {
+    console.log(`[agent] Health server on :${port}/healthz`);
+  });
 }
