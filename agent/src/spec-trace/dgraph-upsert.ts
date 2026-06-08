@@ -123,6 +123,32 @@ export async function deletePredicate(
 }
 
 /**
+ * Replaces all of a node's `[uid]` edges on `predicate` with `targetUids` —
+ * delete-then-set, so the predicate ends up holding exactly the new set rather
+ * than the set-union Dgraph would produce on a plain `setJson`. An empty
+ * `targetUids` clears the edge. Used to keep a re-projected Statement's
+ * `validated_by`/`implemented_by` in sync when its inline links change (the same
+ * shape as ingest-coverage's `Coverage.covers` replacement).
+ */
+export async function replaceEdge(
+  dgraph: DgraphClientPort,
+  uid: string,
+  predicate: string,
+  targetUids: string[],
+): Promise<void> {
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({ deleteNquads: `<${uid}> <${predicate}> * .`, commitNow: true }),
+  );
+  if (!targetUids.length) return;
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({
+      setJson: { uid, [predicate]: targetUids.map((target) => ({ uid: target })) },
+      commitNow: true,
+    }),
+  );
+}
+
+/**
  * Upserts a node identified by its `<Type>.xid` predicate: reuse the existing
  * uid if the xid is already present, otherwise create a fresh blank node. Extra
  * `fields` are applied in both branches. Returns the node's uid.

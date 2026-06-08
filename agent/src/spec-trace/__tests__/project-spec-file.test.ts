@@ -574,4 +574,26 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     expect(recomputed).toBe(shortContent);
   });
+
+  it("replaces a surviving statement's validated_by link when its inline test link changes on re-projection", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const linkedToA = "## Overview\n\n- Returns the value ([validated by](src/a.test.ts#L1))\n";
+    const linkedToB = "## Overview\n\n- Returns the value ([validated by](src/b.test.ts#L2))\n";
+
+    await projectSpecFile(repo, filePath, linkedToA, dgraphClient);
+    await projectSpecFile(repo, filePath, linkedToB, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($xid: string) {
+        stmt(func: eq(Statement.xid, $xid)) {
+          Statement.validated_by { TestChunk.file_path }
+        }
+      }`,
+      { $xid: `${repo}|${filePath}|0` },
+    )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
+
+    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([{ "TestChunk.file_path": "src/b.test.ts" }]);
+  });
 });

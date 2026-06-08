@@ -18,7 +18,7 @@
  */
 
 import type { CoveredChunk, DgraphClientPort } from "@re-cinq/lore-shared";
-import { upsertByXid, withTxn } from "./dgraph-upsert.js";
+import { upsertByXid, withTxn, replaceEdge } from "./dgraph-upsert.js";
 
 /** A CodeChunk's uid and line span as read back from Dgraph. */
 type ChunkSpan = { uid: string; "CodeChunk.start_line": number; "CodeChunk.end_line": number };
@@ -93,30 +93,6 @@ async function linkTestChunkCoverage(
   );
 }
 
-/**
- * Replaces a Coverage node's COVERS edges with exactly `coveredUids`. The stale
- * `Coverage.covers` set is unconditionally deleted, then re-set only when there
- * is something to point at — making re-ingest idempotent (the set mirrors the
- * latest report rather than accumulating). Delete and set run in separate
- * one-shot `withTxn` calls, matching {@link linkTestChunkCoverage}.
- */
-async function replaceCovers(
-  dgraph: DgraphClientPort,
-  coverageUid: string,
-  coveredUids: string[],
-): Promise<void> {
-  await withTxn(dgraph, (txn) =>
-    txn.mutate({ deleteNquads: `<${coverageUid}> <Coverage.covers> * .`, commitNow: true }),
-  );
-  if (!coveredUids.length) return;
-  await withTxn(dgraph, (txn) =>
-    txn.mutate({
-      setJson: { uid: coverageUid, "Coverage.covers": coveredUids.map((uid) => ({ uid })) },
-      commitNow: true,
-    }),
-  );
-}
-
 export async function ingestCoverageReport(
   dgraph: DgraphClientPort,
   meta: { repo: string; tool: string; commit: string },
@@ -132,7 +108,7 @@ export async function ingestCoverageReport(
       "Coverage.tool": meta.tool,
       "Coverage.commit": meta.commit,
     });
-    await replaceCovers(dgraph, coverageUid, coveredUids);
+    await replaceEdge(dgraph, coverageUid, "Coverage.covers", coveredUids);
     coversEdges += coveredUids.length;
     unmatched += unmatchedLines;
 
