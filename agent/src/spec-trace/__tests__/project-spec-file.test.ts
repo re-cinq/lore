@@ -10,6 +10,7 @@ import {
   buildIntroOrdinals,
   classifyByHeuristic,
   segmentBlocks,
+  parseEmbedding,
 } from "@re-cinq/lore-shared";
 import { projectSpecFile } from "../project-spec-file.js";
 import { recomputeFile } from "../recompute-spec-file.js";
@@ -156,6 +157,34 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       (left, right) => (left["Statement.ordinal"] as number) - (right["Statement.ordinal"] as number),
     );
     expect(sortedByOrdinal).toMatchObject(expectedStatements);
+  });
+
+  it("stores Statement and AcceptanceCriterion embeddings from the injected embedder", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const content = "## Overview\n\nThe widget must emit a click.\n\n## Acceptance Criteria\n\n- The click is debounced.\n";
+    // 768-dim to match the shared Statement.embedding/AcceptanceCriterion.embedding
+    // HNSW index (the real Vertex text-embedding-005 dimension); values are exact in float32.
+    const vector = new Array(768).fill(0);
+    vector[0] = 0.5;
+    vector[1] = 0.25;
+    vector[2] = 0.125;
+
+    await projectSpecFile(repo, filePath, content, dgraphClient, async () => vector);
+
+    const data = (await readGraph(
+      `query q($xid: string) {
+        spec(func: eq(Spec.xid, $xid)) {
+          stmts: ~Statement.spec { Statement.embedding }
+          acs: ~AcceptanceCriterion.spec { AcceptanceCriterion.embedding }
+        }
+      }`,
+      { $xid: `${repo}|${filePath}` },
+    )) as { spec?: { stmts?: Record<string, unknown>[]; acs?: Record<string, unknown>[] }[] };
+
+    expect(parseEmbedding(data.spec?.[0]?.stmts?.[0]?.["Statement.embedding"])).toEqual(vector);
+    expect(parseEmbedding(data.spec?.[0]?.acs?.[0]?.["AcceptanceCriterion.embedding"])).toEqual(vector);
   });
 
   it("links the Statement to a TestChunk via validated_by for an inline test link", async () => {

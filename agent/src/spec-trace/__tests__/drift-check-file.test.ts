@@ -23,6 +23,13 @@ const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
 const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
 
+// Embedding predicates carry a single global HNSW index per predicate across the
+// shared Dgraph container, so every test must use the same dimension (768 — the
+// real Vertex text-embedding-005 size) or inserts collide with sibling suites
+// ("can not compute dot product on vectors of different lengths"). Zero-padding
+// leaves dot products and norms — hence cosine severity — unchanged.
+const pad768 = (head: number[]): number[] => Object.assign(new Array(768).fill(0), head);
+
 async function dgraphReachable(): Promise<boolean> {
   try {
     return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
@@ -625,7 +632,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
         "Statement.ordinal": 7,
         "Statement.text": "The widget renders a click.",
         "Statement.implemented_by": [{ uid: codeChunkUid }],
-        "Statement.embedding": "[1,1,0]",
+        "Statement.embedding": `[${pad768([1, 1, 0]).join(",")}]`,
       },
       commitNow: true,
     });
@@ -633,7 +640,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     await driftCheckFile(
       repo,
       "src/widget.ts",
-      [{ filePath: "src/widget.ts", startLine: 5, endLine: 10, contentHash: "NEWHASH", symbolName: "render", embedding: [1, 0, 0] }],
+      [{ filePath: "src/widget.ts", startLine: 5, endLine: 10, contentHash: "NEWHASH", symbolName: "render", embedding: pad768([1, 0, 0]) }],
       dgraphClient,
     );
 

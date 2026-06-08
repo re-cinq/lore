@@ -38,8 +38,22 @@ import {
   parseCodeLinksInStatement,
   buildIntroOrdinals,
   classifyByHeuristic,
+  getQueryEmbedding,
 } from "@re-cinq/lore-shared";
 import type { Classification, DgraphClientPort, SpecLinkRef } from "@re-cinq/lore-shared";
+
+/**
+ * Embeds a statement/criterion's text into the float32vector stored on its node,
+ * powering drift severity and vector candidate suggestion. Defaults to the shared
+ * Vertex singleton; injected as a seam so projection stays deterministic + offline
+ * in tests (and degrades to no embedding when the embedder returns null).
+ */
+type EmbedFn = (text: string) => Promise<number[] | null>;
+
+/** Dgraph float32vector literal: the array serialized as a `"[a,b,c]"` string. */
+function vectorLiteral(vector: number[]): string {
+  return `[${vector.join(",")}]`;
+}
 import { withTxn, upsertByXid, type SpecTraceNodeType } from "./dgraph-upsert.js";
 import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
 
@@ -55,6 +69,7 @@ interface ProjectionContext {
   repo: string;
   filePath: string;
   specUid: string;
+  embed: EmbedFn;
 }
 
 /** Hex sha256 — the content-hash idiom shared by Spec, Statement, and AcceptanceCriterion nodes. */
@@ -175,6 +190,7 @@ async function projectStatement(
     parseCodeLinksInStatement,
     "CodeChunk",
   );
+  const embedding = await context.embed(segment.text);
 
   await upsertByXid(dgraph, "Statement", `${repo}|${filePath}|${segment.ordinal}`, {
     "Statement.ordinal": segment.ordinal,
@@ -189,6 +205,7 @@ async function projectStatement(
       : {}),
     ...(validatedBy.length ? { "Statement.validated_by": validatedBy } : {}),
     ...(implementedBy.length ? { "Statement.implemented_by": implementedBy } : {}),
+    ...(embedding ? { "Statement.embedding": vectorLiteral(embedding) } : {}),
   });
 }
 
@@ -236,11 +253,13 @@ async function pruneOrphans(
  */
 async function projectAcceptanceCriterion(context: ProjectionContext, segment: SpecSegment): Promise<string> {
   const { dgraph, repo, filePath, specUid } = context;
+  const embedding = await context.embed(segment.text);
   return upsertByXid(dgraph, "AcceptanceCriterion", `${repo}|${filePath}|ac|${segment.ordinal}`, {
     "AcceptanceCriterion.ordinal": segment.ordinal,
     "AcceptanceCriterion.text": segment.text,
     "AcceptanceCriterion.text_hash": sha256(segment.text),
     "AcceptanceCriterion.spec": { uid: specUid },
+    ...(embedding ? { "AcceptanceCriterion.embedding": vectorLiteral(embedding) } : {}),
   });
 }
 
@@ -284,6 +303,7 @@ export async function projectSpecFile(
   filePath: string,
   content: string,
   dgraph: DgraphClientPort,
+  embed: EmbedFn = getQueryEmbedding,
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
   if ((await readSpecContentHash(dgraph, `${repo}|${filePath}`)) === contentHash) {
@@ -297,7 +317,7 @@ export async function projectSpecFile(
   });
   await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
 
-  const context: ProjectionContext = { dgraph, repo, filePath, specUid };
+  const context: ProjectionContext = { dgraph, repo, filePath, specUid, embed };
   const segments = segmentStatements(content);
   const introOrdinals = buildIntroOrdinals(segments);
   const acSegments = segments.filter((segment) => segment.enclosingHeading === ACCEPTANCE_CRITERIA_HEADING);
