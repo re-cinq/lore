@@ -36,6 +36,11 @@ export class AgentRunner implements AgentRunnerPort {
         targetRepo: repo,
         branch: opts?.branch ?? `lore/task-${taskId}`,
         model: opts?.model,
+        timeoutMinutes: opts?.timeoutMinutes,
+        prNumber: opts?.prNumber,
+        name: opts?.name,
+        extraLabels: opts?.extraLabels,
+        darkFactory: opts?.darkFactory,
       });
       return { taskId, mode, started: res.created };
     }

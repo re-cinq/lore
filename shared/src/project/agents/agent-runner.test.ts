@@ -31,10 +31,25 @@ describe("AgentRunner", () => {
     };
     const runner = new AgentRunner(process.env, { k8s });
 
-    const result = await runner.run("re-cinq/lore", "task-2", { mode: "cluster", taskType: "implementation", branch: "feat" });
+    const result = await runner.run("re-cinq/lore", "task-2", {
+      mode: "cluster",
+      taskType: "implementation",
+      branch: "feat",
+      prNumber: 5,
+      extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
+      darkFactory: { workflowName: "gap-fill", baseBranch: "main" },
+    });
 
     expect(result).toEqual({ taskId: "task-2", mode: "cluster", started: true });
-    expect(created[0]).toMatchObject({ taskId: "task-2", taskType: "implementation", targetRepo: "re-cinq/lore", branch: "feat" });
+    expect(created[0]).toMatchObject({
+      taskId: "task-2",
+      taskType: "implementation",
+      targetRepo: "re-cinq/lore",
+      branch: "feat",
+      prNumber: 5,
+      extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
+      darkFactory: { workflowName: "gap-fill", baseBranch: "main" },
+    });
   });
 
   it("direct mode calls the injected LlmPort", async () => {

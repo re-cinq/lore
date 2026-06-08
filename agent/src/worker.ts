@@ -9,6 +9,7 @@ import { query } from "./db.js";
 import { callLLM, callLLMWithTool } from "./anthropic.js";
 import { generateArtifactCopy } from "./lib/artifact-copy.js";
 import { platform } from "./platform.js";
+import { projectFor } from "./project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
 import { writeEpisode } from "./lib/episode-writer.js";
@@ -596,72 +597,36 @@ async function handleClaudeCodeTask(
   darkFactoryWorkflow?: string,
   darkFactoryBaseBranch?: string,
 ): Promise<void> {
-  const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
-  const kc = new KubeConfig();
-  kc.loadFromCluster();
-  const k8sApi = kc.makeApiClient(CustomObjectsApi);
-
-  const namespace = process.env.NAMESPACE || "lore-agent";
   const fullPrompt = buildPrompt(task.task_type, task.description);
+  const timeoutMinutes =
+    repoOverrides?.timeout_minutes || getTaskTypeConfig(task.task_type)?.timeout_minutes || 30;
+
+  // Dark-factory mode (PR #309): the label drives `kubectl get loretasks -l
+  // lore.re-cinq.com/dark-factory=true`; the spec.darkFactory block routes the
+  // Job pod's entrypoint.sh to the supervisor CLI instead of legacy claude --print.
+  const project = await projectFor(targetRepo);
+  const result = await project.agents.run(task.id, {
+    mode: "cluster",
+    taskType: task.task_type,
+    description: task.description,
+    prompt: fullPrompt,
+    branch: branchName,
+    model: model || "claude-sonnet-4-6",
+    timeoutMinutes,
+    ...(darkFactoryWorkflow
+      ? {
+          extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
+          darkFactory: { workflowName: darkFactoryWorkflow, baseBranch: darkFactoryBaseBranch ?? "main" },
+        }
+      : {}),
+  });
+
   const crName = `loretask-${task.id.substring(0, 8)}`;
-
-  const cr = {
-    apiVersion: "lore.re-cinq.com/v1alpha1",
-    kind: "LoreTask",
-    metadata: {
-      name: crName,
-      namespace,
-      labels: {
-        "lore.re-cinq.com/task-id": task.id,
-        "lore.re-cinq.com/task-type": task.task_type,
-        // Surface dark-factory mode as a label for `kubectl get
-        // loretasks -l lore.re-cinq.com/dark-factory=true` queries.
-        ...(darkFactoryWorkflow
-          ? { "lore.re-cinq.com/dark-factory": "true" }
-          : {}),
-      },
-    },
-    spec: {
-      taskId: task.id,
-      taskType: task.task_type,
-      description: task.description,
-      prompt: fullPrompt,
-      targetRepo,
-      branch: branchName,
-      model: model || "claude-sonnet-4-6",
-      timeoutMinutes: repoOverrides?.timeout_minutes || getTaskTypeConfig(task.task_type)?.timeout_minutes || 30,
-      // Dark-factory mode (PR #309). When set, the Job pod's
-      // entrypoint.sh routes to the supervisor CLI which walks the
-      // workflow graph instead of the legacy claude --print flow.
-      ...(darkFactoryWorkflow
-        ? {
-            darkFactory: {
-              workflowName: darkFactoryWorkflow,
-              baseBranch: darkFactoryBaseBranch ?? "main",
-            },
-          }
-        : {}),
-    },
-  };
-
-  try {
-    await k8sApi.createNamespacedCustomObject({
-      group: "lore.re-cinq.com",
-      version: "v1alpha1",
-      namespace,
-      plural: "loretasks",
-      body: cr,
-    });
-    console.log(`[agent] Created LoreTask CR ${crName} for task ${task.id}`);
-  } catch (err: any) {
-    const is409 = err?.code === 409 || err?.response?.statusCode === 409 || String(err?.message).includes("already exists");
-    if (is409) {
-      // CR already exists — watcher or another process created it. That's fine.
-      console.log(`[agent] LoreTask CR ${crName} already exists, skipping`);
-    } else {
-      throw err;
-    }
-  }
+  console.log(
+    result.started
+      ? `[agent] Created LoreTask CR ${crName} for task ${task.id}`
+      : `[agent] LoreTask CR ${crName} already exists, skipping`,
+  );
   // Don't set pr-created — the loretask-watcher will do that when the Job completes
 }
 
