@@ -57,7 +57,6 @@ export async function tryAutoMergeForCompletedTask(opts: {
   if (!pr) return null;
 
   return evaluateAndMerge({
-    octokit: pr.octokit,
     taskId: opts.taskId,
     repo: pr.repo,
     prNumber: pr.prNumber,

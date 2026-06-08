@@ -92,7 +92,6 @@ export function createProductionRetrospectiveHandler(
         const pr = await resolvePrForTask(ctx.taskId);
         if (pr) {
           await triggerAutoMerge({
-            octokit: pr.octokit,
             taskId: ctx.taskId,
             repo: pr.repo,
             prNumber: pr.prNumber,
