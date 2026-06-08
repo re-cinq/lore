@@ -1,4 +1,4 @@
-import { platform } from "./platform.js";
+import { projectFor } from "./project-boot.js";
 
 export interface RepoContext {
   tree: string[];
@@ -37,11 +37,12 @@ export async function fetchRepoContext(
       `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
     );
   }
+  const project = await projectFor(fullName);
 
   // 1. Fetch top-level tree
   let tree: string[] = [];
   try {
-    tree = await platform().listDirectory(fullName, "");
+    tree = await project.repo.list("");
   } catch (err: any) {
     console.error(
       `[agent] Failed to fetch tree for ${fullName}: ${err.message}`,
@@ -53,7 +54,7 @@ export async function fetchRepoContext(
   await Promise.all(
     KEY_FILES.map(async (path) => {
       try {
-        const content = await platform().getFileContent(fullName, path);
+        const content = await project.repo.read(path);
         if (content !== null) {
           files[path] = content;
         }
@@ -72,7 +73,7 @@ export async function fetchRepoContext(
 
     let entries: string[] = [];
     try {
-      entries = await platform().listDirectory(fullName, dir);
+      entries = await project.repo.list(dir);
     } catch (err: any) {
       console.error(
         `[agent] Error listing ${fullName}/${dir}: ${err.message}`,
@@ -84,7 +85,7 @@ export async function fetchRepoContext(
       if (Object.keys(samples).length >= 3) break;
       const entryPath = `${dir}/${entryName}`;
       try {
-        const content = await platform().getFileContent(fullName, entryPath);
+        const content = await project.repo.read(entryPath);
         if (content !== null) {
           const first200 = content.split("\n").slice(0, 200).join("\n");
           samples[entryPath] = first200;

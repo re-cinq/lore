@@ -30,7 +30,7 @@ import {
   type TestLinkRef,
 } from "@re-cinq/lore-shared";
 import { query } from "../../db.js";
-import { platform } from "../../platform.js";
+import { projectFor } from "../../project-boot.js";
 
 export interface ChunkLineRange {
   file_path: string;
@@ -233,8 +233,8 @@ export async function validateSpecCoverageJob(opts: ValidateOptions = {}): Promi
 
       const body = formatBrokenLinksReport(brokenForRepo);
       try {
-        const issue = await platform().createIssue(
-          repo,
+        const project = await projectFor(repo);
+        const issue = await project.issues.create(
           "Broken test links in spec.md",
           body,
           ["spec-link-rot", "lore-managed"],

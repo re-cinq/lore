@@ -11,6 +11,7 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
   const files: Record<string, string> = { "CLAUDE.md": "# Lore", "src/index.ts": "export {};" };
   return {
     name: "fake",
+    isConfigured: () => true,
     listIssues: async () => [],
     getIssue: async () => null,
     getFileContent: async (repo, path, ref) =>
@@ -18,6 +19,7 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
     listDirectory: async (_repo, path) => (path === "src" ? ["src/index.ts"] : []),
     listTree: async () => ["CLAUDE.md", "src/index.ts"],
     getDefaultBranch: async () => "main",
+    listCommitsSince: async () => [],
     getIssueLabels: async () => [],
     createIssue: async () => ({ repo: "re-cinq/lore", number: 1, title: "", state: "open", labels: [] }),
     commentOnIssue: async () => {},

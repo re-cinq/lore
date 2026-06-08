@@ -24,6 +24,7 @@ export interface IssueFilter {
 
 export interface GitHubPort {
   readonly name: string;
+  isConfigured(): boolean;
   // reads
   listIssues(repo: string, filter?: IssueFilter): Promise<IssueRef[]>;
   getIssue(repo: string, number: number): Promise<IssueRef | null>;
@@ -31,6 +32,7 @@ export interface GitHubPort {
   listDirectory(repo: string, path: string): Promise<string[]>;
   listTree(repo: string, ref?: string): Promise<string[]>;
   getDefaultBranch(repo: string): Promise<string>;
+  listCommitsSince(repo: string, since: string): Promise<Array<{ sha: string; files: string[] }>>;
   getIssueLabels(repo: string, number: number): Promise<string[]>;
   // issue writes
   createIssue(repo: string, title: string, body: string, labels?: string[]): Promise<IssueRef>;

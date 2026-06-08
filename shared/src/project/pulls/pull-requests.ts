@@ -44,8 +44,8 @@ export class PullRequests {
     return this.pulls.merge(this.repo, number, method);
   }
 
-  open(branch: string, title: string, body: string, base?: string): Promise<PullRef> {
-    return this.pulls.open(this.repo, branch, title, body, base);
+  open(branch: string, title: string, body: string, base?: string, labels?: string[]): Promise<PullRef> {
+    return this.pulls.open(this.repo, branch, title, body, base, labels);
   }
 
   getDiff(number: number): Promise<string> {

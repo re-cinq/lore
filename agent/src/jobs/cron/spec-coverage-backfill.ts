@@ -11,7 +11,7 @@
  *
  * Runs weekly Mon 11:00 UTC. The pure parts
  * (`pickStatementsForBackfill`, `proposeLinkInsertions`) are unit-
- * tested below; the orchestration calls `platform().createPR` once
+ * tested below; the orchestration calls `project.pulls.open` once
  * per spec with non-zero suggestions.
  */
 
@@ -37,7 +37,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { query } from "../../db.js";
 import { callLLMWithTool } from "../../anthropic.js";
-import { platform } from "../../platform.js";
+import { projectFor } from "../../project-boot.js";
 import { isAssertionSource } from "./spec-drift-rules.js";
 
 // ── Pure helper: which statements need backfill? ───────────────────
@@ -696,9 +696,10 @@ async function runBackfillForSpec(
   const title = `Suggested test links for ${specPath}`;
   const body = buildPrBody(specPath, applied, confirmed, diffPreview);
   try {
-    await platform().createBranch(repo, branch);
-    await platform().commitFile(repo, branch, specPath, newContent, `lore: backfill suggested test links for ${specPath}`);
-    const pr = await platform().createPR(repo, branch, title, body, undefined, ["lore-managed", "spec-coverage-backfill"]);
+    const project = await projectFor(repo);
+    await project.repo.createBranch(branch);
+    await project.repo.commitFile(branch, specPath, newContent, `lore: backfill suggested test links for ${specPath}`);
+    const pr = await project.pulls.open(branch, title, body, undefined, ["lore-managed", "spec-coverage-backfill"]);
     return { suggestions: applied, prUrl: pr.url };
   } catch (err) {
     console.error(`[job] spec-coverage-backfill: failed to open PR for ${repo}:${specPath}:`, err);

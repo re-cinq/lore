@@ -121,15 +121,7 @@ export interface CodePlatform {
   setRepoSecret(repo: string, name: string, value: string): Promise<void>;
 }
 
-// ── Singleton ────────────────────────────────────────────────────────
-
-let _platform: CodePlatform | null = null;
-
-export function setPlatform(p: CodePlatform): void {
-  _platform = p;
-}
-
-export function platform(): CodePlatform {
-  if (!_platform) throw new Error("No code platform configured — call setPlatform() at startup");
-  return _platform;
-}
+// The platform()/setPlatform singleton was retired when all call sites moved to
+// the Project facade (projectFor → createProject). The CodePlatform interface +
+// value types above remain for GitHubPlatform (createLabels, getInstallationToken)
+// and shared types (ReviewComment) still imported directly.

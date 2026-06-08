@@ -1,6 +1,4 @@
 import { initPool } from "./db.js";
-import { setPlatform } from "./platform.js";
-import { GitHubPlatform } from "./github.js";
 import { loadTaskTypes } from "./config.js";
 import { recoverStaleTasks, startWorker } from "./worker.js";
 import { registerJob, startScheduler, getJobStatus } from "./scheduler.js";
@@ -18,8 +16,7 @@ async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
 
   initPool();
-  setPlatform(new GitHubPlatform());
-  console.log("[agent] Platform: github");
+  console.log("[agent] Platform: github (via project facade)");
 
   try {
     loadTaskTypes();

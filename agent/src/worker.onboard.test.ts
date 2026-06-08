@@ -2,20 +2,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT } from "@re-cinq/lore-shared";
 
-const fakePlatform = {
+// handleOnboard now drives the repo/pulls/settings facades via projectFor(repo)
+// instead of the platform() singleton — the fake Project's facades are the spies.
+const fakeRepo = {
   createBranch: vi.fn(),
   commitFile: vi.fn(),
-  createPR: vi.fn(),
-  setRepoVariable: vi.fn(),
-  setRepoSecret: vi.fn(),
+  isConfigured: vi.fn(() => true),
+  defaultBranch: vi.fn(),
 };
+const fakePulls = { open: vi.fn() };
+const fakeSettings = { setRepoVariable: vi.fn(), setRepoSecret: vi.fn() };
+const fakeIssues = { create: vi.fn(), comment: vi.fn(), addLabel: vi.fn(), close: vi.fn() };
+const fakeProject = { repo: fakeRepo, pulls: fakePulls, settings: fakeSettings, issues: fakeIssues };
+
 const fetchRepoContext = vi.fn();
 const callLLM = vi.fn();
 const query = vi.fn();
 const writeEpisode = vi.fn();
 const createLabels = vi.fn();
 
-vi.mock("./platform.js", () => ({ platform: () => fakePlatform }));
+vi.mock("./project-boot.js", () => ({ projectFor: async () => fakeProject }));
 vi.mock("./repo-context.js", () => ({ fetchRepoContext: (...a: unknown[]) => fetchRepoContext(...a) }));
 vi.mock("./anthropic.js", () => ({
   callLLM: (...a: unknown[]) => callLLM(...a),
@@ -28,7 +34,7 @@ vi.mock("./github.js", () => ({ GitHubPlatform: class { createLabels = createLab
 import { handleOnboard } from "./worker.js";
 
 beforeEach(() => {
-  for (const fn of Object.values(fakePlatform)) fn.mockReset();
+  for (const fn of [...Object.values(fakeRepo), ...Object.values(fakePulls), ...Object.values(fakeSettings), ...Object.values(fakeIssues)]) fn.mockReset();
   fetchRepoContext.mockReset();
   callLLM.mockReset();
   query.mockReset();
@@ -42,19 +48,19 @@ beforeEach(() => {
   query.mockResolvedValue({ rows: [] });
   writeEpisode.mockResolvedValue(undefined);
   createLabels.mockResolvedValue(undefined);
-  fakePlatform.createBranch.mockResolvedValue(undefined);
-  fakePlatform.commitFile.mockResolvedValue(undefined);
-  fakePlatform.createPR.mockResolvedValue({ url: "https://gh/pr/1", number: 1 });
-  fakePlatform.setRepoVariable.mockResolvedValue(undefined);
-  fakePlatform.setRepoSecret.mockResolvedValue(undefined);
+  fakeRepo.createBranch.mockResolvedValue(undefined);
+  fakeRepo.commitFile.mockResolvedValue(undefined);
+  fakeRepo.isConfigured.mockReturnValue(true);
+  fakePulls.open.mockResolvedValue({ repo: "re-cinq/app", number: 1, title: "", branch: "lore/onboard", state: "open", labels: [], url: "https://gh/pr/1" });
+  fakeSettings.setRepoVariable.mockResolvedValue(undefined);
+  fakeSettings.setRepoSecret.mockResolvedValue(undefined);
 });
 
 describe("handleOnboard", () => {
   it("commits the ingest workflow even when the repo already has a .github directory", async () => {
     await handleOnboard({ id: "task-1" }, "re-cinq/app", "lore/onboard", undefined, null);
 
-    expect(fakePlatform.commitFile).toHaveBeenCalledWith(
-      "re-cinq/app",
+    expect(fakeRepo.commitFile).toHaveBeenCalledWith(
       "lore/onboard",
       LORE_INGEST_WORKFLOW_PATH,
       LORE_INGEST_WORKFLOW_CONTENT,
@@ -65,11 +71,11 @@ describe("handleOnboard", () => {
   it("opens the PR after creating the branch and committing the workflow", async () => {
     await handleOnboard({ id: "task-1" }, "re-cinq/app", "lore/onboard", undefined, null);
 
-    expect(fakePlatform.createBranch).toHaveBeenCalledWith("re-cinq/app", "lore/onboard");
-    expect(fakePlatform.createPR).toHaveBeenCalledTimes(1);
-    const workflowCall = fakePlatform.commitFile.mock.invocationCallOrder[
-      fakePlatform.commitFile.mock.calls.findIndex(c => c[2] === LORE_INGEST_WORKFLOW_PATH)
+    expect(fakeRepo.createBranch).toHaveBeenCalledWith("lore/onboard");
+    expect(fakePulls.open).toHaveBeenCalledTimes(1);
+    const workflowCall = fakeRepo.commitFile.mock.invocationCallOrder[
+      fakeRepo.commitFile.mock.calls.findIndex((c) => c[1] === LORE_INGEST_WORKFLOW_PATH)
     ];
-    expect(workflowCall).toBeLessThan(fakePlatform.createPR.mock.invocationCallOrder[0]);
+    expect(workflowCall).toBeLessThan(fakePulls.open.mock.invocationCallOrder[0]);
   });
 });
