@@ -13,6 +13,8 @@ function fakeSettings(setVars: Array<{ repo: string; name: string; value: string
   return {
     resolve: async (repo) =>
       resolveDarkFactorySettings(repo === "re-cinq/lore" ? { enabled: true } : null),
+    resolveOrNull: async (repo) =>
+      repo === "re-cinq/lore" ? resolveDarkFactorySettings({ enabled: true }) : null,
     setRepoVariable: async (repo, name, value) => {
       setVars.push({ repo, name, value });
     },
