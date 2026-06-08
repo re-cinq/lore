@@ -5,6 +5,11 @@ import type {
   PullRef,
   PRReviewEvent,
   MergeMethod,
+  PullReview,
+  ReviewComment,
+  IssueComment,
+  PullCommit,
+  PullStats,
 } from "../pulls/pull-requests-port.js";
 
 /**
@@ -239,6 +244,89 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       base: base ?? (await this.defaultBranch(repo)),
     });
     return toPullRef(repo, data);
+  }
+
+  async getDiff(repo: string, number: number): Promise<string> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.pulls.get({
+      owner,
+      repo: name,
+      pull_number: number,
+      mediaType: { format: "diff" },
+    });
+    return data as unknown as string;
+  }
+
+  async listReviews(repo: string, number: number): Promise<PullReview[]> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.pulls.listReviews({ owner, repo: name, pull_number: number });
+    return data.map((r) => ({
+      id: r.id,
+      state: r.state,
+      body: r.body ?? "",
+      user: r.user?.login ?? "unknown",
+      submitted_at: r.submitted_at ?? "",
+    }));
+  }
+
+  async listComments(repo: string, number: number): Promise<ReviewComment[]> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.pulls.listReviewComments({ owner, repo: name, pull_number: number });
+    return data.map((c) => ({
+      id: c.id,
+      path: c.path,
+      line: c.line ?? c.original_line ?? null,
+      body: c.body,
+      user: c.user?.login ?? "unknown",
+      created_at: c.created_at,
+    }));
+  }
+
+  async listIssueComments(repo: string, number: number): Promise<IssueComment[]> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.issues.listComments({ owner, repo: name, issue_number: number });
+    return data
+      .filter((c) => !c.body?.startsWith("PR created:") && !c.body?.startsWith("Agent ") && !c.body?.startsWith("Task "))
+      .map((c) => ({ body: c.body ?? "", user: c.user?.login ?? "unknown", created_at: c.created_at }));
+  }
+
+  async listCommits(repo: string, number: number): Promise<PullCommit[]> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.pulls.listCommits({ owner, repo: name, pull_number: number });
+    return data.map((c) => ({ sha: c.sha, message: c.commit.message, date: c.commit.committer?.date ?? "" }));
+  }
+
+  async isMerged(repo: string, number: number): Promise<boolean> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.pulls.get({ owner, repo: name, pull_number: number });
+    return data.merged;
+  }
+
+  async isClosed(repo: string, number: number): Promise<boolean> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.pulls.get({ owner, repo: name, pull_number: number });
+    return data.state === "closed" && !data.merged;
+  }
+
+  async getStats(repo: string, number: number): Promise<PullStats> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.pulls.get({ owner, repo: name, pull_number: number });
+    return {
+      files_changed: data.changed_files,
+      additions: data.additions,
+      deletions: data.deletions,
+      comments: data.comments + data.review_comments,
+      merged_at: data.merged_at,
+      created_at: data.created_at,
+    };
   }
 
   // ── repo config (consumed by the settings adapter) ──────────────────
