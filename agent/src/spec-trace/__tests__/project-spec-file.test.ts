@@ -395,6 +395,54 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     });
   });
 
+  it("prunes an orphaned Section and its Spec.sections edge when a heading is removed on re-projection", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const withTwo = "## Alpha\n\nAlpha statement.\n\n## Beta\n\nBeta statement.\n";
+    const withOne = "## Alpha\n\nAlpha statement.\n";
+
+    await projectSpecFile(repo, filePath, withTwo, dgraphClient);
+    await projectSpecFile(repo, filePath, withOne, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($xid: string) {
+        spec(func: eq(Spec.xid, $xid)) {
+          viaReverse: ~Section.spec { Section.xid }
+          viaForward: Spec.sections { Section.xid }
+        }
+      }`,
+      { $xid: `${repo}|${filePath}` },
+    )) as { spec?: { viaReverse?: Record<string, unknown>[]; viaForward?: Record<string, unknown>[] }[] };
+
+    expect(data.spec?.[0]?.viaReverse).toEqual([{ "Section.xid": `${repo}|${filePath}|0` }]);
+    expect(data.spec?.[0]?.viaForward).toEqual([{ "Section.xid": `${repo}|${filePath}|0` }]);
+  });
+
+  it("prunes an orphaned AcceptanceCriterion and its Spec.acceptance_criteria edge when an item is removed", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const withTwo = "## Acceptance Criteria\n\n- The first criterion.\n- The second criterion.\n";
+    const withOne = "## Acceptance Criteria\n\n- The first criterion.\n";
+
+    await projectSpecFile(repo, filePath, withTwo, dgraphClient);
+    await projectSpecFile(repo, filePath, withOne, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($xid: string) {
+        spec(func: eq(Spec.xid, $xid)) {
+          viaReverse: ~AcceptanceCriterion.spec { AcceptanceCriterion.text }
+          viaForward: Spec.acceptance_criteria { AcceptanceCriterion.text }
+        }
+      }`,
+      { $xid: `${repo}|${filePath}` },
+    )) as { spec?: { viaReverse?: Record<string, unknown>[]; viaForward?: Record<string, unknown>[] }[] };
+
+    expect(data.spec?.[0]?.viaReverse).toEqual([{ "AcceptanceCriterion.text": "The first criterion." }]);
+    expect(data.spec?.[0]?.viaForward).toEqual([{ "AcceptanceCriterion.text": "The first criterion." }]);
+  });
+
   it("projects ordered Block nodes reconstructing heading, blank, and paragraph source off the Spec", async () => {
     const repo = `test-proj/${randomUUID()}`;
     createdRepo = repo;
