@@ -122,7 +122,7 @@ Entity.properties:       string .
 Entity.repo:             string   @index(hash) .
 Entity.dedup_key:        string   @index(hash) @upsert .   # name|type|repo
 Entity.created_at:       dateTime .
-Entity.updated_at:       dateTime .
+Entity.updated_at:       dateTime @index(hour) .   # orderdesc for the graph UI "most recent entities" table
 Entity.out_rels:         [uid]    @reverse @count .
 Entity.in_rels:          [uid]    @reverse @count .
 
