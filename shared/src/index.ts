@@ -1,4 +1,12 @@
 export * from './project/index.js';
+export {
+  getTask as getPipelineTask,
+  listTasks as listPipelineTasks,
+  recordEvent as recordTaskEvent,
+  updateTaskStatus,
+  cancelTask as cancelPipelineTask,
+  markTaskMerged,
+} from './pipeline-tasks.js';
 export { chunkFile, buildIngestedChunkMetadata, type Chunk } from './chunker.js';
 export { redactSecrets } from './redact.js';
 export { parseTasks, inferPhaseDependencies, type ParsedTask } from './tasks.js';
