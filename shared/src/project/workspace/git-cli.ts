@@ -56,7 +56,18 @@ export class GitCli implements GitPort {
   }
 
   private git(args: string[], cwd?: string): string {
-    return execFileSync("git", args, { cwd, encoding: "utf8" });
+    // Forward the adapter's env so a configured identity reaches git, and default
+    // committer/author to the Lore bot — git commits otherwise fail with "empty
+    // ident name" wherever the ambient git config has no identity (CI, job pods).
+    // Any GIT_AUTHOR_*/GIT_COMMITTER_* already in env overrides these defaults.
+    const env = {
+      GIT_AUTHOR_NAME: "Lore Agent",
+      GIT_AUTHOR_EMAIL: "lore-agent@re-cinq.com",
+      GIT_COMMITTER_NAME: "Lore Agent",
+      GIT_COMMITTER_EMAIL: "lore-agent@re-cinq.com",
+      ...this.env,
+    };
+    return execFileSync("git", args, { cwd, env, encoding: "utf8" });
   }
 
   private remoteUrl(repo: string): string {

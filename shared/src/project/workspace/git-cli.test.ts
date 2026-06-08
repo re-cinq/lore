@@ -66,4 +66,17 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
     expect(result).toEqual({ committed: true });
     expect(execFileSync("git", ["ls-remote", "--heads", bare], { encoding: "utf8" })).toContain("refs/heads/feat");
   });
+
+  it("commits with the Lore Agent identity when the environment provides none", async () => {
+    const git = new GitCli({ PATH: process.env.PATH, HOME: process.env.HOME });
+    const dest = join(base, "clone-id");
+    await git.clone(bare, dest);
+
+    await git.switchBranch(dest, "feat-id", { create: true });
+    await git.writeFile(dest, "id.md", "x");
+    await git.stageCommit(dest, "id: commit");
+
+    const author = execFileSync("git", ["-C", dest, "log", "-1", "--format=%an <%ae>"], { encoding: "utf8" }).trim();
+    expect(author).toBe("Lore Agent <lore-agent@re-cinq.com>");
+  });
 });
