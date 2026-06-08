@@ -54,7 +54,7 @@ type EmbedFn = (text: string) => Promise<number[] | null>;
 function vectorLiteral(vector: number[]): string {
   return `[${vector.join(",")}]`;
 }
-import { withTxn, upsertByXid, type SpecTraceNodeType } from "./dgraph-upsert.js";
+import { withTxn, upsertByXid, replaceEdge, type SpecTraceNodeType } from "./dgraph-upsert.js";
 import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
 
 /**
@@ -192,7 +192,10 @@ async function projectStatement(
   );
   const embedding = await context.embed(segment.text);
 
-  await upsertByXid(dgraph, "Statement", `${repo}|${filePath}|${segment.ordinal}`, {
+  // Link edges are REPLACED (delete-then-set), not folded into the scalar upsert:
+  // a re-projected statement that changed its inline links would otherwise
+  // set-union the stale TestChunk/CodeChunk refs onto validated_by/implemented_by.
+  const statementUid = await upsertByXid(dgraph, "Statement", `${repo}|${filePath}|${segment.ordinal}`, {
     "Statement.ordinal": segment.ordinal,
     "Statement.text": segment.text,
     "Statement.text_hash": sha256(segment.text),
@@ -203,10 +206,10 @@ async function projectStatement(
     ...(segment.enclosingHeading !== null
       ? { "Statement.section": { uid: sectionUidByHeading.get(segment.enclosingHeading) } }
       : {}),
-    ...(validatedBy.length ? { "Statement.validated_by": validatedBy } : {}),
-    ...(implementedBy.length ? { "Statement.implemented_by": implementedBy } : {}),
     ...(embedding ? { "Statement.embedding": vectorLiteral(embedding) } : {}),
   });
+  await replaceEdge(dgraph, statementUid, "Statement.validated_by", validatedBy.map((ref) => ref.uid));
+  await replaceEdge(dgraph, statementUid, "Statement.implemented_by", implementedBy.map((ref) => ref.uid));
 }
 
 /**
