@@ -62,7 +62,7 @@ export interface PullRequestsPort {
   review(repo: string, number: number, body: string, event: PRReviewEvent): Promise<void>;
   addLabel(repo: string, number: number, label: string): Promise<void>;
   merge(repo: string, number: number, method?: MergeMethod): Promise<void>;
-  open(repo: string, branch: string, title: string, body: string, base?: string): Promise<PullRef>;
+  open(repo: string, branch: string, title: string, body: string, base?: string, labels?: string[]): Promise<PullRef>;
   // reads
   getDiff(repo: string, number: number): Promise<string>;
   listReviews(repo: string, number: number): Promise<PullReview[]>;

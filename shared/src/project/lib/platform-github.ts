@@ -24,6 +24,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   constructor(private readonly env: NodeJS.ProcessEnv = process.env) {}
 
+  isConfigured(): boolean {
+    const { GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_APP_INSTALLATION_ID, GITHUB_TOKEN } = this.env;
+    return (!!GITHUB_APP_ID && !!GITHUB_APP_PRIVATE_KEY && !!GITHUB_APP_INSTALLATION_ID) || !!GITHUB_TOKEN;
+  }
+
   // ── GitHubPort ──────────────────────────────────────────────────────
 
   async listIssues(repo: string, filter?: IssueFilter): Promise<IssueRef[]> {
@@ -84,6 +89,22 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   getDefaultBranch(repo: string): Promise<string> {
     return this.defaultBranch(repo);
+  }
+
+  async listCommitsSince(repo: string, since: string): Promise<Array<{ sha: string; files: string[] }>> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data: commits } = await ok.rest.repos.listCommits({ owner, repo: name, since, per_page: 100 });
+    const result: Array<{ sha: string; files: string[] }> = [];
+    for (const c of commits) {
+      try {
+        const { data: detail } = await ok.rest.repos.getCommit({ owner, repo: name, ref: c.sha });
+        result.push({ sha: c.sha, files: (detail.files ?? []).map((f) => f.filename) });
+      } catch {
+        result.push({ sha: c.sha, files: [] });
+      }
+    }
+    return result;
   }
 
   async getIssue(repo: string, number: number): Promise<IssueRef | null> {
@@ -232,7 +253,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     await ok.rest.pulls.merge({ owner, repo: name, pull_number: number, merge_method: method });
   }
 
-  async open(repo: string, branch: string, title: string, body: string, base?: string): Promise<PullRef> {
+  async open(
+    repo: string,
+    branch: string,
+    title: string,
+    body: string,
+    base?: string,
+    labels: string[] = ["agent-generated"],
+  ): Promise<PullRef> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     const { data } = await ok.rest.pulls.create({
@@ -241,8 +269,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       title,
       body,
       head: branch,
-      base: base ?? (await this.defaultBranch(repo)),
+      base: base ?? "main",
     });
+    if (labels.length > 0) {
+      await ok.rest.issues.addLabels({ owner, repo: name, issue_number: data.number, labels });
+    }
     return toPullRef(repo, data);
   }
 

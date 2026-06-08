@@ -1,5 +1,5 @@
 import { query } from "../../db.js";
-import { platform } from "../../platform.js";
+import { projectFor } from "../../project-boot.js";
 import { getApprovalLabel } from "../../approval.js";
 
 interface AwaitingTask {
@@ -24,7 +24,8 @@ export async function approvalCheckJob(): Promise<string> {
 
   for (const task of tasks) {
     try {
-      const labels = await platform().getIssueLabels(task.target_repo, task.issue_number);
+      const project = await projectFor(task.target_repo);
+      const labels = await project.issues.getLabels(task.issue_number);
 
       if (labels.includes(approvalLabel)) {
         // Transition: awaiting_approval → pending
@@ -39,9 +40,8 @@ export async function approvalCheckJob(): Promise<string> {
         );
 
         // Remove the awaiting-approval label and add approved
-        await platform().removeIssueLabel(task.target_repo, task.issue_number, "awaiting-approval").catch(() => {});
-        await platform().commentOnIssue(
-          task.target_repo,
+        await project.issues.removeLabel(task.issue_number, "awaiting-approval").catch(() => {});
+        await project.issues.comment(
           task.issue_number,
           "Task approved. Agent will pick it up shortly."
         ).catch(() => {});

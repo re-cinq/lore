@@ -10,12 +10,14 @@ import type { GitHubPort, IssueRef } from "../lib/github-port.js";
 function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
   return {
     name: "fake",
+    isConfigured: () => true,
     listIssues: async (repo) => issues.filter((i) => i.repo === repo),
     getIssue: async (repo, number) => issues.find((i) => i.repo === repo && i.number === number) ?? null,
     getFileContent: async () => null,
     listDirectory: async () => [],
     listTree: async () => [],
     getDefaultBranch: async () => "main",
+    listCommitsSince: async () => [],
     getIssueLabels: async (_repo, number) => issues.find((i) => i.number === number)?.labels ?? [],
     createIssue: async (repo, title, body, labels) => {
       const ref: IssueRef = { repo, number: 42, title, state: "open", labels: labels ?? [], url: "u" };

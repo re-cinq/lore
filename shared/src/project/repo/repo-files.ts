@@ -12,6 +12,10 @@ export class RepoFiles {
     private readonly github: GitHubPort,
   ) {}
 
+  isConfigured(): boolean {
+    return this.github.isConfigured();
+  }
+
   read(path: string, ref?: string): Promise<string | null> {
     return this.github.getFileContent(this.repo, path, ref);
   }
@@ -22,6 +26,10 @@ export class RepoFiles {
 
   tree(ref?: string): Promise<string[]> {
     return this.github.listTree(this.repo, ref);
+  }
+
+  listCommitsSince(since: string): Promise<Array<{ sha: string; files: string[] }>> {
+    return this.github.listCommitsSince(this.repo, since);
   }
 
   defaultBranch(): Promise<string> {

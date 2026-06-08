@@ -19,7 +19,7 @@
  */
 
 import { query } from "../../db.js";
-import { platform } from "../../platform.js";
+import { projectFor } from "../../project-boot.js";
 
 const STALE_THRESHOLD_HOURS = 6;
 
@@ -74,16 +74,12 @@ export async function staleTaskCheckJob(): Promise<string> {
       ).catch(() => {});
 
       if (task.issue_number) {
-        await platform().commentOnIssue(
-          task.target_repo,
+        const project = await projectFor(task.target_repo);
+        await project.issues.comment(
           task.issue_number,
           `Task has been in \`running\` status for ${ageHoursRounded}h — exceeded the ${STALE_THRESHOLD_HOURS}h safety-net threshold. Auto-escalated to \`needs-human-help\`. Task id: \`${task.id}\`.`,
         ).catch(() => {});
-        await platform().addIssueLabel(
-          task.target_repo,
-          task.issue_number,
-          "needs-human-help",
-        ).catch(() => {});
+        await project.issues.addLabel(task.issue_number, "needs-human-help").catch(() => {});
       }
 
       escalated++;

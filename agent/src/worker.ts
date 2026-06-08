@@ -8,7 +8,6 @@
 import { query } from "./db.js";
 import { callLLM, callLLMWithTool } from "./anthropic.js";
 import { generateArtifactCopy } from "./lib/artifact-copy.js";
-import { platform } from "./platform.js";
 import { projectFor } from "./project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { buildPrompt, getTaskTypeConfig } from "./config.js";
@@ -153,6 +152,7 @@ async function pollOnce(): Promise<void> {
 async function processTask(task: any): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
+  const project = await projectFor(targetRepo);
 
   // Create GitHub Issue on the target repo
   // Skip upfront issue for general tasks — the watcher creates the issue with the result
@@ -173,8 +173,7 @@ async function processTask(task: any): Promise<void> {
         repo: targetRepo,
       });
       const issueBody = linkifyMarkdown(copy.body, { repo: targetRepo, uiUrl: process.env.LORE_UI_URL });
-      const issue = await platform().createIssue(
-        targetRepo,
+      const issue = await project.issues.create(
         copy.title,
         `${issueBody}\n\n---\n*Managed by [Lore](https://github.com/re-cinq/lore) · created by \`${task.created_by || "unknown"}\` · Lore-Task: ${task.id}*`,
         ["lore-managed", taskTypeLabel],
@@ -202,9 +201,9 @@ async function processTask(task: any): Promise<void> {
     await insertEvent(task.id, "pending", "awaiting_approval", { reason: "approval-required" });
 
     if (issueNumber) {
-      await platform().commentOnIssue(targetRepo, issueNumber,
+      await project.issues.comment(issueNumber,
         `This task requires approval before the agent can proceed.\n\nAdd the \`${getApprovalLabel()}\` label to this issue to approve.`);
-      await platform().addIssueLabel(targetRepo, issueNumber, "awaiting-approval");
+      await project.issues.addLabel(issueNumber, "awaiting-approval");
     }
 
     console.log(`[agent] Task ${task.id} requires approval — waiting for label on issue #${issueNumber}`);
@@ -219,7 +218,7 @@ async function processTask(task: any): Promise<void> {
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
   if (issueNumber) {
-    await platform().commentOnIssue(targetRepo, issueNumber, `Agent \`${agentId}\` picked up this task.`).catch(() => {});
+    await project.issues.comment(issueNumber, `Agent \`${agentId}\` picked up this task.`).catch(() => {});
   }
 
   try {
@@ -249,7 +248,7 @@ async function processTask(task: any): Promise<void> {
       task.description = `REVISION FEEDBACK: ${contextBundle.feedback}\n\nOriginal task: ${task.description}`;
     }
 
-    if (!platform().isConfigured()) {
+    if (!project.repo.isConfigured()) {
       throw new Error("GitHub App not configured — cannot create PR");
     }
 
@@ -362,8 +361,7 @@ async function processTask(task: any): Promise<void> {
       let darkFactoryBaseBranch: string | undefined;
       if (darkFactoryWorkflow) {
         try {
-          darkFactoryBaseBranch =
-            await platform().getDefaultBranch(targetRepo);
+          darkFactoryBaseBranch = await project.repo.defaultBranch();
         } catch (err: any) {
           console.warn(
             `[agent] default-branch lookup failed for ${targetRepo}: ${err.message}`,
@@ -394,8 +392,8 @@ async function processTask(task: any): Promise<void> {
     // Update issue with failure
     if (issueNumber) {
       const hint = "hint" in meta && meta.hint ? ` — ${meta.hint}` : "";
-      await platform().commentOnIssue(targetRepo, issueNumber, `Task failed: \`${failureReason}\`${hint}`).catch(() => {});
-      await platform().addIssueLabel(targetRepo, issueNumber, "lore-failed").catch(() => {});
+      await project.issues.comment(issueNumber, `Task failed: \`${failureReason}\`${hint}`).catch(() => {});
+      await project.issues.addLabel(issueNumber, "lore-failed").catch(() => {});
     }
     console.error(`[agent] Task ${task.id} failed: ${failureReason}`);
   }
@@ -411,7 +409,8 @@ async function linkPrToIssue(
 ): Promise<void> {
   if (!issueNumber) return;
   try {
-    await platform().commentOnIssue(repo, issueNumber, `PR created: ${prUrl}`);
+    const project = await projectFor(repo);
+    await project.issues.comment(issueNumber, `PR created: ${prUrl}`);
   } catch { /* best effort */ }
 }
 
@@ -444,6 +443,7 @@ async function handleFeatureRequest(
   model: string | undefined,
   issueNumber: number | null,
 ): Promise<void> {
+  const project = await projectFor(targetRepo);
   console.log(`[agent] Feature request: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
   const contextStr = JSON.stringify(context, null, 2);
@@ -519,7 +519,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
 
   console.log(`[agent] Feature request: generating ${SPEC_FILES.length} artifacts for "${featureSlug}"...`);
 
-  await platform().createBranch(targetRepo, branchName);
+  await project.repo.createBranch(branchName);
 
   const committed: string[] = [];
   for (const file of SPEC_FILES) {
@@ -538,7 +538,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
         continue;
       }
 
-      await platform().commitFile(targetRepo, branchName, file.path, text, `lore: add ${file.path}`);
+      await project.repo.commitFile(branchName, file.path, text, `lore: add ${file.path}`);
       committed.push(file.path);
       console.log(`[agent] Feature request: committed ${file.path} (${text.length} chars)`);
     } catch (err: any) {
@@ -551,8 +551,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
   }
 
   const fileList = committed.map((f) => `- \`${f}\``).join("\n");
-  const pr = await platform().createPR(
-    targetRepo,
+  const pr = await project.pulls.open(
     branchName,
     `spec: ${featureSlug}`,
     `## Feature Request → Spec\n\n**PM intent:** ${pmIntent}\n\n**Generated artifacts:**\n${fileList}\n\nThis spec was generated from a plain-language feature request. Engineers should review, refine, and merge before implementation.\n\nGenerated by Lore agent task \`${task.id}\`.${issueRef(issueNumber, task.id)}`,
@@ -756,6 +755,7 @@ export async function handleOnboard(
   model: string | undefined,
   issueNumber: number | null,
 ): Promise<void> {
+  const project = await projectFor(targetRepo);
   // 1. Pre-fetch repo context
   console.log(`[agent] Onboard: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
@@ -840,7 +840,7 @@ export async function handleOnboard(
   console.log(`[agent] Onboard: generating ${toGenerate.length} files...`);
 
   // 4. Create branch
-  await platform().createBranch(targetRepo, branchName);
+  await project.repo.createBranch(branchName);
 
   const committed: string[] = [];
   const failures: StepFailure[] = [];
@@ -849,8 +849,7 @@ export async function handleOnboard(
   // coarse static-file skip below would wrongly skip it on any repo that
   // already has a .github directory — which is most of them.
   try {
-    await platform().commitFile(
-      targetRepo,
+    await project.repo.commitFile(
       branchName,
       LORE_INGEST_WORKFLOW_PATH,
       LORE_INGEST_WORKFLOW_CONTENT,
@@ -867,7 +866,7 @@ export async function handleOnboard(
   for (const sf of ONBOARD_STATIC_FILES) {
     if (!existingFiles.has(sf.path) && !existingFiles.has(sf.path.split("/")[0])) {
       try {
-        await platform().commitFile(targetRepo, branchName, sf.path, sf.content, `lore: add ${sf.path}`);
+        await project.repo.commitFile(branchName, sf.path, sf.content, `lore: add ${sf.path}`);
         committed.push(sf.path);
         console.log(`[agent] Onboard: committed ${sf.path} (static)`);
       } catch (err: any) {
@@ -895,7 +894,7 @@ export async function handleOnboard(
         continue;
       }
 
-      await platform().commitFile(targetRepo, branchName, file.path, text, `lore: add ${file.path}`);
+      await project.repo.commitFile(branchName, file.path, text, `lore: add ${file.path}`);
       committed.push(file.path);
       console.log(`[agent] Onboard: committed ${file.path} (${text.length} chars)`);
     } catch (err: any) {
@@ -917,8 +916,7 @@ export async function handleOnboard(
 
   // 6. Create PR
   const fileList = committed.map((f) => `- \`${f}\``).join("\n");
-  const pr = await platform().createPR(
-    targetRepo,
+  const pr = await project.pulls.open(
     branchName,
     `lore: onboard ${targetRepo}`,
     `## Lore Onboarding\n\nThis PR adds Lore platform files for AI-powered development.\n\n**Files added:**\n${fileList}\n\nGenerated by Lore agent task \`${task.id}\`.${issueRef(issueNumber, task.id)}`,
@@ -952,9 +950,9 @@ export async function handleOnboard(
   const ingestUrl = process.env.LORE_INGEST_URL || "";
   const ingestToken = process.env.LORE_INGEST_TOKEN;
   try {
-    await platform().setRepoVariable(targetRepo, "LORE_INGEST_URL", ingestUrl);
+    await project.settings.setRepoVariable("LORE_INGEST_URL", ingestUrl);
     if (ingestToken) {
-      await platform().setRepoSecret(targetRepo, "LORE_INGEST_TOKEN", ingestToken);
+      await project.settings.setRepoSecret("LORE_INGEST_TOKEN", ingestToken);
     }
     console.log(`[agent] Configured ingest secrets on ${targetRepo}`);
   } catch (err: any) {
@@ -1003,14 +1001,9 @@ async function handleGenericOutput(
       break;
   }
 
-  await platform().createBranch(targetRepo, branchName);
-  await platform().commitFile(
-    targetRepo,
-    branchName,
-    filePath,
-    text,
-    `lore: add ${filePath}`,
-  );
+  const project = await projectFor(targetRepo);
+  await project.repo.createBranch(branchName);
+  await project.repo.commitFile(branchName, filePath, text, `lore: add ${filePath}`);
 
   const copy = await generateArtifactCopy({
     kind: "pr",
@@ -1025,8 +1018,7 @@ async function handleGenericOutput(
     branch: branchName,
     uiUrl: process.env.LORE_UI_URL,
   });
-  const pr = await platform().createPR(
-    targetRepo,
+  const pr = await project.pulls.open(
     branchName,
     copy.title,
     `${prBody}${issueRef(issueNumber, task.id)}`,

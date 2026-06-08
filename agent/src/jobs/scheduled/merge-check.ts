@@ -1,5 +1,5 @@
 import { query } from "../../db.js";
-import { platform } from "../../platform.js";
+import { projectFor } from "../../project-boot.js";
 import { writeEpisodeWithCuration } from "../../lib/episode-writer.js";
 import { parseTasks, inferPhaseDependencies } from "@re-cinq/lore-shared";
 
@@ -32,7 +32,7 @@ async function syncSpecTasksFromMerge(task: { id: string; target_repo: string; t
 
   // Read tasks.md from main branch (PR is merged, content is on main)
   const tasksPath = `specs/${specSlug}/tasks.md`;
-  const content = await platform().getFileContent(task.target_repo, tasksPath);
+  const content = await projectFor(task.target_repo).then((p) => p.repo.read(tasksPath));
   if (!content) {
     console.log(`[job] merge-check: no tasks.md at ${tasksPath}`);
     return;
@@ -106,7 +106,7 @@ export async function mergeCheckJob(): Promise<string> {
       const [, owner, repoName, prNumber] = match;
       const fullName = `${owner}/${repoName}`;
 
-      const merged = await platform().isPRMerged(fullName, parseInt(prNumber, 10));
+      const merged = await projectFor(fullName).then((p) => p.pulls.isMerged(parseInt(prNumber, 10)));
 
       if (merged) {
         await query(
@@ -139,7 +139,8 @@ export async function mergeCheckJob(): Promise<string> {
   let tasksClosed = 0;
   for (const task of tasks) {
     try {
-      const merged = await platform().isPRMerged(task.target_repo, task.pr_number);
+      const project = await projectFor(task.target_repo);
+      const merged = await project.pulls.isMerged(task.pr_number);
       if (merged) {
         await query(
           `UPDATE pipeline.tasks SET status = 'merged', updated_at = now() WHERE id = $1`,
@@ -152,13 +153,13 @@ export async function mergeCheckJob(): Promise<string> {
         // Close the GitHub Issue if still open
         if (task.issue_number) {
           try {
-            await platform().commentOnIssue(task.target_repo, task.issue_number, `PR #${task.pr_number} merged.`);
-            await platform().closeIssue(task.target_repo, task.issue_number, "completed");
+            await project.issues.comment(task.issue_number, `PR #${task.pr_number} merged.`);
+            await project.issues.close(task.issue_number, "completed");
           } catch { /* best effort */ }
         }
         // Capture PR outcome as episode for learning
         try {
-          const stats = await platform().getPRStats(task.target_repo, task.pr_number);
+          const stats = await project.pulls.getStats(task.pr_number);
           const timeToMerge = stats.merged_at
             ? Math.round((new Date(stats.merged_at).getTime() - new Date(stats.created_at).getTime()) / 3600000)
             : null;
@@ -243,7 +244,7 @@ export async function mergeCheckJob(): Promise<string> {
       }
 
       // Check for closed-without-merge (PR rejection)
-      const closed = await platform().isPRClosed(task.target_repo, task.pr_number);
+      const closed = await projectFor(task.target_repo).then((p) => p.pulls.isClosed(task.pr_number));
       if (closed) {
         await query(`UPDATE pipeline.tasks SET status = 'failed', failure_reason = 'PR closed without merge' WHERE id = $1`, [task.id]);
         await query(

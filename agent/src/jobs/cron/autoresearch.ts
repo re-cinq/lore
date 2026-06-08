@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { query } from "../../db.js";
 import { callLLM } from "../../anthropic.js";
-import { platform } from "../../platform.js";
+import { projectFor } from "../../project-boot.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -369,17 +369,16 @@ async function openResearchPR(
     .join("\n");
 
   try {
-    await platform().createBranch(targetRepo, branch);
-    await platform().commitFile(
-      targetRepo,
+    const project = await projectFor(targetRepo);
+    await project.repo.createBranch(branch);
+    await project.repo.commitFile(
       branch,
       filePath,
       best.content,
       `autoresearch: add context for ${topicSlug}`,
     );
 
-    await platform().createPR(
-      targetRepo,
+    await project.pulls.open(
       branch,
       `[autoresearch] ${cluster.namespace}: ${topicSlug}`,
       `## Context Experiment
