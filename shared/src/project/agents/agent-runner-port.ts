@@ -21,6 +21,12 @@ export interface AgentRunOpts {
   branch?: string;
   taskType?: string;
   description?: string;
+  // cluster-mode CR extras
+  timeoutMinutes?: number;
+  prNumber?: number;
+  name?: string;
+  extraLabels?: Record<string, string>;
+  darkFactory?: { workflowName: string; baseBranch: string };
 }
 
 export interface AgentRunnerPort {

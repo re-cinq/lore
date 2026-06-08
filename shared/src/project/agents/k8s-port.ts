@@ -1,7 +1,10 @@
 /**
  * Kubernetes port for the agents `cluster` mode — creates a LoreTask CR. The
  * runtime injects a client wrapping @kubernetes/client-node; shared never
- * imports it. The spec mirrors the CR body built in agent/src/worker.ts.
+ * imports it. The spec is the union of the three CR bodies in agent
+ * (worker.ts / spec-task-executor.ts / loretask-watcher.ts) so one impl
+ * replaces all three: base task-id/task-type labels are always set; extraLabels
+ * merge in (dark-factory, spec-slug); prNumber + darkFactory are optional.
  */
 
 export interface LoreTaskSpec {
@@ -13,6 +16,10 @@ export interface LoreTaskSpec {
   branch: string;
   model?: string;
   timeoutMinutes?: number;
+  prNumber?: number;
+  name?: string;
+  extraLabels?: Record<string, string>;
+  darkFactory?: { workflowName: string; baseBranch: string };
 }
 
 export interface K8sPort {

@@ -1,5 +1,6 @@
 import { createProject, createDgraphClient, type Project } from "@re-cinq/lore-shared";
 import { getPool } from "./db.js";
+import { K8sLoreTaskClient } from "./lib/k8s-loretask.js";
 
 /**
  * Per-repo Project composition root for the agent. Builds from the agent's
@@ -16,5 +17,5 @@ const NO_OP_DGRAPH = {
 
 export function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
-  return createProject(repo, getPool(), dgraph, process.env);
+  return createProject(repo, getPool(), dgraph, process.env, { k8s: new K8sLoreTaskClient() });
 }
