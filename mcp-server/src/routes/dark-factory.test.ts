@@ -20,6 +20,10 @@ vi.mock("../dark-factory-authz.js", () => {
 });
 vi.mock("../github-client.js", () => ({ getOctokit: vi.fn(), getGitHubToken: vi.fn() }));
 
+// GET now resolves via the Project facade (projectFor → settings.resolveOrNull).
+const fakeSettings = { resolveOrNull: vi.fn() };
+vi.mock("../project-boot.js", () => ({ projectFor: vi.fn(async () => ({ settings: fakeSettings })) }));
+
 import { parseDarkFactorySettings, resolveSettings, twoKeyFieldsTouched } from "../dark-factory-settings.js";
 import { verifyApproval, TwoKeyError } from "../dark-factory-authz.js";
 import { getOctokit } from "../github-client.js";
@@ -79,30 +83,22 @@ describe("routes — dark-factory settings", () => {
   // ── GET ───────────────────────────────────────────────────────────
   describe("GET", () => {
     it("returns 404 when the repo is not onboarded", async () => {
+      fakeSettings.resolveOrNull.mockResolvedValue(null);
       const pool = makePool();
-      pool.query.mockResolvedValue({ rows: [] });
       const res = makeRes();
       await handleApiRoute(makeReq({ url: URL_BASE, headers: AUTH }), res, pool as any);
       expect(res.json).toEqual({ error: "repo not onboarded", repo: "o/r" });
     });
-    it("resolves stored dark_factory settings", async () => {
+    it("returns the resolved dark_factory settings", async () => {
+      fakeSettings.resolveOrNull.mockResolvedValue({ resolved: true, partial: { enabled: true } });
       const pool = makePool();
-      pool.query.mockResolvedValue({ rows: [{ settings: { dark_factory: { enabled: true } } }] });
       const res = makeRes();
       await handleApiRoute(makeReq({ url: URL_BASE, headers: AUTH }), res, pool as any);
-      expect(resolveSettings).toHaveBeenCalledWith({ enabled: true });
       expect(res.json).toEqual({ resolved: true, partial: { enabled: true } });
     });
-    it("resolves defaults when dark_factory is absent", async () => {
+    it("returns 500 when resolution throws", async () => {
+      fakeSettings.resolveOrNull.mockRejectedValue(new Error("db"));
       const pool = makePool();
-      pool.query.mockResolvedValue({ rows: [{ settings: {} }] });
-      const res = makeRes();
-      await handleApiRoute(makeReq({ url: URL_BASE, headers: AUTH }), res, pool as any);
-      expect(resolveSettings).toHaveBeenCalledWith(null);
-    });
-    it("returns 500 when the query throws", async () => {
-      const pool = makePool();
-      pool.query.mockRejectedValue(new Error("db"));
       const res = makeRes();
       await handleApiRoute(makeReq({ url: URL_BASE, headers: AUTH }), res, pool as any);
       expect(res.json).toEqual({ error: "internal" });
