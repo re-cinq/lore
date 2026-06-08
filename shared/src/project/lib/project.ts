@@ -5,15 +5,18 @@ import { IssueCollection } from "../issues/issues.js";
 import { RepoFiles } from "../repo/repo-files.js";
 import { PullRequests } from "../pulls/pull-requests.js";
 import { Settings } from "../settings/settings.js";
+import { PgSettings } from "../settings/settings-pg.js";
 import { Memory } from "../memory/memory.js";
 import { MemoryStoreBridge } from "../memory/memory-store-bridge.js";
 import { TaskList } from "../tasks/task-list.js";
 import { PgTaskStore } from "../tasks/task-store-pg.js";
 import { Notify } from "../notify/notify.js";
+import { NotifySlack } from "../notify/notify-slack.js";
 import { KnowledgeView } from "../knowledge/knowledge.js";
 import { TestSuite } from "../test-runner/test-suite.js";
 import { Agents } from "../agents/agents.js";
 import { Workspace } from "../workspace/workspace.js";
+import { GitCli } from "../workspace/git-cli.js";
 import { assertCanClone } from "./trust.js";
 
 import type { GitHubPort } from "./github-port.js";
@@ -113,6 +116,12 @@ export class Project {
         return new MemoryStoreBridge(selectMemoryStore({ pgPool: this.pg, dgraph: this.dgraph }));
       case "tasks":
         return new PgTaskStore(this.pg);
+      case "git":
+        return new GitCli(this.env);
+      case "settings":
+        return new PgSettings(this.pg);
+      case "notify":
+        return new NotifySlack(this.pg, this.env);
       default:
         throw new Error(`Project port "${name}" is not wired yet (pending its live adapter)`);
     }
