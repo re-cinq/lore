@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createProject } from "./project-factory.js";
+import { Project } from "./project.js";
 import type { PgPool, DgraphClientPort } from "../../memory-store.js";
 
 /**
@@ -39,11 +40,11 @@ describe("Project wiring", () => {
     expect(capture.at(-1)?.text).toContain("SELECT settings FROM lore.repos");
   });
 
-  it("throws a clear error for a port whose adapter is not wired yet", async () => {
-    const project = await createProject("re-cinq/lore", fakePool([]), noDgraph, {});
+  it("throws a clear error when a port was not provided in the map", () => {
+    const project = new Project("re-cinq/lore", new Map(), {});
 
-    expect(() => project.agents).toThrow(
-      new Error('Project port "agents" is not wired yet (pending its live adapter)'),
+    expect(() => project.tasks).toThrow(
+      new Error('Project port "tasks" is not wired yet (pending its live adapter)'),
     );
   });
 });

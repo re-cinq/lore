@@ -15,6 +15,9 @@ export interface AgentRunResult {
 
 export interface AgentRunOpts {
   mode?: AgentMode;
+  prompt?: string;
+  workDir?: string;
+  model?: string;
 }
 
 export interface AgentRunnerPort {

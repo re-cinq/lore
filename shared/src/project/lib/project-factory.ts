@@ -42,6 +42,9 @@ export async function createProject(
   const { ExecTestRunner } = await import("../test-runner/test-runner-exec.js");
   ports.set("tests", new ExecTestRunner());
 
+  const { AgentRunnerLocal } = await import("../agents/agent-runner-local.js");
+  ports.set("agents", new AgentRunnerLocal(env));
+
   const { PlatformGitHub } = await import("./platform-github.js");
   const github = new PlatformGitHub(env);
   ports.set("github", github);
