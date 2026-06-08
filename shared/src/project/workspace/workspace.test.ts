@@ -56,7 +56,7 @@ describe("Workspace", () => {
       merge: async () => {},
       open: async (repo, branch, title) => {
         opened.push(`${repo}#${branch}`);
-        return { repo, number: 1, title, branch, state: "open", labels: [] };
+        return { repo, number: 1, title, branch, state: "open", labels: [], url: "https://gh/pr/1" };
       },
       getDiff: async () => "",
       listReviews: async () => [],

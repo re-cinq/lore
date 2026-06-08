@@ -17,7 +17,7 @@ function fakePulls(pulls: PullRef[], merged: Array<{ number: number; method?: Me
     merge: async (_repo, number, method) => {
       merged.push({ number, method });
     },
-    open: async (repo, branch, title) => ({ repo, number: 100, title, branch, state: "open", labels: [] }),
+    open: async (repo, branch, title) => ({ repo, number: 100, title, branch, state: "open", labels: [], url: "https://gh/pr/100" }),
     getDiff: async (_repo, number) => `diff for #${number}`,
     listReviews: async () => [{ id: 1, state: "APPROVED", body: "lgtm", user: "bot", submitted_at: "t" }],
     listComments: async () => [],
@@ -32,13 +32,13 @@ function fakePulls(pulls: PullRef[], merged: Array<{ number: number; method?: Me
 describe("PullRequests", () => {
   it("lists only the repo's pull requests", async () => {
     const pulls: PullRef[] = [
-      { repo: "re-cinq/lore", number: 7, title: "feat", branch: "f", state: "open", labels: [] },
-      { repo: "other/repo", number: 8, title: "x", branch: "g", state: "open", labels: [] },
+      { repo: "re-cinq/lore", number: 7, title: "feat", branch: "f", state: "open", labels: [], url: "u7" },
+      { repo: "other/repo", number: 8, title: "x", branch: "g", state: "open", labels: [], url: "u8" },
     ];
     const facade = new PullRequests("re-cinq/lore", fakePulls(pulls, []));
 
     expect(await facade.list()).toEqual([
-      { repo: "re-cinq/lore", number: 7, title: "feat", branch: "f", state: "open", labels: [] },
+      { repo: "re-cinq/lore", number: 7, title: "feat", branch: "f", state: "open", labels: [], url: "u7" },
     ]);
   });
 

@@ -405,7 +405,7 @@ function split(repo: string): [string, string] {
   return [owner, name];
 }
 
-function toPullRef(repo: string, pr: { number: number; title: string; head: { ref: string }; state: string; merged_at?: string | null; labels?: Array<{ name: string }> }): PullRef {
+function toPullRef(repo: string, pr: { number: number; title: string; head: { ref: string }; state: string; merged_at?: string | null; html_url: string; labels?: Array<{ name: string }> }): PullRef {
   return {
     repo,
     number: pr.number,
@@ -413,5 +413,6 @@ function toPullRef(repo: string, pr: { number: number; title: string; head: { re
     branch: pr.head.ref,
     state: pr.merged_at ? "merged" : (pr.state as "open" | "closed"),
     labels: (pr.labels ?? []).map((l) => l.name),
+    url: pr.html_url,
   };
 }

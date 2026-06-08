@@ -14,6 +14,7 @@ export interface PullRef {
   branch: string;
   state: "open" | "closed" | "merged";
   labels: string[];
+  url: string;
 }
 
 export interface PullReview {
