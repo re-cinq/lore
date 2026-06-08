@@ -38,4 +38,29 @@ describe("PgTaskStore", () => {
     expect(capture[0].params).toEqual(["a", "cancelled", null]);
     expect(updated).toMatchObject({ id: "a", status: "cancelled" });
   });
+
+  it("setStatus writes status + updated_at + only allowlisted extra columns", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgTaskStore(fakePool(capture));
+
+    await store.setStatus("a", "running-local", { agent_id: "agent-1", evil_column: "drop", pr_url: "u" });
+
+    expect(capture[0].text).toContain("status = $1, updated_at = now()");
+    expect(capture[0].text).toContain("agent_id = $2");
+    expect(capture[0].text).toContain("pr_url = $3");
+    expect(capture[0].text).not.toContain("evil_column");
+    expect(capture[0].params).toEqual(["running-local", "agent-1", "u", "a"]);
+  });
+
+  it("updateStatus reads the old status, sets the new one, then records the event", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgTaskStore(fakePool(capture, [{ status: "pending" }]));
+
+    await store.updateStatus("a", "queued", { agent_id: "x" });
+
+    expect(capture[0].text).toContain("SELECT status FROM pipeline.tasks");
+    expect(capture[1].text).toContain("UPDATE pipeline.tasks SET status = $1, updated_at = now()");
+    expect(capture[2].text).toContain("INSERT INTO pipeline.task_events");
+    expect(capture[2].params?.slice(1, 3)).toEqual(["pending", "queued"]);
+  });
 });

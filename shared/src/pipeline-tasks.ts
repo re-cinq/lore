@@ -35,6 +35,40 @@ export async function listTasks(pool: PgPool, status?: string, limit = 50): Prom
   return { tasks: rows, total: countRows[0].total };
 }
 
+/**
+ * Columns setTaskStatus may write alongside `status` (allowlisted to prevent SQL
+ * injection via dynamic keys). Superset of what the agent's setStatus needed.
+ */
+const ALLOWED_TASK_COLUMNS = new Set([
+  "pr_url", "pr_number", "target_branch", "failure_reason", "agent_id",
+  "log_url", "claimed_by", "claimed_at", "issue_number", "issue_url",
+  "review_iteration", "actor", "priority",
+]);
+
+/**
+ * Update a task's status (+ updated_at) and any allowlisted extra columns.
+ * Does NOT record an event — callers that need the audit event call recordEvent
+ * (or use updateTaskStatus, which composes both). This is the agent's setStatus.
+ */
+export async function setTaskStatus(
+  pool: PgPool,
+  taskId: string,
+  status: string,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
+  const setClauses = ["status = $1", "updated_at = now()"];
+  const params: unknown[] = [status];
+  let idx = 2;
+  for (const [key, value] of Object.entries(extra)) {
+    if (!ALLOWED_TASK_COLUMNS.has(key)) continue;
+    setClauses.push(`${key} = $${idx}`);
+    params.push(value);
+    idx++;
+  }
+  params.push(taskId);
+  await pool.query(`UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`, params);
+}
+
 export async function recordEvent(
   pool: PgPool,
   taskId: string,
@@ -53,11 +87,12 @@ export async function recordEvent(
   }
 }
 
+/** Combined: read the old status, set the new one, and record the transition event. */
 export async function updateTaskStatus(pool: PgPool, taskId: string, newStatus: string, meta?: any): Promise<void> {
   const { rows } = await pool.query(`SELECT status FROM pipeline.tasks WHERE id = $1`, [taskId]);
   if (rows.length === 0) return;
   const oldStatus = rows[0].status;
-  await pool.query(`UPDATE pipeline.tasks SET status = $1 WHERE id = $2`, [newStatus, taskId]);
+  await setTaskStatus(pool, taskId, newStatus);
   await recordEvent(pool, taskId, oldStatus, newStatus, meta);
 }
 

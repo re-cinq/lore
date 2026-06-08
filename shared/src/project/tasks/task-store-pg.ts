@@ -1,6 +1,21 @@
 import type { PgPool } from "../../memory-store.js";
 import type { PipelineTask } from "../../types.js";
-import type { TaskStorePort, TaskAction, TaskTransitionMeta } from "./task-store-port.js";
+import {
+  getTask,
+  listTasks,
+  setTaskStatus,
+  updateTaskStatus,
+  recordEvent,
+  cancelTask,
+  markTaskMerged,
+} from "../../pipeline-tasks.js";
+import type {
+  TaskStorePort,
+  TaskAction,
+  TaskTransitionMeta,
+  TaskWithEvents,
+  TaskListResult,
+} from "./task-store-port.js";
 
 /**
  * TaskStorePort over the pipeline.tasks table. The three views group the
@@ -37,6 +52,36 @@ export class PgTaskStore implements TaskStorePort {
   async getById(id: string): Promise<PipelineTask | null> {
     const { rows } = await this.pool.query("SELECT * FROM pipeline.tasks WHERE id = $1", [id]);
     return (rows[0] as PipelineTask) ?? null;
+  }
+
+  // ── by-id ops delegating to the single-source pipeline-tasks functions ──
+
+  list(status?: string, limit?: number): Promise<TaskListResult> {
+    return listTasks(this.pool, status, limit) as Promise<TaskListResult>;
+  }
+
+  getWithEvents(id: string): Promise<TaskWithEvents | null> {
+    return getTask(this.pool, id) as Promise<TaskWithEvents | null>;
+  }
+
+  setStatus(id: string, status: string, extra?: Record<string, unknown>): Promise<void> {
+    return setTaskStatus(this.pool, id, status, extra);
+  }
+
+  updateStatus(id: string, status: string, meta?: unknown): Promise<void> {
+    return updateTaskStatus(this.pool, id, status, meta);
+  }
+
+  recordEvent(id: string, fromStatus: string | null, toStatus: string | null, meta?: unknown): Promise<void> {
+    return recordEvent(this.pool, id, fromStatus, toStatus, meta);
+  }
+
+  cancel(id: string): Promise<{ task_id: string; status: string }> {
+    return cancelTask(this.pool, id);
+  }
+
+  markMerged(id: string): Promise<{ task_id: string; status: string }> {
+    return markTaskMerged(this.pool, id);
   }
 
   async transition(id: string, action: TaskAction, meta?: TaskTransitionMeta): Promise<PipelineTask> {

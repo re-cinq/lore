@@ -3,6 +3,7 @@ export {
   getTask as getPipelineTask,
   listTasks as listPipelineTasks,
   recordEvent as recordTaskEvent,
+  setTaskStatus,
   updateTaskStatus,
   cancelTask as cancelPipelineTask,
   markTaskMerged,
