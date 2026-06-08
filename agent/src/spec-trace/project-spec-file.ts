@@ -208,8 +208,82 @@ async function projectStatement(
       : {}),
     ...(embedding ? { "Statement.embedding": vectorLiteral(embedding) } : {}),
   });
-  await replaceEdge(dgraph, statementUid, "Statement.validated_by", validatedBy.map((ref) => ref.uid));
-  await replaceEdge(dgraph, statementUid, "Statement.implemented_by", implementedBy.map((ref) => ref.uid));
+
+  const previousLinks = await readStatementLinkTargets(dgraph, statementUid);
+  const newValidated = validatedBy.map((ref) => ref.uid);
+  const newImplemented = implementedBy.map((ref) => ref.uid);
+  await replaceEdge(dgraph, statementUid, "Statement.validated_by", newValidated);
+  await replaceEdge(dgraph, statementUid, "Statement.implemented_by", newImplemented);
+
+  // A chunk this statement just unlinked is deleted only if NOTHING else owns it
+  // (another statement's link, or — for code — a Coverage). Scoped to the dropped
+  // uids so it never touches chunks the ingest paths created and left unlinked.
+  await gcUnlinkedChunks(dgraph, "TestChunk", previousLinks.validated, newValidated);
+  await gcUnlinkedChunks(dgraph, "CodeChunk", previousLinks.implemented, newImplemented);
+}
+
+/** Reads a Statement's current TestChunk/CodeChunk link target uids. */
+async function readStatementLinkTargets(
+  dgraph: DgraphClientPort,
+  statementUid: string,
+): Promise<{ validated: string[]; implemented: string[] }> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(
+      `query q($uid: string) {
+        stmt(func: uid($uid)) {
+          validated: Statement.validated_by { uid }
+          implemented: Statement.implemented_by { uid }
+        }
+      }`,
+      { $uid: statementUid },
+    );
+    const node = (res.data?.stmt?.[0] ?? {}) as {
+      validated?: { uid: string }[];
+      implemented?: { uid: string }[];
+    };
+    return {
+      validated: (node.validated ?? []).map((ref) => ref.uid),
+      implemented: (node.implemented ?? []).map((ref) => ref.uid),
+    };
+  });
+}
+
+/** Reverse edges that, if present, mean a chunk is still owned and must not be GC'd. */
+const CHUNK_OWNER_EDGES: Record<"TestChunk" | "CodeChunk", string[]> = {
+  TestChunk: ["~Statement.validated_by"],
+  CodeChunk: ["~Statement.implemented_by", "~Coverage.covers"],
+};
+
+/**
+ * Deletes each chunk in `previousUids` that is no longer in `currentUids` AND no
+ * longer has any owning reverse edge — the orphan a statement leaves behind when
+ * it drops a link. Reads the owners AFTER {@link replaceEdge} has removed this
+ * statement's edge, so a still-shared chunk reports its remaining owners and
+ * survives.
+ */
+async function gcUnlinkedChunks(
+  dgraph: DgraphClientPort,
+  nodeType: "TestChunk" | "CodeChunk",
+  previousUids: string[],
+  currentUids: string[],
+): Promise<void> {
+  const current = new Set(currentUids);
+  const dropped = previousUids.filter((uid) => !current.has(uid));
+  const ownerEdges = CHUNK_OWNER_EDGES[nodeType];
+  for (const uid of dropped) {
+    const stillOwned = await withTxn(dgraph, async (txn) => {
+      const blocks = ownerEdges.map((edge, index) => `owner${index}: ${edge} { uid }`).join("\n");
+      const res = await txn.queryWithVars(
+        `query q($uid: string) { node(func: uid($uid)) { ${blocks} } }`,
+        { $uid: uid },
+      );
+      const node = (res.data?.node?.[0] ?? {}) as Record<string, { uid: string }[]>;
+      return ownerEdges.some((_, index) => (node[`owner${index}`]?.length ?? 0) > 0);
+    });
+    if (!stillOwned) {
+      await withTxn(dgraph, (txn) => txn.mutate({ deleteNquads: `<${uid}> * * .`, commitNow: true }));
+    }
+  }
 }
 
 /**

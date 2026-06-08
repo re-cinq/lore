@@ -596,4 +596,40 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([{ "TestChunk.file_path": "src/b.test.ts" }]);
   });
+
+  it("deletes a TestChunk that no surviving statement links after re-projection", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const withLink = "## Overview\n\n- Returns the value ([validated by](src/sole.test.ts#L1))\n";
+    const withoutLink = "## Overview\n\n- Returns the value\n";
+
+    await projectSpecFile(repo, filePath, withLink, dgraphClient);
+    await projectSpecFile(repo, filePath, withoutLink, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { uid } }`,
+      { $xid: `${repo}|src/sole.test.ts|1` },
+    )) as { tc?: { uid: string }[] };
+
+    expect(data.tc ?? []).toEqual([]);
+  });
+
+  it("keeps a TestChunk that another statement still links after one statement drops it", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const bothLink = "## Overview\n\n- First point ([validated by](src/shared.test.ts#L1))\n- Second point ([validated by](src/shared.test.ts#L1))\n";
+    const firstDropsLink = "## Overview\n\n- First point\n- Second point ([validated by](src/shared.test.ts#L1))\n";
+
+    await projectSpecFile(repo, filePath, bothLink, dgraphClient);
+    await projectSpecFile(repo, filePath, firstDropsLink, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { TestChunk.xid } }`,
+      { $xid: `${repo}|src/shared.test.ts|1` },
+    )) as { tc?: Record<string, unknown>[] };
+
+    expect(data.tc).toEqual([{ "TestChunk.xid": `${repo}|src/shared.test.ts|1` }]);
+  });
 });
