@@ -49,6 +49,18 @@ describe("PgSettings", () => {
     expect(await store.resolve("missing/repo")).toEqual(resolveDarkFactorySettings(undefined));
   });
 
+  it("resolveOrNull returns null when the repo is not onboarded", async () => {
+    const store = new PgSettings(fakePool([], []), fakeWriter([]));
+
+    expect(await store.resolveOrNull("missing/repo")).toBeNull();
+  });
+
+  it("resolveOrNull resolves the settings when the repo row exists", async () => {
+    const store = new PgSettings(fakePool([], [{ settings: { dark_factory: { enabled: true } } }]), fakeWriter([]));
+
+    expect(await store.resolveOrNull("re-cinq/lore")).toEqual(resolveDarkFactorySettings({ enabled: true }));
+  });
+
   it("delegates a variable write to the repo-config writer", async () => {
     const calls: Array<{ kind: string; args: string[] }> = [];
     const store = new PgSettings(fakePool([], []), fakeWriter(calls));

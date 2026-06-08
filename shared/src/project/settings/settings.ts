@@ -15,6 +15,10 @@ export class Settings {
     return this.settings.resolve(this.repo);
   }
 
+  resolveOrNull(): Promise<ResolvedDarkFactorySettings | null> {
+    return this.settings.resolveOrNull(this.repo);
+  }
+
   setRepoVariable(name: string, value: string): Promise<void> {
     return this.settings.setRepoVariable(this.repo, name, value);
   }
