@@ -223,8 +223,9 @@ async function pruneOrphans(
   context: ProjectionContext,
   nodeType: SpecTraceNodeType,
   validXids: Set<string>,
+  forwardEdge?: string,
 ): Promise<void> {
-  const { dgraph, repo, filePath } = context;
+  const { dgraph, repo, filePath, specUid } = context;
   const xidPredicate = `${nodeType}.xid`;
   await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
@@ -238,10 +239,15 @@ async function pruneOrphans(
       .filter((child) => !validXids.has(child[xidPredicate]))
       .map((child) => child.uid);
     if (orphanUids.length) {
-      await txn.mutate({
-        deleteNquads: orphanUids.map((uid) => `<${uid}> * * .`).join("\n"),
-        commitNow: true,
-      });
+      // `<uid> * * .` drops the orphan node's outgoing edges, but the Spec keeps a
+      // forward `[uid]` edge (Spec.sections / Spec.acceptance_criteria) that Dgraph
+      // set-unions on upsert, so a removed child lingers there as a dangling ref
+      // unless its forward edge is deleted too.
+      const deletes = orphanUids.map((uid) => `<${uid}> * * .`);
+      if (forwardEdge) {
+        deletes.push(...orphanUids.map((uid) => `<${specUid}> <${forwardEdge}> <${uid}> .`));
+      }
+      await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
     }
   });
 }
@@ -332,7 +338,15 @@ export async function projectSpecFile(
   const validStatementXids = new Set(statementSegments.map((segment) => `${repo}|${filePath}|${segment.ordinal}`));
   await pruneOrphans(context, "Statement", validStatementXids);
 
+  const validSectionXids = new Set(
+    Array.from({ length: sectionUidByHeading.size }, (_, ordinal) => `${repo}|${filePath}|${ordinal}`),
+  );
+  await pruneOrphans(context, "Section", validSectionXids, "Spec.sections");
+
   await projectAcceptanceCriteria(context, acSegments);
+  const validAcXids = new Set(acSegments.map((segment) => `${repo}|${filePath}|ac|${segment.ordinal}`));
+  await pruneOrphans(context, "AcceptanceCriterion", validAcXids, "Spec.acceptance_criteria");
+
   await projectBlocks(context, content);
   return { projected: true };
 }
