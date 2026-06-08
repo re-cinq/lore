@@ -1,3 +1,4 @@
+export * from './project/index.js';
 export { chunkFile, buildIngestedChunkMetadata, type Chunk } from './chunker.js';
 export { redactSecrets } from './redact.js';
 export { parseTasks, inferPhaseDependencies, type ParsedTask } from './tasks.js';
