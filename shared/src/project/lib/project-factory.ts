@@ -27,8 +27,13 @@ export async function createProject(
   const { PgTaskStore } = await import("../tasks/task-store-pg.js");
   ports.set("tasks", new PgTaskStore(pgPool));
 
+  const { PlatformGitHub } = await import("./platform-github.js");
+  const github = new PlatformGitHub(env);
+  ports.set("github", github);
+  ports.set("pulls", github);
+
   const { PgSettings } = await import("../settings/settings-pg.js");
-  ports.set("settings", new PgSettings(pgPool));
+  ports.set("settings", new PgSettings(pgPool, github));
 
   const { NotifySlack } = await import("../notify/notify-slack.js");
   ports.set("notify", new NotifySlack(pgPool, env));
@@ -44,11 +49,6 @@ export async function createProject(
 
   const { AgentRunnerLocal } = await import("../agents/agent-runner-local.js");
   ports.set("agents", new AgentRunnerLocal(env));
-
-  const { PlatformGitHub } = await import("./platform-github.js");
-  const github = new PlatformGitHub(env);
-  ports.set("github", github);
-  ports.set("pulls", github);
 
   return new Project(fullName, ports, env);
 }

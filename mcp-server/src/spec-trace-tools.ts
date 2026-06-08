@@ -24,12 +24,17 @@ import {
   parseRunResult,
   substituteSelector,
   resolveTestCommandManifest,
+  executionRefusal,
   type TestDescriptor,
   type RunResult,
   type CoveredChunk,
   type TaggedRunResult,
   type TestCommandManifest,
 } from "@re-cinq/lore-shared";
+
+// Relocated to @re-cinq/lore-shared (project/lib/trust.ts); re-exported here for
+// back-compat with existing importers.
+export { executionRefusal };
 
 const execShell = promisify(exec);
 
@@ -66,12 +71,6 @@ export function stripCoveredPaths(result: RunResult, prefix: string): RunResult 
       file: stripPathPrefix(chunk.file, prefix),
     })),
   };
-}
-
-export function executionRefusal(env: NodeJS.ProcessEnv): string | null {
-  return env.LORE_DB_HOST
-    ? "Test commands run only in a trusted sandbox — run in CI or locally."
-    : null;
 }
 
 export function parseCommandJson(stdout: string, what: string): unknown {

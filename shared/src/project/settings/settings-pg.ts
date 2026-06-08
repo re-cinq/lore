@@ -6,14 +6,23 @@ import {
 } from "../../dark-factory-settings.js";
 import type { SettingsPort } from "./settings-port.js";
 
+/** The repo-config writes the settings adapter delegates to (the GitHub adapter). */
+export interface RepoConfigWriter {
+  setRepoVariable(repo: string, name: string, value: string): Promise<void>;
+  setRepoSecret(repo: string, name: string, value: string): Promise<void>;
+}
+
 /**
  * SettingsPort.resolve over lore.repos.settings — reads the JSONB row and runs
  * the EXISTING resolveDarkFactorySettings (no resolution logic reimplemented).
- * Repo var/secret WRITES are GitHub-config (octokit) and are wired once the
- * platform-github adapter lands.
+ * Repo var/secret WRITES are GitHub-config, delegated to the injected writer
+ * (the platform-github adapter).
  */
 export class PgSettings implements SettingsPort {
-  constructor(private readonly pool: PgPool) {}
+  constructor(
+    private readonly pool: PgPool,
+    private readonly repoConfig: RepoConfigWriter,
+  ) {}
 
   async resolve(repo: string): Promise<ResolvedDarkFactorySettings> {
     const { rows } = await this.pool.query("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
@@ -21,11 +30,11 @@ export class PgSettings implements SettingsPort {
     return resolveDarkFactorySettings(settings?.dark_factory);
   }
 
-  setRepoVariable(): Promise<void> {
-    throw new Error("settings.setRepoVariable needs the platform-github adapter (pending)");
+  setRepoVariable(repo: string, name: string, value: string): Promise<void> {
+    return this.repoConfig.setRepoVariable(repo, name, value);
   }
 
-  setRepoSecret(): Promise<void> {
-    throw new Error("settings.setRepoSecret needs the platform-github adapter (pending)");
+  setRepoSecret(repo: string, name: string, value: string): Promise<void> {
+    return this.repoConfig.setRepoSecret(repo, name, value);
   }
 }
