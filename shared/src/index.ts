@@ -14,6 +14,7 @@ export {
 export { chunkFile, buildIngestedChunkMetadata, type Chunk } from './chunker.js';
 export { redactSecrets } from './redact.js';
 export { getQueryEmbedding, buildVertexUrl } from './embeddings/embedding-service.js';
+export { resolveAgentId } from './agent-id.js';
 export { parseTasks, inferPhaseDependencies, type ParsedTask } from './tasks.js';
 export {
   formatTrailers,

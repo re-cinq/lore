@@ -1705,9 +1705,11 @@ async function main() {
     console.error("[lore] Database mode: local files (LORE_DB_HOST not set)");
   }
 
-  // Initialize pipeline config and context assembly templates
+  // Initialize pipeline config and context assembly templates. The engine now
+  // lives in @re-cinq/lore-shared, so the mcp templates dir is passed explicitly
+  // (the shared default would resolve into the shared package tree).
   loadTaskTypes();
-  loadTemplates();
+  loadTemplates(join(import.meta.dirname, "..", "templates"));
   if (process.env.LORE_DB_HOST) {
     console.error('[lore] Pipeline task CRUD ready (processing handled by lore-agent)');
   }

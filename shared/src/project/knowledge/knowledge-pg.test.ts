@@ -55,4 +55,20 @@ describe("PgKnowledge", () => {
 
     expect(capture[1].text).toContain("FROM org_shared.chunks");
   });
+
+  it("assembles repo context through the relocated engine, bound to the repo", async () => {
+    const sqlKeyedPool: PgPool = {
+      query: async (text: string) => {
+        if (text.includes("content_type IN ('doc', 'spec')")) {
+          return { rows: [{ content: "CLAUDE.md conventions", file_path: "CLAUDE.md", content_type: "doc" }] };
+        }
+        return { rows: [] };
+      },
+    };
+    const pg = new PgKnowledge(sqlKeyedPool);
+
+    const result = await pg.assembleContext("re-cinq/lore", "how do conventions work");
+
+    expect(result.text).toContain("CLAUDE.md conventions");
+  });
 });

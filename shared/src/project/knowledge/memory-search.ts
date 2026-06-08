@@ -7,9 +7,9 @@
  * unavailable.
  */
 
-import { getQueryEmbedding } from './db.js';
-import { resolveAgentId } from './agent-id.js';
-import { diversify, rrfMerge } from '@re-cinq/lore-shared';
+import { getQueryEmbedding } from '../../embeddings/embedding-service.js';
+import { resolveAgentId } from '../../agent-id.js';
+import { diversify, rrfMerge } from '../../memory-ranking.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

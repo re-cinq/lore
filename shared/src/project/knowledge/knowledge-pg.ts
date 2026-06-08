@@ -1,5 +1,6 @@
 import type { PgPool } from "../../memory-store.js";
 import { queryLiveGraph, type LiveGraphResult } from "./live-graph.js";
+import { assembleContext as runAssembleContext } from "./context-assembly.js";
 import type {
   KnowledgePort,
   AssembledContext,
@@ -18,8 +19,9 @@ const SCHEMA_RE = /^[a-z_][a-z0-9_]*$/;
 export class PgKnowledge implements KnowledgePort {
   constructor(private readonly pool: PgPool) {}
 
-  assembleContext(): Promise<AssembledContext> {
-    throw new Error("knowledge.assembleContext needs the relocated context-assembly module (pending)");
+  async assembleContext(repo: string, query: string): Promise<AssembledContext> {
+    const result = await runAssembleContext(this.pool, query, "default", undefined, repo);
+    return { text: result.text };
   }
 
   queryLiveGraph(repo: string, term?: string): Promise<LiveGraphResult[]> {
