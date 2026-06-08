@@ -8,12 +8,13 @@
  */
 
 import type { Pool } from "pg";
+import { getQueryEmbedding } from "@re-cinq/lore-shared";
+
+// Vertex AI query embeddings now live in the shared embedding-service singleton;
+// re-exported here for back-compat with this module's existing importers.
+export { getQueryEmbedding };
 
 let pool: Pool | null = null;
-
-const VERTEX_PROJECT = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
-const VERTEX_REGION = process.env.GCP_REGION || "europe-west1";
-const VERTEX_MODEL = "text-embedding-005";
 
 // Schema allow-list to prevent SQL injection
 const VALID_SCHEMAS = new Set(["org_shared", "payments", "platform", "mobile", "data"]);
@@ -53,54 +54,6 @@ export async function getHealthStatus(): Promise<{
     return { connected: true, chunk_count: rows[0].cnt };
   } catch {
     return { connected: false, chunk_count: null, reason: "connection failed" };
-  }
-}
-
-// ── Vertex AI embedding ─────────────────────────────────────────────
-
-export async function getQueryEmbedding(query: string): Promise<number[] | null> {
-  try {
-    // Try GKE metadata server first (Workload Identity), fall back to gcloud
-    let token: string;
-    try {
-      const metaRes = await fetch(
-        "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-        { headers: { "Metadata-Flavor": "Google" } }
-      );
-      const metaJson = await metaRes.json() as { access_token: string };
-      token = metaJson.access_token;
-    } catch {
-      // Fall back to GOOGLE_ACCESS_TOKEN env var (for local dev)
-      token = process.env.GOOGLE_ACCESS_TOKEN || "";
-      if (!token) return null;
-    }
-
-    const res = await fetch(
-      `https://${VERTEX_REGION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_REGION}/publishers/google/models/${VERTEX_MODEL}:predict`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          instances: [{ content: query.substring(0, 8000) }],
-        }),
-      }
-    );
-
-    if (!res.ok) {
-      console.error(`[db] Vertex AI embedding failed: ${res.status}`);
-      return null;
-    }
-
-    const json = await res.json() as {
-      predictions: Array<{ embeddings: { values: number[] } }>;
-    };
-    return json.predictions[0].embeddings.values;
-  } catch (err) {
-    console.error("[db] Vertex AI embedding error:", err);
-    return null;
   }
 }
 
