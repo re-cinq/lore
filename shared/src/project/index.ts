@@ -54,7 +54,7 @@ export type {
 export { Agents } from "./agents/agents.js";
 export type { LlmPort, LlmCompletion } from "./agents/llm-port.js";
 export type { K8sPort, LoreTaskSpec } from "./agents/k8s-port.js";
-export type { ProjectProviders, EmbeddingsPort } from "./lib/providers.js";
+export type { ProjectProviders } from "./lib/providers.js";
 
 export type { GitPort, CloneOpts } from "./workspace/git-port.js";
 export { Workspace } from "./workspace/workspace.js";
