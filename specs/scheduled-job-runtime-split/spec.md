@@ -184,7 +184,7 @@ resident process.
 
 1. `node dist/job-runner.js <jobName>` runs each of the 10 batch jobs, initializes
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
-   an unknown name exits non-zero. ([validated by `job-runner.test.ts:45`](agent/src/job-runner.test.ts#L45), [`job-runner.test.ts:49`](agent/src/job-runner.test.ts#L49))
+   an unknown name exits non-zero. ([validated by `job-runner.test.ts:42`](agent/src/job-runner.test.ts#L42), [`job-runner.test.ts:47`](agent/src/job-runner.test.ts#L47))
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a
    CronJob run appears in the web-ui `/analytics` view identically to an
@@ -207,7 +207,7 @@ resident process.
    `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
    pass after the move.
 7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:51`](agent/src/job-runner.test.ts#L51))
+8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:47`](agent/src/job-runner.test.ts#L47))
 
 ## File Changes
 
