@@ -3,6 +3,11 @@ import type {
   PullRef,
   PRReviewEvent,
   MergeMethod,
+  PullReview,
+  ReviewComment,
+  IssueComment,
+  PullCommit,
+  PullStats,
 } from "./pull-requests-port.js";
 
 /**
@@ -41,5 +46,37 @@ export class PullRequests {
 
   open(branch: string, title: string, body: string, base?: string): Promise<PullRef> {
     return this.pulls.open(this.repo, branch, title, body, base);
+  }
+
+  getDiff(number: number): Promise<string> {
+    return this.pulls.getDiff(this.repo, number);
+  }
+
+  listReviews(number: number): Promise<PullReview[]> {
+    return this.pulls.listReviews(this.repo, number);
+  }
+
+  listComments(number: number): Promise<ReviewComment[]> {
+    return this.pulls.listComments(this.repo, number);
+  }
+
+  listIssueComments(number: number): Promise<IssueComment[]> {
+    return this.pulls.listIssueComments(this.repo, number);
+  }
+
+  listCommits(number: number): Promise<PullCommit[]> {
+    return this.pulls.listCommits(this.repo, number);
+  }
+
+  isMerged(number: number): Promise<boolean> {
+    return this.pulls.isMerged(this.repo, number);
+  }
+
+  isClosed(number: number): Promise<boolean> {
+    return this.pulls.isClosed(this.repo, number);
+  }
+
+  getStats(number: number): Promise<PullStats> {
+    return this.pulls.getStats(this.repo, number);
   }
 }

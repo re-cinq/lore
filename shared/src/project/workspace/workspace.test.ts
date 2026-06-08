@@ -58,6 +58,14 @@ describe("Workspace", () => {
         opened.push(`${repo}#${branch}`);
         return { repo, number: 1, title, branch, state: "open", labels: [] };
       },
+      getDiff: async () => "",
+      listReviews: async () => [],
+      listComments: async () => [],
+      listIssueComments: async () => [],
+      listCommits: async () => [],
+      isMerged: async () => false,
+      isClosed: async () => false,
+      getStats: async () => ({ files_changed: 0, additions: 0, deletions: 0, comments: 0, merged_at: null, created_at: "" }),
     });
 
     const pr = await ws.openPr("feat", "Add feature", "body");

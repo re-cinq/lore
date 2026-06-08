@@ -121,7 +121,6 @@ describe("tryAutoMergeForCompletedTask", () => {
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
     expect(result).toEqual(decision);
     expect(evaluateAndMergeMock).toHaveBeenCalledWith({
-      octokit: fakeOctokit,
       taskId: "t1",
       repo: "owner/repo",
       prNumber: 42,

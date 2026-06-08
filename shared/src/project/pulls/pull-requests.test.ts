@@ -18,6 +18,14 @@ function fakePulls(pulls: PullRef[], merged: Array<{ number: number; method?: Me
       merged.push({ number, method });
     },
     open: async (repo, branch, title) => ({ repo, number: 100, title, branch, state: "open", labels: [] }),
+    getDiff: async (_repo, number) => `diff for #${number}`,
+    listReviews: async () => [{ id: 1, state: "APPROVED", body: "lgtm", user: "bot", submitted_at: "t" }],
+    listComments: async () => [],
+    listIssueComments: async () => [],
+    listCommits: async () => [{ sha: "abc", message: "feat", date: "t" }],
+    isMerged: async (_repo, number) => number === 7,
+    isClosed: async () => false,
+    getStats: async () => ({ files_changed: 1, additions: 2, deletions: 0, comments: 0, merged_at: null, created_at: "t" }),
   };
 }
 
@@ -41,5 +49,16 @@ describe("PullRequests", () => {
     await facade.merge(7, "squash");
 
     expect(merged).toEqual([{ number: 7, method: "squash" }]);
+  });
+
+  it("exposes PR reads bound to the repo and number", async () => {
+    const facade = new PullRequests("re-cinq/lore", fakePulls([], []));
+
+    expect(await facade.getDiff(3)).toBe("diff for #3");
+    expect(await facade.listReviews(3)).toEqual([
+      { id: 1, state: "APPROVED", body: "lgtm", user: "bot", submitted_at: "t" },
+    ]);
+    expect(await facade.isMerged(7)).toBe(true);
+    expect(await facade.isMerged(3)).toBe(false);
   });
 });
