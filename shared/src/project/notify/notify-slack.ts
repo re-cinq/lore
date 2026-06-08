@@ -23,7 +23,7 @@ export class NotifySlack implements NotifyPort {
     const { rows } = await this.pool.query("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
     const row = rows[0] as RepoNotifyRow | undefined;
     const channels = resolveDarkFactorySettings(row?.settings?.dark_factory).notify;
-    const decision = decideNotify(level, channels);
+    const decision = decideNotify(level, { channels });
 
     const token = this.env.LORE_SLACK_BOT_TOKEN;
     const channel = row?.settings?.slack_channel_id;

@@ -20,6 +20,7 @@
     "@types/node": "^22.13.10",
     "@types/pg": "^8.20.0",
     "dgraph-js-http": "^23.0.0-rc1",
+    "libsodium-wrappers": "^0.8.2",
     "octokit": "^4.1.0",
     "pg": "^8.21.0",
     "typescript": "^5.7.3",

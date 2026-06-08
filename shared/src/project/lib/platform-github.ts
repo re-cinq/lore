@@ -135,6 +135,37 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return toPullRef(repo, data);
   }
 
+  // ── repo config (consumed by the settings adapter) ──────────────────
+
+  async setRepoVariable(repo: string, name: string, value: string): Promise<void> {
+    const ok = await this.octo();
+    const [owner, repoName] = split(repo);
+    try {
+      await ok.rest.actions.updateRepoVariable({ owner, repo: repoName, name, value });
+    } catch {
+      await ok.rest.actions.createRepoVariable({ owner, repo: repoName, name, value });
+    }
+  }
+
+  async setRepoSecret(repo: string, name: string, value: string): Promise<void> {
+    const ok = await this.octo();
+    const [owner, repoName] = split(repo);
+    const { data: pubKey } = await ok.rest.actions.getRepoPublicKey({ owner, repo: repoName });
+    const spec = "libsodium-wrappers";
+    const sodium = ((await import(spec)) as { default: Sodium }).default;
+    await sodium.ready;
+    const keyBytes = sodium.from_base64(pubKey.key, sodium.base64_variants.ORIGINAL);
+    const encrypted = sodium.crypto_box_seal(sodium.from_string(value), keyBytes);
+    const encryptedValue = sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL);
+    await ok.rest.actions.createOrUpdateRepoSecret({
+      owner,
+      repo: repoName,
+      secret_name: name,
+      encrypted_value: encryptedValue,
+      key_id: pubKey.key_id,
+    });
+  }
+
   // ── auth ────────────────────────────────────────────────────────────
 
   private octo(): Promise<Octokit> {
@@ -164,6 +195,15 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const { data } = await ok.rest.repos.get({ owner, repo: name });
     return data.default_branch;
   }
+}
+
+interface Sodium {
+  ready: Promise<void>;
+  base64_variants: { ORIGINAL: number };
+  from_base64(input: string, variant: number): Uint8Array;
+  from_string(input: string): Uint8Array;
+  crypto_box_seal(message: Uint8Array, publicKey: Uint8Array): Uint8Array;
+  to_base64(input: Uint8Array, variant: number): string;
 }
 
 function split(repo: string): [string, string] {

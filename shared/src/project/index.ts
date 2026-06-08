@@ -36,6 +36,7 @@ export { Task } from "./tasks/task.js";
 
 export type { NotifyPort, NotifyLevel, NotifyResult } from "./notify/notify-port.js";
 export { Notify } from "./notify/notify.js";
+export { decideNotify, type NotifySettings } from "./notify/notify-decision.js";
 
 export type {
   KnowledgePort,

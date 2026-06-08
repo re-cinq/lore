@@ -6,7 +6,12 @@ import type { NotifyLevel, NotifyResult } from "./notify-port.js";
  * (decideNotify). Pure — the caller dispatches the actual Slack send when
  * fire === true. agent keeps a re-export during migration.
  */
-export function decideNotify(level: NotifyLevel, channels: NotifyChannel[]): NotifyResult {
+export interface NotifySettings {
+  channels: NotifyChannel[];
+}
+
+export function decideNotify(level: NotifyLevel, settings: NotifySettings): NotifyResult {
+  const channels = settings.channels ?? [];
   if (channels.includes("all")) {
     return { fire: true, matchedChannels: ["all"] };
   }
