@@ -1,8 +1,20 @@
 /**
- * Pipeline task CRUD. Task processing is handled by the lore-agent service.
+ * Pipeline task CRUD. The policy-free CRUD (getTask/listTasks/updateTaskStatus/
+ * recordEvent/cancelTask/markTaskMerged) lives once in @re-cinq/lore-shared and
+ * is re-exported here; this file keeps the mcp-specific policy (trust-level gate
+ * + getDefaultRepo on createTask, retry, review-iteration). Task processing
+ * itself is handled by the lore-agent service.
  */
 
 import { getDefaultRepo } from './pipeline-config.js';
+import {
+  getPipelineTask,
+  listPipelineTasks,
+  recordTaskEvent,
+  updateTaskStatus as sharedUpdateTaskStatus,
+  cancelPipelineTask,
+  markTaskMerged as sharedMarkTaskMerged,
+} from '@re-cinq/lore-shared';
 
 // ── Pool management ──────────────────────────────────────────────────
 
@@ -16,6 +28,16 @@ function getPool(): Pool {
 }
 
 export function setPipelinePool(p: Pool): void { pool = p; }
+
+// ── Relocated CRUD (single source in shared; thin pool-binding wrappers) ──
+export const getTask = (taskId: string) => getPipelineTask(getPool(), taskId);
+export const listTasks = (status?: string, limit = 50) => listPipelineTasks(getPool(), status, limit);
+export const recordEvent = (taskId: string, fromStatus: string | null, toStatus: string | null, meta?: any) =>
+  recordTaskEvent(getPool(), taskId, fromStatus, toStatus, meta);
+export const updateTaskStatus = (taskId: string, newStatus: string, meta?: any) =>
+  sharedUpdateTaskStatus(getPool(), taskId, newStatus, meta);
+export const cancelTask = (taskId: string) => cancelPipelineTask(getPool(), taskId);
+export const markTaskMerged = (taskId: string) => sharedMarkTaskMerged(getPool(), taskId);
 
 // ── Task CRUD ────────────────────────────────────────────────────────
 
@@ -95,74 +117,6 @@ export async function createTask(
   return { task_id: task.id, task_type: taskType, status: task.status, priority: task.priority, created_at: task.created_at };
 }
 
-export async function getTask(taskId: string): Promise<any> {
-  const { rows: tasks } = await getPool().query(
-    `SELECT * FROM pipeline.tasks WHERE id = $1`,
-    [taskId],
-  );
-  if (tasks.length === 0) return null;
-  const { rows: events } = await getPool().query(
-    `SELECT * FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
-    [taskId],
-  );
-  return { ...tasks[0], events };
-}
-
-export async function listTasks(status?: string, limit: number = 50): Promise<any> {
-  const where = status ? 'WHERE status = $1' : '';
-  const params = status ? [status, limit] : [limit];
-  const { rows } = await getPool().query(
-    `SELECT id, description, task_type, status, target_repo, agent_id, pr_url, created_by, created_at, updated_at
-     FROM pipeline.tasks ${where}
-     ORDER BY created_at DESC
-     LIMIT $${status ? '2' : '1'}`,
-    params,
-  );
-  const { rows: countRows } = await getPool().query(
-    `SELECT count(*)::int as total FROM pipeline.tasks ${where}`,
-    status ? [status] : [],
-  );
-  return { tasks: rows, total: countRows[0].total };
-}
-
-export async function cancelTask(taskId: string): Promise<any> {
-  const task = await getTask(taskId);
-  if (!task) throw new Error('Task not found');
-  if (['merged', 'failed', 'cancelled'].includes(task.status)) {
-    throw new Error(`Cannot cancel task in ${task.status} state`);
-  }
-  await updateTaskStatus(taskId, 'cancelled', { cancelled_by: 'user' });
-  return { task_id: taskId, status: 'cancelled' };
-}
-
-// ── Status management ────────────────────────────────────────────────
-
-export async function updateTaskStatus(taskId: string, newStatus: string, meta?: any): Promise<void> {
-  const { rows } = await getPool().query(
-    `SELECT status FROM pipeline.tasks WHERE id = $1`,
-    [taskId],
-  );
-  if (rows.length === 0) return;
-  const oldStatus = rows[0].status;
-  await getPool().query(
-    `UPDATE pipeline.tasks SET status = $1 WHERE id = $2`,
-    [newStatus, taskId],
-  );
-  await recordEvent(taskId, oldStatus, newStatus, meta);
-}
-
-export async function recordEvent(taskId: string, fromStatus: string | null, toStatus: string | null, meta?: any): Promise<void> {
-  try {
-    await getPool().query(
-      `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
-       VALUES ($1, $2, $3, $4)`,
-      [taskId, fromStatus, toStatus, meta ? JSON.stringify(meta) : null],
-    );
-  } catch {
-    // Event recording failures must never block pipeline operations
-  }
-}
-
 // ── Review iteration (T025) ─────────────────────────────────────────
 
 export async function handleReviewResult(taskId: string, approved: boolean, comments: string): Promise<void> {
@@ -223,14 +177,3 @@ export async function retryTask(taskId: string): Promise<any> {
   return { task_id: result.task_id, status: result.status, retry_of: taskId };
 }
 
-// ── PR merge management (T028) ──────────────────────────────────────
-
-export async function markTaskMerged(taskId: string): Promise<any> {
-  const task = await getTask(taskId);
-  if (!task) throw new Error('Task not found');
-  if (task.status !== 'pr-created' && task.status !== 'review') {
-    throw new Error(`Cannot mark task as merged from ${task.status} state (expected pr-created or review)`);
-  }
-  await updateTaskStatus(taskId, 'merged', { merged_by: 'manual' });
-  return { task_id: taskId, status: 'merged' };
-}
