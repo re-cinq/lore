@@ -1,5 +1,7 @@
 export * from './project/index.js';
 export {
+  createTask as createPipelineTask,
+  retryTask as retryPipelineTask,
   getTask as getPipelineTask,
   listTasks as listPipelineTasks,
   recordEvent as recordTaskEvent,
@@ -7,6 +9,7 @@ export {
   updateTaskStatus,
   cancelTask as cancelPipelineTask,
   markTaskMerged,
+  type CreateTaskInput,
 } from './pipeline-tasks.js';
 export { chunkFile, buildIngestedChunkMetadata, type Chunk } from './chunker.js';
 export { redactSecrets } from './redact.js';

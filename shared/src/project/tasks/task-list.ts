@@ -1,5 +1,5 @@
 import type { PipelineTask } from "../../types.js";
-import type { TaskStorePort, TaskWithEvents, TaskListResult } from "./task-store-port.js";
+import type { TaskStorePort, TaskWithEvents, TaskListResult, CreateTaskInput } from "./task-store-port.js";
 import { Task } from "./task.js";
 
 /**
@@ -30,7 +30,16 @@ export class TaskList {
     return row ? new Task(row, this.store) : null;
   }
 
-  // ── direct task ops (taskId-keyed; the repo binding is context only) ──
+  // ── task ops over the single source ──
+
+  /** Create a task. The bound repo is the default targetRepo unless input overrides it. */
+  create(input: Omit<CreateTaskInput, "targetRepo"> & { targetRepo?: string }): Promise<any> {
+    return this.store.create({ ...input, targetRepo: input.targetRepo ?? this.repo });
+  }
+
+  retry(id: string): Promise<any> {
+    return this.store.retry(id);
+  }
 
   list(status?: string, limit?: number): Promise<TaskListResult> {
     return this.store.list(status, limit);

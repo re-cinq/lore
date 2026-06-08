@@ -8,6 +8,8 @@
 
 import { getDefaultRepo } from './pipeline-config.js';
 import {
+  createPipelineTask,
+  retryPipelineTask,
   getPipelineTask,
   listPipelineTasks,
   recordTaskEvent,
@@ -41,15 +43,9 @@ export const markTaskMerged = (taskId: string) => sharedMarkTaskMerged(getPool()
 
 // ── Task CRUD ────────────────────────────────────────────────────────
 
-// Trust level hierarchy — what task types each level allows
-const TRUST_LEVELS: Record<string, string[]> = {
-  docs: ['gap-fill', 'runbook'],
-  tests: ['gap-fill', 'runbook', 'review'],
-  implementation: ['gap-fill', 'runbook', 'review', 'implementation', 'feature-request', 'general'],
-  full: ['gap-fill', 'runbook', 'review', 'implementation', 'feature-request', 'general', 'onboard'],
-};
-
-export async function createTask(
+// createTask is single-sourced in shared (trust-gate + insert + recordEvent);
+// mcp keeps its positional signature and resolves the default repo via config.
+export function createTask(
   description: string,
   taskType: string = 'general',
   targetRepo?: string,
@@ -59,62 +55,16 @@ export async function createTask(
   taskGroupId?: string,
   contextRefs?: { fact_ids: string[]; memory_ids: string[] },
 ): Promise<any> {
-  const repo = targetRepo || getDefaultRepo(taskType);
-  if (description.length > 10000) throw new Error('Description too long (max 10000 chars)');
-
-  // Check trust level for the target repo
-  if (repo) {
-    try {
-      const { rows: repoRows } = await getPool().query(
-        `SELECT settings FROM lore.repos WHERE full_name = $1`, [repo],
-      );
-      if (repoRows.length > 0) {
-        const settings = repoRows[0].settings || {};
-        const trustLevel = settings.trust?.level;
-        if (trustLevel && TRUST_LEVELS[trustLevel]) {
-          const allowed = TRUST_LEVELS[trustLevel];
-          if (!allowed.includes(taskType)) {
-            throw new Error(`Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(', ')}`);
-          }
-        }
-      }
-    } catch (err: any) {
-      if (err.message.includes('not allowed at trust level')) throw err;
-      // Non-trust errors are non-fatal
-    }
-  }
-
-  const resolvedPriority = priority === 'immediate' ? 'immediate' : 'normal';
-  const contextJson = contextBundle ? JSON.stringify(contextBundle) : null;
-  let rows: any[];
-  if (taskGroupId) {
-    // Only reference task_group_id column when a group is specified (column may not exist on older schemas)
-    const result = await getPool().query(
-      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, status, priority, created_at`,
-      [description, taskType, repo, createdBy, contextJson, resolvedPriority, taskGroupId],
-    );
-    rows = result.rows;
-  } else {
-    const result = await getPool().query(
-      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, status, priority, created_at`,
-      [description, taskType, repo, createdBy, contextJson, resolvedPriority],
-    );
-    rows = result.rows;
-  }
-  const task = rows[0];
-  // Store context refs for outcome feedback (which facts/memories contributed)
-  if (contextRefs && (contextRefs.fact_ids.length > 0 || contextRefs.memory_ids.length > 0)) {
-    await getPool().query(
-      `UPDATE pipeline.tasks SET context_refs = $1 WHERE id = $2`,
-      [JSON.stringify(contextRefs), task.id],
-    ).catch(() => {}); // non-fatal if column doesn't exist yet
-  }
-  await recordEvent(task.id, null, 'pending', { created_by: createdBy, priority: resolvedPriority });
-  return { task_id: task.id, task_type: taskType, status: task.status, priority: task.priority, created_at: task.created_at };
+  return createPipelineTask(getPool(), {
+    description,
+    taskType,
+    targetRepo: targetRepo || getDefaultRepo(taskType),
+    createdBy,
+    contextBundle,
+    priority,
+    taskGroupId,
+    contextRefs,
+  });
 }
 
 // ── Review iteration (T025) ─────────────────────────────────────────
@@ -156,24 +106,7 @@ export async function handleReviewResult(taskId: string, approved: boolean, comm
   }
 }
 
-// ── Task retry ──────────────────────────────────────────────────────
+// ── Task retry (single source in shared) ────────────────────────────
 
-export async function retryTask(taskId: string): Promise<any> {
-  const task = await getTask(taskId);
-  if (!task) throw new Error('Task not found');
-  if (task.status !== 'failed' && task.status !== 'needs-human-help') {
-    throw new Error(`Cannot retry task in ${task.status} state (must be failed or needs-human-help)`);
-  }
-  // Create a new task with the same parameters
-  const result = await createTask(
-    task.description,
-    task.task_type,
-    task.target_repo,
-    `retry:${task.created_by}`,
-    { ...(task.context_bundle || {}), retry_of: taskId },
-  );
-  // Mark the original as retried
-  await updateTaskStatus(taskId, 'retried', { retried_as: result.task_id });
-  return { task_id: result.task_id, status: result.status, retry_of: taskId };
-}
+export const retryTask = (taskId: string) => retryPipelineTask(getPool(), taskId);
 

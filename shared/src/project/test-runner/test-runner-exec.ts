@@ -17,23 +17,50 @@ import type { TestRunnerPort, TestRunReport } from "./test-runner-port.js";
 const execShell = promisify(exec);
 const DEFAULT_TIMEOUT_MS = 120_000;
 
+/** Run the manifest `list` command and parse its descriptors. Single source for
+ *  both this adapter and mcp's spec-trace-tools (which re-exports it). */
+export async function runTestsList(
+  listCommand: string,
+  cwd: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<TestDescriptor[]> {
+  const { stdout } = await execShell(listCommand, { cwd, timeout: timeoutMs });
+  return parseTestDescriptors(parseCommandJson(stdout, "tests.list"));
+}
+
+/** Run the manifest `run` command for one selector and parse the result. */
+export async function runTestsRun(
+  runCommand: string,
+  selector: string,
+  cwd: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<RunResult> {
+  const { stdout } = await execShell(substituteSelector(runCommand, selector), { cwd, timeout: timeoutMs });
+  return parseRunResult(parseCommandJson(stdout, "tests.run"));
+}
+
+export function parseCommandJson(stdout: string, what: string): unknown {
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    throw new Error(`${what} command did not emit valid JSON: ${stdout.slice(0, 200)}`);
+  }
+}
+
 /**
  * TestRunnerPort over the repo's .lore/test-commands.yml — relocated from
  * mcp-server/src/spec-trace-tools.ts (runTestsList/runTestsRun/buildTestReport).
  * The trust gate lives on the TestSuite facade; this just runs the commands.
  */
 export class ExecTestRunner implements TestRunnerPort {
-  async listTests(cwd: string): Promise<TestDescriptor[]> {
+  listTests(cwd: string): Promise<TestDescriptor[]> {
     const manifest = loadManifest(cwd);
-    const { stdout } = await execShell(manifest.list, { cwd: resolveCwd(manifest, cwd), timeout: DEFAULT_TIMEOUT_MS });
-    return parseTestDescriptors(parseCommandJson(stdout, "tests.list"));
+    return runTestsList(manifest.list, resolveCwd(manifest, cwd));
   }
 
-  async runTest(cwd: string, selector: string): Promise<RunResult> {
+  runTest(cwd: string, selector: string): Promise<RunResult> {
     const manifest = loadManifest(cwd);
-    const command = substituteSelector(manifest.run, selector);
-    const { stdout } = await execShell(command, { cwd: resolveCwd(manifest, cwd), timeout: DEFAULT_TIMEOUT_MS });
-    return parseRunResult(parseCommandJson(stdout, "tests.run"));
+    return runTestsRun(manifest.run, selector, resolveCwd(manifest, cwd));
   }
 
   async report(cwd: string): Promise<TestRunReport> {
@@ -58,12 +85,4 @@ function loadManifest(cwd: string): TestCommandManifest {
 
 function resolveCwd(manifest: TestCommandManifest, cwd: string): string {
   return join(cwd, manifest.cwd || ".");
-}
-
-function parseCommandJson(stdout: string, what: string): unknown {
-  try {
-    return JSON.parse(stdout);
-  } catch {
-    throw new Error(`${what} command did not emit valid JSON: ${stdout.slice(0, 200)}`);
-  }
 }

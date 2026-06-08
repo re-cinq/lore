@@ -1,6 +1,8 @@
 import type { PgPool } from "../../memory-store.js";
 import type { PipelineTask } from "../../types.js";
 import {
+  createTask,
+  retryTask,
   getTask,
   listTasks,
   setTaskStatus,
@@ -8,6 +10,7 @@ import {
   recordEvent,
   cancelTask,
   markTaskMerged,
+  type CreateTaskInput,
 } from "../../pipeline-tasks.js";
 import type {
   TaskStorePort,
@@ -54,7 +57,15 @@ export class PgTaskStore implements TaskStorePort {
     return (rows[0] as PipelineTask) ?? null;
   }
 
-  // ── by-id ops delegating to the single-source pipeline-tasks functions ──
+  // ── ops delegating to the single-source pipeline-tasks functions ──
+
+  create(input: CreateTaskInput): Promise<any> {
+    return createTask(this.pool, input);
+  }
+
+  retry(id: string): Promise<any> {
+    return retryTask(this.pool, id);
+  }
 
   list(status?: string, limit?: number): Promise<TaskListResult> {
     return listTasks(this.pool, status, limit) as Promise<TaskListResult>;

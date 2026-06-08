@@ -1,4 +1,7 @@
 import type { PipelineTask } from "../../types.js";
+import type { CreateTaskInput } from "../../pipeline-tasks.js";
+
+export type { CreateTaskInput };
 
 /**
  * Task records port. Backed by pipeline.tasks (cluster) or
@@ -31,7 +34,9 @@ export interface TaskStorePort {
   // by-id reads
   getById(id: string): Promise<PipelineTask | null>;
   getWithEvents(id: string): Promise<TaskWithEvents | null>;
-  // by-id writes
+  // writes
+  create(input: CreateTaskInput): Promise<any>;
+  retry(id: string): Promise<any>;
   setStatus(id: string, status: string, extra?: Record<string, unknown>): Promise<void>;
   updateStatus(id: string, status: string, meta?: unknown): Promise<void>;
   recordEvent(id: string, fromStatus: string | null, toStatus: string | null, meta?: unknown): Promise<void>;
