@@ -34,7 +34,8 @@ export type SpecTraceNodeType =
   | "CodeChunk"
   | "AcceptanceCriterion"
   | "Block"
-  | "Coverage";
+  | "Coverage"
+  | "TraceLink";
 
 /** Runs `fn` inside a fresh transaction, always discarding it afterwards. */
 export async function withTxn<T>(

@@ -92,7 +92,7 @@ Entity.properties: string .
 Entity.repo: string @index(hash) .
 Entity.dedup_key: string @index(hash) @upsert .
 Entity.created_at: dateTime .
-Entity.updated_at: dateTime .
+Entity.updated_at: dateTime @index(hour) .
 Entity.out_rels: [uid] @reverse @count .
 Entity.in_rels: [uid] @reverse @count .
 

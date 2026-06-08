@@ -32,6 +32,15 @@ Block.xid: string @index(hash) @upsert .
 Repo.xid: string @index(hash) @upsert .
 ADR.xid: string @index(hash) @upsert .
 TestSuite.xid: string @index(hash) @upsert .
+TraceLink.xid: string @index(hash) @upsert .
+
+TraceLink.repo: string @index(hash) .
+TraceLink.statement: uid @reverse .
+TraceLink.target: uid .
+TraceLink.kind: string @index(hash) .
+TraceLink.evidence: string @index(hash) .
+Statement.trace_links: [uid] @reverse @count .
+AcceptanceCriterion.trace_links: [uid] @reverse @count .
 
 Repo.name: string @index(hash) .
 Repo.specs: [uid] @reverse @count .
@@ -63,6 +72,7 @@ AcceptanceCriterion.implemented_by: [uid] @reverse @count .
 AcceptanceCriterion.decided_by: [uid] @reverse @count .
 AcceptanceCriterion.drifted: bool @index(bool) .
 AcceptanceCriterion.drift_reason: string .
+AcceptanceCriterion.drift_severity: float .
 AcceptanceCriterion.violated: bool @index(bool) .
 AcceptanceCriterion.violation_reason: string .
 
@@ -88,6 +98,7 @@ Statement.implemented_by: [uid] @reverse @count .
 Statement.decided_by: [uid] @reverse @count .
 Statement.drifted: bool @index(bool) .
 Statement.drift_reason: string .
+Statement.drift_severity: float .
 Statement.violated: bool @index(bool) .
 Statement.violation_reason: string .
 
@@ -127,6 +138,7 @@ Coverage.commit: string @index(hash) .
 Coverage.generated_at: dateTime .
 Coverage.line_count: int .
 Coverage.covers: [uid] @reverse @count .
+Coverage.stale: bool @index(bool) .
 
 ADR.repo: string @index(hash) .
 ADR.number: int @index(int) .
@@ -176,8 +188,10 @@ type AcceptanceCriterion {
   AcceptanceCriterion.decided_by
   AcceptanceCriterion.drifted
   AcceptanceCriterion.drift_reason
+  AcceptanceCriterion.drift_severity
   AcceptanceCriterion.violated
   AcceptanceCriterion.violation_reason
+  AcceptanceCriterion.trace_links
 }
 type Block {
   Block.xid
@@ -216,8 +230,10 @@ type Statement {
   Statement.decided_by
   Statement.drifted
   Statement.drift_reason
+  Statement.drift_severity
   Statement.violated
   Statement.violation_reason
+  Statement.trace_links
 }
 type CodeChunk {
   CodeChunk.xid
@@ -263,6 +279,15 @@ type Coverage {
   Coverage.generated_at
   Coverage.line_count
   Coverage.covers
+  Coverage.stale
+}
+type TraceLink {
+  TraceLink.xid
+  TraceLink.repo
+  TraceLink.statement
+  TraceLink.target
+  TraceLink.kind
+  TraceLink.evidence
 }
 DQL
 )
