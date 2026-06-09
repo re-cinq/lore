@@ -75,4 +75,70 @@ describe("assembleTraceDocument", () => {
       ],
     });
   });
+
+  it("sets title to the ordinal-first section heading 'Goals'", () => {
+    const doc = assembleTraceDocument({
+      q: [
+        {
+          uid: "0x1",
+          "Spec.file_path": "specs/auth/spec.md",
+          sections: [
+            { uid: "0xs2", "Section.heading": "Flows", "Section.ordinal": 2, "Section.level": 2 },
+            { uid: "0xs1", "Section.heading": "Goals", "Section.ordinal": 1, "Section.level": 2 },
+          ],
+          stmts: [],
+        },
+      ],
+    });
+
+    expect(doc.title).toBe("Goals");
+  });
+
+  it("sets description to the ordinal-first statement's text 'First sentence.'", () => {
+    const doc = assembleTraceDocument({
+      q: [
+        {
+          uid: "0x1",
+          "Spec.file_path": "specs/auth/spec.md",
+          stmts: [
+            { uid: "0xb", "Statement.ordinal": 2, "Statement.text": "Second sentence.", "Statement.testability": "testable" },
+            { uid: "0xa", "Statement.ordinal": 1, "Statement.text": "First sentence.", "Statement.testability": "testable" },
+          ],
+        },
+      ],
+    });
+
+    expect(doc.description).toBe("First sentence.");
+  });
+
+  it("sets title to the spec H1 'Feature Specification: LoreTask CRD' over the first section heading", () => {
+    const data = {
+      q: [
+        {
+          uid: "0x1",
+          "Spec.file_path": "specs/x/spec.md",
+          "Spec.title": "Feature Specification: LoreTask CRD",
+          sections: [{ uid: "0xs", "Section.heading": "Problem Statement" }],
+          stmts: [],
+        },
+      ],
+    };
+
+    expect(assembleTraceDocument(data).title).toBe("Feature Specification: LoreTask CRD");
+  });
+
+  it("falls back title to the file basename 'spec.md' when the spec has no sections", () => {
+    const doc = assembleTraceDocument({
+      q: [
+        {
+          uid: "0x1",
+          "Spec.file_path": "specs/onboarding/spec.md",
+          sections: [],
+          stmts: [{ uid: "0xa", "Statement.ordinal": 1, "Statement.text": "Onboarding works.", "Statement.testability": "testable" }],
+        },
+      ],
+    });
+
+    expect(doc.title).toBe("spec.md");
+  });
 });

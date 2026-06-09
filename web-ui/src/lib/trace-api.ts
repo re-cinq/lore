@@ -4,7 +4,7 @@
 // the boundary (same LORE_API_URL + LORE_INGEST_TOKEN the context-preview route
 // already uses). IO glue — excluded from coverage like lib/db.ts.
 
-import type { TraceDocument } from '@/app/repos/[owner]/[repo]/specs/[...path]/TraceDocumentView';
+import type { TraceDocument } from '@/lib/trace-types';
 import type { SpecGraph, SpecRing } from '@/lib/spec-graph';
 
 export type { TraceDocument };
@@ -35,9 +35,32 @@ export async function fetchTraceSpecs(repo: string): Promise<string[]> {
   return (await traceGet<{ specs: string[] }>(repo, 'specs'))?.specs ?? [];
 }
 
+export interface SpecSummary {
+  filePath: string;
+  title: string;
+  description: string;
+  coverage: { testable: number; covered: number; untestable: number; ratio: number };
+}
+
+/** Card summaries (title/description/coverage) for the repo's specs. */
+export async function fetchSpecSummaries(repo: string): Promise<SpecSummary[]> {
+  return (await traceGet<{ summaries: SpecSummary[] }>(repo, 'spec-summaries'))?.summaries ?? [];
+}
+
 /** ADR document paths the graph holds for the repo. */
 export async function fetchTraceAdrs(repo: string): Promise<string[]> {
   return (await traceGet<{ adrs: string[] }>(repo, 'adrs'))?.adrs ?? [];
+}
+
+export interface AdrSummary {
+  filePath: string;
+  title: string;
+  description: string;
+}
+
+/** Card summaries (title/description) for the repo's ADRs. */
+export async function fetchAdrSummaries(repo: string): Promise<AdrSummary[]> {
+  return (await traceGet<{ summaries: AdrSummary[] }>(repo, 'adr-summaries'))?.summaries ?? [];
 }
 
 /** One spec's ordered Section/Statement structure + links + coverage. */

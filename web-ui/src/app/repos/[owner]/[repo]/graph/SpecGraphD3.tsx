@@ -10,6 +10,7 @@ import type { SpecGraph, SpecGraphNode, SpecRing, RingSection, RingStatement } f
 import { resolveExclusion, type Disc } from '@/lib/ring-exclusion';
 import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
+import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
 const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
@@ -174,6 +175,28 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
     let adj = new Map<string, Set<string>>();
     let nodeById = new Map<string, SimNode>();
     let ringPinned = new Set<string>(); // statement ids pinned onto an outer ring
+
+    // Persist the layout to localStorage so a reload restores the previous topology
+    // (node positions, pins, which specs were expanded). Best-effort — storage may
+    // be unavailable or hold a stale/corrupt blob, both handled by returning early.
+    const STORAGE_KEY = `lore.graph:${repo}`;
+    const saveState = () => {
+      try {
+        localStorage.setItem(STORAGE_KEY, serializeGraphState(captureGraphState(nodes, [...expanded.keys()])));
+      } catch {
+        // storage disabled or over quota — persistence is best-effort
+      }
+    };
+    let savedExpanded: string[] = [];
+    try {
+      const saved = parseGraphState(localStorage.getItem(STORAGE_KEY));
+      if (saved) {
+        applyGraphState(saved, nodes);
+        savedExpanded = saved.expanded;
+      }
+    } catch {
+      // unavailable/corrupt storage — start from a fresh force layout
+    }
 
     const linkForce = d3
       .forceLink<SimNode, SimLink>([])
@@ -351,6 +374,7 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
         applyRingState();
         renderRings();
         sim.alpha(0.4).restart();
+        saveState();
         return;
       }
       // Pin the spec so the ring stays put — the simulation restart would otherwise
@@ -365,6 +389,7 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       applyRingState();
       renderRings();
       sim.alpha(0.5).restart();
+      saveState();
     }
 
     function update() {
@@ -422,6 +447,7 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
                   if (!event.active) sim.alphaTarget(0);
                   // Leave fx/fy pinned at the drop point — a dragged node stays put
                   // and never snaps back to its force-driven location.
+                  saveState();
                 }),
             );
           g.append('circle')
@@ -505,6 +531,14 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
     });
 
     update();
+
+    // Re-open the rings that were expanded last session, and persist whenever the
+    // layout cools so the next reload restores this exact topology.
+    for (const id of savedExpanded) {
+      const spec = nodeById.get(id);
+      if (spec) void toggleExpand(spec);
+    }
+    sim.on('end', saveState);
 
     const resize = new ResizeObserver(() => {
       width = el.clientWidth || width;

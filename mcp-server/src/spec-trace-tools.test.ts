@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -157,6 +157,35 @@ describe("buildTestReport", () => {
       tests: [{ id: "t1", name: "first", file: "a.test.ts", startLine: 1, endLine: 2 }],
       results: [{ id: "t1", passed: true, covered: [{ file: "a.ts", startLine: 3, endLine: 4 }] }],
     });
+  });
+
+  it("runs `run` once per file and fans the result to every descriptor sharing that file", async () => {
+    const root = mkdtempSync(join(tmpdir(), "lore-fan-"));
+    const marker = join(root, "runs.log");
+    // `run` appends the selector it was given, then prints the selector as the covered file.
+    const run = `node -e "require('fs').appendFileSync('${marker}','{selector}\\n');process.stdout.write(JSON.stringify({passed:true,covered:[{file:'{selector}',startLine:1,endLine:1}]}))"`;
+    const manifest: TestCommandManifest = {
+      list: `printf '[{"id":"a.test.ts::x","name":"A > x","file":"a.test.ts","suite":["A"]},{"id":"a.test.ts::y","name":"A > y","file":"a.test.ts","suite":["A"]},{"id":"b.test.ts::z","name":"B > z","file":"b.test.ts","suite":["B"]}]'`,
+      run,
+      coverage_format: "json",
+      cwd: ".",
+      path_prefix_strip: "",
+    };
+
+    try {
+      const report = await buildTestReport({}, manifest, process.cwd(), { commit: "c1", branch: "main" });
+
+      // 3 descriptors across 2 files → `run` invoked exactly twice (once per file).
+      expect(readFileSync(marker, "utf-8").trim().split("\n").sort()).toEqual(["a.test.ts", "b.test.ts"]);
+      // Every descriptor gets a result; covered.file equals the FILE selector, not the per-it id.
+      expect(report.results).toEqual([
+        { id: "a.test.ts::x", passed: true, covered: [{ file: "a.test.ts", startLine: 1, endLine: 1 }] },
+        { id: "a.test.ts::y", passed: true, covered: [{ file: "a.test.ts", startLine: 1, endLine: 1 }] },
+        { id: "b.test.ts::z", passed: true, covered: [{ file: "b.test.ts", startLine: 1, endLine: 1 }] },
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("strips path_prefix_strip from descriptor and covered-chunk file paths", async () => {

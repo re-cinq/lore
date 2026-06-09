@@ -1,16 +1,24 @@
 export const dynamic = "force-dynamic";
 import Link from 'next/link';
-import { fetchAllSpecs, fetchTraceDocument, type TraceDocument } from '@/lib/trace-api';
-import TraceDocumentView from '@/app/repos/[owner]/[repo]/specs/[...path]/TraceDocumentView';
+import { fetchAllSpecs, fetchTraceDocument, fetchTraceSource } from '@/lib/trace-api';
+import { toStatementInfo } from '@/lib/trace-statement-info';
+import SpecDocument from '@/app/repos/[owner]/[repo]/specs/[...path]/SpecDocument';
 
 export default async function SpecDetailPage({ params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const filePath = path.map(decodeURIComponent).join('/');
 
-  // Which repos hold this spec path in the graph, then assemble each from the graph.
+  // Which repos hold this spec path in the graph, then render each as a framed
+  // document (markdown source + graph-sourced statement overlay).
   const repos = (await fetchAllSpecs()).filter((s) => s.filePath === filePath).map((s) => s.repo);
-  const docs = (await Promise.all(repos.map(async (repo) => ({ repo, doc: await fetchTraceDocument(repo, filePath) }))))
-    .filter((entry): entry is { repo: string; doc: TraceDocument } => entry.doc !== null && entry.doc.statements.length > 0);
+  const docs = (
+    await Promise.all(
+      repos.map(async (repo) => {
+        const [source, doc] = await Promise.all([fetchTraceSource(repo, filePath), fetchTraceDocument(repo, filePath)]);
+        return { repo, source, statements: doc ? toStatementInfo(doc.statements) : [] };
+      }),
+    )
+  ).filter((entry): entry is { repo: string; source: string; statements: ReturnType<typeof toStatementInfo> } => !!entry.source);
 
   return (
     <div>
@@ -22,12 +30,12 @@ export default async function SpecDetailPage({ params }: { params: Promise<{ pat
           <p>No graph data for &quot;{filePath}&quot;. Build the repo&apos;s graph and run the ingest-specs task.</p>
         </div>
       ) : (
-        docs.map(({ repo, doc }) => (
+        docs.map(({ repo, source, statements }) => (
           <div key={repo} style={{ marginBottom: 24 }}>
             <p className="meta">
               repo: {repo} · <Link href={`/repos/${repo}/specs/${encodeURIComponent(filePath)}`}>view in repo →</Link>
             </p>
-            <TraceDocumentView repo={repo} doc={doc} />
+            <SpecDocument repo={repo} content={source} statements={statements} />
           </div>
         ))
       )}

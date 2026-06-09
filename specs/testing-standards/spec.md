@@ -75,6 +75,28 @@ The unit form must read naturally with the `it(...)` call —
 `it("returns true when positive number")`. Name tests by the tested data and
 the expected outcome, not by implementation detail.
 
+#### Spec-sentence acceptance links (opt-in)
+
+A test that validates a **spec success-criterion / acceptance statement** may
+opt into a third form so the spec-traceability runner links it to that statement
+automatically — no inline `([validated by])` edit, no anchors. Nest three levels:
+
+```ts
+describe("<spec H1 title>", () => {          // matched as a substring of Spec.title
+  describe("<verbatim success-criterion sentence>", () => {  // matched against the statement text
+    it("<label>", () => { /* asserts */ });
+  });
+});
+```
+
+The link is derived **structurally** from the describe chain (`suite[0]` = spec,
+`suite[1]` = sentence), so it never collides with a separator and a plain
+two-level unit test (`describe(unit) > it(behavior)`) can never accidentally
+link. Rules: use it **only** for acceptance tests — never on pure unit tests;
+copy the sentence **verbatim** from the spec (whitespace, casing, and inline
+links are normalized away, so a ragged multi-line copy is fine, but the words
+must match); the `<label>` still follows the unit/behavioural naming above.
+
 ### Assertions
 
 - Prefer `toEqual({...})` / `toMatchObject({...})` over many single-field asserts.

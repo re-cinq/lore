@@ -20,12 +20,17 @@ import { parse } from "yaml";
 import {
   resolveTestCommandManifest,
   executionRefusal,
+  groupRunsByFile,
+  mapWithLimit,
   type TestDescriptor,
   type RunResult,
   type CoveredChunk,
   type TaggedRunResult,
   type TestCommandManifest,
 } from "@re-cinq/lore-shared";
+
+/** Max test files run concurrently — bounds the per-file vitest processes so a large suite can't fork-bomb. */
+const RUN_CONCURRENCY = 4;
 
 // Relocated to @re-cinq/lore-shared (project/lib/trust.ts); re-exported here for
 // back-compat with existing importers.
@@ -115,6 +120,7 @@ export async function buildTestReport(
   manifest: TestCommandManifest,
   cwd: string,
   meta: { commit: string; branch: string },
+  concurrency = RUN_CONCURRENCY,
 ): Promise<TestReport> {
   const refusal = executionRefusal(env);
   if (refusal) throw new Error(refusal);
@@ -122,20 +128,29 @@ export async function buildTestReport(
   const prefix = manifest.path_prefix_strip;
   const tests = stripDescriptorPaths(await runTestsList(manifest.list, runCwd), prefix);
 
-  const runOrSkip = (descriptor: TestDescriptor) =>
-    runTestsRun(manifest.run, descriptor.id, runCwd)
-      .then((run) => ({
-        id: descriptor.id,
-        ...stripCoveredPaths(run, prefix),
-      }))
+  // Coverage is file-level, so run `run` ONCE per file (selector = file, not the
+  // per-`it` id) under a concurrency cap, then fan each file's result to every
+  // descriptor sharing it.
+  const byFile = groupRunsByFile(tests);
+  const files = [...byFile.keys()];
+  const runByFile = new Map<string, RunResult | null>();
+  const fileResults = await mapWithLimit(files, concurrency, (file) =>
+    runTestsRun(manifest.run, file, runCwd)
+      .then((run) => stripCoveredPaths(run, prefix))
       .catch((err) => {
         const reason = err instanceof Error ? err.message : String(err);
-        console.warn(`[trace] skipping ${descriptor.id}: ${reason}`);
+        console.warn(`[trace] skipping ${file}: ${reason}`);
         return null;
-      });
+      }),
+  );
+  files.forEach((file, index) => runByFile.set(file, fileResults[index]));
 
-  const settled = await Promise.all(tests.map(runOrSkip));
-  const results = settled.filter((run) => run !== null);
+  const results: TaggedRunResult[] = [];
+  for (const [file, ids] of byFile) {
+    const run = runByFile.get(file);
+    if (!run) continue;
+    for (const id of ids) results.push({ id, ...run });
+  }
   return { commit: meta.commit, branch: meta.branch, tests, results };
 }
 
