@@ -11,7 +11,7 @@ import {
   classifyByHeuristic,
   segmentBlocks,
   parseEmbedding,
-} from "@re-cinq/lore-shared";
+} from "../deps.js";
 import { projectSpecFile } from "../project-spec-file.js";
 import { recomputeFile } from "../recompute-spec-file.js";
 

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { GitPort, CloneOpts } from "./git-port.js";
 
@@ -18,6 +18,35 @@ export class GitCli implements GitPort {
     if (opts?.ref) args.push("--branch", opts.ref);
     args.push(this.remoteUrl(repo), destDir);
     this.git(args);
+  }
+
+  async ensureClone(repo: string, destDir: string, opts?: CloneOpts): Promise<void> {
+    // Reuse an existing clone (the /tmp cache) — fetch + checkout instead of
+    // re-cloning, so a second run against the same cache dir is cheap and keeps
+    // any local state. Only clone when the dir has no .git.
+    if (existsSync(join(destDir, ".git"))) {
+      this.git(["fetch", "origin"], destDir);
+      if (opts?.ref) this.git(["checkout", opts.ref], destDir);
+      return;
+    }
+    await this.clone(repo, destDir, opts);
+  }
+
+  async ensureCheckout(dir: string, branch?: string, commit?: string): Promise<void> {
+    if (branch) {
+      const current = this.git(["rev-parse", "--abbrev-ref", "HEAD"], dir).trim();
+      if (current !== branch && this.isDirty(dir)) {
+        throw new Error(`refusing to switch ${dir} to ${branch}: the working tree has uncommitted changes`);
+      }
+      this.git(["checkout", branch], dir);
+    }
+    if (commit) {
+      this.git(["reset", "--hard", commit], dir);
+    }
+  }
+
+  private isDirty(dir: string): boolean {
+    return this.git(["status", "--porcelain"], dir).trim().length > 0;
   }
 
   async listBranches(dir: string): Promise<string[]> {

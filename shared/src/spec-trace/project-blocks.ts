@@ -17,8 +17,8 @@
  * imports the driver.
  */
 
-import { segmentBlocks } from "@re-cinq/lore-shared";
-import type { DgraphClientPort } from "@re-cinq/lore-shared";
+import { segmentBlocks } from "./deps.js";
+import type { DgraphClientPort } from "./deps.js";
 import { upsertByXid, withTxn } from "./dgraph-upsert.js";
 
 /**

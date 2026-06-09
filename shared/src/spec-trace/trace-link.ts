@@ -14,7 +14,7 @@
  * link's tier (via {@link highestTier}), never downgrades it.
  */
 
-import type { DgraphClientPort } from "@re-cinq/lore-shared";
+import type { DgraphClientPort } from "./deps.js";
 import { upsertByXid, withTxn } from "./dgraph-upsert.js";
 import { verifyCoverageLink } from "./verify-coverage.js";
 

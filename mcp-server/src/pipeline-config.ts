@@ -16,6 +16,8 @@ interface TaskTypeConfig {
   target_repo?: string;
   timeout_minutes: number;
   review_required: boolean;
+  // "claude-code" (default, LLM) or "graph-ingest" (deterministic). Absent = claude-code.
+  execution_mode?: string;
 }
 
 // ── State ────────────────────────────────────────────────────────────

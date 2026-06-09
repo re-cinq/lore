@@ -5,7 +5,7 @@
  * branches exist; an unrecognized `kind` is enforced (throws) naming the kind.
  */
 
-import type { CoveredChunk, DgraphClientPort } from "@re-cinq/lore-shared";
+import type { CoveredChunk, DgraphClientPort } from "./deps.js";
 import { ingestTestReport, type TestReport } from "./ingest-test-report.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 

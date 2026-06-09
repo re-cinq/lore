@@ -39,8 +39,8 @@ import {
   buildIntroOrdinals,
   classifyByHeuristic,
   getQueryEmbedding,
-} from "@re-cinq/lore-shared";
-import type { Classification, DgraphClientPort, SpecLinkRef } from "@re-cinq/lore-shared";
+} from "./deps.js";
+import type { Classification, DgraphClientPort, SpecLinkRef } from "./deps.js";
 
 /**
  * Embeds a statement/criterion's text into the float32vector stored on its node,
