@@ -2,15 +2,17 @@
  * spec-traceability-graph — Phase 3 coverage ingest.
  *
  * Writes one Coverage node per record, keyed by `${repo}|${testFile}|${testName}`,
- * carrying repo/tool/commit, plus a `Coverage.covers` edge to every CodeChunk
- * whose line range overlaps a covered range. When a record names a TestChunk that
- * already exists (same repo/file_path/test_name), a `TestChunk.coverage` edge
- * (HAS_COVERAGE) is set to its Coverage node. Each covered range that overlaps no
- * CodeChunk contributes its line count to the returned `unmatched` total.
+ * carrying repo/tool/commit. The covered code is aggregated to **File** nodes
+ * (one per `${repo}|${file}`): each covered file gets a `Coverage --covers--> File`
+ * edge whose covered line intervals live on a `Coverage.covers|ranges` edge facet
+ * ("5-10,20-25") — no per-range node explosion. When a record names a TestChunk
+ * that already exists (same repo/file_path/test_name), a `TestChunk.coverage` edge
+ * (HAS_COVERAGE) is set to its Coverage node.
  *
- * Re-ingest is idempotent on the COVERS set: each record's `Coverage.covers`
- * edges are replaced (delete-then-set), not accumulated, so the persisted set
- * always mirrors the latest report. Coverage-first verification is a LATER facet.
+ * Re-ingest replaces the `Coverage.covers` set (delete-then-set, with facets), then
+ * GCs the File nodes that dropped out of coverage and no other coverage owns (via
+ * the shared {@link gcOrphanChunks}) — so a file that stops being covered doesn't
+ * linger as an orphan node.
  *
  * Shares the generic create-or-update primitive ({@link upsertByXid}) with the
  * Phase 1 projection via `./dgraph-upsert`. Talks only to the injected
@@ -18,51 +20,47 @@
  */
 
 import type { CoveredChunk, DgraphClientPort } from "./deps.js";
-import { upsertByXid, withTxn, replaceEdge } from "./dgraph-upsert.js";
+import { upsertByXid, withTxn, replaceEdgeWithFacets, type FacetedTarget } from "./dgraph-upsert.js";
+import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 
-/** A CodeChunk's uid and line span as read back from Dgraph. */
-type ChunkSpan = { uid: string; "CodeChunk.start_line": number; "CodeChunk.end_line": number };
-
-/**
- * Result of resolving covered ranges against persisted CodeChunks: the deduped
- * uids of every overlapping chunk, plus the line count of ranges that matched no
- * chunk (`endLine - startLine + 1` summed over the unmatched ranges).
- */
-type CoveredRangeMatch = { uids: string[]; unmatchedLines: number };
-
-/** True when the covered range and the chunk's line span share at least one line. */
-function rangesOverlap(range: CoveredChunk, chunk: ChunkSpan): boolean {
-  return range.startLine <= chunk["CodeChunk.end_line"] && chunk["CodeChunk.start_line"] <= range.endLine;
+/** Serializes a file's covered intervals (in covered order) to the `ranges` edge facet, e.g. "5-10,20-25". */
+function serializeRanges(ranges: CoveredChunk[]): string {
+  return ranges.map((r) => `${r.startLine}-${r.endLine}`).join(",");
 }
 
 /**
- * Resolves each covered range to the CodeChunks it overlaps. A range that
- * overlaps at least one chunk contributes those chunk uids; a range that
- * overlaps none contributes its line count to `unmatchedLines`.
+ * Upserts one File node per covered file (xid `${repo}|${file}`) and returns each
+ * as a faceted edge target — the file's merged intervals serialized onto the
+ * `Coverage.covers|ranges` facet. Files preserve first-seen order; their intervals
+ * preserve covered order.
  */
-async function matchCoveredRanges(
+async function upsertCoveredFiles(
   dgraph: DgraphClientPort,
   repo: string,
   covered: CoveredChunk[],
-): Promise<CoveredRangeMatch> {
-  const matched = new Set<string>();
-  let unmatchedLines = 0;
+): Promise<FacetedTarget[]> {
+  const rangesByFile = new Map<string, CoveredChunk[]>();
   for (const range of covered) {
-    const chunks = await withTxn(dgraph, async (txn) => {
-      const res = await txn.queryWithVars(
-        `query q($file: string, $repo: string){ chunks(func: eq(CodeChunk.file_path, $file)) @filter(eq(CodeChunk.repo, $repo)){ uid CodeChunk.start_line CodeChunk.end_line } }`,
-        { $file: range.file, $repo: repo },
-      );
-      return (res.data?.chunks ?? []) as ChunkSpan[];
-    });
-    const rangeMatches = chunks.filter((chunk) => rangesOverlap(range, chunk));
-    if (rangeMatches.length) {
-      for (const chunk of rangeMatches) matched.add(chunk.uid);
-    } else {
-      unmatchedLines += range.endLine - range.startLine + 1;
-    }
+    (rangesByFile.get(range.file) ?? rangesByFile.set(range.file, []).get(range.file)!).push(range);
   }
-  return { uids: [...matched], unmatchedLines };
+  const targets: FacetedTarget[] = [];
+  for (const [file, ranges] of rangesByFile) {
+    const uid = await upsertByXid(dgraph, "File", `${repo}|${file}`, { "File.repo": repo, "File.path": file });
+    targets.push({ uid, facets: { ranges: serializeRanges(ranges) } });
+  }
+  return targets;
+}
+
+/** Reads a Coverage node's current `Coverage.covers` target uids. */
+async function readCoversUids(dgraph: DgraphClientPort, coverageUid: string): Promise<string[]> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(
+      `query q($uid: string) { cov(func: uid($uid)) { Coverage.covers { uid } } }`,
+      { $uid: coverageUid },
+    );
+    const covers = (res.data?.cov?.[0]?.["Coverage.covers"] ?? []) as { uid: string }[];
+    return covers.map((c) => c.uid);
+  });
 }
 
 /**
@@ -99,20 +97,32 @@ export async function ingestCoverageReport(
   records: Array<{ testFile: string; testName: string; covered: CoveredChunk[] }>,
 ): Promise<{ coverageNodes: number; coversEdges: number; unmatched: number }> {
   let coversEdges = 0;
-  let unmatched = 0;
   for (const record of records) {
     const xid = `${meta.repo}|${record.testFile}|${record.testName}`;
-    const { uids: coveredUids, unmatchedLines } = await matchCoveredRanges(dgraph, meta.repo, record.covered);
     const coverageUid = await upsertByXid(dgraph, "Coverage", xid, {
       "Coverage.repo": meta.repo,
       "Coverage.tool": meta.tool,
       "Coverage.commit": meta.commit,
     });
-    await replaceEdge(dgraph, coverageUid, "Coverage.covers", coveredUids);
-    coversEdges += coveredUids.length;
-    unmatched += unmatchedLines;
+    const previousCovers = await readCoversUids(dgraph, coverageUid);
+    const fileTargets = await upsertCoveredFiles(dgraph, meta.repo, record.covered);
+    const fileUids = fileTargets.map((t) => t.uid);
+    await replaceEdgeWithFacets(dgraph, coverageUid, "Coverage.covers", fileTargets);
+    // Delete the File nodes this coverage dropped that no other coverage still owns.
+    await gcOrphanChunks(dgraph, "File", previousCovers, fileUids);
+    coversEdges += fileUids.length;
+
+    // Connect the Coverage node and its covered Files to the Repo root so neither
+    // is orphaned from the graph's entry point (set-union dedups on re-ingest).
+    await upsertByXid(dgraph, "Repo", meta.repo, {
+      "Repo.coverage": [{ uid: coverageUid }],
+      ...(fileUids.length ? { "Repo.files": fileUids.map((uid) => ({ uid })) } : {}),
+    });
 
     await linkTestChunkCoverage(dgraph, meta.repo, record, coverageUid);
   }
-  return { coverageNodes: records.length, coversEdges, unmatched };
+  // `coversEdges` counts covered FILES (one Coverage→File edge each); `unmatched`
+  // is always 0 now (every covered file is upserted). Both kept for return-shape
+  // stability with existing callers.
+  return { coverageNodes: records.length, coversEdges, unmatched: 0 };
 }

@@ -59,6 +59,8 @@ import { parseAdrRefs } from "./adr-refs.js";
 import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
 import { repoRelativeLinkTarget } from "./link-target-path.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
+import { gcOrphanChunks } from "./gc-orphan-chunks.js";
+import { featureDirOf } from "./feature-dir.js";
 
 /**
  * The fixed addressing context for one spec-file projection: the injected
@@ -84,6 +86,26 @@ function sha256(text: string): string {
 function extractTitle(content: string): string | null {
   const match = content.match(/^#\s+(.+?)\s*$/m);
   return match ? match[1] : null;
+}
+
+/**
+ * Upserts the Feature node for this spec's owning folder (xid `${repo}|${featureDir}`)
+ * and returns its uid for the `Spec.feature` edge — so every md file in one speckit
+ * folder groups under a single UI node. A root-level spec (no feature folder) writes
+ * no Feature and returns undefined.
+ */
+async function projectFeature(
+  dgraph: DgraphClientPort,
+  repo: string,
+  filePath: string,
+): Promise<string | undefined> {
+  const featureDir = featureDirOf(filePath);
+  if (featureDir === null) return undefined;
+  return upsertByXid(dgraph, "Feature", `${repo}|${featureDir}`, {
+    "Feature.repo": repo,
+    "Feature.path": featureDir,
+    "Feature.title": featureDir.split("/").pop() ?? featureDir,
+  });
 }
 
 /** Statements under this heading become AcceptanceCriterion nodes, not Statements. */
@@ -125,6 +147,7 @@ async function projectSections(
   for (const [sectionOrdinal, heading] of uniqueHeadings.entries()) {
     const sectionUid = await upsertByXid(dgraph, "Section", `${repo}|${filePath}|${sectionOrdinal}`, {
       "Section.heading": heading,
+      "Section.ordinal": sectionOrdinal,
       "Section.spec": { uid: specUid },
     });
     sectionUidByHeading.set(heading, sectionUid);
@@ -223,6 +246,7 @@ async function projectStatement(
   // a re-projected statement that changed its inline links would otherwise
   // set-union the stale TestChunk/CodeChunk refs onto validated_by/implemented_by.
   const statementUid = await upsertByXid(dgraph, "Statement", `${repo}|${filePath}|${segment.ordinal}`, {
+    "Statement.repo": repo,
     "Statement.ordinal": segment.ordinal,
     "Statement.text": segment.text,
     "Statement.text_hash": sha256(segment.text),
@@ -245,8 +269,8 @@ async function projectStatement(
   // A chunk this statement just unlinked is deleted only if NOTHING else owns it
   // (another statement's link, or — for code — a Coverage). Scoped to the dropped
   // uids so it never touches chunks the ingest paths created and left unlinked.
-  await gcUnlinkedChunks(dgraph, "TestChunk", previousLinks.validated, newValidated);
-  await gcUnlinkedChunks(dgraph, "CodeChunk", previousLinks.implemented, newImplemented);
+  await gcOrphanChunks(dgraph, "TestChunk", previousLinks.validated, newValidated);
+  await gcOrphanChunks(dgraph, "CodeChunk", previousLinks.implemented, newImplemented);
 
   // DECIDED_BY: a statement that cites an ADR ("per ADR-016") links to that ADR
   // node by number — the "why". Best-effort: only ADRs already projected resolve
@@ -297,50 +321,6 @@ async function readStatementLinkTargets(
       implemented: (node.implemented ?? []).map((ref) => ref.uid),
     };
   });
-}
-
-/** Reverse edges that, if present, mean a chunk is still owned and must not be GC'd. */
-const CHUNK_OWNER_EDGES: Record<"TestChunk" | "CodeChunk", string[]> = {
-  // TestChunk.coverage (forward) means the runner attached coverage to this
-  // file-scoped node — it outlives any single spec link and must not be GC'd.
-  TestChunk: ["~Statement.validated_by", "TestChunk.coverage"],
-  CodeChunk: ["~Statement.implemented_by", "~Coverage.covers"],
-};
-
-/**
- * Deletes each chunk in `previousUids` that is no longer in `currentUids` AND no
- * longer has any owning reverse edge — the orphan a statement leaves behind when
- * it drops a link. Reads the owners AFTER {@link replaceEdge} has removed this
- * statement's edge, so a still-shared chunk reports its remaining owners and
- * survives.
- */
-async function gcUnlinkedChunks(
-  dgraph: DgraphClientPort,
-  nodeType: "TestChunk" | "CodeChunk",
-  previousUids: string[],
-  currentUids: string[],
-): Promise<void> {
-  const current = new Set(currentUids);
-  const dropped = previousUids.filter((uid) => !current.has(uid));
-  const ownerEdges = CHUNK_OWNER_EDGES[nodeType];
-  for (const uid of dropped) {
-    const stillOwned = await withTxn(dgraph, async (txn) => {
-      const blocks = ownerEdges.map((edge, index) => `owner${index}: ${edge} { uid }`).join("\n");
-      const res = await txn.queryWithVars(
-        `query q($uid: string) { node(func: uid($uid)) { ${blocks} } }`,
-        { $uid: uid },
-      );
-      // A `[uid]` edge comes back as an array; a single-cardinality `uid` edge
-      // (e.g. TestChunk.coverage) comes back as a bare object — either present
-      // shape means the chunk is still owned.
-      const node = (res.data?.node?.[0] ?? {}) as Record<string, unknown>;
-      const isOwned = (value: unknown): boolean => (Array.isArray(value) ? value.length > 0 : value != null);
-      return ownerEdges.some((_, index) => isOwned(node[`owner${index}`]));
-    });
-    if (!stillOwned) {
-      await withTxn(dgraph, (txn) => txn.mutate({ deleteNquads: `<${uid}> * * .`, commitNow: true }));
-    }
-  }
 }
 
 /**
@@ -395,6 +375,7 @@ async function projectAcceptanceCriterion(context: ProjectionContext, segment: S
   const { dgraph, repo, filePath, specUid } = context;
   const embedding = await context.embed(segment.text);
   return upsertByXid(dgraph, "AcceptanceCriterion", `${repo}|${filePath}|ac|${segment.ordinal}`, {
+    "AcceptanceCriterion.repo": repo,
     "AcceptanceCriterion.ordinal": segment.ordinal,
     "AcceptanceCriterion.text": segment.text,
     "AcceptanceCriterion.text_hash": sha256(segment.text),
@@ -451,11 +432,13 @@ export async function projectSpecFile(
   }
 
   const title = extractTitle(content);
+  const featureUid = await projectFeature(dgraph, repo, filePath);
   const specUid = await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
     "Spec.repo": repo,
     "Spec.file_path": filePath,
     "Spec.content_hash": contentHash,
     ...(title !== null ? { "Spec.title": title } : {}),
+    ...(featureUid ? { "Spec.feature": { uid: featureUid } } : {}),
   });
   await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
 

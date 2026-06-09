@@ -96,14 +96,16 @@ function computeRing(specPath: string, ring: SpecRing): ExpandData {
 }
 
 const COLORS: Record<SpecGraphNode['type'], string> = {
+  Feature: '#db2777',
   Spec: '#7c3aed',
   Section: '#0891b2',
   Statement: '#2563eb',
   TestChunk: '#16a34a',
   CodeChunk: '#ea580c',
+  File: '#ea580c',
   ADR: '#d97706',
 };
-const RADIUS: Record<SpecGraphNode['type'], number> = { Spec: 16, Section: 10, Statement: 8, TestChunk: 11, CodeChunk: 11, ADR: 13 };
+const RADIUS: Record<SpecGraphNode['type'], number> = { Feature: 20, Spec: 16, Section: 10, Statement: 8, TestChunk: 11, CodeChunk: 11, File: 12, ADR: 13 };
 
 // Focus + context: opacity by graph distance from the selected node, fading with
 // depth (level 0 = selected, then 1/2/3 hops); past 3 hops is dimmed.
@@ -203,12 +205,12 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       .id((d) => d.id)
       // Spec→Section/Statement (the expanded drill-down) gets more length so the
       // fanned-out children don't pile on top of each other.
-      .distance((l) => (l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 150 : 110))
+      .distance((l) => (l.kind === 'in_feature' ? 170 : l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 150 : 110))
       .strength(0.35);
     const sim = d3
       .forceSimulation<SimNode>([])
       .force('link', linkForce)
-      .force('charge', d3.forceManyBody<SimNode>().strength((d) => (d.type === 'Spec' ? -700 : -520)))
+      .force('charge', d3.forceManyBody<SimNode>().strength((d) => (d.type === 'Feature' ? -850 : d.type === 'Spec' ? -700 : -520)))
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('x', d3.forceX(width / 2).strength(0.03))
       .force('y', d3.forceY(height / 2).strength(0.03))
@@ -226,11 +228,11 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
         }
         const anchors: Anchor[] = [];
         for (const n of nodes) {
-          if (n.type === 'Spec' || n.type === 'ADR') anchors.push({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 });
+          if (n.type === 'Feature' || n.type === 'Spec' || n.type === 'ADR') anchors.push({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 });
         }
         for (const n of nodes) {
           if (expanded.has(n.id) || ringPinned.has(n.id) || n.fx != null || n.fy != null) continue;
-          const isAnchor = n.type === 'Spec' || n.type === 'ADR';
+          const isAnchor = n.type === 'Feature' || n.type === 'Spec' || n.type === 'ADR';
           const safe = isAnchor
             ? resolveSpacing({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 }, anchors, discs, ANCHOR_SEPARATION)
             : resolveExclusion({ x: n.x ?? 0, y: n.y ?? 0 }, discs, RING_CLEARANCE);

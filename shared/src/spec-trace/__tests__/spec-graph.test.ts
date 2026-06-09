@@ -63,16 +63,16 @@ describe("flattenSpecGraph", () => {
       { id: "0x1", type: "Spec", label: "auth (spec)", path: "specs/auth/spec.md" },
       { id: "0x2", type: "Statement", label: "", path: "specs/auth/spec.md", detail: "Returns the value." },
       { id: "0x3", type: "TestChunk", label: "x.test.ts", path: "src/x.test.ts", line: 42, detail: "returns value" },
-      { id: "0x4", type: "CodeChunk", label: "x.ts", path: "src/x.ts", line: 10 },
+      { id: "file|src/x.ts", type: "File", label: "x.ts", path: "src/x.ts" },
     ]);
     expect(graph.links).toEqual([
       { source: "0x1", target: "0x2", kind: "in_spec" },
       { source: "0x2", target: "0x3", kind: "validated_by" },
-      { source: "0x2", target: "0x4", kind: "implemented_by" },
+      { source: "0x2", target: "file|src/x.ts", kind: "implemented_by" },
     ]);
   });
 
-  it("links a TestChunk to the CodeChunks its coverage covers", () => {
+  it("links a TestChunk to the File its coverage covers, with the ranges facet as detail", () => {
     const graph = flattenSpecGraph({
       q: [
         {
@@ -87,11 +87,7 @@ describe("flattenSpecGraph", () => {
                   uid: "0x3",
                   "TestChunk.file_path": "src/x.test.ts",
                   "TestChunk.test_name": "returns value",
-                  cov: {
-                    covers: [
-                      { uid: "0x5", "CodeChunk.file_path": "src/x.ts", "CodeChunk.symbol_name": "doThing", "CodeChunk.start_line": 10, "CodeChunk.end_line": 20 },
-                    ],
-                  },
+                  cov: { covers: [{ uid: "0x5", "File.path": "src/x.ts", "Coverage.covers|ranges": "10-20,30-40" }] },
                 },
               ],
             },
@@ -100,11 +96,11 @@ describe("flattenSpecGraph", () => {
       ],
     });
 
-    expect(graph.nodes).toContainEqual({ id: "0x5", type: "CodeChunk", label: "x.ts", path: "src/x.ts", line: 10, endLine: 20, detail: "doThing" });
-    expect(graph.links).toContainEqual({ source: "0x3", target: "0x5", kind: "covers" });
+    expect(graph.nodes).toContainEqual({ id: "file|src/x.ts", type: "File", label: "x.ts", path: "src/x.ts", detail: "10-20,30-40" });
+    expect(graph.links).toContainEqual({ source: "0x3", target: "file|src/x.ts", kind: "covers" });
   });
 
-  it("de-duplicates a CodeChunk covered by two TestChunks", () => {
+  it("de-duplicates a File covered by two TestChunks (by path)", () => {
     const graph = flattenSpecGraph({
       q: [
         {
@@ -115,18 +111,18 @@ describe("flattenSpecGraph", () => {
               uid: "0x2",
               "Statement.text": "A",
               vb: [
-                { uid: "0x3", "TestChunk.file_path": "a.test.ts", cov: { covers: [{ uid: "0x9", "CodeChunk.file_path": "x.ts", "CodeChunk.symbol_name": "f" }] } },
-                { uid: "0x4", "TestChunk.file_path": "b.test.ts", cov: { covers: [{ uid: "0x9", "CodeChunk.file_path": "x.ts", "CodeChunk.symbol_name": "f" }] } },
+                { uid: "0x3", "TestChunk.file_path": "a.test.ts", cov: { covers: [{ uid: "0x9", "File.path": "x.ts", "Coverage.covers|ranges": "1-5" }] } },
+                { uid: "0x4", "TestChunk.file_path": "b.test.ts", cov: { covers: [{ uid: "0xA", "File.path": "x.ts", "Coverage.covers|ranges": "1-5" }] } },
               ],
             },
           ],
         },
       ],
     });
-    expect(graph.nodes.filter((n) => n.id === "0x9")).toHaveLength(1);
+    expect(graph.nodes.filter((n) => n.id === "file|x.ts")).toHaveLength(1);
     expect(graph.links.filter((l) => l.kind === "covers")).toEqual([
-      { source: "0x3", target: "0x9", kind: "covers" },
-      { source: "0x4", target: "0x9", kind: "covers" },
+      { source: "0x3", target: "file|x.ts", kind: "covers" },
+      { source: "0x4", target: "file|x.ts", kind: "covers" },
     ]);
   });
 
@@ -144,6 +140,22 @@ describe("flattenSpecGraph", () => {
       ],
     });
     expect(graph.nodes.filter((n) => n.id === "0x9")).toHaveLength(1);
+  });
+
+  it("groups specs under their shared Feature node via in_feature links", () => {
+    const graph = flattenSpecGraph({
+      q: [
+        { uid: "0x1", "Spec.file_path": "specs/auth/spec.md", feature: { uid: "0xF", "Feature.path": "specs/auth" }, stmts: [] },
+        { uid: "0x2", "Spec.file_path": "specs/auth/plan.md", feature: { uid: "0xF", "Feature.path": "specs/auth" }, stmts: [] },
+      ],
+    });
+    expect(graph.nodes.filter((n) => n.id === "0xF")).toEqual([
+      { id: "0xF", type: "Feature", label: "auth", path: "specs/auth" },
+    ]);
+    expect(graph.links.filter((l) => l.kind === "in_feature")).toEqual([
+      { source: "0xF", target: "0x1", kind: "in_feature" },
+      { source: "0xF", target: "0x2", kind: "in_feature" },
+    ]);
   });
 
   it("returns an empty graph for empty input", () => {

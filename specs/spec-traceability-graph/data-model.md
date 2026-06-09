@@ -65,7 +65,15 @@ type TestSuite  { TestSuite.xid TestSuite.repo TestSuite.name TestSuite.file_pat
 type Coverage   { Coverage.xid Coverage.test Coverage.repo Coverage.tool
                   Coverage.commit Coverage.generated_at Coverage.line_count
                   Coverage.covers }
+type File       { File.xid File.repo File.path }
 ```
+
+`File` is the **coverage-source aggregation** node — one per `(repo, path)`.
+Coverage no longer mints a `CodeChunk` per covered range (that exploded the
+node count); instead `Coverage.covers` targets a single `File` per covered file,
+and the covered line intervals ride the edge as a `Coverage.covers|ranges` string
+facet (`"12-18,30-40"`). The graph viz shows File nodes, not the range swarm.
+A `File` is GC'd when no `Coverage` still covers it.
 
 ### Edges (and their meaning)
 
@@ -73,7 +81,8 @@ type Coverage   { Coverage.xid Coverage.test Coverage.repo Coverage.tool
 |---|---|---|
 | `Repo.specs` / `Spec.repo` | Repo ↔ Spec | `IN_REPO` (root → spec) |
 | `Repo.adrs` | Repo → ADR | `IN_REPO` (root → ADR) |
-| `Repo.code_chunks` / `Repo.test_chunks` / `Repo.test_suites` / `Repo.coverage` | Repo → CodeChunk \| TestChunk \| TestSuite \| Coverage | `IN_REPO` (root → chunk/suite/coverage) |
+| `Repo.code_chunks` / `Repo.test_chunks` / `Repo.test_suites` / `Repo.coverage` / `Repo.files` | Repo → CodeChunk \| TestChunk \| TestSuite \| Coverage \| File | `IN_REPO` (root → chunk/suite/coverage/file) |
+| `Spec.feature` | Spec → Feature | `IN_FEATURE` — groups the many md files of one speckit folder (`specs/<name>/spec.md`, `plan.md`, `data-model.md`, …) under a single node (reverse `~Spec.feature` = the feature's specs) |
 | `Spec.blocks` / `Block.spec` | Spec ↔ Block | `IN_SPEC` (the **lossless source layer** — every block of the markdown in document order; reconstruction reads these) |
 | `Spec.sections` / `Section.spec` | Spec ↔ Section | `IN_SPEC` |
 | `Spec.acceptance_criteria` / `AcceptanceCriterion.spec` | Spec ↔ AcceptanceCriterion | `IN_SPEC` (the testable contract, hung directly off the spec — not nested in a Section) |
@@ -86,7 +95,7 @@ type Coverage   { Coverage.xid Coverage.test Coverage.repo Coverage.tool
 | `TestChunk.suite` | TestChunk → TestSuite | `IN_SUITE` (test's innermost suite; reverse = the suite's tests) |
 | `TestSuite.parent` | TestSuite → TestSuite | `PARENT_SUITE` (suite nesting; reverse = child suites; root/file-level suites have none) |
 | `TestSuite.spec` | TestSuite → Spec | `VALIDATES_SPEC` (a whole suite declared against a spec — the suite-level analog of `VALIDATED_BY`; reverse = the spec's suites) |
-| `Coverage.covers` | Coverage → CodeChunk | `COVERS` (execution proof, by line overlap) |
+| `Coverage.covers` | Coverage → File | `COVERS` (execution proof) — the covered line intervals are a `Coverage.covers|ranges` edge **facet** ("12-18,30-40"), not per-range nodes |
 
 ## Predicate & index definitions
 
@@ -102,6 +111,8 @@ Repo.xid: string @index(hash) @upsert .
 ADR.xid:  string @index(hash) @upsert .
 TestSuite.xid: string @index(hash) @upsert .
 Block.xid: string @index(hash) @upsert .
+Feature.xid: string @index(hash) @upsert .
+File.xid: string @index(hash) @upsert .
 
 # Repo (root — every other node is reachable from here)
 Repo.name:            string @index(hash) .          # org/name
@@ -111,11 +122,18 @@ Repo.code_chunks:     [uid] @reverse @count .
 Repo.test_chunks:     [uid] @reverse @count .
 Repo.test_suites:     [uid] @reverse @count .
 Repo.coverage:        [uid] @reverse @count .
+Repo.files:           [uid] @reverse @count .
+
+# Feature (one per speckit folder under specs/ — the UI grouping node)
+Feature.repo:         string @index(hash) .
+Feature.path:         string @index(hash) .          # e.g. specs/5-lore-agent
+Feature.title:        string .                        # folder basename
 
 # Spec / Section
 Spec.repo:            string @index(hash) .
 Spec.file_path:       string @index(hash) .
 Spec.content_hash:    string .                       # projection freshness gate
+Spec.feature:         uid @reverse .                  # the feature folder this md belongs to
 Spec.blocks:          [uid] @reverse @count .
 Spec.sections:        [uid] @reverse @count .
 Spec.acceptance_criteria: [uid] @reverse @count .
@@ -135,6 +153,7 @@ Section.ordinal:      int .                           # document-global position
 Section.statements:   [uid] @reverse @count .
 
 # AcceptanceCriterion (testable contract, child of Spec — parallel to Section)
+AcceptanceCriterion.repo:        string @index(hash) .
 AcceptanceCriterion.spec:        uid @reverse .
 AcceptanceCriterion.ordinal:     int @index(int) .   # the numbered list position
 AcceptanceCriterion.label:       string .            # author's "AC1" / list marker, if any
@@ -150,6 +169,7 @@ AcceptanceCriterion.violated:    bool @index(bool) .   # a validating test curre
 AcceptanceCriterion.violation_reason: string .
 
 # Statement
+Statement.repo:        string @index(hash) .
 Statement.spec:        uid @reverse .
 Statement.section:     uid @reverse .
 Statement.ordinal:     int @index(int) .
@@ -171,11 +191,9 @@ Statement.violation_reason: string .
 CodeChunk.repo:         string @index(hash) .
 CodeChunk.file_path:    string @index(hash) .
 CodeChunk.symbol_name:  string @index(term) .
-CodeChunk.symbol_type:  string @index(hash) .
 CodeChunk.start_line:   int .
 CodeChunk.end_line:     int .
 CodeChunk.content_hash: string @index(hash) .        # drift substrate
-CodeChunk.chunk_id:     string @index(hash) .        # Postgres chunks.id
 CodeChunk.embedding:    float32vector @index(hnsw(metric:"cosine")) .
 
 TestChunk.repo:         string @index(hash) .
@@ -186,7 +204,6 @@ TestChunk.link_label:   string .                     # author's markdown label
 TestChunk.start_line:   int .
 TestChunk.end_line:     int .
 TestChunk.content_hash: string @index(hash) .
-TestChunk.chunk_id:     string @index(hash) .
 TestChunk.embedding:    float32vector @index(hnsw(metric:"cosine")) .
 TestChunk.coverage:     uid @reverse .
 TestChunk.suite:        uid @reverse .                # innermost enclosing suite
@@ -203,7 +220,7 @@ Coverage.test:          uid @reverse .
 Coverage.repo:          string @index(hash) .
 Coverage.tool:          string @index(hash) .        # lcov | cobertura | go-cover
 Coverage.commit:        string @index(hash) .        # idempotency key component
-Coverage.generated_at:  dateTime .
+Coverage.generated_at:  dateTime @index(hour) .       # filter/sort coverage by recency
 Coverage.line_count:    int .
 Coverage.covers:        [uid] @reverse @count .
 
@@ -223,7 +240,9 @@ ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 | Node | `xid` |
 |---|---|
 | `Repo` | `org/name` |
+| `Feature` | `repo\|specs/<folder>` |
 | `Spec` | `repo\|file_path` |
+| `File` | `repo\|file_path` (coverage-source aggregation; `Coverage.covers\|ranges` facet holds intervals) |
 | `Block` | `repo\|file_path\|block\|ordinal` |
 | `Section` | `repo\|file_path\|section_ordinal` |
 | `Statement` | `repo\|file_path\|ordinal` |

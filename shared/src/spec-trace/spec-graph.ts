@@ -9,7 +9,7 @@
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 
-export type SpecGraphNodeType = "Spec" | "Section" | "Statement" | "TestChunk" | "CodeChunk" | "ADR";
+export type SpecGraphNodeType = "Feature" | "Spec" | "Section" | "Statement" | "TestChunk" | "CodeChunk" | "File" | "ADR";
 
 export interface SpecGraphNode {
   id: string;
@@ -23,7 +23,7 @@ export interface SpecGraphNode {
 export interface SpecGraphLink {
   source: string;
   target: string;
-  kind: "in_spec" | "in_section" | "has_statement" | "validated_by" | "implemented_by" | "covers" | "decided_by";
+  kind: "in_feature" | "in_spec" | "in_section" | "has_statement" | "validated_by" | "implemented_by" | "covers" | "decided_by";
 }
 export interface SpecGraph {
   nodes: SpecGraphNode[];
@@ -34,6 +34,7 @@ interface GraphResult {
   q?: Array<{
     uid: string;
     "Spec.file_path"?: string;
+    feature?: { uid: string; "Feature.path"?: string };
     stmts?: Array<{
       uid: string;
       "Statement.text"?: string;
@@ -43,8 +44,9 @@ interface GraphResult {
         "TestChunk.test_name"?: string;
         "TestChunk.start_line"?: number;
         "TestChunk.end_line"?: number;
-        // TestChunk.coverage is single-cardinality (object); Coverage.covers is a set (array).
-        cov?: { covers?: Array<{ uid: string; "CodeChunk.file_path"?: string; "CodeChunk.symbol_name"?: string; "CodeChunk.start_line"?: number; "CodeChunk.end_line"?: number }> };
+        // TestChunk.coverage is single-cardinality (object); Coverage.covers is a set of
+        // File targets, each carrying the covered intervals as a `ranges` edge facet.
+        cov?: { covers?: Array<{ uid: string; "File.path"?: string; "Coverage.covers|ranges"?: string }> };
       }>;
       ib?: Array<{ uid: string; "CodeChunk.file_path"?: string; "CodeChunk.start_line"?: number }>;
       db?: Array<{ uid: string; "ADR.file_path"?: string; "ADR.number"?: number }>;
@@ -80,6 +82,13 @@ export function flattenSpecGraph(data: GraphResult): SpecGraph {
   for (const spec of data.q ?? []) {
     const specPath = spec["Spec.file_path"] ?? spec.uid;
     nodes.set(spec.uid, { id: spec.uid, type: "Spec", label: specLabel(specPath), path: specPath });
+    // The feature folder that owns this spec — one node per folder (deduped by uid),
+    // every md file of the folder hung under it via `in_feature`.
+    if (spec.feature) {
+      const fp = spec.feature["Feature.path"] ?? spec.feature.uid;
+      nodes.set(spec.feature.uid, { id: spec.feature.uid, type: "Feature", label: basename(fp), path: fp });
+      links.push({ source: spec.feature.uid, target: spec.uid, kind: "in_feature" });
+    }
     for (const st of spec.stmts ?? []) {
       nodes.set(st.uid, { id: st.uid, type: "Statement", label: "", path: specPath, detail: (st["Statement.text"] ?? "").trim() });
       links.push({ source: spec.uid, target: st.uid, kind: "in_spec" });
@@ -87,17 +96,21 @@ export function flattenSpecGraph(data: GraphResult): SpecGraph {
         const p = t["TestChunk.file_path"] ?? t.uid;
         nodes.set(t.uid, { id: t.uid, type: "TestChunk", label: basename(p), path: p, line: t["TestChunk.start_line"], endLine: t["TestChunk.end_line"], detail: t["TestChunk.test_name"] });
         links.push({ source: st.uid, target: t.uid, kind: "validated_by" });
-        // The CodeChunks this test exercises, reached via its Coverage (HAS_COVERAGE → COVERS).
-        for (const c of t.cov?.covers ?? []) {
-          const cp = c["CodeChunk.file_path"] ?? c.uid;
-          nodes.set(c.uid, { id: c.uid, type: "CodeChunk", label: basename(cp), path: cp, line: c["CodeChunk.start_line"], endLine: c["CodeChunk.end_line"], detail: c["CodeChunk.symbol_name"] });
-          links.push({ source: t.uid, target: c.uid, kind: "covers" });
+        // The File this test exercises, reached via its Coverage (HAS_COVERAGE → COVERS).
+        // One File node per path (deduped); the covered intervals are the `ranges` facet.
+        for (const f of t.cov?.covers ?? []) {
+          const fp = f["File.path"] ?? f.uid;
+          const fileId = `file|${fp}`;
+          nodes.set(fileId, { id: fileId, type: "File", label: basename(fp), path: fp, detail: f["Coverage.covers|ranges"] });
+          links.push({ source: t.uid, target: fileId, kind: "covers" });
         }
       }
+      // implemented_by CodeChunks are aggregated to the same per-path File node for display.
       for (const c of st.ib ?? []) {
         const p = c["CodeChunk.file_path"] ?? c.uid;
-        nodes.set(c.uid, { id: c.uid, type: "CodeChunk", label: basename(p), path: p, line: c["CodeChunk.start_line"] });
-        links.push({ source: st.uid, target: c.uid, kind: "implemented_by" });
+        const fileId = `file|${p}`;
+        if (!nodes.has(fileId)) nodes.set(fileId, { id: fileId, type: "File", label: basename(p), path: p });
+        links.push({ source: st.uid, target: fileId, kind: "implemented_by" });
       }
       for (const a of st.db ?? []) {
         const p = a["ADR.file_path"] ?? a.uid;
@@ -113,12 +126,13 @@ const GRAPH_DQL = `query specGraph($repo: string) {
   q(func: eq(Spec.repo, $repo)) {
     uid
     Spec.file_path
+    feature: Spec.feature { uid Feature.path }
     stmts: ~Statement.spec @filter(has(Statement.validated_by) OR has(Statement.implemented_by) OR has(Statement.decided_by)) {
       uid
       Statement.text
       vb: Statement.validated_by {
         uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
-        cov: TestChunk.coverage { covers: Coverage.covers { uid CodeChunk.file_path CodeChunk.symbol_name CodeChunk.start_line CodeChunk.end_line } }
+        cov: TestChunk.coverage { covers: Coverage.covers @facets(ranges) { uid File.path } }
       }
       ib: Statement.implemented_by { uid CodeChunk.file_path CodeChunk.start_line }
       db: Statement.decided_by { uid ADR.file_path ADR.number }

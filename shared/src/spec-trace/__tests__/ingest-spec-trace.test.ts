@@ -118,17 +118,6 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
   it("writes Coverage with a COVERS edge via ingestCoverageReport when kind is coverage", async () => {
     const repo = `spec-trace/${randomUUID()}`;
     createdRepo = repo;
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|ccX`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/widget.ts",
-        "CodeChunk.start_line": 1,
-        "CodeChunk.end_line": 20,
-      },
-      commitNow: true,
-    });
 
     await ingestSpecTrace(dgraphClient, repo, "coverage", {
       commit: "abc",
@@ -138,12 +127,13 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
     const data = (await readGraph(
       `query q($repo: string) {
         cov(func: eq(Coverage.repo, $repo)) {
-          Coverage.covers { CodeChunk.xid }
+          Coverage.covers { File.xid }
         }
       }`,
       { $repo: repo },
     )) as { cov?: Record<string, unknown>[] };
 
-    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([{ "CodeChunk.xid": `${repo}|ccX` }]);
+    // Coverage aggregates the covered range to a File node (no pre-seeding / AST).
+    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([{ "File.xid": `${repo}|src/widget.ts` }]);
   });
 });

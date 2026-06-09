@@ -43,11 +43,12 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
         `query nodes($repo: string) {
           blocks(func: eq(Block.repo, $repo)) { uid }
           adrs(func: eq(ADR.repo, $repo)) { uid }
+          root(func: eq(Repo.xid, $repo)) { uid }
         }`,
         { $repo: repo },
       );
-      const data = res.data as { blocks?: { uid: string }[]; adrs?: { uid: string }[] };
-      const uids = [...(data.blocks ?? []), ...(data.adrs ?? [])].map((node) => node.uid);
+      const data = res.data as { blocks?: { uid: string }[]; adrs?: { uid: string }[]; root?: { uid: string }[] };
+      const uids = [...(data.blocks ?? []), ...(data.adrs ?? []), ...(data.root ?? [])].map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -91,6 +92,24 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
     const recomputed = await recomputeFile(repo, filePath, dgraphClient);
 
     expect(recomputed).toBe(content);
+  });
+
+  it("attaches the projected ADR to its Repo root via Repo.adrs", async () => {
+    const repo = `test-adr/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "adrs/0020-x.md";
+    const content = ["# ADR-020", "", "## Status", "", "Accepted"].join("\n");
+
+    await projectAdrFile(repo, filePath, content, dgraphClient);
+
+    const txn = dgraphClient.newTxn();
+    const res = await txn.queryWithVars(
+      `query q($repo: string){ root(func: eq(Repo.xid, $repo)){ adrs: Repo.adrs { ADR.file_path } } }`,
+      { $repo: repo },
+    );
+    await txn.discard().catch(() => {});
+    const data = res.data as { root?: Array<{ adrs?: Array<{ "ADR.file_path"?: string }> }> };
+    expect((data.root?.[0]?.adrs ?? []).map((a) => a["ADR.file_path"])).toEqual([filePath]);
   });
 
   it("returns projected true then false on an unchanged re-projection (content_hash gate)", async () => {

@@ -17,8 +17,6 @@ export { getQueryEmbedding, buildVertexUrl } from './embeddings/embedding-servic
 export { resolveAgentId } from './agent-id.js';
 export { projectSpecFile } from './spec-trace/project-spec-file.js';
 export { projectAdrFile } from './spec-trace/project-adr-file.js';
-export { projectCodeFile } from './spec-trace/project-code-file.js';
-export { parseCodeChunks, type CodeChunkDescriptor } from './spec-trace/parse-code-chunks.js';
 export { descriptorsFromVitestList, groupRunsByFile, type VitestListEntry } from './spec-trace/trace-descriptors.js';
 export { mapWithLimit } from './concurrency/map-with-limit.js';
 export { ingestSpecTrace } from './spec-trace/ingest-spec-trace.js';

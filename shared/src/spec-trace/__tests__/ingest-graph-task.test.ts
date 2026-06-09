@@ -39,10 +39,6 @@ describe("selectIngestFiles", () => {
     expect(selectIngestFiles(TREE, "adrs")).toEqual(["adrs/0001-auth.md"]);
   });
 
-  it("selects source .ts for the code kind, excluding tests and declarations", () => {
-    expect(selectIngestFiles(TREE, "code")).toEqual(["src/auth.ts"]);
-  });
-
   it("returns nothing for an unknown kind", () => {
     expect(selectIngestFiles(TREE, "docs")).toEqual([]);
   });

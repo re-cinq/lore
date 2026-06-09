@@ -45,12 +45,13 @@ export async function projectAdrFile(
   }
 
   const number = adrNumberFromPath(filePath);
-  await upsertByXid(dgraph, "ADR", xid, {
+  const adrUid = await upsertByXid(dgraph, "ADR", xid, {
     "ADR.repo": repo,
     "ADR.file_path": filePath,
     "ADR.content_hash": contentHash,
     ...(number != null ? { "ADR.number": number } : {}),
   });
+  await upsertByXid(dgraph, "Repo", repo, { "Repo.adrs": [{ uid: adrUid }] });
   const validXids = await projectDocumentBlocks(dgraph, repo, filePath, content);
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validXids);
   return { projected: true };

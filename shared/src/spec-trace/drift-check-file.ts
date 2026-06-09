@@ -5,13 +5,13 @@
  * traces to that file against the new content:
  *
  *  - T240 content drift — a Statement or AcceptanceCriterion reached via the
- *    direct `implemented_by` edge OR the coverage chain
- *    (`Coverage.covers <- TestChunk.coverage <- Statement.validated_by`) flips
- *    `drifted = true` with reason `code-content-changed (<symbol>)` when the
- *    overlapping chunk's stored `content_hash` no longer matches the new
- *    content; the chunk's stored hash is refreshed and each covering Coverage
- *    node is marked `stale = true`. A chunk seen for the first time (no stored
- *    hash) is baselined, not drifted.
+ *    direct `implemented_by` edge flips `drifted = true` with reason
+ *    `code-content-changed (<symbol>)` when the overlapping chunk's stored
+ *    `content_hash` no longer matches the new content; the chunk's stored hash is
+ *    refreshed. A chunk seen for the first time (no stored hash) is baselined, not
+ *    drifted. (Coverage now aggregates to File nodes — `Coverage.covers` no longer
+ *    targets CodeChunks — so there is no coverage-chain drift; only the hash-bearing
+ *    `implemented_by` chunks drive content drift.)
  *  - T241 link rot — a chunk that overlaps no remaining new chunk drifts its
  *    nodes with reason `file-missing` (the file produced no chunks) or
  *    `line-out-of-range` (the lines moved away).
@@ -75,10 +75,6 @@ interface GraphCodeChunk {
   "CodeChunk.end_line"?: number;
   stmts?: GraphStatement[];
   acStmts?: GraphAcceptanceCriterion[];
-  coverageStmts?: Array<{
-    uid: string;
-    "~TestChunk.coverage"?: Array<{ "~Statement.validated_by"?: GraphStatement[] }>;
-  }>;
 }
 
 const FILE_CHUNKS_QUERY = `query q($repo: string, $fp: string) {
@@ -90,7 +86,6 @@ const FILE_CHUNKS_QUERY = `query q($repo: string, $fp: string) {
     CodeChunk.end_line
     stmts: ~Statement.implemented_by { uid Statement.xid Statement.text Statement.embedding }
     acStmts: ~AcceptanceCriterion.implemented_by { uid AcceptanceCriterion.xid AcceptanceCriterion.text AcceptanceCriterion.embedding }
-    coverageStmts: ~Coverage.covers { uid ~TestChunk.coverage { ~Statement.validated_by { uid Statement.xid Statement.text Statement.embedding } } }
   }
 }`;
 
@@ -115,11 +110,6 @@ function collectAffectedNodes(chunk: GraphCodeChunk): AffectedNode[] {
       nodeType: "AcceptanceCriterion",
       embedding: criterion["AcceptanceCriterion.embedding"],
     });
-  }
-  for (const coverage of chunk.coverageStmts ?? []) {
-    for (const testChunk of coverage["~TestChunk.coverage"] ?? []) {
-      for (const statement of testChunk["~Statement.validated_by"] ?? []) addStatement(statement);
-    }
   }
   return [...byUid.values()];
 }
@@ -151,19 +141,6 @@ async function updateChunkHash(
   await withTxn(dgraph, (txn) =>
     txn.mutate({
       setJson: { uid: chunkUid, "CodeChunk.content_hash": contentHash },
-      commitNow: true,
-    }),
-  );
-}
-
-/** Marks one Coverage node stale=true (the code it covers drifted). */
-async function markCoverageStale(
-  dgraph: DgraphClientPort,
-  coverageUid: string,
-): Promise<void> {
-  await withTxn(dgraph, (txn) =>
-    txn.mutate({
-      setJson: { uid: coverageUid, "Coverage.stale": true },
       commitNow: true,
     }),
   );
@@ -256,10 +233,6 @@ export async function driftCheckFile(
     if (isFirstSight) {
       baselined += 1;
       continue;
-    }
-
-    for (const coverage of chunk.coverageStmts ?? []) {
-      await markCoverageStale(dgraph, coverage.uid);
     }
 
     const symbol = chunk["CodeChunk.symbol_name"] ?? replacement.symbolName ?? replacement.filePath;

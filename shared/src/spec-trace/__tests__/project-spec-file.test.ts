@@ -70,6 +70,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
           specs(func: eq(Spec.repo, $repo)) { uid }
           root(func: eq(Repo.xid, $repo)) { uid }
           blocks(func: eq(Block.repo, $repo)) { uid }
+          features(func: eq(Feature.repo, $repo)) { uid }
         }`,
         { $repo: repo },
       );
@@ -77,10 +78,14 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         specs?: { uid: string }[];
         root?: { uid: string }[];
         blocks?: { uid: string }[];
+        features?: { uid: string }[];
       };
-      const uids = [...(data.specs ?? []), ...(data.root ?? []), ...(data.blocks ?? [])].map(
-        (node) => node.uid,
-      );
+      const uids = [
+        ...(data.specs ?? []),
+        ...(data.root ?? []),
+        ...(data.blocks ?? []),
+        ...(data.features ?? []),
+      ].map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -123,6 +128,51 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "Spec.file_path": filePath,
       "Spec.content_hash": expectedHash,
     });
+  });
+
+  it("groups a feature folder's md files under one Feature node via Spec.feature", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const content = "# F\n\nA point.\n";
+
+    await projectSpecFile(repo, "specs/5-lore-agent/spec.md", content, dgraphClient);
+    await projectSpecFile(repo, "specs/5-lore-agent/plan.md", `${content}extra`, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($fx: string) {
+        feature(func: eq(Feature.xid, $fx)) {
+          Feature.path
+          Feature.title
+          specs: ~Spec.feature { Spec.file_path }
+        }
+      }`,
+      { $fx: `${repo}|specs/5-lore-agent` },
+    )) as { feature?: Array<{ "Feature.path"?: string; "Feature.title"?: string; specs?: Array<{ "Spec.file_path"?: string }> }> };
+    const feature = data.feature?.[0];
+    expect(feature).toMatchObject({ "Feature.path": "specs/5-lore-agent", "Feature.title": "5-lore-agent" });
+    expect((feature?.specs ?? []).map((s) => s["Spec.file_path"]).sort()).toEqual([
+      "specs/5-lore-agent/plan.md",
+      "specs/5-lore-agent/spec.md",
+    ]);
+  });
+
+  it("sets Statement.repo and AcceptanceCriterion.repo so nodes are repo-queryable", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const content =
+      "# S\n\n## Overview\n\nThe widget MUST work.\n\n## Acceptance Criteria\n\n1. A criterion holds.\n";
+
+    await projectSpecFile(repo, "specs/x/spec.md", content, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($repo: string){
+        stmts(func: eq(Statement.repo, $repo)) { Statement.repo }
+        acs(func: eq(AcceptanceCriterion.repo, $repo)) { AcceptanceCriterion.repo }
+      }`,
+      { $repo: repo },
+    )) as { stmts?: unknown[]; acs?: unknown[] };
+    expect(data.stmts?.length).toBeGreaterThanOrEqual(1);
+    expect(data.acs?.length).toBeGreaterThanOrEqual(1);
   });
 
   it("stores the spec's H1 heading as Spec.title for sentence-link spec resolution", async () => {
