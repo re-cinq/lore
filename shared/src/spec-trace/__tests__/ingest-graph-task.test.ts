@@ -42,6 +42,14 @@ describe("selectIngestFiles", () => {
   it("returns nothing for an unknown kind", () => {
     expect(selectIngestFiles(TREE, "docs")).toEqual([]);
   });
+
+  it("uses manifest globs (replacing the prefix defaults) when patterns are given", () => {
+    const tree = ["specs/auth/spec.md", "design/decisions/x.md", "design/draft.md", "docs/notes.md"];
+    expect(selectIngestFiles(tree, "specs", undefined, undefined, ["design/**/*.md"])).toEqual([
+      "design/decisions/x.md",
+      "design/draft.md",
+    ]);
+  });
 });
 
 describe("summarizeIngest", () => {
