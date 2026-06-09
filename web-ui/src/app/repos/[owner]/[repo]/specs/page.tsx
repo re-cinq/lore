@@ -1,14 +1,14 @@
 export const dynamic = "force-dynamic";
-import { fetchTraceSpecs } from '@/lib/trace-api';
+import { fetchSpecSummaries } from '@/lib/trace-api';
 import SpecListView from './SpecListView';
 
 export default async function RepoSpecs({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  // The spec-traceability graph is the source of truth — list the spec
-  // documents it holds (projected by the ingest-specs task), not Postgres chunks.
-  const specs = (await fetchTraceSpecs(fullName)).sort((a, b) => a.localeCompare(b));
+  // The spec-traceability graph is the source of truth — list each spec as a
+  // card summary (title/description/coverage), not Postgres chunks.
+  const specs = (await fetchSpecSummaries(fullName)).sort((a, b) => a.filePath.localeCompare(b.filePath));
 
   return (
     <div>

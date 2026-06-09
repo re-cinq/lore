@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 import Link from 'next/link';
-import { fetchTraceDocument } from '@/lib/trace-api';
-import TraceDocumentView from './TraceDocumentView';
+import { fetchTraceDocument, fetchTraceSource } from '@/lib/trace-api';
+import { toStatementInfo } from '@/lib/trace-statement-info';
+import SpecDocument from './SpecDocument';
 
 export default async function RepoSpecDetail({
   params,
@@ -13,17 +14,22 @@ export default async function RepoSpecDetail({
   const filePath = path.map(decodeURIComponent).join('/');
   const specsLink = `/repos/${owner}/${repo}/specs`;
 
-  // The spec-traceability graph is the source of truth — reconstruct the
-  // document (ordered sections + statements + links + coverage) from it.
-  const doc = await fetchTraceDocument(fullName, filePath);
+  // Graph is the source of truth: the byte-exact markdown SOURCE renders as a
+  // normal document (framed per section), and the statement overlay (tested
+  // underline + hover node details) comes from the structured document.
+  const [source, doc] = await Promise.all([
+    fetchTraceSource(fullName, filePath),
+    fetchTraceDocument(fullName, filePath),
+  ]);
+  const statements = doc ? toStatementInfo(doc.statements) : [];
 
   return (
     <div>
       <p className="meta" style={{ marginBottom: 12 }}>
         <Link href={specsLink}>← Specifications</Link>
       </p>
-      {doc && doc.statements.length > 0 ? (
-        <TraceDocumentView repo={fullName} doc={doc} />
+      {source ? (
+        <SpecDocument repo={fullName} content={source} statements={statements} />
       ) : (
         <p style={{ color: 'var(--text-muted)' }}>
           No graph data for <code>{filePath}</code>. Build the graph from the <strong>Graph</strong> tab and run the{' '}

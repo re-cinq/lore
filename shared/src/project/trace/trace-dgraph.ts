@@ -3,7 +3,11 @@ import {
   fetchTraceDocument,
   listSpecDocuments,
   listAdrDocuments,
+  listSpecSummaries,
+  listAdrSummaries,
   type TraceDocument,
+  type SpecSummary,
+  type AdrSummary,
 } from "../../spec-trace/assemble-trace-document.js";
 import { recomputeFile } from "../../spec-trace/recompute-spec-file.js";
 import { fetchSpecGraph, fetchSpecRing, type SpecGraph, type SpecRing } from "../../spec-trace/spec-graph.js";
@@ -17,8 +21,16 @@ export class DgraphTrace implements TracePort {
     return listSpecDocuments(repo, this.dgraph);
   }
 
+  specSummaries(repo: string): Promise<SpecSummary[]> {
+    return listSpecSummaries(repo, this.dgraph);
+  }
+
   listAdrs(repo: string): Promise<string[]> {
     return listAdrDocuments(repo, this.dgraph);
+  }
+
+  adrSummaries(repo: string): Promise<AdrSummary[]> {
+    return listAdrSummaries(repo, this.dgraph);
   }
 
   document(repo: string, filePath: string): Promise<TraceDocument> {

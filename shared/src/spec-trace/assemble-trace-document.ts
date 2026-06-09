@@ -48,6 +48,8 @@ export interface TraceCoverage {
 
 export interface TraceDocument {
   filePath: string;
+  title: string;
+  description: string;
   sections: TraceSection[];
   statements: TraceStatement[];
   coverage: TraceCoverage;
@@ -56,6 +58,7 @@ export interface TraceDocument {
 interface SpecRow {
   uid: string;
   "Spec.file_path"?: string;
+  "Spec.title"?: string;
   sections?: Array<{ uid: string; "Section.heading"?: string; "Section.ordinal"?: number; "Section.level"?: number }>;
   stmts?: Array<{
     uid: string;
@@ -78,11 +81,14 @@ export interface TraceDocumentResult {
 
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
+import { recomputeFile } from "./recompute-spec-file.js";
+import { summarizeMarkdown } from "./summarize-markdown.js";
 
 const TRACE_DOC_DQL = `query traceDoc($xid: string) {
   q(func: eq(Spec.xid, $xid)) {
     uid
     Spec.file_path
+    Spec.title
     sections: Spec.sections { uid Section.heading Section.ordinal Section.level }
     stmts: ~Statement.spec {
       uid
@@ -121,6 +127,25 @@ export function listAdrDocuments(repo: string, dgraph: DgraphClientPort): Promis
   return listDocPaths(LIST_ADRS_DQL, "ADR.file_path", repo, dgraph);
 }
 
+/** Card summary of one ADR for list pages: title + description (from its markdown source; no coverage). */
+export interface AdrSummary {
+  filePath: string;
+  title: string;
+  description: string;
+}
+
+/** Lists each ADR as a card summary (title/description), parsed from its byte-exact reassembled source. */
+export async function listAdrSummaries(repo: string, dgraph: DgraphClientPort): Promise<AdrSummary[]> {
+  const paths = await listAdrDocuments(repo, dgraph);
+  return Promise.all(
+    paths.map(async (filePath) => {
+      const source = await recomputeFile(repo, filePath, dgraph);
+      const { title, description } = summarizeMarkdown(source ?? "");
+      return { filePath, title: title || basename(filePath), description };
+    }),
+  );
+}
+
 const LIST_ALL_SPECS_DQL = `query allSpecs {
   q(func: type(Spec), orderasc: Spec.repo) { Spec.repo Spec.file_path }
 }`;
@@ -143,6 +168,29 @@ export async function fetchTraceDocument(repo: string, filePath: string, dgraph:
     return (res.data ?? {}) as TraceDocumentResult;
   });
   return assembleTraceDocument(data);
+}
+
+/** Card summary of one spec for list pages: title + description + coverage, keyed by path. */
+export interface SpecSummary {
+  filePath: string;
+  title: string;
+  description: string;
+  coverage: TraceCoverage;
+}
+
+/**
+ * Lists each spec in the repo as a card summary (title/description/coverage).
+ * Reuses the per-document assembler — currently one query per spec (N+1); a
+ * single per-spec aggregation DQL is a future optimization.
+ */
+export async function listSpecSummaries(repo: string, dgraph: DgraphClientPort): Promise<SpecSummary[]> {
+  const paths = await listSpecDocuments(repo, dgraph);
+  return Promise.all(
+    paths.map(async (filePath) => {
+      const doc = await fetchTraceDocument(repo, filePath, dgraph);
+      return { filePath, title: doc.title, description: doc.description, coverage: doc.coverage };
+    }),
+  );
 }
 
 function basename(path: string): string {
@@ -172,9 +220,19 @@ function stateOf(testability: string | undefined, hasValidatingLink: boolean): S
   return hasValidatingLink ? "tested" : "untested";
 }
 
+/** The list-page card summary: first section heading as title, first statement as description. */
+function cardSummary(filePath: string, sections: TraceSection[], statements: TraceStatement[]): { title: string; description: string } {
+  return { title: sections[0]?.heading ?? basename(filePath), description: statements[0]?.text ?? "" };
+}
+
+/** Document title: the spec's H1 (Spec.title) when present, else the card's section/basename fallback. */
+function docTitle(specTitle: string | undefined, cardTitle: string): string {
+  return specTitle?.trim() || cardTitle;
+}
+
 export function assembleTraceDocument(data: TraceDocumentResult): TraceDocument {
   const spec = data.q?.[0];
-  if (!spec) return { filePath: "", sections: [], statements: [], coverage: { testable: 0, covered: 0, untestable: 0, ratio: 0 } };
+  if (!spec) return { filePath: "", ...cardSummary("", [], []), sections: [], statements: [], coverage: { testable: 0, covered: 0, untestable: 0, ratio: 0 } };
 
   const sections: TraceSection[] = (spec.sections ?? [])
     .map((s) => ({ uid: s.uid, heading: s["Section.heading"] ?? "(section)", ordinal: s["Section.ordinal"] ?? 0, level: s["Section.level"] }))
@@ -202,8 +260,12 @@ export function assembleTraceDocument(data: TraceDocumentResult): TraceDocument 
   const covered = statements.filter((s) => s.state === "tested").length;
   const testable = statements.length - untestable;
 
+  const card = cardSummary(spec["Spec.file_path"] ?? "", sections, statements);
+
   return {
     filePath: spec["Spec.file_path"] ?? "",
+    title: docTitle(spec["Spec.title"], card.title),
+    description: card.description,
     sections,
     statements,
     coverage: { testable, covered, untestable, ratio: testable === 0 ? 0 : covered / testable },

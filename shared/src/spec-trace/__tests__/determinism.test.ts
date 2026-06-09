@@ -36,7 +36,10 @@ interface NodeRecord {
   fields: Record<string, unknown>;
 }
 
-describe.skipIf(!reachable)("determinism: delete + re-run units reproduces the graph exactly (T281)", () => {
+// Spec-sentence acceptance link (testing-standards opt-in): the 3-level nesting
+// `describe(spec title) > describe(verbatim AC sentence) > it(label)` lets the
+// runner derive VALIDATED_BY structurally from the describe chain.
+describe.skipIf(!reachable)("Spec Traceability Graph", () => {
   const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
 
   beforeAll(() => {
@@ -149,20 +152,22 @@ describe.skipIf(!reachable)("determinism: delete + re-run units reproduces the g
     createdRepo = "";
   });
 
-  it("reproduces the identical subgraph after deleting it and re-running the units", async () => {
-    const repo = `determinism/${randomUUID()}`;
-    createdRepo = repo;
+  describe("The graph is a derived projection only — no DB linker tables are reintroduced; deleting the entire graph and re-running the units from markdown + chunks + coverage reproduces it exactly.", () => {
+    it("reproduces the identical subgraph after deleting it and re-running the units", async () => {
+      const repo = `determinism/${randomUUID()}`;
+      createdRepo = repo;
 
-    await runUnits(repo);
-    const before = await snapshot(repo);
-    expect(before.length).toBeGreaterThan(0);
+      await runUnits(repo);
+      const before = await snapshot(repo);
+      expect(before.length).toBeGreaterThan(0);
 
-    await deleteRepoNodes(repo);
-    expect(await snapshot(repo)).toEqual([]);
+      await deleteRepoNodes(repo);
+      expect(await snapshot(repo)).toEqual([]);
 
-    await runUnits(repo);
-    const after = await snapshot(repo);
+      await runUnits(repo);
+      const after = await snapshot(repo);
 
-    expect(after).toEqual(before);
+      expect(after).toEqual(before);
+    });
   });
 });

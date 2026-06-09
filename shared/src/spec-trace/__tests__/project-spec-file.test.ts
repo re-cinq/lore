@@ -125,6 +125,21 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     });
   });
 
+  it("stores the spec's H1 heading as Spec.title for sentence-link spec resolution", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const content = "# Feature Specification: Lore Agent Service\n\n## Overview\n\nA point.\n";
+
+    await projectSpecFile(repo, filePath, content, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($xid: string) { node(func: eq(Spec.xid, $xid)) { Spec.title } }`,
+      { $xid: `${repo}|${filePath}` },
+    )) as { node?: Record<string, unknown>[] };
+    expect(data.node?.[0]).toMatchObject({ "Spec.title": "Feature Specification: Lore Agent Service" });
+  });
+
   it("projects two Statement nodes linked to the Spec with verbatim text and sha256 text_hash", async () => {
     const repo = `test-proj/${randomUUID()}`;
     createdRepo = repo;

@@ -4,10 +4,21 @@ import { render, screen } from '@testing-library/react';
 import AdrListView from './AdrListView';
 
 describe('AdrListView', () => {
-  it('lists ADR paths as links to the per-repo ADR detail (encoded path)', () => {
-    render(<AdrListView owner="re-cinq" repo="lore" adrs={['adrs/ADR-016-dark-factory.md']} />);
-    const link = screen.getByText('adrs/ADR-016-dark-factory.md').closest('a');
-    expect(link?.getAttribute('href')).toBe(`/repos/re-cinq/lore/adrs/${encodeURIComponent('adrs/ADR-016-dark-factory.md')}`);
+  it('renders a card per ADR summary with a Details link to the encoded detail path', () => {
+    const adrs = [
+      { filePath: 'adrs/ADR-016-dark-factory.md', title: 'Dark Factory', description: 'Autonomous PRs' },
+      { filePath: 'adrs/ADR-015-review-reactor.md', title: 'Review Reactor', description: 'Event-driven review' },
+    ];
+    render(<AdrListView owner="re-cinq" repo="lore" adrs={adrs} />);
+
+    expect(screen.getByText('Dark Factory')).toBeTruthy();
+    expect(screen.getByText('Review Reactor')).toBeTruthy();
+
+    const detailsHrefs = screen.queryAllByText('Details').map((node) => node.closest('a')?.getAttribute('href'));
+    expect(detailsHrefs).toEqual([
+      `/repos/re-cinq/lore/adrs/${encodeURIComponent('adrs/ADR-016-dark-factory.md')}`,
+      `/repos/re-cinq/lore/adrs/${encodeURIComponent('adrs/ADR-015-review-reactor.md')}`,
+    ]);
   });
 
   it('shows an empty-state hint when the graph holds no ADRs', () => {

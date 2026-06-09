@@ -58,6 +58,7 @@ import { withTxn, upsertByXid, replaceEdge, type SpecTraceNodeType } from "./dgr
 import { parseAdrRefs } from "./adr-refs.js";
 import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
 import { repoRelativeLinkTarget } from "./link-target-path.js";
+import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 
 /**
  * The fixed addressing context for one spec-file projection: the injected
@@ -77,6 +78,12 @@ interface ProjectionContext {
 /** Hex sha256 — the content-hash idiom shared by Spec, Statement, and AcceptanceCriterion nodes. */
 function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
+}
+
+/** The spec's first H1 heading text (the title a sentence-link's `<spec>` segment matches), or null. */
+function extractTitle(content: string): string | null {
+  const match = content.match(/^#\s+(.+?)\s*$/m);
+  return match ? match[1] : null;
 }
 
 /** Statements under this heading become AcceptanceCriterion nodes, not Statements. */
@@ -136,13 +143,13 @@ type LinkParser = (statement: string) => SpecLinkRef[];
 /** Per-node extra predicates beyond the shared repo/file_path/start_line set. */
 type ExtraChunkFields = (link: SpecLinkRef) => Record<string, unknown>;
 
-/** The xid component after `${repo}|` for a linked chunk. */
-type ChunkKey = (link: SpecLinkRef) => string;
+/** Builds a linked chunk's full xid from the repo + resolved link. */
+type ChunkXid = (repo: string, link: SpecLinkRef) => string;
 
-/** File-granular key (`path`) — matches the runner's `${repo}|${descriptor.id}` TestChunk so a spec link reconciles onto it. */
-const fileScopedKey: ChunkKey = (link) => link.path;
-/** Line/label-granular key (`path|line`) — one node per distinct inline link site. */
-const lineScopedKey: ChunkKey = (link) => `${link.path}|${link.line ?? link.label}`;
+/** File-scoped TestChunk xid (`${repo}|${file}`) — the shared identity coverage also keys on, so a spec link reconciles onto the coverage-bearing node. */
+const fileScopedXid: ChunkXid = (repo, link) => fileScopedTestChunkXid(repo, link.path);
+/** Line/label-scoped CodeChunk xid (`${repo}|${path}|${line}`) — one node per distinct inline link site. */
+const lineScopedXid: ChunkXid = (repo, link) => `${repo}|${link.path}|${link.line ?? link.label}`;
 
 /**
  * Parses the inline links in `text`, upserts one chunk node of `nodeType` per
@@ -159,7 +166,7 @@ async function projectLinkedChunks(
   text: string,
   parse: LinkParser,
   nodeType: SpecTraceNodeType,
-  chunkKey: ChunkKey,
+  buildXid: ChunkXid,
   extraFields: ExtraChunkFields = () => ({}),
 ): Promise<Array<{ uid: string }>> {
   const { dgraph, repo, filePath } = context;
@@ -170,7 +177,7 @@ async function projectLinkedChunks(
     const path = repoRelativeLinkTarget(filePath, parsed.path);
     if (path === null) continue;
     const link = { ...parsed, path };
-    const chunkXid = `${repo}|${chunkKey(link)}`;
+    const chunkXid = buildXid(repo, link);
     const chunkFields: Record<string, unknown> = {
       [`${nodeType}.repo`]: repo,
       [`${nodeType}.file_path`]: link.path,
@@ -200,7 +207,7 @@ async function projectStatement(
     segment.text,
     parseTestLinksInStatement,
     "TestChunk",
-    fileScopedKey,
+    fileScopedXid,
     (link) => ({ "TestChunk.test_name": link.label, "TestChunk.link_label": link.label }),
   );
   const implementedBy = await projectLinkedChunks(
@@ -208,7 +215,7 @@ async function projectStatement(
     segment.text,
     parseCodeLinksInStatement,
     "CodeChunk",
-    lineScopedKey,
+    lineScopedXid,
   );
   const embedding = await context.embed(segment.text);
 
@@ -443,10 +450,12 @@ export async function projectSpecFile(
     return { projected: false };
   }
 
+  const title = extractTitle(content);
   const specUid = await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
     "Spec.repo": repo,
     "Spec.file_path": filePath,
     "Spec.content_hash": contentHash,
+    ...(title !== null ? { "Spec.title": title } : {}),
   });
   await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
 

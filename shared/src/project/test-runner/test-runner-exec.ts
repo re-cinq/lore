@@ -8,6 +8,8 @@ import {
   parseRunResult,
   substituteSelector,
   resolveTestCommandManifest,
+  groupRunsByFile,
+  mapWithLimit,
   type TestDescriptor,
   type RunResult,
   type TestCommandManifest,
@@ -16,6 +18,8 @@ import type { TestRunnerPort, TestRunReport } from "./test-runner-port.js";
 
 const execShell = promisify(exec);
 const DEFAULT_TIMEOUT_MS = 120_000;
+/** Max test files run concurrently by `report` — bounds per-file processes so the suite can't fork-bomb. */
+const REPORT_CONCURRENCY = 4;
 
 /** Run the manifest `list` command and parse its descriptors. Single source for
  *  both this adapter and mcp's spec-trace-tools (which re-exports it). */
@@ -63,9 +67,19 @@ export class ExecTestRunner implements TestRunnerPort {
     return runTestsRun(manifest.run, selector, resolveCwd(manifest, cwd));
   }
 
-  async report(cwd: string): Promise<TestRunReport> {
+  async report(cwd: string, concurrency = REPORT_CONCURRENCY): Promise<TestRunReport> {
     const tests = await this.listTests(cwd);
-    const results = await Promise.all(tests.map((t) => this.runTest(cwd, t.id)));
+    // Coverage/run is file-level: run each file ONCE (selector = file) under a
+    // concurrency cap, then fan its result to every descriptor sharing the file.
+    const byFile = groupRunsByFile(tests);
+    const files = [...byFile.keys()];
+    const fileResults = await mapWithLimit(files, concurrency, (file) => this.runTest(cwd, file));
+    const resultByFile = new Map(files.map((file, index) => [file, fileResults[index]]));
+    const results: RunResult[] = [];
+    for (const [file, ids] of byFile) {
+      const run = resultByFile.get(file)!;
+      for (let i = 0; i < ids.length; i += 1) results.push(run);
+    }
     const passed = results.filter((r) => r.passed).length;
     return { passed, failed: results.length - passed, results };
   }

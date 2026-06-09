@@ -26,7 +26,7 @@ export async function handleGlobalTraceSpecs(_req: IncomingMessage, res: ServerR
  *   - graph                 → SpecGraph ({nodes, links}) force-graph
  *   - ring?path=<file>      → SpecRing (sections + per-statement coverage)
  */
-const TRACE_RE = /^\/api\/repos\/([^/]+)\/([^/]+)\/trace\/(specs|adrs|document|source|graph|ring)(?:\?(.*))?$/;
+const TRACE_RE = /^\/api\/repos\/([^/]+)\/([^/]+)\/trace\/(specs|spec-summaries|adrs|adr-summaries|document|source|graph|ring)(?:\?(.*))?$/;
 
 export async function handleTraceRoute(req: IncomingMessage, res: ServerResponse, _pool: Pool | null): Promise<void> {
   const match = (req.url || "").match(TRACE_RE);
@@ -40,7 +40,9 @@ export async function handleTraceRoute(req: IncomingMessage, res: ServerResponse
   try {
     const trace = (await projectFor(`${owner}/${repo}`)).trace;
     if (kind === "specs") return json(res, 200, { specs: await trace.specs() });
+    if (kind === "spec-summaries") return json(res, 200, { summaries: await trace.specSummaries() });
     if (kind === "adrs") return json(res, 200, { adrs: await trace.adrs() });
+    if (kind === "adr-summaries") return json(res, 200, { summaries: await trace.adrSummaries() });
     if (kind === "graph") return json(res, 200, await trace.graph());
     if (!filePath) return json(res, 400, { error: "path query param required" });
     if (kind === "document") return json(res, 200, await trace.document(filePath));

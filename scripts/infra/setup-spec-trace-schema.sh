@@ -53,6 +53,7 @@ Repo.coverage: [uid] @reverse @count .
 Spec.repo: string @index(hash) .
 Spec.file_path: string @index(hash) .
 Spec.content_hash: string .
+Spec.title: string .
 Spec.sections: [uid] @reverse @count .
 Spec.acceptance_criteria: [uid] @reverse @count .
 Section.spec: uid @reverse .
@@ -164,6 +165,7 @@ type Spec {
   Spec.repo
   Spec.file_path
   Spec.content_hash
+  Spec.title
   Spec.sections
   Spec.acceptance_criteria
 }

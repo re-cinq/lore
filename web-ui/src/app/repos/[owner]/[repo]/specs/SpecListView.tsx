@@ -1,9 +1,20 @@
-// Presentational (data-down) list of a repo's spec documents, sourced from the
-// spec-traceability graph via the /trace API. Each path links to the structured
-// detail view. No Postgres chunk reads — the graph is the source of truth.
-import Link from 'next/link';
+// Presentational (data-down) list of a repo's specs, sourced from the
+// spec-traceability graph via the /trace API. The per-file summaries are grouped
+// into one card per spec folder (groupSpecSummaries): the card is titled from
+// spec.md and links to every file in the folder. No Postgres chunk reads — the
+// graph is the source of truth.
+import SpecCard from './SpecCard';
+import { groupSpecSummaries, type SpecSummaryInput } from '@/lib/spec-grouping';
 
-export default function SpecListView({ owner, repo, specs }: { owner: string; repo: string; specs: string[] }) {
+export default function SpecListView({
+  owner,
+  repo,
+  specs,
+}: {
+  owner: string;
+  repo: string;
+  specs: SpecSummaryInput[];
+}) {
   if (specs.length === 0) {
     return (
       <p style={{ color: 'var(--text-muted)' }}>
@@ -12,13 +23,21 @@ export default function SpecListView({ owner, repo, specs }: { owner: string; re
       </p>
     );
   }
+  const groups = groupSpecSummaries(specs);
   return (
-    <ul style={{ listStyle: 'none', padding: 0 }}>
-      {specs.map((path) => (
-        <li key={path} style={{ marginBottom: 6 }}>
-          <Link href={`/repos/${owner}/${repo}/specs/${encodeURIComponent(path)}`}>{path}</Link>
-        </li>
+    <div>
+      {groups.map((group) => (
+        <SpecCard
+          key={group.key}
+          title={group.title}
+          description={group.description}
+          coverage={group.coverage}
+          files={group.files.map((file) => ({
+            label: file.filePath.startsWith(`${group.key}/`) ? file.filePath.slice(group.key.length + 1) : file.filePath,
+            href: `/repos/${owner}/${repo}/specs/${encodeURIComponent(file.filePath)}`,
+          }))}
+        />
       ))}
-    </ul>
+    </div>
   );
 }

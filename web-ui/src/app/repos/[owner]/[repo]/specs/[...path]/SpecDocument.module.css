@@ -1,0 +1,13 @@
+/* Per-section frame for the spec detail view — co-located with
+   SpecDocument.tsx. Mirrors the assembled-context `.card` treatment
+   (AssembledContextView.module.css) so spec sections read as the same
+   framed cards. Rules are copied (not cross-imported) per the web-ui
+   colocated-CSS-module convention. */
+
+.section {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}

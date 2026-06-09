@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import Link from 'next/link';
 import { fetchTraceSource } from '@/lib/trace-api';
-import Markdown from '@/components/Markdown';
+import SpecDocument from '../../specs/[...path]/SpecDocument';
 
 export default async function RepoAdrDetail({
   params,
@@ -23,7 +23,7 @@ export default async function RepoAdrDetail({
         <Link href={adrsLink}>← ADRs</Link>
       </p>
       {source ? (
-        <Markdown markdown={source} />
+        <SpecDocument repo={fullName} content={source} statements={[]} />
       ) : (
         <p style={{ color: 'var(--text-muted)' }}>
           No graph data for <code>{filePath}</code>. Build the graph and run the <code>ingest-adrs</code> task, then refresh.

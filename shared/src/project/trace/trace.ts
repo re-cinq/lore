@@ -1,5 +1,5 @@
 import type { TracePort } from "./trace-port.js";
-import type { TraceDocument } from "../../spec-trace/assemble-trace-document.js";
+import type { TraceDocument, SpecSummary, AdrSummary } from "../../spec-trace/assemble-trace-document.js";
 import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
 
 /**
@@ -18,9 +18,19 @@ export class TraceView {
     return this.port.listSpecs(this.fullName);
   }
 
+  /** Card summaries (title/description/coverage) for this repo's specs. */
+  specSummaries(): Promise<SpecSummary[]> {
+    return this.port.specSummaries(this.fullName);
+  }
+
   /** The ADR document paths the graph holds for this repo. */
   adrs(): Promise<string[]> {
     return this.port.listAdrs(this.fullName);
+  }
+
+  /** Card summaries (title/description) for this repo's ADRs. */
+  adrSummaries(): Promise<AdrSummary[]> {
+    return this.port.adrSummaries(this.fullName);
   }
 
   /** One spec's ordered Section/Statement structure + links + coverage. */
