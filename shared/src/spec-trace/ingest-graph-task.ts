@@ -8,10 +8,29 @@
  * no-change re-run is a pure no-op (tallied as `skipped`).
  */
 
+import { parse as parseYaml } from "yaml";
 import type { DgraphClientPort } from "./deps.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
 import { ingestSpecTrace } from "./ingest-spec-trace.js";
+import { parseIngestPatterns, matchesAnyGlob } from "./ingest-patterns.js";
+
+/** Per-repo override of which files become specs/adrs; sibling of `.lore/test-commands.yml`. */
+const INGEST_MANIFEST_PATH = ".lore/ingest.yml";
+
+/**
+ * Reads `.lore/ingest.yml` off the content source and returns the kind's glob
+ * patterns, or undefined when the file is absent/unreadable or the kind isn't
+ * declared (→ caller falls back to the built-in prefix defaults).
+ */
+async function loadKindPatterns(ports: IngestGraphPorts, kind: IngestKind, ref?: string): Promise<string[] | undefined> {
+  try {
+    const raw = await ports.readFile(INGEST_MANIFEST_PATH, ref);
+    return parseIngestPatterns(parseYaml(raw))[kind];
+  } catch {
+    return undefined;
+  }
+}
 
 /** Kind of artifact to ingest. Extensible — driven by {@link INGEST_KINDS}. */
 export type IngestKind = string;
@@ -60,13 +79,23 @@ export const INGEST_KINDS: Record<string, IngestKindDef> = {
   adrs: { prefixes: ["adrs/"], project: projectAdrFile, runsOn: "runner+local" },
 };
 
-/** Files of `kind` in the tree: markdown under one of the kind's prefixes (optionally narrowed by `glob`). */
+/**
+ * Files of `kind` in the tree (optionally narrowed by the `glob` substring).
+ * When `patterns` is given (from `.lore/ingest.yml`), it REPLACES the kind's
+ * built-in prefix defaults — paths are matched by those globs (which also carry
+ * their own extension, so the `.md` default no longer applies). Otherwise the
+ * default is markdown under one of the kind's prefixes.
+ */
 export function selectIngestFiles(
   tree: string[],
   kind: IngestKind,
   glob?: string,
   registry: Record<string, IngestKindDef> = INGEST_KINDS,
+  patterns?: string[],
 ): string[] {
+  if (patterns && patterns.length > 0) {
+    return tree.filter((path) => matchesAnyGlob(path, patterns) && (!glob || path.includes(glob)));
+  }
   const def = registry[kind];
   if (!def) return [];
   return tree.filter(
@@ -121,7 +150,8 @@ export async function runIngestGraph(
   const def = registry[params.kind];
   if (!def) return skippedSummary(params.kind, `unknown ingest kind "${params.kind}"`);
 
-  const files = selectIngestFiles(await ports.listTree(params.ref), params.kind, params.glob, registry);
+  const patterns = await loadKindPatterns(ports, params.kind, params.ref);
+  const files = selectIngestFiles(await ports.listTree(params.ref), params.kind, params.glob, registry, patterns);
   // SEQUENTIAL on purpose: every file's projection upserts the shared Repo node,
   // so running them through one unbounded Promise.all causes Dgraph transaction
   // conflicts at scale (a 100+-spec repo failed most files on the first pass).
