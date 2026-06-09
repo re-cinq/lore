@@ -36,6 +36,15 @@ export default defineConfig({
         'src/app/**/page.tsx',
         'src/app/**/layout.tsx',
         'src/app/SessionWrapper.tsx',
+        // D3/SVG visualization shells: imperative canvas rendering + fetch IO, not
+        // unit-testable in jsdom. Their pure geometry/state/grouping logic lives in
+        // the covered src/lib/* modules (ring-exclusion, segment-clip, anchor-spacing,
+        // graph-persistence, spec-grouping).
+        'src/app/repos/[owner]/[repo]/graph/SpecGraphD3.tsx',
+        'src/app/repos/[owner]/[repo]/graph/TestPreview.tsx',
+        'src/app/repos/[owner]/[repo]/graph/IngestButtons.tsx',
+        // Type shapes + constants mirroring the /trace API JSON (no logic).
+        'src/lib/spec-graph.ts',
         // Test / type-only files.
         'src/**/*.test.{ts,tsx}',
         'src/**/*.d.ts',
