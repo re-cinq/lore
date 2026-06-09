@@ -5,8 +5,7 @@ import styles from './TestCommandsSetup.module.css';
 /**
  * Presentational view for the test-command setup prompt. Pure render — the
  * prompt text is a static constant fed verbatim into a wrapping `<pre>`, no
- * data access or state. Mirrors the colocated-CSS-module convention of its
- * sibling spec components (`SpecCard`, `RepoSpecsView`).
+ * data access or state. Follows the colocated-CSS-module convention.
  */
 export default function TestCommandsSetup() {
   return (

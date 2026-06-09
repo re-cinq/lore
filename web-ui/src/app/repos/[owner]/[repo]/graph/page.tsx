@@ -1,12 +1,12 @@
 export const dynamic = 'force-dynamic';
 
-import { fetchSpecGraph } from '@/lib/spec-graph';
+import { fetchTraceGraph } from '@/lib/trace-api';
 import SpecGraphD3 from './SpecGraphD3';
 import IngestButtons from './IngestButtons';
 
 export default async function RepoGraphPage({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo } = await params;
-  const graph = await fetchSpecGraph(`${owner}/${repo}`);
+  const graph = await fetchTraceGraph(`${owner}/${repo}`);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: 'calc(100vh - 160px)' }}>

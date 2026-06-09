@@ -57,6 +57,7 @@ function vectorLiteral(vector: number[]): string {
 import { withTxn, upsertByXid, replaceEdge, type SpecTraceNodeType } from "./dgraph-upsert.js";
 import { parseAdrRefs } from "./adr-refs.js";
 import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
+import { repoRelativeLinkTarget } from "./link-target-path.js";
 
 /**
  * The fixed addressing context for one spec-file projection: the injected
@@ -135,25 +136,41 @@ type LinkParser = (statement: string) => SpecLinkRef[];
 /** Per-node extra predicates beyond the shared repo/file_path/start_line set. */
 type ExtraChunkFields = (link: SpecLinkRef) => Record<string, unknown>;
 
+/** The xid component after `${repo}|` for a linked chunk. */
+type ChunkKey = (link: SpecLinkRef) => string;
+
+/** File-granular key (`path`) — matches the runner's `${repo}|${descriptor.id}` TestChunk so a spec link reconciles onto it. */
+const fileScopedKey: ChunkKey = (link) => link.path;
+/** Line/label-granular key (`path|line`) — one node per distinct inline link site. */
+const lineScopedKey: ChunkKey = (link) => `${link.path}|${link.line ?? link.label}`;
+
 /**
  * Parses the inline links in `text`, upserts one chunk node of `nodeType` per
- * link (keyed by `${repo}|${path}|${line ?? label}`), and returns their uids as
- * edge refs. Every chunk carries `<Type>.repo`/`<Type>.file_path` plus
- * `<Type>.start_line` when the link has a `#L` anchor; `extraFields` adds any
- * node-specific predicates (e.g. TestChunk's `test_name`/`link_label`). Shared
- * by the `validated_by` (TestChunk) and `implemented_by` (CodeChunk) facets.
+ * link (keyed `${repo}|${chunkKey(link)}`), and returns their uids as edge refs.
+ * Every chunk carries `<Type>.repo`/`<Type>.file_path` plus `<Type>.start_line`
+ * when the link has a `#L` anchor; `extraFields` adds any node-specific
+ * predicates (e.g. TestChunk's `test_name`/`link_label`). Shared by the
+ * `validated_by` (TestChunk, file-scoped) and `implemented_by` (CodeChunk,
+ * line-scoped) facets — the key granularity differs so TestChunks reconcile with
+ * the file-granular runner ingest.
  */
 async function projectLinkedChunks(
   context: ProjectionContext,
   text: string,
   parse: LinkParser,
   nodeType: SpecTraceNodeType,
+  chunkKey: ChunkKey,
   extraFields: ExtraChunkFields = () => ({}),
 ): Promise<Array<{ uid: string }>> {
-  const { dgraph, repo } = context;
+  const { dgraph, repo, filePath } = context;
   const edgeRefs: Array<{ uid: string }> = [];
-  for (const link of parse(text)) {
-    const chunkXid = `${repo}|${link.path}|${link.line ?? link.label}`;
+  for (const parsed of parse(text)) {
+    // Resolve the authored target to a repo-relative path so xids/coverage joins
+    // line up; skip anchors and repo-escaping paths that aren't real files.
+    const path = repoRelativeLinkTarget(filePath, parsed.path);
+    if (path === null) continue;
+    const link = { ...parsed, path };
+    const chunkXid = `${repo}|${chunkKey(link)}`;
     const chunkFields: Record<string, unknown> = {
       [`${nodeType}.repo`]: repo,
       [`${nodeType}.file_path`]: link.path,
@@ -183,6 +200,7 @@ async function projectStatement(
     segment.text,
     parseTestLinksInStatement,
     "TestChunk",
+    fileScopedKey,
     (link) => ({ "TestChunk.test_name": link.label, "TestChunk.link_label": link.label }),
   );
   const implementedBy = await projectLinkedChunks(
@@ -190,6 +208,7 @@ async function projectStatement(
     segment.text,
     parseCodeLinksInStatement,
     "CodeChunk",
+    lineScopedKey,
   );
   const embedding = await context.embed(segment.text);
 
@@ -275,7 +294,9 @@ async function readStatementLinkTargets(
 
 /** Reverse edges that, if present, mean a chunk is still owned and must not be GC'd. */
 const CHUNK_OWNER_EDGES: Record<"TestChunk" | "CodeChunk", string[]> = {
-  TestChunk: ["~Statement.validated_by"],
+  // TestChunk.coverage (forward) means the runner attached coverage to this
+  // file-scoped node — it outlives any single spec link and must not be GC'd.
+  TestChunk: ["~Statement.validated_by", "TestChunk.coverage"],
   CodeChunk: ["~Statement.implemented_by", "~Coverage.covers"],
 };
 
@@ -302,8 +323,12 @@ async function gcUnlinkedChunks(
         `query q($uid: string) { node(func: uid($uid)) { ${blocks} } }`,
         { $uid: uid },
       );
-      const node = (res.data?.node?.[0] ?? {}) as Record<string, { uid: string }[]>;
-      return ownerEdges.some((_, index) => (node[`owner${index}`]?.length ?? 0) > 0);
+      // A `[uid]` edge comes back as an array; a single-cardinality `uid` edge
+      // (e.g. TestChunk.coverage) comes back as a bare object — either present
+      // shape means the chunk is still owned.
+      const node = (res.data?.node?.[0] ?? {}) as Record<string, unknown>;
+      const isOwned = (value: unknown): boolean => (Array.isArray(value) ? value.length > 0 : value != null);
+      return ownerEdges.some((_, index) => isOwned(node[`owner${index}`]));
     });
     if (!stillOwned) {
       await withTxn(dgraph, (txn) => txn.mutate({ deleteNquads: `<${uid}> * * .`, commitNow: true }));

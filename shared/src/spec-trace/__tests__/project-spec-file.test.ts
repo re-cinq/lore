@@ -196,7 +196,8 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const segments = segmentStatements(content);
     expect(segments).toHaveLength(1);
     const [link] = parseTestLinksInStatement(segments[0].text);
-    const expectedXid = `${repo}|${link.path}|${link.line ?? link.label}`;
+    // TestChunks are file-scoped (reconcile with the runner's `${repo}|${file}` node).
+    const expectedXid = `${repo}|${link.path}`;
 
     await projectSpecFile(repo, filePath, content, dgraphClient);
 
@@ -222,6 +223,30 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "TestChunk.link_label": link.label,
       "TestChunk.start_line": link.line,
     });
+  });
+
+  it("keys a validated_by TestChunk by repo|filePath so two links to one file collapse to the runner's node", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    // Two statements validated by the SAME test file at different lines: the runner
+    // ingests one file-granular TestChunk (xid `${repo}|${file}`), so the spec links
+    // must resolve to that single node, not mint a per-line sibling.
+    const content =
+      "## Overview\n\n- First ([validated by](src/x.test.ts#L42))\n- Second ([validated by](src/x.test.ts#L99))\n";
+
+    await projectSpecFile(repo, filePath, content, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($file: string, $repo: string) {
+        tc(func: eq(TestChunk.file_path, $file)) @filter(eq(TestChunk.repo, $repo)) {
+          TestChunk.xid TestChunk.file_path
+        }
+      }`,
+      { $file: "src/x.test.ts", $repo: repo },
+    )) as { tc?: Record<string, unknown>[] };
+
+    expect(data.tc).toEqual([{ "TestChunk.xid": `${repo}|src/x.test.ts`, "TestChunk.file_path": "src/x.test.ts" }]);
   });
 
   it("links the Statement to a CodeChunk via implemented_by for an inline code link", async () => {
@@ -610,7 +635,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     const data = (await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { uid } }`,
-      { $xid: `${repo}|src/sole.test.ts|1` },
+      { $xid: `${repo}|src/sole.test.ts` },
     )) as { tc?: { uid: string }[] };
 
     expect(data.tc ?? []).toEqual([]);
@@ -628,10 +653,46 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     const data = (await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { TestChunk.xid } }`,
-      { $xid: `${repo}|src/shared.test.ts|1` },
+      { $xid: `${repo}|src/shared.test.ts` },
     )) as { tc?: Record<string, unknown>[] };
 
-    expect(data.tc).toEqual([{ "TestChunk.xid": `${repo}|src/shared.test.ts|1` }]);
+    expect(data.tc).toEqual([{ "TestChunk.xid": `${repo}|src/shared.test.ts` }]);
+  });
+
+  it("keeps a coverage-bearing TestChunk when the only linking statement drops its link", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const withLink = "## Overview\n\n- A point ([validated by](src/covered.test.ts#L1))\n";
+    const withoutLink = "## Overview\n\n- A point\n";
+
+    await projectSpecFile(repo, filePath, withLink, dgraphClient);
+
+    // Simulate the runner's HAS_COVERAGE edge onto the file-scoped TestChunk the
+    // spec link reconciled with, then drop the spec link.
+    const testChunkUid = await readGraph(
+      `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { uid } }`,
+      { $xid: `${repo}|src/covered.test.ts` },
+    ).then((d) => (d as { tc?: { uid: string }[] }).tc?.[0]?.uid);
+    expect(testChunkUid).toBeTruthy();
+    const txn = dgraphClient.newTxn();
+    try {
+      await txn.mutate({
+        setJson: { uid: testChunkUid, "TestChunk.coverage": { "Coverage.xid": `${repo}|src/covered.test.ts|t` } },
+        commitNow: true,
+      });
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+
+    await projectSpecFile(repo, filePath, withoutLink, dgraphClient);
+
+    const data = (await readGraph(
+      `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { TestChunk.xid } }`,
+      { $xid: `${repo}|src/covered.test.ts` },
+    )) as { tc?: Record<string, unknown>[] };
+
+    expect(data.tc).toEqual([{ "TestChunk.xid": `${repo}|src/covered.test.ts` }]);
   });
 
   it("links a statement to a cited ADR via decided_by", async () => {

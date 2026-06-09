@@ -18,8 +18,11 @@ import { buildTestReport as buildTestReportCmd, loadTestCommandManifest } from "
 import { getRepoRoot, detectRepo } from "./local-runner.js";
 
 const SKIP_DIRS = new Set([".git", "node_modules", "dist", ".lore-pgdata", ".lore-dgraphdata"]);
+// Markdown for specs/adrs, .ts/.tsx for the code kind. Per-kind selection
+// (extension + prefix + exclude) is the authoritative filter in selectIngestFiles.
+const PROJECTABLE_EXTENSIONS = [".md", ".ts", ".tsx"];
 
-/** Recursively lists markdown files under `root` as repo-relative POSIX paths. */
+/** Recursively lists projectable files under `root` as repo-relative POSIX paths. */
 export function localTreeFromFs(root: string): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {
@@ -27,7 +30,8 @@ export function localTreeFromFs(root: string): string[] {
       if (SKIP_DIRS.has(entry.name)) continue;
       const full = join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith(".md")) out.push(relative(root, full).split(sep).join("/"));
+      else if (PROJECTABLE_EXTENSIONS.some((ext) => entry.name.endsWith(ext)))
+        out.push(relative(root, full).split(sep).join("/"));
     }
   };
   walk(root);

@@ -1,19 +1,21 @@
-import { createProject, type Project } from "@re-cinq/lore-shared";
+import { createProject, createDgraphClient, type Project } from "@re-cinq/lore-shared";
 import { getPool } from "./db.js";
 
 /**
- * Per-repo Project composition root for mcp-server. mcp is Postgres-only — the
- * memory backend defaults to Postgres so the Dgraph client is never touched; a
- * no-op satisfies the type and throws loudly if anything unexpectedly reaches
- * for Dgraph. createProject is async (adapters are dynamically imported, cached
- * after the first call), so this is cheap to call per request.
+ * Per-repo Project composition root for mcp-server. The memory backend defaults
+ * to Postgres, but `project.trace` reads the spec-traceability graph — so when
+ * `LORE_DGRAPH_HTTP` is configured we hand createProject a real Dgraph client.
+ * When it is unset, the no-op satisfies the type and throws loudly if anything
+ * unexpectedly reaches for Dgraph. createProject is async (adapters dynamically
+ * imported, cached after the first call), so this is cheap to call per request.
  */
 const NO_OP_DGRAPH = {
   newTxn() {
-    throw new Error("mcp-server has no Dgraph client (Postgres-only)");
+    throw new Error("mcp-server has no Dgraph client (LORE_DGRAPH_HTTP unset)");
   },
 };
 
 export function projectFor(repo: string): Promise<Project> {
-  return createProject(repo, getPool(), NO_OP_DGRAPH, process.env);
+  const dgraph = createDgraphClient(process.env) ?? NO_OP_DGRAPH;
+  return createProject(repo, getPool(), dgraph, process.env);
 }

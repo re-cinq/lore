@@ -1,92 +1,36 @@
 export const dynamic = "force-dynamic";
 import Link from 'next/link';
-import { queryAllChunks } from '@/lib/db';
-import { reassembleSpec, parseSpecTitle } from '@/lib/spec-summary';
-import CoverageBar from '@/components/CoverageBar';
-import { deriveCoverageFromMarkdown } from '@/lib/spec-coverage-derive';
-import SpecDetails, { type StatementInfo } from '@/app/repos/[owner]/[repo]/specs/SpecDetails';
-import styles from './page.module.css';
-
-interface SpecChunkRow {
-  content: string;
-  repo: string | null;
-  ingested_at: string;
-}
+import { fetchAllSpecs, fetchTraceDocument, type TraceDocument } from '@/lib/trace-api';
+import TraceDocumentView from '@/app/repos/[owner]/[repo]/specs/[...path]/TraceDocumentView';
 
 export default async function SpecDetailPage({ params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const filePath = path.map(decodeURIComponent).join('/');
 
-  const allChunks = await queryAllChunks<SpecChunkRow>(
-    (schema, offset) => ({
-      sql: `SELECT content, repo, ingested_at
-            FROM ${schema}.chunks
-            WHERE file_path = $${offset} AND content_type = 'spec'
-                  AND file_path LIKE '%.md'`,
-      params: [filePath],
-    }),
-  );
-
-  if (allChunks.length === 0) {
-    return (
-      <div>
-        <div className="breadcrumb">
-          <Link href="/specs">Specifications</Link> / {filePath}
-        </div>
-        <h1>Not Found</h1>
-        <div className="empty-state">
-          <p>No spec found at &quot;{filePath}&quot;.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // A file_path is normally unique to one repo, but the global view spans
-  // every team schema — group by repo so each repo's spec reassembles and
-  // scores independently rather than concatenating across repos.
-  const byRepo = new Map<string, SpecChunkRow[]>();
-  for (const chunk of allChunks) {
-    const key = chunk.repo ?? 'unknown';
-    const group = byRepo.get(key) ?? byRepo.set(key, []).get(key)!;
-    group.push(chunk);
-  }
-
-  const specs = [...byRepo.entries()].map(([repo, chunks]) => {
-    const content = reassembleSpec(chunks);
-    const { statements, counts } = deriveCoverageFromMarkdown(content);
-    return { repo, content, title: parseSpecTitle(content, filePath), statements, counts };
-  });
+  // Which repos hold this spec path in the graph, then assemble each from the graph.
+  const repos = (await fetchAllSpecs()).filter((s) => s.filePath === filePath).map((s) => s.repo);
+  const docs = (await Promise.all(repos.map(async (repo) => ({ repo, doc: await fetchTraceDocument(repo, filePath) }))))
+    .filter((entry): entry is { repo: string; doc: TraceDocument } => entry.doc !== null && entry.doc.statements.length > 0);
 
   return (
     <div>
       <div className="breadcrumb">
-        <Link href="/specs">Specifications</Link> / <strong>{specs[0].title}</strong>
+        <Link href="/specs">Specifications</Link> / {filePath}
       </div>
-      <h1>{specs[0].title}</h1>
-      <p className={`meta ${styles.path}`}>{filePath}</p>
-
-      {specs.map((spec, i) => {
-        const repoLink = spec.repo && spec.repo.includes('/')
-          ? `/repos/${spec.repo}/specs/${encodeURIComponent(filePath)}`
-          : null;
-        return (
-          <div key={spec.repo} className={styles.specGroup}>
-            {(spec.repo || repoLink) && (
-              <div className={styles.repoRow}>
-                {spec.repo && <span className="meta">repo: {spec.repo}</span>}
-                {repoLink && <Link href={repoLink} className="meta">view in repo →</Link>}
-              </div>
-            )}
-            <div className={styles.barWrap}>
-              <CoverageBar coverage={spec.counts} size="md" />
-            </div>
-            <SpecDetails repo={spec.repo} content={spec.content} statements={spec.statements as StatementInfo[]} />
-            {i < specs.length - 1 && (
-              <hr className={styles.divider} />
-            )}
+      {docs.length === 0 ? (
+        <div className="empty-state">
+          <p>No graph data for &quot;{filePath}&quot;. Build the repo&apos;s graph and run the ingest-specs task.</p>
+        </div>
+      ) : (
+        docs.map(({ repo, doc }) => (
+          <div key={repo} style={{ marginBottom: 24 }}>
+            <p className="meta">
+              repo: {repo} · <Link href={`/repos/${repo}/specs/${encodeURIComponent(filePath)}`}>view in repo →</Link>
+            </p>
+            <TraceDocumentView repo={repo} doc={doc} />
           </div>
-        );
-      })}
+        ))
+      )}
     </div>
   );
 }
