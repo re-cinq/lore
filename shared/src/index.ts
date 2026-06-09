@@ -17,7 +17,37 @@ export { getQueryEmbedding, buildVertexUrl } from './embeddings/embedding-servic
 export { resolveAgentId } from './agent-id.js';
 export { projectSpecFile } from './spec-trace/project-spec-file.js';
 export { projectAdrFile } from './spec-trace/project-adr-file.js';
+export { projectCodeFile } from './spec-trace/project-code-file.js';
+export { parseCodeChunks, type CodeChunkDescriptor } from './spec-trace/parse-code-chunks.js';
 export { ingestSpecTrace } from './spec-trace/ingest-spec-trace.js';
+export {
+  assembleTraceDocument,
+  fetchTraceDocument,
+  listSpecDocuments,
+  listAdrDocuments,
+  listAllSpecDocuments,
+  type TraceDocument,
+  type TraceStatement,
+  type TraceSection,
+  type TraceLinkRef,
+  type TraceCoverage,
+  type StatementState as TraceStatementState,
+} from './spec-trace/assemble-trace-document.js';
+export {
+  fetchSpecGraph,
+  fetchSpecRing,
+  flattenSpecGraph,
+  flattenSpecRing,
+  specLabel,
+  adrLabel,
+  UNGROUPED_SECTION,
+  type SpecGraph,
+  type SpecGraphNode,
+  type SpecGraphLink,
+  type SpecRing,
+  type RingSection,
+  type RingStatement,
+} from './spec-trace/spec-graph.js';
 export { planTraceUnits, runTraceUnits, type TraceUnit } from './spec-trace/trace-units.js';
 export {
   runIngestGraph,

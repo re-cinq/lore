@@ -7,6 +7,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import type { SpecGraph, SpecGraphNode, SpecRing, RingSection, RingStatement } from '@/lib/spec-graph';
+import { resolveExclusion, type Disc } from '@/lib/ring-exclusion';
+import { visibleSegments } from '@/lib/segment-clip';
+import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
+
+const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
+const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
 
 type SimNode = SpecGraphNode & d3.SimulationNodeDatum;
 type SimLink = d3.SimulationLinkDatum<SimNode> & { kind: string };
@@ -183,29 +189,45 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('x', d3.forceX(width / 2).strength(0.03))
       .force('y', d3.forceY(height / 2).strength(0.03))
-      .force('collide', d3.forceCollide<SimNode>((d) => RADIUS[d.type] + 16).strength(1));
+      .force('collide', d3.forceCollide<SimNode>((d) => RADIUS[d.type] + 16).strength(1))
+      // Spacing pass: Spec/ADR "anchor" nodes are kept clear of each other AND of
+      // the open rings (resolveSpacing, gap = ANCHOR_SEPARATION); every other node
+      // is just kept off the rings (resolveExclusion). Ring-owned nodes (the spec
+      // itself, its pinned statements) and user-dragged nodes (fx/fy set) are exempt
+      // so a dragged node never snaps back. Uses the unit-tested resolvers.
+      .force('spacing', () => {
+        const discs: Disc[] = [];
+        for (const [specId, exp] of expanded) {
+          const spec = nodeById.get(specId);
+          if (spec) discs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
+        }
+        const anchors: Anchor[] = [];
+        for (const n of nodes) {
+          if (n.type === 'Spec' || n.type === 'ADR') anchors.push({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 });
+        }
+        for (const n of nodes) {
+          if (expanded.has(n.id) || ringPinned.has(n.id) || n.fx != null || n.fy != null) continue;
+          const isAnchor = n.type === 'Spec' || n.type === 'ADR';
+          const safe = isAnchor
+            ? resolveSpacing({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 }, anchors, discs, ANCHOR_SEPARATION)
+            : resolveExclusion({ x: n.x ?? 0, y: n.y ?? 0 }, discs, RING_CLEARANCE);
+          if (safe.x === n.x && safe.y === n.y) continue;
+          n.x = safe.x;
+          n.y = safe.y;
+          n.vx = 0; // kill velocity so the integration step can't pull it back in
+          n.vy = 0;
+        }
+      });
 
     const container = svg.append('g');
     const linkG = container.append('g').attr('fill', 'none').attr('stroke', '#94a3b8');
     const ringG = container.append('g'); // section/statement rings, between links and nodes
     const nodeG = container.append('g');
 
-    // Mask that punches an opaque hole over each open ring's disc, so no edge
-    // segment is ever drawn inside a ring — edges visibly attach to the ring edge
-    // (works regardless of how the endpoints are spread, unlike node placement).
-    const defs = svg.append('defs');
-    const ringMask = defs.append('mask').attr('id', 'spec-ring-mask').attr('maskUnits', 'userSpaceOnUse');
-    ringMask.append('rect').attr('x', -1e5).attr('y', -1e5).attr('width', 2e5).attr('height', 2e5).attr('fill', 'white');
-    linkG.attr('mask', 'url(#spec-ring-mask)');
-
-    function renderMask() {
-      ringMask
-        .selectAll<SVGCircleElement, [string, ExpandData]>('circle')
-        .data([...expanded.entries()], (d) => d[0])
-        .join('circle')
-        .attr('r', (d) => d[1].outerR1)
-        .attr('fill', 'black');
-    }
+    // Open-ring discs (one per expanded spec), rebuilt each tick. Edge paths are
+    // clipped against these via the unit-tested `visibleSegments`, so no edge is
+    // ever drawn inside a ring — it attaches to the ring's edge instead.
+    let ringDiscs: Disc[] = [];
 
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
@@ -328,7 +350,6 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
         d.fy = null;
         applyRingState();
         renderRings();
-        renderMask();
         sim.alpha(0.4).restart();
         return;
       }
@@ -343,7 +364,6 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       expanded.set(d.id, computeRing(d.path, ring));
       applyRingState();
       renderRings();
-      renderMask();
       sim.alpha(0.5).restart();
     }
 
@@ -398,10 +418,10 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
                   d.fx = event.x;
                   d.fy = event.y;
                 })
-                .on('end', (event, d) => {
+                .on('end', (event) => {
                   if (!event.active) sim.alphaTarget(0);
-                  d.fx = null;
-                  d.fy = null;
+                  // Leave fx/fy pinned at the drop point — a dragged node stays put
+                  // and never snaps back to its force-driven location.
                 }),
             );
           g.append('circle')
@@ -450,10 +470,12 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
           for (const nb of adj.get(s.uid) ?? []) {
             if (ringPinned.has(nb) || expanded.has(nb)) continue;
             const leaf = nodeById.get(nb);
-            if (!leaf || (leaf.type !== 'TestChunk' && leaf.type !== 'CodeChunk' && leaf.type !== 'ADR')) continue;
+            // Only test/code chunks get spoked onto the ring. ADRs are anchors —
+            // they go through the spacing force (kept apart + off rings), never spoked.
+            if (!leaf || (leaf.type !== 'TestChunk' && leaf.type !== 'CodeChunk')) continue;
             // Only hard-place leaves owned by a single statement (clean radial
-            // spokes). Shared nodes (e.g. an ADR cited by many statements) float
-            // and rely on the ring mask to stay outside the disc.
+            // spokes). Shared chunks float; their edges are clipped to the ring
+            // edge by visibleSegments.
             if ((adj.get(nb)?.size ?? 0) !== 1) continue;
             const r = exp.outerR1 + 32 + k * 34;
             leaf.x = cx + r * Math.sin(s.mid);
@@ -464,20 +486,22 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
           }
         }
       }
+      ringDiscs = [];
+      for (const [specId, exp] of expanded) {
+        const spec = nodeById.get(specId);
+        if (spec) ringDiscs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
+      }
       linkG.selectAll<SVGPathElement, SimLink>('path').attr('d', (d) => {
         const s = d.source as SimNode;
         const t = d.target as SimNode;
-        return `M${s.x ?? 0},${s.y ?? 0}L${t.x ?? 0},${t.y ?? 0}`;
+        const pieces = visibleSegments({ x: s.x ?? 0, y: s.y ?? 0 }, { x: t.x ?? 0, y: t.y ?? 0 }, ringDiscs);
+        return pieces.map((p) => `M${p.a.x},${p.a.y}L${p.b.x},${p.b.y}`).join('');
       });
       nodeG.selectAll<SVGGElement, SimNode>('g').attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
       ringG.selectAll<SVGGElement, [string, ExpandData]>('g.ring').attr('transform', (entry) => {
         const spec = nodeById.get(entry[0]);
         return `translate(${spec?.x ?? 0},${spec?.y ?? 0})`;
       });
-      ringMask
-        .selectAll<SVGCircleElement, [string, ExpandData]>('circle')
-        .attr('cx', (entry) => nodeById.get(entry[0])?.x ?? 0)
-        .attr('cy', (entry) => nodeById.get(entry[0])?.y ?? 0);
     });
 
     update();

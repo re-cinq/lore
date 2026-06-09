@@ -107,7 +107,7 @@ describe.skipIf(!reachable)("language-agnostic e2e: no tree-sitter grammar (Ruby
     createdRepo = repo;
     const specPath = "specs/widget/spec.md";
     const statementXid = `${repo}|${specPath}|0`;
-    const testChunkXid = `${repo}|spec/widget_spec.rb|5`;
+    const testChunkXid = `${repo}|spec/widget_spec.rb`;
     const codeChunkXid = `${repo}|src/widget.rb|10`;
     // One Overview statement linking a no-grammar (.rb) RSpec test + Ruby impl.
     const content =

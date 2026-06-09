@@ -51,6 +51,9 @@ export async function createProject(
   const { ExecTestRunner } = await import("../test-runner/test-runner-exec.js");
   ports.set("tests", new ExecTestRunner());
 
+  const { DgraphTrace } = await import("../trace/trace-dgraph.js");
+  ports.set("trace", new DgraphTrace(dgraphClient));
+
   const { AgentRunner } = await import("../agents/agent-runner.js");
   ports.set("agents", new AgentRunner(env, { k8s: providers.k8s, llm: providers.llm }));
 

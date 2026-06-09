@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flattenSpecGraph, specLabel, flattenSpecRing, UNGROUPED_SECTION } from "./spec-graph";
+import { flattenSpecGraph, specLabel, flattenSpecRing, UNGROUPED_SECTION } from "../spec-graph.js";
 
 describe("flattenSpecRing", () => {
   it("counts per-section coverage and tags each statement tested by validated_by", () => {
@@ -69,6 +69,64 @@ describe("flattenSpecGraph", () => {
       { source: "0x1", target: "0x2", kind: "in_spec" },
       { source: "0x2", target: "0x3", kind: "validated_by" },
       { source: "0x2", target: "0x4", kind: "implemented_by" },
+    ]);
+  });
+
+  it("links a TestChunk to the CodeChunks its coverage covers", () => {
+    const graph = flattenSpecGraph({
+      q: [
+        {
+          uid: "0x1",
+          "Spec.file_path": "specs/auth/spec.md",
+          stmts: [
+            {
+              uid: "0x2",
+              "Statement.text": "Returns the value.",
+              vb: [
+                {
+                  uid: "0x3",
+                  "TestChunk.file_path": "src/x.test.ts",
+                  "TestChunk.test_name": "returns value",
+                  cov: {
+                    covers: [
+                      { uid: "0x5", "CodeChunk.file_path": "src/x.ts", "CodeChunk.symbol_name": "doThing", "CodeChunk.start_line": 10, "CodeChunk.end_line": 20 },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(graph.nodes).toContainEqual({ id: "0x5", type: "CodeChunk", label: "x.ts", path: "src/x.ts", line: 10, endLine: 20, detail: "doThing" });
+    expect(graph.links).toContainEqual({ source: "0x3", target: "0x5", kind: "covers" });
+  });
+
+  it("de-duplicates a CodeChunk covered by two TestChunks", () => {
+    const graph = flattenSpecGraph({
+      q: [
+        {
+          uid: "0x1",
+          "Spec.file_path": "s.md",
+          stmts: [
+            {
+              uid: "0x2",
+              "Statement.text": "A",
+              vb: [
+                { uid: "0x3", "TestChunk.file_path": "a.test.ts", cov: { covers: [{ uid: "0x9", "CodeChunk.file_path": "x.ts", "CodeChunk.symbol_name": "f" }] } },
+                { uid: "0x4", "TestChunk.file_path": "b.test.ts", cov: { covers: [{ uid: "0x9", "CodeChunk.file_path": "x.ts", "CodeChunk.symbol_name": "f" }] } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(graph.nodes.filter((n) => n.id === "0x9")).toHaveLength(1);
+    expect(graph.links.filter((l) => l.kind === "covers")).toEqual([
+      { source: "0x3", target: "0x9", kind: "covers" },
+      { source: "0x4", target: "0x9", kind: "covers" },
     ]);
   });
 

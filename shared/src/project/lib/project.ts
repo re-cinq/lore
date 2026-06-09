@@ -7,6 +7,7 @@ import { TaskList } from "../tasks/task-list.js";
 import { Notify } from "../notify/notify.js";
 import { KnowledgeView } from "../knowledge/knowledge.js";
 import { TestSuite } from "../test-runner/test-suite.js";
+import { TraceView } from "../trace/trace.js";
 import { Agents } from "../agents/agents.js";
 import { Workspace } from "../workspace/workspace.js";
 import { assertCanClone } from "./trust.js";
@@ -19,6 +20,7 @@ import type { TaskStorePort } from "../tasks/task-store-port.js";
 import type { NotifyPort } from "../notify/notify-port.js";
 import type { KnowledgePort } from "../knowledge/knowledge-port.js";
 import type { TestRunnerPort } from "../test-runner/test-runner-port.js";
+import type { TracePort } from "../trace/trace-port.js";
 import type { AgentRunnerPort } from "../agents/agent-runner-port.js";
 import type { GitPort } from "../workspace/git-port.js";
 
@@ -71,6 +73,10 @@ export class Project {
 
   get tests(): TestSuite {
     return new TestSuite(this.port<TestRunnerPort>("tests"), this.env);
+  }
+
+  get trace(): TraceView {
+    return new TraceView(this.fullName, this.port<TracePort>("trace"));
   }
 
   get agents(): Agents {

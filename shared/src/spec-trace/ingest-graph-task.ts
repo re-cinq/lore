@@ -11,6 +11,7 @@
 import type { DgraphClientPort } from "./deps.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
+import { projectCodeFile } from "./project-code-file.js";
 import { ingestSpecTrace } from "./ingest-spec-trace.js";
 
 /** Kind of artifact to ingest. Extensible — driven by {@link INGEST_KINDS}. */
@@ -46,6 +47,15 @@ export interface IngestKindDef {
   prefixes: string[];
   project(repo: string, filePath: string, content: string, dgraph: DgraphClientPort): Promise<{ projected: boolean }>;
   runsOn: "runner+local" | "local-only";
+  /** File extensions this kind projects. Defaults to markdown for the doc kinds. */
+  extensions?: string[];
+  /** Drops a candidate path even when extension + prefix match (e.g. test/decl files for code). */
+  exclude?: (path: string) => boolean;
+}
+
+/** Source files that are not project-able code: their own tests and ambient declarations. */
+function isNonSourceCode(path: string): boolean {
+  return path.endsWith(".test.ts") || path.endsWith(".test.tsx") || path.endsWith(".d.ts");
 }
 
 /**
@@ -56,9 +66,16 @@ export interface IngestKindDef {
 export const INGEST_KINDS: Record<string, IngestKindDef> = {
   specs: { prefixes: ["specs/", ".specify/"], project: projectSpecFile, runsOn: "runner+local" },
   adrs: { prefixes: ["adrs/"], project: projectAdrFile, runsOn: "runner+local" },
+  code: {
+    prefixes: [""],
+    extensions: [".ts", ".tsx"],
+    exclude: isNonSourceCode,
+    project: projectCodeFile,
+    runsOn: "runner+local",
+  },
 };
 
-/** Files of `kind` in the tree: markdown under one of the kind's prefixes (optionally narrowed by `glob` substring). */
+/** Files of `kind` in the tree: matching the kind's extensions (markdown by default) + prefixes, minus its excludes, optionally narrowed by `glob`. */
 export function selectIngestFiles(
   tree: string[],
   kind: IngestKind,
@@ -67,10 +84,12 @@ export function selectIngestFiles(
 ): string[] {
   const def = registry[kind];
   if (!def) return [];
+  const extensions = def.extensions ?? [".md"];
   return tree.filter(
     (path) =>
-      path.endsWith(".md") &&
+      extensions.some((ext) => path.endsWith(ext)) &&
       def.prefixes.some((prefix) => path.startsWith(prefix)) &&
+      !def.exclude?.(path) &&
       (!glob || path.includes(glob)),
   );
 }

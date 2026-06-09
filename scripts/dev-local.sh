@@ -46,6 +46,9 @@ export LORE_DB_PORT=5432
 export LORE_DB_NAME=lore
 export LORE_DB_USER=postgres
 export LORE_DB_PASSWORD=lore
+# Spec-traceability graph: lets mcp-server's project.trace + the ingest-* tasks
+# read/write the local Dgraph (published on :8081 by docker compose).
+export LORE_DGRAPH_HTTP="${LORE_DGRAPH_HTTP:-http://localhost:8081}"
 
 # 2a. Internal API token shared by the web-ui ↔ mcp-server proxy routes.
 #     The web-ui proxies /api/pipeline/.../timeline and /api/repos/.../context-preview
