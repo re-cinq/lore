@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 import type { DgraphClientPort } from "./deps.js";
 import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
 import { withTxn, upsertByXid } from "./dgraph-upsert.js";
+import { adrNumberFromPath } from "./adr-refs.js";
 
 function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
@@ -43,10 +44,12 @@ export async function projectAdrFile(
     return { projected: false };
   }
 
+  const number = adrNumberFromPath(filePath);
   await upsertByXid(dgraph, "ADR", xid, {
     "ADR.repo": repo,
     "ADR.file_path": filePath,
     "ADR.content_hash": contentHash,
+    ...(number != null ? { "ADR.number": number } : {}),
   });
   const validXids = await projectDocumentBlocks(dgraph, repo, filePath, content);
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validXids);

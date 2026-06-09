@@ -4,6 +4,7 @@ import { ingestFiles } from "../ingest.js";
 import { onboardRepo } from "../repo-onboard.js";
 import { json, readBody } from "./http.js";
 import { triggerAgentSpecCoverageValidate } from "./helpers.js";
+import { maybeAutoIngestGraph } from "../ingest-graph-tasks.js";
 
 export async function handleIngest(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
   if (!pool) { json(res, 503, { error: "database not available" }); return; }
@@ -27,6 +28,9 @@ export async function handleIngest(req: IncomingMessage, res: ServerResponse, po
       : false;
     if (landed) {
       void triggerAgentSpecCoverageValidate(repo);
+      // Auto fan-out the spec-traceability graph re-projection, but only for
+      // repos that opted in (settings.auto_ingest_graph). Fire-and-forget.
+      void maybeAutoIngestGraph(pool, repo);
     }
   } catch (err: any) {
     console.error("[ingest] API error:", err.message);

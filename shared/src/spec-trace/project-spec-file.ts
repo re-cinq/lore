@@ -55,6 +55,7 @@ function vectorLiteral(vector: number[]): string {
   return `[${vector.join(",")}]`;
 }
 import { withTxn, upsertByXid, replaceEdge, type SpecTraceNodeType } from "./dgraph-upsert.js";
+import { parseAdrRefs } from "./adr-refs.js";
 import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
 
 /**
@@ -220,6 +221,30 @@ async function projectStatement(
   // uids so it never touches chunks the ingest paths created and left unlinked.
   await gcUnlinkedChunks(dgraph, "TestChunk", previousLinks.validated, newValidated);
   await gcUnlinkedChunks(dgraph, "CodeChunk", previousLinks.implemented, newImplemented);
+
+  // DECIDED_BY: a statement that cites an ADR ("per ADR-016") links to that ADR
+  // node by number — the "why". Best-effort: only ADRs already projected resolve
+  // (run ingest-adrs before ingest-specs to populate them).
+  const adrRefs = parseAdrRefs(segment.text);
+  if (adrRefs.length > 0) {
+    const adrUids = await resolveAdrUids(dgraph, repo, adrRefs);
+    await replaceEdge(dgraph, statementUid, "Statement.decided_by", adrUids);
+  }
+}
+
+/** Resolves cited ADR numbers to their node uids for this repo (skips numbers with no ADR node). */
+async function resolveAdrUids(dgraph: DgraphClientPort, repo: string, numbers: number[]): Promise<string[]> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(
+      `query q($repo: string) { adrs(func: eq(ADR.repo, $repo)) { uid ADR.number } }`,
+      { $repo: repo },
+    );
+    const byNumber = new Map<number, string>();
+    for (const adr of (res.data?.adrs ?? []) as Array<{ uid: string; "ADR.number"?: number }>) {
+      if (adr["ADR.number"] != null) byNumber.set(adr["ADR.number"], adr.uid);
+    }
+    return numbers.map((n) => byNumber.get(n)).filter((uid): uid is string => Boolean(uid));
+  });
 }
 
 /** Reads a Statement's current TestChunk/CodeChunk link target uids. */
