@@ -1,0 +1,9 @@
+# Lore test-command interface. Discovery + per-test coverage come from this
+# repo's own vitest runner, scoped to the spec-traceability code under test.
+# Granularity is per test-FILE (see scripts/trace/*.mjs for why per-`it` is not).
+# coverage_format MUST be json: the local run path JSON.parses stdout.
+list: "node scripts/trace/list-tests.mjs"
+run: "node scripts/trace/run-test.mjs {selector}"
+coverage_format: "json"
+cwd: "shared"
+path_prefix_strip: ""

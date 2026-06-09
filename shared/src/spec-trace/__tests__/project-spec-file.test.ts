@@ -13,6 +13,7 @@ import {
   parseEmbedding,
 } from "../deps.js";
 import { projectSpecFile } from "../project-spec-file.js";
+import { projectAdrFile } from "../project-adr-file.js";
 import { recomputeFile } from "../recompute-spec-file.js";
 
 /**
@@ -631,5 +632,24 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     )) as { tc?: Record<string, unknown>[] };
 
     expect(data.tc).toEqual([{ "TestChunk.xid": `${repo}|src/shared.test.ts|1` }]);
+  });
+
+  it("links a statement to a cited ADR via decided_by", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    // Project the ADR first so it can be resolved by number.
+    await projectAdrFile(repo, "adrs/ADR-016-dark-factory.md", "# ADR-016\n\n## Status\n\nAccepted", dgraphClient);
+    await projectSpecFile(repo, "specs/x/spec.md", "## Overview\n\nPer ADR-016, we do the thing.", dgraphClient, async () => null);
+
+    const data = (await readGraph(
+      `query q($xid: string) {
+        stmt(func: eq(Statement.xid, $xid)) { Statement.decided_by { ADR.number ADR.file_path } }
+      }`,
+      { $xid: `${repo}|specs/x/spec.md|0` },
+    )) as { stmt?: { "Statement.decided_by"?: Record<string, unknown>[] }[] };
+
+    expect(data.stmt?.[0]?.["Statement.decided_by"]).toEqual([
+      { "ADR.number": 16, "ADR.file_path": "adrs/ADR-016-dark-factory.md" },
+    ]);
   });
 });
