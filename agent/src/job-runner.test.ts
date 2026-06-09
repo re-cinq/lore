@@ -23,7 +23,7 @@ const EXPECTED_JOBS = [
   "anthropic_cost_sync",
 ];
 
-vi.mock("./db.js", () => ({
+vi.mock("./platform/db.js", () => ({
   query: vi.fn(),
   initPool: vi.fn(),
 }));

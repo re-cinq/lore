@@ -6,7 +6,7 @@ import type {
   NodeResult,
 } from "./graph-executor.js";
 import type { WorkflowNode } from "../workflow/loader.js";
-import type { LLMResult } from "../anthropic.js";
+import type { LLMResult } from "../platform/anthropic.js";
 
 /**
  * Factory dependencies. All injectable so the handler can be unit-tested

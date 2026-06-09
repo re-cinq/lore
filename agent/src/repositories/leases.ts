@@ -1,4 +1,4 @@
-import { query } from "../db.js";
+import { query } from "../platform/db.js";
 
 export interface ExpiredLease {
   branch_name: string;

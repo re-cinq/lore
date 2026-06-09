@@ -46,8 +46,8 @@ import { runSupervisor } from "./index.js";
 import { loadWorkflowDir, type Workflow } from "../workflow/loader.js";
 import { createClaudeCodeAgentHandler } from "./claude-code-handler.js";
 import { createProductionHandlers } from "./handlers.js";
-import { buildPrompt, getTaskTypeConfig, loadTaskTypes } from "../config.js";
-import { initPool } from "../db.js";
+import { buildPrompt, getTaskTypeConfig, loadTaskTypes } from "../platform/config.js";
+import { initPool } from "../platform/db.js";
 
 class MissingEnvError extends Error {
   constructor(public readonly varName: string) {

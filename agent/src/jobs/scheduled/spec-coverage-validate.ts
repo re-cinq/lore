@@ -29,8 +29,8 @@ import {
   reassembleSpec,
   type TestLinkRef,
 } from "@re-cinq/lore-shared";
-import { query } from "../../db.js";
-import { projectFor } from "../../project-boot.js";
+import { query } from "../../platform/db.js";
+import { projectFor } from "../../platform/project-boot.js";
 
 export interface ChunkLineRange {
   file_path: string;

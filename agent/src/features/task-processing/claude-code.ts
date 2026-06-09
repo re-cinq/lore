@@ -7,7 +7,7 @@
  */
 
 import { execFile, execFileSync, spawn } from "node:child_process";
-import { query } from "./db.js";
+import { query } from "../../platform/db.js";
 
 export interface ClaudeCodeResult {
   output: string;

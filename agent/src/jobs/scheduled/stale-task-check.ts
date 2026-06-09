@@ -18,8 +18,8 @@
  *     tick even when no real progress is happening.
  */
 
-import { query } from "../../db.js";
-import { projectFor } from "../../project-boot.js";
+import { query } from "../../platform/db.js";
+import { projectFor } from "../../platform/project-boot.js";
 
 const STALE_THRESHOLD_HOURS = 6;
 

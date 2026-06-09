@@ -22,7 +22,7 @@
  */
 import { Octokit } from "octokit";
 import { resolveDarkFactorySettings } from "@re-cinq/lore-shared";
-import { query } from "../db.js";
+import { query } from "../platform/db.js";
 import { buildOctokit, resolvePrForTaskFromDb } from "../lib/pr-policy.js";
 import { evaluateAndMerge, type AutoMergeDecision } from "./auto-merge.js";
 

@@ -1,6 +1,6 @@
 import cronParser from "cron-parser";
-import { query } from "./db.js";
-import { startJobRun, completeJobRun, failJobRun } from "./lib/job-run.js";
+import { query } from "../../platform/db.js";
+import { startJobRun, completeJobRun, failJobRun } from "../../lib/job-run.js";
 
 export interface JobDef {
   name: string;

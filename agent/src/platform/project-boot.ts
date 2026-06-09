@@ -1,6 +1,6 @@
 import { createProject, createDgraphClient, type Project } from "@re-cinq/lore-shared";
 import { getPool } from "./db.js";
-import { K8sLoreTaskClient } from "./lib/k8s-loretask.js";
+import { K8sLoreTaskClient } from "../lib/k8s-loretask.js";
 
 /**
  * Per-repo Project composition root for the agent. Builds from the agent's

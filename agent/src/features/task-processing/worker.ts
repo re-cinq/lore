@@ -5,22 +5,22 @@
  * and creates branches + PRs with the results.
  */
 
-import { query, getPool } from "./db.js";
-import { callLLM, callLLMWithTool } from "./anthropic.js";
-import { generateArtifactCopy } from "./lib/artifact-copy.js";
-import { projectFor } from "./project-boot.js";
+import { query, getPool } from "../../platform/db.js";
+import { callLLM, callLLMWithTool } from "../../platform/anthropic.js";
+import { generateArtifactCopy } from "../../lib/artifact-copy.js";
+import { projectFor } from "../../platform/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
-import { buildPrompt, getTaskTypeConfig } from "./config.js";
-import { writeEpisode } from "./lib/episode-writer.js";
+import { buildPrompt, getTaskTypeConfig } from "../../platform/config.js";
+import { writeEpisode } from "../../lib/episode-writer.js";
 import {
   classifyError,
   summarizeFailures,
   TaskFailure,
   type StepFailure,
-} from "./lib/error-classify.js";
+} from "../../lib/error-classify.js";
 import type { PipelineTask } from "@re-cinq/lore-shared";
 import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck, setTaskStatus, recordTaskEvent, createDgraphClient } from "@re-cinq/lore-shared";
-import { handleGraphIngest } from "./graph-ingest-handler.js";
+import { handleGraphIngest } from "../spec-trace/graph-ingest-handler.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -143,7 +143,7 @@ async function processTask(task: any): Promise<void> {
   // Issue creation per the repo's `create_issue` setting and the task's
   // approval requirement. `with_issue: true` per-task override forces
   // creation regardless.
-  const { shouldCreateIssue } = await import("./lib/dark-factory.js");
+  const { shouldCreateIssue } = await import("../../lib/dark-factory.js");
   const issueGate = await shouldCreateIssue(task);
   if (!issueNumber && task.task_type !== "general" && issueGate.create) {
     try {
@@ -177,7 +177,7 @@ async function processTask(task: any): Promise<void> {
   }
 
   // Check if this task requires approval
-  const { requiresApproval, getApprovalLabel } = await import("./approval.js");
+  const { requiresApproval, getApprovalLabel } = await import("../approval/approval.js");
   if (requiresApproval(task.task_type, targetRepo)) {
     await setStatus(task.id, "awaiting_approval");
     await insertEvent(task.id, "pending", "awaiting_approval", { reason: "approval-required" });
@@ -245,7 +245,7 @@ async function processTask(task: any): Promise<void> {
     // Code-driven types continue via the Job pod path until the
     // entrypoint.sh refactor lands.
     const { isDarkFactoryEligible, processTaskViaSupervisor } = await import(
-      "./supervisor/orchestrator.js"
+      "../../supervisor/orchestrator.js"
     );
     const darkFactoryEnabled =
       repoSettings?.dark_factory?.enabled === true;
@@ -254,7 +254,7 @@ async function processTask(task: any): Promise<void> {
         `[agent] Task ${task.id} routing through dark-factory supervisor (${task.task_type} on ${targetRepo})`,
       );
       const { resolveDarkFactorySettings } = await import(
-        "./lib/dark-factory.js"
+        "../../lib/dark-factory.js"
       );
       const resolvedSettings = resolveDarkFactorySettings(
         repoSettings?.dark_factory,
@@ -401,7 +401,7 @@ async function linkPrToIssue(
  * (T047 / FR1.5). Re-exported via `lib/pr-body.ts` for reuse in
  * loretask-watcher.ts.
  */
-import { prFooter } from "./lib/pr-body.js";
+import { prFooter } from "../../lib/pr-body.js";
 function issueRef(issueNumber: number | null, taskId: string): string {
   return prFooter({ issueNumber, taskId });
 }
@@ -915,7 +915,7 @@ export async function handleOnboard(
 
   // Create Lore dispatch labels on the repo
   try {
-    const { GitHubPlatform } = await import("./github.js");
+    const { GitHubPlatform } = await import("../../platform/github.js");
     const gh = new GitHubPlatform();
     await gh.createLabels(targetRepo, [
       { name: "lore", color: "7B61FF", description: "Dispatch to Lore agent" },

@@ -9,9 +9,9 @@
  * Runs every minute.
  */
 
-import { projectFor } from "../../project-boot.js";
-import { query } from "../../db.js";
-import { buildPrompt, getTaskTypeConfig } from "../../config.js";
+import { projectFor } from "../../platform/project-boot.js";
+import { query } from "../../platform/db.js";
+import { buildPrompt, getTaskTypeConfig } from "../../platform/config.js";
 
 const MAX_CONCURRENT_PER_GROUP = 3;
 

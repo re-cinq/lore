@@ -5,9 +5,9 @@ import {
   generateArtifactCopy,
   type ArtifactCopyInput,
 } from "./artifact-copy.js";
-import { callLLMWithTool } from "../anthropic.js";
+import { callLLMWithTool } from "../platform/anthropic.js";
 
-vi.mock("../anthropic.js", () => ({
+vi.mock("../platform/anthropic.js", () => ({
   callLLMWithTool: vi.fn(),
 }));
 

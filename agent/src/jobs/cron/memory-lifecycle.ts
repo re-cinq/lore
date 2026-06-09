@@ -14,8 +14,8 @@
  */
 
 import { scoreImportance } from "@re-cinq/lore-shared";
-import { query } from "../../db.js";
-import { callLLM } from "../../anthropic.js";
+import { query } from "../../platform/db.js";
+import { callLLM } from "../../platform/anthropic.js";
 
 // ── Config ──────────────────────────────────────────────────────────
 

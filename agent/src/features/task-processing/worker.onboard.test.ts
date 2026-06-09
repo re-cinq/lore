@@ -21,18 +21,18 @@ const query = vi.fn();
 const writeEpisode = vi.fn();
 const createLabels = vi.fn();
 
-vi.mock("./project-boot.js", () => ({ projectFor: async () => fakeProject }));
+vi.mock("../../platform/project-boot.js", () => ({ projectFor: async () => fakeProject }));
 vi.mock("./repo-context.js", () => ({ fetchRepoContext: (...a: unknown[]) => fetchRepoContext(...a) }));
-vi.mock("./anthropic.js", () => ({
+vi.mock("../../platform/anthropic.js", () => ({
   callLLM: (...a: unknown[]) => callLLM(...a),
   callLLMWithTool: vi.fn(),
 }));
-vi.mock("./db.js", () => ({
+vi.mock("../../platform/db.js", () => ({
   query: (...a: unknown[]) => query(...a),
   getPool: () => ({ query: async () => ({ rows: [] }) }),
 }));
-vi.mock("./lib/episode-writer.js", () => ({ writeEpisode: (...a: unknown[]) => writeEpisode(...a) }));
-vi.mock("./github.js", () => ({ GitHubPlatform: class { createLabels = createLabels; } }));
+vi.mock("../../lib/episode-writer.js", () => ({ writeEpisode: (...a: unknown[]) => writeEpisode(...a) }));
+vi.mock("../../platform/github.js", () => ({ GitHubPlatform: class { createLabels = createLabels; } }));
 
 import { handleOnboard } from "./worker.js";
 

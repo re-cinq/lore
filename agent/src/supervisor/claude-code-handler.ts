@@ -4,7 +4,7 @@ import type {
   NodeResult,
 } from "./graph-executor.js";
 import type { WorkflowNode } from "../workflow/loader.js";
-import { runClaudeCode, type ClaudeCodeResult } from "../claude-code.js";
+import { runClaudeCode, type ClaudeCodeResult } from "../features/task-processing/claude-code.js";
 
 /**
  * Factory for an agent handler that drives Claude Code (tool-use)

@@ -8,7 +8,7 @@
  * scheduler), and exits 0 / non-zero based on outcome.
  */
 
-import { initPool } from "./db.js";
+import { initPool } from "./platform/db.js";
 import { anthropicCostSyncJob } from "./jobs/cron/anthropic-cost-sync.js";
 import { autoresearchJob } from "./jobs/cron/autoresearch.js";
 import { contextCoreBuilderJob } from "./jobs/cron/context-core-builder.js";

@@ -8,8 +8,8 @@
  */
 
 import { KubeConfig, CustomObjectsApi, CoreV1Api } from "@kubernetes/client-node";
-import { projectFor } from "../../project-boot.js";
-import { query } from "../../db.js";
+import { projectFor } from "../../platform/project-boot.js";
+import { query } from "../../platform/db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../../lib/episode-writer.js";
 import { tryAutoMergeForCompletedTask } from "../auto-merge-trigger.js";
 import { buildReviewFixDescription, formatReviewFeedback } from "../../lib/review-feedback.js";
