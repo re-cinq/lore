@@ -54,6 +54,18 @@ export {
 } from './spec-trace/spec-graph.js';
 export { planTraceUnits, runTraceUnits, type TraceUnit } from './spec-trace/trace-units.js';
 export {
+  computeImpact,
+  buildImpactAnnotations,
+  buildImpactComment,
+  IMPACT_COMMENT_MARKER,
+  parseRanges,
+  type ChangedRange,
+  type ImpactReport,
+  type ImpactStatement,
+  type OrphanStatement,
+  type ImpactAnnotation,
+} from './spec-trace/trace-impact.js';
+export {
   runIngestGraph,
   selectIngestFiles,
   summarizeIngest,
@@ -150,6 +162,14 @@ export {
   parseIngestWorkflowVersion,
   type IngestWorkflowStatus,
 } from './ingest-workflow.js';
+export {
+  TRACE_IMPACT_WORKFLOW_PATH,
+  TRACE_IMPACT_WORKFLOW_VERSION,
+  TRACE_IMPACT_WORKFLOW_CONTENT,
+  traceImpactWorkflowStatus,
+  parseTraceImpactWorkflowVersion,
+  type TraceImpactWorkflowStatus,
+} from './trace-impact-workflow.js';
 export {
   parseTestLinksInStatement,
   parseCodeLinksInStatement,

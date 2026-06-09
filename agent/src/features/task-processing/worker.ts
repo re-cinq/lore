@@ -19,7 +19,7 @@ import {
   type StepFailure,
 } from "../../lib/error-classify.js";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck, setTaskStatus, recordTaskEvent, createDgraphClient } from "@re-cinq/lore-shared";
+import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, TRACE_IMPACT_WORKFLOW_PATH, TRACE_IMPACT_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck, setTaskStatus, recordTaskEvent, createDgraphClient } from "@re-cinq/lore-shared";
 import { handleGraphIngest } from "../spec-trace/graph-ingest-handler.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -842,6 +842,23 @@ export async function handleOnboard(
   } catch (err: any) {
     console.error(`[agent] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${err.message}`);
     failures.push({ step: LORE_INGEST_WORKFLOW_PATH, error: err.message });
+  }
+
+  // Always (re)install the advisory spec-impact workflow alongside ingest. It is
+  // neutral/fail-soft (no-ops until the backend graph is available), so it is
+  // safe to ship to every onboarded repo.
+  try {
+    await project.repo.commitFile(
+      branchName,
+      TRACE_IMPACT_WORKFLOW_PATH,
+      TRACE_IMPACT_WORKFLOW_CONTENT,
+      `lore: add ${TRACE_IMPACT_WORKFLOW_PATH}`,
+    );
+    committed.push(TRACE_IMPACT_WORKFLOW_PATH);
+    console.log(`[agent] Onboard: committed ${TRACE_IMPACT_WORKFLOW_PATH} (workflow)`);
+  } catch (err: any) {
+    console.error(`[agent] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${err.message}`);
+    failures.push({ step: TRACE_IMPACT_WORKFLOW_PATH, error: err.message });
   }
 
   // 5. Commit static files first
