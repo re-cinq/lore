@@ -21,6 +21,7 @@ import { handleTokens } from "./tokens.js";
 import { handleDarkFactorySettingsRoute } from "./dark-factory.js";
 import { handleCoverageRoute } from "./coverage.js";
 import { handleTestReport } from "./test-report.js";
+import { handleImpactRoute } from "./impact.js";
 import { handleTraceRoute, handleGlobalTraceSpecs } from "./trace.js";
 
 type RouteHandler = (
@@ -70,6 +71,7 @@ const API_ROUTES: ApiRoute[] = [
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/coverage(\?|$)/, "POST"), handle: handleCoverageRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/test-report(\?|$)/, "POST"), handle: handleTestReport },
+  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/trace\//, "GET"), handle: handleTraceRoute },
   { match: pattern(/^\/api\/trace\/specs(\?|$)/, "GET"), handle: handleGlobalTraceSpecs },
 ];
