@@ -16,7 +16,7 @@
  * {@link DgraphClientPort}; never imports the driver.
  */
 
-import type { DgraphClientPort, DgraphTxn } from "@re-cinq/lore-shared";
+import type { DgraphClientPort, DgraphTxn } from "./deps.js";
 
 /**
  * Node types in the spec-traceability graph, all upserted by xid through
@@ -27,6 +27,7 @@ import type { DgraphClientPort, DgraphTxn } from "@re-cinq/lore-shared";
 export type SpecTraceNodeType =
   | "Repo"
   | "Spec"
+  | "ADR"
   | "Section"
   | "Statement"
   | "TestChunk"

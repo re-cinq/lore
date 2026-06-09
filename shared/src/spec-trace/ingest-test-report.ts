@@ -18,7 +18,7 @@
  * real counts flow back into the returned result.
  */
 
-import type { CoveredChunk, DgraphClientPort, TestDescriptor, TaggedRunResult } from "@re-cinq/lore-shared";
+import type { CoveredChunk, DgraphClientPort, TestDescriptor, TaggedRunResult } from "./deps.js";
 import { deletePredicate, upsertByXid } from "./dgraph-upsert.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 

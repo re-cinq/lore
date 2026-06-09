@@ -321,11 +321,11 @@ Wire shapes (descriptor + covered chunk) live in the contract.
 | File | Change |
 |------|--------|
 | `shared/src/test-command-manifest.ts` | NEW: Zod schema + loader (`.lore/test-commands.yml` / settings; polyglot list) |
-| `agent/src/spec-trace/test-command-runner.ts` | NEW: sandboxed `tests.list`/`tests.run` executor + trust-context gate + timeout/flaky guard |
+| `shared/src/spec-trace/test-command-runner.ts` | NEW: sandboxed `tests.list`/`tests.run` executor + trust-context gate + timeout/flaky guard |
 | `mcp-server/src/routes/coverage.ts` | NEW/absorbed: bulk LCOV/Cobertura parsers + `POST /coverage` (from coverage-ingestion) |
 | `mcp-server/src/routes/test-report.ts` | NEW: `POST /test-report` handler → graph fan-out (seeds `TestChunk` + nested `TestSuite` chain from each descriptor's `suite`) |
-| `agent/src/spec-trace/ingest-coverage.ts` | Modify: consume command output, `test-report`, and bulk upload → `Coverage`/`COVERS` |
-| `agent/src/spec-trace/drift-check-file.ts` | Modify: `violated` distinct from `drifted`; flaky guard before flagging |
+| `shared/src/spec-trace/ingest-coverage.ts` | Modify: consume command output, `test-report`, and bulk upload → `Coverage`/`COVERS` |
+| `shared/src/spec-trace/drift-check-file.ts` | Modify: `violated` distinct from `drifted`; flaky guard before flagging |
 | `mcp-server/src/index.ts` | Modify: register MCP tools `list_tests` / `run_test` / `query_trace` (Zod inputs) |
 | `mcp-server/src/routes.ts` | Modify: graph-update proxy for the MCP tools; refuse cluster execution |
 | `scripts/onboarding-templates/tests/{node,go,python,rust,java}.yml` | NEW: per-language `lore-tests.yml` CI workflow |

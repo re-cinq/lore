@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { type ProvenanceRef } from "@re-cinq/lore-shared";
+import { type ProvenanceRef } from "../deps.js";
 import {
   parseValidatesAnnotations,
   resolveProvenance,

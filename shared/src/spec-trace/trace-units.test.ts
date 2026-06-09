@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planTraceUnits, runTraceUnits, type TraceUnit } from "./spec-trace.js";
+import { planTraceUnits, runTraceUnits, type TraceUnit } from "./trace-units.js";
 
 describe("planTraceUnits (pure)", () => {
   it("routes a specs/ markdown path to a spec projection unit", () => {

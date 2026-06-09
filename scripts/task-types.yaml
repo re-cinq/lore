@@ -178,3 +178,30 @@ task_types:
     # Onboarding generates a first-pass CLAUDE.md / ADRs / spec that
     # a human always reviews before merge. Haiku is fine for drafts.
     model: claude-haiku-4-5-20251001
+
+  # ── Spec-traceability graph ingestion (deterministic, zero-LLM) ──────
+  # execution_mode: graph-ingest routes to the in-process projection core
+  # (runIngestGraph), NOT Claude Code. No prompt, no model, no PR.
+  ingest-specs:
+    prompt_template: ""
+    target_repo: null
+    timeout_minutes: 10
+    review_required: false
+    execution_mode: graph-ingest
+
+  ingest-adrs:
+    prompt_template: ""
+    target_repo: null
+    timeout_minutes: 10
+    review_required: false
+    execution_mode: graph-ingest
+
+  # Tests run the project test interface (.lore/test-commands.yml), so this
+  # kind executes ONLY locally / in CI (the trusted sandbox), never on the
+  # shared agent — it self-skips there.
+  ingest-tests:
+    prompt_template: ""
+    target_repo: null
+    timeout_minutes: 20
+    review_required: false
+    execution_mode: graph-ingest

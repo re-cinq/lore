@@ -42,11 +42,12 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
           blocks(func: eq(Block.repo, $repo)) { uid }
+          adrs(func: eq(ADR.repo, $repo)) { uid }
         }`,
         { $repo: repo },
       );
-      const data = res.data as { blocks?: { uid: string }[] };
-      const uids = (data.blocks ?? []).map((node) => node.uid);
+      const data = res.data as { blocks?: { uid: string }[]; adrs?: { uid: string }[] };
+      const uids = [...(data.blocks ?? []), ...(data.adrs ?? [])].map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -90,6 +91,19 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
     const recomputed = await recomputeFile(repo, filePath, dgraphClient);
 
     expect(recomputed).toBe(content);
+  });
+
+  it("returns projected true then false on an unchanged re-projection (content_hash gate)", async () => {
+    const repo = `test-adr/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "adrs/0001-gate.md";
+    const content = ["# ADR-001", "", "## Status", "", "Accepted"].join("\n");
+
+    const first = await projectAdrFile(repo, filePath, content, dgraphClient);
+    const second = await projectAdrFile(repo, filePath, content, dgraphClient);
+
+    expect(first).toEqual({ projected: true });
+    expect(second).toEqual({ projected: false });
   });
 
   it("recomputes the shorter source after re-projecting a SHORTER ADR over a longer one", async () => {

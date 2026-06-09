@@ -24,8 +24,8 @@
  * chunks, and drift-clearing on realignment.
  */
 
-import type { DgraphClientPort } from "@re-cinq/lore-shared";
-import { cosineSimilarity, parseEmbedding } from "@re-cinq/lore-shared";
+import type { DgraphClientPort } from "./deps.js";
+import { cosineSimilarity, parseEmbedding } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 import type { DriftedStatement } from "./format-drift-report.js";
 

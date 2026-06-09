@@ -14,7 +14,7 @@
  * that chunk is the top candidate for its kind.
  */
 
-import type { DgraphClientPort } from "@re-cinq/lore-shared";
+import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 
 /**

@@ -7,7 +7,7 @@
  * cycles; the structure here leaves a single seam (the `top` tier) for them.
  */
 
-import type { DgraphClientPort } from "@re-cinq/lore-shared";
+import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 import { highestTier, type EvidenceTier } from "./trace-link.js";
 

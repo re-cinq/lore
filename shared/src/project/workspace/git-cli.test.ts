@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitCli } from "./git-cli.js";
@@ -78,5 +78,39 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
 
     const author = execFileSync("git", ["-C", dest, "log", "-1", "--format=%an <%ae>"], { encoding: "utf8" }).trim();
     expect(author).toBe("Lore Agent <lore-agent@re-cinq.com>");
+  });
+
+  it("ensureClone clones when absent, then reuses the cache (fetch, not re-clone) on the second call", async () => {
+    const git = new GitCli(env);
+    const dest = join(base, "cache-x");
+
+    await git.ensureClone(bare, dest);
+    // An untracked marker survives a fetch+checkout reuse, but not a re-clone.
+    writeFileSync(join(dest, "MARKER"), "keep");
+    await git.ensureClone(bare, dest);
+
+    expect(existsSync(join(dest, "MARKER"))).toBe(true);
+  });
+
+  it("ensureCheckout pins the working tree to a branch", async () => {
+    const git = new GitCli(env);
+    const dest = join(base, "cache-co");
+    await git.ensureClone(bare, dest);
+    execFileSync("git", ["-C", dest, "branch", "pinned"], { env });
+
+    await git.ensureCheckout(dest, "pinned");
+
+    const branch = execFileSync("git", ["-C", dest, "rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).trim();
+    expect(branch).toBe("pinned");
+  });
+
+  it("ensureCheckout refuses to switch a dirty working tree", async () => {
+    const git = new GitCli(env);
+    const dest = join(base, "cache-dirty");
+    await git.ensureClone(bare, dest);
+    execFileSync("git", ["-C", dest, "branch", "other"], { env });
+    writeFileSync(join(dest, "README.md"), "uncommitted edit");
+
+    await expect(git.ensureCheckout(dest, "other")).rejects.toThrow(/uncommitted/);
   });
 });

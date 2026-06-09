@@ -15,6 +15,21 @@ export { chunkFile, buildIngestedChunkMetadata, type Chunk } from './chunker.js'
 export { redactSecrets } from './redact.js';
 export { getQueryEmbedding, buildVertexUrl } from './embeddings/embedding-service.js';
 export { resolveAgentId } from './agent-id.js';
+export { projectSpecFile } from './spec-trace/project-spec-file.js';
+export { projectAdrFile } from './spec-trace/project-adr-file.js';
+export { ingestSpecTrace } from './spec-trace/ingest-spec-trace.js';
+export { planTraceUnits, runTraceUnits, type TraceUnit } from './spec-trace/trace-units.js';
+export {
+  runIngestGraph,
+  selectIngestFiles,
+  summarizeIngest,
+  INGEST_KINDS,
+  type IngestKind,
+  type IngestGraphParams,
+  type IngestGraphSummary,
+  type IngestGraphPorts,
+  type IngestKindDef,
+} from './spec-trace/ingest-graph-task.js';
 export { parseTasks, inferPhaseDependencies, type ParsedTask } from './tasks.js';
 export {
   formatTrailers,

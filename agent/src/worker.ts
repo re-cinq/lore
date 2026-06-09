@@ -19,7 +19,8 @@ import {
   type StepFailure,
 } from "./lib/error-classify.js";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck, setTaskStatus, recordTaskEvent } from "@re-cinq/lore-shared";
+import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck, setTaskStatus, recordTaskEvent, createDgraphClient } from "@re-cinq/lore-shared";
+import { handleGraphIngest } from "./graph-ingest-handler.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -126,6 +127,14 @@ async function processTask(task: any): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
   const project = await projectFor(targetRepo);
+
+  // Deterministic graph-ingest tasks: zero-LLM, no Issue, no PR. Dispatch before
+  // the LLM ladder (Issue creation / approval / Claude Code). The shared
+  // runIngestGraph runs in-process against the trace graph.
+  if (getTaskTypeConfig(task.task_type)?.execution_mode === "graph-ingest") {
+    await handleGraphIngest(task, targetRepo, agentId, { pool: getPool(), project, dgraph: createDgraphClient() });
+    return;
+  }
 
   // Create GitHub Issue on the target repo
   // Skip upfront issue for general tasks — the watcher creates the issue with the result

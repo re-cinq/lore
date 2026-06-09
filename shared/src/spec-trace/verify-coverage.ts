@@ -19,7 +19,7 @@
  * `./dgraph-upsert`. Talks only to the injected DgraphClientPort.
  */
 
-import type { DgraphClientPort } from "@re-cinq/lore-shared";
+import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 
 type UidRef = { uid: string };

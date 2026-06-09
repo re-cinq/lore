@@ -12,7 +12,7 @@
  * `detectProvenanceConflicts` surfaces statements that drew disagreeing targets
  * across those same sources.
  */
-import { type ProvenanceRef } from "@re-cinq/lore-shared";
+import { type ProvenanceRef } from "./deps.js";
 
 /**
  * Matches a single inline annotation with the grammar

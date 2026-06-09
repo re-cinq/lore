@@ -17,6 +17,9 @@ export interface TaskTypeConfig {
   timeout_minutes: number;
   review_required: boolean;
   model?: string;
+  // "claude-code" (default, LLM) or "graph-ingest" (deterministic, zero-LLM).
+  // Absent is treated as "claude-code" so existing task types are unchanged.
+  execution_mode?: string;
 }
 
 // ── State ────────────────────────────────────────────────────────────

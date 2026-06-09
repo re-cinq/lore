@@ -371,6 +371,34 @@ server.tool(
 );
 
 server.tool(
+  "ingest_graph",
+  "Create spec-traceability graph ingestion tasks — one per kind (specs, adrs, tests). Each is a pipeline task (id + description, visible in the UI) the agent runner picks up (specs/adrs) or you run locally with run_task_locally. Idempotent: re-running with no changes is a no-op (only changed files re-project).",
+  {
+    repo: z.string().optional().describe("owner/repo. Defaults to the current repo."),
+    kinds: z.array(z.enum(["specs", "adrs", "tests"])).optional().describe("Which kinds to ingest. Default: all three."),
+    ref: z.string().optional().describe("Branch (or commit) to ingest at. Default: the repo's default branch."),
+  },
+  async ({ repo, kinds, ref }) => {
+    try {
+      const targetRepo = repo || detectCurrentRepo();
+      if (!targetRepo) {
+        return { content: [{ type: "text" as const, text: "No repo specified and could not detect the current repo (run inside a git repo or pass `repo`)." }] };
+      }
+      if (!dbPoolRef) {
+        return { content: [{ type: "text" as const, text: "Database not available — cannot create ingestion tasks." }] };
+      }
+      const { createIngestGraphTasks } = await import("./ingest-graph-tasks.js");
+      const result = await createIngestGraphTasks(dbPoolRef, targetRepo, { kinds, branch: ref, createdBy: "ingest_graph" });
+      const lines = result.created.map((t) => `  • ${t.kind}: ${t.id}`).join("\n");
+      const skippedNote = result.skipped.length ? `\nSkipped (already in flight): ${result.skipped.join(", ")}` : "";
+      return { content: [{ type: "text" as const, text: `Created ${result.created.length} ingestion task(s) for ${targetRepo} (group ${result.groupId}):\n${lines}${skippedNote}\n\nRun one locally with: run_task_locally <task_id>` }] };
+    } catch (err: any) {
+      return { content: [{ type: "text" as const, text: `Error creating ingestion tasks: ${err.message}` }] };
+    }
+  }
+);
+
+server.tool(
   "search_memory",
   "Semantic search across all org memories and facts. Returns results ranked by similarity. Facts include temporal validity — only currently valid facts are returned by default.",
   {
@@ -1555,6 +1583,24 @@ server.tool(
             body: JSON.stringify({ task_id: task.id, action: "claim", claimed_by: "local-runner" }),
           });
         } catch { /* best effort */ }
+      }
+
+      // Deterministic graph-ingest tasks run in-process (zero-LLM, no worktree),
+      // dispatched by execution_mode via the task-type prefix. The content source
+      // is the cwd working tree when it matches, else a cached /tmp clone.
+      if (typeof task.task_type === "string" && task.task_type.startsWith("ingest-")) {
+        const { resolveContentSource, executeGraphIngestLocally } = await import("./local-graph-ingest.js");
+        const cb = (task as any).context_bundle || {};
+        const ref = cb.commit || cb.branch || undefined;
+        let sourceDir: string;
+        try {
+          sourceDir = await resolveContentSource(task.target_repo, ref);
+        } catch (err: any) {
+          return { content: [{ type: "text" as const, text: `Could not prepare repo source for ${task.target_repo}: ${err.message}` }] };
+        }
+        const result = await executeGraphIngestLocally(task, sourceDir);
+        skipTask(task.id);
+        return { content: [{ type: "text" as const, text: `${result.message}\n\nTask ${task.id} → ${result.status} (source: ${sourceDir})` }] };
       }
 
       // Spawn locally

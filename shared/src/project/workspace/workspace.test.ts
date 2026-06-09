@@ -12,6 +12,8 @@ function fakeGit(log: string[]): GitPort {
   const files = new Map<string, string>();
   return {
     clone: async () => {},
+    ensureClone: async () => {},
+    ensureCheckout: async () => {},
     listBranches: async () => ["main"],
     switchBranch: async (_dir, branch) => {
       log.push(`switch ${branch}`);

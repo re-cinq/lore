@@ -49,7 +49,7 @@ existing sliding-window fallback for the rest.)
 
 ## Phase 1: Projection unit
 
-**File:** `agent/src/spec-trace/project-spec-file.ts` (NEW)
+**File:** `shared/src/spec-trace/project-spec-file.ts` (NEW)
 
 `projectSpecFile(repo, file_path, content, dgraph)` — pure, idempotent,
 zero-LLM: segment → upsert `Spec`/`Section`/`Statement`; parse test links
@@ -59,7 +59,7 @@ resolution via the fallback chain (label → AST symbol → language pattern).
 
 ## Phase 2: Generation-time provenance capture
 
-**Files:** `agent/src/spec-trace/provenance.ts` (NEW),
+**Files:** `shared/src/spec-trace/provenance.ts` (NEW),
 `shared/src/commit-trailers.ts`, generation prompt templates
 (`scripts/task-types.yaml` / supervisor)
 
@@ -75,7 +75,7 @@ resolution via the fallback chain (label → AST symbol → language pattern).
 ## Phase 3: Coverage ingest + coverage-first verification
 
 **Files:** `mcp-server/src/routes/coverage.ts` (NEW),
-`agent/src/spec-trace/ingest-coverage.ts` (NEW)
+`shared/src/spec-trace/ingest-coverage.ts` (NEW)
 
 - `POST /api/repos/:o/:r/coverage` (write scope) — parse LCOV/Cobertura
   (zero-LLM) → `ingestCoverageReport()` upserts `Coverage` nodes +
@@ -86,7 +86,7 @@ resolution via the fallback chain (label → AST symbol → language pattern).
 
 ## Phase 4: Drift unit + confidence tiers
 
-**File:** `agent/src/spec-trace/drift-check-file.ts` (NEW)
+**File:** `shared/src/spec-trace/drift-check-file.ts` (NEW)
 
 `driftCheckFile(repo, file_path, newChunks, dgraph)` — compare each
 chunk's new `content_hash` to its Dgraph node; on change, reverse-traverse
@@ -96,8 +96,8 @@ hash. Fold in link rot. Grade severity by statement↔chunk cosine.
 
 ## Phase 5: Vectors (candidate suggestion) + LLM legacy fallback
 
-**Files:** `agent/src/spec-trace/project-spec-file.ts` (vector mirror),
-`agent/src/spec-trace/suggest-links.ts` (NEW, LLM fallback)
+**Files:** `shared/src/spec-trace/project-spec-file.ts` (vector mirror),
+`shared/src/spec-trace/suggest-links.ts` (NEW, LLM fallback)
 
 - Mirror chunk embeddings onto `CodeChunk`/`TestChunk`; embed testable
   `Statement`s once.
@@ -141,11 +141,11 @@ issue machinery (`spec-drift` label)
 | `shared/src/spec-link-parser.ts`, `test-paths.ts` | 0 | code-link parse; broaden `isTestFile` |
 | `shared/src/chunker.ts` + 2 ingest paths | 0 | `content_hash` in metadata |
 | `shared/src/commit-trailers.ts` | 2 | `Lore-Validates:` |
-| `agent/src/spec-trace/project-spec-file.ts` | 1,5 | projection + vector mirror |
-| `agent/src/spec-trace/provenance.ts` | 2 | provenance parsers |
-| `agent/src/spec-trace/ingest-coverage.ts` | 3 | consume posted coverage/report → Coverage + COVERS |
-| `agent/src/spec-trace/drift-check-file.ts` | 4 | drift + tiers (+ `violated` from project-test-interface) |
-| `agent/src/spec-trace/suggest-links.ts` | 5 | LLM legacy fallback |
+| `shared/src/spec-trace/project-spec-file.ts` | 1,5 | projection + vector mirror |
+| `shared/src/spec-trace/provenance.ts` | 2 | provenance parsers |
+| `shared/src/spec-trace/ingest-coverage.ts` | 3 | consume posted coverage/report → Coverage + COVERS |
+| `shared/src/spec-trace/drift-check-file.ts` | 4 | drift + tiers (+ `violated` from project-test-interface) |
+| `shared/src/spec-trace/suggest-links.ts` | 5 | LLM legacy fallback |
 | _test interface_ (`test-command-runner.ts`, `/api/coverage`, `/test-report`, MCP tools, CI templates) | — | **owned by [`project-test-interface`](../project-test-interface/plan.md)** (built first); consumed here |
 | `agent/src/jobs/scheduled/spec-trace.ts` | 7 | dispatcher |
 | `agent/src/health.ts` | 7 | trigger |

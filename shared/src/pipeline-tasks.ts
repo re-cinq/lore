@@ -10,11 +10,14 @@ import type { PgPool } from "./memory-store.js";
 
 /** Trust level → allowed task types. The createTask gate reads
  *  lore.repos.settings.trust.level. Relocated from mcp's pipeline.ts. */
+// Deterministic graph-ingest tasks are allowed at EVERY trust tier — they are
+// zero-LLM, produce no PR, and only read source + write the trace graph.
+const GRAPH_INGEST = ["ingest-specs", "ingest-adrs", "ingest-tests"];
 const TRUST_LEVELS: Record<string, string[]> = {
-  docs: ["gap-fill", "runbook"],
-  tests: ["gap-fill", "runbook", "review"],
-  implementation: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general"],
-  full: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", "onboard"],
+  docs: ["gap-fill", "runbook", ...GRAPH_INGEST],
+  tests: ["gap-fill", "runbook", "review", ...GRAPH_INGEST],
+  implementation: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", ...GRAPH_INGEST],
+  full: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", "onboard", ...GRAPH_INGEST],
 };
 
 export interface CreateTaskInput {

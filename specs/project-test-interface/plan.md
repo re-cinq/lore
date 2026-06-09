@@ -32,8 +32,8 @@ manifest → loader returns null (caller falls back).
 
 ## Phase 1: `tests.list` → TestChunk + VALIDATED_BY
 
-**Files:** `agent/src/spec-trace/test-command-runner.ts` (NEW),
-`agent/src/spec-trace/ingest-coverage.ts` (modify)
+**Files:** `shared/src/spec-trace/test-command-runner.ts` (NEW),
+`shared/src/spec-trace/ingest-coverage.ts` (modify)
 
 Parse descriptors `{id, name, file, startLine, endLine, spec?, passed?}`;
 seed `TestChunk` (range, `test_name`, `xid = id`); when `spec` present,
@@ -75,7 +75,7 @@ as the superseded coverage-ingestion templates.
 
 ## Phase 5: Sandboxed executor + trust gate
 
-**File:** `agent/src/spec-trace/test-command-runner.ts`
+**File:** `shared/src/spec-trace/test-command-runner.ts`
 
 Execute only when the runtime context is trusted (local stdio, CI, or the
 claude-runner Job pod). Bounded timeout → skip (logged). The long-lived
@@ -116,9 +116,9 @@ run-locally error.
 | File | Phase | Change |
 |------|-------|--------|
 | `shared/src/test-command-manifest.ts` | 0 | NEW schema + loader |
-| `agent/src/spec-trace/test-command-runner.ts` | 1,2,5 | NEW sandboxed executor + gate |
-| `agent/src/spec-trace/ingest-coverage.ts` | 1–3 | consume command/report/bulk output |
-| `agent/src/spec-trace/drift-check-file.ts` | 2,7 | `violated` distinct from `drifted` + flaky guard |
+| `shared/src/spec-trace/test-command-runner.ts` | 1,2,5 | NEW sandboxed executor + gate |
+| `shared/src/spec-trace/ingest-coverage.ts` | 1–3 | consume command/report/bulk output |
+| `shared/src/spec-trace/drift-check-file.ts` | 2,7 | `violated` distinct from `drifted` + flaky guard |
 | `mcp-server/src/routes/coverage.ts` | 3 | absorbed bulk LCOV/Cobertura |
 | `mcp-server/src/routes/test-report.ts` | 3 | NEW `/test-report` |
 | `scripts/onboarding-templates/tests/*.yml` + onboard | 4 | per-language CI workflow |

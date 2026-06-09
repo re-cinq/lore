@@ -17,7 +17,7 @@
  * DgraphClientPort; never imports the driver.
  */
 
-import type { CoveredChunk, DgraphClientPort } from "@re-cinq/lore-shared";
+import type { CoveredChunk, DgraphClientPort } from "./deps.js";
 import { upsertByXid, withTxn, replaceEdge } from "./dgraph-upsert.js";
 
 /** A CodeChunk's uid and line span as read back from Dgraph. */

@@ -11,8 +11,8 @@
  * carries `file_path`.
  */
 
-import type { DgraphClientPort, Block } from "@re-cinq/lore-shared";
-import { reassembleBlocks } from "@re-cinq/lore-shared";
+import type { DgraphClientPort, Block } from "./deps.js";
+import { reassembleBlocks } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 
 /** A Block node's projected fields as read back from Dgraph. */
