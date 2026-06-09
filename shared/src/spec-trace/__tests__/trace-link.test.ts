@@ -54,6 +54,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
           testchunks(func: eq(TestChunk.repo, $repo)) { uid }
           codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
           coverages(func: eq(Coverage.repo, $repo)) { uid }
+          files(func: eq(File.repo, $repo)) { uid }
         }`,
         { $repo: repo },
       );
@@ -62,12 +63,14 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
         testchunks?: { uid: string }[];
         codechunks?: { uid: string }[];
         coverages?: { uid: string }[];
+        files?: { uid: string }[];
       };
       const uids = [
         ...(data.tracelinks ?? []),
         ...(data.testchunks ?? []),
         ...(data.codechunks ?? []),
         ...(data.coverages ?? []),
+        ...(data.files ?? []),
       ].map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
@@ -172,6 +175,44 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
     ]);
   });
 
+  it("reaches the TraceLink from its target via the ~TraceLink.target reverse edge", async () => {
+    const repo = `tracelink/${randomUUID()}`;
+    createdRepo = repo;
+    const statementXid = `${repo}|specs/foo/spec.md|9`;
+    createdStatementXid = statementXid;
+
+    const tcRes = await dgraphClient.newTxn().mutate({
+      setJson: { uid: "_:tc", "dgraph.type": "TestChunk", "TestChunk.xid": `${repo}|t9`, "TestChunk.repo": repo },
+      commitNow: true,
+    });
+    const tcUid = tcRes.data.uids.tc;
+    const stmtRes = await dgraphClient.newTxn().mutate({
+      setJson: { uid: "_:s", "dgraph.type": "Statement", "Statement.xid": statementXid, "Statement.ordinal": 9 },
+      commitNow: true,
+    });
+    const stmtUid = stmtRes.data.uids.s;
+
+    await upsertTraceLink(dgraphClient, {
+      repo,
+      statementUid: stmtUid,
+      statementXid,
+      targetUid: tcUid,
+      targetXid: `${repo}|t9`,
+      kind: "validated_by",
+      evidence: "human-linked",
+    });
+
+    const data = (await readGraph(
+      `query q($x: string) {
+        target(func: eq(TestChunk.xid, $x)) {
+          links: ~TraceLink.target { TraceLink.kind }
+        }
+      }`,
+      { $x: `${repo}|t9` },
+    )) as { target?: Array<{ links?: Array<{ "TraceLink.kind"?: string }> }> };
+    expect((data.target?.[0]?.links ?? []).map((l) => l["TraceLink.kind"])).toEqual(["validated_by"]);
+  });
+
   it("derives one human-linked validated_by TraceLink from a Statement.validated_by edge to a TestChunk", async () => {
     const repo = `tracelink/${randomUUID()}`;
     createdRepo = repo;
@@ -244,13 +285,27 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
     });
     const ccUid = codeChunkRes.data.uids.cc;
 
+    // Coverage covers the FILE (same path as the implemented CodeChunk) — the
+    // execution-verified verdict matches by file path.
+    const fileRes = await dgraphClient.newTxn().mutate({
+      setJson: {
+        uid: "_:f",
+        "dgraph.type": "File",
+        "File.xid": `${repo}|src/widget.ts`,
+        "File.repo": repo,
+        "File.path": "src/widget.ts",
+      },
+      commitNow: true,
+    });
+    const fileUid = fileRes.data.uids.f;
+
     const coverageRes = await dgraphClient.newTxn().mutate({
       setJson: {
         uid: "_:cov",
         "dgraph.type": "Coverage",
         "Coverage.xid": `${repo}|t.test.ts|renders`,
         "Coverage.repo": repo,
-        "Coverage.covers": [{ uid: ccUid }],
+        "Coverage.covers": [{ uid: fileUid }],
       },
       commitNow: true,
     });

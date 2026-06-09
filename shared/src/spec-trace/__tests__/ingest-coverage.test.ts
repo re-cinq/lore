@@ -55,6 +55,8 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
           coverage(func: eq(Coverage.repo, $repo)) { uid }
           codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
           testchunks(func: eq(TestChunk.repo, $repo)) { uid }
+          files(func: eq(File.repo, $repo)) { uid }
+          root(func: eq(Repo.xid, $repo)) { uid }
         }`,
         { $repo: repo },
       );
@@ -62,10 +64,16 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         coverage?: { uid: string }[];
         codechunks?: { uid: string }[];
         testchunks?: { uid: string }[];
+        files?: { uid: string }[];
+        root?: { uid: string }[];
       };
-      const uids = [...(data.coverage ?? []), ...(data.codechunks ?? []), ...(data.testchunks ?? [])].map(
-        (node) => node.uid,
-      );
+      const uids = [
+        ...(data.coverage ?? []),
+        ...(data.codechunks ?? []),
+        ...(data.testchunks ?? []),
+        ...(data.files ?? []),
+        ...(data.root ?? []),
+      ].map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -82,6 +90,29 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
   let createdRepo = "";
   afterEach(async () => {
     if (createdRepo) await deleteRepoNodes(createdRepo);
+  });
+
+  it("attaches the Coverage node and covered Files to the Repo root via Repo.coverage and Repo.files", async () => {
+    const repo = `test-cov/${randomUUID()}`;
+    createdRepo = repo;
+
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "v8", commit: "abc" },
+      [{ testFile: "a.test.ts", testName: "t", covered: [{ file: "src/a.ts", startLine: 1, endLine: 5 }] }],
+    );
+
+    const data = (await readGraph(
+      `query q($repo: string){
+        root(func: eq(Repo.xid, $repo)){
+          cov: Repo.coverage { Coverage.repo }
+          files: Repo.files { File.path }
+        }
+      }`,
+      { $repo: repo },
+    )) as { root?: Array<{ cov?: unknown[]; files?: Array<{ "File.path"?: string }> }> };
+    expect(data.root?.[0]?.cov).toHaveLength(1);
+    expect((data.root?.[0]?.files ?? []).map((f) => f["File.path"])).toEqual(["src/a.ts"]);
   });
 
   it("writes one Coverage node keyed by repo|testFile|testName with repo/tool/commit for a record with no covered ranges", async () => {
@@ -111,91 +142,43 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     });
   });
 
-  it("adds one COVERS edge to the CodeChunk when covered 5-10 overlaps the chunk 1-20", async () => {
-    const repo = `test-cov/${randomUUID()}`;
-    createdRepo = repo;
-
-    const seedTxn = dgraphClient.newTxn();
-    try {
-      await seedTxn.mutate({
-        setJson: {
-          uid: "_:cc",
-          "dgraph.type": "CodeChunk",
-          "CodeChunk.xid": `${repo}|cc1`,
-          "CodeChunk.repo": repo,
-          "CodeChunk.file_path": "src/widget.ts",
-          "CodeChunk.start_line": 1,
-          "CodeChunk.end_line": 20,
-        },
-        commitNow: true,
-      });
-    } finally {
-      await seedTxn.discard().catch(() => {});
-    }
-
-    await ingestCoverageReport(
-      dgraphClient,
-      { repo, tool: "lcov", commit: "abc123" },
-      [{ testFile: "t.test.ts", testName: "renders", covered: [{ file: "src/widget.ts", startLine: 5, endLine: 10 }] }],
-    );
-
-    const data = (await readGraph(
-      `query q($xid: string) {
-        cov(func: eq(Coverage.xid, $xid)) {
-          Coverage.covers { CodeChunk.xid }
-        }
-      }`,
-      { $xid: `${repo}|t.test.ts|renders` },
-    )) as { cov?: { "Coverage.covers"?: { "CodeChunk.xid": string }[] }[] };
-
-    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([{ "CodeChunk.xid": `${repo}|cc1` }]);
-  });
-
-  it("counts 6 unmatched lines for covered 5-10 overlapping no CodeChunk", async () => {
+  it("upserts one File per covered file with a ranges facet (merging that file's intervals) and links it via COVERS", async () => {
     const repo = `test-cov/${randomUUID()}`;
     createdRepo = repo;
 
     const result = await ingestCoverageReport(
       dgraphClient,
       { repo, tool: "lcov", commit: "abc123" },
-      [{ testFile: "t.test.ts", testName: "renders", covered: [{ file: "src/widget.ts", startLine: 5, endLine: 10 }] }],
+      [
+        {
+          testFile: "t.test.ts",
+          testName: "renders",
+          covered: [
+            { file: "src/widget.ts", startLine: 5, endLine: 10 },
+            { file: "src/widget.ts", startLine: 20, endLine: 25 },
+          ],
+        },
+      ],
     );
+    expect(result).toMatchObject({ coversEdges: 1, unmatched: 0 }); // ONE File, not two ranges
 
-    expect(result).toMatchObject({ coversEdges: 0, unmatched: 6 });
+    const data = (await readGraph(
+      `query q($xid: string) {
+        cov(func: eq(Coverage.xid, $xid)) {
+          Coverage.covers @facets(ranges) { File.xid File.path }
+        }
+      }`,
+      { $xid: `${repo}|t.test.ts|renders` },
+    )) as { cov?: { "Coverage.covers"?: Record<string, unknown>[] }[] };
+
+    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([
+      { "File.xid": `${repo}|src/widget.ts`, "File.path": "src/widget.ts", "Coverage.covers|ranges": "5-10,20-25" },
+    ]);
   });
 
-  it("re-ingest with a new commit replaces COVERS so only ccB remains, not ccA", async () => {
+  it("deletes the orphaned File when re-ingest drops its covered file", async () => {
     const repo = `test-cov/${randomUUID()}`;
     createdRepo = repo;
-
-    const seedTxn = dgraphClient.newTxn();
-    try {
-      await seedTxn.mutate({
-        setJson: [
-          {
-            uid: "_:ccA",
-            "dgraph.type": "CodeChunk",
-            "CodeChunk.xid": `${repo}|ccA`,
-            "CodeChunk.repo": repo,
-            "CodeChunk.file_path": "a.ts",
-            "CodeChunk.start_line": 1,
-            "CodeChunk.end_line": 10,
-          },
-          {
-            uid: "_:ccB",
-            "dgraph.type": "CodeChunk",
-            "CodeChunk.xid": `${repo}|ccB`,
-            "CodeChunk.repo": repo,
-            "CodeChunk.file_path": "b.ts",
-            "CodeChunk.start_line": 1,
-            "CodeChunk.end_line": 10,
-          },
-        ],
-        commitNow: true,
-      });
-    } finally {
-      await seedTxn.discard().catch(() => {});
-    }
 
     await ingestCoverageReport(
       dgraphClient,
@@ -208,19 +191,40 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       [{ testFile: "t.test.ts", testName: "renders", covered: [{ file: "b.ts", startLine: 1, endLine: 10 }] }],
     );
 
-    const data = (await readGraph(
-      `query q($xid: string) {
-        cov(func: eq(Coverage.xid, $xid)) {
-          Coverage.commit
-          Coverage.covers { CodeChunk.xid }
-        }
-      }`,
+    const cov = (await readGraph(
+      `query q($xid: string) { cov(func: eq(Coverage.xid, $xid)) { Coverage.commit Coverage.covers { File.xid } } }`,
       { $xid: `${repo}|t.test.ts|renders` },
-    )) as { cov?: { "Coverage.commit"?: string; "Coverage.covers"?: { "CodeChunk.xid": string }[] }[] };
+    )) as { cov?: { "Coverage.commit"?: string; "Coverage.covers"?: { "File.xid": string }[] }[] };
+    expect(cov.cov?.[0]?.["Coverage.commit"]).toEqual("c2");
+    expect((cov.cov?.[0]?.["Coverage.covers"] ?? []).map((c) => c["File.xid"])).toEqual([`${repo}|b.ts`]);
 
-    const coversXids = (data.cov?.[0]?.["Coverage.covers"] ?? []).map((chunk) => chunk["CodeChunk.xid"]).sort();
-    expect(data.cov?.[0]?.["Coverage.commit"]).toEqual("c2");
-    expect(coversXids).toEqual([`${repo}|ccB`]);
+    // The dropped a.ts File is GC'd (no other owner).
+    const orphan = (await readGraph(
+      `query q($xid: string) { f(func: eq(File.xid, $xid)) { uid } }`,
+      { $xid: `${repo}|a.ts` },
+    )) as { f?: { uid: string }[] };
+    expect(orphan.f ?? []).toEqual([]);
+  });
+
+  it("keeps a File that another Coverage still covers after one drops it", async () => {
+    const repo = `test-cov/${randomUUID()}`;
+    createdRepo = repo;
+    const shared = { file: "shared.ts", startLine: 1, endLine: 10 };
+
+    await ingestCoverageReport(dgraphClient, { repo, tool: "lcov", commit: "c1" }, [
+      { testFile: "a.test.ts", testName: "a", covered: [shared] },
+      { testFile: "b.test.ts", testName: "b", covered: [shared] },
+    ]);
+    // a.test.ts re-ingests with NO coverage; b.test.ts still covers the shared range.
+    await ingestCoverageReport(dgraphClient, { repo, tool: "lcov", commit: "c2" }, [
+      { testFile: "a.test.ts", testName: "a", covered: [] },
+    ]);
+
+    const data = (await readGraph(
+      `query q($xid: string) { f(func: eq(File.xid, $xid)) { File.xid } }`,
+      { $xid: `${repo}|shared.ts` },
+    )) as { f?: Record<string, unknown>[] };
+    expect(data.f).toEqual([{ "File.xid": `${repo}|shared.ts` }]);
   });
 
   it("links the matching TestChunk to the Coverage node via HAS_COVERAGE", async () => {

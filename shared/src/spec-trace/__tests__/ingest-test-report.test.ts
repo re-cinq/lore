@@ -60,6 +60,8 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
           specs(func: eq(Spec.repo, $repo)) { uid }
           statements(func: eq(Statement.repo, $repo)) { uid }
           blocks(func: eq(Block.repo, $repo)) { uid }
+          files(func: eq(File.repo, $repo)) { uid }
+          root(func: eq(Repo.xid, $repo)) { uid }
         }`,
         { $repo: repo },
       );
@@ -71,6 +73,8 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         specs?: { uid: string }[];
         statements?: { uid: string }[];
         blocks?: { uid: string }[];
+        files?: { uid: string }[];
+        root?: { uid: string }[];
       };
       const uids = [
         ...(data.testchunks ?? []),
@@ -80,6 +84,8 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         ...(data.specs ?? []),
         ...(data.statements ?? []),
         ...(data.blocks ?? []),
+        ...(data.files ?? []),
+        ...(data.root ?? []),
       ].map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
@@ -124,6 +130,31 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     if (createdRepo) await deleteRepoNodes(createdRepo);
     if (createdStatementXid) await deleteStatementNode(createdStatementXid);
     createdStatementXid = "";
+  });
+
+  it("attaches the report's TestChunks and TestSuites to the Repo root", async () => {
+    const repo = `test-report/${randomUUID()}`;
+    createdRepo = repo;
+
+    const report = {
+      tests: [
+        { id: "shared/x.test.ts::a", name: "renders", file: "shared/x.test.ts", suite: ["Widget"] },
+      ],
+      results: [],
+    };
+    await ingestTestReport(dgraphClient, repo, report);
+
+    const data = (await readGraph(
+      `query q($repo: string){
+        root(func: eq(Repo.xid, $repo)){
+          tc: count(Repo.test_chunks)
+          suites: Repo.test_suites { TestSuite.name }
+        }
+      }`,
+      { $repo: repo },
+    )) as { root?: Array<{ tc?: number; suites?: Array<{ "TestSuite.name"?: string }> }> };
+    expect(data.root?.[0]?.tc).toBeGreaterThanOrEqual(1);
+    expect((data.root?.[0]?.suites ?? []).map((s) => s["TestSuite.name"])).toEqual(["Widget"]);
   });
 
   it("links a statement via validated_by when a descriptor name sentence-matches its spec (no anchor)", async () => {
@@ -358,7 +389,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     expect(data.stmt?.[0]?.["Statement.violation_reason"]).toBeUndefined();
   });
 
-  it("connects Statement to CodeChunk via validated_by to TestChunk to coverage to covers for a per-it descriptor", async () => {
+  it("connects Statement to File via validated_by to TestChunk to coverage to covers for a per-it descriptor", async () => {
     const repo = `test-report/${randomUUID()}`;
     createdRepo = repo;
     const specPath = "specs/example/spec.md";
@@ -369,18 +400,6 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       dgraphClient,
       async () => null,
     );
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|ccZ`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/a.ts",
-        "CodeChunk.start_line": 1,
-        "CodeChunk.end_line": 20,
-      },
-      commitNow: true,
-    });
-
     await ingestTestReport(dgraphClient, repo, {
       tests: [
         {
@@ -396,28 +415,18 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const data = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
-          Statement.validated_by { cov: TestChunk.coverage { covers: Coverage.covers { CodeChunk.xid } } }
+          Statement.validated_by { cov: TestChunk.coverage { covers: Coverage.covers { File.xid } } }
         }
       }`,
       { $sx: `${repo}|${specPath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: { cov?: { covers?: Record<string, unknown>[] } }[] }[] };
-    expect(data.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov?.covers).toEqual([{ "CodeChunk.xid": `${repo}|ccZ` }]);
+    // The covered range mints its own CodeChunk — no AST/pre-seeding needed.
+    expect(data.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov?.covers).toEqual([{ "File.xid": `${repo}|src/a.ts` }]);
   });
 
-  it("covers CodeChunk repo|ccX from result t1's range 5-10 overlapping the chunk's 1-20 span", async () => {
+  it("covers a File from result t1's covered range and links it via COVERS", async () => {
     const repo = `test-report/${randomUUID()}`;
     createdRepo = repo;
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|ccX`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/widget.ts",
-        "CodeChunk.start_line": 1,
-        "CodeChunk.end_line": 20,
-      },
-      commitNow: true,
-    });
     const report = {
       tests: [{ id: "t1", name: "renders", file: "test/widget.test.ts" }],
       results: [{ id: "t1", passed: true, covered: [{ file: "src/widget.ts", startLine: 5, endLine: 10 }] }],
@@ -428,13 +437,13 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const data = (await readGraph(
       `query q($xid: string) {
         cov(func: eq(Coverage.xid, $xid)) {
-          Coverage.covers { CodeChunk.xid }
+          Coverage.covers { File.xid }
         }
       }`,
       { $xid: `${repo}|test/widget.test.ts|test/widget.test.ts` },
     )) as { cov?: Record<string, unknown>[] };
 
-    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([{ "CodeChunk.xid": `${repo}|ccX` }]);
+    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([{ "File.xid": `${repo}|src/widget.ts` }]);
   });
 
   it("creates one Coverage node per file and attaches HAS_COVERAGE to the file-scoped TestChunk for many per-it descriptors", async () => {

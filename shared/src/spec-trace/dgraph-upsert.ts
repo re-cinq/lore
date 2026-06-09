@@ -36,6 +36,8 @@ export type SpecTraceNodeType =
   | "AcceptanceCriterion"
   | "Block"
   | "Coverage"
+  | "File"
+  | "Feature"
   | "TraceLink";
 
 /** Runs `fn` inside a fresh transaction, always discarding it afterwards. */
@@ -144,6 +146,42 @@ export async function replaceEdge(
   await withTxn(dgraph, (txn) =>
     txn.mutate({
       setJson: { uid, [predicate]: targetUids.map((target) => ({ uid: target })) },
+      commitNow: true,
+    }),
+  );
+}
+
+/** An edge target carrying scalar facets (Dgraph edge properties) for a `[uid]` predicate. */
+export interface FacetedTarget {
+  uid: string;
+  facets: Record<string, string | number | boolean>;
+}
+
+/**
+ * Like {@link replaceEdge}, but each target carries scalar facets written as
+ * `predicate|key` pairs (Dgraph edge properties). Used to put the covered line
+ * intervals on the `Coverage --covers--> File` edge (`Coverage.covers|ranges`).
+ * Delete-then-set so re-ingest mirrors the latest set; facets need no schema.
+ */
+export async function replaceEdgeWithFacets(
+  dgraph: DgraphClientPort,
+  uid: string,
+  predicate: string,
+  targets: FacetedTarget[],
+): Promise<void> {
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({ deleteNquads: `<${uid}> <${predicate}> * .`, commitNow: true }),
+  );
+  if (!targets.length) return;
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({
+      setJson: {
+        uid,
+        [predicate]: targets.map(({ uid: target, facets }) => ({
+          uid: target,
+          ...Object.fromEntries(Object.entries(facets).map(([key, value]) => [`${predicate}|${key}`, value])),
+        })),
+      },
       commitNow: true,
     }),
   );

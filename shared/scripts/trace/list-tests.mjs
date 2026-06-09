@@ -1,29 +1,40 @@
 #!/usr/bin/env node
-// Lore test-command interface -- `list`. Emits one descriptor per `it()`
-// (carrying the full `describe > it` name + the describe ancestors as `suite[]`)
-// so spec-sentence acceptance links can be derived from the describe nesting.
-// The per-`it` -> descriptor transform is the pure, unit-tested
-// `descriptorsFromVitestList`; this script is just the vitest spawn + JSON glue.
-// NOTE: `run` still executes one whole FILE per invocation (coverage is
-// file-level) and buildTestReport runs files under a concurrency cap, so the
-// historical per-`it` fork-bomb no longer applies.
+// Lore test-command interface -- `list`. Emits per-`it` descriptors across ALL
+// traceability packages. There is no root vitest workspace, so run `vitest list`
+// in each package's own cwd and merge. Per-`it` granularity + the describe-chain
+// name/suite[] come from the pure, unit-tested `descriptorsFromVitestList`; this
+// script is just the per-package vitest spawn + JSON merge. `run` executes one
+// whole FILE per invocation (coverage is file-level) under buildTestReport's
+// concurrency cap, so per-`it` listing does not fork-bomb.
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 import { descriptorsFromVitestList } from "../../dist/spec-trace/trace-descriptors.js";
 
-const SCOPE = process.env.LORE_TRACE_SCOPE || "src/spec-trace"; // runs with cwd=<pkg>
-const PKG = process.env.LORE_TRACE_PKG || "shared"; // repo-relative prefix Lore expects on every path
+const ROOT = process.cwd(); // manifest cwd == repo root
+// Packages whose `src/` tests feed the graph. Override to narrow scope, e.g.
+// LORE_TRACE_PKGS=shared LORE_TRACE_SCOPE=src/spec-trace for the old behavior.
+const PKGS = (process.env.LORE_TRACE_PKGS || "shared,agent,mcp-server,web-ui")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const SCOPE = process.env.LORE_TRACE_SCOPE || "src"; // all src tests per package
 
-function listFromVitest() {
-  // vitest leaks sourcemap warnings around the JSON; slice the array out.
-  const out = execFileSync("npx", ["vitest", "list", SCOPE, "--json"], {
-    encoding: "utf-8",
-    maxBuffer: 64 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
+function listPkg(pkg) {
+  let out;
+  try {
+    out = execFileSync("npx", ["vitest", "list", SCOPE, "--json"], {
+      cwd: join(ROOT, pkg),
+      encoding: "utf-8",
+      maxBuffer: 128 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    return []; // a package with no matching tests / a transient list failure contributes nothing
+  }
   const start = out.indexOf("[");
   const end = out.lastIndexOf("]");
-  if (start === -1 || end === -1) throw new Error("vitest list emitted no JSON array");
-  return JSON.parse(out.slice(start, end + 1));
+  if (start === -1 || end === -1) return [];
+  return descriptorsFromVitestList(JSON.parse(out.slice(start, end + 1)), { pkg });
 }
 
-process.stdout.write(JSON.stringify(descriptorsFromVitestList(listFromVitest(), { pkg: PKG })));
+process.stdout.write(JSON.stringify(PKGS.flatMap(listPkg)));

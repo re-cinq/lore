@@ -65,6 +65,7 @@ describe.skipIf(!reachable)("language-agnostic e2e: no tree-sitter grammar (Ruby
           codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
           testchunks(func: eq(TestChunk.repo, $repo)) { uid }
           coverages(func: eq(Coverage.repo, $repo)) { uid }
+          files(func: eq(File.repo, $repo)) { uid }
         }`,
         { $repo: repo },
       );
@@ -138,19 +139,21 @@ describe.skipIf(!reachable)("language-agnostic e2e: no tree-sitter grammar (Ruby
     // (what project-test-interface supplies for a real chunk). No symbol_name — no grammar.
     await enrichCodeChunk(codeChunkXid, { "CodeChunk.end_line": 20, "CodeChunk.content_hash": "OLDHASH" });
 
-    // 2. Ingest coverage → Coverage + COVERS by line overlap (12-18 ⊂ 10-20), no symbol needed.
+    // 2. Ingest coverage → Coverage + a coverage-DEFINED CodeChunk minted from the
+    // covered range (file+line, no AST/symbol — language-agnostic by construction).
     await ingestCoverageReport(
       dgraphClient,
       { repo, tool: "lcov", commit: "c1" },
       [{ testFile: "spec/widget_spec.rb", testName: "validated by", covered: [{ file: "src/widget.rb", startLine: 12, endLine: 18 }] }],
     );
 
-    // AC#8 claim: coverage-based COVERS works on file+line alone.
+    // AC#8 claim: coverage-based COVERS works on file alone — the covered file is a
+    // File node `${repo}|src/widget.rb`, its intervals on the `ranges` edge facet.
     const coverage = (await readGraph(
-      `query q($xid: string){ cov(func: eq(Coverage.xid, $xid)){ Coverage.covers { CodeChunk.xid } } }`,
+      `query q($xid: string){ cov(func: eq(Coverage.xid, $xid)){ Coverage.covers @facets(ranges) { File.xid } } }`,
       { $xid: `${repo}|spec/widget_spec.rb|validated by` },
-    )) as { cov?: Record<string, unknown>[] };
-    expect(coverage.cov?.[0]?.["Coverage.covers"]).toEqual([{ "CodeChunk.xid": codeChunkXid }]);
+    )) as { cov?: { "Coverage.covers"?: Record<string, unknown>[] }[] };
+    expect(coverage.cov?.[0]?.["Coverage.covers"]).toEqual([{ "File.xid": `${repo}|src/widget.rb`, "Coverage.covers|ranges": "12-18" }]);
 
     // 3. The implementation changes (content_hash differs); its test did not.
     await driftCheckFile(

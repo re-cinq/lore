@@ -243,8 +243,11 @@ export async function ingestTestReport(
   const resultById = new Map(report.results.map((result) => [result.id, result]));
   const entries: DescriptorChunk[] = [];
   const fileChunkUidByFile = new Map<string, string>();
+  const repoTestChunkUids = new Set<string>();
+  const repoSuiteUids = new Set<string>();
   for (const descriptor of report.tests) {
     const innermostSuiteUid = await projectSuiteChain(dgraph, repo, descriptor);
+    if (innermostSuiteUid) repoSuiteUids.add(innermostSuiteUid);
     const testChunkUid = await upsertByXid(dgraph, "TestChunk", `${repo}|${descriptor.id}`, {
       "TestChunk.repo": repo,
       "TestChunk.test_name": descriptor.name,
@@ -266,8 +269,17 @@ export async function ingestTestReport(
       });
       fileChunkUidByFile.set(descriptor.file, fileChunkUid);
     }
+    repoTestChunkUids.add(testChunkUid).add(fileChunkUid);
     entries.push({ descriptor, testChunkUid, fileChunkUid });
   }
+
+  // Attach every TestChunk + (leaf) TestSuite to the Repo root so the test layer
+  // is reachable from the graph's entry point (parent suites hang off the leaf via
+  // ~TestSuite.parent). Set-union dedups across re-ingests.
+  await upsertByXid(dgraph, "Repo", repo, {
+    ...(repoTestChunkUids.size ? { "Repo.test_chunks": [...repoTestChunkUids].map((uid) => ({ uid })) } : {}),
+    ...(repoSuiteUids.size ? { "Repo.test_suites": [...repoSuiteUids].map((uid) => ({ uid })) } : {}),
+  });
 
   const statementGroups = groupStatementsByAnchor(repo, entries, resultById);
   for (const group of statementGroups) {

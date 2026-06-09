@@ -32,11 +32,13 @@ Block.xid: string @index(hash) @upsert .
 Repo.xid: string @index(hash) @upsert .
 ADR.xid: string @index(hash) @upsert .
 TestSuite.xid: string @index(hash) @upsert .
+File.xid: string @index(hash) @upsert .
+Feature.xid: string @index(hash) @upsert .
 TraceLink.xid: string @index(hash) @upsert .
 
 TraceLink.repo: string @index(hash) .
 TraceLink.statement: uid @reverse .
-TraceLink.target: uid .
+TraceLink.target: uid @reverse .
 TraceLink.kind: string @index(hash) .
 TraceLink.evidence: string @index(hash) .
 Statement.trace_links: [uid] @reverse @count .
@@ -49,19 +51,29 @@ Repo.code_chunks: [uid] @reverse @count .
 Repo.test_chunks: [uid] @reverse @count .
 Repo.test_suites: [uid] @reverse @count .
 Repo.coverage: [uid] @reverse @count .
+Repo.files: [uid] @reverse @count .
 
 Spec.repo: string @index(hash) .
 Spec.file_path: string @index(hash) .
 Spec.content_hash: string .
 Spec.title: string .
+Spec.feature: uid @reverse .
 Spec.sections: [uid] @reverse @count .
 Spec.acceptance_criteria: [uid] @reverse @count .
+
+# Feature: one node per speckit folder under specs/ (xid `${repo}|specs/<name>`).
+# Groups a folder's many md files (spec.md, plan.md, data-model.md, …) under one
+# UI node; the md Specs point at it via Spec.feature (reverse: ~Spec.feature).
+Feature.repo: string @index(hash) .
+Feature.path: string @index(hash) .
+Feature.title: string .
 Section.spec: uid @reverse .
 Section.heading: string @index(term) .
 Section.level: int .
 Section.ordinal: int .
 Section.statements: [uid] @reverse @count .
 
+AcceptanceCriterion.repo: string @index(hash) .
 AcceptanceCriterion.spec: uid @reverse .
 AcceptanceCriterion.ordinal: int @index(int) .
 AcceptanceCriterion.label: string .
@@ -85,6 +97,7 @@ Block.kind: string @index(hash) .
 Block.text: string .
 Block.level: int .
 
+Statement.repo: string @index(hash) .
 Statement.spec: uid @reverse .
 Statement.section: uid @reverse .
 Statement.ordinal: int @index(int) .
@@ -106,12 +119,16 @@ Statement.violation_reason: string .
 CodeChunk.repo: string @index(hash) .
 CodeChunk.file_path: string @index(hash) .
 CodeChunk.symbol_name: string @index(term) .
-CodeChunk.symbol_type: string @index(hash) .
 CodeChunk.start_line: int .
 CodeChunk.end_line: int .
 CodeChunk.content_hash: string @index(hash) .
-CodeChunk.chunk_id: string @index(hash) .
 CodeChunk.embedding: float32vector @index(hnsw(metric:"cosine")) .
+
+# File: one node per (repo, path) — the coverage-source aggregation target.
+# Coverage --covers--> File carries the covered line intervals as a `ranges`
+# edge facet (Coverage.covers|ranges = "12-18,30-40"); facets need no schema.
+File.repo: string @index(hash) .
+File.path: string @index(hash) .
 
 TestChunk.repo: string @index(hash) .
 TestChunk.file_path: string @index(hash) .
@@ -121,7 +138,6 @@ TestChunk.link_label: string .
 TestChunk.start_line: int .
 TestChunk.end_line: int .
 TestChunk.content_hash: string @index(hash) .
-TestChunk.chunk_id: string @index(hash) .
 TestChunk.embedding: float32vector @index(hnsw(metric:"cosine")) .
 TestChunk.coverage: uid @reverse .
 TestChunk.suite: uid @reverse .
@@ -136,10 +152,9 @@ Coverage.test: uid @reverse .
 Coverage.repo: string @index(hash) .
 Coverage.tool: string @index(hash) .
 Coverage.commit: string @index(hash) .
-Coverage.generated_at: dateTime .
+Coverage.generated_at: dateTime @index(hour) .
 Coverage.line_count: int .
 Coverage.covers: [uid] @reverse @count .
-Coverage.stale: bool @index(bool) .
 
 ADR.repo: string @index(hash) .
 ADR.number: int @index(int) .
@@ -159,6 +174,7 @@ type Repo {
   Repo.test_chunks
   Repo.test_suites
   Repo.coverage
+  Repo.files
 }
 type Spec {
   Spec.xid
@@ -166,8 +182,15 @@ type Spec {
   Spec.file_path
   Spec.content_hash
   Spec.title
+  Spec.feature
   Spec.sections
   Spec.acceptance_criteria
+}
+type Feature {
+  Feature.xid
+  Feature.repo
+  Feature.path
+  Feature.title
 }
 type Section {
   Section.xid
@@ -179,6 +202,7 @@ type Section {
 }
 type AcceptanceCriterion {
   AcceptanceCriterion.xid
+  AcceptanceCriterion.repo
   AcceptanceCriterion.spec
   AcceptanceCriterion.ordinal
   AcceptanceCriterion.label
@@ -218,6 +242,7 @@ type ADR {
 }
 type Statement {
   Statement.xid
+  Statement.repo
   Statement.spec
   Statement.section
   Statement.ordinal
@@ -242,11 +267,9 @@ type CodeChunk {
   CodeChunk.repo
   CodeChunk.file_path
   CodeChunk.symbol_name
-  CodeChunk.symbol_type
   CodeChunk.start_line
   CodeChunk.end_line
   CodeChunk.content_hash
-  CodeChunk.chunk_id
   CodeChunk.embedding
 }
 type TestChunk {
@@ -259,7 +282,6 @@ type TestChunk {
   TestChunk.start_line
   TestChunk.end_line
   TestChunk.content_hash
-  TestChunk.chunk_id
   TestChunk.embedding
   TestChunk.coverage
   TestChunk.suite
@@ -281,7 +303,11 @@ type Coverage {
   Coverage.generated_at
   Coverage.line_count
   Coverage.covers
-  Coverage.stale
+}
+type File {
+  File.xid
+  File.repo
+  File.path
 }
 type TraceLink {
   TraceLink.xid

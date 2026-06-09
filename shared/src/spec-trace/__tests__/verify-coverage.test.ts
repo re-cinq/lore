@@ -117,12 +117,21 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
     });
     const tc1uid = tcUids.tc;
 
+    // Coverage covers a FILE (same path as the implemented CodeChunk) — the match
+    // is by file path, not node identity.
+    const fileUids = await mutate({
+      uid: "_:f",
+      "dgraph.type": "File",
+      "File.xid": `${repo}|src/widget.ts`,
+      "File.repo": repo,
+      "File.path": "src/widget.ts",
+    });
     const covUids = await mutate({
       uid: "_:cov",
       "dgraph.type": "Coverage",
       "Coverage.xid": `${repo}|t.test.ts|renders`,
       "Coverage.repo": repo,
-      "Coverage.covers": [{ uid: ccXuid }],
+      "Coverage.covers": [{ uid: fileUids.f }],
     });
     const cov1uid = covUids.cov;
 
