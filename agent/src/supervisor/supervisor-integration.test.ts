@@ -10,7 +10,7 @@ import { FileLeaseBackend } from "./lease.js";
 import { parseWorkflow } from "../workflow/loader.js";
 import { createAgentHandler } from "./agent-handler.js";
 import { createProductionHandlers } from "./handlers.js";
-import type { LLMResult } from "../anthropic.js";
+import type { LLMResult } from "../platform/anthropic.js";
 
 const execFile = promisify(execFileCb);
 

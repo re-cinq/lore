@@ -1,4 +1,4 @@
-import { query } from "./db.js";
+import { query } from "../../platform/db.js";
 
 export interface ApprovalConfig {
   required: boolean;           // org-level default

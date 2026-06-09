@@ -8,7 +8,7 @@ import {
 } from "./agent-handler.js";
 import type { WorkflowNode } from "../workflow/loader.js";
 import type { NodeContext } from "./graph-executor.js";
-import type { LLMResult } from "../anthropic.js";
+import type { LLMResult } from "../platform/anthropic.js";
 
 const node: WorkflowNode = {
   id: "draft",

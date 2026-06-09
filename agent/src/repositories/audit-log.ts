@@ -1,4 +1,4 @@
-import { query } from "../db.js";
+import { query } from "../platform/db.js";
 
 /**
  * One row in `pipeline.audit_log`. Used by dark-factory events:

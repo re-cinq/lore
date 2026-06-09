@@ -1,4 +1,4 @@
-import { callLLMWithTool } from "../anthropic.js";
+import { callLLMWithTool } from "../platform/anthropic.js";
 
 export interface ArtifactCopyInput {
   kind: "pr" | "issue";

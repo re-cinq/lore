@@ -4,7 +4,7 @@ const queryMock = vi.fn();
 const buildOctokitMock = vi.fn();
 const resolvePrForTaskFromDbMock = vi.fn();
 
-vi.mock("../db.js", () => ({
+vi.mock("../platform/db.js", () => ({
   query: (...args: unknown[]) => queryMock(...args),
 }));
 

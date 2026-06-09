@@ -3,9 +3,9 @@ import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
-import { query } from "../../db.js";
-import { callLLM } from "../../anthropic.js";
-import { projectFor } from "../../project-boot.js";
+import { query } from "../../platform/db.js";
+import { callLLM } from "../../platform/anthropic.js";
+import { projectFor } from "../../platform/project-boot.js";
 
 const execFileAsync = promisify(execFile);
 

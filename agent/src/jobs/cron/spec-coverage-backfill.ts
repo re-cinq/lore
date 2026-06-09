@@ -35,9 +35,9 @@ import {
   type Judgment,
   type MatchKind,
 } from "@re-cinq/lore-shared";
-import { query } from "../../db.js";
-import { callLLMWithTool } from "../../anthropic.js";
-import { projectFor } from "../../project-boot.js";
+import { query } from "../../platform/db.js";
+import { callLLMWithTool } from "../../platform/anthropic.js";
+import { projectFor } from "../../platform/project-boot.js";
 import { isAssertionSource } from "./spec-drift-rules.js";
 
 // ── Pure helper: which statements need backfill? ───────────────────

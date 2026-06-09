@@ -1,10 +1,10 @@
-import { initPool } from "./db.js";
-import { loadTaskTypes } from "./config.js";
-import { recoverStaleTasks, startWorker } from "./worker.js";
-import { registerJob, startScheduler, getJobStatus } from "./scheduler.js";
-import { startHealthServer } from "./health.js";
+import { initPool } from "./platform/db.js";
+import { loadTaskTypes } from "./platform/config.js";
+import { recoverStaleTasks, startWorker } from "./features/task-processing/worker.js";
+import { registerJob, startScheduler, getJobStatus } from "./features/scheduling/scheduler.js";
+import { startHealthServer } from "./platform/health.js";
 
-import { loadApprovalConfig } from "./approval.js";
+import { loadApprovalConfig } from "./features/approval/approval.js";
 import { approvalCheckJob } from "./jobs/scheduled/approval-check.js";
 import { mergeCheckJob } from "./jobs/scheduled/merge-check.js";
 import { reviewReactorJob } from "./jobs/scheduled/review-reactor.js";

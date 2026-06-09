@@ -5,7 +5,7 @@ import {
   computeCachePrefixHash,
   analyzeCacheBreak,
   type CacheBreakAnalysis,
-} from "./lib/prompt-cache.js";
+} from "../lib/prompt-cache.js";
 
 export interface LLMResult {
   text: string;

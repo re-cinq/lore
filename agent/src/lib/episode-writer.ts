@@ -9,7 +9,7 @@
 
 import { createHash } from "node:crypto";
 import { redactSecrets } from "@re-cinq/lore-shared";
-import { callLLM as defaultCallLLM } from "../anthropic.js";
+import { callLLM as defaultCallLLM } from "../platform/anthropic.js";
 import {
   pgEpisodes,
   pgMemories,
