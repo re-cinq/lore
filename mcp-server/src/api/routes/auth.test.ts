@@ -26,6 +26,10 @@ describe("getRequiredScope", () => {
     expect(getRequiredScope("/api/repos/o/r/settings/dark-factory?x=1")).toBe("admin");
   });
 
+  it("returns admin for the ingest-graph route", () => {
+    expect(getRequiredScope("/api/repos/o/r/ingest-graph")).toBe("admin");
+  });
+
   it("returns read for an unmapped route", () => {
     expect(getRequiredScope("/api/unknown/path")).toBe("read");
   });
