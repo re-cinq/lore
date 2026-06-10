@@ -13,7 +13,7 @@ import type { LlmCompletion } from "@re-cinq/lore-shared";
  * without hitting Anthropic / a real filesystem.
  */
 export interface AgentHandlerDeps {
-  /** Wraps `callLLM` from agent/src/anthropic.ts. */
+  /** Injected text-completion call — orchestrator backs this with `Llm.instance.complete`. */
   callLLM: (params: {
     prompt: string;
     systemPrompt?: string;

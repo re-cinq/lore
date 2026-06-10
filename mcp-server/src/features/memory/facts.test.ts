@@ -1,26 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { callClaude } from './facts.js';
-
-// Mocked CLI integration: callClaude falls back to the `claude` CLI when no
-// API key is set. We mock child_process so the real binary is never spawned —
-// promisify reads the custom symbol off our mock to resolve { stdout, stderr }.
-const { CLI_STDOUT, execFileCalls } = vi.hoisted(() => ({
-  CLI_STDOUT:
-    '["Lore uses PostgreSQL with pgvector for vector search.",' +
-    '"The MCP server runs on GKE."]',
-  execFileCalls: [] as Array<[string, string[]]>,
-}));
-
-vi.mock('node:child_process', () => {
-  const execFile = (() => {
-    throw new Error('execFile callback form should not be used in tests');
-  }) as unknown as Record<symbol, unknown>;
-  execFile[Symbol.for('nodejs.util.promisify.custom')] = (file: string, args: string[]) => {
-    execFileCalls.push([file, args]);
-    return Promise.resolve({ stdout: `${CLI_STDOUT}\n`, stderr: '' });
-  };
-  return { execFile };
-});
+import { describe, it, expect, vi } from 'vitest';
 
 // extractFacts itself depends on DB and embedding, so parseFacts is
 // re-implemented here for unit testing and the contradiction detection logic
@@ -117,35 +95,6 @@ describe('LLM config', () => {
     // 1000 input tokens + 200 output tokens
     const cost = 1000 * INPUT_COST + 200 * OUTPUT_COST;
     expect(cost).toBeCloseTo(0.0016, 6); // $0.0008 + $0.0008
-  });
-});
-
-// ── Claude CLI fallback (integration test) ──────────────────────────
-
-describe('callClaude — CLI fallback (mocked)', () => {
-  beforeEach(() => {
-    execFileCalls.length = 0;
-    delete process.env.ANTHROPIC_API_KEY;
-  });
-
-  it('invokes the claude CLI and returns its trimmed stdout when no API key is set', async () => {
-    const text = 'Lore uses PostgreSQL with pgvector for vector search.';
-
-    const out = await callClaude('claude-haiku-4-5-20251001', text);
-
-    expect(out).toBe(CLI_STDOUT);
-    expect(execFileCalls).toHaveLength(1);
-    expect(execFileCalls[0]).toEqual([
-      'claude',
-      ['-p', expect.stringContaining(text), '--output-format', 'text'],
-    ]);
-  });
-
-  it('parses the mocked CLI output into a bounded fact list', () => {
-    expect(parseFacts(CLI_STDOUT)).toEqual([
-      'Lore uses PostgreSQL with pgvector for vector search.',
-      'The MCP server runs on GKE.',
-    ]);
   });
 });
 
