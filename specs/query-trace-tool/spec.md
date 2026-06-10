@@ -1,8 +1,8 @@
-# Feature Specification: `query_trace` MCP Tool
+# Feature Specification: `lore-query-trace` MCP Tool
 
 | Field          | Value                                                                                     |
 |----------------|-------------------------------------------------------------------------------------------|
-| Feature        | `query_trace` MCP Tool                                                                     |
+| Feature        | `lore-query-trace` MCP Tool                                                                     |
 | Status         | **Draft**                                                                                  |
 | Created        | 2026-06-10                                                                                 |
 | Owner          | Platform Engineering                                                                       |
@@ -11,7 +11,7 @@
 
 ## Problem Statement
 
-The `query_trace` MCP tool was registered as a stub that ignores its input
+The `lore-query-trace` MCP tool was registered as a stub that ignores its input
 and returns *"Trace queries are not yet available."* — left that way until the
 Dgraph projection shipped. The projection has shipped: the graph holds each
 spec `Statement` with its `validated_by`/`implemented_by`/`decided_by` links
@@ -26,7 +26,7 @@ main-branch graph through the remote API.
 
 ## Solution
 
-Wire `query_trace` to proxy a read to the remote `/trace/document` route and
+Wire `lore-query-trace` to proxy a read to the remote `/trace/document` route and
 project the returned `TraceDocument` into agent-readable text. The orchestrator
 resolves the repo, issues one GET via the proxy, and formats the result
 ([`runQueryTrace`](../../mcp-server/src/features/spec-trace/query-trace.ts#L100));
@@ -35,7 +35,7 @@ the projection itself is a pure function
 the GET proxy reuses the shared retry/config machinery
 ([`proxyGetApi`](../../mcp-server/src/mcp/tools/deps.ts#L104)); the tool is
 registered read-only on the shared surface
-([`query_trace` registration](../../mcp-server/src/mcp/tools/spec-trace-tools.ts#L40)).
+([`lore-query-trace` registration](../../mcp-server/src/mcp/tools/spec-trace-tools.ts#L40)).
 
 ## Acceptance Criteria
 

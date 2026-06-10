@@ -37,7 +37,7 @@ export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "query_trace",
+    "lore-query-trace",
     "Query the spec-traceability graph for a spec: which statements are validated/implemented/decided by what, and which are drifted or violated. Reads the main-branch graph via the Lore API.",
     {
       spec: z.string().describe("Spec file path, e.g. 'specs/auth/spec.md'."),

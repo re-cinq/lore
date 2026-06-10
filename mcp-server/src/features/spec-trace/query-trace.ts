@@ -1,5 +1,5 @@
 /**
- * query-trace — pure formatter for the `query_trace` MCP tool. Turns a
+ * query-trace — pure formatter for the `lore-query-trace` MCP tool. Turns a
  * TraceDocument (read from the spec-traceability graph via the remote
  * `/trace/document` route) into agent-readable text: a no-selector signal
  * summary, or a focused view of the selected statement(s) with their
@@ -104,13 +104,13 @@ export async function runQueryTrace(args: QueryTraceArgs, deps: QueryTraceDeps):
   }
   const result = await deps.proxyGet(`/api/repos/${repo}/trace/document?path=${encodeURIComponent(args.spec)}`);
   if (!result.ok && result.reason === "not_configured") {
-    return "query_trace needs LORE_API_URL + a read-scoped LORE_INGEST_TOKEN to reach the graph; neither is configured.";
+    return "lore-query-trace needs LORE_API_URL + a read-scoped LORE_INGEST_TOKEN to reach the graph; neither is configured.";
   }
   if (!result.ok) {
     const scopeHint = result.detail.includes("403")
       ? " — the token needs `read` scope for trace queries."
       : "";
-    return `Lore API unreachable for query_trace: ${result.detail}.${scopeHint}`;
+    return `Lore API unreachable for lore-query-trace: ${result.detail}.${scopeHint}`;
   }
   return formatTraceQuery(JSON.parse(result.body) as TraceDocument, args.statement);
 }
