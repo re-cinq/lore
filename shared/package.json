@@ -27,6 +27,7 @@
     "@octokit/auth-app": "^7.1.0",
     "@types/node": "^22.13.10",
     "@types/pg": "^8.20.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "libsodium-wrappers": "^0.8.2",
     "octokit": "^4.1.0",
     "pg": "^8.21.0",
