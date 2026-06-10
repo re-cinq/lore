@@ -12,6 +12,9 @@ vi.mock("@re-cinq/lore-shared", () => ({
   parseSpecTitle: vi.fn(),
   extractSummary: vi.fn(),
   reassembleSpec: vi.fn(),
+  // The graph closure routes through Llm.instance now; provider-internal cost
+  // logging is tested in shared, so a tiny fake suffices here.
+  Llm: { instance: { complete: vi.fn().mockResolvedValue({ text: "ok" }) } },
 }));
 
 import { extractFactsFromEpisode } from "../../features/memory/facts.js";
@@ -51,36 +54,20 @@ describe("POST /api/episode", () => {
 
   it("stores a new episode and runs the graph LLM closure when key is set", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-test";
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ usage: { input_tokens: 10, output_tokens: 20 }, content: [{ text: "ok" }] })),
-    );
-    globalThis.fetch = fetchMock as typeof fetch;
+    let closureRan = false;
     vi.mocked(extractAndUpdateGraph).mockImplementation(async (...args: any[]) => {
       const llm = args[5];
-      if (llm) await llm("prompt");
+      if (llm) {
+        await llm("prompt");
+        closureRan = true;
+      }
     });
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: 99 }] });
     const res = await post({ content: "a new observation", agent_id: "a1" }, pool as any);
     expect(res.json).toEqual({ status: "ok", episode_id: 99 });
     expect(extractFactsFromEpisode).toHaveBeenCalled();
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
-  });
-
-  it("skips the llm_calls insert when the response has no usage", async () => {
-    process.env.ANTHROPIC_API_KEY = "sk-test";
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [{ text: "ok" }] })));
-    globalThis.fetch = fetchMock as typeof fetch;
-    vi.mocked(extractAndUpdateGraph).mockImplementation(async (...args: any[]) => {
-      const llm = args[5];
-      if (llm) await llm("prompt");
-    });
-    const pool = makePool();
-    pool.query.mockResolvedValue({ rows: [{ id: 13 }] });
-    const res = await post({ content: "obs without usage" }, pool as any);
-    expect(res.json).toEqual({ status: "ok", episode_id: 13 });
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(pool.query).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(closureRan).toBe(true));
   });
 
   it("skips graph extraction when ANTHROPIC_API_KEY is unset", async () => {
@@ -89,26 +76,6 @@ describe("POST /api/episode", () => {
     const res = await post({ content: "another observation" }, pool as any);
     expect(res.json).toEqual({ status: "ok", episode_id: 5 });
     expect(extractAndUpdateGraph).not.toHaveBeenCalled();
-  });
-
-  it("swallows a failing llm_calls insert inside the graph closure", async () => {
-    process.env.ANTHROPIC_API_KEY = "sk-test";
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ usage: { input_tokens: 1, output_tokens: 2 }, content: [{ text: "ok" }] })),
-    );
-    globalThis.fetch = fetchMock as typeof fetch;
-    vi.mocked(extractAndUpdateGraph).mockImplementation(async (...args: any[]) => {
-      const llm = args[5];
-      if (llm) await llm("prompt");
-    });
-    const pool = makePool();
-    pool.query.mockImplementation((sql: string) => {
-      if (sql.includes("pipeline.llm_calls")) return Promise.reject(new Error("llm log fail"));
-      return Promise.resolve({ rows: [{ id: 7 }] });
-    });
-    const res = await post({ content: "yet another observation" }, pool as any);
-    expect(res.json).toEqual({ status: "ok", episode_id: 7 });
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
   });
 
   it("returns 500 when the episode insert throws", async () => {

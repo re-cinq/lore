@@ -5,6 +5,7 @@
  */
 
 import type { Pool } from "pg";
+import { Llm } from "@re-cinq/lore-shared";
 import { getGitHubToken } from "../../platform/github-client.js";
 
 // ── GitHub helpers (used by webhook + spec-merge routes) ─────────────
@@ -46,29 +47,16 @@ export async function readFileFromGitHub(repo: string, path: string, ref: string
   return response.text();
 }
 
-/** Build a graph LLM call function for extractAndUpdateGraph. */
-export function makeGraphLlmCall(pool: Pool | null): ((prompt: string) => Promise<string>) | undefined {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return undefined;
-  const model = process.env.LORE_GRAPH_MODEL || "claude-haiku-4-5-20251001";
-  return async (prompt: string) => {
-    const start = Date.now();
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-      body: JSON.stringify({ model, max_tokens: 1024, messages: [{ role: "user", content: prompt }] }),
-    });
-    const result = await res.json() as any;
-    const durationMs = Date.now() - start;
-    if (result.usage && pool) {
-      const costUsd = result.usage.input_tokens * 0.8 / 1_000_000 + result.usage.output_tokens * 4.0 / 1_000_000;
-      pool.query(
-        `INSERT INTO pipeline.llm_calls (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms) VALUES (NULL, 'graph-extraction', $1, $2, $3, $4, $5)`,
-        [model, result.usage.input_tokens, result.usage.output_tokens, costUsd, durationMs],
-      ).catch(() => {});
-    }
-    return result.content[0].text;
-  };
+/**
+ * Build a graph LLM call function for extractAndUpdateGraph, routed through the
+ * shared `Llm` singleton (cost logging now happens inside the provider via
+ * `Llm.configure`). Returns undefined when no Anthropic key is set — preserving
+ * the "skip graph extraction without credentials" gate.
+ */
+export function makeGraphLlmCall(_pool: Pool | null): ((prompt: string) => Promise<string>) | undefined {
+  if (!process.env.ANTHROPIC_API_KEY) return undefined;
+  return (prompt: string) =>
+    Llm.instance.complete({ prompt, jobName: "graph-extraction" }).then((r) => r.text);
 }
 
 // ── Agent service forwarders (fire-and-forget) ──────────────────────

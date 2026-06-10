@@ -3,8 +3,8 @@ import { join } from "node:path";
 import pg from "pg";
 import { setPool } from "./platform/db.js";
 import { setMemoryPool } from "./features/memory/memory.js";
-import { setFactsCostPool } from "./features/memory/facts.js";
 import { setPipelinePool } from "./features/pipeline/pipeline.js";
+import { Llm } from "@re-cinq/lore-shared";
 import { loadTaskTypes } from "./features/pipeline/pipeline-config.js";
 import { loadTemplates } from "./features/context/context-assembly.js";
 import { buildMcpServer } from "./server/build-mcp-server.js";
@@ -33,7 +33,7 @@ async function main() {
     setPool(dbPool);
     setMemoryPool(dbPool);
     setPipelinePool(dbPool);
-    setFactsCostPool(dbPool);
+    Llm.configure({ costPool: dbPool });
     state.pool = dbPool;
     console.error(`[lore] Database mode: PostgreSQL at ${dbHost}`);
   } else {

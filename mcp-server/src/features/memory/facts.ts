@@ -9,28 +9,11 @@
  */
 
 import { getQueryEmbedding } from '../../platform/db.js';
+import { Llm } from '@re-cinq/lore-shared';
 
-// ── LLM provider configuration ──────────────────────────────────────
-
-type LlmProvider = 'claude' | 'openai' | 'ollama';
-
-function getLlmConfig(): { provider: LlmProvider; model: string } {
-  const provider = (process.env.LORE_FACT_LLM || 'claude') as LlmProvider;
-  const model = process.env.LORE_FACT_MODEL || defaultModel(provider);
-  return { provider, model };
-}
-
-function defaultModel(provider: LlmProvider): string {
-  switch (provider) {
-    case 'claude':  return 'claude-haiku-4-5-20251001';
-    case 'openai':  return 'gpt-4o-mini';
-    case 'ollama':  return 'llama3';
-  }
-}
-
-// Haiku pricing: $0.80 per million input, $4.00 per million output
-const HAIKU_INPUT_COST = 0.8 / 1_000_000;
-const HAIKU_OUTPUT_COST = 4.0 / 1_000_000;
+// Provider selection (Anthropic/OpenAI/Ollama) + cost logging now live behind
+// the shared `Llm` singleton (LORE_LLM_PROVIDER / LORE_FACT_LLM). Fact extraction
+// just calls `Llm.instance.complete`.
 
 const EXTRACTION_PROMPT =
   'Extract individual factual statements from the following text. ' +
@@ -55,138 +38,6 @@ async function withRetry<T>(
   }
   // Unreachable, but satisfies TypeScript
   throw new Error('retry exhausted');
-}
-
-// ── Cost tracking ──────────────────────────────────────────────────
-
-let costTrackingPool: any = null;
-
-export function setFactsCostPool(pool: any): void {
-  costTrackingPool = pool;
-}
-
-async function trackCost(model: string, inputTokens: number, outputTokens: number, durationMs: number, jobName: string): Promise<void> {
-  if (!costTrackingPool) return;
-  const costUsd = inputTokens * HAIKU_INPUT_COST + outputTokens * HAIKU_OUTPUT_COST;
-  try {
-    await costTrackingPool.query(
-      `INSERT INTO pipeline.llm_calls (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
-       VALUES (NULL, $1, $2, $3, $4, $5, $6)`,
-      [jobName, model, inputTokens, outputTokens, costUsd, durationMs],
-    );
-  } catch { /* non-fatal */ }
-}
-
-// ── LLM provider implementations ────────────────────────────────────
-
-export async function callClaude(model: string, text: string): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    // Fall back to Claude CLI (uses Claude Code subscription, no API credits)
-    return callClaudeCli(text);
-  }
-
-  const start = Date.now();
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 1024,
-      messages: [
-        { role: 'user', content: `${EXTRACTION_PROMPT}\n\n${text}` },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Claude API error: ${res.status} ${res.statusText}`);
-  }
-
-  const json = await res.json() as {
-    content: Array<{ type: string; text: string }>;
-    usage?: { input_tokens: number; output_tokens: number };
-  };
-  const durationMs = Date.now() - start;
-
-  // Track cost
-  if (json.usage) {
-    trackCost(model, json.usage.input_tokens, json.usage.output_tokens, durationMs, 'fact-extraction').catch(() => {});
-  }
-
-  return json.content[0].text;
-}
-
-/**
- * Use the Claude Code CLI for LLM calls when no API key is set.
- * This uses the developer's Claude Code subscription instead of API credits.
- */
-async function callClaudeCli(text: string): Promise<string> {
-  const { execFile } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const execFileAsync = promisify(execFile);
-
-  const prompt = `${EXTRACTION_PROMPT}\n\n${text}`;
-  const { stdout } = await execFileAsync('claude', ['-p', prompt, '--output-format', 'text'], {
-    timeout: 30_000,
-    env: { ...process.env },
-  });
-  return stdout.trim();
-}
-
-async function callOpenAI(model: string, text: string): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY not set');
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: EXTRACTION_PROMPT },
-        { role: 'user', content: text },
-      ],
-      temperature: 0,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`OpenAI API error: ${res.status} ${res.statusText}`);
-  }
-
-  const json = await res.json() as {
-    choices: Array<{ message: { content: string } }>;
-  };
-  return json.choices[0].message.content;
-}
-
-async function callOllama(model: string, text: string): Promise<string> {
-  const baseUrl = process.env.LORE_OLLAMA_URL || 'http://localhost:11434';
-
-  const res = await fetch(`${baseUrl}/api/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      prompt: `${EXTRACTION_PROMPT}\n\n${text}`,
-      stream: false,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Ollama API error: ${res.status} ${res.statusText}`);
-  }
-
-  const json = await res.json() as { response: string };
-  return json.response;
 }
 
 // ── Response parsing ────────────────────────────────────────────────
@@ -304,18 +155,13 @@ export async function extractFacts(
   pool: any,
 ): Promise<void> {
   try {
-    const { provider, model } = getLlmConfig();
-
     let rawResponse: string;
     try {
-      rawResponse = await withRetry(() => {
-        switch (provider) {
-          case 'claude':  return callClaude(model, value);
-          case 'openai':  return callOpenAI(model, value);
-          case 'ollama':  return callOllama(model, value);
-          default:        return callClaude(model, value);
-        }
-      });
+      rawResponse = await withRetry(() =>
+        Llm.instance
+          .complete({ systemPrompt: EXTRACTION_PROMPT, prompt: value, jobName: 'fact-extraction' })
+          .then((r) => r.text),
+      );
     } catch (err) {
       console.warn('[facts] LLM unreachable after 3 attempts, skipping fact extraction:', err);
       return;
@@ -371,18 +217,13 @@ export async function extractFactsFromEpisode(
   pool: any,
 ): Promise<void> {
   try {
-    const { provider, model } = getLlmConfig();
-
     let rawResponse: string;
     try {
-      rawResponse = await withRetry(() => {
-        switch (provider) {
-          case 'claude':  return callClaude(model, content);
-          case 'openai':  return callOpenAI(model, content);
-          case 'ollama':  return callOllama(model, content);
-          default:        return callClaude(model, content);
-        }
-      });
+      rawResponse = await withRetry(() =>
+        Llm.instance
+          .complete({ systemPrompt: EXTRACTION_PROMPT, prompt: content, jobName: 'fact-extraction' })
+          .then((r) => r.text),
+      );
     } catch (err) {
       console.warn('[facts] LLM unreachable for episode extraction:', err);
       return;
