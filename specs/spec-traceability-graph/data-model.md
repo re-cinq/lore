@@ -386,7 +386,7 @@ not discovered in production.
 ## Coverage ingestion (per report, zero-LLM)
 
 `ingestCoverageReport(repo, tool, report, dgraph)` — realizes
-[`coverage-ingestion`](../coverage-ingestion/spec.md):
+`coverage-ingestion`:
 
 - parse LCOV / Cobertura / go-cover deterministically;
 - per test, upsert one `Coverage` node (`xid = repo|test_file|test_name`)

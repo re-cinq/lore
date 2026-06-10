@@ -46,4 +46,24 @@ describe("POST /api/webhook/incident", () => {
     const res = await run({ repo: "o/r" }, pool as any);
     expect(res.statusCode).toBe(500);
   });
+  it("returns 500 on a malformed JSON body", async () => {
+    const res = await run("{not json", makePool() as any);
+    expect(res.statusCode).toBe(500);
+  });
+  it("derives resolved=true from status resolved and writes a FIFO-capped entry", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValue({});
+    const res = await run({ repo: "o/r", title: "outage", status: "resolved" }, pool as any);
+    expect(res.json).toEqual({ ok: true, repo: "o/r" });
+    const [sql, args] = pool.query.mock.calls[0];
+    expect(sql).toContain("LIMIT 10");
+    expect(JSON.parse(args[1])).toMatchObject({ title: "outage", resolved: true, severity: "unknown" });
+  });
+  it("defaults title and severity when neither incident field is present", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValue({});
+    await run({ repo: "o/r" }, pool as any);
+    const [, args] = pool.query.mock.calls[0];
+    expect(JSON.parse(args[1])).toMatchObject({ title: "Unknown incident", severity: "unknown", resolved: false });
+  });
 });
