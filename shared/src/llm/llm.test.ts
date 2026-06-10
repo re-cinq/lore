@@ -38,6 +38,8 @@ describe("Llm singleton", () => {
   it("rebuilds the env-resolved default after reset (no provider pinned)", () => {
     Llm.setInstance(stub);
     Llm.reset();
-    expect(Llm.instance.vendor).toBe("anthropic");
+    // Default depends on env (anthropic with a key, cli without) — the point is
+    // it rebuilds a real provider, not the pinned stub.
+    expect(["anthropic", "cli"]).toContain(Llm.instance.vendor);
   });
 });

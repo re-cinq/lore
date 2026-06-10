@@ -2,8 +2,16 @@ import { describe, it, expect } from "vitest";
 import { selectProvider } from "./select-provider.js";
 
 describe("selectProvider", () => {
-  it("defaults to anthropic when nothing is configured", () => {
-    expect(selectProvider({}).vendor).toBe("anthropic");
+  it("uses anthropic when a key is set and nothing else is configured", () => {
+    expect(selectProvider({ ANTHROPIC_API_KEY: "k" }).vendor).toBe("anthropic");
+  });
+
+  it("falls back to the CLI (subscription) when anthropic is selected but no ANTHROPIC_API_KEY", () => {
+    expect(selectProvider({}).vendor).toBe("cli");
+  });
+
+  it("picks cli explicitly for LORE_LLM_PROVIDER=cli", () => {
+    expect(selectProvider({ LORE_LLM_PROVIDER: "cli" }).vendor).toBe("cli");
   });
 
   it("picks openai for LORE_LLM_PROVIDER=openai", () => {
@@ -19,6 +27,6 @@ describe("selectProvider", () => {
   });
 
   it("lets LORE_LLM_PROVIDER win over LORE_FACT_LLM", () => {
-    expect(selectProvider({ LORE_LLM_PROVIDER: "anthropic", LORE_FACT_LLM: "ollama" }).vendor).toBe("anthropic");
+    expect(selectProvider({ LORE_LLM_PROVIDER: "openai", LORE_FACT_LLM: "ollama" }).vendor).toBe("openai");
   });
 });
