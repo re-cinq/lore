@@ -4,6 +4,7 @@ import {
   classifyByHeuristic,
   buildIntroOrdinals,
 } from "./spec-segment.js";
+import { parseTestLinksInStatement } from "./spec-link-parser.js";
 
 describe("segmentStatements", () => {
   it("splits prose paragraphs into sentences", () => {
@@ -96,6 +97,25 @@ describe("segmentStatements", () => {
     const second = segmentStatements(content);
     expect(first).toEqual(second);
     expect(first.map((s) => s.ordinal)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("keeps a trailing markdown-link parenthetical attached to the sentence", () => {
+    const out = segmentStatements(
+      "## A\n\nA running task transitions to `cancelled` and the call returns that status. ([validated by `returns cancelled status when the task is running`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L66))\n",
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].text).toContain("([validated by");
+  });
+
+  it("keeps a validated-by link on its own line under the statement parseable as one test link", () => {
+    const out = segmentStatements(
+      "## A\n\nA running task transitions to `cancelled` and the call returns that status.\n([validated by `returns cancelled status when the task is running`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L66))\n",
+    );
+    expect(out).toHaveLength(1);
+    const testLinks = parseTestLinksInStatement(out[0].text);
+    expect(testLinks).toHaveLength(1);
+    expect(testLinks[0].path.endsWith("pipeline-crud.test.ts")).toBe(true);
+    expect(testLinks[0].line).toBe(66);
   });
 
   it("returns an empty array for content with no statements", () => {
