@@ -110,7 +110,7 @@ dumps). Expects tasks to complete on the first try.
 8. Failed jobs are retried once, then logged as failed
 
 **Acceptance Criteria:**
-- All 5 scheduled jobs run at their configured times
+- Scheduled jobs run at their configured times (hot-path jobs in-process; heavy batch jobs as K8s CronJobs per ADR-019)
 - Job runs are visible in the system (logs or dashboard)
 - A missed schedule (e.g., service was down) runs the job on next startup
 - Jobs do not overlap — a long-running job delays the next occurrence rather than running concurrently
@@ -216,15 +216,13 @@ individual files. Other task types produce a single output file.
 > hot-path / sub-minute jobs (merge check, watchers, review-reactor safety net)
 > remain in-process per this FR.
 
-The service runs periodic maintenance jobs on configurable schedules:
+The service runs the remaining hot-path / sub-minute jobs in-process (the heavy
+batch jobs — reindex, gap detection, spec drift, memory TTL — moved to
+Kubernetes CronJobs per the note above, owned by `scheduled-job-runtime-split`):
 
 | Job                     | Default Schedule     | Description                                    |
 |-------------------------|----------------------|------------------------------------------------|
-| Context reindex         | Daily at 2:00 AM     | Re-embed changed content for all onboarded repos |
-| Gap detection           | Monday at 9:00 AM    | Identify missing context across repos          |
-| Spec drift check        | Monday at 10:00 AM   | Compare specs against actual code              |
 | Onboarding PR merge     | Every 60 seconds     | Detect merged onboarding PRs, trigger ingestion |
-| Memory TTL cleanup      | Every hour           | Remove expired memory entries                  |
 
 ### FR-7: Crash Recovery
 
