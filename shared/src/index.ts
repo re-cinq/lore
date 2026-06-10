@@ -60,6 +60,7 @@ export { FakeLlm } from './llm/fake-llm.js';
 export { AnthropicProvider } from './llm/anthropic-provider.js';
 export { OpenAiProvider } from './llm/openai-provider.js';
 export { OllamaProvider } from './llm/ollama-provider.js';
+export { CliProvider } from './llm/cli-provider.js';
 export type {
   LlmProvider,
   LlmCompleteRequest,
