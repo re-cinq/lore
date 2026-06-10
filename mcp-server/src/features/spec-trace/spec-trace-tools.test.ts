@@ -10,7 +10,9 @@ import {
   runTestTool,
   loadTestCommandManifest,
   buildTestReport,
+  chunkTestReport,
   stripPathPrefix,
+  type TestReport,
 } from "./spec-trace-tools.js";
 import type { TestCommandManifest } from "@re-cinq/lore-shared";
 
@@ -27,6 +29,61 @@ describe("executionRefusal", () => {
 
   it("names the remedy of running in CI or locally when refusing", () => {
     expect(executionRefusal({ LORE_DB_HOST: "10.0.0.5" })).toMatch(/CI|local/i);
+  });
+});
+
+describe("chunkTestReport", () => {
+  function bigReport(testCount: number, coveredPerTest: number): TestReport {
+    const tests = Array.from({ length: testCount }, (_, i) => ({
+      id: `mcp-server/src/file${i}.test.ts::case ${i}`,
+      name: `case ${i}`,
+      file: `mcp-server/src/file${i}.test.ts`,
+      startLine: 1,
+      endLine: 9,
+      spec: i % 2 === 0 ? `specs/x/spec.md#L${i}` : undefined,
+    }));
+    const results = tests.map((test) => ({
+      id: test.id,
+      passed: true,
+      covered: Array.from({ length: coveredPerTest }, (_, j) => ({
+        file: `mcp-server/src/file${j}.ts`,
+        startLine: j,
+        endLine: j + 1,
+      })),
+    }));
+    return { commit: "abc1234", branch: "main", tests, results };
+  }
+
+  function bytes(chunk: TestReport): number {
+    return Buffer.byteLength(JSON.stringify(chunk), "utf-8");
+  }
+
+  it("splits a report exceeding maxBytes into multiple chunks each within the limit", () => {
+    const report = bigReport(20, 12);
+    const maxBytes = 2_000;
+
+    const chunks = chunkTestReport(report, maxBytes);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      const oversizedSingleTest = chunk.tests.length === 1;
+      expect(oversizedSingleTest || bytes(chunk) <= maxBytes).toBe(true);
+    }
+  });
+
+  it("preserves every test and result and the commit/branch across chunks", () => {
+    const report = bigReport(20, 12);
+
+    const chunks = chunkTestReport(report, 2_000);
+
+    expect(chunks.flatMap((c) => c.tests)).toEqual(report.tests);
+    expect(chunks.flatMap((c) => c.results)).toEqual(report.results);
+    expect(chunks.every((c) => c.commit === "abc1234" && c.branch === "main")).toBe(true);
+  });
+
+  it("returns a single chunk when the whole report fits within maxBytes", () => {
+    const report = bigReport(2, 1);
+    expect(chunkTestReport(report, 1_000_000)).toEqual([report]);
   });
 });
 

@@ -15,7 +15,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { buildTestReport, loadTestCommandManifest } from "./spec-trace-tools.js";
+import { buildTestReport, chunkTestReport, loadTestCommandManifest } from "./spec-trace-tools.js";
 import { getRepoRoot, detectRepo } from "../pipeline/runner.local.js";
 
 function gitValue(cwd: string, args: string[]): string {
@@ -51,16 +51,24 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const res = await fetch(`${apiUrl.replace(/\/+$/, "")}/api/repos/${repo}/test-report`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(report),
-  });
-  if (!res.ok) {
-    console.error(`[trace] POST /test-report failed: ${res.status} ${await res.text()}`);
-    process.exit(1);
+  // A full-suite report is multiple MB (thousands of tests × coverage ranges)
+  // and exceeds the ingress/app body limits, so POST it in body-bounded chunks.
+  const url = `${apiUrl.replace(/\/+$/, "")}/api/repos/${repo}/test-report`;
+  const chunks = chunkTestReport(report, 512_000);
+  let postedTests = 0;
+  for (let i = 0; i < chunks.length; i += 1) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(chunks[i]),
+    });
+    if (!res.ok) {
+      console.error(`[trace] POST /test-report chunk ${i + 1}/${chunks.length} failed: ${res.status} ${await res.text()}`);
+      process.exit(1);
+    }
+    postedTests += chunks[i].tests.length;
   }
-  console.error(`[trace] Posted ${report.tests.length} tests / ${report.results.length} results for ${repo}@${commit.slice(0, 8)}.`);
+  console.error(`[trace] Posted ${postedTests} tests / ${report.results.length} results in ${chunks.length} chunk(s) for ${repo}@${commit.slice(0, 8)}.`);
 }
 
 main().catch((err: unknown) => {
