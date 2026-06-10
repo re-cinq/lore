@@ -52,11 +52,21 @@ export async function handleImpactRoute(
   json(res, 200, { ...report, annotations, comment });
 }
 
-/** Never throws: a Dgraph outage degrades to `unavailable`, not a 500. */
+/**
+ * Never throws: a Dgraph outage degrades to `unavailable`, not a 500. But it is
+ * NOT silent — a query error (reachable Dgraph, broken DQL / missing schema) is
+ * logged with context so "unavailable" is debuggable instead of a black hole.
+ * The null-client case (LORE_DGRAPH_HTTP unset) is the expected fail-soft and
+ * needs no log.
+ */
 async function safeComputeImpact(repo: string, files: ChangedRange[]): Promise<ImpactReport> {
+  const dgraph = createDgraphClient(process.env);
+  if (!dgraph) return UNAVAILABLE;
   try {
-    return await computeImpact(createDgraphClient(process.env), repo, files);
-  } catch {
+    return await computeImpact(dgraph, repo, files);
+  } catch (err) {
+    const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    console.error(`[impact] query failed for ${repo} (Dgraph reachable but errored): ${reason}`);
     return UNAVAILABLE;
   }
 }
