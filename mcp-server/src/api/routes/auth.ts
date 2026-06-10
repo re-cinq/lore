@@ -76,6 +76,10 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope }> = [
     re: /^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$|\/)/,
     scope: "write",
   },
+  {
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$|\/)/,
+    scope: "admin",
+  },
 ];
 
 export function getRequiredScope(url: string): TokenScope {
