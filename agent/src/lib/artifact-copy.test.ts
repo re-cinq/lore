@@ -1,15 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
+import { Llm, FakeLlm } from "@re-cinq/lore-shared";
 import {
   buildCopyPrompt,
   fallbackCopy,
   generateArtifactCopy,
   type ArtifactCopyInput,
 } from "./artifact-copy.js";
-import { callLLMWithTool } from "../platform/anthropic.js";
-
-vi.mock("../platform/anthropic.js", () => ({
-  callLLMWithTool: vi.fn(),
-}));
 
 const input: ArtifactCopyInput = {
   kind: "pr",
@@ -110,12 +106,12 @@ describe("generateArtifactCopy", () => {
     expect((await generateArtifactCopy(input, llm)).source).toBe("fallback");
   });
 
-  it("uses callLLMWithTool by default when no llm is injected", async () => {
-    vi.mocked(callLLMWithTool).mockResolvedValue({
-      data: { title: "Default-path title", body: "Body" },
-    } as Awaited<ReturnType<typeof callLLMWithTool>>);
+  it("uses Llm.instance by default when no llm is injected", async () => {
+    const fake = new FakeLlm({ data: { title: "Default-path title", body: "Body" } });
+    Llm.setInstance(fake);
     const copy = await generateArtifactCopy(input);
     expect(copy).toMatchObject({ title: "Default-path title", source: "llm" });
-    expect(callLLMWithTool).toHaveBeenCalledOnce();
+    expect(fake.calls).toHaveLength(1);
+    Llm.reset();
   });
 });

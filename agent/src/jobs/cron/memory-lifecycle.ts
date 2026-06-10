@@ -15,7 +15,7 @@
 
 import { scoreImportance } from "@re-cinq/lore-shared";
 import { query } from "../../platform/db.js";
-import { callLLM } from "../../platform/anthropic.js";
+import { Llm } from "@re-cinq/lore-shared";
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -173,7 +173,7 @@ export async function consolidationJob(): Promise<string> {
     if (facts.length < 3) continue; // need at least 3 facts to consolidate
 
     try {
-      const result = await callLLM({
+      const result = await Llm.instance.complete({
         prompt: `Here are ${facts.length} recent facts extracted from agent sessions working on ${repo}. Identify 1-3 higher-level patterns or insights that emerge from these facts. Each pattern should be actionable — something future agents should know.\n\nFacts:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\nReturn each pattern on its own line, prefixed with "PATTERN: ". If no meaningful patterns emerge, respond with "NONE".`,
         systemPrompt: "You are a knowledge consolidation engine. Extract reusable patterns from raw facts.",
         maxTokens: 512,

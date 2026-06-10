@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT } from "@re-cinq/lore-shared";
+import { LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, Llm, FakeLlm } from "@re-cinq/lore-shared";
 
 // handleOnboard now drives the repo/pulls/settings facades via projectFor(repo)
 // instead of the platform() singleton — the fake Project's facades are the spies.
@@ -16,17 +16,12 @@ const fakeIssues = { create: vi.fn(), comment: vi.fn(), addLabel: vi.fn(), close
 const fakeProject = { repo: fakeRepo, pulls: fakePulls, settings: fakeSettings, issues: fakeIssues };
 
 const fetchRepoContext = vi.fn();
-const callLLM = vi.fn();
 const query = vi.fn();
 const writeEpisode = vi.fn();
 const createLabels = vi.fn();
 
 vi.mock("../../platform/project-boot.js", () => ({ projectFor: async () => fakeProject }));
 vi.mock("./repo-context.js", () => ({ fetchRepoContext: (...a: unknown[]) => fetchRepoContext(...a) }));
-vi.mock("../../platform/anthropic.js", () => ({
-  callLLM: (...a: unknown[]) => callLLM(...a),
-  callLLMWithTool: vi.fn(),
-}));
 vi.mock("../../platform/db.js", () => ({
   query: (...a: unknown[]) => query(...a),
   getPool: () => ({ query: async () => ({ rows: [] }) }),
@@ -39,7 +34,6 @@ import { handleOnboard } from "./worker.js";
 beforeEach(() => {
   for (const fn of [...Object.values(fakeRepo), ...Object.values(fakePulls), ...Object.values(fakeSettings), ...Object.values(fakeIssues)]) fn.mockReset();
   fetchRepoContext.mockReset();
-  callLLM.mockReset();
   query.mockReset();
   writeEpisode.mockReset();
   createLabels.mockReset();
@@ -47,7 +41,7 @@ beforeEach(() => {
   // A repo that already has a .github/ directory — the case the old coarse
   // skip guard wrongly excluded the workflow from.
   fetchRepoContext.mockResolvedValue({ tree: [".github"], files: {} });
-  callLLM.mockResolvedValue({ text: "SKIP" });
+  Llm.setInstance(new FakeLlm({ text: "SKIP" }));
   query.mockResolvedValue({ rows: [] });
   writeEpisode.mockResolvedValue(undefined);
   createLabels.mockResolvedValue(undefined);

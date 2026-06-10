@@ -1,6 +1,6 @@
 import { query } from "../../platform/db.js";
 import { projectFor } from "../../platform/project-boot.js";
-import { callLLM } from "../../platform/anthropic.js";
+import { Llm } from "@re-cinq/lore-shared";
 import { writeEpisode } from "../../lib/episode-writer.js";
 import { isBusinessHours } from "../../lib/business-hours.js";
 
@@ -183,7 +183,7 @@ For each file that needs changes, output:
 (full corrected file content)
 === END FILE ===`;
 
-  const result = await callLLM({
+  const result = await Llm.instance.complete({
     prompt,
     taskId: task.id,
     jobName: "review_reactor",

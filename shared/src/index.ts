@@ -53,6 +53,21 @@ export {
   type RingStatement,
 } from './spec-trace/spec-graph.js';
 export { planTraceUnits, runTraceUnits, type TraceUnit } from './spec-trace/trace-units.js';
+export { Llm } from './llm/llm.js';
+export { selectProvider } from './llm/select-provider.js';
+export { NoLlmProvider } from './llm/no-llm-provider.js';
+export { FakeLlm } from './llm/fake-llm.js';
+export { AnthropicProvider } from './llm/anthropic-provider.js';
+export { OpenAiProvider } from './llm/openai-provider.js';
+export { OllamaProvider } from './llm/ollama-provider.js';
+export type {
+  LlmProvider,
+  LlmCompleteRequest,
+  LlmCompletion,
+  LlmToolRequest,
+  LlmToolResult,
+  LlmUsage,
+} from './llm/llm-provider.js';
 export {
   computeImpact,
   buildImpactAnnotations,

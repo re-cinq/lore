@@ -26,6 +26,7 @@ const EXPECTED_JOBS = [
 vi.mock("./platform/db.js", () => ({
   query: vi.fn(),
   initPool: vi.fn(),
+  getPool: vi.fn(() => ({ query: vi.fn() })),
 }));
 vi.mock("./lib/job-run.js", () => ({
   startJobRun: vi.fn().mockResolvedValue("run-1"),

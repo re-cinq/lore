@@ -8,7 +8,7 @@ import {
 } from "./agent-handler.js";
 import type { WorkflowNode } from "../workflow/loader.js";
 import type { NodeContext } from "./graph-executor.js";
-import type { LLMResult } from "../platform/anthropic.js";
+import type { LlmCompletion } from "@re-cinq/lore-shared";
 
 const node: WorkflowNode = {
   id: "draft",
@@ -27,7 +27,7 @@ function makeCtx(gitDir: string): NodeContext {
   };
 }
 
-function llmResult(text: string, overrides: Partial<LLMResult> = {}): LLMResult {
+function llmResult(text: string, overrides: Partial<LlmCompletion> = {}): LlmCompletion {
   return {
     text,
     inputTokens: 100,

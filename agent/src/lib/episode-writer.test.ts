@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { Llm, FakeLlm } from "@re-cinq/lore-shared";
 import {
   writeEpisode,
   writeEpisodeWithCuration,
-  type CurationDeps,
   type WriteEpisodeDeps,
 } from "./episode-writer.js";
 import {
@@ -11,11 +11,6 @@ import {
   memoryRowKey,
   type EpisodeRepository,
 } from "../repositories/index.js";
-
-const llmStub = (text: string) => {
-  const fn = vi.fn(async () => ({ text }));
-  return { fn, asDep: fn as unknown as CurationDeps["callLLM"] };
-};
 
 describe("writeEpisode", () => {
   it("redacts secrets before storing the episode", async () => {
@@ -58,13 +53,15 @@ describe("writeEpisodeWithCuration", () => {
   afterEach(() => {
     if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = savedKey;
+    Llm.reset();
   });
 
   const deps = (text: string) => {
     const episodes = new InMemoryEpisodeRepository();
     const memories = new InMemoryMemoryRepository();
-    const { fn, asDep } = llmStub(text);
-    return { episodes, memories, llm: fn, deps: { episodes, memories, callLLM: asDep } };
+    const fake = new FakeLlm({ text });
+    Llm.setInstance(fake);
+    return { episodes, memories, fake, deps: { episodes, memories } };
   };
 
   it("upserts a sanitized auto-curation memory for a real lesson", async () => {
@@ -81,7 +78,7 @@ describe("writeEpisodeWithCuration", () => {
     delete process.env.ANTHROPIC_API_KEY;
     const d = deps("A lesson.");
     await writeEpisodeWithCuration("outcome", "ci", "r", "merge-check", "t1", d.deps);
-    expect(d.llm).not.toHaveBeenCalled();
+    expect(d.fake.calls).toHaveLength(0);
     expect(d.memories.rows.size).toBe(0);
     expect(d.episodes.rows).toHaveLength(1);
   });
@@ -90,7 +87,7 @@ describe("writeEpisodeWithCuration", () => {
     const d = deps("A real lesson learned.");
     await writeEpisodeWithCuration("same", "ci", "r", "merge-check", "t1", d.deps);
     await writeEpisodeWithCuration("same", "ci", "r", "merge-check", "t1", d.deps);
-    expect(d.llm).toHaveBeenCalledTimes(1);
+    expect(d.fake.calls).toHaveLength(1);
   });
 
   it("does not store a SKIP or too-short lesson", async () => {

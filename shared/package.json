@@ -16,6 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "minimatch": "^10.0.1",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.24.7",
