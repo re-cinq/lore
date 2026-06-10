@@ -108,11 +108,56 @@ export async function runTestTool(
   return JSON.stringify(stripCoveredPaths(result, manifest.path_prefix_strip));
 }
 
-interface TestReport {
+export interface TestReport {
   commit: string;
   branch: string;
   tests: TestDescriptor[];
   results: TaggedRunResult[];
+}
+
+/**
+ * Split a report so each chunk's JSON stays within `maxBytes` — a full-suite
+ * report (thousands of tests × coverage ranges) is multiple MB and exceeds the
+ * ingress/app body limits. Each test travels with its matching result so a
+ * chunk is self-consistent; the endpoint counts each POST independently. A
+ * single test whose result alone exceeds `maxBytes` is emitted as its own
+ * (over-limit) chunk rather than dropped.
+ */
+export function chunkTestReport(report: TestReport, maxBytes: number): TestReport[] {
+  const resultById = new Map(report.results.map((result) => [result.id, result]));
+  const envelopeBytes = Buffer.byteLength(
+    JSON.stringify({ commit: report.commit, branch: report.branch, tests: [], results: [] }),
+    "utf-8",
+  );
+
+  const chunks: TestReport[] = [];
+  let tests: TestDescriptor[] = [];
+  let results: TaggedRunResult[] = [];
+  let size = envelopeBytes;
+
+  const flush = (): void => {
+    chunks.push({ commit: report.commit, branch: report.branch, tests, results });
+    tests = [];
+    results = [];
+    size = envelopeBytes;
+  };
+
+  for (const test of report.tests) {
+    const result = resultById.get(test.id);
+    // +1 per array element for the comma separator in compact JSON (tests +
+    // results) so the running tally never undercounts the serialized chunk.
+    const addBytes =
+      Buffer.byteLength(JSON.stringify(test), "utf-8") +
+      1 +
+      (result ? Buffer.byteLength(JSON.stringify(result), "utf-8") + 1 : 0);
+    if (tests.length > 0 && size + addBytes > maxBytes) flush();
+    tests.push(test);
+    if (result) results.push(result);
+    size += addBytes;
+  }
+  flush();
+
+  return chunks;
 }
 
 export async function buildTestReport(
