@@ -14,6 +14,8 @@
     "@google-cloud/storage": "^7.19.0",
     "@iconify/react": "^6.0.2",
     "@octokit/auth-app": "^8.2.0",
+    "@types/d3": "^7.4.3",
+    "d3": "^7.9.0",
     "highlight.js": "^11.11.1",
     "next": "^15.0.0",
     "next-auth": "^4.24.0",

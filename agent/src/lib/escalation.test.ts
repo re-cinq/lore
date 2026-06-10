@@ -3,7 +3,7 @@ import type { Octokit } from "octokit";
 import { escalate, renderEscalationBody } from "./escalation.js";
 
 // Avoid touching the real DB / audit log in unit tests.
-vi.mock("../db.js", () => ({
+vi.mock("../platform/db.js", () => ({
   query: vi.fn(async () => []),
 }));
 

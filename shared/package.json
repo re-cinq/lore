@@ -5,6 +5,10 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./project/*.js": { "types": "./dist/project/*.d.ts", "default": "./dist/project/*.js" }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -12,11 +16,20 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "minimatch": "^10.0.1",
     "tree-sitter-wasms": "^0.1.11",
-    "web-tree-sitter": "^0.24.7"
+    "web-tree-sitter": "^0.24.7",
+    "yaml": "^2.7.0"
   },
   "devDependencies": {
+    "@octokit/auth-app": "^7.1.0",
     "@types/node": "^22.13.10",
+    "@types/pg": "^8.20.0",
+    "dgraph-js-http": "^23.0.0-rc1",
+    "libsodium-wrappers": "^0.8.2",
+    "octokit": "^4.1.0",
+    "pg": "^8.21.0",
     "typescript": "^5.7.3",
     "vitest": "^4.1.2"
   }

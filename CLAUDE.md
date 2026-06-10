@@ -116,6 +116,54 @@ gcloud auth for local dev.
 - `mcp-server/src/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
 - `evals/` — PromptFoo eval configs per team
 
+## Test Interface (project-test-interface)
+
+An optional, per-repo, language-neutral interface that lets a project's own
+test runner be the authoritative source of test discovery + per-test
+coverage, feeding the spec-traceability graph. **Zero-LLM, deterministic.**
+See `specs/project-test-interface/` (+ `contracts/test-commands.md`).
+
+**Manifest** — `.lore/test-commands.yml` (or `lore.repos.settings.test_commands`,
+settings win): `list` (prints a JSON array of `{id,name,file,startLine,endLine,suite?,spec?}`
+descriptors), `run` (takes one test via the `{selector}` placeholder, prints
+`{passed, covered:[{file,startLine,endLine}]}` or an lcov/cobertura report),
+`coverage_format` (`lcov|cobertura|json`), `cwd` (monorepo subdir). Polyglot
+repos declare a list. Absent manifest → graceful fallback to pattern
+detection + bulk upload. Schema/loader: `shared/src/test-command-manifest.ts`
+(`resolveTestCommandManifest`, `decideTestInterfaceCheck`, `isManifestDeclared`).
+
+**Ingest endpoints** (write-scope bearer auth; idempotent on `commit` once
+graph persistence lands — currently they parse/normalize/count from the body):
+- `POST /api/repos/:o/:r/test-report` — `{commit, branch, tests[], results[]}` →
+  `{tests_seen, test_chunks, validated_by, coverage_nodes, covers_edges, violated}`.
+  `mcp-server/src/routes/test-report.ts`.
+- `POST /api/repos/:o/:r/coverage` — canonical JSON list `{file,startLine,endLine}[]`
+  (optionally per-test grouped); LCOV (incl. `TN:` per-test attribution) and
+  Cobertura accepted and normalized → `{coverage_nodes, covers_edges, files_covered}`.
+  `mcp-server/src/routes/coverage.ts` (`parseLcov`/`parseLcovGroups`/`parseCobertura`).
+
+**MCP tools** (`mcp-server/src/index.ts` → `mcp-server/src/spec-trace-tools.ts`):
+`list_tests` / `run_test` (run the manifest commands in the **caller's local
+sandbox**) and `query_trace` (graph reads — stub until the Dgraph projection
+lands). **Trust boundary**: execution only in a trusted sandbox (local dev /
+CI / claude-runner pod); the shared GKE server refuses (`executionRefusal`
+keyed on `LORE_DB_HOST`) and returns a "run in CI / locally" error.
+
+**Local CLI** — `npm run trace:run-tests` (`mcp-server/src/trace-run-tests-cli.ts`):
+loads the manifest, runs the full suite locally via `buildTestReport`, prints
+the `/test-report` body (or `--post`s it to the API).
+
+**Onboarding** — the `onboard` task runs a test-interface check
+(`decideTestInterfaceCheck`): when no manifest is declared it scaffolds a
+suggested `.lore/test-commands.yml` + a per-toolchain `.github/workflows/lore-tests.yml`
+(generated from `LORE_TESTS_INSTRUCTION`) in the PR; an already-configured
+repo is left untouched. The web UI + `/lore-test-commands` skill surface the
+canonical `TEST_COMMAND_SETUP_PROMPT` for developers to run with Claude.
+
+> **Deferred seam:** the actual graph fan-out (persisting `TestChunk`/`Coverage`/
+> `COVERS`/`violated`, idempotency) is blocked on the unbuilt Dgraph projection
+> layer (`spec-traceability-graph`); the HTTP/parse/validate/count layer is complete.
+
 ## Agent Memory
 
 MCP memory tools for persistent agent memory:

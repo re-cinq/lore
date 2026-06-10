@@ -89,8 +89,8 @@ dumps). Expects tasks to complete on the first try.
 9. PR contains all expected files (not a single output dump)
 
 **Acceptance Criteria:**
-- Tasks move from pending to pr-created without manual intervention ([validated by `worker.onboard.test.ts:65`](agent/src/worker.onboard.test.ts#L65))
-- Onboarding PRs contain individual files (CLAUDE.md, ADRs, etc.), not a single output file ([validated by `worker.onboard.test.ts:53`](agent/src/worker.onboard.test.ts#L53))
+- Tasks move from pending to pr-created without manual intervention ([validated by `worker.onboard.test.ts:74`](agent/src/worker.onboard.test.ts#L74))
+- Onboarding PRs contain individual files (CLAUDE.md, ADRs, etc.), not a single output file ([validated by `worker.onboard.test.ts:63`](agent/src/worker.onboard.test.ts#L63))
 - Task processing completes within 5 minutes for standard tasks
 - Failed tasks show a clear error message in the pipeline dashboard
 - No tasks are lost during agent service restarts

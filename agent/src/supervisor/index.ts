@@ -1,6 +1,6 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { getPool } from "../db.js";
+import { getPool } from "../platform/db.js";
 import { writeAuditLog } from "../lib/audit.js";
 import {
   DbLeaseBackend,

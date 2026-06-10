@@ -1,0 +1,9 @@
+# Which files become specs / ADRs in the spec-traceability graph.
+# Per-kind glob lists (minimatch: ** , * , ?). A declared kind REPLACES the
+# built-in defaults; remove a kind to fall back to its defaults. Absent file =
+# defaults for everything. These mirror the current built-in defaults.
+specs:
+  - "specs/**/*.md"
+  - ".specify/**/*.md"
+adrs:
+  - "adrs/**/*.md"

@@ -40,28 +40,6 @@ export interface NotifyDecision {
  *   - `pr_open` → fires only when channels includes `all` (today's
  *     legacy behavior); dark-mode repos suppress per-PR Slack noise.
  */
-export function decideNotify(
-  level: NotifyLevel,
-  settings: NotifySettings,
-): NotifyDecision {
-  const channels = settings.channels ?? [];
-  const all = channels.includes("all");
-
-  if (all) {
-    return { fire: true, matchedChannels: ["all"] };
-  }
-
-  if (level === "escalation") {
-    return { fire: true, matchedChannels: ["escalation"] };
-  }
-
-  if (level === "watched" || level === "completion") {
-    if (channels.includes("watched")) {
-      return { fire: true, matchedChannels: ["watched"] };
-    }
-    return { fire: false, matchedChannels: [] };
-  }
-
-  // pr_open: only `all` lets these through
-  return { fire: false, matchedChannels: [] };
-}
+// Relocated to @re-cinq/lore-shared (project/notify/notify-decision.ts);
+// re-exported here for back-compat with existing importers.
+export { decideNotify } from "@re-cinq/lore-shared";

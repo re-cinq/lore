@@ -18,6 +18,8 @@ export default async function RepoLayout({
     { href: `${base}/context`, label: 'Context' },
     { href: `${base}/assembled`, label: 'Assembled' },
     { href: `${base}/specs`, label: 'Specs' },
+    { href: `${base}/adrs`, label: 'ADRs' },
+    { href: `${base}/graph`, label: 'Graph' },
     { href: `${base}/agents`, label: 'Agents' },
     { href: `${base}/settings`, label: 'Settings' },
   ];

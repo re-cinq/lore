@@ -1,0 +1,53 @@
+# Local-dev backing services for Lore: Postgres (pgvector) + Dgraph (standalone).
+#
+# The app components (web-ui, mcp-server, agent) run on the HOST via `npm start`
+# (scripts/dev-local.sh) with live reload — only the stateful databases are
+# containerised here. Data persists in the git-ignored .lore-*data/ bind mounts,
+# so `down` + `up` never loses local state.
+#
+#   docker compose up -d --wait     # or: npm run services:up
+#   docker compose down             # or: npm run services:down
+#
+# Container names + data dirs match the standalone `npm run db:up` / `dgraph:up`
+# scripts, so compose adopts the same local data.
+#
+# NOTE: Dgraph Alpha's HTTP port is published on the host as :8081 (not :8080)
+# so it never collides with the local agent's :8080 in the full `npm start`
+# stack. gRPC stays on :9080 (what the DgraphMemoryStore client uses).
+# Override the host HTTP port if needed: DGRAPH_HTTP_PORT=8090 docker compose up
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: lore-postgres
+    environment:
+      POSTGRES_PASSWORD: lore
+      POSTGRES_DB: lore
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./.lore-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lore"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  dgraph:
+    # Standalone bundles zero + alpha in one container for local dev.
+    # v24+ provides native float32vector + hnsw indexes. ACL is off (parity
+    # with the local plain-Postgres setup).
+    image: dgraph/standalone:v24.0.0
+    container_name: lore-dgraph
+    ports:
+      - "${DGRAPH_HTTP_PORT:-8081}:8080"   # HTTP / admin / health (8081 host → avoid agent's 8080)
+      - "9080:9080"                         # gRPC — the DgraphMemoryStore client
+    volumes:
+      - ./.lore-dgraphdata:/dgraph
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped

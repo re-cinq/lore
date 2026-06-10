@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { formatTrailers, parseTrailers } from "./commit-trailers.js";
+import {
+  formatTrailers,
+  formatValidatesTrailer,
+  parseTrailers,
+  parseValidatesTrailers,
+  type ProvenanceRef,
+} from "./commit-trailers.js";
 
 describe("formatTrailers", () => {
   it("formats minimal trailer block", () => {
@@ -128,5 +134,33 @@ Lore-Task: abc-123`;
     );
     expect(parsed).toEqual({ stage: "a", iteration: 1, taskId: "x" });
     expect(parsed).not.toHaveProperty("extras");
+  });
+});
+
+describe("parseValidatesTrailers", () => {
+  it("returns one ref with numeric ordinal for a single Lore-Validates line", () => {
+    const message = `feat: add widget
+
+Body text.
+
+Lore-Validates: specs/foo/spec.md#7 -> test/x.test.ts`;
+    const expected: ProvenanceRef[] = [
+      { specPath: "specs/foo/spec.md", ordinal: 7, target: "test/x.test.ts" },
+    ];
+    expect(parseValidatesTrailers(message)).toEqual(expected);
+  });
+});
+
+describe("formatValidatesTrailer", () => {
+  it("renders specs/foo/spec.md#7 -> test/x.test.ts and round-trips through parseValidatesTrailers", () => {
+    const ref: ProvenanceRef = {
+      specPath: "specs/foo/spec.md",
+      ordinal: 7,
+      target: "test/x.test.ts",
+    };
+    expect(formatValidatesTrailer(ref)).toBe(
+      "Lore-Validates: specs/foo/spec.md#7 -> test/x.test.ts",
+    );
+    expect(parseValidatesTrailers(formatValidatesTrailer(ref))).toEqual([ref]);
   });
 });

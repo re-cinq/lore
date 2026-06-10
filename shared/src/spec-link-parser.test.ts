@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseTestLinksInStatement } from "./spec-link-parser.js";
+import {
+  parseTestLinksInStatement,
+  parseCodeLinksInStatement,
+  linksForStatements,
+  findMisplacedCoverageLinks,
+} from "./spec-link-parser.js";
 
 describe("parseTestLinksInStatement", () => {
   it("returns an empty array when the statement has no trailing parenthetical", () => {
@@ -88,5 +93,83 @@ describe("parseTestLinksInStatement", () => {
       "Statement. ([validated by  the   runner test](src/x.test.ts#L42))",
     );
     expect(out[0].label).toBe("validated by the runner test");
+  });
+});
+
+describe("parseCodeLinksInStatement", () => {
+  it("parses a single non-test code link into one code-link ref", () => {
+    const out = parseCodeLinksInStatement(
+      "Runs the task. ([impl](mcp-server/src/runner.ts#L88)).",
+    );
+    expect(out).toEqual([
+      { label: "impl", path: "mcp-server/src/runner.ts", line: 88 },
+    ]);
+  });
+
+  it("excludes a markdown doc link so an ADR ref is not a code link", () => {
+    const out = parseCodeLinksInStatement(
+      "Decided in the ADR. ([ADR-016](adrs/ADR-016.md))",
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("keeps a non-test source path in another language as a code link", () => {
+    const out = parseCodeLinksInStatement(
+      "Stores the row. ([store](pkg/store/store.go#L120))",
+    );
+    expect(out).toEqual([
+      { label: "store", path: "pkg/store/store.go", line: 120 },
+    ]);
+  });
+});
+
+describe("linksForStatements", () => {
+  it("pairs each segmented statement with its parsed test links", () => {
+    const content = [
+      "## Section",
+      "",
+      "- Returns the value ([validated by run](src/x.test.ts#L42))",
+      "- Has no link at all",
+    ].join("\n");
+
+    const out = linksForStatements(content);
+
+    expect(out).toEqual([
+      {
+        statement: expect.objectContaining({
+          text: "Returns the value ([validated by run](src/x.test.ts#L42))",
+        }),
+        testLinks: [{ label: "validated by run", path: "src/x.test.ts", line: 42 }],
+      },
+      {
+        statement: expect.objectContaining({ text: "Has no link at all" }),
+        testLinks: [],
+      },
+    ]);
+  });
+});
+
+describe("findMisplacedCoverageLinks", () => {
+  it("flags a coverage link buried in a non-trailing parenthetical", () => {
+    const out = findMisplacedCoverageLinks(
+      "Returns ([validated by run](src/x.test.ts#L42)) the value.",
+    );
+    expect(out).toEqual([
+      { label: "validated by run", path: "src/x.test.ts", line: 42 },
+    ]);
+  });
+
+  it("does not flag a link that is correctly in the trailing parenthetical", () => {
+    const out = findMisplacedCoverageLinks(
+      "Returns the value ([validated by run](src/x.test.ts#L42))",
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("ignores a non-trailing prose doc link", () => {
+    const out = findMisplacedCoverageLinks(
+      "See the guide ([docs](docs/guide.md)) for the rest. End.",
+    );
+    expect(out).toEqual([]);
   });
 });

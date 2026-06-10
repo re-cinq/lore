@@ -9,17 +9,13 @@
  * Runs every minute.
  */
 
-import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
-import { query } from "../../db.js";
-import { buildPrompt, getTaskTypeConfig } from "../../config.js";
+import { projectFor } from "../../platform/project-boot.js";
+import { query } from "../../platform/db.js";
+import { buildPrompt, getTaskTypeConfig } from "../../platform/config.js";
 
-const GROUP = "lore.re-cinq.com";
-const VERSION = "v1alpha1";
-const PLURAL = "loretasks";
 const MAX_CONCURRENT_PER_GROUP = 3;
 
 export async function specTaskExecutorJob(): Promise<string> {
-  const namespace = process.env.NAMESPACE || "lore-agent";
 
   // Find all ready spec-tasks (dependencies satisfied)
   const readyTasks = await query<{
@@ -101,9 +97,6 @@ export async function specTaskExecutorJob(): Promise<string> {
     } catch { /* network error — proceed and let individual tasks handle it */ }
   }
 
-  const kc = new KubeConfig();
-  kc.loadFromCluster();
-  const k8sApi = kc.makeApiClient(CustomObjectsApi);
 
   const implConfig = getTaskTypeConfig("implementation");
   const timeoutMinutes = implConfig?.timeout_minutes || 90;
@@ -153,61 +146,46 @@ export async function specTaskExecutorJob(): Promise<string> {
     const branchName = `lore/spec-task/${slug}-${(specTaskId || "").toLowerCase()}-${task.id.substring(0, 8)}`;
 
     const crName = `loretask-${task.id.substring(0, 8)}`;
-    const cr = {
-      apiVersion: `${GROUP}/${VERSION}`,
-      kind: "LoreTask",
-      metadata: {
-        name: crName,
-        namespace,
-        labels: {
-          "lore.re-cinq.com/task-id": task.id,
-          "lore.re-cinq.com/task-type": "spec-task",
-          ...(specSlug ? { "lore.re-cinq.com/spec-slug": specSlug.replace(/[^a-zA-Z0-9._-]/g, "").replace(/^-+|-+$/g, "").substring(0, 63) || "unknown" } : {}),
-        },
-      },
-      spec: {
-        taskId: task.id,
+    try {
+      const project = await projectFor(task.target_repo);
+      const result = await project.agents.run(task.id, {
+        mode: "cluster",
         taskType: "implementation",
         description,
         prompt,
-        targetRepo: task.target_repo,
         branch: branchName,
         model,
         timeoutMinutes,
-      },
-    };
-
-    try {
-      await k8sApi.createNamespacedCustomObject({
-        group: GROUP,
-        version: VERSION,
-        namespace,
-        plural: PLURAL,
-        body: cr,
+        // The CR metadata label task-type is "spec-task" even though the spec's
+        // taskType is "implementation"; extraLabels (spread last) overrides it.
+        extraLabels: {
+          "lore.re-cinq.com/task-type": "spec-task",
+          ...(specSlug
+            ? { "lore.re-cinq.com/spec-slug": specSlug.replace(/[^a-zA-Z0-9._-]/g, "").replace(/^-+|-+$/g, "").substring(0, 63) || "unknown" }
+            : {}),
+        },
       });
-      dispatched++;
 
-      // Update concurrency counter
-      if (task.task_group_id) {
-        runningByGroup.set(
-          task.task_group_id,
-          (runningByGroup.get(task.task_group_id) || 0) + 1,
-        );
-      }
-
-      console.log(`[spec-task-executor] Dispatched ${specTaskId} (${task.id}) → LoreTask ${crName}`);
-    } catch (err: any) {
-      const is409 = err?.code === 409 || String(err?.message).includes("already exists");
-      if (is409) {
-        console.log(`[spec-task-executor] LoreTask ${crName} already exists, skipping`);
+      if (result.started) {
+        dispatched++;
+        // Update concurrency counter
+        if (task.task_group_id) {
+          runningByGroup.set(
+            task.task_group_id,
+            (runningByGroup.get(task.task_group_id) || 0) + 1,
+          );
+        }
+        console.log(`[spec-task-executor] Dispatched ${specTaskId} (${task.id}) → LoreTask ${crName}`);
       } else {
-        // Revert to pending on dispatch failure
-        await query(
-          `UPDATE pipeline.tasks SET status = 'pending', updated_at = now() WHERE id = $1`,
-          [task.id],
-        );
-        console.error(`[spec-task-executor] Failed to create LoreTask for ${task.id}: ${err.message}`);
+        console.log(`[spec-task-executor] LoreTask ${crName} already exists, skipping`);
       }
+    } catch (err: any) {
+      // Revert to pending on dispatch failure
+      await query(
+        `UPDATE pipeline.tasks SET status = 'pending', updated_at = now() WHERE id = $1`,
+        [task.id],
+      );
+      console.error(`[spec-task-executor] Failed to create LoreTask for ${task.id}: ${err.message}`);
     }
   }
 

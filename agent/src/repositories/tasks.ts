@@ -1,4 +1,4 @@
-import { query, queryOne } from "../db.js";
+import { query, queryOne } from "../platform/db.js";
 
 /** Pre-feature counters over a window, used by the dark-factory baseline. */
 export interface TaskBaselineStats {

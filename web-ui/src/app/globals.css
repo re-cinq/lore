@@ -1043,3 +1043,9 @@ textarea:focus-visible,
 [data-color-scheme='dark'] .hljs-section {
   color: var(--warning);
 }
+
+/* Markdown rendered inside the graph node popover. */
+.md-popover p { margin: 0 0 6px; }
+.md-popover p:last-child { margin-bottom: 0; }
+.md-popover pre { margin: 6px 0; padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+.md-popover :not(pre) > code { font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--bg-hover); }

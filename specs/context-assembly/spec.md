@@ -148,7 +148,7 @@ The tool retrieves from all available sources:
   ingested most recently. ([validated by `context-assembly.test.ts:123`](mcp-server/src/context-assembly.test.ts#L123))
 - FR-2.8: **No cross-section duplication.** The `repo`/Conventions source pulls
   only `doc`/`spec` (never `adr`, which is its own section), and chunks sharing a
-  `file_path` are de-duplicated, keeping the highest-scoring copy. ([validated by `context-assembly.test.ts:136`](mcp-server/src/context-assembly.test.ts#L136), [`context-assembly-format.test.ts:23`](mcp-server/src/context-assembly-format.test.ts#L23))
+  `file_path` are de-duplicated, keeping the highest-scoring copy. ([validated by `context-assembly.test.ts:136`](mcp-server/src/context-assembly.test.ts#L136), [`context-assembly-format.test.ts:23`](shared/src/project/knowledge/context-assembly-format.test.ts#L23))
 
 ### FR-3: Template System
 
@@ -187,7 +187,7 @@ The tool retrieves from all available sources:
   per contributing chunk. Provenance lives in tag attributes (`source`, `type`,
   `relevance`, `tokens`, `truncated`); the chunk's own markdown is contained
   inside the tag, so document headings and YAML `---` fences cannot collide with
-  the structural skeleton. ([validated by `context-assembly-format.test.ts:63`](mcp-server/src/context-assembly-format.test.ts#L63), [`context-assembly-format.test.ts:41`](mcp-server/src/context-assembly-format.test.ts#L41), [`context-assembly.test.ts:107`](mcp-server/src/context-assembly.test.ts#L107))
+  the structural skeleton. ([validated by `context-assembly-format.test.ts:63`](shared/src/project/knowledge/context-assembly-format.test.ts#L63), [`context-assembly-format.test.ts:41`](shared/src/project/knowledge/context-assembly-format.test.ts#L41), [`context-assembly.test.ts:107`](mcp-server/src/context-assembly.test.ts#L107))
 - FR-5.2: Format:
   ```xml
   <context query="…" template="implementation" budget="8000">
@@ -200,7 +200,7 @@ The tool retrieves from all available sources:
   ```
 - FR-5.3: Empty sections are omitted from output.
 - FR-5.4: A truncated document carries `truncated="true"` rather than an inline
-  `...(truncated)` marker. ([validated by `context-assembly-format.test.ts:56`](mcp-server/src/context-assembly-format.test.ts#L56))
+  `...(truncated)` marker. ([validated by `context-assembly-format.test.ts:56`](shared/src/project/knowledge/context-assembly-format.test.ts#L56))
 
 ## Non-Functional Requirements
 

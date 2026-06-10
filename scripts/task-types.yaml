@@ -36,6 +36,12 @@ task_types:
       - Use your Edit or Write tool to modify files — do NOT just describe changes
       - Work through files one at a time
       - Start immediately with the first file edit
+      - When you write a test that validates a specific spec statement or
+        acceptance criterion, stamp its spec anchor (the
+        "specs/<path>#<ordinal>" the test validates) so the repo's tests.list
+        surfaces it as the descriptor's `spec` field and the spec→test
+        (VALIDATED_BY) link is established automatically — see
+        `.lore/test-commands.yml` for how this repo exposes test descriptors
 
       Spec: {description}
     timeout_minutes: 90
@@ -140,6 +146,7 @@ task_types:
          - .github/workflows/pr-description-check.yml: CI for PR quality
          - .github/workflows/spec-agent.yml: spec PR triggers agent
          - .github/workflows/lore-ingest.yml: push triggers ingestion
+         - .github/workflows/lore-tests.yml: per-toolchain test runner that runs the .lore/test-commands.yml commands on push/PR and POSTs results to /api/repos/:owner/:repo/test-report (only when the repo declares a .lore/test-commands.yml manifest; one job per detected toolchain, subdir-scoped for monorepos)
 
       6. Output format — JSON object with ALL files:
          {
@@ -171,3 +178,30 @@ task_types:
     # Onboarding generates a first-pass CLAUDE.md / ADRs / spec that
     # a human always reviews before merge. Haiku is fine for drafts.
     model: claude-haiku-4-5-20251001
+
+  # ── Spec-traceability graph ingestion (deterministic, zero-LLM) ──────
+  # execution_mode: graph-ingest routes to the in-process projection core
+  # (runIngestGraph), NOT Claude Code. No prompt, no model, no PR.
+  ingest-specs:
+    prompt_template: ""
+    target_repo: null
+    timeout_minutes: 10
+    review_required: false
+    execution_mode: graph-ingest
+
+  ingest-adrs:
+    prompt_template: ""
+    target_repo: null
+    timeout_minutes: 10
+    review_required: false
+    execution_mode: graph-ingest
+
+  # Tests run the project test interface (.lore/test-commands.yml), so this
+  # kind executes ONLY locally / in CI (the trusted sandbox), never on the
+  # shared agent — it self-skips there.
+  ingest-tests:
+    prompt_template: ""
+    target_repo: null
+    timeout_minutes: 20
+    review_required: false
+    execution_mode: graph-ingest

@@ -13,8 +13,9 @@
  *   Inspired by ByteRover's ACE Curator phase.
  */
 
-import { query } from "../../db.js";
-import { callLLM } from "../../anthropic.js";
+import { scoreImportance } from "@re-cinq/lore-shared";
+import { query } from "../../platform/db.js";
+import { Llm } from "@re-cinq/lore-shared";
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -23,57 +24,6 @@ const MAX_FACTS_PER_AGENT = 2000;
 const DECAY_MIN_AGE_DAYS = 30;
 const CONSOLIDATION_MIN_FACTS = 5;
 const CONSOLIDATION_LOOKBACK_DAYS = 7;
-
-// ── Importance scoring ──────────────────────────────────────────────
-
-/**
- * Score a memory's importance (0-10) using half-life decay model.
- *
- * strength = 0.5^(effective_age / half_life_days)
- *
- * Effective age uses last_retrieved_at when available (rewarding
- * frequently-retrieved memories), falling back to created_at.
- * Retrieval count provides a minor boost. Stale confidence penalizes.
- */
-function scoreImportance(memory: {
-  key: string;
-  value: string;
-  created_at: string;
-  last_retrieved_at?: string | null;
-  half_life_days?: number | null;
-  retrieval_count?: number | null;
-  confidence?: string | null;
-}): number {
-  const halfLife = memory.half_life_days || 60;
-  const effectiveDate = memory.last_retrieved_at || memory.created_at;
-  const effectiveAgeDays = (Date.now() - new Date(effectiveDate).getTime()) / 86400000;
-
-  // Half-life decay: strength decays from 1.0 to 0.0
-  const strength = Math.pow(0.5, effectiveAgeDays / halfLife);
-
-  // Map strength (0-1) to score (0-10)
-  let score = Math.round(strength * 10);
-
-  // Content richness
-  if (memory.value.length < 50) score -= 2;
-  else if (memory.value.length > 500) score += 1;
-
-  // Key-based importance
-  if (memory.key.startsWith("auto-curation/")) score -= 1;
-  if (memory.key.startsWith("session-summary/")) score -= 1;
-  if (memory.key.includes("gotcha") || memory.key.includes("decision")) score += 2;
-  if (memory.key.includes("convention") || memory.key.includes("pattern")) score += 2;
-
-  // Retrieval frequency boost
-  const retrievals = memory.retrieval_count || 0;
-  if (retrievals >= 20) score += 2;
-  else if (retrievals >= 5) score += 1;
-
-  // Stale confidence penalty (for facts passed through as memories)
-  if (memory.confidence === 'stale') score -= 1;
-
-  return Math.max(0, Math.min(10, score));
-}
 
 // ── Importance decay job ────────────────────────────────────────────
 
@@ -107,7 +57,7 @@ export async function importanceDecayJob(): Promise<string> {
 
     // Score and sort by importance (ascending = least important first)
     const scored = candidates
-      .map((m) => ({ ...m, importance: scoreImportance(m) }))
+      .map((m) => ({ ...m, importance: scoreImportance(m, Date.now()) }))
       .sort((a, b) => a.importance - b.importance);
 
     // Evict the least important up to the excess count
@@ -223,7 +173,7 @@ export async function consolidationJob(): Promise<string> {
     if (facts.length < 3) continue; // need at least 3 facts to consolidate
 
     try {
-      const result = await callLLM({
+      const result = await Llm.instance.complete({
         prompt: `Here are ${facts.length} recent facts extracted from agent sessions working on ${repo}. Identify 1-3 higher-level patterns or insights that emerge from these facts. Each pattern should be actionable — something future agents should know.\n\nFacts:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\nReturn each pattern on its own line, prefixed with "PATTERN: ". If no meaningful patterns emerge, respond with "NONE".`,
         systemPrompt: "You are a knowledge consolidation engine. Extract reusable patterns from raw facts.",
         maxTokens: 512,

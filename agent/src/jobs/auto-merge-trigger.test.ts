@@ -4,7 +4,7 @@ const queryMock = vi.fn();
 const buildOctokitMock = vi.fn();
 const resolvePrForTaskFromDbMock = vi.fn();
 
-vi.mock("../db.js", () => ({
+vi.mock("../platform/db.js", () => ({
   query: (...args: unknown[]) => queryMock(...args),
 }));
 
@@ -121,7 +121,6 @@ describe("tryAutoMergeForCompletedTask", () => {
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
     expect(result).toEqual(decision);
     expect(evaluateAndMergeMock).toHaveBeenCalledWith({
-      octokit: fakeOctokit,
       taskId: "t1",
       repo: "owner/repo",
       prNumber: 42,
