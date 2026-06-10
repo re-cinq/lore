@@ -23,7 +23,7 @@ import {
 interface GraphIngestTask {
   id: string;
   target_branch?: string | null;
-  context_bundle?: { kind?: IngestKind; branch?: string; commit?: string; glob?: string } | null;
+  context_bundle?: { kind?: IngestKind; branch?: string; commit?: string; glob?: string; force?: boolean } | null;
 }
 
 interface RepoReader {
@@ -56,7 +56,7 @@ export async function handleGraphIngest(
 
   try {
     const summary = await runIngestGraph(
-      { kind, repo: targetRepo, ref, glob: cb.glob },
+      { kind, repo: targetRepo, ref, glob: cb.glob, force: cb.force },
       {
         dgraph,
         listTree: (r) => project.repo.tree(r),

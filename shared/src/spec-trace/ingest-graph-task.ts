@@ -40,6 +40,9 @@ export interface IngestGraphParams {
   repo: string;
   ref?: string;
   glob?: string;
+  /** Bypass each file's content-hash freshness gate — re-project unchanged
+   *  files (e.g. to re-apply a parser/segmenter change). */
+  force?: boolean;
 }
 
 export interface IngestGraphSummary {
@@ -63,7 +66,7 @@ export interface IngestGraphPorts {
 /** One file-projectable kind: how to discover its files + how to project one. */
 export interface IngestKindDef {
   prefixes: string[];
-  project(repo: string, filePath: string, content: string, dgraph: DgraphClientPort): Promise<{ projected: boolean }>;
+  project(repo: string, filePath: string, content: string, dgraph: DgraphClientPort, embed?: (text: string) => Promise<number[] | null>, force?: boolean): Promise<{ projected: boolean }>;
   runsOn: "runner+local" | "local-only";
 }
 
@@ -162,7 +165,7 @@ export async function runIngestGraph(
   for (const filePath of files) {
     try {
       const content = await ports.readFile(filePath, params.ref);
-      const result = await def.project(params.repo, filePath, content, ports.dgraph);
+      const result = await def.project(params.repo, filePath, content, ports.dgraph, undefined, params.force);
       if (result.projected) projected += 1;
       else skipped += 1;
     } catch (err) {
