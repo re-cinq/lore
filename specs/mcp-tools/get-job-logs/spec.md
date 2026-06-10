@@ -1,37 +1,81 @@
-# Feature Specification: get_job_logs Tool
+# Feature Specification: get_job_logs MCP Tool
 
-| Field    | Value                  |
-|----------|------------------------|
-| Feature  | get_job_logs           |
-| Status   | **Draft**              |
-| Created  | 2026-06-10             |
-| Owner    | Platform Engineering   |
-| Tool     | `get_job_logs`         |
-| Module   | mcp-server (pipeline)  |
-| Scope    | shared                 |
+| Field   | Value                          |
+|---------|--------------------------------|
+| Feature | get_job_logs MCP Tool          |
+| Status  | **Draft**                      |
+| Created | 2026-06-10                     |
+| Owner   | Platform Engineering           |
+| Tool    | `get_job_logs`                 |
+| Module  | pipeline (`pipeline-tools.ts`) |
+| Scope   | shared                         |
 
 ## Problem Statement
 
-Scheduled batch jobs (K8s CronJobs — context reindex, spec-test linker,
-etc.) record their stdout/stderr in GCS keyed by job name and run id
-(`pipeline.job_runs.id`). When a scheduled run misbehaves, the operator
-needs that full log by `(job_name, run_id)` without cluster access.
+Scheduled batch jobs (K8s CronJobs — context reindex, spec-test linker, etc.)
+record their stdout/stderr in GCS keyed by job name and run id
+(`pipeline.job_runs.id`). When a scheduled run misbehaves, the operator needs
+that full log by `(job_name, run_id)` without cluster access.
 
-## Solution
+## Interface
 
-A `get_job_logs` MCP tool that reads `__job_runs__/<job_name>/<run_id>/output.log`:
-in GKE mode directly from the GCS log bucket (returning `{logs, complete}`
-with the full body); in stdio mode by proxying to `GET /api/job-run-logs`.
-A missing object returns empty logs with `complete: true`.
+Registered via `server.tool` ([registration + handler](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L392)).
 
-- IMPLEMENTED_BY: registration + handler — [`pipeline-tools.ts#L392`](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L392)
-- IMPLEMENTED_BY: GCS read body — [`pipeline-tools.ts#L417`](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L417)
+- **name**: `get_job_logs`
+- **description** (verbatim): *"Fetch full stdout/stderr of a scheduled batch-job
+  run (K8s CronJob pod). The log_path is recorded in pipeline.job_runs by the
+  agent's job-runner."*
+
+### Input schema (Zod)
+
+| Param | Type | Required | Default | Constraint / notes |
+|-------|------|----------|---------|--------------------|
+| `job_name` | string | yes | — | Job name, e.g. `context_reindex`, `spec_test_linker`. |
+| `run_id` | string | yes | — | UUID of the run, from `pipeline.job_runs.id`. |
+
+## Behavior
+
+1. **Transport branch on `process.env.LORE_DB_HOST`:**
+   - **stdio mode (no `LORE_DB_HOST`)** — if `LORE_API_URL` + `LORE_INGEST_TOKEN`
+     are set, `GET {LORE_API_URL}/api/job-run-logs?job_name&run_id` with bearer
+     token; on 2xx return the raw body. Otherwise (or non-2xx) return
+     `"Job-run logs require LORE_API_URL."`
+   - **GKE mode (`LORE_DB_HOST` set)** — direct GCS read (below).
+2. **GCS read** ([GCS read body](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L417)) —
+   dynamically import `@google-cloud/storage`; bucket =
+   `process.env.LORE_LOG_BUCKET || "lore-task-logs"`; object key
+   `__job_runs__/{job_name}/{run_id}/output.log`.
+   - `file.exists()` false → return `{logs: "", complete: true}`.
+   - Otherwise `file.download()`, return `{logs: content.toString("utf-8"), complete: true}`
+     (full body, no offset slicing — these runs are bounded).
+3. Any thrown error is caught and returned as `"Error: {message}"`.
+
+## Output
+
+A single MCP text content block — one of: the proxied body,
+`"Job-run logs require LORE_API_URL."`, the compact
+`{"logs":…,"complete":true}` JSON, or `"Error: {message}"`. **Never throws.**
+
+## Dependencies & side effects
+
+- GCS bucket `LORE_LOG_BUCKET` (default `lore-task-logs`), object
+  `__job_runs__/{job_name}/{run_id}/output.log`.
+- Env: `LORE_DB_HOST` (transport switch), `LORE_API_URL`, `LORE_INGEST_TOKEN`
+  (proxy path), `LORE_LOG_BUCKET`.
+- GET `/api/job-run-logs` on the GKE server (stdio path).
+- No DB access in this handler (run rows are written by the agent's job-runner;
+  this tool only reads GCS / proxies).
 
 ## Acceptance Criteria
 
-1. An existing run's full log body is returned with `complete: true`. (untested: the GCS download is inline in the handler closure against `@google-cloud/storage`, with no injectable bucket seam — live-IO)
-2. A missing log object returns empty logs with `complete: true`. (untested: same GCS `file.exists()` live-IO path, not extracted)
-3. In stdio mode the request proxies to the API with the job name and run id. (untested: proxy path performs a live `fetch` to `LORE_API_URL`, not extracted)
+An existing run's full log body is returned with `complete: true`.
+*(untested: the GCS download is inline in the handler closure against `@google-cloud/storage`, with no injectable bucket seam — live-IO.)*
+
+A missing log object returns empty logs with `complete: true`.
+*(untested: same GCS `file.exists()` live-IO path, not extracted.)*
+
+In stdio mode the request proxies to the API with the job name and run id.
+*(untested: proxy path performs a live `fetch` to `LORE_API_URL`, not extracted.)*
 
 ## Out of Scope
 

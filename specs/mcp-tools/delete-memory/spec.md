@@ -18,25 +18,68 @@ delete would erase the audit trail and version history that the memory module
 deliberately preserves. We need a way to remove a memory from active reads and
 search while keeping its history intact.
 
-## Solution
+## Interface
 
-`delete_memory` soft-deletes a memory by key: it flips `is_deleted = TRUE` on
-the `memory.memories` row(s) for the agent and writes a `delete` entry to
-`memory.audit_log`. The version rows in `memory.memory_versions` are untouched,
-so history remains queryable. Soft-deleted rows are excluded from
-`read_memory`, `list_memories`, and `search_memory`.
+Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L112)).
 
-- Registration: [`memory-tools.ts`](../../../mcp-server/src/mcp/tools/memory-tools.ts#L112) (IMPLEMENTED_BY)
-- Handler: [`memory.ts` `deleteMemory`](../../../mcp-server/src/features/memory/memory.ts#L183) (IMPLEMENTED_BY)
+- **name**: `delete_memory`
+- **description** (verbatim): *"Soft-delete a memory (preserved in history but
+  excluded from search)."*
+
+### Input schema (Zod)
+
+| Param | Type | Required | Default | Constraint / notes |
+|-------|------|----------|---------|--------------------|
+| `key` | string | yes | — | Memory key to delete. |
+| `agent_id` | string | no | — | Override the resolved agent ID. |
+
+## Behavior
+
+1. **DB path** — if `isMemoryDbAvailable()`: call `deleteMemory(key, agent_id)`
+   ([handler](../../../mcp-server/src/features/memory/memory.ts#L183)). Inside the handler:
+   - `agent = resolveAgentId(agent_id)`.
+   - `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key =
+     $2` — flips the flag for every version row of that agent+key. Note: scope
+     is **agent_id**, not repo.
+   - `auditLog(agent, 'delete', key)` → `memory.audit_log` (best-effort).
+   - Return `{ key, deleted: true }`. `memory.memory_versions` is untouched.
+   - Tool returns `JSON.stringify(result)`.
+2. **Proxy path** — DB unavailable: `proxyMemory("delete", { key, agent_id:
+   agent_id || resolveAgentId() })`. `ok` → `proxied.body`; `unreachable` →
+   `unreachableError("delete_memory", detail)`.
+3. **File fallback** — proxy `not_configured`: `deleteMemoryFile(key,
+   agent_id)`, return `JSON.stringify`.
+4. Any thrown error → `"Error deleting memory: {message}"`.
+
+Soft-deleted rows are excluded from `read_memory`, `list_memories`, and
+`search_memory` (all carry `is_deleted = FALSE` predicates).
+
+## Output
+
+A single MCP text content block. One of: `{"key":…,"deleted":true}` (DB or file
+path), the proxied body, the `unreachableError` message, or
+`"Error deleting memory: {message}"`. **Never throws.**
+
+## Dependencies & side effects
+
+- `isMemoryDbAvailable()`, `resolveAgentId()`.
+- Handler `deleteMemory` ([memory.ts](../../../mcp-server/src/features/memory/memory.ts#L183)).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../mcp-server/src/mcp/tools/deps.ts#L98)); `deleteMemoryFile` (offline).
+- Tables: `memory.memories` (update `is_deleted`), `memory.audit_log` (insert). `memory.memory_versions` untouched.
+- Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
 ## Acceptance Criteria
 
 1. Deleting a key sets `is_deleted = TRUE` scoped to the agent and key and
    returns `{ key, deleted: true }`. ([validated by `soft-deletes by agent and key, returns deleted true`](../../../mcp-server/src/features/memory/memory.test.ts#L139))
 2. A delete writes a `delete` audit-log entry naming the deleted key. ([validated by `writes a delete audit-log entry for the key`](../../../mcp-server/src/features/memory/memory.test.ts#L152))
+3. The proxy / file-fallback framing has no unit seam. *(untested: the
+   proxy/file branches need `LORE_API_URL` or offline mode; the soft-delete core
+   is covered above.)*
 
 ## Out of Scope
 
 - Hard deletion / purge of version history.
 - Restoring a soft-deleted memory (handled via snapshots/restore).
 - File-backed fallback delete (`deleteMemoryFile`).
+- GKE-side `/api/memory` route handling.
