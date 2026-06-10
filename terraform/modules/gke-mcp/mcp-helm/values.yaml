@@ -38,6 +38,9 @@ env:
   LORE_DB_PORT: "5432"
   LORE_DB_NAME: lore
   LORE_DB_USER: lore
+  # Shared Dgraph endpoint (memory + spec-trace graphs). Empty → /impact + graph
+  # reads fail soft. Overridden by terraform set to the in-cluster service DNS.
+  LORE_DGRAPH_HTTP: ""
   # Internal cluster URL for the lore-agent health server. mcp-server
   # uses this to POST /api/trigger/review-reactor on GitHub webhooks.
   LORE_AGENT_URL: http://lore-agent.lore-agent.svc.cluster.local:8080

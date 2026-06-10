@@ -54,6 +54,12 @@ resource "helm_release" "lore_mcp" {
     name  = "env.LORE_DB_USER"
     value = "lore"
   }
+  # Shared Dgraph (memory + spec-trace graphs). Enables /impact + graph reads;
+  # unset → createDgraphClient returns null and those paths fail soft.
+  set {
+    name  = "env.LORE_DGRAPH_HTTP"
+    value = local.dgraph_http_url
+  }
 
   # Secrets — reference ESO-managed K8s Secrets
   set {
