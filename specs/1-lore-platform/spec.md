@@ -25,7 +25,8 @@
 > added to all agent LLM calls, per-template context budgets introduced
 > (8K default, 16K for research), and additional MCP tools shipped. A
 > stuck-task terminal-state recovery mechanism was also added. All changes
-> are reflected in FR-2, FR-13, and the new FR-16 and FR-17 below.
+> are reflected in FR-13 and the new FR-16 and FR-17 below (the MCP tool
+surface now lives in `specs/mcp-tools/`).
 
 ## Problem Statement
 
@@ -280,83 +281,6 @@ serves as the source of truth for organizational context.
 - FR-1.5: CODEOWNERS file enforcing ownership boundaries.
 - FR-1.6: Three-level CLAUDE.md hierarchy where more specific wins
   on conflicts (org > repo > team).
-
-### FR-2: MCP Server
-
-The system MUST provide an MCP server that serves context to Claude
-Code sessions. It exposes 30+ tools grouped by function.
-
-**Context tools:**
-- FR-2.1: `assemble_context(query)` — unified context assembly with
-  YAML templates; returns conventions, ADRs, memories, facts, and
-  graph relationships in one call within a token budget.
-- FR-2.2: `search_context(query, limit?)` — Phase 0: naive text
-  match; Phase 1: hybrid vector + keyword search with Reciprocal
-  Rank Fusion.
-- FR-2.3: `search_memory(query)` — semantic search across memories
-  and facts, including confidence annotations and conflict flags.
-
-**Memory tools:**
-- FR-2.4: `write_memory`, `read_memory`, `delete_memory`,
-  `list_memories` — persistent key-value memory with TTL and
-  version history.
-- FR-2.5: `write_episode(text)` — ingest raw text; auto-extracts
-  facts and updates the live knowledge graph.
-- FR-2.6: `query_graph(query)` — multi-hop traversal of the live
-  knowledge graph (entities + typed edges in PostgreSQL).
-
-**Pipeline / task tools:**
-- FR-2.7: `create_pipeline_task(type, description, repo?)` — create
-  an agent task; returns a tracking ID.
-- FR-2.8: `get_pipeline_status(task_id)` — poll task status.
-- FR-2.9: `list_pipeline_tasks`, `cancel_task`, `retry_task` —
-  task lifecycle management.
-- FR-2.10: `list_task_group(group_id)` — show all tasks in a
-  multi-repo group with completion status.
-- FR-2.11: `run_task_locally`, `list_local_tasks`, `cancel_local_task`
-  — local runner tools (worktrees, background Claude Code).
-
-**Workflow tools:**
-- FR-2.12: `sync_tasks(tasks_md)` — parse a tasks.md file and
-  insert/update tasks in the pipeline store, respecting `[DEPENDS ON:]`
-  annotations.
-- FR-2.13: `ready_tasks` — list unblocked tasks for the current repo.
-- FR-2.14: `claim_task(task_id)` — atomically claim a task using
-  `SELECT ... FOR UPDATE SKIP LOCKED`. Rejected if already claimed.
-- FR-2.15: `complete_task(task_id)` — mark a task done; unblocks
-  dependents.
-
-**Observability / repo tools:**
-- FR-2.16: `get_task_logs(task_id)` — read task logs from GCS.
-- FR-2.17: `my_usage` — per-developer token usage (today/7-day/30-day).
-- FR-2.18: `agent_stats` — health, memory count, episode count,
-  facts, searches, daily breakdown.
-- FR-2.19: `onboard_repo(repo)` — create CLAUDE.md, AGENTS.md, PR
-  template, and CI workflows on a target repo via PR.
-- FR-2.20: Phase 0 implementation is file-backed; Phase 1 replaces
-  storage backends without interface changes.
-- FR-2.21: `get_pr_status(repo, pr_number)` — fetch live PR status
-  (CI checks, review state, merge readiness) without leaving Claude Code.
-- FR-2.22: `get_analytics(repo?)` — per-repo or org-wide task
-  completion, token usage, and merge-rate metrics.
-- FR-2.23: `list_repos` — list all onboarded repos with their trust
-  level, last-ingest timestamp, and stale flag.
-- FR-2.24: `ingest_files(repo, paths[])` — trigger ad-hoc ingestion
-  for specific files; used after large refactors to keep search fresh
-  without waiting for the nightly job.
-
-**Extended local runner tools (added post-Phase-0):**
-- FR-2.25: `enable_task_notifications` / `disable_task_notifications`
-  — toggle statusline task-completion alerts.
-- FR-2.26: `list_pending_tasks` — show tasks waiting for a human claim
-  on this machine.
-- FR-2.27: `claim_and_run_locally(task_id)` — atomic claim + local
-  execution in a single call; eliminates the two-step claim → run
-  sequence.
-- FR-2.28: `skip_task(task_id, reason)` — mark a task skipped without
-  failing it; releases the slot for another agent.
-- FR-2.29: `configure_local_runner(options)` — update max concurrency,
-  allowed task types, and model selection in `~/.lore/local-runner.json`.
 
 ### FR-3: Developer Onboarding
 
