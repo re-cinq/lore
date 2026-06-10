@@ -18,6 +18,7 @@ describe("ttlCleanupJob", () => {
     expect(sql).toContain("is_deleted = false");
     expect(sql).not.toMatch(/\bSET\s+deleted\b/);
     expect(sql).not.toMatch(/\bAND\s+deleted\b/);
+    expect(sql).not.toContain("updated_at");
   });
 
   it("returns the count of expired memories", async () => {
