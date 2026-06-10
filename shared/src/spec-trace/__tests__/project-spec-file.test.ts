@@ -359,6 +359,22 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     expect(second).toEqual({ projected: false });
   });
 
+  it("re-projects unchanged content when force is true after the gate skipped it", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const content = "## Overview\n\n- A point\n";
+
+    const first = await projectSpecFile(repo, filePath, content, dgraphClient, async () => null);
+    expect(first).toEqual({ projected: true });
+
+    const unchanged = await projectSpecFile(repo, filePath, content, dgraphClient, async () => null);
+    expect(unchanged).toEqual({ projected: false });
+
+    const forced = await projectSpecFile(repo, filePath, content, dgraphClient, async () => null, true);
+    expect(forced).toEqual({ projected: true });
+  });
+
   it("re-projects changed content and updates the reworded statement's text_hash", async () => {
     const repo = `test-proj/${randomUUID()}`;
     createdRepo = repo;
