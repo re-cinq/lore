@@ -239,6 +239,10 @@ describe("POST /api/webhook/github", () => {
       const res = await run(ghReq("issue_comment", { action: "created", issue: {} }), makePool() as any);
       expect(res.json).toMatchObject({ skipped: true });
     });
+    it("skips an edited (non-created) PR comment", async () => {
+      const res = await run(ghReq("issue_comment", { action: "edited", repository: { full_name: "o/r" }, issue: { number: 9, pull_request: {} } }), makePool() as any);
+      expect(res.json).toMatchObject({ skipped: true, reason: "not a PR issue_comment created event" });
+    });
     it("returns 400 on invalid JSON", async () => {
       const res = await run(ghReq("issue_comment", "{bad"), makePool() as any);
       expect(res.statusCode).toBe(400);

@@ -33,6 +33,18 @@ describe("POST /api/session-summary", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("returns 403 when the token lacks write scope", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
+    const res = makeRes();
+    await handleApiRoute(
+      makeReq({ url: "/api/session-summary", method: "POST", headers: { authorization: "Bearer read-only" }, body: { session_log: "x" } }),
+      res,
+      pool as any,
+    );
+    expect(res.json).toEqual({ error: "insufficient scope" });
+  });
+
   it("skips when the string summary is too short", async () => {
     const res = await post({ session_log: "hi" });
     expect(res.json).toEqual({ status: "skipped", reason: "empty session" });

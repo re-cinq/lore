@@ -26,6 +26,15 @@ describe("GET /api/context", () => {
     expect(res.json).toEqual({ text: "ctx", sections: [{ a: 1 }] });
   });
 
+  it("passes debug=1 through and returns the trace in the envelope", async () => {
+    vi.mocked(assembleContext).mockResolvedValue({ text: "ctx", sections: [], trace: [{ section: "repo", included: true }] } as any);
+    const pool = makePool();
+    const res = makeRes();
+    await handleApiRoute(makeReq({ url: "/api/context?query=hi&debug=1", headers: AUTH }), res, pool as any);
+    expect(vi.mocked(assembleContext).mock.calls[0]).toEqual([pool, "hi", "default", 8000, undefined, undefined, undefined, undefined, true]);
+    expect(res.json).toEqual({ text: "ctx", sections: [], trace: [{ section: "repo", included: true }] });
+  });
+
   it("nulls text when assembleContext returns empty text", async () => {
     vi.mocked(assembleContext).mockResolvedValue({ text: "", sections: [] } as any);
     const pool = makePool();

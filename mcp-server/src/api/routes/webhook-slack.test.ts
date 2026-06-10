@@ -122,4 +122,20 @@ describe("POST /api/webhook/slack", () => {
     const res = await run(slackReq({ text: "do something", channel_id: "C1" }), pool as any);
     expect(res.json.text).toContain("Failed to create task");
   });
+  it("treats a bare retry with no task id as a general-task description", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
+    vi.mocked(createTask).mockResolvedValue({ task_id: "r1" } as any);
+    const res = await run(slackReq({ text: "retry", channel_id: "C1", user_name: "bob" }), pool as any);
+    expect(createTask).toHaveBeenCalledWith("retry", "general", "o/r", "slack:bob", { slack_channel_id: "C1", slack_user: "bob" }, "normal");
+    expect(res.json.text).toContain("Type: `general`");
+  });
+  it("creates an immediate general-typed task when no known type follows the bang", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
+    vi.mocked(createTask).mockResolvedValue({ task_id: "b1" } as any);
+    const res = await run(slackReq({ text: "! fix the login bug", channel_id: "C1", user_name: "bob" }), pool as any);
+    expect(createTask).toHaveBeenCalledWith("fix the login bug", "general", "o/r", "slack:bob", { slack_channel_id: "C1", slack_user: "bob" }, "immediate");
+    expect(res.json.text).toContain("Priority: `immediate`");
+  });
 });
