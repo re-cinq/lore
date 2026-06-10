@@ -99,6 +99,42 @@ export function proxyMemory(action: string, params: Record<string, any>): Promis
   return proxyToApi("/api/memory", { action, ...params });
 }
 
+// GET sibling of proxyToApi for read-only routes (e.g. /trace/*). Same
+// config gate, retry budget, and ProxyResult shape; no request body.
+export async function proxyGetApi(path: string): Promise<ProxyResult> {
+  const apiUrl = process.env.LORE_API_URL;
+  const apiToken = process.env.LORE_INGEST_TOKEN;
+  if (!apiUrl || !apiToken) return { ok: false, reason: "not_configured" };
+
+  let lastDetail = "no attempts made";
+  for (let attempt = 0; attempt <= PROXY_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const res = await fetch(`${apiUrl}${path}`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${apiToken}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.ok) {
+        return { ok: true, body: JSON.stringify(await res.json()) };
+      }
+      lastDetail = `HTTP ${res.status} ${res.statusText}`;
+      if (!isRetriableStatus(res.status)) {
+        console.error(`[lore-mcp] proxy GET ${path} failed (${lastDetail}); not retrying`);
+        return { ok: false, reason: "unreachable", detail: lastDetail };
+      }
+    } catch (err: any) {
+      lastDetail = err?.name === "TimeoutError" ? "request timed out (15s)" : (err?.message || String(err));
+    }
+    if (attempt < PROXY_RETRY_DELAYS_MS.length) {
+      const delay = PROXY_RETRY_DELAYS_MS[attempt];
+      console.error(`[lore-mcp] proxy GET ${path} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  console.error(`[lore-mcp] proxy GET ${path} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`);
+  return { ok: false, reason: "unreachable", detail: lastDetail };
+}
+
 // Format an MCP error for an unreachable proxy. Surfaces the failure
 // to the caller instead of silently writing to a local file (which
 // would never sync to the org-wide DB).
