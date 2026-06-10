@@ -281,18 +281,6 @@ accepted** and normalized server-side into that list. Idempotent on
 { "coverage_nodes": 312, "covers_edges": 1842, "files_covered": 67 }
 ```
 
-### MCP tools
-
-| Tool | Scope | Behaviour |
-|------|-------|-----------|
-| `list_tests` | task | Runs `tests.list` in the caller's sandbox; seeds `TestChunk` (+ `VALIDATED_BY` when `spec`) |
-| `run_test` | task | Runs `tests.run <id>` in the sandbox; upserts `Coverage`+`COVERS`; `passed=false` (confirmed) → `violated` |
-| `query_trace` | read | "what validates statement X", "what does test Y cover", "what drifted/violated" |
-
-`list_tests`/`run_test` execute in the caller's sandbox; the graph write
-is proxied through the MCP server to the backend (like memory writes). The
-shared GKE server refuses to execute and returns a run-locally error.
-
 ## Data Model
 
 No new persistent store of its own. It populates the [traceability
