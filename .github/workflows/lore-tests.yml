@@ -51,5 +51,8 @@ jobs:
         env:
           LORE_API_URL: ${{ vars.LORE_API_URL }}
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
+          # Cold CI runners are slower than dev machines; give the full-suite
+          # list + per-file coverage runs headroom over the 120s default.
+          LORE_TRACE_TIMEOUT_MS: "600000"
         # Soft-fail: a Lore outage must never fail this repo's own CI.
         run: npm run trace:run-tests -w @re-cinq/lore-mcp -- --post || echo "::warning::Lore test-report ingest failed"
