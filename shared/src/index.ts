@@ -1,11 +1,106 @@
-export { chunkFile, type Chunk } from './chunker.js';
+export * from './project/index.js';
+export {
+  createTask as createPipelineTask,
+  retryTask as retryPipelineTask,
+  getTask as getPipelineTask,
+  listTasks as listPipelineTasks,
+  recordEvent as recordTaskEvent,
+  setTaskStatus,
+  updateTaskStatus,
+  cancelTask as cancelPipelineTask,
+  markTaskMerged,
+  type CreateTaskInput,
+} from './pipeline-tasks.js';
+export { chunkFile, buildIngestedChunkMetadata, type Chunk } from './chunker.js';
 export { redactSecrets } from './redact.js';
+export { getQueryEmbedding, buildVertexUrl } from './embeddings/embedding-service.js';
+export { resolveAgentId } from './agent-id.js';
+export { projectSpecFile } from './spec-trace/project-spec-file.js';
+export { projectAdrFile } from './spec-trace/project-adr-file.js';
+export { descriptorsFromVitestList, groupRunsByFile, type VitestListEntry } from './spec-trace/trace-descriptors.js';
+export { mapWithLimit } from './concurrency/map-with-limit.js';
+export { ingestSpecTrace } from './spec-trace/ingest-spec-trace.js';
+export {
+  assembleTraceDocument,
+  fetchTraceDocument,
+  listSpecDocuments,
+  listAdrDocuments,
+  listAllSpecDocuments,
+  listSpecSummaries,
+  listAdrSummaries,
+  type SpecSummary,
+  type AdrSummary,
+  type TraceDocument,
+  type TraceStatement,
+  type TraceSection,
+  type TraceLinkRef,
+  type TraceCoverage,
+  type StatementState as TraceStatementState,
+} from './spec-trace/assemble-trace-document.js';
+export {
+  fetchSpecGraph,
+  fetchSpecRing,
+  flattenSpecGraph,
+  flattenSpecRing,
+  specLabel,
+  adrLabel,
+  UNGROUPED_SECTION,
+  type SpecGraph,
+  type SpecGraphNode,
+  type SpecGraphLink,
+  type SpecRing,
+  type RingSection,
+  type RingStatement,
+} from './spec-trace/spec-graph.js';
+export { planTraceUnits, runTraceUnits, type TraceUnit } from './spec-trace/trace-units.js';
+export { Llm } from './llm/llm.js';
+export { selectProvider } from './llm/select-provider.js';
+export { NoLlmProvider } from './llm/no-llm-provider.js';
+export { FakeLlm } from './llm/fake-llm.js';
+export { AnthropicProvider } from './llm/anthropic-provider.js';
+export { OpenAiProvider } from './llm/openai-provider.js';
+export { OllamaProvider } from './llm/ollama-provider.js';
+export { CliProvider } from './llm/cli-provider.js';
+export type {
+  LlmProvider,
+  LlmCompleteRequest,
+  LlmCompletion,
+  LlmToolRequest,
+  LlmToolResult,
+  LlmUsage,
+} from './llm/llm-provider.js';
+export {
+  computeImpact,
+  buildImpactAnnotations,
+  buildImpactComment,
+  IMPACT_COMMENT_MARKER,
+  parseRanges,
+  type ChangedRange,
+  type ImpactReport,
+  type ImpactStatement,
+  type OrphanStatement,
+  type ImpactAnnotation,
+} from './spec-trace/trace-impact.js';
+export {
+  runIngestGraph,
+  selectIngestFiles,
+  summarizeIngest,
+  INGEST_KINDS,
+  type IngestKind,
+  type IngestGraphParams,
+  type IngestGraphSummary,
+  type IngestGraphPorts,
+  type IngestKindDef,
+} from './spec-trace/ingest-graph-task.js';
 export { parseTasks, inferPhaseDependencies, type ParsedTask } from './tasks.js';
 export {
   formatTrailers,
+  formatValidatesTrailer,
   parseTrailers,
+  parseValidatesTrailers,
   lastStageOnBranch,
   type Trailers,
+  type ProvenanceRef,
 } from './commit-trailers.js';
 export {
   resolveDarkFactorySettings,
@@ -38,6 +133,12 @@ export {
   reassembleSpec,
 } from './spec-summary.js';
 export {
+  segmentBlocks,
+  reassembleBlocks,
+  type Block,
+  type BlockKind,
+} from './spec-blocks.js';
+export {
   segmentStatements,
   classifyByHeuristic,
   buildIntroOrdinals,
@@ -49,8 +150,26 @@ export {
 } from './spec-segment.js';
 export {
   isTestFile,
+  isDocFile,
   normalizeTestName,
 } from './test-paths.js';
+export {
+  parseTestCommandManifest,
+  resolveTestCommandManifest,
+  decideTestInterfaceCheck,
+  substituteSelector,
+  type TestCommandManifest,
+  type CoverageFormat,
+  type TestInterfaceCheck,
+} from './test-command-manifest.js';
+export {
+  parseTestDescriptors,
+  parseRunResult,
+  type TestDescriptor,
+  type CoveredChunk,
+  type RunResult,
+  type TaggedRunResult,
+} from './test-report.js';
 export {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_VERSION,
@@ -60,8 +179,21 @@ export {
   type IngestWorkflowStatus,
 } from './ingest-workflow.js';
 export {
+  TRACE_IMPACT_WORKFLOW_PATH,
+  TRACE_IMPACT_WORKFLOW_VERSION,
+  TRACE_IMPACT_WORKFLOW_CONTENT,
+  traceImpactWorkflowStatus,
+  parseTraceImpactWorkflowVersion,
+  type TraceImpactWorkflowStatus,
+} from './trace-impact-workflow.js';
+export {
   parseTestLinksInStatement,
+  parseCodeLinksInStatement,
+  linksForStatements,
+  findMisplacedCoverageLinks,
+  type SpecLinkRef,
   type TestLinkRef,
+  type CodeLinkRef,
 } from './spec-link-parser.js';
 export {
   specFeatureSlug,
@@ -88,4 +220,44 @@ export {
   type Judgment,
 } from './spec-judge.js';
 
+export {
+  memoryStore,
+  setMemoryStore,
+  selectMemoryStore,
+  type MemoryStore,
+  type WriteResult,
+  type PgPool,
+  type DgraphClientPort,
+  type DgraphTxn,
+} from './memory-store.js';
+export { PostgresMemoryStore } from './postgres-memory-store.js';
+export { ShadowMemoryStore } from './shadow-memory-store.js';
+export { DgraphMemoryStore } from './dgraph-memory-store.js';
+export {
+  rrfMerge,
+  RRF_K,
+  computeTransferScore,
+  diversify,
+  scoreImportance,
+  type MemorySearchResult,
+  type RankedItem,
+} from './memory-ranking.js';
+
+export {
+  backfillMemoryToDgraph,
+  type BackfillReport,
+} from './backfill-memory.js';
+
+export {
+  evaluateParityGates,
+  jaccard,
+  meanTopkJaccard,
+  type ParitySummary,
+  type GateResult,
+} from './backfill-parity.js';
+
+export { auditDgraphAcl } from './dgraph-acl-policy.js';
+export { createDgraphClient } from './dgraph-client.js';
 export { classifyFile, type ContentType } from './content-classify.js';
+export { TEST_COMMAND_SETUP_PROMPT } from './test-command-setup-prompt.js';
+export { LORE_TESTS_INSTRUCTION } from './lore-tests-instruction.js';

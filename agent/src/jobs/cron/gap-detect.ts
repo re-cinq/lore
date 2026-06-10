@@ -1,4 +1,4 @@
-import { query } from "../../db.js";
+import { query } from "../../platform/db.js";
 
 interface OnboardedRepo {
   id: string;

@@ -1,6 +1,6 @@
-import { query, getPool } from "../../db.js";
-import { platform } from "../../platform.js";
-import { chunkFile, classifyFile } from "@re-cinq/lore-shared";
+import { query, getPool } from "../../platform/db.js";
+import { projectFor } from "../../platform/project-boot.js";
+import { chunkFile, classifyFile, buildIngestedChunkMetadata } from "@re-cinq/lore-shared";
 
 interface OnboardedRepo {
   full_name: string;
@@ -143,7 +143,7 @@ async function getChangedFiles(
   fullName: string,
   since: Date,
 ): Promise<string[]> {
-  const commits = await platform().listCommitsSince(fullName, since.toISOString());
+  const commits = await projectFor(fullName).then((p) => p.repo.listCommitsSince(since.toISOString()));
 
   const paths = new Set<string>();
   for (const commit of commits) {
@@ -157,7 +157,7 @@ async function getChangedFiles(
 // ── Seed files for first-time repos ─────────────────────────────────
 
 async function getSeedFiles(fullName: string): Promise<string[]> {
-  const tree = await platform().listTree(fullName);
+  const tree = await projectFor(fullName).then((p) => p.repo.tree());
   return selectSeedFiles(tree);
 }
 
@@ -178,7 +178,7 @@ async function ingestFile(
   }
 
   // Fetch file content via platform
-  const content = await platform().getFileContent(fullName, filePath);
+  const content = await projectFor(fullName).then((p) => p.repo.read(filePath));
   if (content === null) {
     // File was deleted or not found — remove existing chunks
     await pool.query(
@@ -209,7 +209,7 @@ async function ingestFile(
         schema,
         fullName,
         filePath,
-        JSON.stringify({ ...chunk.metadata, file_path: filePath, ingested_by: "reindex-job" }),
+        JSON.stringify(buildIngestedChunkMetadata(chunk, { filePath, ingestedBy: "reindex-job" })),
       ],
     );
 

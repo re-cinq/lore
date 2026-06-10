@@ -6,21 +6,21 @@ import type {
   NodeResult,
 } from "./graph-executor.js";
 import type { WorkflowNode } from "../workflow/loader.js";
-import type { LLMResult } from "../anthropic.js";
+import type { LlmCompletion } from "@re-cinq/lore-shared";
 
 /**
  * Factory dependencies. All injectable so the handler can be unit-tested
  * without hitting Anthropic / a real filesystem.
  */
 export interface AgentHandlerDeps {
-  /** Wraps `callLLM` from agent/src/anthropic.ts. */
+  /** Injected text-completion call — orchestrator backs this with `Llm.instance.complete`. */
   callLLM: (params: {
     prompt: string;
     systemPrompt?: string;
     model?: string;
     taskId?: string;
     jobName?: string;
-  }) => Promise<LLMResult>;
+  }) => Promise<LlmCompletion>;
   /**
    * Resolves a node's `prompt_ref` to a system prompt + user prompt
    * template. Default reads from agent/src/config.ts task-types.yaml.
@@ -101,7 +101,7 @@ export function createAgentHandler(
       };
     }
 
-    let result: LLMResult;
+    let result: LlmCompletion;
     try {
       result = await deps.callLLM({
         prompt: resolved.prompt,

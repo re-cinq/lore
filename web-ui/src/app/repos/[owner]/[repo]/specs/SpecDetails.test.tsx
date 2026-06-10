@@ -37,6 +37,39 @@ describe('SpecDetails v3 (markdown-driven)', () => {
     expect(mark?.className).toContain('stmt-tested');
   });
 
+  it('marks a drifted statement with data-drifted true on its mark', () => {
+    const md = '## Acceptance Criteria\n\n- Claims a pending task. ([t](src/x.test.ts#L1))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'Claims a pending task. ([t](src/x.test.ts#L1))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+        drifted: true,
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+    expect(container.querySelector('mark[data-drifted="true"]')).not.toBeNull();
+  });
+
+  it('adds the stmt-drifted class to a drifted statement mark', () => {
+    const md = '## Acceptance Criteria\n\n- Claims a pending task. ([t](src/x.test.ts#L1))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'Claims a pending task. ([t](src/x.test.ts#L1))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+        drifted: true,
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+    const mark = container.querySelector('mark[data-drifted="true"]');
+    expect(mark?.className).toContain('stmt-drifted');
+  });
+
   it('wraps an unlinked testable statement with stmt-untested (red)', () => {
     const md = '## Acceptance Criteria\n\n- Re-queues a stale task.\n';
     const statements = [
@@ -140,6 +173,23 @@ describe('SpecDetails v3 (markdown-driven)', () => {
     expect(link?.getAttribute('href')).toEqual(gh('src/x.test.ts#L1'));
     expect(link?.getAttribute('target')).toEqual('_blank');
     expect(link?.getAttribute('rel')).toEqual('noopener noreferrer');
+  });
+
+  it('surfaces a drift notice in the popover for a drifted statement', () => {
+    const md = '## Acceptance Criteria\n\n- Claims a pending task. ([t](src/x.test.ts#L1))\n';
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: 'Claims a pending task. ([t](src/x.test.ts#L1))',
+        kind: 'list-item',
+        state: 'tested',
+        testLinks: [{ label: 't', path: 'src/x.test.ts', line: 1 }],
+        drifted: true,
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+    fireEvent.mouseOver(container.querySelector('mark[data-ordinal="0"]')!);
+    expect(screen.getByRole('tooltip').textContent).toMatch(/drift/i);
   });
 
   it('does NOT render the legacy tests[] list, the legacy TestLink prop, or list-only/legacy badges', () => {

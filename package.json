@@ -10,7 +10,13 @@
     "build": "npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-mcp && npm run build -w @re-cinq/lore-agent",
     "db:up": "docker start lore-postgres 2>/dev/null || (mkdir -p .lore-pgdata && docker run --name lore-postgres -e POSTGRES_PASSWORD=lore -e POSTGRES_DB=lore -v \"$PWD/.lore-pgdata:/var/lib/postgresql/data\" -p 5432:5432 -d pgvector/pgvector:pg16)",
     "db:down": "docker rm -f lore-postgres",
-    "db:schema": "bash scripts/infra/setup-local-schema.sh"
+    "db:schema": "bash scripts/infra/setup-local-schema.sh",
+    "dgraph:up": "docker start lore-dgraph 2>/dev/null || (mkdir -p .lore-dgraphdata && docker run --name lore-dgraph -v \"$PWD/.lore-dgraphdata:/dgraph\" -p 8081:8080 -p 9080:9080 -d dgraph/standalone:v24.0.0)",
+    "dgraph:down": "docker rm -f lore-dgraph",
+    "dgraph:schema": "bash scripts/infra/setup-memory-dgraph-schema.sh && bash scripts/infra/setup-spec-trace-schema.sh",
+    "trace:schema": "bash scripts/infra/setup-spec-trace-schema.sh",
+    "services:up": "docker compose up -d --wait",
+    "services:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

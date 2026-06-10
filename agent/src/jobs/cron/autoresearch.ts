@@ -3,9 +3,9 @@ import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
-import { query } from "../../db.js";
-import { callLLM } from "../../anthropic.js";
-import { platform } from "../../platform.js";
+import { query } from "../../platform/db.js";
+import { Llm } from "@re-cinq/lore-shared";
+import { projectFor } from "../../platform/project-boot.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -269,7 +269,7 @@ Questions that developers couldn't answer:
 Write a concise "don't do X because Y, instead do Z" explanation (under 200 words).`,
   };
 
-  const result = await callLLM({
+  const result = await Llm.instance.complete({
     prompt: prompts[approach],
     systemPrompt:
       "You generate context additions for developer knowledge bases. Be specific, testable, and concise. Never generate PII, credentials, or speculative content.",
@@ -369,17 +369,16 @@ async function openResearchPR(
     .join("\n");
 
   try {
-    await platform().createBranch(targetRepo, branch);
-    await platform().commitFile(
-      targetRepo,
+    const project = await projectFor(targetRepo);
+    await project.repo.createBranch(branch);
+    await project.repo.commitFile(
       branch,
       filePath,
       best.content,
       `autoresearch: add context for ${topicSlug}`,
     );
 
-    await platform().createPR(
-      targetRepo,
+    await project.pulls.open(
       branch,
       `[autoresearch] ${cluster.namespace}: ${topicSlug}`,
       `## Context Experiment

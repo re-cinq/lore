@@ -1,6 +1,6 @@
-import { query } from "../../db.js";
-import { platform } from "../../platform.js";
-import { callLLM } from "../../anthropic.js";
+import { query } from "../../platform/db.js";
+import { projectFor } from "../../platform/project-boot.js";
+import { Llm } from "@re-cinq/lore-shared";
 import { writeEpisode } from "../../lib/episode-writer.js";
 import { isBusinessHours } from "../../lib/business-hours.js";
 
@@ -99,9 +99,10 @@ export async function runReviewReactorForPR(
  * Returns true if feedback was processed.
  */
 async function checkAndProcessPR(task: PendingTask): Promise<boolean> {
-  const reviews = await platform().listPRReviews(task.target_repo, task.pr_number);
+  const project = await projectFor(task.target_repo);
+  const reviews = await project.pulls.listReviews(task.pr_number);
 
-  const commits = await platform().listPRCommits(task.target_repo, task.pr_number);
+  const commits = await project.pulls.listCommits(task.pr_number);
   const lastCommitDate = new Date(commits[commits.length - 1]?.date || 0);
 
   const pendingReviews = reviews.filter(
@@ -110,12 +111,12 @@ async function checkAndProcessPR(task: PendingTask): Promise<boolean> {
       new Date(r.submitted_at || 0) > lastCommitDate,
   );
 
-  const comments = await platform().listPRComments(task.target_repo, task.pr_number);
+  const comments = await project.pulls.listComments(task.pr_number);
   const pendingComments = comments.filter(
     (c) => new Date(c.created_at) > lastCommitDate,
   );
 
-  const issueComments = await platform().listPRIssueComments(task.target_repo, task.pr_number);
+  const issueComments = await project.pulls.listIssueComments(task.pr_number);
   const pendingIssueComments = issueComments.filter(
     (c) => new Date(c.created_at) > lastCommitDate,
   );
@@ -141,8 +142,9 @@ async function processReviewFeedback(
   reviews: any[],
   comments: any[],
 ): Promise<void> {
+  const project = await projectFor(task.target_repo);
   // Get the PR diff
-  const diff = await platform().getPRDiff(task.target_repo, task.pr_number);
+  const diff = await project.pulls.getDiff(task.pr_number);
 
   // Format review bodies
   const formattedReviews = reviews
@@ -181,7 +183,7 @@ For each file that needs changes, output:
 (full corrected file content)
 === END FILE ===`;
 
-  const result = await callLLM({
+  const result = await Llm.instance.complete({
     prompt,
     taskId: task.id,
     jobName: "review_reactor",
@@ -197,8 +199,7 @@ For each file that needs changes, output:
 
   // Commit each changed file
   for (const file of files) {
-    await platform().commitFile(
-      task.target_repo,
+    await project.repo.commitFile(
       task.target_branch,
       file.path,
       file.content,
@@ -218,16 +219,14 @@ For each file that needs changes, output:
 
   // Post summary comment on PR
   const fileList = files.map((f) => `- \`${f.path}\``).join("\n");
-  await platform().commentOnPR(
-    task.target_repo,
+  await project.pulls.comment(
     task.pr_number,
     `## Review Feedback Addressed\n\nFixed ${files.length} files based on reviewer feedback.\n\n**Iteration:** ${iteration}/3\n\nChanges:\n${fileList}`,
   );
 
   // Comment on the linked issue if it exists
   if (task.issue_number) {
-    await platform().commentOnIssue(
-      task.target_repo,
+    await project.issues.comment(
       task.issue_number,
       `Review feedback addressed (iteration ${iteration}/3). See PR for details.`,
     );
@@ -235,9 +234,8 @@ For each file that needs changes, output:
 
   // If max iterations reached, add needs-human label and notify
   if (iteration >= 3) {
-    await platform().addPRLabel(task.target_repo, task.pr_number, "needs-human");
-    await platform().commentOnPR(
-      task.target_repo,
+    await project.pulls.addLabel(task.pr_number, "needs-human");
+    await project.pulls.comment(
       task.pr_number,
       "This PR has reached the maximum of 3 review-react iterations. A human needs to take over.",
     );

@@ -5,10 +5,10 @@ import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import { Octokit } from "octokit";
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
-import { callLLM } from "../anthropic.js";
+import { Llm } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
-import { query } from "../db.js";
+import { query } from "../platform/db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { evaluateAndMerge } from "../jobs/auto-merge.js";
 import {
@@ -22,7 +22,7 @@ import { runSupervisor } from "./index.js";
 import { loadWorkflowDir, type Workflow } from "../workflow/loader.js";
 import { createAgentHandler } from "./agent-handler.js";
 import { createProductionHandlers } from "./handlers.js";
-import { buildPrompt, getTaskTypeConfig } from "../config.js";
+import { buildPrompt, getTaskTypeConfig } from "../platform/config.js";
 
 const execFile = promisify(execFileCb);
 
@@ -131,7 +131,7 @@ export async function processTaskViaSupervisor(
 
     const agentHandler = createAgentHandler(
       {
-        callLLM,
+        callLLM: (params) => Llm.instance.complete(params),
         resolvePrompt: (promptRef, description) => {
           const config = getTaskTypeConfig(promptRef);
           if (!config) return null;

@@ -52,7 +52,7 @@ RUN npm prune --omit=dev --workspace=shared --workspace=agent
 # ── Stage 2: validation CLI build ─────────────────────────────────────
 FROM node:24-slim AS validation-builder
 WORKDIR /build
-COPY mcp-server/src/repo-validation.ts mcp-server/src/repo-validation-cli.ts ./src/
+COPY mcp-server/src/features/repo/repo-validation.ts mcp-server/src/features/repo/repo-validation-cli.ts ./src/
 COPY docker/claude-runner/validation/package.json docker/claude-runner/validation/tsconfig.json ./
 RUN npm install --ignore-scripts && npx tsc
 

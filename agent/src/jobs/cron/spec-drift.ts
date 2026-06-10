@@ -1,5 +1,5 @@
-import { query } from "../../db.js";
-import { callLLMWithTool } from "../../anthropic.js";
+import { query } from "../../platform/db.js";
+import { Llm } from "@re-cinq/lore-shared";
 import { isAssertionSource, shouldSkipDrift } from "./spec-drift-rules.js";
 
 interface SpecChunk {
@@ -168,7 +168,7 @@ async function extractAssertions(
   // Truncate spec content to avoid token limits
   const truncated = specContent.substring(0, 12000);
 
-  const result = await callLLMWithTool<{ assertions: Assertion[] }>({
+  const result = await Llm.instance.completeWithTool<{ assertions: Assertion[] }>({
     prompt: `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
 
 Only extract items that are explicitly named in the spec. Do not infer or guess.

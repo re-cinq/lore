@@ -8,8 +8,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { redactSecrets } from "@re-cinq/lore-shared";
-import { callLLM as defaultCallLLM } from "../anthropic.js";
+import { redactSecrets, Llm } from "@re-cinq/lore-shared";
 import {
   pgEpisodes,
   pgMemories,
@@ -23,7 +22,6 @@ export interface WriteEpisodeDeps {
 
 export interface CurationDeps extends WriteEpisodeDeps {
   memories: MemoryRepository;
-  callLLM: typeof defaultCallLLM;
 }
 
 /**
@@ -66,7 +64,6 @@ export async function writeEpisodeWithCuration(
   deps: CurationDeps = {
     episodes: pgEpisodes,
     memories: pgMemories,
-    callLLM: defaultCallLLM,
   },
 ): Promise<void> {
   // Write the episode first (always)
@@ -77,7 +74,7 @@ export async function writeEpisodeWithCuration(
 
   // Extract a lesson learned via Haiku
   try {
-    const result = await deps.callLLM({
+    const result = await Llm.instance.complete({
       prompt: `Extract one concise lesson learned from this task outcome. Focus on what went well, what went wrong, or what pattern should be remembered for future tasks. Return just the lesson in 1-2 sentences. If there's nothing notable, respond with "SKIP".\n\n${content.substring(0, 4000)}`,
       systemPrompt: "You are a post-task curator extracting reusable lessons from agent task outcomes.",
       maxTokens: 256,

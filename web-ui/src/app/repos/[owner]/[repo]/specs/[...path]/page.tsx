@@ -1,13 +1,8 @@
 export const dynamic = "force-dynamic";
-import { query, getRepoSchema } from '@/lib/db';
-import { reassembleSpec, parseSpecTitle } from '@/lib/spec-summary';
-import { deriveCoverageFromMarkdown } from '@/lib/spec-coverage-derive';
-import SpecDetailView, { type SpecDetailData } from './SpecDetailView';
-
-interface SpecChunkRow {
-  content: string;
-  ingested_at: string;
-}
+import Link from 'next/link';
+import { fetchTraceDocument, fetchTraceSource } from '@/lib/trace-api';
+import { toStatementInfo } from '@/lib/trace-statement-info';
+import SpecDocument from './SpecDocument';
 
 export default async function RepoSpecDetail({
   params,
@@ -18,20 +13,29 @@ export default async function RepoSpecDetail({
   const fullName = `${owner}/${repo}`;
   const filePath = path.map(decodeURIComponent).join('/');
   const specsLink = `/repos/${owner}/${repo}/specs`;
-  const schema = await getRepoSchema(fullName);
 
-  const chunks = await query<SpecChunkRow>(
-    `SELECT content, ingested_at FROM ${schema}.chunks
-     WHERE content_type = 'spec' AND repo = $1 AND file_path = $2`,
-    [fullName, filePath],
+  // Graph is the source of truth: the byte-exact markdown SOURCE renders as a
+  // normal document (framed per section), and the statement overlay (tested
+  // underline + hover node details) comes from the structured document.
+  const [source, doc] = await Promise.all([
+    fetchTraceSource(fullName, filePath),
+    fetchTraceDocument(fullName, filePath),
+  ]);
+  const statements = doc ? toStatementInfo(doc.statements) : [];
+
+  return (
+    <div>
+      <p className="meta" style={{ marginBottom: 12 }}>
+        <Link href={specsLink}>← Specifications</Link>
+      </p>
+      {source ? (
+        <SpecDocument repo={fullName} content={source} statements={statements} />
+      ) : (
+        <p style={{ color: 'var(--text-muted)' }}>
+          No graph data for <code>{filePath}</code>. Build the graph from the <strong>Graph</strong> tab and run the{' '}
+          <code>ingest-*</code> tasks, then refresh.
+        </p>
+      )}
+    </div>
   );
-
-  let spec: SpecDetailData | null = null;
-  if (chunks.length > 0) {
-    const content = reassembleSpec(chunks);
-    const { statements, counts } = deriveCoverageFromMarkdown(content);
-    spec = { title: parseSpecTitle(content, filePath), content, statements, counts };
-  }
-
-  return <SpecDetailView fullName={fullName} filePath={filePath} specsLink={specsLink} spec={spec} />;
 }

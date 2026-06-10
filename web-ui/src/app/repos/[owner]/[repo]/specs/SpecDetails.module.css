@@ -61,6 +61,13 @@
 .popoverUntested strong { color: var(--danger); }
 .popoverNarrative strong { color: var(--text-muted); }
 
+.popoverDrift {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.popoverDrift strong { color: var(--warning, var(--danger)); }
+
 .popoverHint {
   margin-top: 6px;
   color: var(--text-muted);

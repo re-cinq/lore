@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { startJobRun, completeJobRun, failJobRun } from "./job-run.js";
-import { query } from "../db.js";
+import { query } from "../platform/db.js";
 
-vi.mock("../db.js", () => ({
+vi.mock("../platform/db.js", () => ({
   query: vi.fn(),
 }));
 

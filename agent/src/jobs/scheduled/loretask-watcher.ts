@@ -8,8 +8,8 @@
  */
 
 import { KubeConfig, CustomObjectsApi, CoreV1Api } from "@kubernetes/client-node";
-import { platform } from "../../platform.js";
-import { query } from "../../db.js";
+import { projectFor } from "../../platform/project-boot.js";
+import { query } from "../../platform/db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../../lib/episode-writer.js";
 import { tryAutoMergeForCompletedTask } from "../auto-merge-trigger.js";
 import { buildReviewFixDescription, formatReviewFeedback } from "../../lib/review-feedback.js";
@@ -131,16 +131,18 @@ async function getIssueNumber(taskId: string): Promise<{ issue_number: number | 
 async function linkPrToIssue(repo: string, issueNumber: number | null, prUrl: string): Promise<void> {
   if (!issueNumber) return;
   try {
-    await platform().commentOnIssue(repo, issueNumber, `PR created: ${prUrl}`);
-    await platform().closeIssue(repo, issueNumber, "completed");
+    const project = await projectFor(repo);
+    await project.issues.comment(issueNumber, `PR created: ${prUrl}`);
+    await project.issues.close(issueNumber, "completed");
   } catch { /* best effort */ }
 }
 
 async function commentFailureOnIssue(repo: string, issueNumber: number | null, reason: string): Promise<void> {
   if (!issueNumber) return;
   try {
-    await platform().commentOnIssue(repo, issueNumber, `Task failed: \`${reason}\``);
-    await platform().addIssueLabel(repo, issueNumber, "lore-failed");
+    const project = await projectFor(repo);
+    await project.issues.comment(issueNumber, `Task failed: \`${reason}\``);
+    await project.issues.addLabel(issueNumber, "lore-failed");
   } catch { /* best effort */ }
 }
 
@@ -203,8 +205,8 @@ export async function watchLoreTasks(): Promise<void> {
               const body = output
                 ? `${output.length > 60000 ? output.slice(-60000) + "\n\n…(truncated)" : output}\n\n---\n*Lore-Task: ${taskId}*`
                 : `${copy.body}\n\nTask completed (no output). See [logs](${logUrl}).`;
-              const issue = await platform().createIssue(
-                target_repo,
+              const issueProject = await projectFor(target_repo);
+              const issue = await issueProject.issues.create(
                 copy.title,
                 body,
                 ["lore-managed", lt.spec.taskType],
@@ -220,7 +222,7 @@ export async function watchLoreTasks(): Promise<void> {
             const body = output
               ? `## Result\n\n${output.length > 60000 ? output.slice(-60000) + "\n\n…(truncated)" : output}`
               : "Task completed (no code changes). See logs for full output.";
-            await platform().commentOnIssue(target_repo, issue_number, body).catch(() => {});
+            await projectFor(target_repo).then((p) => p.issues.comment(issue_number!, body)).catch(() => {});
           }
 
           // Don't close the issue — it's the deliverable for general tasks.
@@ -285,12 +287,8 @@ export async function watchLoreTasks(): Promise<void> {
           branch: lt.spec.branch,
           uiUrl: process.env.LORE_UI_URL,
         });
-        const pr = await platform().createPR(
-          lt.spec.targetRepo,
-          lt.spec.branch,
-          copy.title,
-          `${body}${footer}`,
-        );
+        const prProject = await projectFor(lt.spec.targetRepo);
+        const pr = await prProject.pulls.open(lt.spec.branch, copy.title, `${body}${footer}`);
 
         // Update pipeline.tasks
         await query(
@@ -373,32 +371,16 @@ export async function watchLoreTasks(): Promise<void> {
           const reviewTaskId = reviewTaskResult[0].id;
 
           // Create review LoreTask CR
-          const reviewCRName = `loretask-${reviewTaskId.substring(0, 8)}`;
-          await k8sApi.createNamespacedCustomObject({
-            group: GROUP, version: VERSION, namespace, plural: PLURAL,
-            body: {
-              apiVersion: `${GROUP}/${VERSION}`,
-              kind: "LoreTask",
-              metadata: {
-                name: reviewCRName,
-                namespace,
-                labels: {
-                  "lore.re-cinq.com/task-id": reviewTaskId,
-                  "lore.re-cinq.com/task-type": "review",
-                },
-              },
-              spec: {
-                taskId: reviewTaskId,
-                taskType: "review",
-                description: `Review PR #${pr.number} on ${lt.spec.targetRepo}`,
-                prompt: `Review PR #${pr.number} on this branch. Read the spec in specs/ for the feature requirements. Check all changes against CLAUDE.md conventions and ADRs in adrs/. Post specific review comments on the PR using 'gh pr review'. Then output exactly one of:\n- REVIEW_RESULT:APPROVED\n- REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>`,
-                targetRepo: lt.spec.targetRepo,
-                branch: lt.spec.branch,
-                prNumber: pr.number,
-                model: "claude-sonnet-4-6",
-                timeoutMinutes: 10,
-              },
-            },
+          const reviewProject = await projectFor(lt.spec.targetRepo);
+          await reviewProject.agents.run(reviewTaskId, {
+            mode: "cluster",
+            taskType: "review",
+            description: `Review PR #${pr.number} on ${lt.spec.targetRepo}`,
+            prompt: `Review PR #${pr.number} on this branch. Read the spec in specs/ for the feature requirements. Check all changes against CLAUDE.md conventions and ADRs in adrs/. Post specific review comments on the PR using 'gh pr review'. Then output exactly one of:\n- REVIEW_RESULT:APPROVED\n- REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>`,
+            branch: lt.spec.branch,
+            prNumber: pr.number,
+            model: "claude-sonnet-4-6",
+            timeoutMinutes: 10,
           });
 
           // Update implementation task to review status
@@ -518,7 +500,7 @@ export async function watchLoreTasks(): Promise<void> {
         // Comment on issue
         const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
         if (issue_number) {
-          await platform().commentOnIssue(target_repo, issue_number, "Agent review: **approved**. PR is ready for human merge.").catch(() => {});
+          await projectFor(target_repo).then((p) => p.issues.comment(issue_number, "Agent review: **approved**. PR is ready for human merge.")).catch(() => {});
         }
         // Mark the review task itself as completed
         await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [taskId]);
@@ -553,8 +535,8 @@ export async function watchLoreTasks(): Promise<void> {
             [parentTaskId, 'review', 'review', JSON.stringify({ review_result: 'needs-human-review', iterations: iteration })],
           );
           if (parent.issue_number) {
-            await platform().commentOnIssue(parent.target_repo, parent.issue_number, `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`).catch(() => {});
-            await platform().addIssueLabel(parent.target_repo, parent.issue_number, "needs-human-review").catch(() => {});
+            await projectFor(parent.target_repo).then((p) => p.issues.comment(parent.issue_number!, `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`)).catch(() => {});
+            await projectFor(parent.target_repo).then((p) => p.issues.addLabel(parent.issue_number!, "needs-human-review")).catch(() => {});
           }
           // Mark the review task itself as completed so the watcher stops
           // re-processing it every tick. Without this line the review task
@@ -567,7 +549,7 @@ export async function watchLoreTasks(): Promise<void> {
           // Create new implementation task with the actual reviewer comments
           // (not the raw runner log) on the same branch.
           const comments = parent.pr_number
-            ? await platform().listPRComments(parent.target_repo, parent.pr_number).catch(() => [])
+            ? await projectFor(parent.target_repo).then((p) => p.pulls.listComments(parent.pr_number!)).catch(() => [])
             : [];
           const feedback =
             formatReviewFeedback(comments) ||
@@ -587,31 +569,19 @@ export async function watchLoreTasks(): Promise<void> {
           const fixTaskId = fixTaskResult[0].id;
 
           // Create implementation LoreTask CR on the same branch
-          await k8sApi.createNamespacedCustomObject({
-            group: GROUP, version: VERSION, namespace, plural: PLURAL,
-            body: {
-              apiVersion: `${GROUP}/${VERSION}`,
-              kind: "LoreTask",
-              metadata: {
-                name: `loretask-${fixTaskId.substring(0, 8)}`,
-                namespace,
-                labels: { "lore.re-cinq.com/task-id": fixTaskId, "lore.re-cinq.com/task-type": "implementation" },
-              },
-              spec: {
-                taskId: fixTaskId,
-                taskType: "implementation",
-                description,
-                prompt: `Address the following review feedback on PR #${parent.pr_number ?? "?"}. The PR already exists — push fixes to the same branch.\n\nFeedback:\n${feedback}`,
-                targetRepo: parent.target_repo,
-                branch: parent.target_branch || lt.spec.branch,
-                model: "claude-sonnet-4-6",
-                timeoutMinutes: 30,
-              },
-            },
+          const fixProject = await projectFor(parent.target_repo);
+          await fixProject.agents.run(fixTaskId, {
+            mode: "cluster",
+            taskType: "implementation",
+            description,
+            prompt: `Address the following review feedback on PR #${parent.pr_number ?? "?"}. The PR already exists — push fixes to the same branch.\n\nFeedback:\n${feedback}`,
+            branch: parent.target_branch || lt.spec.branch,
+            model: "claude-sonnet-4-6",
+            timeoutMinutes: 30,
           });
 
           if (parent.issue_number) {
-            await platform().commentOnIssue(parent.target_repo, parent.issue_number, `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`).catch(() => {});
+            await projectFor(parent.target_repo).then((p) => p.issues.comment(parent.issue_number!, `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`)).catch(() => {});
           }
           // Mark this review task completed — it did its job (CHANGES_REQUESTED
           // captured, fix task created). Otherwise the watcher re-processes

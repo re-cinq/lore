@@ -30,6 +30,12 @@ resource "helm_release" "lore_agent" {
     name  = "env.LORE_DB_USER"
     value = "lore"
   }
+  # Shared Dgraph (memory + spec-trace graphs). Enables graph ingest on the
+  # cluster path; unset → createDgraphClient returns null and ingest self-skips.
+  set {
+    name  = "env.LORE_DGRAPH_HTTP"
+    value = local.dgraph_http_url
+  }
   set {
     name  = "env.ANTHROPIC_MODEL"
     value = "claude-haiku-4-5-20251001"

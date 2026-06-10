@@ -1,4 +1,4 @@
-import { callLLMWithTool } from "../anthropic.js";
+import { Llm } from "@re-cinq/lore-shared";
 
 export interface ArtifactCopyInput {
   kind: "pr" | "issue";
@@ -60,7 +60,7 @@ export function fallbackCopy(input: ArtifactCopyInput): ArtifactCopy {
 }
 
 const defaultLlm: CopyLlm = (params) =>
-  callLLMWithTool<{ title?: string; body?: string }>(params);
+  Llm.instance.completeWithTool<{ title?: string; body?: string }>(params);
 
 /**
  * Ask the model for an engagement-optimized title + description, falling back to

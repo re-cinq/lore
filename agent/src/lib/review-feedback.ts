@@ -1,4 +1,4 @@
-import type { ReviewComment } from "../platform.js";
+import type { ReviewComment } from "../platform/platform.js";
 
 /**
  * Human-readable description for the implementation task that addresses review

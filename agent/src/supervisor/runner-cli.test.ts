@@ -16,13 +16,13 @@ vi.mock("../workflow/loader.js", () => ({
   loadWorkflowDir: (...args: unknown[]) => loadWorkflowDirMock(...args),
 }));
 
-vi.mock("../config.js", () => ({
+vi.mock("../platform/config.js", () => ({
   loadTaskTypes: () => undefined,
   getTaskTypeConfig: () => ({ name: "implementation" }),
   buildPrompt: () => "p",
 }));
 
-vi.mock("../db.js", () => ({
+vi.mock("../platform/db.js", () => ({
   initPool: () => undefined,
   query: async () => [],
   queryOne: async () => null,
