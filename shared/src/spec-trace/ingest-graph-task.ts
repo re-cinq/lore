@@ -165,7 +165,12 @@ export async function runIngestGraph(
       const result = await def.project(params.repo, filePath, content, ports.dgraph);
       if (result.projected) projected += 1;
       else skipped += 1;
-    } catch {
+    } catch (err) {
+      // Per-file isolation must NOT mean a silent failure: log the actual reason
+      // (file + kind + repo) so a failed projection is debuggable from pod /
+      // runner logs. failedFiles keeps the names for the structured count.
+      const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+      console.error(`[ingest-graph] ${params.kind} ${params.repo} :: ${filePath} failed to project: ${reason}`);
       failedFiles.push(filePath);
     }
   }
