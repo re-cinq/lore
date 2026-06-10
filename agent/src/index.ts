@@ -12,6 +12,7 @@ import { reviewReactorJob } from "./jobs/scheduled/review-reactor.js";
 import { loretaskWatcherJob } from "./jobs/scheduled/loretask-watcher.js";
 import { specTaskExecutorJob } from "./jobs/scheduled/spec-task-executor.js";
 import { staleTaskCheckJob } from "./jobs/scheduled/stale-task-check.js";
+import { reclaimOrphanedIngestJob } from "./jobs/scheduled/reclaim-orphaned-ingest.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
@@ -46,6 +47,9 @@ async function main(): Promise<void> {
   registerJob("loretask_watcher", "*/1 * * * *", loretaskWatcherJob);
   registerJob("spec_task_executor", "*/1 * * * *", specTaskExecutorJob);
   registerJob("stale_task_check", "17 * * * *", staleTaskCheckJob);    // hourly at :17
+  // Recurring orphan recovery: resets graph-ingest tasks stranded in `running`
+  // by a mid-batch pod roll back to `pending` (idempotent re-run). Every 10 min.
+  registerJob("reclaim_orphaned_ingest", "*/10 * * * *", reclaimOrphanedIngestJob);
 
   startScheduler();
   startWorker();
