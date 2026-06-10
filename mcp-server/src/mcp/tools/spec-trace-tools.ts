@@ -1,7 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
-import { ToolDeps } from "./deps.js";
+import { ToolDeps, proxyGetApi } from "./deps.js";
+import { runQueryTrace } from "../../features/spec-trace/query-trace.js";
 
 export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
   const { getPool } = deps;
@@ -36,13 +37,19 @@ export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "query_trace",
-    "Query the spec-traceability graph: what validates a statement, what a test covers, what drifted or is violated.",
+    "lore-query-trace",
+    "Query the spec-traceability graph for a spec: which statements are validated/implemented/decided by what, and which are drifted or violated. Reads the main-branch graph via the Lore API.",
     {
-      query: z.string().describe("Trace question, e.g. 'what validates specs/x/spec.md#3' or 'what does test Y cover'."),
+      spec: z.string().describe("Spec file path, e.g. 'specs/auth/spec.md'."),
+      statement: z.string().optional().describe("Focus one statement: its ordinal (e.g. '3') or a text substring. Omit for a coverage + needs-attention summary."),
+      repo: z.string().optional().describe("owner/repo. Defaults to the current repo."),
     },
-    async () => {
-      return { content: [{ type: "text" as const, text: "Trace queries are not yet available: the spec-traceability graph projection is not deployed in this build." }] };
+    async ({ spec, statement, repo }) => {
+      const text = await runQueryTrace(
+        { repo, spec, statement },
+        { proxyGet: proxyGetApi, detectRepo: detectCurrentRepo },
+      );
+      return { content: [{ type: "text" as const, text }] };
     }
   );
 }
