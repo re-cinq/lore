@@ -94,4 +94,14 @@ describe("GET /api/tasks/by-pr/:owner/:repo/:n", () => {
     await handleApiRoute(makeReq({ url: "/api/tasks/by-pr/o/r/5", headers: AUTH }), res, pool as any);
     expect(res.json).toEqual({ error: "github_api" });
   });
+  it("falls through a DB error and resolves from the PR body", async () => {
+    const pool = makePool();
+    pool.query.mockRejectedValue(new Error("db down"));
+    const oct = makeOctokit();
+    oct.rest.pulls.get.mockResolvedValue({ data: { body: "Lore-Task: abc-def\n", head: { sha: "h" } } });
+    vi.mocked(getOctokit).mockResolvedValue(oct as any);
+    const res = makeRes();
+    await handleApiRoute(makeReq({ url: "/api/tasks/by-pr/o/r/5", headers: AUTH }), res, pool as any);
+    expect(res.json).toEqual({ task_id: "abc-def", trailer_source: "pr_body" });
+  });
 });

@@ -181,4 +181,22 @@ describe("POST /api/memory", () => {
     await handleApiRoute(makeReq({ url: "/api/memory", method: "POST", headers: AUTH, body: "{bad" }), res, makePool() as any);
     expect(res.statusCode).toBe(500);
   });
+
+  it("returns 401 when the bearer token is absent", async () => {
+    const res = makeRes();
+    await handleApiRoute(makeReq({ url: "/api/memory", method: "POST", headers: {}, body: { action: "list" } }), res, makePool() as any);
+    expect(res.json).toEqual({ error: "unauthorized" });
+  });
+
+  it("returns 403 when the token lacks write scope", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
+    const res = makeRes();
+    await handleApiRoute(
+      makeReq({ url: "/api/memory", method: "POST", headers: { authorization: "Bearer read-only" }, body: { action: "list" } }),
+      res,
+      pool as any,
+    );
+    expect(res.json).toEqual({ error: "insufficient scope" });
+  });
 });

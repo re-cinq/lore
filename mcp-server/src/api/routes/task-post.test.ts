@@ -92,4 +92,26 @@ describe("POST /api/task", () => {
     await handleApiRoute(makeReq({ url: "/api/task", method: "POST", headers: AUTH, body: "{bad" }), res, makePool() as any);
     expect(res.statusCode).toBe(500);
   });
+  it("cancel issues the guarded tasks UPDATE with the task_id", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValue({});
+    await post({ action: "cancel", task_id: "t1" }, pool);
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toContain("status = 'cancelled'");
+    expect(sql).toContain("status NOT IN ('completed', 'failed', 'cancelled', 'merged')");
+    expect(params).toEqual(["t1"]);
+  });
+  it("set-priority updates only pending tasks with the resolved priority", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValue({});
+    await post({ action: "set-priority", task_id: "t1", priority: "immediate" }, pool);
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toContain("status = 'pending'");
+    expect(params).toEqual(["immediate", "t1"]);
+  });
+  it("set-priority without a priority falls through to create and 400s", async () => {
+    const res = await post({ action: "set-priority", task_id: "t1" });
+    expect(res.statusCode).toBe(400);
+    expect(res.json).toEqual({ error: "description is required" });
+  });
 });
