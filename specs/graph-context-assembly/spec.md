@@ -6,6 +6,7 @@
 | Status         | **Draft**                                                                                |
 | Created        | 2026-06-10                                                                               |
 | Owner          | Platform Engineering                                                                     |
+| Decision       | [ADR-021](../../adrs/ADR-021-graph-derived-context-source.md) — graph-derived, signal-ranked context source (extends [ADR-020](../../adrs/ADR-020-context-assembly-xml-and-relevance.md)) |
 | Consumes       | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — `Statement` + `validated_by`/`decided_by` edges |
 | Sibling        | [`project-test-interface`](../project-test-interface/spec.md) — the `violated`/coverage signal this ranks on |
 
