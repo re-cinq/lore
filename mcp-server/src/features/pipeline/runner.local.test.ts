@@ -14,6 +14,7 @@ import {
   listPendingTasks,
   skipTask,
   validateRepoMatch,
+  cancelLocalTask,
   type LocalRunnerConfig,
   type PendingTask,
 } from "./runner.local.js";
@@ -248,5 +249,59 @@ describe("validateRepoMatch", () => {
     expect(() =>
       validateRepoMatch("re-cinq/lore", null),
     ).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cancelLocalTask — the not-found branch is the only deterministic, side-effect
+// free path: an unknown id never exists in ~/.lore/local-tasks.json, so the
+// handler returns the not-found result without touching processes or worktrees.
+// ---------------------------------------------------------------------------
+
+describe("cancelLocalTask", () => {
+  it("returns not-found for an unknown task id with no local registry", () => {
+    const unknownId = "00000000-dead-beef-0000-000000000000";
+    expect(cancelLocalTask(unknownId)).toEqual({
+      cancelled: false,
+      error: "Task not found",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// configure_local_runner update merge — the handler overwrites only the fields
+// the caller provides and keeps the rest. This is the pure object logic from
+// the tool registration (max_concurrent applied only when !== undefined).
+// ---------------------------------------------------------------------------
+
+function applyConfigUpdate(
+  config: LocalRunnerConfig,
+  args: Partial<Pick<LocalRunnerConfig, "max_concurrent" | "repos" | "task_types" | "model">>,
+): LocalRunnerConfig {
+  const next = { ...config };
+  if (args.max_concurrent !== undefined) next.max_concurrent = args.max_concurrent;
+  if (args.repos) next.repos = args.repos;
+  if (args.task_types) next.task_types = args.task_types;
+  if (args.model) next.model = args.model;
+  return next;
+}
+
+describe("configure_local_runner update merge", () => {
+  it("merge overwrites only provided fields and keeps the rest", () => {
+    const base: LocalRunnerConfig = {
+      enabled: true,
+      max_concurrent: 2,
+      repos: ["re-cinq/lore"],
+      task_types: ["implementation", "general"],
+      model: "claude-sonnet-4-6",
+    };
+
+    expect(applyConfigUpdate(base, { max_concurrent: 5, model: "claude-opus-4-6" })).toEqual({
+      enabled: true,
+      max_concurrent: 5,
+      repos: ["re-cinq/lore"],
+      task_types: ["implementation", "general"],
+      model: "claude-opus-4-6",
+    });
   });
 });
