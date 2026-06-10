@@ -68,22 +68,10 @@ jobs:
             try { report = JSON.parse(fs.readFileSync('impact.json', 'utf8')); }
             catch { report = { status: 'unavailable', annotations: [], comment: '## 🔍 Lore Spec Impact\n\nGraph not available — skipping.\n\n' + MARKER }; }
 
-            const annotations = (report.annotations || []).slice(0, 50);
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'Lore Spec Impact',
-              head_sha: context.payload.pull_request.head.sha,
-              status: 'completed',
-              conclusion: 'neutral',
-              output: {
-                title: 'Lore Spec Impact (advisory)',
-                summary: report.comment || 'No spec impact.',
-                annotations,
-              },
-            });
-
             const body = report.comment || ('## 🔍 Lore Spec Impact\n\nNo spec impact.\n\n' + MARKER);
+
+            // The sticky comment is the deliverable — post it first so a denied
+            // checks:write scope (GITHUB_TOKEN read-only) can never suppress it.
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -98,4 +86,25 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner, repo: context.repo.repo, issue_number: context.payload.pull_request.number, body,
               });
+            }
+
+            // The annotated check-run is a nice-to-have; best-effort so a 401/403
+            // on checks:write logs a warning instead of failing the whole job.
+            try {
+              const annotations = (report.annotations || []).slice(0, 50);
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'Lore Spec Impact',
+                head_sha: context.payload.pull_request.head.sha,
+                status: 'completed',
+                conclusion: 'neutral',
+                output: {
+                  title: 'Lore Spec Impact (advisory)',
+                  summary: report.comment || 'No spec impact.',
+                  annotations,
+                },
+              });
+            } catch (err) {
+              core.warning('checks.create failed (' + err.status + '): grant GITHUB_TOKEN checks:write to enable inline annotations. Sticky comment was still posted.');
             }
