@@ -425,9 +425,10 @@ export async function projectSpecFile(
   content: string,
   dgraph: DgraphClientPort,
   embed: EmbedFn = getQueryEmbedding,
+  force = false,
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
-  if ((await readSpecContentHash(dgraph, `${repo}|${filePath}`)) === contentHash) {
+  if (!force && (await readSpecContentHash(dgraph, `${repo}|${filePath}`)) === contentHash) {
     return { projected: false };
   }
 

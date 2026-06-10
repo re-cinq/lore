@@ -18,6 +18,8 @@ export interface IngestGraphTaskOpts {
   commit?: string;
   glob?: string;
   createdBy?: string;
+  /** Bypass the per-file content-hash gate — re-project unchanged files. */
+  force?: boolean;
 }
 
 export async function createIngestGraphTasks(
@@ -49,7 +51,7 @@ export async function createIngestGraphTasks(
       targetRepo: repo,
       createdBy: opts.createdBy ?? "ingest_graph",
       taskGroupId: groupId,
-      contextBundle: { kind, branch: opts.branch, commit: opts.commit, glob: opts.glob },
+      contextBundle: { kind, branch: opts.branch, commit: opts.commit, glob: opts.glob, force: opts.force },
     });
     created.push({ id: task.id, kind });
   }
