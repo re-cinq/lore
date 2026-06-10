@@ -13,6 +13,35 @@ This index replaces the former scattered tool documentation (the
 > registered only in stdio mode and gated by the execution trust boundary.
 > `lore-query-trace` is specced + implemented separately (PR #526).
 
+## Conventions (shared by every tool spec)
+
+Each per-tool spec documents only what is *specific* to that tool. The framework
+boilerplate below is identical across all tools and is stated once here, so a
+tool's spec + this section together are sufficient to recreate the handler.
+
+- **Registration**: `server.tool(name, description, zodInputShape, handler)` —
+  the input schema is a raw Zod shape object (not a wrapped `z.object`), keyed by
+  param name, each field `.describe(...)`d. Registered inside the module's
+  `registerXTools(server, deps)` function.
+- **Return envelope**: every handler returns `{ content: [{ type: "text" as const, text }] }`.
+  Handlers **never throw** — they catch and return the error as text. (Several wrap
+  the body in `trackLatency(name, …)`, which records latency to `memory.audit_log`.)
+- **DB access**: the pg pool comes from `deps.getPool()` (may be `null` until
+  `main()` initializes it — tools null-check it). Availability is gated on
+  `isDbAvailable()` / `isMemoryDbAvailable()` or `process.env.LORE_DB_HOST`.
+- **Pipeline CRUD** lives in `@re-cinq/lore-shared` (`createTask`, `getTask`,
+  `listTasks`, `cancelTask`, `retryTask`, `updateTaskStatus`, `recordEvent`),
+  re-exported from `mcp-server/src/features/pipeline/pipeline.ts` as thin
+  `getPool()`-binding wrappers (`cancelTask = (id) => cancelPipelineTask(getPool(), id)`).
+- **Repo detection**: `detectCurrentRepo()` (parses the git remote) when a `repo`
+  param is omitted.
+- **Stdio proxy**: in local stdio mode (no `LORE_DB_HOST`), tools that need the
+  shared backend proxy to `LORE_API_URL` with `Authorization: Bearer
+  ${LORE_INGEST_TOKEN}` (helpers `proxyToApi` / `proxyGetApi`); a tool that lacks
+  a proxy path says so in its Behavior.
+- **Imports** are ESM with `.js` specifiers; shared symbols import from
+  `@re-cinq/lore-shared`.
+
 ## Context (`context-tools.ts`)
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
