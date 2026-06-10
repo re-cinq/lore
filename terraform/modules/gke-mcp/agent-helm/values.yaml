@@ -33,6 +33,9 @@ env:
   LORE_DB_PORT: "5432"
   LORE_DB_NAME: lore
   LORE_DB_USER: lore
+  # Shared Dgraph endpoint (memory + spec-trace graphs). Empty → graph features
+  # fail soft. Overridden by terraform set to the in-cluster service DNS.
+  LORE_DGRAPH_HTTP: ""
   ANTHROPIC_MODEL: claude-haiku-4-5-20251001
   TASK_TYPES_PATH: /config/task-types.yaml
   PORT: "8080"
