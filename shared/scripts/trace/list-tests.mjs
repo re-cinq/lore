@@ -7,6 +7,8 @@
 // whole FILE per invocation (coverage is file-level) under buildTestReport's
 // concurrency cap, so per-`it` listing does not fork-bomb.
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { descriptorsFromVitestList } from "../../dist/spec-trace/trace-descriptors.js";
 
@@ -20,21 +22,27 @@ const PKGS = (process.env.LORE_TRACE_PKGS || "shared,agent,mcp-server,web-ui")
 const SCOPE = process.env.LORE_TRACE_SCOPE || "src"; // all src tests per package
 
 function listPkg(pkg) {
-  let out;
+  // Write vitest's JSON to a FILE, not stdout: CI node runtimes prepend stdout
+  // noise (deprecation/experimental warnings) that would contaminate a parsed
+  // stdout slice and crash the whole list. A file is immune to that.
+  const dir = mkdtempSync(join(tmpdir(), "lore-trace-list-"));
+  const jsonPath = join(dir, "list.json");
   try {
-    out = execFileSync("npx", ["vitest", "list", SCOPE, "--json"], {
+    execFileSync("npx", ["vitest", "list", SCOPE, `--json=${jsonPath}`], {
       cwd: join(ROOT, pkg),
       encoding: "utf-8",
       maxBuffer: 128 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "ignore"],
+      stdio: ["ignore", "ignore", "ignore"],
     });
-  } catch {
-    return []; // a package with no matching tests / a transient list failure contributes nothing
+    return descriptorsFromVitestList(JSON.parse(readFileSync(jsonPath, "utf-8")), { pkg });
+  } catch (err) {
+    // A package with no matching tests, or a genuine list failure, contributes
+    // nothing — but say so, never drop a package silently.
+    console.warn(`[trace] list: ${pkg} contributed no tests (${err instanceof Error ? err.message : String(err)})`);
+    return [];
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
-  const start = out.indexOf("[");
-  const end = out.lastIndexOf("]");
-  if (start === -1 || end === -1) return [];
-  return descriptorsFromVitestList(JSON.parse(out.slice(start, end + 1)), { pkg });
 }
 
 process.stdout.write(JSON.stringify(PKGS.flatMap(listPkg)));
