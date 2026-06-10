@@ -37,10 +37,14 @@ export async function projectAdrFile(
   filePath: string,
   content: string,
   dgraph: DgraphClientPort,
+  // `_embed` is unused (ADRs are not embedded) — present only so projectAdrFile
+  // matches the IngestKindDef.project shape `(…, embed?, force?)` alongside projectSpecFile.
+  _embed?: (text: string) => Promise<number[] | null>,
+  force = false,
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
   const xid = `${repo}|${filePath}`;
-  if ((await readAdrContentHash(dgraph, xid)) === contentHash) {
+  if (!force && (await readAdrContentHash(dgraph, xid)) === contentHash) {
     return { projected: false };
   }
 
