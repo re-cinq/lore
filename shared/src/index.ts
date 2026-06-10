@@ -82,6 +82,15 @@ export {
   type ImpactAnnotation,
 } from './spec-trace/trace-impact.js';
 export {
+  assembleGraphContext,
+  fetchGraphContext,
+  DEFAULT_LIMIT as GRAPH_CONTEXT_DEFAULT_LIMIT,
+  type GraphContextBlock,
+  type GraphContextStatement,
+  type GraphContextResult,
+  type GraphSignal,
+} from './spec-trace/graph-context.js';
+export {
   runIngestGraph,
   selectIngestFiles,
   summarizeIngest,
