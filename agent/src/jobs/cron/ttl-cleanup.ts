@@ -4,7 +4,7 @@ export async function ttlCleanupJob(): Promise<string> {
   const result = await query<{ count: string }>(
     `WITH expired AS (
        UPDATE memory.memories
-       SET is_deleted = true, updated_at = now()
+       SET is_deleted = true
        WHERE expires_at IS NOT NULL
          AND expires_at < now()
          AND is_deleted = false

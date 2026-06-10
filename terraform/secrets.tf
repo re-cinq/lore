@@ -19,7 +19,12 @@ locals {
 }
 
 resource "google_secret_manager_secret" "lore" {
-  for_each  = local.secrets
+  # Iterate over the secret NAMES (keys), not the map itself: the map's values
+  # are sensitive, and terraform forbids a sensitive-derived value as for_each
+  # (it would leak as an instance key). nonsensitive() is safe here — only the
+  # names are exposed, never the secret data. Instance keys are unchanged, so
+  # this does not recreate any secret.
+  for_each  = nonsensitive(toset(keys(local.secrets)))
   secret_id = each.key
 
   replication {
@@ -28,9 +33,9 @@ resource "google_secret_manager_secret" "lore" {
 }
 
 resource "google_secret_manager_secret_version" "lore" {
-  for_each    = local.secrets
+  for_each    = nonsensitive(toset(keys(local.secrets)))
   secret      = google_secret_manager_secret.lore[each.key].id
-  secret_data = each.value
+  secret_data = local.secrets[each.key] # still sensitive — accessed as a value, not a key
 }
 
 # GHCR pull secret stored separately (binary/base64 content)
