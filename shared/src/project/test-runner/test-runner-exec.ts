@@ -17,7 +17,9 @@ import {
 import type { TestRunnerPort, TestRunReport } from "./test-runner-port.js";
 
 const execShell = promisify(exec);
-const DEFAULT_TIMEOUT_MS = 120_000;
+// A full-suite `list` (and large per-file `run`s) can outrun a tight ceiling on
+// cold CI runners. Override with LORE_TRACE_TIMEOUT_MS; default stays 120s.
+const DEFAULT_TIMEOUT_MS = Number(process.env.LORE_TRACE_TIMEOUT_MS) || 120_000;
 /** Max test files run concurrently by `report` — bounds per-file processes so the suite can't fork-bomb. */
 const REPORT_CONCURRENCY = 4;
 
