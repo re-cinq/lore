@@ -7,7 +7,7 @@
 | Created        | 2026-06-01                               |
 | Last redesign  | 2026-06-02 (v3, author-driven markdown links + cron-as-suggester) |
 | Owner          | Platform Engineering                     |
-| Supersedes     | [`local-coverage-linker`](../local-coverage-linker/spec.md) (BYO-compute persist path); defers [`coverage-ingestion`](../coverage-ingestion/spec.md) (decoupled from v3) |
+| Supersedes     | `local-coverage-linker` (BYO-compute persist path); defers `coverage-ingestion` (decoupled from v3) |
 
 ## Problem Statement
 
