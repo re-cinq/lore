@@ -6,7 +6,7 @@
 | Spec    | [spec.md](spec.md)                             |
 | Contract| [contracts/test-commands.md](contracts/test-commands.md) |
 | Graph   | [../spec-traceability-graph/data-model.md](../spec-traceability-graph/data-model.md) |
-| Supersedes | [../coverage-ingestion/spec.md](../coverage-ingestion/spec.md) |
+| Supersedes | ../coverage-ingestion/spec.md |
 | Status  | Draft                                          |
 | Created | 2026-06-05                                     |
 
@@ -158,7 +158,7 @@ exec-in-sandbox + graph proxy; supersede edit verified.
 
 ## ADR Reference
 
-Folds in [`coverage-ingestion`](../coverage-ingestion/spec.md) and extends
+Folds in `coverage-ingestion` and extends
 [ADR-008 (AST chunking enables drift detection)](../../adrs/ADR-008-ast-chunking-via-tree-sitter.md).
 A follow-up ADR should record: the project test-command interface as the
 authoritative test+coverage source, the trusted-sandbox execution model,

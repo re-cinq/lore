@@ -6,7 +6,7 @@
 | Status         | **Draft**                                          |
 | Created        | 2026-06-05                                         |
 | Owner          | Platform Engineering                               |
-| Supersedes     | [`coverage-ingestion`](../coverage-ingestion/spec.md) (absorbs its bulk-upload endpoint + parsers) |
+| Supersedes     | `coverage-ingestion` (absorbs its bulk-upload endpoint + parsers) |
 | Feeds          | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — seeds `TestChunk`/`Coverage`/`COVERS`, the `violated` signal, and the `VALIDATED_BY` link |
 | Wire contract  | [`contracts/test-commands.md`](./contracts/test-commands.md) |
 
