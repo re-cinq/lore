@@ -1,0 +1,88 @@
+# Feature Specification: get_pr_status MCP Tool
+
+| Field   | Value                          |
+|---------|--------------------------------|
+| Feature | get_pr_status MCP Tool         |
+| Status  | **Draft**                      |
+| Created | 2026-06-10                     |
+| Owner   | Platform Engineering           |
+| Tool    | `get_pr_status`                |
+| Module  | pipeline (`pipeline-tools.ts`) |
+| Scope   | shared                         |
+
+## Problem Statement
+
+A task's PR is the canonical artifact, but its true state lives on GitHub:
+draft, open, checks-failing, changes-requested, approved, merged, or closed. The
+caller needs a single derived status — folding PR state, check-run conclusions,
+and review verdicts into one word — plus the underlying checks and reviews,
+without scripting the GitHub REST API.
+
+## Interface
+
+Registered via `server.tool` ([registration + handler](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L112)).
+
+- **name**: `get_pr_status`
+- **description** (verbatim): *"Fetch live PR state from GitHub for a given repo
+  and PR number. Returns draft/open/checks-failing/changes-requested/approved/
+  merged/closed status plus check results and review details."*
+
+### Input schema (Zod)
+
+| Param | Type | Required | Default | Constraint / notes |
+|-------|------|----------|---------|--------------------|
+| `repo` | string | yes | — | `owner/name`, e.g. `re-cinq/lore`. |
+| `pr_number` | number | yes | — | Pull request number. |
+
+## Behavior
+
+1. Dynamically import and call `fetchPrStatus(repo, pr_number)`
+   ([github fetch + status derivation](../../../mcp-server/src/platform/github-client.ts#L109)).
+2. **Credential gate** — `fetchPrStatus` resolves `getGitHubToken()`; if null it
+   returns `null` and the handler returns
+   `"GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN."`
+3. **REST fetches** (all `https://api.github.com` with `Authorization: Bearer {token}`,
+   `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`):
+   - `GET /repos/{repo}/pulls/{pr_number}` and `GET /repos/{repo}/pulls/{pr_number}/reviews`
+     in parallel (`Promise.all`; reviews fall back to `[]` on error).
+   - `GET /repos/{repo}/commits/{pr.head.sha}/check-runs` (errors → no checks).
+   A non-ok PR/review fetch throws `GitHub API {path}: {status} {statusText}`.
+4. **Normalize** — `checks = [{name, status, conclusion}]`;
+   `reviews = [{user, state, submitted_at}]`.
+5. **Derive `computed_status`** by fixed precedence:
+   1. `merged` → `pr.merged` truthy
+   2. `closed` → `pr.state === "closed"`
+   3. `draft` → `pr.draft`
+   4. `checks-failing` → any check conclusion `failure` or `timed_out`
+   5. `changes-requested` → any review state `CHANGES_REQUESTED`
+   6. `approved` → any review `APPROVED` AND every check conclusion in `{success, skipped, null}`
+   7. `open` → otherwise
+6. Return `{number, title, state, draft, merged, mergeable, html_url, checks, reviews, computed_status}`
+   as `JSON.stringify(result, null, 2)`.
+7. Any thrown error is caught and returned as `"Error: {message}"`.
+
+## Output
+
+A single MCP text content block — one of: the pretty-printed PR status JSON, the
+`"GitHub not configured…"` message, or `"Error: {message}"`. **Never throws.**
+
+## Dependencies & side effects
+
+- `fetchPrStatus` → `getGitHubToken()` (GitHub App or token). Read-only against GitHub.
+- GitHub REST: pulls, pulls/reviews, commits/{sha}/check-runs.
+- Env: `GITHUB_APP_ID` / `GITHUB_PRIVATE_KEY` / `GITHUB_INSTALLATION_ID` or `GITHUB_TOKEN`.
+- No DB access; no transport branch (always direct GitHub).
+
+## Acceptance Criteria
+
+A merged/closed/draft/checks-failing/changes-requested/approved/open PR maps to
+the matching `computed_status` by the fixed precedence above.
+*(untested: `fetchPrStatus` issues three live `fetch` calls to api.github.com with no injectable seam; the status derivation is not extracted as a pure function.)*
+
+Missing GitHub credentials return a configuration message instead of throwing.
+*(untested: the null path is gated on `getGitHubToken()` reading process env / GitHub App state — no deterministic seam without live config.)*
+
+## Out of Scope
+
+- Persisting PR state to the task row (the watcher / merge-check jobs own that).
+- Posting reviews or comments (`postReviewComment` and other platform calls).
