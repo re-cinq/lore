@@ -6,7 +6,7 @@
 | Status         | **Draft**                                          |
 | Created        | 2026-06-05                                         |
 | Owner          | Platform Engineering                               |
-| Supersedes     | [`coverage-ingestion`](../coverage-ingestion/spec.md) (absorbs its bulk-upload endpoint + parsers) |
+| Supersedes     | `coverage-ingestion` (absorbs its bulk-upload endpoint + parsers) |
 | Feeds          | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — seeds `TestChunk`/`Coverage`/`COVERS`, the `violated` signal, and the `VALIDATED_BY` link |
 | Wire contract  | [`contracts/test-commands.md`](./contracts/test-commands.md) |
 
@@ -239,46 +239,6 @@ Wire schemas are defined in
 // tests.run <id> → stdout
 { "passed": true,
   "covered": [ { "file": "repo/rel/path", "startLine": 42, "endLine": 58 } ] }
-```
-
-### `POST /api/repos/:owner/:repo/test-report`
-
-Write scope, bearer auth. The combined structured output a trusted
-sandbox posts; idempotent on `commit`.
-
-```jsonc
-// request
-{
-  "commit": "abc123…", "branch": "main",
-  "tests":   [ { "id": "file::name", "name": "…", "file": "…", "startLine": 88, "endLine": 121, "suite": ["Outer", "Inner"], "spec": "specs/x/spec.md#14" } ],
-  "results": [ { "id": "file::name", "passed": false, "covered": [ { "file": "…", "startLine": 42, "endLine": 58 } ] } ]
-}
-// 200
-{ "tests_seen": 312, "test_chunks": 312, "validated_by": 88,
-  "coverage_nodes": 312, "covers_edges": 1842, "violated": 1 }
-```
-
-### `POST /api/repos/:owner/:repo/coverage`
-
-Write scope, bearer auth. The **canonical body is a standard JSON list of
-covered chunks** `{file, startLine, endLine}` (the same shape `tests.run`
-returns) — optionally grouped per test. LCOV/Cobertura are **also
-accepted** and normalized server-side into that list. Idempotent on
-`commit`.
-
-```jsonc
-// request (canonical JSON form)
-{
-  "commit": "abc123…", "branch": "main",
-  "coverage": [
-    { "test": "mcp-server/src/local-runner.test.ts::claims pending task",  // optional per-test grouping
-      "covered": [ { "file": "mcp-server/src/local-runner.ts", "startLine": 42, "endLine": 58 } ] }
-  ]
-}
-// or, format-tagged raw report (server normalizes to the list above):
-{ "commit": "abc123…", "format": "lcov", "payload": "TN:…\nSF:…\nDA:…" }
-// 200
-{ "coverage_nodes": 312, "covers_edges": 1842, "files_covered": 67 }
 ```
 
 ## Data Model

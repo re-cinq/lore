@@ -45,6 +45,18 @@ describe("POST /api/episode", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("returns 403 when the token lacks write scope", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
+    const res = makeRes();
+    await handleApiRoute(
+      makeReq({ url: "/api/episode", method: "POST", headers: { authorization: "Bearer read-only" }, body: { content: "x" } }),
+      res,
+      pool as any,
+    );
+    expect(res.json).toEqual({ error: "insufficient scope" });
+  });
+
   it("returns duplicate when the insert conflicts", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [] });
