@@ -1,8 +1,8 @@
 /**
- * Prompt-caching helpers. Inspired by patterns observed in the
- * public Claude Code source mirror (tanbiralam/claude-code) —
- * specifically the getCacheControl + should1hCacheTTL split and
- * the cache-break diagnostic state tracker.
+ * Prompt-caching helpers (Anthropic-specific; internal to the Anthropic
+ * provider). Inspired by patterns observed in the public Claude Code source
+ * mirror (tanbiralam/claude-code) — specifically the getCacheControl +
+ * should1hCacheTTL split and the cache-break diagnostic state tracker.
  *
  * Scope (what we implement):
  *   - Cache-control markers on both system prompt AND tool definitions
@@ -14,7 +14,7 @@
  * Out of scope (keeping it simple for now):
  *   - Per-tool hashing (we only have 1 tool per request)
  *   - Bedrock/Anthropic 3P provider splits
- *   - Disk-persisted cache state (single-process agent is fine)
+ *   - Disk-persisted cache state (single-process is fine)
  *   - Cache-control on message blocks (all our calls are single-turn)
  */
 
@@ -145,7 +145,7 @@ interface CacheState {
   lastCallAt: number;
 }
 
-// Agent pod is long-lived; in-memory is enough. Restarts reset tracking.
+// Long-lived process; in-memory is enough. Restarts reset tracking.
 const cacheStateByJob = new Map<string, CacheState>();
 
 export type CacheStatus =

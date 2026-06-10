@@ -1,4 +1,5 @@
-import { initPool } from "./platform/db.js";
+import { Llm } from "@re-cinq/lore-shared";
+import { initPool, getPool } from "./platform/db.js";
 import { loadTaskTypes } from "./platform/config.js";
 import { recoverStaleTasks, startWorker } from "./features/task-processing/worker.js";
 import { registerJob, startScheduler, getJobStatus } from "./features/scheduling/scheduler.js";
@@ -16,6 +17,7 @@ async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
 
   initPool();
+  Llm.configure({ costPool: getPool() });
   console.log("[agent] Platform: github (via project facade)");
 
   try {

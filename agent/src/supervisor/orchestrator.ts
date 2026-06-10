@@ -5,7 +5,7 @@ import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import { Octokit } from "octokit";
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
-import { callLLM } from "../platform/anthropic.js";
+import { Llm } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import { query } from "../platform/db.js";
@@ -131,7 +131,7 @@ export async function processTaskViaSupervisor(
 
     const agentHandler = createAgentHandler(
       {
-        callLLM,
+        callLLM: (params) => Llm.instance.complete(params),
         resolvePrompt: (promptRef, description) => {
           const config = getTaskTypeConfig(promptRef);
           if (!config) return null;

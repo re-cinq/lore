@@ -6,7 +6,7 @@
  */
 
 import { query, getPool } from "../../platform/db.js";
-import { callLLM, callLLMWithTool } from "../../platform/anthropic.js";
+import { Llm } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../../lib/artifact-copy.js";
 import { projectFor } from "../../platform/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
@@ -506,7 +506,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
   const committed: string[] = [];
   for (const file of SPEC_FILES) {
     try {
-      const result = await callLLM({
+      const result = await Llm.instance.complete({
         prompt: `${file.prompt}\n\n## Repository Context\n\n${contextStr}`,
         systemPrompt: `Generate the content for ${file.path}. Output ONLY the file content — no explanation, no markdown code fences, no preamble. Start directly with the file content.`,
         model,
@@ -878,7 +878,7 @@ export async function handleOnboard(
   // 6. Generate and commit LLM files
   for (const file of toGenerate) {
     try {
-      const result = await callLLM({
+      const result = await Llm.instance.complete({
         prompt: `${file.prompt}\n\n## Repository Context\n\n${contextStr}`,
         systemPrompt: `Generate the content for ${file.path}. Output ONLY the file content — no explanation, no markdown code fences, no preamble. Start directly with the file content.`,
         model,

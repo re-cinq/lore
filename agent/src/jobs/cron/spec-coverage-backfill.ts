@@ -36,7 +36,7 @@ import {
   type MatchKind,
 } from "@re-cinq/lore-shared";
 import { query } from "../../platform/db.js";
-import { callLLMWithTool } from "../../platform/anthropic.js";
+import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../platform/project-boot.js";
 import { isAssertionSource } from "./spec-drift-rules.js";
 
@@ -226,7 +226,7 @@ async function judgeLink(
       rationale: "No testable statements; nothing to validate.",
     };
   }
-  const result = await callLLMWithTool<{
+  const result = await Llm.instance.completeWithTool<{
     matches: boolean;
     statement_ordinal?: number;
     score?: number;
@@ -328,7 +328,7 @@ async function classifyLLM(
     .join("\n");
 
   try {
-    const llm = await callLLMWithTool<{ classifications: LLMClassification[] }>({
+    const llm = await Llm.instance.completeWithTool<{ classifications: LLMClassification[] }>({
       prompt: `Classify each enumerated statement as either a NORMATIVE TESTABLE REQUIREMENT (something that could be validated by an automated test) or NARRATIVE (intro / vision / background / clarification / open-question / limitation / rationale).
 
 Bias toward "testable" — if you're unsure, return "testable". A false "untestable" hides a real coverage gap.
@@ -392,7 +392,7 @@ async function classifyAllStatements(
 }
 
 async function extractAssertions(specContent: string, filePath: string): Promise<Assertion[]> {
-  const result = await callLLMWithTool<{ assertions: Assertion[] }>({
+  const result = await Llm.instance.completeWithTool<{ assertions: Assertion[] }>({
     prompt: `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
 
 Only extract items that are explicitly named in the spec. Do not infer or guess.

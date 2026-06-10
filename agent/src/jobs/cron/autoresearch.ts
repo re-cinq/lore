@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { query } from "../../platform/db.js";
-import { callLLM } from "../../platform/anthropic.js";
+import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../platform/project-boot.js";
 
 const execFileAsync = promisify(execFile);
@@ -269,7 +269,7 @@ Questions that developers couldn't answer:
 Write a concise "don't do X because Y, instead do Z" explanation (under 200 words).`,
   };
 
-  const result = await callLLM({
+  const result = await Llm.instance.complete({
     prompt: prompts[approach],
     systemPrompt:
       "You generate context additions for developer knowledge bases. Be specific, testable, and concise. Never generate PII, credentials, or speculative content.",
