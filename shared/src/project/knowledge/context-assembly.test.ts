@@ -5,7 +5,38 @@ vi.mock("../../embeddings/embedding-service.js", () => ({
 }));
 
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
-import { fitItemsToBudget, hybridChunkItems } from "./context-assembly.js";
+import { fitItemsToBudget, hybridChunkItems, extractKeyTerms, dropSeen } from "./context-assembly.js";
+
+describe("extractKeyTerms", () => {
+  it("keeps distinctive terms and drops stopwords + short words", () => {
+    const terms = extractKeyTerms("add the UI controls for per-repo settings and parseSettingsForm");
+    expect(terms).toContain("controls");
+    expect(terms).toContain("settings");
+    expect(terms).toContain("parseSettingsForm");
+    expect(terms).not.toContain("the");
+    expect(terms).not.toContain("and");
+    expect(terms).not.toContain("ui"); // 2 chars
+  });
+
+  it("de-duplicates and caps the number of terms", () => {
+    const terms = extractKeyTerms("settings settings settings", 12);
+    expect(terms).toEqual(["settings"]);
+    expect(extractKeyTerms(Array.from({ length: 40 }, (_, i) => `term${i}`).join(" "), 12).length).toBe(12);
+  });
+});
+
+describe("dropSeen (cross-section dedup)", () => {
+  const it_ = (path: string) => ({ text: path, tokens: 1, source_path: path });
+
+  it("drops items already emitted in an earlier section, keeping the first", () => {
+    const seen = new Set<string>();
+    const first = dropSeen([it_("a"), it_("b")] as never, seen);
+    const second = dropSeen([it_("b"), it_("c")] as never, seen);
+
+    expect((first as Array<{ source_path: string }>).map((i) => i.source_path)).toEqual(["a", "b"]);
+    expect((second as Array<{ source_path: string }>).map((i) => i.source_path)).toEqual(["c"]);
+  });
+});
 
 const item = (tokens: number, path: string) => ({ text: "x".repeat(tokens * 4), tokens, source_path: path });
 
@@ -62,5 +93,22 @@ describe("hybridChunkItems", () => {
 
     expect(calls[0].text).toContain("embedding <=>");
     expect(calls[0].params).toContainEqual("[0.1,0.2,0.3]");
+  });
+
+  it("normalizes scores so the top result is 1.0 and the rest are fractions", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+    const pool = {
+      query: async () => ({
+        rows: [
+          { content: "a", file_path: "a.ts", content_type: "code", score: 0.033 },
+          { content: "b", file_path: "b.ts", content_type: "code", score: 0.0165 },
+        ],
+      }),
+    };
+
+    const items = (await hybridChunkItems(pool, "q", "re-cinq/lore", ["code"], 6)) as Array<{ score?: number }>;
+
+    expect(items[0].score).toBeCloseTo(1.0);
+    expect(items[1].score).toBeCloseTo(0.5);
   });
 });
