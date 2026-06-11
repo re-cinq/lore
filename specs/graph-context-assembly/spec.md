@@ -78,10 +78,32 @@ An empty query result projects to an empty block with no statements, no
 refs, and `truncated: false`.
 ([validated by `projects an empty result to an empty block`](../../shared/src/spec-trace/__tests__/graph-context.test.ts#L127))
 
+### Wiring into `lore_assemble_context`
+
+The block projects into context items — one per statement, prefixed with its
+`[signal]`, the spec path/section, the statement text, its governing ADR
+labels, and its coupling tests — scored by signal so `violated` outranks
+`untested`.
+([validated by `formats each statement with its signal, ADRs, and tests; violated outscores untested`](../../shared/src/project/knowledge/context-assembly.test.ts#L22))
+
+The `coupling` source is **fail-soft**: it returns `disabled` (no items) when no
+graph client is wired (`LORE_DGRAPH_HTTP` unset), so the rest of assembly is
+unaffected.
+([validated by `returns disabled when no graph client is wired`](../../shared/src/project/knowledge/context-assembly.test.ts#L40))
+
+When a graph client is present, the source reads the repo's coupled statements
+and projects them into items.
+([validated by `projects coupled statements from the graph into items`](../../shared/src/project/knowledge/context-assembly.test.ts#L44))
+
+The `coupling` source is wired into the `implementation` and `review` templates;
+the `/api/context` handler constructs the (possibly-null) Dgraph client via
+`createDgraphClient(process.env)` and passes it to `assembleContext`.
+
 ## Out of Scope
 
 - The vector seeding step that picks *which* statements to expand from
   (this feature ranks an already-resolved coupled set).
-- Wiring the block into the live `lore_assemble_context` template ordering.
 - The code-seeded path — covered by
   [`trace-impact`](../../shared/src/spec-trace/trace-impact.ts).
+- The live A/B measurement gate (rejection-rate / review-comment count) before
+  the `coupling` section is promoted in template ordering (ADR-021 §4).

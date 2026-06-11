@@ -18,6 +18,8 @@ import { searchMemories } from './memory-search.js';
 import { computeTransferScore } from '../../memory-ranking.js';
 import { queryLiveGraph } from './live-graph.js';
 import { getQueryEmbedding } from '../../embeddings/embedding-service.js';
+import { fetchGraphContext, type GraphContextBlock } from '../../spec-trace/graph-context.js';
+import type { DgraphClientPort } from '../../memory-store.js';
 import {
   dedupeItems,
   serializeContext,
@@ -29,7 +31,7 @@ import {
 
 interface TemplateSection {
   header: string;
-  source: 'repo' | 'code' | 'adrs' | 'memories' | 'graph' | 'episodes' | 'rules' | 'cross_repo' | 'incidents';
+  source: 'repo' | 'code' | 'adrs' | 'memories' | 'graph' | 'coupling' | 'episodes' | 'rules' | 'cross_repo' | 'incidents';
   priority: number;
   max_tokens?: number;
 }
@@ -235,6 +237,41 @@ function normalizeScores(items: SourceItem[]): SourceItem[] {
   const max = Math.max(0, ...items.map((i) => i.score ?? 0));
   if (max <= 0) return items;
   return items.map((i) => (i.score != null ? { ...i, score: i.score / max } : i));
+}
+
+// Coupled-statement signal → relevance score, so violations/drift sort to the top.
+const COUPLING_SIGNAL_SCORE: Record<string, number> = { violated: 1.0, drifted: 0.66, untested: 0.33, normal: 0.1 };
+
+/** Project a spec-traceability `GraphContextBlock` (statements coupled to the
+ *  repo's code/tests, ranked by collision signal) into context items — the
+ *  deterministic "what spec rules + tests govern this code" source vector search
+ *  can't produce. Exported for unit tests. */
+export function formatCouplingItems(block: GraphContextBlock): SourceItem[] {
+  return block.statements.map((s) => {
+    const head = `[${s.signal}] ${s.specPath}${s.section ? ` › ${s.section}` : ''} — ${s.statementText}`;
+    const gov = s.adrs.length ? `\n  governed by: ${s.adrs.map((a) => a.label).join(', ')}` : '';
+    const tests = s.testSelectors.length ? `\n  tested by: ${s.testSelectors.join(', ')}` : '';
+    return mkItem(head + gov + tests, {
+      source_path: s.specPath,
+      content_type: 'coupling',
+      score: COUPLING_SIGNAL_SCORE[s.signal] ?? 0,
+    });
+  });
+}
+
+/** Coupling context source: reads the repo's coupled spec statements from the
+ *  spec-traceability graph and formats them. Fail-soft — `disabled` when no graph
+ *  client is wired (`LORE_DGRAPH_HTTP` unset), so the rest of assembly is
+ *  unaffected. Exported for unit tests. */
+export async function fetchCouplingSource(dgraph: DgraphClientPort | null, repo?: string): Promise<FetchResult> {
+  if (!dgraph || !repo) return { items: [], status: 'disabled' };
+  try {
+    const block = await fetchGraphContext(dgraph, repo);
+    const items = formatCouplingItems(block);
+    return { items, status: items.length > 0 ? 'ok' : 'empty' };
+  } catch {
+    return { items: [], status: 'error' };
+  }
 }
 
 /** Hybrid Reciprocal-Rank-Fusion retrieval over `org_shared.chunks` for a repo +
@@ -555,6 +592,7 @@ export async function assembleContext(
   crossRepo?: boolean,
   includeIds?: boolean,
   debug?: boolean,
+  dgraph?: DgraphClientPort | null,
 ): Promise<AssembledResult> {
   const startedAt = Date.now();
   const template = getTemplate(templateName);
@@ -603,7 +641,11 @@ export async function assembleContext(
       const fetcher = fetchers[section.source];
       let res: FetchResult;
       try {
-        res = fetcher ? await fetcher(pool, query, repo, agentId) : { items: [], status: 'error' };
+        // The coupling source reads the spec-traceability graph (Dgraph), not the
+        // Postgres pool — fail-soft `disabled` when no graph client is wired.
+        res = section.source === 'coupling'
+          ? await fetchCouplingSource(dgraph ?? null, repo)
+          : fetcher ? await fetcher(pool, query, repo, agentId) : { items: [], status: 'error' };
       } catch {
         res = { items: [], status: 'error' };
       }

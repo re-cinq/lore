@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
+import { createDgraphClient } from "@re-cinq/lore-shared";
 import { assembleContext } from "../../features/context/context-assembly.js";
 import { json } from "./http.js";
 
@@ -11,7 +12,10 @@ export async function handleContext(req: IncomingMessage, res: ServerResponse, p
   const debug = url.searchParams.get("debug") === "1" || url.searchParams.get("debug") === "true";
   try {
     if (query && pool) {
-      const result = await assembleContext(pool, query, template, 8000, repo || undefined, undefined, undefined, undefined, debug);
+      // Fail-soft: null when LORE_DGRAPH_HTTP is unset, so the coupling source
+      // degrades to an empty section.
+      const dgraph = createDgraphClient(process.env);
+      const result = await assembleContext(pool, query, template, 8000, repo || undefined, undefined, undefined, undefined, debug, dgraph);
       json(res, 200, { text: result.text || null, sections: result.sections, trace: result.trace });
     } else {
       const parts: string[] = [];

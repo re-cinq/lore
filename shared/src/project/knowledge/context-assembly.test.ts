@@ -5,7 +5,64 @@ vi.mock("../../embeddings/embedding-service.js", () => ({
 }));
 
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
-import { fitItemsToBudget, hybridChunkItems, extractKeyTerms, dropSeen } from "./context-assembly.js";
+import { fitItemsToBudget, hybridChunkItems, extractKeyTerms, dropSeen, formatCouplingItems, fetchCouplingSource } from "./context-assembly.js";
+import type { GraphContextBlock } from "../../spec-trace/graph-context.js";
+
+describe("formatCouplingItems", () => {
+  const block: GraphContextBlock = {
+    statements: [
+      { xid: "a#1", specPath: "specs/a/spec.md", specTitle: "A", section: "FR-2", statementText: "must do X", signal: "violated", adrs: [{ label: "ADR-016", path: "adrs/ADR-016.md" }], testSelectors: ["a.test.ts"] },
+      { xid: "a#2", specPath: "specs/a/spec.md", specTitle: "A", statementText: "may do Y", signal: "untested", adrs: [], testSelectors: [] },
+    ],
+    adrRefs: ["adrs/ADR-016.md"],
+    testSelectors: ["a.test.ts"],
+    truncated: false,
+  };
+
+  it("formats each statement with its signal, ADRs, and tests; violated outscores untested", () => {
+    const items = formatCouplingItems(block) as Array<{ text: string; source_path?: string; score?: number }>;
+
+    expect(items).toHaveLength(2);
+    expect(items[0].text).toContain("[violated]");
+    expect(items[0].text).toContain("must do X");
+    expect(items[0].text).toContain("ADR-016");
+    expect(items[0].text).toContain("a.test.ts");
+    expect(items[0].source_path).toBe("specs/a/spec.md");
+    expect(items[0].score ?? 0).toBeGreaterThan(items[1].score ?? 0);
+  });
+
+  it("returns an empty list for an empty block", () => {
+    expect(formatCouplingItems({ statements: [], adrRefs: [], testSelectors: [], truncated: false })).toEqual([]);
+  });
+});
+
+describe("fetchCouplingSource", () => {
+  it("returns disabled when no graph client is wired", async () => {
+    expect(await fetchCouplingSource(null, "re-cinq/lore")).toEqual({ items: [], status: "disabled" });
+  });
+
+  it("projects coupled statements from the graph into items", async () => {
+    const port = {
+      newTxn: () => ({
+        queryWithVars: async () => ({
+          data: {
+            q: [{
+              "Spec.file_path": "specs/a/spec.md", "Spec.title": "A",
+              stmts: [{ uid: "1", "Statement.xid": "a#1", "Statement.text": "must do X", "Statement.violated": true, db: [{ "ADR.file_path": "adrs/ADR-016.md" }], vb: [{ "TestChunk.file_path": "a.test.ts" }] }],
+            }],
+          },
+        }),
+        mutate: async () => ({}),
+        discard: async () => ({}),
+      }),
+    };
+
+    const res = await fetchCouplingSource(port as never, "re-cinq/lore");
+
+    expect(res.status).toBe("ok");
+    expect(res.items[0].text).toContain("must do X");
+  });
+});
 
 describe("extractKeyTerms", () => {
   it("keeps distinctive terms and drops stopwords + short words", () => {
