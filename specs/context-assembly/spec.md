@@ -142,13 +142,19 @@ The tool retrieves from all available sources:
 - FR-2.5: **Graph** — related entities and relationships
   (from `lore_query_graph` logic, 1-hop).
 - FR-2.6: Each source is retrieved in parallel.
-- FR-2.7: **Relevance ranking.** Local `repo` and `adrs` sources rank by
-  `ts_rank(search_tsv, websearch_to_tsquery(...))` against the query, not by
-  recency — so the ADR a task actually needs is not buried behind whatever was
-  ingested most recently. ([validated by `context-assembly.test.ts:123`](mcp-server/src/context-assembly.test.ts#L123))
+- FR-2.7: **Hybrid relevance ranking.** The local `repo`, `code`, and `adrs`
+  sources rank by a Reciprocal-Rank-Fusion of a pgvector cosine leg and a BM25
+  (`ts_rank`) leg — the same hybrid that powers `search_context` — so a
+  natural-language query surfaces semantically-relevant chunks, not just keyword
+  overlap. Degrades to keyword-only (`ts_rank`/`websearch_to_tsquery`) when no
+  query embedding is available. ([validated by `ranks ADRs by ts_rank against the query`](mcp-server/src/features/context/context-assembly.test.ts#L125), [`uses a vector+keyword RRF query when an embedding is available`](shared/src/project/knowledge/context-assembly.test.ts#L51))
 - FR-2.8: **No cross-section duplication.** The `repo`/Conventions source pulls
   only `doc`/`spec` (never `adr`, which is its own section), and chunks sharing a
-  `file_path` are de-duplicated, keeping the highest-scoring copy. ([validated by `context-assembly.test.ts:136`](mcp-server/src/context-assembly.test.ts#L136), [`context-assembly-format.test.ts:23`](shared/src/project/knowledge/context-assembly-format.test.ts#L23))
+  `file_path` are de-duplicated, keeping the highest-scoring copy. ([validated by `requests doc + spec for the repo/Conventions source, not adr`](mcp-server/src/features/context/context-assembly.test.ts#L139), [`context-assembly-format.test.ts:23`](shared/src/project/knowledge/context-assembly-format.test.ts#L23))
+- FR-2.9: **Code retrieval.** A dedicated `code` source retrieves
+  `content_type='code'` chunks via the same hybrid ranking, so implementation and
+  review tasks receive the actual source files they edit (previously code was
+  never retrieved — the `repo` source excluded it). ([validated by `retrieves a dedicated code section for implementation tasks`](mcp-server/src/features/context/context-assembly.test.ts#L153), [`retrieves chunks bound to the repo + content types`](shared/src/project/knowledge/context-assembly.test.ts#L33))
 
 ### FR-3: Template System
 
@@ -179,6 +185,10 @@ The tool retrieves from all available sources:
   (chars / 4) — no tokenizer dependency.
 - FR-4.4: When content exceeds a section's budget, it is truncated
   at a paragraph boundary with a "(truncated)" marker.
+- FR-4.5: **Per-document cap.** When a section has more than one document,
+  no single document may exceed half the section budget — so one mega-doc
+  (e.g. CLAUDE.md) cannot crowd out several smaller, more-relevant chunks. A
+  lone document keeps the whole budget. ([validated by `caps a single oversized document so smaller documents still fit`](shared/src/project/knowledge/context-assembly.test.ts#L13))
 
 ### FR-5: Output Format
 
