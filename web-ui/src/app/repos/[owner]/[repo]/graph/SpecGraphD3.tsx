@@ -115,6 +115,11 @@ const RADIUS: Record<SpecGraphNode['type'], number> = { Feature: 20, Spec: 16, S
 const radiusOf = (type: SpecGraphNode['type']): number => RADIUS[type] ?? 11;
 const colorOf = (type: SpecGraphNode['type']): string => COLORS[type] ?? '#94a3b8';
 
+// Only the structural nodes carry a persistent label; the numerous leaf
+// artefacts (File/TestChunk/CodeChunk) have long path labels that pile into
+// visual junk, so they're shown on hover/selection instead.
+const LABELED_TYPES = new Set<SpecGraphNode['type']>(['Feature', 'Spec', 'Section', 'ADR']);
+
 // Focus + context: opacity by graph distance from the selected node, fading with
 // depth (level 0 = selected, then 1/2/3 hops); past 3 hops is dimmed.
 const LEVEL_OPACITY = [1, 0.85, 0.5, 0.28];
@@ -255,7 +260,7 @@ export default function SpecGraphD3({
       .id((d) => d.id)
       // Spec→Section/Statement (the expanded drill-down) gets more length so the
       // fanned-out children don't pile on top of each other.
-      .distance((l) => (l.kind === 'in_feature' ? 120 : l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 100 : 74))
+      .distance((l) => (l.kind === 'in_feature' ? 76 : l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 62 : 46))
       // d3's standard 1/min(degree): a leaf (degree 1) is held firmly to its hub
       // so it can't drift off into a comet tail, while hub↔hub links stay loose.
       .strength((l) => 1 / Math.max(1, Math.min(degOf(l.source), degOf(l.target))));
@@ -547,7 +552,7 @@ export default function SpecGraphD3({
             .attr('fill', (d) => colorOf(d.type))
             .style('stroke', 'var(--bg-surface)')
             .attr('stroke-width', 2);
-          g.filter((d) => d.label !== '')
+          g.filter((d) => d.label !== '' && LABELED_TYPES.has(d.type))
             .append('text')
             .text((d) => d.label)
             .attr('x', (d) => radiusOf(d.type) + 4)
