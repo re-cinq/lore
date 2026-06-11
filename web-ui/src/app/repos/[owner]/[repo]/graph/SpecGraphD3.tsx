@@ -12,6 +12,8 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedLinkStrength, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
+import { connectedComponents, assignComponentCenters, settleTicks } from '@/lib/graph-layout';
+import { nodeMatchesQuery } from '@/lib/graph-search';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
 const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
@@ -157,11 +159,24 @@ function bfsLevels(adj: Map<string, Set<string>>, startId: string, maxDepth: num
   return level;
 }
 
-export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: string }) {
+export default function SpecGraphD3({
+  data,
+  repo,
+  searchQuery = '',
+  resetSignal = 0,
+}: {
+  data: SpecGraph;
+  repo: string;
+  searchQuery?: string;
+  resetSignal?: number;
+}) {
   const ref = useRef<SVGSVGElement>(null);
   const [selected, setSelected] = useState<SpecGraphNode | null>(null);
   const [hover, setHover] = useState<{ text: string; x: number; y: number } | null>(null);
   const selectedIdRef = useRef<string | null>(null);
+  // Set inside the main effect so the search-only effect can re-run the live
+  // filter without rebuilding the whole simulation.
+  const filterRef = useRef<(q: string) => void>(() => {});
 
   useEffect(() => {
     const el = ref.current;
@@ -195,14 +210,36 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       }
     };
     let savedExpanded: string[] = [];
+    let restoredFromStorage = false;
     try {
       const saved = parseGraphState(localStorage.getItem(STORAGE_KEY));
       if (saved) {
         applyGraphState(saved, nodes);
         savedExpanded = saved.expanded;
+        restoredFromStorage = true;
       }
     } catch {
       // unavailable/corrupt storage — start from a fresh force layout
+    }
+
+    // Size-aware initial placement (fresh layouts only): lay the graph out as a
+    // cloud of connected components — the big core centred, small satellite
+    // clusters ringed around the edge. Each node also gets a gentle per-component
+    // pull (forceX/forceY below) toward this centre. Seeding positions here means
+    // the headless pre-warm starts near equilibrium, so the first paint is settled.
+    const componentCenter = assignComponentCenters(
+      connectedComponents(data.nodes.map((n) => n.id), data.links),
+      { width, height, smallThreshold: 10, edgeRadius: 0.4 * Math.min(width, height) },
+    );
+    const centerOfNode = (x: string | number | SimNode) =>
+      componentCenter.get(idOf(x)) ?? { x: width / 2, y: height / 2 };
+    if (!restoredFromStorage) {
+      nodes.forEach((n, i) => {
+        const c = centerOfNode(n.id);
+        // Deterministic jitter so co-located component-mates don't start stacked.
+        n.x = c.x + ((i % 7) - 3) * 8;
+        n.y = c.y + ((Math.floor(i / 7) % 7) - 3) * 8;
+      });
     }
 
     const linkForce = d3
@@ -223,9 +260,12 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
         'charge',
         d3.forceManyBody<SimNode>().strength((d) => crowdedCharge(d.type === 'Feature' ? -850 : d.type === 'Spec' ? -700 : -520, degOf(d))),
       )
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('x', d3.forceX(width / 2).strength(0.03))
-      .force('y', d3.forceY(height / 2).strength(0.03))
+      // Size-aware placement: pull each node toward its connected component's
+      // assigned centre (big core centred, small clusters ringed at the edge)
+      // instead of all toward the viewport centre. Gentle enough that charge +
+      // collide still spread a component's own members.
+      .force('x', d3.forceX<SimNode>((d) => centerOfNode(d).x).strength(0.08))
+      .force('y', d3.forceY<SimNode>((d) => centerOfNode(d).y).strength(0.08))
       // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
       // their labels) reserve hard personal space and cannot pile up.
       .force('collide', d3.forceCollide<SimNode>((d) => crowdedCollideRadius(RADIUS[d.type], degOf(d))).strength(1))
@@ -273,6 +313,11 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       .scaleExtent([0.05, 4])
       .on('zoom', (event) => container.attr('transform', event.transform.toString()));
     svg.call(zoom).on('dblclick.zoom', null).style('cursor', 'grab');
+    // Start (and reset) at identity — d3.zoom stores its transform on the node, so
+    // a re-run (e.g. the Reset button bumping resetSignal) must clear it explicitly.
+    svg.call(zoom.transform, d3.zoomIdentity);
+    selectedIdRef.current = null;
+    setSelected(null);
     svg.on('click', () => {
       selectedIdRef.current = null;
       setSelected(null);
@@ -316,6 +361,24 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       nodeG.selectAll<SVGGElement, SimNode>('g').attr('opacity', 1);
       nodeG.selectAll<SVGCircleElement, SimNode>('circle').attr('stroke-width', 2);
       linkG.selectAll<SVGPathElement, SimLink>('path').attr('stroke-opacity', 0.5);
+    }
+
+    // Live search filter: fade every node whose label/path doesn't match the
+    // query (and any edge touching a faded node). An empty query restores the
+    // current focus/selection state.
+    function applyFilter(query: string) {
+      if (!query.trim()) {
+        if (selectedIdRef.current && adj.has(selectedIdRef.current)) highlight(selectedIdRef.current);
+        else clearHighlight();
+        return;
+      }
+      const match = (d: SimNode) => nodeMatchesQuery(d, query);
+      nodeG.selectAll<SVGGElement, SimNode>('g').attr('opacity', (d) => (match(d) ? 1 : FADED));
+      linkG.selectAll<SVGPathElement, SimLink>('path').attr('stroke-opacity', (d) => {
+        const s = nodeById.get(idOf(d.source as string | SimNode));
+        const t = nodeById.get(idOf(d.target as string | SimNode));
+        return s && t && match(s) && match(t) ? 0.5 : FADED;
+      });
     }
 
     // Hide the force-nodes/edges that the rings now represent: a pinned statement
@@ -486,7 +549,17 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       buildAdj();
       nodeById = new Map(nodes.map((n) => [n.id, n]));
       applyRingState();
-      sim.alpha(0.6).restart();
+      filterRef.current = applyFilter;
+      // Pre-warm a fresh layout headless so the first painted frame is already
+      // relaxed: sim.tick() advances the layout without firing the 'tick'
+      // renderer. Restored layouts are already settled. Either way we then start
+      // at alpha 0 — one render at the settled positions, no visible reshuffle
+      // (user gestures: drag/expand/resize re-energise the sim as before).
+      if (!restoredFromStorage) {
+        const warm = settleTicks(nodes.length);
+        for (let i = 0; i < warm; i += 1) sim.tick();
+      }
+      sim.alpha(0).restart();
       if (selectedIdRef.current && adj.has(selectedIdRef.current)) highlight(selectedIdRef.current);
     }
 
@@ -559,7 +632,6 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
     const resize = new ResizeObserver(() => {
       width = el.clientWidth || width;
       height = el.clientHeight || height;
-      sim.force('center', d3.forceCenter(width / 2, height / 2));
       sim.alpha(0.3).restart();
     });
     resize.observe(el);
@@ -568,7 +640,13 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       resize.disconnect();
       sim.stop();
     };
-  }, [data, repo]);
+  }, [data, repo, resetSignal]);
+
+  // Live search: re-apply the filter without rebuilding the simulation. Runs on
+  // mount (restoring the empty-query full view) and on every query change.
+  useEffect(() => {
+    filterRef.current(searchQuery);
+  }, [searchQuery]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' }}>
