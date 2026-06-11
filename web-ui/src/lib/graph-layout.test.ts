@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   settleTicks,
   boundingRadius,
-  radialContainmentDelta,
+  containedVelocity,
   radialTarget,
   degreeAnchoredStrength,
 } from "./graph-layout";
@@ -70,29 +70,32 @@ describe("boundingRadius", () => {
   });
 });
 
-describe("radialContainmentDelta", () => {
+describe("containedVelocity", () => {
   const center = { x: 0, y: 0 };
+  const speed = (v: { vx: number; vy: number }) => Math.hypot(v.vx, v.vy);
 
-  it("applies no pull to a point inside the radius (soft border, not a wall)", () => {
-    expect(radialContainmentDelta({ x: 10, y: 0 }, center, 100, 0.5)).toEqual({ dvx: 0, dvy: 0 });
+  it("leaves the velocity of a node inside the radius unchanged", () => {
+    expect(containedVelocity({ x: 10, y: 0 }, { vx: 5, vy: 0 }, center, 100)).toEqual({ vx: 5, vy: 0 });
   });
 
-  it("pulls inward in proportion to how far the point overshoots the radius", () => {
-    const d = radialContainmentDelta({ x: 200, y: 0 }, center, 100, 0.5);
-    expect(d.dvx).toBeCloseTo(-50);
-    expect(d.dvy).toBeCloseTo(0);
+  it("zeroes a denormal-tiny velocity to avoid float jitter", () => {
+    expect(containedVelocity({ x: 10, y: 0 }, { vx: 1e-9, vy: -1e-9 }, center, 100)).toEqual({ vx: 0, vy: 0 });
   });
 
-  it("pulls a point farther out more strongly than one barely past the border", () => {
-    const near = radialContainmentDelta({ x: 110, y: 0 }, center, 100, 0.5);
-    const far = radialContainmentDelta({ x: 300, y: 0 }, center, 100, 0.5);
-    expect(Math.abs(far.dvx)).toBeGreaterThan(Math.abs(near.dvx));
+  it("cancels the outward velocity of a node past the border (it cannot move further out)", () => {
+    const v = containedVelocity({ x: 110, y: 0 }, { vx: 5, vy: 0 }, center, 100);
+    expect(v.vx).toBeLessThanOrEqual(0);
   });
 
-  it("directs the pull along the inward radial for a diagonal point", () => {
-    const d = radialContainmentDelta({ x: 30, y: 40 }, center, 25, 1);
-    expect(d.dvx).toBeCloseTo(-15);
-    expect(d.dvy).toBeCloseTo(-20);
+  it("keeps an already-inward velocity heading inward when past the border", () => {
+    const v = containedVelocity({ x: 110, y: 0 }, { vx: -5, vy: 0 }, center, 100);
+    expect(v.vx).toBeLessThan(0);
+  });
+
+  it("moves a node slower the further it has strayed past the border", () => {
+    const near = containedVelocity({ x: 110, y: 0 }, { vx: 0, vy: 10 }, center, 100);
+    const far = containedVelocity({ x: 600, y: 0 }, { vx: 0, vy: 10 }, center, 100);
+    expect(speed(far)).toBeLessThan(speed(near));
   });
 });
 

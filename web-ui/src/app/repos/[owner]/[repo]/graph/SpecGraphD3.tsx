@@ -12,12 +12,11 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedLinkStrength, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
-import { settleTicks, boundingRadius, radialContainmentDelta, radialTarget, degreeAnchoredStrength } from '@/lib/graph-layout';
+import { settleTicks, boundingRadius, containedVelocity, radialTarget, degreeAnchoredStrength } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
 const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
-const BOUNDS_STRENGTH = 0.6; // soft radius-border spring constant (one-sided, past boundR)
 
 type SimNode = SpecGraphNode & d3.SimulationNodeDatum;
 type SimLink = d3.SimulationLinkDatum<SimNode> & { kind: string };
@@ -315,18 +314,18 @@ export default function SpecGraphD3({
           n.vy = 0;
         }
       })
-      // Soft radius border: a one-sided spring that eases a node back toward the
-      // centre once it strays past the bounding circle — the pull grows with the
-      // overshoot, so nodes can poke past the edge but don't fly off and don't
-      // pile up against a hard wall. Velocity-based + alpha-scaled (standard d3
-      // force shape). Pinned/dragged nodes (fx/fy) are exempt.
-      .force('bounds', (alpha: number) => {
+      // Radius border: keep every free node inside the bounding circle. Runs at
+      // full strength every tick (not alpha-scaled, so containment doesn't fade
+      // as the sim cools) — it cancels a strayed node's outward velocity, eases
+      // it back, and slows it the further out it is, so hubs can't leak past the
+      // edge. Pinned/dragged nodes (fx/fy) are exempt.
+      .force('bounds', () => {
         const center = { x: width / 2, y: height / 2 };
         for (const n of nodes) {
           if (n.fx != null || n.fy != null) continue;
-          const { dvx, dvy } = radialContainmentDelta({ x: n.x ?? 0, y: n.y ?? 0 }, center, boundR, BOUNDS_STRENGTH);
-          n.vx = (n.vx ?? 0) + dvx * alpha;
-          n.vy = (n.vy ?? 0) + dvy * alpha;
+          const { vx, vy } = containedVelocity({ x: n.x ?? 0, y: n.y ?? 0 }, { vx: n.vx ?? 0, vy: n.vy ?? 0 }, center, boundR);
+          n.vx = vx;
+          n.vy = vy;
         }
       });
 

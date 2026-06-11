@@ -86,23 +86,59 @@ export function boundingRadius(
   return Math.min(cap, Math.max(floor, raw));
 }
 
+export interface ContainmentOptions {
+  /** Inward return speed per pixel of overshoot, capped at `maxReturn`. */
+  returnPull?: number;
+  /** Ceiling on the inward return speed, so a far node eases in, not snaps. */
+  maxReturn?: number;
+  /** Overshoot at which velocity is roughly halved — the "slower the further" knob. */
+  dampScale?: number;
+  /** Velocities with smaller magnitude than this are flattened to 0. */
+  epsilon?: number;
+}
+
 /**
- * Soft radius border: the velocity nudge that pulls a point back toward `center`
- * when it strays past `radius`. The pull grows with the overshoot (a one-sided
- * spring), so nodes can poke past the border but are eased back rather than
- * snapped to it — no hard wall. Zero inside the radius. The caller scales the
- * result by the simulation's alpha and adds it to the node's velocity.
+ * Replace a node's velocity with one that keeps it inside the radius border. A
+ * node past `radius` has its outward velocity component cancelled (so it can't
+ * integrate any further out), is eased back by a capped inward pull, and has its
+ * remaining speed damped more the further it has strayed ("slower the further").
+ * Runs at full strength every tick (not alpha-scaled) so containment doesn't fade
+ * as the simulation cools. Denormal-tiny components are flattened to 0.
  */
-export function radialContainmentDelta(
+export function containedVelocity(
   point: { x: number; y: number },
+  velocity: { vx: number; vy: number },
   center: { x: number; y: number },
   radius: number,
-  strength: number,
-): { dvx: number; dvy: number } {
+  { returnPull = 0.1, maxReturn = 6, dampScale = 300, epsilon = 1e-3 }: ContainmentOptions = {},
+): { vx: number; vy: number } {
+  let vx = velocity.vx;
+  let vy = velocity.vy;
   const dx = point.x - center.x;
   const dy = point.y - center.y;
   const dist = Math.hypot(dx, dy);
-  if (dist <= radius || dist === 0) return { dvx: 0, dvy: 0 };
-  const k = (strength * (dist - radius)) / dist;
-  return { dvx: -dx * k, dvy: -dy * k };
+
+  if (dist > radius && dist > 0) {
+    const ux = dx / dist;
+    const uy = dy / dist;
+    const over = dist - radius;
+    // Cancel any outward component so the node cannot move further out.
+    const outward = vx * ux + vy * uy;
+    if (outward > 0) {
+      vx -= outward * ux;
+      vy -= outward * uy;
+    }
+    // Gentle, capped inward return so it eases home rather than snapping.
+    const ret = Math.min(maxReturn, over * returnPull);
+    vx -= ret * ux;
+    vy -= ret * uy;
+    // Slower the further out it is.
+    const damp = 1 / (1 + over / dampScale);
+    vx *= damp;
+    vy *= damp;
+  }
+
+  if (Math.abs(vx) < epsilon) vx = 0;
+  if (Math.abs(vy) < epsilon) vy = 0;
+  return { vx, vy };
 }
