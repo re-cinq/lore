@@ -32,6 +32,36 @@ describe("assembleTraceDocument", () => {
     expect(doc.coverage).toEqual({ testable: 2, covered: 1, untestable: 1, ratio: 0.5 });
   });
 
+  it("counts a validated AcceptanceCriterion alongside a tested Statement in coverage", () => {
+    const doc = assembleTraceDocument({
+      q: [
+        {
+          uid: "0x1",
+          "Spec.file_path": "specs/auth/spec.md",
+          stmts: [
+            {
+              uid: "0xa",
+              "Statement.ordinal": 1,
+              "Statement.text": "Token rotates hourly",
+              "Statement.testability": "testable",
+              vb: [{ uid: "0xt", "TestChunk.file_path": "rotate.test.ts", "TestChunk.test_name": "rotates", "TestChunk.start_line": 5 }],
+            },
+          ],
+          acs: [
+            {
+              uid: "0xac1",
+              "AcceptanceCriterion.ordinal": 1,
+              "AcceptanceCriterion.text": "Given a gold user, when checkout, then 10% off",
+              vb: [{ uid: "0xt2", "TestChunk.file_path": "checkout.test.ts", "TestChunk.test_name": "applies 10% for gold", "TestChunk.start_line": 8 }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(doc.coverage).toEqual({ testable: 2, covered: 2, untestable: 0, ratio: 1 });
+  });
+
   it("returns ordered sections and each statement's section ref, links, and drift/violation metadata", () => {
     const doc = assembleTraceDocument({
       q: [

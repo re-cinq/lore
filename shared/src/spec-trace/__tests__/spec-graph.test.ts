@@ -158,6 +158,30 @@ describe("flattenSpecGraph", () => {
     ]);
   });
 
+  it("emits an AcceptanceCriterion node linked in_spec and to its validated_by TestChunk", () => {
+    const graph = flattenSpecGraph({
+      q: [
+        {
+          uid: "0x1",
+          "Spec.file_path": "specs/auth/spec.md",
+          acs: [
+            {
+              uid: "0xac",
+              "AcceptanceCriterion.text": "crit",
+              vb: [{ uid: "0xt", "TestChunk.file_path": "a.test.ts", "TestChunk.test_name": "t", "TestChunk.start_line": 5 }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({ id: "0xac", type: "AcceptanceCriterion" }),
+    );
+    expect(graph.links).toContainEqual({ source: "0x1", target: "0xac", kind: "in_spec" });
+    expect(graph.links).toContainEqual({ source: "0xac", target: "0xt", kind: "validated_by" });
+  });
+
   it("returns an empty graph for empty input", () => {
     expect(flattenSpecGraph({})).toEqual({ nodes: [], links: [] });
   });
