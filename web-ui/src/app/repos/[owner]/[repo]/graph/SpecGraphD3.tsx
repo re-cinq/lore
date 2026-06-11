@@ -12,7 +12,7 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedLinkStrength, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
-import { settleTicks, boundingRadius, containedVelocity } from '@/lib/graph-layout';
+import { settleTicks, boundingRadius, componentSizeByNode } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
@@ -232,6 +232,10 @@ export default function SpecGraphD3({
     // charge/link/collide forces fan it out from a compact start (and the pre-warm
     // settles before first paint). The whole layout is kept inside boundR.
     const boundR = boundingRadius(data.nodes.length, data.links.length);
+    // Component size per node: the big component stays centred; small disconnected
+    // components are pushed out to the rim instead of floating in the middle.
+    const compSize = componentSizeByNode(data.nodes.map((n) => n.id), data.links);
+    const isSmallComponent = (d: SimNode) => (compSize.get(d.id) ?? 1) < 10;
     if (!restoredFromStorage) {
       const cx = width / 2;
       const cy = height / 2;
@@ -266,11 +270,14 @@ export default function SpecGraphD3({
           // fling peripheral nodes off to infinity.
           .distanceMax(boundR),
       )
-      // Gentle pull toward the viewport centre keeps the cloud compact and
-      // centred without mapping any node to a fixed region — links/charge/collide
-      // do the actual arranging, every node stays fluid / draggable.
-      .force('x', d3.forceX<SimNode>(width / 2).strength(0.05))
-      .force('y', d3.forceY<SimNode>(height / 2).strength(0.05))
+      // Big component: pulled toward the viewport centre (compact, centred), with
+      // no node mapped to a fixed region — links/charge/collide do the arranging.
+      .force('x', d3.forceX<SimNode>(width / 2).strength((d) => (isSmallComponent(d) ? 0 : 0.12)))
+      .force('y', d3.forceY<SimNode>(height / 2).strength((d) => (isSmallComponent(d) ? 0 : 0.12)))
+      // Small disconnected components: pushed out to a rim ring so they don't
+      // float in the middle. forceRadial pulls them to the ring from either side,
+      // so it also stops them flying off — no hard circle needed.
+      .force('rim', d3.forceRadial<SimNode>(boundR * 0.92, width / 2, height / 2).strength((d) => (isSmallComponent(d) ? 0.5 : 0)))
       // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
       // their labels) reserve hard personal space and cannot pile up.
       .force('collide', d3.forceCollide<SimNode>((d) => crowdedCollideRadius(radiusOf(d.type), degOf(d))).strength(1))
@@ -300,20 +307,6 @@ export default function SpecGraphD3({
           n.y = safe.y;
           n.vx = 0; // kill velocity so the integration step can't pull it back in
           n.vy = 0;
-        }
-      })
-      // Radius border: keep every free node inside the bounding circle. Runs at
-      // full strength every tick (not alpha-scaled, so containment doesn't fade
-      // as the sim cools) — it cancels a strayed node's outward velocity, eases
-      // it back, and slows it the further out it is, so hubs can't leak past the
-      // edge. Pinned/dragged nodes (fx/fy) are exempt.
-      .force('bounds', () => {
-        const center = { x: width / 2, y: height / 2 };
-        for (const n of nodes) {
-          if (n.fx != null || n.fy != null) continue;
-          const { vx, vy } = containedVelocity({ x: n.x ?? 0, y: n.y ?? 0 }, { vx: n.vx ?? 0, vy: n.vy ?? 0 }, center, boundR);
-          n.vx = vx;
-          n.vy = vy;
         }
       });
 

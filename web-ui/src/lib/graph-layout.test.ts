@@ -1,5 +1,52 @@
 import { describe, it, expect } from "vitest";
-import { settleTicks, boundingRadius, containedVelocity } from "./graph-layout";
+import {
+  settleTicks,
+  boundingRadius,
+  containedVelocity,
+  connectedComponents,
+  componentSizeByNode,
+} from "./graph-layout";
+
+describe("connectedComponents", () => {
+  it("groups two disjoint link sets into two components", () => {
+    const comps = connectedComponents(
+      ["a", "b", "c", "d"],
+      [
+        { source: "a", target: "b" },
+        { source: "c", target: "d" },
+      ],
+    );
+
+    const sorted = comps.map((c) => [...c].sort()).sort((x, y) => x[0].localeCompare(y[0]));
+    expect(sorted).toEqual([
+      ["a", "b"],
+      ["c", "d"],
+    ]);
+  });
+
+  it("returns a singleton component for a node with no links", () => {
+    expect(connectedComponents(["lonely"], [])).toEqual([["lonely"]]);
+  });
+});
+
+describe("componentSizeByNode", () => {
+  it("labels every node with the size of its connected component", () => {
+    const sizes = componentSizeByNode(
+      ["a", "b", "c", "x", "y"],
+      [
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+        { source: "x", target: "y" },
+      ],
+    );
+
+    expect(Object.fromEntries(sizes)).toEqual({ a: 3, b: 3, c: 3, x: 2, y: 2 });
+  });
+
+  it("labels an unlinked node as a component of size 1", () => {
+    expect(componentSizeByNode(["solo"], []).get("solo")).toBe(1);
+  });
+});
 
 describe("boundingRadius", () => {
   it("floors a tiny graph at the minimum radius", () => {

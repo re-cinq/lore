@@ -18,6 +18,57 @@ export interface Point {
   y: number;
 }
 
+export interface LayoutLink {
+  source: string;
+  target: string;
+}
+
+/**
+ * Partition the node set into connected components (union-find over the links).
+ * Nodes that appear in no link come back as their own singleton component.
+ */
+export function connectedComponents(nodeIds: string[], links: LayoutLink[]): string[][] {
+  const parent = new Map<string, string>();
+  const find = (x: string): string => {
+    let root = x;
+    while ((parent.get(root) ?? root) !== root) root = parent.get(root) ?? root;
+    let cur = x;
+    while (cur !== root) {
+      const next = parent.get(cur) ?? cur;
+      parent.set(cur, root);
+      cur = next;
+    }
+    return root;
+  };
+  const union = (a: string, b: string) => {
+    parent.set(find(a), find(b));
+  };
+
+  for (const id of nodeIds) if (!parent.has(id)) parent.set(id, id);
+  for (const { source, target } of links) {
+    if (!parent.has(source)) parent.set(source, source);
+    if (!parent.has(target)) parent.set(target, target);
+    union(source, target);
+  }
+
+  const groups = new Map<string, string[]>();
+  for (const id of nodeIds) {
+    const root = find(id);
+    (groups.get(root) ?? groups.set(root, []).get(root)!).push(id);
+  }
+  return [...groups.values()];
+}
+
+/** Map every node id to the size of the connected component it belongs to — used
+ * to keep the big component central and push small ones out to the rim. */
+export function componentSizeByNode(nodeIds: string[], links: LayoutLink[]): Map<string, number> {
+  const sizes = new Map<string, number>();
+  for (const comp of connectedComponents(nodeIds, links)) {
+    for (const id of comp) sizes.set(id, comp.length);
+  }
+  return sizes;
+}
+
 /** Headless pre-warm tick budget: ~3 per node, floored at 120 and capped at 400. */
 export function settleTicks(nodeCount: number): number {
   return Math.min(SETTLE_CAP, Math.max(SETTLE_FLOOR, nodeCount * SETTLE_PER_NODE));
