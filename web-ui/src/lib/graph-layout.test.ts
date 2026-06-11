@@ -5,7 +5,31 @@ import {
   containedVelocity,
   connectedComponents,
   rimTargets,
+  featureSeedPositions,
 } from "./graph-layout";
+
+describe("featureSeedPositions", () => {
+  const center = { x: 0, y: 0 };
+  const dist = (p: { x: number; y: number }) => Math.hypot(p.x - center.x, p.y - center.y);
+
+  it("keeps every feature within the seed radius and at a distinct spot", () => {
+    const pos = featureSeedPositions(
+      [{ id: "a", size: 1 }, { id: "b", size: 1 }, { id: "c", size: 1 }],
+      center,
+      300,
+    );
+
+    for (const id of ["a", "b", "c"]) expect(dist(pos.get(id)!)).toBeLessThanOrEqual(300);
+    expect(pos.get("a")).not.toEqual(pos.get("b"));
+  });
+
+  it("seeds a larger feature further from the centre than a small one in the same slot", () => {
+    const small = featureSeedPositions([{ id: "a", size: 1 }, { id: "b", size: 1 }], center, 100);
+    const big = featureSeedPositions([{ id: "a", size: 9 }, { id: "b", size: 1 }], center, 100);
+
+    expect(dist(big.get("a")!)).toBeGreaterThan(dist(small.get("a")!));
+  });
+});
 
 describe("connectedComponents", () => {
   it("groups two disjoint link sets into two components", () => {

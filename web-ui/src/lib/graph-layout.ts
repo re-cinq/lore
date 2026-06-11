@@ -12,6 +12,8 @@
 const SETTLE_FLOOR = 120;
 const SETTLE_CAP = 400;
 const SETTLE_PER_NODE = 3;
+// Golden angle — successive points get even angular coverage with no spokes.
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 export interface Point {
   x: number;
@@ -72,6 +74,31 @@ export function rimTargets(components: string[][], center: Point, rimRadius: num
     const angle = (2 * Math.PI * i) / n;
     const target = { x: center.x + rimRadius * Math.cos(angle), y: center.y + rimRadius * Math.sin(angle) };
     for (const id of comp) out.set(id, target);
+  });
+  return out;
+}
+
+/**
+ * Seed Feature nodes across a sunflower spiral (even angular coverage) with each
+ * Feature claiming area proportional to its `size`, so larger Features land
+ * further out and end up more distanced from their neighbours. Returns a target
+ * per feature id; the layout seeds fresh positions from these.
+ */
+export function featureSeedPositions(
+  features: { id: string; size: number }[],
+  center: Point,
+  maxRadius: number,
+): Map<string, Point> {
+  const out = new Map<string, Point>();
+  const weights = features.map((f) => Math.max(1, f.size));
+  const total = weights.reduce((a, b) => a + b, 0) || 1;
+  let running = 0;
+  features.forEach((f, i) => {
+    const frac = (running + weights[i] / 2) / total;
+    running += weights[i];
+    const radius = maxRadius * Math.sqrt(frac);
+    const angle = i * GOLDEN_ANGLE;
+    out.set(f.id, { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) });
   });
   return out;
 }

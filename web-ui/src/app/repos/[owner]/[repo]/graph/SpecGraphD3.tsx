@@ -12,7 +12,7 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
-import { settleTicks, boundingRadius, connectedComponents, rimTargets } from '@/lib/graph-layout';
+import { settleTicks, boundingRadius, connectedComponents, rimTargets, featureSeedPositions } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
@@ -244,14 +244,34 @@ export default function SpecGraphD3({
     const rim = rimTargets(smallComponents, { x: width / 2, y: height / 2 }, boundR * 1.25);
     const isSmallComponent = (d: SimNode) => rim.has(d.id);
     const targetOf = (d: SimNode) => rim.get(d.id) ?? { x: width / 2, y: height / 2 };
+    // Feature seed: spread the Features across the central area, bigger Features
+    // (more edges) further out so they end up more distanced from each other.
+    const featureSeed = featureSeedPositions(
+      data.nodes.filter((n) => n.type === 'Feature').map((n) => ({ id: n.id, size: degOf(n.id) })),
+      { x: width / 2, y: height / 2 },
+      boundR * 0.7,
+    );
     if (!restoredFromStorage) {
       const cx = width / 2;
       const cy = height / 2;
       nodes.forEach((n, i) => {
-        const r = 8 * Math.sqrt(i);
-        const a = i * 2.399963229728653; // golden angle — even spread, no clumps
-        n.x = cx + r * Math.cos(a);
-        n.y = cy + r * Math.sin(a);
+        const rimSpot = rim.get(n.id);
+        const featureSpot = featureSeed.get(n.id);
+        if (rimSpot) {
+          // small component → start at its rim spot (+ small spread)
+          n.x = rimSpot.x + ((i % 5) - 2) * 8;
+          n.y = rimSpot.y + ((i % 3) - 1) * 8;
+        } else if (featureSpot) {
+          n.x = featureSpot.x;
+          n.y = featureSpot.y;
+        } else {
+          // other big-component node → tight golden spiral near centre; the
+          // strong leaf↔hub links pull it onto its Feature during the pre-warm.
+          const r = 8 * Math.sqrt(i);
+          const a = i * 2.399963229728653;
+          n.x = cx + r * Math.cos(a);
+          n.y = cy + r * Math.sin(a);
+        }
       });
     }
 
