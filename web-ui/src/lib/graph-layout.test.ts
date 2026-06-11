@@ -1,58 +1,100 @@
 import { describe, it, expect } from "vitest";
 import {
+  connectedComponents,
+  seedPositions,
   settleTicks,
   boundingRadius,
   containedVelocity,
-  radialTarget,
-  degreeAnchoredStrength,
+  type SeedNode,
+  type LayoutLink,
 } from "./graph-layout";
 
-describe("radialTarget", () => {
-  const boundR = 1000;
+describe("connectedComponents", () => {
+  it("groups two disjoint link sets into two components", () => {
+    const comps = connectedComponents(
+      ["a", "b", "c", "d"],
+      [
+        { source: "a", target: "b" },
+        { source: "c", target: "d" },
+      ],
+    );
 
-  it("pulls Feature nodes to the centre", () => {
-    expect(radialTarget("Feature", boundR).radius).toBe(0);
+    const sorted = comps.map((c) => [...c].sort()).sort((x, y) => x[0].localeCompare(y[0]));
+    expect(sorted).toEqual([
+      ["a", "b"],
+      ["c", "d"],
+    ]);
   });
 
-  it("places Spec/Section/Statement/ADR on the middle ring", () => {
-    for (const t of ["Spec", "Section", "Statement", "ADR"] as const) {
-      expect(radialTarget(t, boundR).radius).toBeCloseTo(0.36 * boundR);
-    }
+  it("collapses a chain of links into a single component", () => {
+    const comps = connectedComponents(
+      ["a", "b", "c"],
+      [
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+      ],
+    );
+
+    expect(comps).toHaveLength(1);
+    expect([...comps[0]].sort()).toEqual(["a", "b", "c"]);
   });
 
-  it("places File/TestChunk/CodeChunk loose on the outer ring", () => {
-    for (const t of ["File", "TestChunk", "CodeChunk"] as const) {
-      expect(radialTarget(t, boundR).radius).toBeCloseTo(0.68 * boundR);
-    }
-  });
-
-  it("attracts the centre tier more strongly than the loose outer tier", () => {
-    expect(radialTarget("Feature", boundR).strength).toBeGreaterThan(radialTarget("File", boundR).strength);
-  });
-
-  it("falls back to the loose outer tier for an unknown node type", () => {
-    // The live projection can emit a type outside the declared union; never throw.
-    expect(radialTarget("Mystery" as never, boundR)).toEqual(radialTarget("File", boundR));
+  it("returns a singleton component for a node with no links", () => {
+    expect(connectedComponents(["lonely"], [])).toEqual([["lonely"]]);
   });
 });
 
-describe("degreeAnchoredStrength", () => {
-  it("leaves a low-degree node at its base radial strength", () => {
-    expect(degreeAnchoredStrength(0.12, 1, { cap: 16, max: 0.9 })).toBeCloseTo(0.12);
+describe("seedPositions", () => {
+  const width = 1000;
+  const height = 800;
+  const boundR = 600;
+  const center = { x: 500, y: 400 };
+  const dist = (p: { x: number; y: number }) => Math.hypot(p.x - center.x, p.y - center.y);
+
+  // A 12-node hub-and-spoke core: 'hub' (degree 11) wired to 11 leaves.
+  const star = (): { nodes: SeedNode[]; links: LayoutLink[] } => {
+    const leaves = Array.from({ length: 11 }, (_, i) => `leaf${i}`);
+    return {
+      nodes: [{ id: "hub", degree: 11 }, ...leaves.map((id) => ({ id, degree: 1 }))],
+      links: leaves.map((id) => ({ source: "hub", target: id })),
+    };
+  };
+
+  it("seeds the most-connected node of the core at the viewport centre", () => {
+    const { nodes, links } = star();
+
+    const pos = seedPositions(nodes, links, { width, height, boundR });
+
+    expect(pos.get("hub")).toEqual(center);
   });
 
-  it("pulls a high-degree hub up to the max anchor strength so it can't fly out", () => {
-    expect(degreeAnchoredStrength(0.12, 16, { cap: 16, max: 0.9 })).toBeCloseTo(0.9);
+  it("seeds lower-degree core nodes farther out than the hub", () => {
+    const { nodes, links } = star();
+
+    const pos = seedPositions(nodes, links, { width, height, boundR });
+
+    expect(dist(pos.get("leaf0")!)).toBeGreaterThan(dist(pos.get("hub")!));
   });
 
-  it("caps the anchor at the max for a degree beyond the cap", () => {
-    expect(degreeAnchoredStrength(0.12, 100, { cap: 16, max: 0.9 })).toBeCloseTo(0.9);
+  it("tucks a small disconnected component out on the outer margin", () => {
+    const { nodes, links } = star();
+    nodes.push({ id: "sa", degree: 1 }, { id: "sb", degree: 1 });
+    links.push({ source: "sa", target: "sb" });
+
+    const pos = seedPositions(nodes, links, { width, height, boundR });
+
+    // Out near the margin, and the two satellites sit together.
+    expect(dist(pos.get("sa")!)).toBeGreaterThan(boundR * 0.5);
+    expect(Math.hypot(pos.get("sa")!.x - pos.get("sb")!.x, pos.get("sa")!.y - pos.get("sb")!.y)).toBeLessThan(40);
   });
 
-  it("anchors a busier node more firmly than a quieter one", () => {
-    expect(degreeAnchoredStrength(0.12, 8, { cap: 16, max: 0.9 })).toBeGreaterThan(
-      degreeAnchoredStrength(0.12, 3, { cap: 16, max: 0.9 }),
-    );
+  it("assigns a position to every node", () => {
+    const { nodes, links } = star();
+    nodes.push({ id: "sa", degree: 0 });
+
+    const pos = seedPositions(nodes, links, { width, height, boundR });
+
+    expect(pos.size).toBe(nodes.length);
   });
 });
 
@@ -83,13 +125,11 @@ describe("containedVelocity", () => {
   });
 
   it("cancels the outward velocity of a node past the border (it cannot move further out)", () => {
-    const v = containedVelocity({ x: 110, y: 0 }, { vx: 5, vy: 0 }, center, 100);
-    expect(v.vx).toBeLessThanOrEqual(0);
+    expect(containedVelocity({ x: 110, y: 0 }, { vx: 5, vy: 0 }, center, 100).vx).toBeLessThanOrEqual(0);
   });
 
   it("keeps an already-inward velocity heading inward when past the border", () => {
-    const v = containedVelocity({ x: 110, y: 0 }, { vx: -5, vy: 0 }, center, 100);
-    expect(v.vx).toBeLessThan(0);
+    expect(containedVelocity({ x: 110, y: 0 }, { vx: -5, vy: 0 }, center, 100).vx).toBeLessThan(0);
   });
 
   it("moves a node slower the further it has strayed past the border", () => {

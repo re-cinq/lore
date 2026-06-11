@@ -12,7 +12,7 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedLinkStrength, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
-import { settleTicks, boundingRadius, containedVelocity, radialTarget, degreeAnchoredStrength } from '@/lib/graph-layout';
+import { settleTicks, boundingRadius, containedVelocity, seedPositions } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
@@ -227,26 +227,36 @@ export default function SpecGraphD3({
       // unavailable/corrupt storage — start from a fresh force layout
     }
 
-    // Size-aware initial placement (fresh layouts only): lay the graph out as a
-    // cloud of connected components — the big core centred, small satellite
-    // clusters by node type into concentric tiers (radialTarget + the forceRadial
-    // below): Features pulled to the centre, the spec scaffolding on a middle
-    // ring, leaf artefacts loose on the outside. The whole layout is kept inside
-    // boundR (sized from the graph's V+E) so nodes can't fly off. Seeding fresh
-    // positions on each node's tier ring means the pre-warm starts near
-    // equilibrium, so the first paint is settled.
+    // Deterministic seed layout: the large connected components form the core,
+    // laid out degree-radially (most-connected node at the centre, least on the
+    // outside); the small components tuck into the emptiest outer sectors as
+    // satellites. The simulation then anchors each node to its seed (forceX/forceY
+    // below) so the structure holds while nodes stay fluid. Seeding fresh layouts
+    // here means the pre-warm starts near equilibrium → first paint is settled.
+    // The whole layout is kept inside boundR (sized from the graph's V+E).
     const boundR = boundingRadius(data.nodes.length, data.links.length);
+    const seeds = seedPositions(
+      data.nodes.map((n) => ({ id: n.id, degree: degOf(n.id) })),
+      data.links,
+      { width, height, boundR },
+    );
     if (!restoredFromStorage) {
-      const cx = width / 2;
-      const cy = height / 2;
-      nodes.forEach((n, i) => {
-        const { radius } = radialTarget(n.type, boundR);
-        const angle = (2 * Math.PI * i) / nodes.length; // spread around the ring
-        const r = radius + ((i % 5) - 2) * 6; // deterministic jitter off the ring
-        n.x = cx + r * Math.cos(angle);
-        n.y = cy + r * Math.sin(angle);
-      });
+      for (const n of nodes) {
+        const seed = seeds.get(n.id);
+        if (seed) {
+          n.x = seed.x;
+          n.y = seed.y;
+        }
+      }
     }
+    // Anchor target per node: its starting position — the seed (fresh) or where
+    // it was restored to (saved). The forceX/forceY below relax around this point
+    // so the structure holds without nodes wandering off or restored layouts
+    // being yanked toward the seeds.
+    const anchor = new Map<string, { x: number; y: number }>(
+      nodes.map((n) => [n.id, { x: n.x ?? seeds.get(n.id)?.x ?? width / 2, y: n.y ?? seeds.get(n.id)?.y ?? height / 2 }]),
+    );
+    const anchorOf = (d: SimNode) => anchor.get(d.id) ?? { x: width / 2, y: height / 2 };
 
     const linkForce = d3
       .forceLink<SimNode, SimLink>([])
@@ -271,18 +281,11 @@ export default function SpecGraphD3({
           // fling peripheral nodes off to infinity.
           .distanceMax(boundR),
       )
-      // Type-tiered placement: pull each node toward its type's concentric ring
-      // (Features → centre, spec scaffolding → middle, leaves → loose outer ring)
-      // around the viewport centre. Charge + collide still spread each ring's
-      // members around it, and every node stays fully fluid / draggable.
-      .force(
-        'radial',
-        d3
-          .forceRadial<SimNode>((d) => radialTarget(d.type, boundR).radius, width / 2, height / 2)
-          // Anchor well-connected nodes harder to their ring so high-degree hubs
-          // (strong charge, weak links) can't drift out to the border.
-          .strength((d) => degreeAnchoredStrength(radialTarget(d.type, boundR).strength, degOf(d))),
-      )
+      // Seed anchor: pull each node toward its deterministic seed position so the
+      // degree-radial core + satellite structure holds, while links/charge/collide
+      // resolve local angle and overlap and every node stays fluid / draggable.
+      .force('x', d3.forceX<SimNode>((d) => anchorOf(d).x).strength(0.2))
+      .force('y', d3.forceY<SimNode>((d) => anchorOf(d).y).strength(0.2))
       // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
       // their labels) reserve hard personal space and cannot pile up.
       .force('collide', d3.forceCollide<SimNode>((d) => crowdedCollideRadius(radiusOf(d.type), degOf(d))).strength(1))
