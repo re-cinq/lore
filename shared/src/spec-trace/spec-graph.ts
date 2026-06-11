@@ -9,7 +9,7 @@
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 
-export type SpecGraphNodeType = "Feature" | "Spec" | "Section" | "Statement" | "TestChunk" | "CodeChunk" | "File" | "ADR";
+export type SpecGraphNodeType = "Feature" | "Spec" | "Section" | "Statement" | "AcceptanceCriterion" | "TestChunk" | "CodeChunk" | "File" | "ADR";
 
 export interface SpecGraphNode {
   id: string;
@@ -30,27 +30,30 @@ export interface SpecGraph {
   links: SpecGraphLink[];
 }
 
+// The validated_by / implemented_by / decided_by selections are identical whether the
+// owner is a Statement or an AcceptanceCriterion, so the link-array shapes are shared.
+interface OwnerLinks {
+  vb?: Array<{
+    uid: string;
+    "TestChunk.file_path"?: string;
+    "TestChunk.test_name"?: string;
+    "TestChunk.start_line"?: number;
+    "TestChunk.end_line"?: number;
+    // TestChunk.coverage is single-cardinality (object); Coverage.covers is a set of
+    // File targets, each carrying the covered intervals as a `ranges` edge facet.
+    cov?: { covers?: Array<{ uid: string; "File.path"?: string; "Coverage.covers|ranges"?: string }> };
+  }>;
+  ib?: Array<{ uid: string; "CodeChunk.file_path"?: string; "CodeChunk.start_line"?: number }>;
+  db?: Array<{ uid: string; "ADR.file_path"?: string; "ADR.number"?: number }>;
+}
+
 interface GraphResult {
   q?: Array<{
     uid: string;
     "Spec.file_path"?: string;
     feature?: { uid: string; "Feature.path"?: string };
-    stmts?: Array<{
-      uid: string;
-      "Statement.text"?: string;
-      vb?: Array<{
-        uid: string;
-        "TestChunk.file_path"?: string;
-        "TestChunk.test_name"?: string;
-        "TestChunk.start_line"?: number;
-        "TestChunk.end_line"?: number;
-        // TestChunk.coverage is single-cardinality (object); Coverage.covers is a set of
-        // File targets, each carrying the covered intervals as a `ranges` edge facet.
-        cov?: { covers?: Array<{ uid: string; "File.path"?: string; "Coverage.covers|ranges"?: string }> };
-      }>;
-      ib?: Array<{ uid: string; "CodeChunk.file_path"?: string; "CodeChunk.start_line"?: number }>;
-      db?: Array<{ uid: string; "ADR.file_path"?: string; "ADR.number"?: number }>;
-    }>;
+    stmts?: Array<OwnerLinks & { uid: string; "Statement.text"?: string }>;
+    acs?: Array<OwnerLinks & { uid: string; "AcceptanceCriterion.text"?: string }>;
   }>;
 }
 
@@ -74,6 +77,39 @@ export function adrLabel(path: string): string {
   return m ? `${m[1]} (${m[2]})` : base;
 }
 
+/**
+ * Emits the validated_by / implemented_by / decided_by edges (plus the covers fan-out)
+ * for one owner — a Statement or an AcceptanceCriterion. The owner node + its in_spec
+ * link are emitted by the caller; this only walks the shared target arrays.
+ */
+function emitOwnerLinks(ownerUid: string, owner: OwnerLinks, nodes: Map<string, SpecGraphNode>, links: SpecGraphLink[]): void {
+  for (const t of owner.vb ?? []) {
+    const p = t["TestChunk.file_path"] ?? t.uid;
+    nodes.set(t.uid, { id: t.uid, type: "TestChunk", label: basename(p), path: p, line: t["TestChunk.start_line"], endLine: t["TestChunk.end_line"], detail: t["TestChunk.test_name"] });
+    links.push({ source: ownerUid, target: t.uid, kind: "validated_by" });
+    // The File this test exercises, reached via its Coverage (HAS_COVERAGE → COVERS).
+    // One File node per path (deduped); the covered intervals are the `ranges` facet.
+    for (const f of t.cov?.covers ?? []) {
+      const fp = f["File.path"] ?? f.uid;
+      const fileId = `file|${fp}`;
+      nodes.set(fileId, { id: fileId, type: "File", label: basename(fp), path: fp, detail: f["Coverage.covers|ranges"] });
+      links.push({ source: t.uid, target: fileId, kind: "covers" });
+    }
+  }
+  // implemented_by CodeChunks are aggregated to the same per-path File node for display.
+  for (const c of owner.ib ?? []) {
+    const p = c["CodeChunk.file_path"] ?? c.uid;
+    const fileId = `file|${p}`;
+    if (!nodes.has(fileId)) nodes.set(fileId, { id: fileId, type: "File", label: basename(p), path: p });
+    links.push({ source: ownerUid, target: fileId, kind: "implemented_by" });
+  }
+  for (const a of owner.db ?? []) {
+    const p = a["ADR.file_path"] ?? a.uid;
+    nodes.set(a.uid, { id: a.uid, type: "ADR", label: adrLabel(p), path: p });
+    links.push({ source: ownerUid, target: a.uid, kind: "decided_by" });
+  }
+}
+
 /** Pure: Dgraph query result → de-duplicated nodes + links. */
 export function flattenSpecGraph(data: GraphResult): SpecGraph {
   const nodes = new Map<string, SpecGraphNode>();
@@ -92,31 +128,12 @@ export function flattenSpecGraph(data: GraphResult): SpecGraph {
     for (const st of spec.stmts ?? []) {
       nodes.set(st.uid, { id: st.uid, type: "Statement", label: "", path: specPath, detail: (st["Statement.text"] ?? "").trim() });
       links.push({ source: spec.uid, target: st.uid, kind: "in_spec" });
-      for (const t of st.vb ?? []) {
-        const p = t["TestChunk.file_path"] ?? t.uid;
-        nodes.set(t.uid, { id: t.uid, type: "TestChunk", label: basename(p), path: p, line: t["TestChunk.start_line"], endLine: t["TestChunk.end_line"], detail: t["TestChunk.test_name"] });
-        links.push({ source: st.uid, target: t.uid, kind: "validated_by" });
-        // The File this test exercises, reached via its Coverage (HAS_COVERAGE → COVERS).
-        // One File node per path (deduped); the covered intervals are the `ranges` facet.
-        for (const f of t.cov?.covers ?? []) {
-          const fp = f["File.path"] ?? f.uid;
-          const fileId = `file|${fp}`;
-          nodes.set(fileId, { id: fileId, type: "File", label: basename(fp), path: fp, detail: f["Coverage.covers|ranges"] });
-          links.push({ source: t.uid, target: fileId, kind: "covers" });
-        }
-      }
-      // implemented_by CodeChunks are aggregated to the same per-path File node for display.
-      for (const c of st.ib ?? []) {
-        const p = c["CodeChunk.file_path"] ?? c.uid;
-        const fileId = `file|${p}`;
-        if (!nodes.has(fileId)) nodes.set(fileId, { id: fileId, type: "File", label: basename(p), path: p });
-        links.push({ source: st.uid, target: fileId, kind: "implemented_by" });
-      }
-      for (const a of st.db ?? []) {
-        const p = a["ADR.file_path"] ?? a.uid;
-        nodes.set(a.uid, { id: a.uid, type: "ADR", label: adrLabel(p), path: p });
-        links.push({ source: st.uid, target: a.uid, kind: "decided_by" });
-      }
+      emitOwnerLinks(st.uid, st, nodes, links);
+    }
+    for (const ac of spec.acs ?? []) {
+      nodes.set(ac.uid, { id: ac.uid, type: "AcceptanceCriterion", label: "", path: specPath, detail: (ac["AcceptanceCriterion.text"] ?? "").trim() });
+      links.push({ source: spec.uid, target: ac.uid, kind: "in_spec" });
+      emitOwnerLinks(ac.uid, ac, nodes, links);
     }
   }
   return { nodes: [...nodes.values()], links };
@@ -136,6 +153,16 @@ const GRAPH_DQL = `query specGraph($repo: string) {
       }
       ib: Statement.implemented_by { uid CodeChunk.file_path CodeChunk.start_line }
       db: Statement.decided_by { uid ADR.file_path ADR.number }
+    }
+    acs: ~AcceptanceCriterion.spec @filter(has(AcceptanceCriterion.validated_by) OR has(AcceptanceCriterion.implemented_by) OR has(AcceptanceCriterion.decided_by)) {
+      uid
+      AcceptanceCriterion.text
+      vb: AcceptanceCriterion.validated_by {
+        uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
+        cov: TestChunk.coverage { covers: Coverage.covers @facets(ranges) { uid File.path } }
+      }
+      ib: AcceptanceCriterion.implemented_by { uid CodeChunk.file_path CodeChunk.start_line }
+      db: AcceptanceCriterion.decided_by { uid ADR.file_path ADR.number }
     }
   }
 }`;

@@ -776,6 +776,30 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     expect(data.tc).toEqual([{ "TestChunk.xid": `${repo}|src/covered.test.ts` }]);
   });
 
+  it("links an AcceptanceCriterion to a TestChunk via validated_by for an inline test link", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+    createdRepo = repo;
+    const filePath = "specs/x/spec.md";
+    const content =
+      "# Title\n\n## Acceptance Criteria\n\nThe thing happens. ([validated by `it works`](src/thing.test.ts#L42))\n";
+
+    await projectSpecFile(repo, filePath, content, dgraphClient, async () => null);
+
+    const data = (await readGraph(
+      `query q($xid: string) {
+        spec(func: eq(Spec.xid, $xid)) {
+          acs: ~AcceptanceCriterion.spec {
+            AcceptanceCriterion.validated_by { TestChunk.file_path }
+          }
+        }
+      }`,
+      { $xid: `${repo}|${filePath}` },
+    )) as { spec?: { acs?: Array<{ "AcceptanceCriterion.validated_by"?: Record<string, unknown>[] }> }[] };
+
+    const criterion = data.spec?.[0]?.acs?.[0];
+    expect(criterion?.["AcceptanceCriterion.validated_by"]).toEqual([{ "TestChunk.file_path": "src/thing.test.ts" }]);
+  });
+
   it("links a statement to a cited ADR via decided_by", async () => {
     const repo = `test-proj/${randomUUID()}`;
     createdRepo = repo;
