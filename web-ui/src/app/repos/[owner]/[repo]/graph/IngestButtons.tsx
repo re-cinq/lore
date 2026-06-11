@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-const BTN: React.CSSProperties = {
+export const BTN: React.CSSProperties = {
   padding: '6px 12px',
   border: '1px solid var(--border)',
   borderRadius: 6,
