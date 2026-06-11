@@ -7,10 +7,12 @@
 // whole FILE per invocation (coverage is file-level) under buildTestReport's
 // concurrency cap, so per-`it` listing does not fork-bomb.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { descriptorsFromVitestList } from "../../dist/spec-trace/trace-descriptors.js";
+import { bindDescriptorsToSpecLinks } from "../../dist/spec-trace/bind-descriptors-to-spec-links.js";
+import { resolveTestLines } from "../../dist/spec-trace/resolve-test-lines.js";
 
 const ROOT = process.cwd(); // manifest cwd == repo root
 // Packages whose `src/` tests feed the graph. Override to narrow scope, e.g.
@@ -45,4 +47,47 @@ function listPkg(pkg) {
   }
 }
 
-process.stdout.write(JSON.stringify(PKGS.flatMap(listPkg)));
+// Read every spec markdown so inline `([validated by](test.ts#Lline))` links can
+// stamp a `spec` anchor onto the descriptor of the test they name — turning each
+// run into live `validated_by`/`violated` graph signal (ADR-023). A repo with no
+// specs/ dir simply binds nothing.
+function readSpecSources(root) {
+  let entries;
+  try {
+    entries = readdirSync(join(root, "specs"), { recursive: true, encoding: "utf-8" });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((rel) => rel.endsWith(".md"))
+    .map((rel) => ({
+      path: `specs/${rel}`.replaceAll("\\", "/"),
+      content: readFileSync(join(root, "specs", rel), "utf-8"),
+    }));
+}
+
+// `vitest list` is line-blind, so resolve each `it`'s line span from its source
+// before binding — read each test file once and stamp [startLine, endLine] onto
+// its descriptors (ADR-023).
+function resolveLines(descriptors) {
+  const byFile = new Map();
+  for (const descriptor of descriptors) {
+    const group = byFile.get(descriptor.file) ?? byFile.set(descriptor.file, []).get(descriptor.file);
+    group.push(descriptor);
+  }
+  const resolved = [];
+  for (const [file, group] of byFile) {
+    try {
+      resolved.push(...resolveTestLines(readFileSync(join(ROOT, file), "utf-8"), group));
+    } catch {
+      resolved.push(...group); // unreadable file — leave its descriptors line-blind
+    }
+  }
+  return resolved;
+}
+
+const { descriptors, ambiguous } = bindDescriptorsToSpecLinks(resolveLines(PKGS.flatMap(listPkg)), readSpecSources(ROOT));
+if (ambiguous.length > 0) {
+  console.warn(`[trace] list: ${ambiguous.length} descriptor(s) matched multiple statements — left unanchored (needs multi-anchor).`);
+}
+process.stdout.write(JSON.stringify(descriptors));
