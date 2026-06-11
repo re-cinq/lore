@@ -94,3 +94,42 @@ export function assignComponentCenters(
 export function settleTicks(nodeCount: number): number {
   return Math.min(SETTLE_CAP, Math.max(SETTLE_FLOOR, nodeCount * SETTLE_PER_NODE));
 }
+
+export interface BoundingRadiusOptions {
+  /** Pixels of radius per √element; the dominant area term. */
+  spacing?: number;
+  /** Smallest radius, so tiny graphs still get breathing room. */
+  floor?: number;
+  /** Largest radius, so a huge graph can't blow the bound off-screen. */
+  cap?: number;
+}
+
+/**
+ * The radius of the circle the whole layout is kept inside — the "radius border"
+ * that stops nodes flying off. Grows with the square root of the graph's total
+ * size (vertices + edges), since the area needed to pack the cloud scales with
+ * element count, then clamped to [floor, cap].
+ */
+export function boundingRadius(
+  vertexCount: number,
+  edgeCount: number,
+  { spacing = 40, floor = 260, cap = 1600 }: BoundingRadiusOptions = {},
+): number {
+  const raw = spacing * Math.sqrt(Math.max(0, vertexCount + edgeCount));
+  return Math.min(cap, Math.max(floor, raw));
+}
+
+/** Clamp a point to within `radius` of `center`, projecting it radially inward
+ * if it strays outside. Points already inside are returned unchanged. */
+export function clampToRadius(
+  point: { x: number; y: number },
+  center: { x: number; y: number },
+  radius: number,
+): { x: number; y: number } {
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= radius || dist === 0) return { x: point.x, y: point.y };
+  const k = radius / dist;
+  return { x: center.x + dx * k, y: center.y + dy * k };
+}

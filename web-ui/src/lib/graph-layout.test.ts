@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { connectedComponents, assignComponentCenters, settleTicks } from "./graph-layout";
+import {
+  connectedComponents,
+  assignComponentCenters,
+  settleTicks,
+  boundingRadius,
+  clampToRadius,
+} from "./graph-layout";
 
 describe("connectedComponents", () => {
   it("groups two disjoint link sets into two components", () => {
@@ -74,6 +80,38 @@ describe("assignComponentCenters", () => {
     expect(pa).not.toEqual(pb);
     expect(pb).not.toEqual(pc);
     expect(pa).not.toEqual(pc);
+  });
+});
+
+describe("boundingRadius", () => {
+  it("floors a tiny graph at the minimum radius", () => {
+    expect(boundingRadius(1, 0, { spacing: 40, floor: 260, cap: 2000 })).toBe(260);
+  });
+
+  it("scales with the square root of (vertices + edges)", () => {
+    expect(boundingRadius(96, 4, { spacing: 40, floor: 0, cap: 1e9 })).toBeCloseTo(400);
+  });
+
+  it("caps a huge graph at the maximum radius", () => {
+    expect(boundingRadius(100000, 0, { spacing: 40, floor: 260, cap: 1500 })).toBe(1500);
+  });
+});
+
+describe("clampToRadius", () => {
+  const center = { x: 0, y: 0 };
+
+  it("leaves a point inside the radius untouched", () => {
+    expect(clampToRadius({ x: 10, y: 0 }, center, 100)).toEqual({ x: 10, y: 0 });
+  });
+
+  it("pulls a point outside the radius back onto the circle", () => {
+    expect(clampToRadius({ x: 200, y: 0 }, center, 100)).toEqual({ x: 100, y: 0 });
+  });
+
+  it("clamps along the radial direction for a diagonal point", () => {
+    const c = clampToRadius({ x: 30, y: 40 }, center, 25);
+    expect(c.x).toBeCloseTo(15);
+    expect(c.y).toBeCloseTo(20);
   });
 });
 

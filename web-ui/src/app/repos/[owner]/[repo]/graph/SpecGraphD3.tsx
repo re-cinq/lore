@@ -12,7 +12,7 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedLinkStrength, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
-import { connectedComponents, assignComponentCenters, settleTicks } from '@/lib/graph-layout';
+import { connectedComponents, assignComponentCenters, settleTicks, boundingRadius, clampToRadius } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
@@ -227,9 +227,12 @@ export default function SpecGraphD3({
     // clusters ringed around the edge. Each node also gets a gentle per-component
     // pull (forceX/forceY below) toward this centre. Seeding positions here means
     // the headless pre-warm starts near equilibrium, so the first paint is settled.
+    // The whole layout is kept inside this radius (sized from the graph's V+E)
+    // so nodes can't fly off; the small-component ring hugs its inner edge.
+    const boundR = boundingRadius(data.nodes.length, data.links.length);
     const componentCenter = assignComponentCenters(
       connectedComponents(data.nodes.map((n) => n.id), data.links),
-      { width, height, smallThreshold: 10, edgeRadius: 0.4 * Math.min(width, height) },
+      { width, height, smallThreshold: 10, edgeRadius: 0.8 * boundR },
     );
     const centerOfNode = (x: string | number | SimNode) =>
       componentCenter.get(idOf(x)) ?? { x: width / 2, y: height / 2 };
@@ -258,7 +261,12 @@ export default function SpecGraphD3({
       // neighbourhoods apart.
       .force(
         'charge',
-        d3.forceManyBody<SimNode>().strength((d) => crowdedCharge(d.type === 'Feature' ? -850 : d.type === 'Spec' ? -700 : -520, degOf(d))),
+        d3
+          .forceManyBody<SimNode>()
+          .strength((d) => crowdedCharge(d.type === 'Feature' ? -850 : d.type === 'Spec' ? -700 : -520, degOf(d)))
+          // Localise repulsion to the bound's range so the central mass can't
+          // fling peripheral nodes off to infinity.
+          .distanceMax(boundR),
       )
       // Size-aware placement: pull each node toward its connected component's
       // assigned centre (big core centred, small clusters ringed at the edge)
@@ -294,6 +302,22 @@ export default function SpecGraphD3({
           n.x = safe.x;
           n.y = safe.y;
           n.vx = 0; // kill velocity so the integration step can't pull it back in
+          n.vy = 0;
+        }
+      })
+      // Radius border: clamp every free node inside the bounding circle so a
+      // force blow-up can never fling nodes off-screen. Pinned/dragged nodes
+      // (fx/fy) are exempt. Runs last so it has the final say each tick.
+      .force('bounds', () => {
+        const cx = width / 2;
+        const cy = height / 2;
+        for (const n of nodes) {
+          if (n.fx != null || n.fy != null) continue;
+          const safe = clampToRadius({ x: n.x ?? 0, y: n.y ?? 0 }, { x: cx, y: cy }, boundR);
+          if (safe.x === n.x && safe.y === n.y) continue;
+          n.x = safe.x;
+          n.y = safe.y;
+          n.vx = 0;
           n.vy = 0;
         }
       });
