@@ -4,7 +4,7 @@ import { ToolDeps } from "./deps.js";
 
 export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
   server.tool(
-    "run_task_locally",
+    "lore_run_task_locally",
     "Run a task in the background on your local machine using Claude Code in a git worktree. Returns immediately — your session continues normally while the task runs.",
     {
       description: z.string().describe("What to implement or do"),
@@ -67,7 +67,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
   );
 
   server.tool(
-    "list_local_tasks",
+    "lore_list_local_tasks",
     "List all local background tasks (running, completed, failed).",
     {},
     async () => {
@@ -88,7 +88,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
   );
 
   server.tool(
-    "cancel_local_task",
+    "lore_cancel_local_task",
     "Cancel a running local background task and clean up its worktree.",
     {
       task_id: z.string().describe("Task ID to cancel"),
@@ -112,10 +112,10 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
   );
 
   server.tool(
-    "claim_and_run_locally",
+    "lore_claim_and_run_locally",
     "Claim a pending pipeline task and run it locally in the background. The task runs in a git worktree using your Claude Code subscription (zero API cost).",
     {
-      task_id: z.string().describe("Task ID to claim (from list_pending_tasks)"),
+      task_id: z.string().describe("Task ID to claim (from lore_list_pending_tasks)"),
       model: z.string().optional().describe("Model override"),
     },
     async (args) => {
@@ -146,7 +146,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         }
 
         if (!task) {
-          return { content: [{ type: "text" as const, text: `Task ${args.task_id} not found or not in pending status. Run list_pending_tasks first.` }] };
+          return { content: [{ type: "text" as const, text: `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.` }] };
         }
 
         // Claim via API (best effort)
@@ -206,7 +206,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
   );
 
   server.tool(
-    "configure_local_runner",
+    "lore_configure_local_runner",
     "View or update local task runner settings. Controls which repos and task types the runner watches, concurrency limits, and default model.",
     {
       max_concurrent: z.number().optional().describe("Max concurrent local tasks (default: 2)"),

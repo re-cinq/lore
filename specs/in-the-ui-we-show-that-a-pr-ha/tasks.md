@@ -14,6 +14,6 @@
 
 ## Phase 3: MCP Tool + Tests
 
-- [x] T007 [DEPENDS ON: T002] Add `get_pr_status` MCP tool in `mcp-server/src/index.ts` — accepts `repo` + `pr_number`, calls GitHub API, returns `PRDetails` structure
+- [x] T007 [DEPENDS ON: T002] Add `lore_get_pr_status` MCP tool in `mcp-server/src/index.ts` — accepts `repo` + `pr_number`, calls GitHub API, returns `PRDetails` structure
 - [x] T008 [DEPENDS ON: T002] Unit tests for `getPRDetails` and `PRStatus` computation in `agent/src/__tests__/github.test.ts`
 - [x] T009 [DEPENDS ON: T004] Unit tests for `PRStatusCard` component rendering each state in `web-ui/src/app/pipeline/[id]/__tests__/PRStatusCard.test.tsx`

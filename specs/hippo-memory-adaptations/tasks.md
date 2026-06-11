@@ -29,7 +29,7 @@
 - [x] T013 Add batch UPDATE in `importanceDecayJob()` to transition unretrieved facts to `stale` after 30 days
 - [x] T014 Add `confidence` to `MemorySearchResult` and fact query SELECTs
 - [x] T015 Render confidence annotations in `context-assembly.ts` fact output
-- [x] T016 Include `confidence` in `search_memory` MCP tool response
+- [x] T016 Include `confidence` in `lore_search_memory` MCP tool response
 
 ## Phase 4: Conflict Surfacing
 

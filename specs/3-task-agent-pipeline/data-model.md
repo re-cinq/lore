@@ -175,7 +175,7 @@ running ──→ cancelled   (user cancels, running agent killed)
   `review_iteration >= 2`. The task is escalated to human
   intervention. A comment is posted on the PR with full context.
 
-- **cancelled**: A user calls `cancel_task`. If the task was
+- **cancelled**: A user calls `lore_cancel_task`. If the task was
   `running`, the pipeline attempts to stop the agent run (deleting
   the LoreTask CR / Job pod for complex tasks, best-effort). The
   task transitions to `cancelled` regardless of whether the agent

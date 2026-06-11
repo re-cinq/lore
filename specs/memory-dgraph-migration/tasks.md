@@ -66,7 +66,7 @@ test, shared fixture) → GREEN (implement the DQL) → REFACTOR.
 ## Phase 6 — Verify + cutover + decommission
 
 - [ ] T070 Typecheck clean across `shared/`, `mcp-server/`, `agent/`; full suites green with default backend.
-- [ ] T071 Manual end-to-end locally: `LORE_MEMORY_BACKEND=dgraph npm start`; exercise `write_memory`/`search_memory`/`query_graph` (incl. depth>1) against Dgraph with no Postgres `memory.*` access.
+- [ ] T071 Manual end-to-end locally: `LORE_MEMORY_BACKEND=dgraph npm start`; exercise `lore_write_memory`/`lore_search_memory`/`lore_query_graph` (incl. depth>1) against Dgraph with no Postgres `memory.*` access.
 - [ ] T072 Run the backfill Job in staging; confirm parity gates pass (exit 0).
 - [ ] T073 Enable `LORE_MEMORY_SHADOW=dgraph`; soak ~7 days; confirm divergence under threshold + counts equal after incremental backfill before flipping.
 - [ ] T074 Flip `LORE_MEMORY_BACKEND=dgraph`; keep reverse mirror-write + Postgres `memory.*` read-only for the rollback window.

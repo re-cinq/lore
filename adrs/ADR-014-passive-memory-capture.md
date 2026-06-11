@@ -11,7 +11,7 @@ domains: [memory, agents, pipeline]
 ## Context
 
 Lore's memory system had three gaps: agents skipped explicit
-`write_episode` calls (losing learnings), memories grew without
+`lore_write_episode` calls (losing learnings), memories grew without
 bounds (no eviction), and raw facts were noisy (no pattern synthesis).
 
 Inspired by agentmemory (passive hooks, importance decay, session

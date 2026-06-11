@@ -1,12 +1,12 @@
-# Feature Specification: get_pr_status MCP Tool
+# Feature Specification: lore_get_pr_status MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | get_pr_status MCP Tool         |
+| Feature | lore_get_pr_status MCP Tool         |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `get_pr_status`                |
+| Tool    | `lore_get_pr_status`                |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
@@ -22,7 +22,7 @@ without scripting the GitHub REST API.
 
 Registered via `server.tool` ([registration + handler](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L112)).
 
-- **name**: `get_pr_status`
+- **name**: `lore_get_pr_status`
 - **description** (verbatim): *"Fetch live PR state from GitHub for a given repo
   and PR number. Returns draft/open/checks-failing/changes-requested/approved/
   merged/closed status plus check results and review details."*

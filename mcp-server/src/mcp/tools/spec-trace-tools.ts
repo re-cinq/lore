@@ -8,8 +8,8 @@ export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
   const { getPool } = deps;
 
   server.tool(
-    "ingest_graph",
-    "Create spec-traceability graph ingestion tasks — one per kind (specs, adrs, tests). Each is a pipeline task (id + description, visible in the UI) the agent runner picks up (specs/adrs) or you run locally with run_task_locally. Idempotent: re-running with no changes is a no-op (only changed files re-project) unless force=true.",
+    "lore_ingest_graph",
+    "Create spec-traceability graph ingestion tasks — one per kind (specs, adrs, tests). Each is a pipeline task (id + description, visible in the UI) the agent runner picks up (specs/adrs) or you run locally with lore_run_task_locally. Idempotent: re-running with no changes is a no-op (only changed files re-project) unless force=true.",
     {
       repo: z.string().optional().describe("owner/repo. Defaults to the current repo."),
       kinds: z.array(z.enum(["specs", "adrs", "tests"])).optional().describe("Which kinds to ingest. Default: all three."),
@@ -27,10 +27,10 @@ export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
           return { content: [{ type: "text" as const, text: "Database not available — cannot create ingestion tasks." }] };
         }
         const { createIngestGraphTasks } = await import("../../features/spec-trace/ingest-graph-tasks.js");
-        const result = await createIngestGraphTasks(dbPoolRef, targetRepo, { kinds, branch: ref, createdBy: "ingest_graph", force });
+        const result = await createIngestGraphTasks(dbPoolRef, targetRepo, { kinds, branch: ref, createdBy: "lore_ingest_graph", force });
         const lines = result.created.map((t) => `  • ${t.kind}: ${t.id}`).join("\n");
         const skippedNote = result.skipped.length ? `\nSkipped (already in flight): ${result.skipped.join(", ")}` : "";
-        return { content: [{ type: "text" as const, text: `Created ${result.created.length} ingestion task(s) for ${targetRepo} (group ${result.groupId}):\n${lines}${skippedNote}\n\nRun one locally with: run_task_locally <task_id>` }] };
+        return { content: [{ type: "text" as const, text: `Created ${result.created.length} ingestion task(s) for ${targetRepo} (group ${result.groupId}):\n${lines}${skippedNote}\n\nRun one locally with: lore_run_task_locally <task_id>` }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error creating ingestion tasks: ${err.message}` }] };
       }

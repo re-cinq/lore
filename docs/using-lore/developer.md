@@ -12,32 +12,32 @@ After `install.sh`, Claude Code automatically loads org context for whatever rep
 
 Every session follows an enforced workflow so agents never re-solve a problem the org already solved:
 
-1. **`assemble_context`** runs first — loads conventions, ADRs, memories, facts, and the knowledge graph in one call.
-2. **`search_memory`** runs before planning or building — checks whether the problem was already solved, using several queries.
-3. **During work** — `search_context`, `query_graph`, and `create_pipeline_task` as needed.
-4. **Session end** — `write_memory` with a session summary, and `write_episode` for passive fact extraction.
+1. **`lore_assemble_context`** runs first — loads conventions, ADRs, memories, facts, and the knowledge graph in one call.
+2. **`lore_search_memory`** runs before planning or building — checks whether the problem was already solved, using several queries.
+3. **During work** — `lore_search_context`, `lore_query_graph`, and `lore_create_pipeline_task` as needed.
+4. **Session end** — `lore_write_memory` with a session summary, and `lore_write_episode` for passive fact extraction.
 
 In practice you just talk to Claude and the context appears:
 
 ```bash
 # Context + memory loaded automatically — Claude just knows
 claude "how do we handle auth in this repo?"
-# → assemble_context pulls CLAUDE.md, ADRs, team patterns, relevant memories
+# → lore_assemble_context pulls CLAUDE.md, ADRs, team patterns, relevant memories
 
 claude "what was the decision on database migrations?"
 # → Returns relevant ADRs with rationale and alternatives rejected
 
 # Persistent memory across sessions — shared org-wide
 claude "remember that we decided to use UUIDs for all new tables"
-# → Stored via write_memory, searchable next session by the whole org
+# → Stored via lore_write_memory, searchable next session by the whole org
 
 # Knowledge graph — entity relationships
 claude "what uses PostgreSQL in our infrastructure?"
-# → query_graph returns: auth-service, lore-agent, etc.
+# → lore_query_graph returns: auth-service, lore-agent, etc.
 
 # Delegate work to the agent pipeline (proxied to GKE)
 claude "create a runbook for database failover in re-cinq/my-service"
-# → create_pipeline_task → agent picks it up → PR created
+# → lore_create_pipeline_task → agent picks it up → PR created
 
 # Check task status
 claude "what's the status of my last pipeline task?"
@@ -46,7 +46,7 @@ claude "what's the status of my last pipeline task?"
 
 ## Run a task locally (zero API cost)
 
-Say "run locally" and Claude Code spawns a background process in an isolated git worktree on your machine. It uses your Claude Code subscription — no API credits — and your interactive session continues uninterrupted. The background process has its own MCP server instance and calls `assemble_context` and `search_memory` before it writes any code, so it starts with the same context a GKE task would.
+Say "run locally" and Claude Code spawns a background process in an isolated git worktree on your machine. It uses your Claude Code subscription — no API credits — and your interactive session continues uninterrupted. The background process has its own MCP server instance and calls `lore_assemble_context` and `lore_search_memory` before it writes any code, so it starts with the same context a GKE task would.
 
 <p align="center"><img src="../../badges/flow5-local-runner.svg" width="600" alt="Local task runner" /></p>
 
@@ -101,39 +101,39 @@ Filter any repo with `label:lore-managed` to see all Lore activity at a glance.
 
 | Tool | Category | What it does |
 |------|----------|-------------|
-| `assemble_context` | Context | Retrieve + assemble context from all sources (CLAUDE.md, ADRs, memories, facts, graph) into a token-budgeted block. Supports `cross_repo` for multi-repo context |
-| `search_context` | Context | Hybrid search (vector + keyword) across all org context |
-| `write_memory` | Memory | Store a persistent memory with optional TTL and fact extraction |
-| `read_memory` | Memory | Retrieve by key, supports version history |
-| `search_memory` | Memory | Semantic search across memories and facts. Supports `include_invalidated` for history, `graph_augment` for 1-hop graph enrichment |
-| `list_memories` | Memory | Paginated listing of active memories |
-| `delete_memory` | Memory | Soft-delete (preserved in history) |
-| `write_episode` | Memory | Ingest raw text; auto-extracts facts and updates the knowledge graph |
-| `query_graph` | Memory | Query the live knowledge graph for entities and relationships |
-| `agent_stats` | Memory | Health, memory count, episode count, facts, searches, daily breakdown |
-| `create_pipeline_task` | Pipeline | Create a task on GKE. Supports `group_id` for multi-repo coordination |
-| `run_task_locally` | Pipeline | Run a task in the background on your machine (uses your subscription) |
-| `list_local_tasks` | Pipeline | Show running/completed local background tasks |
-| `cancel_local_task` | Pipeline | Cancel a local background task |
-| `enable_task_notifications` | Pipeline | Start watching for pending tasks (statusline indicator) |
-| `list_pending_tasks` | Pipeline | Show tasks available to claim locally |
-| `claim_and_run_locally` | Pipeline | Claim a pending task and run it in the background |
-| `get_pipeline_status` | Pipeline | Task status and event timeline |
-| `list_pipeline_tasks` | Pipeline | List tasks with a status filter |
-| `cancel_task` | Pipeline | Cancel a running or pending task |
-| `retry_task` | Pipeline | Retry a failed task (creates a new task linked to the original) |
-| `get_pr_status` | Pipeline | Live GitHub PR state (checks, reviews, merge status) |
-| `sync_tasks` | Tasks | Parse `tasks.md` and sync to the pipeline database |
-| `ready_tasks` | Tasks | List unblocked tasks (all dependencies satisfied) |
-| `claim_task` | Tasks | Atomically claim a task to prevent double work |
-| `complete_task` | Tasks | Mark done, report newly unblocked dependents |
-| `get_analytics` | Repos | Task throughput and token usage by period |
-| `list_repos` | Repos | All onboarded repos with activity stats |
-| `onboard_repo` | Repos | Onboard a new repo to Lore |
-| `get_task_logs` | Pipeline | Fetch task execution logs from GCS (no UI needed) |
-| `list_task_group` | Pipeline | List all tasks in a multi-repo task group |
-| `my_usage` | Pipeline | Per-developer task and token usage (today, 7-day, 30-day) |
-| `ingest_files` | Ingest | Manually ingest files into Lore's context store |
+| `lore_assemble_context` | Context | Retrieve + assemble context from all sources (CLAUDE.md, ADRs, memories, facts, graph) into a token-budgeted block. Supports `cross_repo` for multi-repo context |
+| `lore_search_context` | Context | Hybrid search (vector + keyword) across all org context |
+| `lore_write_memory` | Memory | Store a persistent memory with optional TTL and fact extraction |
+| `lore_read_memory` | Memory | Retrieve by key, supports version history |
+| `lore_search_memory` | Memory | Semantic search across memories and facts. Supports `include_invalidated` for history, `graph_augment` for 1-hop graph enrichment |
+| `lore_list_memories` | Memory | Paginated listing of active memories |
+| `lore_delete_memory` | Memory | Soft-delete (preserved in history) |
+| `lore_write_episode` | Memory | Ingest raw text; auto-extracts facts and updates the knowledge graph |
+| `lore_query_graph` | Memory | Query the live knowledge graph for entities and relationships |
+| `lore_agent_stats` | Memory | Health, memory count, episode count, facts, searches, daily breakdown |
+| `lore_create_pipeline_task` | Pipeline | Create a task on GKE. Supports `group_id` for multi-repo coordination |
+| `lore_run_task_locally` | Pipeline | Run a task in the background on your machine (uses your subscription) |
+| `lore_list_local_tasks` | Pipeline | Show running/completed local background tasks |
+| `lore_cancel_local_task` | Pipeline | Cancel a local background task |
+| `lore_enable_task_notifications` | Pipeline | Start watching for pending tasks (statusline indicator) |
+| `lore_list_pending_tasks` | Pipeline | Show tasks available to claim locally |
+| `lore_claim_and_run_locally` | Pipeline | Claim a pending task and run it in the background |
+| `lore_get_pipeline_status` | Pipeline | Task status and event timeline |
+| `lore_list_pipeline_tasks` | Pipeline | List tasks with a status filter |
+| `lore_cancel_task` | Pipeline | Cancel a running or pending task |
+| `lore_retry_task` | Pipeline | Retry a failed task (creates a new task linked to the original) |
+| `lore_get_pr_status` | Pipeline | Live GitHub PR state (checks, reviews, merge status) |
+| `lore_sync_tasks` | Tasks | Parse `tasks.md` and sync to the pipeline database |
+| `lore_ready_tasks` | Tasks | List unblocked tasks (all dependencies satisfied) |
+| `lore_claim_task` | Tasks | Atomically claim a task to prevent double work |
+| `lore_complete_task` | Tasks | Mark done, report newly unblocked dependents |
+| `lore_get_analytics` | Repos | Task throughput and token usage by period |
+| `lore_list_repos` | Repos | All onboarded repos with activity stats |
+| `lore_onboard_repo` | Repos | Onboard a new repo to Lore |
+| `lore_get_task_logs` | Pipeline | Fetch task execution logs from GCS (no UI needed) |
+| `lore_list_task_group` | Pipeline | List all tasks in a multi-repo task group |
+| `lore_my_usage` | Pipeline | Per-developer task and token usage (today, 7-day, 30-day) |
+| `lore_ingest_files` | Ingest | Manually ingest files into Lore's context store |
 
 ---
 

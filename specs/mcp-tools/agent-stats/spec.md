@@ -1,12 +1,12 @@
-# Feature Specification: `agent_stats` MCP tool
+# Feature Specification: `lore_agent_stats` MCP tool
 
 | Field   | Value                                            |
 |---------|--------------------------------------------------|
-| Feature | `agent_stats` MCP tool                           |
+| Feature | `lore_agent_stats` MCP tool                           |
 | Status  | **Draft**                                        |
 | Created | 2026-06-10                                       |
 | Owner   | Platform Engineering                             |
-| Tool    | `agent_stats`                                    |
+| Tool    | `lore_agent_stats`                                    |
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
@@ -21,7 +21,7 @@ quiet or runaway agent means hand-writing SQL across several `memory.*` tables.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L291)).
 
-- **name**: `agent_stats`
+- **name**: `lore_agent_stats`
 - **description** (verbatim): *"Returns comprehensive agent statistics: memory
   count, last activity, snapshot count, total memories, active/invalidated
   facts, searches, shared pools, and recent episodes."*
@@ -91,4 +91,4 @@ PostgreSQL-required text, or `"Error fetching agent stats: {message}"`.
 
 - The recent-episodes preview query (composed inline in the tool handler).
 - Cross-agent / org-wide aggregation.
-- `my_usage` token accounting (separate tool).
+- `lore_my_usage` token accounting (separate tool).

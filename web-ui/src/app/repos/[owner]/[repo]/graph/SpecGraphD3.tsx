@@ -11,6 +11,9 @@ import { resolveExclusion, type Disc } from '@/lib/ring-exclusion';
 import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
+import { nodeDegrees, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
+import { settleTicks, boundingRadius, connectedComponents, rimTargets, featureSeedPositions } from '@/lib/graph-layout';
+import { nodeMatchesQuery } from '@/lib/graph-search';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
 const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
@@ -107,6 +110,16 @@ const COLORS: Record<SpecGraphNode['type'], string> = {
 };
 const RADIUS: Record<SpecGraphNode['type'], number> = { Feature: 20, Spec: 16, Section: 10, Statement: 8, TestChunk: 11, CodeChunk: 11, File: 12, ADR: 13 };
 
+// The live projection can emit a type outside the declared union; default rather
+// than index to undefined (which would NaN a radius or blank a fill).
+const radiusOf = (type: SpecGraphNode['type']): number => RADIUS[type] ?? 11;
+const colorOf = (type: SpecGraphNode['type']): string => COLORS[type] ?? '#94a3b8';
+
+// Only the structural nodes carry a persistent label; the numerous leaf
+// artefacts (File/TestChunk/CodeChunk) have long path labels that pile into
+// visual junk, so they're shown on hover/selection instead.
+const LABELED_TYPES = new Set<SpecGraphNode['type']>(['Feature', 'Spec', 'Section', 'ADR']);
+
 // Focus + context: opacity by graph distance from the selected node, fading with
 // depth (level 0 = selected, then 1/2/3 hops); past 3 hops is dimmed.
 const LEVEL_OPACITY = [1, 0.85, 0.5, 0.28];
@@ -156,11 +169,24 @@ function bfsLevels(adj: Map<string, Set<string>>, startId: string, maxDepth: num
   return level;
 }
 
-export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: string }) {
+export default function SpecGraphD3({
+  data,
+  repo,
+  searchQuery = '',
+  resetSignal = 0,
+}: {
+  data: SpecGraph;
+  repo: string;
+  searchQuery?: string;
+  resetSignal?: number;
+}) {
   const ref = useRef<SVGSVGElement>(null);
   const [selected, setSelected] = useState<SpecGraphNode | null>(null);
   const [hover, setHover] = useState<{ text: string; x: number; y: number } | null>(null);
   const selectedIdRef = useRef<string | null>(null);
+  // Set inside the main effect so the search-only effect can re-run the live
+  // filter without rebuilding the whole simulation.
+  const filterRef = useRef<(q: string) => void>(() => {});
 
   useEffect(() => {
     const el = ref.current;
@@ -173,6 +199,10 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
 
     const nodes: SimNode[] = data.nodes.map((n) => ({ ...n }));
     const links: SimLink[] = data.links.map((l) => ({ source: l.source, target: l.target, kind: l.kind }));
+    // Per-node degree feeds the anti-crowding rules in the force setup below
+    // (see lib/graph-crowding). Computed once from the raw link list.
+    const degree = nodeDegrees(data.links);
+    const degOf = (x: string | number | SimNode) => degree.get(idOf(x)) ?? 1;
     const expanded = new Map<string, ExpandData>(); // spec id → its two-ring layout
     let adj = new Map<string, Set<string>>();
     let nodeById = new Map<string, SimNode>();
@@ -190,14 +220,59 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       }
     };
     let savedExpanded: string[] = [];
+    let restoredFromStorage = false;
     try {
       const saved = parseGraphState(localStorage.getItem(STORAGE_KEY));
       if (saved) {
         applyGraphState(saved, nodes);
         savedExpanded = saved.expanded;
+        restoredFromStorage = true;
       }
     } catch {
       // unavailable/corrupt storage — start from a fresh force layout
+    }
+
+    // Plain force-directed cloud: no node type or degree is mapped to a region.
+    // Fresh layouts seed a tight phyllotaxis spiral at the viewport centre so the
+    // charge/link/collide forces fan it out from a compact start (and the pre-warm
+    // settles before first paint). The whole layout is kept inside boundR.
+    const boundR = boundingRadius(data.nodes.length, data.links.length);
+    // Small disconnected components each get their own spot on a far rim, spaced
+    // apart by angle, so they sit well outside the big central cloud with room
+    // between them instead of floating in the middle or clumping on one ring.
+    const smallComponents = connectedComponents(data.nodes.map((n) => n.id), data.links).filter((c) => c.length < 10);
+    const rim = rimTargets(smallComponents, { x: width / 2, y: height / 2 }, boundR * 1.25);
+    const isSmallComponent = (d: SimNode) => rim.has(d.id);
+    const targetOf = (d: SimNode) => rim.get(d.id) ?? { x: width / 2, y: height / 2 };
+    // Feature seed: spread the Features across the central area, bigger Features
+    // (more edges) further out so they end up more distanced from each other.
+    const featureSeed = featureSeedPositions(
+      data.nodes.filter((n) => n.type === 'Feature').map((n) => ({ id: n.id, size: degOf(n.id) })),
+      { x: width / 2, y: height / 2 },
+      boundR * 0.7,
+    );
+    if (!restoredFromStorage) {
+      const cx = width / 2;
+      const cy = height / 2;
+      nodes.forEach((n, i) => {
+        const rimSpot = rim.get(n.id);
+        const featureSpot = featureSeed.get(n.id);
+        if (rimSpot) {
+          // small component → start at its rim spot (+ small spread)
+          n.x = rimSpot.x + ((i % 5) - 2) * 8;
+          n.y = rimSpot.y + ((i % 3) - 1) * 8;
+        } else if (featureSpot) {
+          n.x = featureSpot.x;
+          n.y = featureSpot.y;
+        } else {
+          // other big-component node → tight golden spiral near centre; the
+          // strong leaf↔hub links pull it onto its Feature during the pre-warm.
+          const r = 8 * Math.sqrt(i);
+          const a = i * 2.399963229728653;
+          n.x = cx + r * Math.cos(a);
+          n.y = cy + r * Math.sin(a);
+        }
+      });
     }
 
     const linkForce = d3
@@ -205,16 +280,36 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       .id((d) => d.id)
       // Spec→Section/Statement (the expanded drill-down) gets more length so the
       // fanned-out children don't pile on top of each other.
-      .distance((l) => (l.kind === 'in_feature' ? 170 : l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 150 : 110))
-      .strength(0.35);
+      .distance((l) => (l.kind === 'in_feature' ? 76 : l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 62 : 46))
+      // d3's standard 1/min(degree): a leaf (degree 1) is held firmly to its hub
+      // so it can't drift off into a comet tail, while hub↔hub links stay loose.
+      .strength((l) => 1 / Math.max(1, Math.min(degOf(l.source), degOf(l.target))));
     const sim = d3
       .forceSimulation<SimNode>([])
+      // Heavier friction than the 0.4 default so the competing placement/charge
+      // forces settle instead of overshooting and shivering.
+      .velocityDecay(0.7)
       .force('link', linkForce)
-      .force('charge', d3.forceManyBody<SimNode>().strength((d) => (d.type === 'Feature' ? -850 : d.type === 'Spec' ? -700 : -520)))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('x', d3.forceX(width / 2).strength(0.03))
-      .force('y', d3.forceY(height / 2).strength(0.03))
-      .force('collide', d3.forceCollide<SimNode>((d) => RADIUS[d.type] + 16).strength(1))
+      // Anti-crowding rule #2: degree-scaled repulsion — hubs shove their dense
+      // neighbourhoods apart.
+      .force(
+        'charge',
+        d3
+          .forceManyBody<SimNode>()
+          .strength((d) => crowdedCharge(d.type === 'Feature' ? -560 : d.type === 'Spec' ? -460 : -340, degOf(d)))
+          // Localise repulsion to the bound's range so the central mass can't
+          // fling peripheral nodes off to infinity.
+          .distanceMax(boundR),
+      )
+      // Placement pull: the big component toward the viewport centre (compact,
+      // no node mapped to a region — links/charge/collide arrange it); each small
+      // component toward its own far-rim spot, held firmly so they stay out and
+      // apart. Pulling toward a point (not a ring) also bounds them — no circle.
+      .force('x', d3.forceX<SimNode>((d) => targetOf(d).x).strength((d) => (isSmallComponent(d) ? 0.4 : 0.12)))
+      .force('y', d3.forceY<SimNode>((d) => targetOf(d).y).strength((d) => (isSmallComponent(d) ? 0.4 : 0.12)))
+      // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
+      // their labels) reserve hard personal space and cannot pile up.
+      .force('collide', d3.forceCollide<SimNode>((d) => crowdedCollideRadius(radiusOf(d.type), degOf(d))).strength(1))
       // Spacing pass: Spec/ADR "anchor" nodes are kept clear of each other AND of
       // the open rings (resolveSpacing, gap = ANCHOR_SEPARATION); every other node
       // is just kept off the rings (resolveExclusion). Ring-owned nodes (the spec
@@ -259,6 +354,11 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       .scaleExtent([0.05, 4])
       .on('zoom', (event) => container.attr('transform', event.transform.toString()));
     svg.call(zoom).on('dblclick.zoom', null).style('cursor', 'grab');
+    // Start (and reset) at identity — d3.zoom stores its transform on the node, so
+    // a re-run (e.g. the Reset button bumping resetSignal) must clear it explicitly.
+    svg.call(zoom.transform, d3.zoomIdentity);
+    selectedIdRef.current = null;
+    setSelected(null);
     svg.on('click', () => {
       selectedIdRef.current = null;
       setSelected(null);
@@ -302,6 +402,24 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       nodeG.selectAll<SVGGElement, SimNode>('g').attr('opacity', 1);
       nodeG.selectAll<SVGCircleElement, SimNode>('circle').attr('stroke-width', 2);
       linkG.selectAll<SVGPathElement, SimLink>('path').attr('stroke-opacity', 0.5);
+    }
+
+    // Live search filter: fade every node whose label/path doesn't match the
+    // query (and any edge touching a faded node). An empty query restores the
+    // current focus/selection state.
+    function applyFilter(query: string) {
+      if (!query.trim()) {
+        if (selectedIdRef.current && adj.has(selectedIdRef.current)) highlight(selectedIdRef.current);
+        else clearHighlight();
+        return;
+      }
+      const match = (d: SimNode) => nodeMatchesQuery(d, query);
+      nodeG.selectAll<SVGGElement, SimNode>('g').attr('opacity', (d) => (match(d) ? 1 : FADED));
+      linkG.selectAll<SVGPathElement, SimLink>('path').attr('stroke-opacity', (d) => {
+        const s = nodeById.get(idOf(d.source as string | SimNode));
+        const t = nodeById.get(idOf(d.target as string | SimNode));
+        return s && t && match(s) && match(t) ? 0.5 : FADED;
+      });
     }
 
     // Hide the force-nodes/edges that the rings now represent: a pinned statement
@@ -437,7 +555,10 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
               d3
                 .drag<SVGGElement, SimNode>()
                 .on('start', (event, d) => {
-                  if (!event.active) sim.alphaTarget(0.3).restart();
+                  // Only barely re-heat the sim: enough for the dragged node's
+                  // immediate (strongly-linked) neighbours to follow, but not so
+                  // much that the whole frozen layout wakes up and far nodes drift.
+                  if (!event.active) sim.alphaTarget(0.1).restart();
                   d.fx = d.x;
                   d.fy = d.y;
                 })
@@ -453,14 +574,14 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
                 }),
             );
           g.append('circle')
-            .attr('r', (d) => RADIUS[d.type])
-            .attr('fill', (d) => COLORS[d.type])
+            .attr('r', (d) => radiusOf(d.type))
+            .attr('fill', (d) => colorOf(d.type))
             .style('stroke', 'var(--bg-surface)')
             .attr('stroke-width', 2);
-          g.filter((d) => d.label !== '')
+          g.filter((d) => d.label !== '' && LABELED_TYPES.has(d.type))
             .append('text')
             .text((d) => d.label)
-            .attr('x', (d) => RADIUS[d.type] + 4)
+            .attr('x', (d) => radiusOf(d.type) + 4)
             .attr('y', 4)
             .attr('font-size', '12px')
             .attr('font-weight', (d) => (d.type === 'Spec' ? 600 : 400))
@@ -472,7 +593,17 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       buildAdj();
       nodeById = new Map(nodes.map((n) => [n.id, n]));
       applyRingState();
-      sim.alpha(0.6).restart();
+      filterRef.current = applyFilter;
+      // Pre-warm a fresh layout headless so the first painted frame is already
+      // relaxed: sim.tick() advances the layout without firing the 'tick'
+      // renderer. Restored layouts are already settled. Either way we then start
+      // at alpha 0 — one render at the settled positions, no visible reshuffle
+      // (user gestures: drag/expand/resize re-energise the sim as before).
+      if (!restoredFromStorage) {
+        const warm = settleTicks(nodes.length);
+        for (let i = 0; i < warm; i += 1) sim.tick();
+      }
+      sim.alpha(0).restart();
       if (selectedIdRef.current && adj.has(selectedIdRef.current)) highlight(selectedIdRef.current);
     }
 
@@ -543,9 +674,13 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
     sim.on('end', saveState);
 
     const resize = new ResizeObserver(() => {
-      width = el.clientWidth || width;
-      height = el.clientHeight || height;
-      sim.force('center', d3.forceCenter(width / 2, height / 2));
+      const w = el.clientWidth || width;
+      const h = el.clientHeight || height;
+      // Ignore sub-pixel / spurious resize callbacks — re-heating the sim on
+      // every one keeps it perpetually shivering.
+      if (Math.abs(w - width) < 2 && Math.abs(h - height) < 2) return;
+      width = w;
+      height = h;
       sim.alpha(0.3).restart();
     });
     resize.observe(el);
@@ -554,7 +689,13 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       resize.disconnect();
       sim.stop();
     };
-  }, [data, repo]);
+  }, [data, repo, resetSignal]);
+
+  // Live search: re-apply the filter without rebuilding the simulation. Runs on
+  // mount (restoring the empty-query full view) and on every query change.
+  useEffect(() => {
+    filterRef.current(searchQuery);
+  }, [searchQuery]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' }}>
@@ -618,7 +759,7 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: COLORS[selected.type], display: 'inline-block' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: colorOf(selected.type), display: 'inline-block' }} />
               <strong>{selected.type}</strong>
               {selected.type === 'Spec' && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>· double-click to expand</span>}
               <button

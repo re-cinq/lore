@@ -1,12 +1,12 @@
-# Feature Specification: list_task_group MCP Tool
+# Feature Specification: lore_list_task_group MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | list_task_group MCP Tool       |
+| Feature | lore_list_task_group MCP Tool       |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `list_task_group`              |
+| Tool    | `lore_list_task_group`              |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
@@ -21,7 +21,7 @@ SQL by hand.
 
 Registered via `server.tool` ([registration + handler](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L202)).
 
-- **name**: `list_task_group`
+- **name**: `lore_list_task_group`
 - **description** (verbatim): *"List all tasks in a task group. Task groups
   coordinate multi-repo features."*
 
@@ -72,5 +72,5 @@ A group id with no tasks returns a `No tasks found` message rather than an empty
 
 ## Out of Scope
 
-- Creating a group (`group_id` on `create_pipeline_task`).
-- Cross-group / global listing (covered by `list_pipeline_tasks`).
+- Creating a group (`group_id` on `lore_create_pipeline_task`).
+- Cross-group / global listing (covered by `lore_list_pipeline_tasks`).

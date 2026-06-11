@@ -12,4 +12,4 @@
 | File | Change |
 |------|--------|
 | `mcp-server/src/memory-search.ts` | Added entity name cache (5min TTL), `detectEntities()`, `graphAugment()` for 1-hop neighbors, `graphAugmentEnabled` param on `searchMemories()`. |
-| `mcp-server/src/index.ts` | Added `graph_augment` boolean param to `search_memory` MCP tool. |
+| `mcp-server/src/index.ts` | Added `graph_augment` boolean param to `lore_search_memory` MCP tool. |

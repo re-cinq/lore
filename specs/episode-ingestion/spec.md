@@ -12,7 +12,7 @@
 ## Problem Statement
 
 Lore's memory system requires agents to explicitly call
-`write_memory` with a curated key-value pair. This is a deliberate,
+`lore_write_memory` with a curated key-value pair. This is a deliberate,
 structured operation. If an agent doesn't decide something is worth
 remembering, it's lost.
 
@@ -28,7 +28,7 @@ automatically. The agent dumps raw text; the system does the rest.
 
 ## Vision
 
-A new `write_episode` MCP tool that accepts raw, unstructured text
+A new `lore_write_episode` MCP tool that accepts raw, unstructured text
 and automatically runs the full ingestion pipeline: store the
 episode, extract facts (with temporal validity), and optionally
 update the knowledge graph. Agents write episodes as a low-effort
@@ -41,10 +41,10 @@ side effect of their work. The system handles curation.
 **Actor:** Claude Code session (via PostToolUse hook or manual)
 
 **Flow:**
-1. At session end, agent calls `write_episode` with a summary of
+1. At session end, agent calls `lore_write_episode` with a summary of
    what happened: decisions made, files changed, problems hit.
 2. System stores the episode and extracts facts.
-3. In a later session, `search_memory` returns relevant facts from
+3. In a later session, `lore_search_memory` returns relevant facts from
    that episode.
 
 **Acceptance Criteria:**
@@ -60,7 +60,7 @@ side effect of their work. The system handles curation.
 
 **Flow:**
 1. A PR review is posted with inline comments.
-2. The review text is sent to `write_episode` with
+2. The review text is sent to `lore_write_episode` with
    `source: "pr-review"` and `ref: "owner/repo#42"`.
 3. Facts like "reviewer prefers explicit error types over string
    errors in Go code" are extracted and searchable.
@@ -96,7 +96,7 @@ side effect of their work. The system handles curation.
 3. Results indicate whether the source was a memory or an episode.
 
 **Acceptance Criteria:**
-- Episode-derived facts appear in `search_memory` results.
+- Episode-derived facts appear in `lore_search_memory` results.
 - Results include `source: "episode"` to distinguish from explicit
   memories.
 - Episode metadata (source tag, ref) is available on results.
@@ -114,9 +114,9 @@ side effect of their work. The system handles curation.
 - FR-1.4: Content deduplication via content hash — writing the
   same content twice for the same agent is a no-op. ([validated by `episode-writer.test.ts:34`](agent/src/lib/episode-writer.test.ts#L34), [`episodes.test.ts:18`](agent/src/repositories/episodes.test.ts#L18))
 
-### FR-2: write_episode MCP Tool
+### FR-2: lore_write_episode MCP Tool
 
-- FR-2.1: `write_episode(content, source?, ref?, agent_id?)`
+- FR-2.1: `lore_write_episode(content, source?, ref?, agent_id?)`
   stores an episode and triggers the ingestion pipeline.
 - FR-2.2: Returns immediately after storing the episode.
   Fact extraction runs asynchronously.
@@ -138,11 +138,11 @@ side effect of their work. The system handles curation.
 
 ### FR-4: Search Integration
 
-- FR-4.1: `search_memory` queries episode-derived facts alongside
+- FR-4.1: `lore_search_memory` queries episode-derived facts alongside
   memory-derived facts (extend existing RRF merge).
 - FR-4.2: Results from episodes include `source: "episode"` and
   the episode's `ref` field.
-- FR-4.3: New optional `source` filter on `search_memory` to
+- FR-4.3: New optional `source` filter on `lore_search_memory` to
   search only episodes or only memories.
 
 ### FR-5: Episode Listing
@@ -155,7 +155,7 @@ side effect of their work. The system handles curation.
 
 ### NFR-1: Performance
 
-- `write_episode` returns in under 100ms (async extraction).
+- `lore_write_episode` returns in under 100ms (async extraction).
 - Episode fact extraction completes within 30 seconds.
 - Search latency unchanged (facts are facts regardless of source).
 
@@ -170,7 +170,7 @@ side effect of their work. The system handles curation.
 ### In Scope
 
 - `memory.episodes` table and schema migration.
-- `write_episode` and `list_episodes` MCP tools.
+- `lore_write_episode` and `list_episodes` MCP tools.
 - Fact extraction pipeline extension.
 - Search integration.
 
@@ -179,7 +179,7 @@ side effect of their work. The system handles curation.
 - Automatic episode creation from hooks (agents call explicitly
   for now — hook integration is a follow-up).
 - Episode summarization (episodes are stored as-is).
-- Streaming ingestion (batch via `write_episode` calls).
+- Streaming ingestion (batch via `lore_write_episode` calls).
 
 ## Dependencies
 
@@ -225,11 +225,11 @@ ALTER TABLE memory.facts
 
 ## Success Criteria
 
-1. An agent calls `write_episode` with raw text and facts are
+1. An agent calls `lore_write_episode` with raw text and facts are
    automatically extracted and searchable within 30 seconds.
 2. PR review comments ingested as episodes produce searchable
    coding preferences and patterns.
-3. `search_memory` returns episode-derived facts transparently
+3. `lore_search_memory` returns episode-derived facts transparently
    alongside memory-derived facts.
 4. Duplicate episode writes are idempotent.
 5. No increase in search latency from adding episode-derived

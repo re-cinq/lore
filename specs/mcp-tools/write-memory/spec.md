@@ -1,12 +1,12 @@
-# Feature Specification: `write_memory` MCP tool
+# Feature Specification: `lore_write_memory` MCP tool
 
 | Field   | Value                                            |
 |---------|--------------------------------------------------|
-| Feature | `write_memory` MCP tool                          |
+| Feature | `lore_write_memory` MCP tool                          |
 | Status  | **Draft**                                        |
 | Created | 2026-06-10                                       |
 | Owner   | Platform Engineering                             |
-| Tool    | `write_memory`                                   |
+| Tool    | `lore_write_memory`                                   |
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
@@ -24,7 +24,7 @@ file.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L40)).
 
-- **name**: `write_memory`
+- **name**: `lore_write_memory`
 - **description** (verbatim): *"Store a memory scoped to the current repo.
   Shared with every developer working in the same repo. Use for decisions,
   conventions, corrections, and session summaries."*
@@ -71,7 +71,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
 4. **Proxy path** — DB unavailable: `proxyMemory("write", { key, value,
    agent_id: agent_id || resolveAgentId(), ttl, repo })`.
    - `ok` → return `proxied.body`.
-   - `reason === "unreachable"` → `unreachableError("write_memory", detail)`
+   - `reason === "unreachable"` → `unreachableError("lore_write_memory", detail)`
      (the proxy was configured but failed all 4 attempts; refuses file
      fallback).
 5. **File fallback** — only when the proxy is `not_configured` (true offline):
@@ -108,7 +108,7 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 ## Out of Scope
 
 - Async fact extraction triggered by `extract_facts` (fire-and-forget side
-  effect; owned by the `facts` module / `write_episode` spec).
+  effect; owned by the `facts` module / `lore_write_episode` spec).
 - Embedding generation (owned by the embedding service).
 - File-backed fallback write (`writeMemoryFile`).
 - GKE-side `/api/memory` route handling (server-side).

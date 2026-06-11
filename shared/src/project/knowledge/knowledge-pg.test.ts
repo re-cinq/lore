@@ -1,4 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// No Vertex creds in tests → keyword-only retrieval path (deterministic, no net).
+vi.mock("../../embeddings/embedding-service.js", () => ({ getQueryEmbedding: async () => null }));
+
 import { PgKnowledge } from "./knowledge-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
@@ -59,7 +63,7 @@ describe("PgKnowledge", () => {
   it("assembles repo context through the relocated engine, bound to the repo", async () => {
     const sqlKeyedPool: PgPool = {
       query: async (text: string) => {
-        if (text.includes("content_type IN ('doc', 'spec')")) {
+        if (text.includes("content_type = ANY")) {
           return { rows: [{ content: "CLAUDE.md conventions", file_path: "CLAUDE.md", content_type: "doc" }] };
         }
         return { rows: [] };

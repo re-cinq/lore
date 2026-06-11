@@ -39,12 +39,12 @@ Indexes:
 - INDEX on `owner`
 - INDEX on `team`
 
-**Task 1.2: MCP tools — `list_repos`, `onboard_repo`**
+**Task 1.2: MCP tools — `lore_list_repos`, `lore_onboard_repo`**
 
 Add to `mcp-server/src/index.ts`:
-- `list_repos` — queries `lore.repos`, returns all onboarded repos
+- `lore_list_repos` — queries `lore.repos`, returns all onboarded repos
   with activity summary (task count, last ingested, onboarding status).
-- `onboard_repo` — accepts `owner/name`, triggers the onboarding
+- `lore_onboard_repo` — accepts `owner/name`, triggers the onboarding
   module, returns the onboarding PR URL.
 
 ### Day 2: Onboarding Module
@@ -56,7 +56,7 @@ New module that handles the full onboarding flow:
 1. Fetch repos from GitHub App installation via
    `GET /app/installations/{installation_id}/repositories` (octokit).
 2. Filter to repos not yet in `lore.repos`.
-3. On `onboard_repo` call:
+3. On `lore_onboard_repo` call:
    a. Create branch `lore/onboarding` on target repo.
    b. Commit onboarding files (from templates).
    c. Open PR via `pipeline-github.ts` (existing module).
@@ -94,7 +94,7 @@ New API routes in `web-ui/src/app/api/`:
 
 **Task 1.6: Integration test**
 
-Verify end-to-end: call `onboard_repo` via MCP, confirm branch +
+Verify end-to-end: call `lore_onboard_repo` via MCP, confirm branch +
 files + PR created on a test repo, confirm `lore.repos` row written.
 
 ## Phase 2: Repo-Centric UI Redesign (4 days)
@@ -247,7 +247,7 @@ End-to-end validation:
 | P2: Zero Stored Credentials | PASS | GitHub App auth via existing Workload Identity; no new credentials |
 | P3: PR Description Quality Gates | PASS | Onboarding PR includes the PR template + CI check |
 | P4: Three-Command Developer Interface | PASS | No new commands for developers; onboarding is UI-driven |
-| P5: Single Interface (Lore MCP) | PASS | `list_repos` and `onboard_repo` added to MCP |
+| P5: Single Interface (Lore MCP) | PASS | `lore_list_repos` and `lore_onboard_repo` added to MCP |
 | P6: Distributed Ownership | PASS | Onboarding PR is reviewed by repo owner, not platform |
 | P7: Architecture Decisions Are Final | PASS | Uses PostgreSQL (CNPG), GKE, existing stack |
 | P8: Schema-Per-Team Isolation | PASS | `lore` schema is platform-level, not team data |

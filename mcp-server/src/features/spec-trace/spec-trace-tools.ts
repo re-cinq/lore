@@ -1,5 +1,5 @@
 /**
- * Test-interface plumbing for the `list_tests` / `run_test` MCP tools.
+ * Test-interface plumbing for the `lore_list_tests` / `lore_run_test` MCP tools.
  * `executionRefusal` is the trust-boundary gate (test commands run only
  * in a local sandbox, never on a cluster instance with `LORE_DB_HOST`
  * set). `runTestsList` and `runTestsRun` execute the repo's manifest

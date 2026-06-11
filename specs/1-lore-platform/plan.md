@@ -175,7 +175,7 @@ dependency. All 35 tasks shipped.
 2. **MVP MCP server** (`mcp-server/src/index.ts`):
    - `get_context(team?)` — reads org + team CLAUDE.md from disk.
    - `get_adrs(domain?, status?)` — reads and filters ADR files.
-   - `search_context(query, limit?)` — naive text search across content.
+   - `lore_search_context(query, limit?)` — naive text search across content.
    - File-backed; no database required.
 
 3. **`install.sh`** — single-command install that clones the lore repo,
@@ -204,7 +204,7 @@ dependency. All 35 tasks shipped.
 **Phase 0 Verification (all passed):**
 - Install completes under 5 minutes on clean machine.
 - `get_context("payments")` returns payments team conventions.
-- `search_context("error handling")` returns relevant results.
+- `lore_search_context("error handling")` returns relevant results.
 - `lore-doctor` prints all green.
 - Full loop completes under 30 minutes; developer speaks fewer than 10 words.
 
@@ -262,15 +262,15 @@ unmaintained. Dolt was dropped due to instability. See ADR-009.
 Pipeline tasks are now PostgreSQL-backed (`pipeline.tasks` table) with
 GitHub Issues for human-visible tracking:
 - Every task creates a GitHub Issue (`lore-managed` label) on the target repo.
-- MCP tools: `create_pipeline_task`, `get_pipeline_status`,
-  `list_pipeline_tasks`, `cancel_task`, `retry_task`.
+- MCP tools: `lore_create_pipeline_task`, `lore_get_pipeline_status`,
+  `lore_list_pipeline_tasks`, `lore_cancel_task`, `lore_retry_task`.
 - Task types configured in `scripts/task-types.yaml`.
 - Per-client scoped API tokens with SHA-256 hashes (scopes: read, write,
   task, webhook, admin).
 
 #### MCP Server PostgreSQL Upgrade
 
-- `search_context` → hybrid search (HNSW vector + BM25 keyword, RRF).
+- `lore_search_context` → hybrid search (HNSW vector + BM25 keyword, RRF).
 - `get_context` → queries PostgreSQL `org_shared` + team schema.
 - `get_adrs` → queries with status/domain filters.
 - `get_file_pr_history(file_path)` added.
@@ -306,7 +306,7 @@ is not wired.
   text-embedding-005 → HNSW + BM25 → RRF ranked results.
 - Query "how does the lore platform work" returns plan.md, spec.md,
   platform CLAUDE.md as top results.
-- `search_context("ChargeBuilder idempotency")` returns code chunk
+- `lore_search_context("ChargeBuilder idempotency")` returns code chunk
   (vector) + PR (keyword).
 - PR changing CLAUDE.md to "store amounts as floats" fails CI.
 - Cloud Monitoring shows retrieval latency p99 per namespace.
@@ -325,9 +325,9 @@ Graphiti/FalkorDB.
 Persistent agent memory in the PostgreSQL `memory` schema:
 - `memories`, `memory_versions`, `facts`, `fact_conflicts`, `episodes`,
   `entities`, `edges`, `snapshots`, `shared_pools`, `audit_log`.
-- MCP tools: `write_memory`, `read_memory`, `delete_memory`,
-  `list_memories`, `search_memory`, `write_episode`, `query_graph`,
-  `assemble_context`, `agent_stats`.
+- MCP tools: `lore_write_memory`, `lore_read_memory`, `lore_delete_memory`,
+  `lore_list_memories`, `lore_search_memory`, `lore_write_episode`, `lore_query_graph`,
+  `lore_assemble_context`, `lore_agent_stats`.
 - Facts have temporal validity (`valid_from`/`valid_to`), confidence tiers
   (`verified`/`observed`/`inferred`/`stale`), and retrieval metadata.
 - Contradiction detection: cosine similarity >= 0.92 triggers automatic
@@ -341,8 +341,8 @@ Graphiti + FalkorDB were not deployed. The knowledge graph lives in
 PostgreSQL (`memory.entities` + `memory.edges`):
 - Entity types: Service, Team, Function, PR, ADR, Spec, Concept, Runbook.
 - Typed relationships: OWNS, CALLS, IMPLEMENTS, SUPERSEDES, REFERENCES, etc.
-- `query_graph` MCP tool queries the live graph.
-- Updated incrementally on every `write_episode` call via `graph.ts`.
+- `lore_query_graph` MCP tool queries the live graph.
+- Updated incrementally on every `lore_write_episode` call via `graph.ts`.
 - **Not implemented**: temporal traversal (`get_entity_history`), multi-hop
   traversal via a Graphiti MCP proxy. Graph search is flat SQL, not
   traversal-based.
@@ -389,12 +389,12 @@ No agent cooperation needed. See ADR-014.
 
 - `settings.trust.level` controls allowed task types per repo.
 - Auto-promotes after 3 successful merges at current level.
-- Repo onboarding via UI (`/onboard`) or `onboard_repo` MCP tool.
+- Repo onboarding via UI (`/onboard`) or `lore_onboard_repo` MCP tool.
 - Creates PR on target repo with CLAUDE.md, AGENTS.md, PR template, CI.
 
 **Phase 2 Verification (all passed):**
-- `search_memory` returns relevant facts from past sessions.
-- `query_graph` returns entity relationships.
+- `lore_search_memory` returns relevant facts from past sessions.
+- `lore_query_graph` returns entity relationships.
 - Gap detection opens PRs with specific drafted content.
 - Slack `/lore` command creates tasks and posts PR links back.
 
@@ -436,7 +436,7 @@ Daily jobs (5 AM decay, 5:30 AM consolidation):
 - **Fact consolidation**: groups recent facts (7-day lookback) by repo,
   calls Haiku to extract 1-3 higher-level patterns. Stored as
   `consolidated/{repo}/{timestamp}` memories.
-- **Retrieval strengthening**: every `search_memory` call asynchronously
+- **Retrieval strengthening**: every `lore_search_memory` call asynchronously
   increments `retrieval_count`, extends `half_life_days` (+2, cap 365).
   Stale facts revive to `observed` on retrieval.
 - **PR outcome feedback**: merge boosts half_life (+5) on facts that

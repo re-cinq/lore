@@ -12,6 +12,7 @@ import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } fro
 import { handleHealthz, handleRepoStatus } from "./health.js";
 import { handleIngest, handleOnboard } from "./ingest.js";
 import { handleContext } from "./context.js";
+import { handleGraph } from "./graph.js";
 import { handleGetTask, handleListTasks, handleTaskPost } from "./tasks.js";
 import { handleTaskTimeline, handleTaskByPr } from "./task-timeline.js";
 import { handleMemory, handleEpisode, handleSessionSummary } from "./memory.js";
@@ -54,6 +55,7 @@ const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/ingest", "POST"), handle: handleIngest },
   { match: exact("/api/onboard", "POST"), handle: handleOnboard },
   { match: prefix("/api/context", "GET"), handle: handleContext },
+  { match: prefix("/api/graph", "GET"), handle: handleGraph },
   { match: prefix("/api/task/", "GET"), handle: (req, res) => handleGetTask(req, res) },
   { match: pattern(/^\/api\/tasks\/[^/]+\/timeline(\?|$)/, "GET"), handle: handleTaskTimeline },
   { match: pattern(/^\/api\/tasks\/by-pr\/[^/]+\/[^/]+\/[0-9]+(\?|$)/, "GET"), handle: handleTaskByPr },

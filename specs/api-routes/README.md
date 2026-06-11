@@ -20,7 +20,7 @@ that's plumbing, not duplication.
 |-------|------|------|---------|
 | `POST /api/ingest` | [spec](ingest/spec.md) | write | Embed changed files into pgvector; fan out graph re-projection. |
 | `POST /api/onboard` | [spec](onboard/spec.md) | admin | Onboard a repo (opens a PR). |
-| `GET /api/context` | [spec](context/spec.md) | read | Assemble context (the engine behind `assemble_context`). |
+| `GET /api/context` | [spec](context/spec.md) | read | Assemble context (the engine behind `lore_assemble_context`). |
 | `GET /api/repo-status` | [spec](repo-status/spec.md) | read | Repo freshness / last-ingest / stale flag. |
 
 ## Tasks

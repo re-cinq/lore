@@ -84,7 +84,7 @@ Klaus is removed. Lore Agent cannot substitute for Klaus's reasoning capabilitie
 Replaced by:
 - **GitHub Issues** (platform tasks)
 - **Pipeline tasks** (internal Lore operations)
-- `create_pipeline_task`, `list_pipeline_tasks`, `get_pipeline_status` MCP tools
+- `lore_create_pipeline_task`, `lore_list_pipeline_tasks`, `lore_get_pipeline_status` MCP tools
 
 ### The Gap
 

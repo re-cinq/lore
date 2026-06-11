@@ -1,12 +1,12 @@
-# Feature Specification: list_pipeline_tasks MCP Tool
+# Feature Specification: lore_list_pipeline_tasks MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | list_pipeline_tasks MCP Tool   |
+| Feature | lore_list_pipeline_tasks MCP Tool   |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `list_pipeline_tasks`          |
+| Tool    | `lore_list_pipeline_tasks`          |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
@@ -21,7 +21,7 @@ must fail loudly rather than silently returning everything.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L131)).
 
-- **name**: `list_pipeline_tasks`
+- **name**: `lore_list_pipeline_tasks`
 - **description** (verbatim): *"List pipeline tasks with optional filtering by
   status. Returns tasks ordered by creation time, newest first."*
 
@@ -79,6 +79,6 @@ An invalid status string is rejected with the list of valid values.
 
 ## Out of Scope
 
-- Single-task detail + timeline (covered by `get_pipeline_status`).
-- Group-scoped listing (covered by `list_task_group`).
-- Pending-only local-claim view (covered by `list_pending_tasks`).
+- Single-task detail + timeline (covered by `lore_get_pipeline_status`).
+- Group-scoped listing (covered by `lore_list_task_group`).
+- Pending-only local-claim view (covered by `lore_list_pending_tasks`).

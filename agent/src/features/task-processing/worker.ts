@@ -619,7 +619,7 @@ const ONBOARD_STATIC_FILES: { path: string; content: string }[] = [
   {
     path: ".claude/settings.json",
     content: JSON.stringify({
-      systemPromptSuffix: "\n\nYou have access to the Lore MCP server. ALWAYS call get_context as your FIRST action before reading files or answering. Then use search_memory to check what other developers learned. Before session ends, call write_memory with a session summary.",
+      systemPromptSuffix: "\n\nYou have access to the Lore MCP server. ALWAYS call get_context as your FIRST action before reading files or answering. Then use lore_search_memory to check what other developers learned. Before session ends, call lore_write_memory with a session summary.",
     }, null, 2),
   },
   {

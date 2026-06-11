@@ -505,7 +505,7 @@ export async function spawnLocalTask(opts: {
         if (data.text) preContext = data.text;
       }
     } catch {
-      // Proceed without pre-hydration — agent will call assemble_context itself
+      // Proceed without pre-hydration — agent will call lore_assemble_context itself
     }
   }
 
@@ -513,15 +513,15 @@ export async function spawnLocalTask(opts: {
   const preambleParts: string[] = [];
   if (preContext) {
     preambleParts.push("## Pre-loaded Context\n\n" + preContext + "\n\n---\n");
-    preambleParts.push("Context was pre-loaded above. You may call assemble_context for fresh data during long tasks.");
+    preambleParts.push("Context was pre-loaded above. You may call lore_assemble_context for fresh data during long tasks.");
   } else {
     preambleParts.push("IMPORTANT: You have the Lore MCP server. Follow this workflow:");
-    preambleParts.push("1. FIRST: Call assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.");
+    preambleParts.push("1. FIRST: Call lore_assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.");
   }
   preambleParts.push(
-    "2. BEFORE CODING: Call search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.",
-    "3. DURING WORK: Use search_context for patterns. Use query_graph for entity relationships.",
-    "4. WHEN DONE: Call write_episode with a summary of what you did and any non-obvious decisions.",
+    "2. BEFORE CODING: Call lore_search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.",
+    "3. DURING WORK: Use lore_search_context for patterns. Use lore_query_graph for entity relationships.",
+    "4. WHEN DONE: Call lore_write_episode with a summary of what you did and any non-obvious decisions.",
     "",
     "Now execute the following task:",
     "",

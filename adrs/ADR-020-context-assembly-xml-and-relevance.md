@@ -10,7 +10,7 @@ domains: [mcp-server, context, retrieval, web-ui]
 
 ## Context
 
-`assemble_context` builds the context block every Claude session and task runner
+`lore_assemble_context` builds the context block every Claude session and task runner
 receives on turn 1 (see `specs/context-assembly/`). Two defects, invisible from
 the old Assembled tab, made that block lower-quality than it looked:
 
@@ -62,8 +62,10 @@ Requirements and test-linked acceptance criteria live in
 
 - **Keep markdown, just fix ranking.** Rejected — the heading/`---` collisions and
   the missing provenance are independent defects the format change fixes at once.
-- **Embedding/cosine ranking for local sources.** Deferred — `ts_rank` over the
-  existing `search_tsv` GIN index is already indexed, cheap, and a large
-  improvement over recency; embeddings can follow if needed.
+- **Embedding/cosine ranking for local sources.** Deferred here — `ts_rank` over
+  the existing `search_tsv` GIN index is already indexed, cheap, and a large
+  improvement over recency. **Superseded by ADR-022**, which adds the hybrid
+  vector+BM25 leg (and a dedicated `code` source) after keyword-only ranking
+  proved to surface false-relevant docs and never retrieve code.
 - **Separate debug endpoint.** Rejected — a `debug` flag on the same path keeps the
   preview byte-for-byte faithful to what runners receive.

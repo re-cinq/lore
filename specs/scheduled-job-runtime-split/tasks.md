@@ -13,7 +13,7 @@
 - [x] T006 Add `agent/src/job-runner.ts`: parse job name argv, `initPool()`, dispatch table mapping the 10 names → job functions in `jobs/cron/`, run, log summary, `process.exit(0|1)`; unknown name → non-zero with message
 - [x] T006a Record the run in `pipeline.job_runs` (insert `running`; update `completed` + `result_summary` / `failed` + `error`), mirroring `scheduler.ts` `runJob` — extract the shared bookkeeping into `agent/src/lib/job-run.ts` so the scheduler and runner can't diverge. Keeps CronJob runs in `/analytics`
 - [x] T006b Migration `NNNN_job_runs_log_path.sql`: `ADD COLUMN log_path TEXT` (idempotent). Add `writeJobRunLogs`/`readJobRunLogs` to `lib/log-storage.ts` (key `__job_runs__/<job>/<runId>/output.log`, redacted + CMEK). Runner tees stdout/stderr, uploads on exit, sets `log_path`
-- [x] T006c [P] `get_job_logs` MCP tool + a job-run log view (mirror `get_task_logs` / `TaskLogs.tsx`); link from `/analytics` job_runs rows to the output
+- [x] T006c [P] `lore_get_job_logs` MCP tool + a job-run log view (mirror `lore_get_task_logs` / `TaskLogs.tsx`); link from `/analytics` job_runs rows to the output
 - [x] T007 [P] Unit test `agent/src/job-runner.test.ts`: dispatch resolves each known name; unknown name is rejected (pure dispatch map, no live job execution)
 
 ## Phase 3 — Remove from in-process scheduler

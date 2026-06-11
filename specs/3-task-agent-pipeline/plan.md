@@ -71,7 +71,7 @@ specs/3-task-agent-pipeline/
 
 | Principle | Status | Notes |
 |-----------|--------|-------|
-| P1: DX-First Delivery | PASS | Pipeline tools work via MCP from day one. UI is Phase 3 -- pipeline is functional via `create_pipeline_task` MCP tool before any UI exists. |
+| P1: DX-First Delivery | PASS | Pipeline tools work via MCP from day one. UI is Phase 3 -- pipeline is functional via `lore_create_pipeline_task` MCP tool before any UI exists. |
 | P2: Zero Stored Credentials | PASS | GitHub App uses short-lived installation tokens generated per agent run. No PATs, no stored secrets. App private key injected via Workload Identity on GKE. |
 | P3: PR Quality Gates | PASS | Agent-generated PRs include structured descriptions (summary, task link, context references). PR template enforced by existing CI check. |
 | P4: Three-Command Interface | PASS | Developers do not need new commands. `delegate_task` already exists -- pipeline routes it through the task lifecycle automatically. |
@@ -233,30 +233,30 @@ Exports:
 
 Four new tools registered in `index.ts`:
 
-- `create_pipeline_task` -- create a task, returns `{ task_id, status: 'pending' }`.
-- `get_pipeline_status` -- get task status + events.
-- `list_pipeline_tasks` -- list tasks with optional status filter.
-- `cancel_task` -- cancel a task, kill running agent if active.
+- `lore_create_pipeline_task` -- create a task, returns `{ task_id, status: 'pending' }`.
+- `lore_get_pipeline_status` -- get task status + events.
+- `lore_list_pipeline_tasks` -- list tasks with optional status filter.
+- `lore_cancel_task` -- cancel a task, kill running agent if active.
 
 Full contracts in [contracts/mcp-tools.md](contracts/mcp-tools.md).
 
 **Verification:**
-- `create_pipeline_task(description: "Write a runbook for auth flow", task_type: "runbook")` returns a task ID.
-- `get_pipeline_status(task_id)` shows status progression.
-- `list_pipeline_tasks(status: "running")` returns active tasks.
-- `cancel_task(task_id)` transitions to cancelled.
+- `lore_create_pipeline_task(description: "Write a runbook for auth flow", task_type: "runbook")` returns a task ID.
+- `lore_get_pipeline_status(task_id)` shows status progression.
+- `lore_list_pipeline_tasks(status: "running")` returns active tasks.
+- `lore_cancel_task(task_id)` transitions to cancelled.
 
 #### 1.7 Phase 1 Verification
 
 End-to-end:
 1. MCP server starts, loads task type config, starts poller.
-2. Call `create_pipeline_task(description: "Write auth runbook")`.
+2. Call `lore_create_pipeline_task(description: "Write auth runbook")`.
 3. Poller picks up task within 10 seconds.
 4. Task transitions: `pending` -> `queued` -> `running`.
 5. The worker dispatches the task with correct prompt + context.
-6. `get_pipeline_status` shows running state with agent ID.
-7. `list_pipeline_tasks` shows the task.
-8. `cancel_task` stops the task.
+6. `lore_get_pipeline_status` shows running state with agent ID.
+7. `lore_list_pipeline_tasks` shows the task.
+8. `lore_cancel_task` stops the task.
 9. Concurrency: create 6 tasks, first 5 go to running, 6th stays pending.
 
 ---
@@ -354,7 +354,7 @@ End-to-end:
 5. Final review passes.
 6. Human merges the PR.
 7. Task transitions to `merged`.
-8. Full event timeline visible via `get_pipeline_status`.
+8. Full event timeline visible via `lore_get_pipeline_status`.
 9. Second test: agent fails review twice, task escalates to human with context.
 
 ---
@@ -397,7 +397,7 @@ Sections:
 #### 3.4 Integration with Agent Memory
 
 When an agent completes a task:
-1. Agent writes a memory entry via `write_memory` with key `pipeline.task.<task-id>`.
+1. Agent writes a memory entry via `lore_write_memory` with key `pipeline.task.<task-id>`.
 2. Memory value includes: what was done, files changed, context used.
 3. This memory is searchable -- future agents can find what previous agents did on similar tasks.
 
@@ -422,7 +422,7 @@ When an agent completes a task:
 | Multiple MCP server instances run pollers | High | Medium | `SELECT ... FOR UPDATE SKIP LOCKED` prevents double-pickup. Each task is claimed atomically. Multiple pollers increase throughput without conflicts. |
 | GitHub App private key compromise | High | Low | Key stored in K8s Secret, injected via Workload Identity. Rotatable via GitHub App settings. Short-lived tokens (1 hour) limit blast radius. |
 | Agent creates PR on wrong branch/repo | Medium | Low | Target repo validated against GitHub App installation repos on task creation. Branch naming enforced by convention (`agent/<task-id>/...`). |
-| Task queue grows unbounded during outage | Low | Low | `list_pipeline_tasks(status: 'pending')` visible in dashboard. Alert on pending count > 20 via existing Cloud Monitoring. |
+| Task queue grows unbounded during outage | Low | Low | `lore_list_pipeline_tasks(status: 'pending')` visible in dashboard. Alert on pending count > 20 via existing Cloud Monitoring. |
 
 ## Critical Path
 

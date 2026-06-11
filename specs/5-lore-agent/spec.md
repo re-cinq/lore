@@ -251,7 +251,7 @@ For complex tasks (implementation, refactoring), the service can spawn a headles
 
 ### FR-11: Local Task Delegation
 
-When the MCP server runs locally without database access, the `create_pipeline_task` tool proxies task creation to the GKE MCP server via HTTP. Developers can delegate work from their terminal without infrastructure.
+When the MCP server runs locally without database access, the `lore_create_pipeline_task` tool proxies task creation to the GKE MCP server via HTTP. Developers can delegate work from their terminal without infrastructure.
 
 ### FR-12: Automatic Ingest Configuration
 
@@ -282,7 +282,7 @@ The service supports an optional human approval step before processing tasks. Wh
 
 ### FR-17: Org-Wide Memory Sharing
 
-When the MCP server runs locally without database access, all memory operations (write, read, search, delete, list) are proxied to the GKE MCP server via HTTP. A developer's learnings stored via `write_memory` are immediately searchable by every other developer in the org. File-backed fallback is used only when the proxy is unreachable.
+When the MCP server runs locally without database access, all memory operations (write, read, search, delete, list) are proxied to the GKE MCP server via HTTP. A developer's learnings stored via `lore_write_memory` are immediately searchable by every other developer in the org. File-backed fallback is used only when the proxy is unreachable.
 
 ## Non-Functional Requirements
 

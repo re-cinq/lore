@@ -71,8 +71,9 @@ describe('assembleContext', () => {
   it('assembles context from repo source', async () => {
     const mockPool = {
       query: async (sql: string, params: any[]) => {
-        if (sql.includes('org_shared.chunks') && sql.includes('doc')) {
-          return { rows: [{ content: 'CLAUDE.md content here' }] };
+        const ct = params?.find(Array.isArray) as string[] | undefined;
+        if (sql.includes('org_shared.chunks') && ct?.includes('doc')) {
+          return { rows: [{ content: 'CLAUDE.md content here', file_path: 'CLAUDE.md', content_type: 'doc' }] };
         }
         return { rows: [] };
       },
@@ -106,16 +107,18 @@ describe('assembleContext', () => {
 describe('assembleContext — traceable XML output', () => {
   it('emits XML-tagged documents carrying provenance, with markdown contained', async () => {
     const mockPool = {
-      query: async (sql: string) => {
-        if (sql.includes("content_type = 'adr'")) {
-          return { rows: [{ content: '## Decision\n\nuse X', file_path: 'adrs/ADR-016.md', score: 0.83 }] };
+      query: async (sql: string, params: any[]) => {
+        const ct = params?.find(Array.isArray) as string[] | undefined;
+        if (ct?.includes('adr')) {
+          return { rows: [{ content: '## Decision\n\nuse X', file_path: 'adrs/ADR-016.md', content_type: 'adr', score: 0.83 }] };
         }
         return { rows: [] };
       },
     };
     const result = await assembleContext(mockPool, 'dark factory', 'implementation', 8000, 'o/r');
     expect(result.text).toContain('<context query="dark factory"');
-    expect(result.text).toContain('<document source="adrs/ADR-016.md" type="adr" relevance="0.83"');
+    // Scores are normalized so the top (here, only) result is 1.00.
+    expect(result.text).toContain('<document source="adrs/ADR-016.md" type="adr" relevance="1.00"');
     // The chunk's own `##` heading lives inside the tag, not colliding with the skeleton.
     expect(result.text).toContain('## Decision');
   });
@@ -123,8 +126,9 @@ describe('assembleContext — traceable XML output', () => {
   it('ranks ADRs by ts_rank against the query, not recency', async () => {
     let adrSql = '';
     const mockPool = {
-      query: async (sql: string) => {
-        if (sql.includes("content_type = 'adr'")) { adrSql = sql; }
+      query: async (sql: string, params: any[]) => {
+        const ct = params?.find(Array.isArray) as string[] | undefined;
+        if (ct?.includes('adr')) { adrSql = sql; }
         return { rows: [] };
       },
     };
@@ -133,17 +137,36 @@ describe('assembleContext — traceable XML output', () => {
     expect(adrSql).toContain('websearch_to_tsquery');
   });
 
-  it('does not pull ADRs into the repo/Conventions source', async () => {
-    let repoSql = '';
+  it('requests doc + spec for the repo/Conventions source, not adr', async () => {
+    let repoTypes: string[] | undefined;
     const mockPool = {
-      query: async (sql: string) => {
-        if (sql.includes("content_type IN ('doc', 'spec')")) { repoSql = sql; }
+      query: async (sql: string, params: any[]) => {
+        const ct = params?.find(Array.isArray) as string[] | undefined;
+        if (sql.includes('org_shared.chunks') && ct?.includes('doc')) { repoTypes = ct; }
         return { rows: [] };
       },
     };
     await assembleContext(mockPool, 'x', 'implementation', 8000, 'o/r');
-    expect(repoSql).toContain("'doc', 'spec'");
-    expect(repoSql).not.toContain("'adr'");
+    expect(repoTypes).toEqual(['doc', 'spec']);
+    expect(repoTypes).not.toContain('adr');
+  });
+
+  it('retrieves a dedicated code section for implementation tasks', async () => {
+    let codeTypes: string[] | undefined;
+    const mockPool = {
+      query: async (sql: string, params: any[]) => {
+        const ct = params?.find(Array.isArray) as string[] | undefined;
+        if (sql.includes('org_shared.chunks') && ct?.includes('code')) {
+          codeTypes = ct;
+          return { rows: [{ content: 'export function parseSettingsForm() {}', file_path: 'web-ui/src/lib/settings-form.ts', content_type: 'code', score: 0.5 }] };
+        }
+        return { rows: [] };
+      },
+    };
+    const result = await assembleContext(mockPool, 'settings form', 'implementation', 8000, 'o/r');
+    expect(codeTypes).toEqual(['code']);
+    expect(result.text).toContain('settings-form.ts');
+    expect(result.text).toContain('parseSettingsForm');
   });
 
   it('debug trace reports per-section status and omit reason for empty sources', async () => {

@@ -202,11 +202,11 @@ system is performing.
 1. Developer identifies a well-defined task that will take more
    than 20 minutes (e.g., writing integration tests).
 2. Developer asks Claude Code to delegate it to the cluster via
-   `create_pipeline_task`.
+   `lore_create_pipeline_task`.
 3. System creates a LoreTask CR; the Lore Agent schedules an
    ephemeral K8s Job pod that runs Claude Code with pre-loaded context.
 4. Developer continues local work while the Job pod runs independently.
-5. Developer checks status with `get_pipeline_status` and retrieves
+5. Developer checks status with `lore_get_pipeline_status` and retrieves
    results when ready. A GitHub Issue is automatically created and
    updated with task progress.
 
@@ -254,7 +254,7 @@ system is performing.
 3. System presents the chain of reasoning across sources.
 
 **Acceptance Criteria:**
-- `query_graph` returns multi-hop traversal results that vector
+- `lore_query_graph` returns multi-hop traversal results that vector
   search alone cannot answer.
 - Graph entities carry typed relationships (OWNS, CALLS, IMPLEMENTS,
   SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES, etc.).
@@ -306,7 +306,7 @@ pipeline tasks and GitHub Issues.
   commands and proactive guidance behavior.
 - FR-4.2: Session start hook syncs task state automatically.
 - FR-4.3: Session end hook reminds about open claimed tasks.
-- FR-4.4: `sync_tasks` MCP tool converts tasks.md task output into
+- FR-4.4: `lore_sync_tasks` MCP tool converts tasks.md task output into
   pipeline tasks with dependency relationships parsed from
   `[DEPENDS ON: ...]` annotations.
 - FR-4.5: Concurrent task claiming uses `SELECT ... FOR UPDATE SKIP
@@ -330,7 +330,7 @@ skills.
   generation → specification → task breakdown → pipeline task wiring.
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
   context, and changed files.
-- FR-5.3: Constitution generation calls `assemble_context` to
+- FR-5.3: Constitution generation calls `lore_assemble_context` to
   populate `.specify/constitution.md` with real ADRs and team
   conventions.
 - FR-5.4: Claude Code does mechanical work; developer confirms only
@@ -382,7 +382,7 @@ The system MUST provide observability into context retrieval quality.
 - FR-8.3: Gap signal feeds the autoresearch loop (ADR-010): Langfuse
   low-confidence trace queries → candidate generation → PromptFoo eval
   → PR for automated context improvement.
-- FR-8.4: `my_usage` tool exposes per-developer token consumption
+- FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
   (today / 7-day / 30-day) without leaving Claude Code.
 
 ### FR-9: Context Evaluation (Phase 1)
@@ -417,11 +417,11 @@ live knowledge graph.
 
 - FR-11.1: Knowledge graph stored in `memory.entities` and
   `memory.edges` tables in PostgreSQL. Updated incrementally on
-  every `write_episode` call via the Lore Agent fact extractor.
+  every `lore_write_episode` call via the Lore Agent fact extractor.
 - FR-11.2: Entity types: Service, Team, Function, PR, ADR, Spec,
   Concept, Runbook. Typed relationships: OWNS, CALLS, IMPLEMENTS,
   SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES.
-- FR-11.3: `query_graph(query)` MCP tool traverses the live graph
+- FR-11.3: `lore_query_graph(query)` MCP tool traverses the live graph
   for multi-hop relationship results.
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
@@ -450,7 +450,7 @@ cooperation.
   by repo and calls Haiku to extract 1-3 higher-level patterns per
   repo. Stored as `consolidated/{repo}/{timestamp}` memories.
   Minimum 5 facts required to trigger consolidation.
-- FR-12.4: Every `search_memory` call asynchronously increments
+- FR-12.4: Every `lore_search_memory` call asynchronously increments
   `retrieval_count`, updates `last_retrieved_at`, and extends
   `half_life_days` (+2, cap 365) on returned facts. Stale facts
   revive to `observed` on retrieval. Fire-and-forget — adds zero
@@ -554,7 +554,7 @@ Added 2026-04-17 per ADR-015.
 - FR-17.1: Default `assembleContext` budget: 8K tokens (down from 16K).
   Research template keeps 16K (memory-heavy queries need it).
   Implementation and review templates cap at 8K.
-- FR-17.2: The `assemble_context` MCP tool's `max_tokens` parameter
+- FR-17.2: The `lore_assemble_context` MCP tool's `max_tokens` parameter
   default is 8K. Callers may pass a higher value explicitly.
 - FR-17.3: Template-level budgets are declared in the YAML template
   files under `mcp-server/templates/`.
@@ -608,7 +608,7 @@ non-terminal states and resolve them without manual intervention.
 - Install script completes in under 5 minutes.
 - Session start context sync completes in under 5 seconds.
 - Incremental ingestion completes within 5 minutes of a merge.
-- `assemble_context` warns when repo context is stale (>7 days since
+- `lore_assemble_context` warns when repo context is stale (>7 days since
   last ingest) or missing (first-run welcome with suggested actions).
 
 ### NFR-3: Reliability
@@ -651,7 +651,7 @@ non-terminal states and resolve them without manual intervention.
 - Q: What happens when the MCP server is unreachable during a developer session? → A: Fall back to local `~/.re-cinq/lore` files with a one-time warning that search quality is degraded.
 - Q: What happens to ingested chunks when their source is deleted, reverted, or superseded? → A: Hard delete. Nightly re-index removes chunks whose source no longer exists. No stale content retained.
 - Q: How are concurrent task claims resolved? → A: `SELECT ... FOR UPDATE SKIP LOCKED` — atomic, no versioning overhead. Claim attempt on taken task returns immediate error.
-- Q: What happens when a Lore Agent Job pod fails mid-task? → A: Fail immediately, update pipeline task with error reason, post Slack notification if channel mapped. No automatic retry — developer decides whether to resubmit via `retry_task`.
+- Q: What happens when a Lore Agent Job pod fails mid-task? → A: Fail immediately, update pipeline task with error reason, post Slack notification if channel mapped. No automatic retry — developer decides whether to resubmit via `lore_retry_task`.
 - Q: How does the PR check transition from warning to enforcement mode? → A: Manual flip by platform team via CI config flag. No automatic date-based cutoff.
 
 ### Session 2026-04-13 (spec update)
@@ -659,7 +659,7 @@ non-terminal states and resolve them without manual intervention.
 - Q: Why was Beads replaced? → A: Beads + Dolt had integration complexity and `bd` CLI instability. Pipeline tasks in PostgreSQL provide atomic claiming, dependency tracking, and full audit history without an external CLI dependency. (ADR-009)
 - Q: How does the Lore Agent service run tasks? → A: A TypeScript worker in the `lore-agent` namespace polls the `pipeline.tasks` table and dispatches by task type. Simple tasks (onboard, feature-request, graph-ingest) run in-process via direct Anthropic API calls and the worker creates the PR. Complex tasks (implementation, general, review) run in ephemeral `claude-runner` Job pods created via the LoreTask CRD, with pre-run context hydration, deterministic validation, and full lifecycle control. (ADR-007)
 - Q: Why no Graphiti / FalkorDB? → A: PostgreSQL-backed live knowledge graph provides the same traversable fact store without an additional graph database dependency. (ADR-010)
-- Q: Why no OCI Context Cores? → A: DB-cached context assembly with the `assemble_context` tool provides equivalent freshness guarantees without OCI registry infrastructure overhead. (ADR-010)
+- Q: Why no OCI Context Cores? → A: DB-cached context assembly with the `lore_assemble_context` tool provides equivalent freshness guarantees without OCI registry infrastructure overhead. (ADR-010)
 
 ### Session 2026-04-20 (spec update — ADR-015 + post-April-13 work)
 
@@ -678,7 +678,7 @@ non-terminal states and resolve them without manual intervention.
 - MCP server (file-backed Phase 0, PostgreSQL/pgvector-backed Phase 1+).
 - Developer onboarding (install script, health check, settings merge).
 - Task tracking integration (pipeline tasks + GitHub Issues + AGENTS.md + hooks).
-- Spec-driven feature workflow (skills + `assemble_context`).
+- Spec-driven feature workflow (skills + `lore_assemble_context`).
 - PR quality enforcement (template + CI check).
 - Ingestion pipeline (Lore Agent service on GKE).
 - Observability (OpenTelemetry + Cloud Monitoring).

@@ -359,7 +359,7 @@ projections, no shared mutable state.
 ## Relationship to existing tables
 
 - **Postgres stays** for `pipeline.*`, `lore.*`, `{team}.chunks`. Only
-  `memory.*` moves. `assemble_context` becomes a cross-store fan-out
+  `memory.*` moves. `lore_assemble_context` becomes a cross-store fan-out
   (chunks/adrs from Postgres, memories/facts/episodes/graph from Dgraph)
   — it already fans out to its sources in parallel.
 - Embeddings are still produced by Vertex AI `text-embedding-005` (768

@@ -21,7 +21,7 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
   const trackLatency = makeTrackLatency(getPool);
 
   server.tool(
-    "search_context",
+    "lore_search_context",
     "Naive case-insensitive text search across all .md files in the context repository.",
     {
       query: z.string().describe("Search query in natural language."),
@@ -33,7 +33,7 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
       // Scopes DB search to the detected repo's context namespace.
       const detectedRepo = !team ? detectCurrentRepo() : null;
       if (detectedRepo) {
-        console.error(`[lore] search_context: auto-detected repo ${detectedRepo}`);
+        console.error(`[lore] lore_search_context: auto-detected repo ${detectedRepo}`);
       }
 
       if (await isDbAvailable()) {
@@ -92,8 +92,8 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "assemble_context",
-    "Retrieve and assemble context from all sources (repo, ADRs, memories, facts, episodes, graph) into a single structured block optimized for LLM consumption. Replaces multiple get_context + search_memory + get_adrs calls. Uses configurable templates for task-type-specific context ordering.",
+    "lore_assemble_context",
+    "Retrieve and assemble context from all sources (repo, ADRs, memories, facts, episodes, graph) into a single structured block optimized for LLM consumption. Replaces multiple get_context + lore_search_memory + get_adrs calls. Uses configurable templates for task-type-specific context ordering.",
     {
       query: z.string().describe("What context is needed (e.g. 'implement auth middleware', 'review PR #42')."),
       template: z.string().default("default").describe('Template name: "default", "review", "implementation", "research".'),
@@ -103,7 +103,7 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
       cross_repo: z.boolean().default(false).describe("Include context from other repos in the org."),
     },
     async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
-      return trackLatency('assemble_context', async () => {
+      return trackLatency('lore_assemble_context', async () => {
         try {
           const dbPoolRef = getPool();
           if (!isMemoryDbAvailable()) {

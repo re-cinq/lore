@@ -45,8 +45,8 @@ parallelizable. Test names use tested-value + expected-outcome (no
 
 ## Phase 6 — MCP tools
 
-- [ ] T360 RED: `list_tests` MCP tool runs `tests.list` in the caller's sandbox and seeds `TestChunk` (+ `VALIDATED_BY` when `spec`); a call with no trusted local sandbox returns a "run in CI/locally" error. GREEN. REFACTOR.
-- [ ] T361 `run_test` MCP tool runs `tests.run <id>` in the sandbox, upserts `Coverage`/`COVERS`, and sets `violated` on a confirmed failing validating test — identical outcome to the CI path.
+- [ ] T360 RED: `lore_list_tests` MCP tool runs `tests.list` in the caller's sandbox and seeds `TestChunk` (+ `VALIDATED_BY` when `spec`); a call with no trusted local sandbox returns a "run in CI/locally" error. GREEN. REFACTOR.
+- [ ] T361 `lore_run_test` MCP tool runs `tests.run <id>` in the sandbox, upserts `Coverage`/`COVERS`, and sets `violated` on a confirmed failing validating test — identical outcome to the CI path.
 - [ ] T362 [P] `query_trace` MCP tool answers "what validates statement X", "what does test Y cover", "what drifted/violated".
 - [ ] T363 [P] Graph writes from the MCP tools proxy through the MCP server to the backend (like memory writes); the shared GKE server refuses to execute commands.
 

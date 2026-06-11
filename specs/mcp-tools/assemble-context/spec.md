@@ -1,12 +1,12 @@
-# Feature Specification: assemble_context MCP Tool
+# Feature Specification: lore_assemble_context MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | assemble_context MCP Tool      |
+| Feature | lore_assemble_context MCP Tool      |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `assemble_context`             |
+| Tool    | `lore_assemble_context`             |
 | Module  | Context (`context-tools.ts`)   |
 | Scope   | shared                         |
 
@@ -15,7 +15,7 @@
 A Claude Code session starting a task needs conventions, ADRs, memories, facts,
 episodes, and graph relationships before it can plan or build. Fetching these
 one source at a time wastes the agent's first turns and leaves the caller to
-stitch the pieces into a coherent, token-budgeted block. `assemble_context` is
+stitch the pieces into a coherent, token-budgeted block. `lore_assemble_context` is
 the single call that retrieves from every source, orders sections by a
 task-type template, fits a token budget, and emits a provenance-tagged block an
 LLM consumes directly.
@@ -24,10 +24,10 @@ LLM consumes directly.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/context-tools.ts#L94)).
 
-- **name**: `assemble_context`
+- **name**: `lore_assemble_context`
 - **description** (verbatim): *"Retrieve and assemble context from all sources
   (repo, ADRs, memories, facts, episodes, graph) into a single structured block
-  optimized for LLM consumption. Replaces multiple get_context + search_memory +
+  optimized for LLM consumption. Replaces multiple get_context + lore_search_memory +
   get_adrs calls. Uses configurable templates for task-type-specific context
   ordering."*
 
@@ -42,7 +42,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/c
 | `agent_id` | string | no | — | Overrides the resolved agent id. |
 | `cross_repo` | boolean | no | `false` | Include context from linked repos. |
 
-The whole handler body is wrapped in `trackLatency('assemble_context', …)` which
+The whole handler body is wrapped in `trackLatency('lore_assemble_context', …)` which
 records latency + success into `memory.audit_log` and an OTEL span.
 
 ## Behavior

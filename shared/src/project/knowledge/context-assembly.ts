@@ -17,6 +17,7 @@ import { parse as parseYaml } from 'yaml';
 import { searchMemories } from './memory-search.js';
 import { computeTransferScore } from '../../memory-ranking.js';
 import { queryLiveGraph } from './live-graph.js';
+import { getQueryEmbedding } from '../../embeddings/embedding-service.js';
 import {
   dedupeItems,
   serializeContext,
@@ -28,7 +29,7 @@ import {
 
 interface TemplateSection {
   header: string;
-  source: 'repo' | 'adrs' | 'memories' | 'graph' | 'episodes' | 'rules' | 'cross_repo' | 'incidents';
+  source: 'repo' | 'code' | 'adrs' | 'memories' | 'graph' | 'episodes' | 'rules' | 'cross_repo' | 'incidents';
   priority: number;
   max_tokens?: number;
 }
@@ -151,8 +152,15 @@ function toIso(value: unknown): string | undefined {
 }
 
 /** Pack items into a token budget: keep whole items until the budget is hit,
- *  truncate the one that overflows, drop the rest. Reports whether anything was cut. */
-function fitItemsToBudget(items: SourceItem[], budgetTokens: number): { items: SourceItem[]; truncated: boolean } {
+ *  truncate the one that overflows, drop the rest. Reports whether anything was cut.
+ *  `maxPerDocTokens` caps any single document so one mega-doc (e.g. CLAUDE.md)
+ *  can't crowd out several smaller, more-relevant chunks — a capped doc is
+ *  truncated and packing continues with the next items. Exported for unit tests. */
+export function fitItemsToBudget(
+  items: SourceItem[],
+  budgetTokens: number,
+  maxPerDocTokens?: number,
+): { items: SourceItem[]; truncated: boolean } {
   const kept: SourceItem[] = [];
   let used = 0;
   let truncated = false;
@@ -162,19 +170,142 @@ function fitItemsToBudget(items: SourceItem[], budgetTokens: number): { items: S
       truncated = true;
       break;
     }
-    if (it.tokens <= remaining) {
+    const limit = Math.min(remaining, maxPerDocTokens ?? Infinity);
+    if (it.tokens <= limit) {
       kept.push(it);
       used += it.tokens;
     } else {
-      const text = truncateText(it.text, remaining);
+      const text = truncateText(it.text, limit);
       const tokens = estimateTokens(text);
       kept.push({ ...it, text, tokens });
       used += tokens;
       truncated = true;
-      break;
+      // Stop only when the BUDGET was the binding limit; a per-doc cap leaves
+      // room, so keep packing more documents.
+      if (limit >= remaining) break;
     }
   }
   return { items: kept, truncated };
+}
+
+// Common words that add no retrieval signal — dropped from the keyword leg so a
+// paragraph-length query matches on its distinctive terms, not its filler.
+const STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'to', 'for', 'of', 'in', 'on', 'at', 'by', 'with', 'from',
+  'that', 'this', 'these', 'those', 'is', 'are', 'be', 'as', 'it', 'its', 'into', 'via', 'per',
+  'add', 'use', 'using', 'new', 'update', 'edit', 'change', 'make', 'set', 'get', 'also', 'should',
+  'would', 'can', 'will', 'not', 'but', 'so', 'if', 'when', 'then', 'than', 'they', 'their',
+  'you', 'your', 'we', 'our',
+]);
+
+/** Distinctive terms from a (possibly paragraph-length) query: drop stopwords and
+ *  ≤2-char words, de-duplicate (case-insensitive), preserve order, cap at `max`.
+ *  Used to focus the keyword retrieval leg. Exported for unit tests. */
+export function extractKeyTerms(query: string, max = 12): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of query.split(/[^A-Za-z0-9_.-]+/)) {
+    const lower = raw.toLowerCase();
+    if (lower.length <= 2 || STOPWORDS.has(lower) || seen.has(lower)) continue;
+    seen.add(lower);
+    out.push(raw);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** Filter out items already emitted in an earlier section (keyed by source path,
+ *  else text), recording the survivors as seen. Keeps a document in its highest-
+ *  priority section only — no duplicate across sections. Exported for unit tests. */
+export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
+  const kept: SourceItem[] = [];
+  for (const it of items) {
+    const key = it.source_path || it.text;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(it);
+  }
+  return kept;
+}
+
+/** Rescale item scores so the top result is 1.0 and the rest are proportional
+ *  fractions — RRF/`ts_rank` raw scores are tiny (~0.02) and unreadable as a
+ *  relevance signal. No-op when there is no positive score. */
+function normalizeScores(items: SourceItem[]): SourceItem[] {
+  const max = Math.max(0, ...items.map((i) => i.score ?? 0));
+  if (max <= 0) return items;
+  return items.map((i) => (i.score != null ? { ...i, score: i.score / max } : i));
+}
+
+/** Hybrid Reciprocal-Rank-Fusion retrieval over `org_shared.chunks` for a repo +
+ *  content types. Combines a pgvector cosine leg with a BM25 (`ts_rank`) leg —
+ *  the same RRF that powers `search_context` — so a natural-language query
+ *  surfaces semantically-relevant chunks (incl. code), not just keyword overlap.
+ *  Degrades to keyword-only when no query embedding is available. Exported for
+ *  unit tests. */
+export async function hybridChunkItems(
+  pool: any,
+  query: string,
+  repo: string,
+  contentTypes: string[],
+  limit: number,
+): Promise<SourceItem[]> {
+  const embedding = await getQueryEmbedding(query);
+  // The keyword leg searches the query's distinctive terms (OR'd) rather than the
+  // whole paragraph, which would AND every filler word and match almost nothing.
+  const keywordQuery = extractKeyTerms(query).join(' OR ') || query;
+  const mapRows = (rows: any[]): SourceItem[] =>
+    normalizeScores(
+      rows.map((r) =>
+        mkItem(r.content, {
+          source_path: r.file_path,
+          content_type: r.content_type ?? contentTypes[0],
+          score: toScore(r.score),
+          ingested_at: toIso(r.ingested_at),
+        }),
+      ),
+    );
+
+  if (embedding) {
+    const embStr = `[${embedding.join(',')}]`;
+    const { rows } = await pool.query(
+      `WITH vec AS (
+         SELECT id, content, file_path, content_type, ingested_at,
+                ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
+         FROM org_shared.chunks
+         WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
+         LIMIT 20
+       ),
+       kw AS (
+         SELECT id, content, file_path, content_type, ingested_at,
+                ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $4)) DESC) AS r
+         FROM org_shared.chunks
+         WHERE repo = $1 AND content_type = ANY($3)
+           AND search_tsv @@ websearch_to_tsquery('english', $4)
+         LIMIT 20
+       )
+       SELECT COALESCE(v.content, k.content) AS content,
+              COALESCE(v.file_path, k.file_path) AS file_path,
+              COALESCE(v.content_type, k.content_type) AS content_type,
+              COALESCE(v.ingested_at, k.ingested_at) AS ingested_at,
+              (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score
+       FROM vec v FULL OUTER JOIN kw k ON v.id = k.id
+       ORDER BY score DESC LIMIT $5`,
+      [repo, embStr, contentTypes, keywordQuery, limit],
+    );
+    return mapRows(rows);
+  }
+
+  // Keyword-only fallback (no embedding available).
+  const { rows } = await pool.query(
+    `SELECT content, file_path, content_type, ingested_at,
+            ts_rank(search_tsv, websearch_to_tsquery('english', $2)) AS score
+     FROM org_shared.chunks
+     WHERE repo = $1 AND content_type = ANY($3)
+     ORDER BY score DESC NULLS LAST, ingested_at DESC LIMIT $4`,
+    [repo, keywordQuery, contentTypes, limit],
+  );
+  return mapRows(rows);
 }
 
 // ── Source fetchers ─────────────────────────────────────────────────
@@ -182,61 +313,37 @@ function fitItemsToBudget(items: SourceItem[], budgetTokens: number): { items: S
 type SourceFetcher = (pool: any, query: string, repo?: string, agentId?: string) => Promise<FetchResult>;
 
 const fetchers: Record<string, SourceFetcher> = {
-  // Repo conventions: docs + specs (ADRs are their own section now, so they are
-  // no longer pulled here — that double-counted every ADR). Relevance-ranked.
+  // Repo conventions: docs + specs (ADRs are their own section). Hybrid
+  // vector+keyword ranking so a natural-language query matches on meaning, not
+  // just term overlap (which floated unrelated web-ui specs to the top).
   async repo(pool, query, repo) {
     if (!repo) return { items: [], status: 'empty' };
     try {
-      const { rows } = await pool.query(
-        `SELECT content, file_path, content_type, ingested_at,
-                ts_rank(search_tsv, websearch_to_tsquery('english', $2)) AS score
-         FROM org_shared.chunks
-         WHERE repo = $1 AND content_type IN ('doc', 'spec')
-         ORDER BY score DESC NULLS LAST, ingested_at DESC LIMIT 5`,
-        [repo, query],
-      );
-      if (rows.length === 0) return { items: [], status: 'empty' };
-      return {
-        items: rows.map((r: any) =>
-          mkItem(r.content, {
-            source_path: r.file_path,
-            content_type: r.content_type ?? 'doc',
-            score: toScore(r.score),
-            ingested_at: toIso(r.ingested_at),
-          }),
-        ),
-        status: 'ok',
-      };
+      const items = await hybridChunkItems(pool, query, repo, ['doc', 'spec'], 5);
+      return { items, status: items.length > 0 ? 'ok' : 'empty' };
     } catch {
       return { items: [], status: 'error' };
     }
   },
 
-  // ADRs ranked by relevance to the query (was recency-only, which buried the
-  // ADR a task actually needed behind whatever was ingested most recently).
+  // Source code the task touches — previously NEVER retrieved (the repo source
+  // excluded code), so implementation tasks got zero of the files they edit.
+  async code(pool, query, repo) {
+    if (!repo) return { items: [], status: 'empty' };
+    try {
+      const items = await hybridChunkItems(pool, query, repo, ['code'], 6);
+      return { items, status: items.length > 0 ? 'ok' : 'empty' };
+    } catch {
+      return { items: [], status: 'error' };
+    }
+  },
+
+  // ADRs ranked by relevance (hybrid vector+keyword) to the query.
   async adrs(pool, query, repo) {
     if (!repo) return { items: [], status: 'empty' };
     try {
-      const { rows } = await pool.query(
-        `SELECT content, file_path, ingested_at,
-                ts_rank(search_tsv, websearch_to_tsquery('english', $2)) AS score
-         FROM org_shared.chunks
-         WHERE repo = $1 AND content_type = 'adr'
-         ORDER BY score DESC NULLS LAST, ingested_at DESC LIMIT 10`,
-        [repo, query],
-      );
-      if (rows.length === 0) return { items: [], status: 'empty' };
-      return {
-        items: rows.map((r: any) =>
-          mkItem(r.content, {
-            source_path: r.file_path,
-            content_type: 'adr',
-            score: toScore(r.score),
-            ingested_at: toIso(r.ingested_at),
-          }),
-        ),
-        status: 'ok',
-      };
+      const items = await hybridChunkItems(pool, query, repo, ['adr'], 10);
+      return { items, status: items.length > 0 ? 'ok' : 'empty' };
     } catch {
       return { items: [], status: 'error' };
     }
@@ -464,10 +571,10 @@ export async function assembleContext(
       );
       if (rows.length === 0) {
         freshnessState = 'first-run';
-        freshnessWarning = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`ingest_files\` to manually add specific files\n> 3. Call \`search_memory\` to check if others have left learnings\n\n`;
+        freshnessWarning = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`;
       } else if (!rows[0].last_ingested_at) {
         freshnessState = 'never-ingested';
-        freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`ingest_files\` or wait for the nightly reindex.\n\n`;
+        freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
       } else {
         const age = Date.now() - new Date(rows[0].last_ingested_at).getTime();
         if (age > 7 * 86400000) {
@@ -515,9 +622,12 @@ export async function assembleContext(
   let remaining = minTokens;
   const serialized: SerializedSection[] = [];
   const traceSections: TraceSection[] = [];
+  // A document is emitted in its highest-priority section only — no repeats
+  // across sections (e.g. the same episode in both Agent Memory and Recent Episodes).
+  const seenAcrossSections = new Set<string>();
 
   for (const { section, res } of ordered) {
-    const deduped = dedupeItems(res.items);
+    const deduped = dropSeen(dedupeItems(res.items), seenAcrossSections);
     const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
 
     let allocatedBudget = 0;
@@ -541,7 +651,11 @@ export async function assembleContext(
       if (allocatedBudget <= 100) {
         omitReason = 'budget exhausted';
       } else {
-        const fit = fitItemsToBudget(deduped, allocatedBudget);
+        // When documents compete for a section, cap any single one to half the
+        // budget so a mega-doc (e.g. CLAUDE.md) can't crowd out smaller, more-
+        // relevant chunks. A lone document keeps the whole budget.
+        const perDocCap = deduped.length > 1 ? Math.floor(allocatedBudget * 0.5) : undefined;
+        const fit = fitItemsToBudget(deduped, allocatedBudget, perDocCap);
         keptItems = fit.items;
         truncated = fit.truncated;
         finalTokens = keptItems.reduce((sum, i) => sum + i.tokens, 0);

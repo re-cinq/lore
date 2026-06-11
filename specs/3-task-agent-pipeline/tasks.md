@@ -40,21 +40,21 @@
 ## Phase 3: US3 — MCP Tool → Agent [P1]
 
 ### Story Goal
-Developer calls delegate_task or create_pipeline_task, agent spawns
+Developer calls delegate_task or lore_create_pipeline_task, agent spawns
 on GKE, does the work, task status trackable via MCP.
 
 ### Independent Test Criteria
-- create_pipeline_task returns task_id with status pending.
+- lore_create_pipeline_task returns task_id with status pending.
 - Poller picks up pending task within 10 seconds.
 - Agent dispatched by the Lore Agent worker with context bundle.
-- get_pipeline_status returns current status and events.
+- lore_get_pipeline_status returns current status and events.
 
 ### Tasks
 
-- [x] T008 [US3] Register create_pipeline_task MCP tool in mcp-server/src/index.ts: calls createTask from pipeline.ts, validates task_type against config
-- [x] T009 [US3] Register get_pipeline_status MCP tool in mcp-server/src/index.ts: returns task with full event history
-- [x] T010 [US3] Register list_pipeline_tasks MCP tool in mcp-server/src/index.ts: filterable by status, paginated
-- [x] T011 [US3] Register cancel_task MCP tool in mcp-server/src/index.ts: transitions to cancelled, kills agent if running
+- [x] T008 [US3] Register lore_create_pipeline_task MCP tool in mcp-server/src/index.ts: calls createTask from pipeline.ts, validates task_type against config
+- [x] T009 [US3] Register lore_get_pipeline_status MCP tool in mcp-server/src/index.ts: returns task with full event history
+- [x] T010 [US3] Register lore_list_pipeline_tasks MCP tool in mcp-server/src/index.ts: filterable by status, paginated
+- [x] T011 [US3] Register lore_cancel_task MCP tool in mcp-server/src/index.ts: transitions to cancelled, kills agent if running
 - [x] T012 [US3] Start the poller in main() function of index.ts: call pollPendingTasks every 10s after server starts, log poll cycle to console
 - [x] T013 [US3] Wire agent dispatcher in pipeline.ts: on pending task found, check concurrent count < 5, transition to queued → running, dispatch via the Lore Agent worker (in-process Anthropic API or LoreTask CR) with task prompt + context bundle
 
@@ -98,7 +98,7 @@ creates a pipeline task, agent implements the spec.
 
 ### Tasks
 
-- [x] T020 [US2] Create .github/workflows/spec-agent.yml: triggered on PR with paths .specify/**, calls create_pipeline_task via MCP HTTP endpoint with task_type=implementation and spec content as context
+- [x] T020 [US2] Create .github/workflows/spec-agent.yml: triggered on PR with paths .specify/**, calls lore_create_pipeline_task via MCP HTTP endpoint with task_type=implementation and spec content as context
 - [x] T021 [US2] Add spec-to-task context builder in pipeline.ts: when task_type=implementation, read the spec file from the PR branch and include in context bundle
 - [x] T022 [US2] Configure implementation task type in scripts/task-types.yaml: prompt template that instructs agent to read spec, generate plan, implement code, commit to branch
 
@@ -118,7 +118,7 @@ Lore context. Max 2 iterations, then escalate to human.
 
 ### Tasks
 
-- [x] T023 [US4] Create .github/workflows/agent-review.yml: triggered on PR labelled agent-generated, calls create_pipeline_task with task_type=review and PR URL as context
+- [x] T023 [US4] Create .github/workflows/agent-review.yml: triggered on PR labelled agent-generated, calls lore_create_pipeline_task with task_type=review and PR URL as context
 - [x] T024 [US4] Add review task type to scripts/task-types.yaml: prompt template instructs agent to review PR against ADRs, conventions, and original spec, post comments via GitHub API
 - [x] T025 [US4] Implement review iteration logic in pipeline.ts: track review_iteration on task, if review agent requests changes → create new implementation task (iteration+1), if iteration >= 2 → add label needs-human-review and stop
 - [x] T026 [US4] Add review comment posting to pipeline-github.ts: post review comments on PR, request changes or approve
@@ -141,7 +141,7 @@ both UI and MCP.
 
 - [x] T027 [US5] Add status listener in pipeline.ts: when the loretask-watcher reports status changes (running, completed, failed), call recordEvent and updateTaskStatus
 - [x] T028 [US5] Add PR merge detection: GitHub webhook or polling that detects when agent-generated PR is merged, transitions task to merged status
-- [x] T029 [P] [US5] Add auto-refresh to web-ui/src/app/pipeline/page.tsx: client component that polls get_pipeline_status every 5s for active tasks
+- [x] T029 [P] [US5] Add auto-refresh to web-ui/src/app/pipeline/page.tsx: client component that polls lore_get_pipeline_status every 5s for active tasks
 - [x] T030 [US5] Update web-ui/src/app/pipeline/[id]/page.tsx: show full event timeline with timestamps, failure_reason display, cancel button functionality
 
 ---
@@ -215,7 +215,7 @@ Agent B: T029-T030 (UI updates) [P]
 
 ### MVP (Phase 1-3, ~4 days)
 - T001-T013: Pipeline schema, config, poller, spawner, 4 MCP tools.
-- Gate: create_pipeline_task → agent spawns → task_status shows running.
+- Gate: lore_create_pipeline_task → agent spawns → task_status shows running.
 
 ### Phase 2 Increment (Phase 4-5, ~4 days)
 - T014-T022: PR creation, UI dashboard, spec PR trigger.

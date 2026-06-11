@@ -81,7 +81,7 @@ Claude Code environment with org context loaded in under 5 minutes.
 
 ### Tasks
 
-- [x] T016 [US1] Implement MVP MCP server with get_context, get_adrs, and search_context tools (~80 lines) in mcp-server/src/index.ts
+- [x] T016 [US1] Implement MVP MCP server with get_context, get_adrs, and lore_search_context tools (~80 lines) in mcp-server/src/index.ts
 - [x] T017 [US1] Add Dockerfile for MCP server (ghcr.io/re-cinq/lore-mcp:latest), supports stdio (local) and HTTP (:3000/mcp, GKE) transport via MCP_TRANSPORT env var
 - [x] T018 [US1] Write lore-merge-settings.js that reads existing ~/.claude/settings.json and merges platform MCP config, env vars, and hooks without overwriting personal hooks (~40 lines) in scripts/lore-merge-settings.js
 - [x] T019 [US1] Write lore-doctor.sh health check that tests MCP server, get_context, git connectivity, hooks, and skills — prints pass/fail with fix instructions in scripts/lore-doctor.sh
@@ -125,8 +125,8 @@ decision points, speaks fewer than 10 words.
 ### Tasks
 
 - [x] T025 [US3] Write lore-gen-constitution.py: calls MCP get_context + get_adrs, renders .specify/constitution.md. Handles MCP down, missing team, existing file (~60 lines) in scripts/lore-gen-constitution.py
-- [x] T026 [US3] ~~Write lore-tasks-to-beads.py~~ — superseded by ADR-009; pipeline task sync handled by `sync_tasks` MCP tool backed by PostgreSQL pipeline.tasks table
-- [x] T027 [US3] Write /lore-feature platform skill: asks one question, runs constitution → specify → tasks → sync_tasks wiring silently, confirms at 3 decision points in .claude/skills/lore-feature.md
+- [x] T026 [US3] ~~Write lore-tasks-to-beads.py~~ — superseded by ADR-009; pipeline task sync handled by `lore_sync_tasks` MCP tool backed by PostgreSQL pipeline.tasks table
+- [x] T027 [US3] Write /lore-feature platform skill: asks one question, runs constitution → specify → tasks → lore_sync_tasks wiring silently, confirms at 3 decision points in .claude/skills/lore-feature.md
 - [x] T028 [US3] Update install.sh to symlink lore-gen-constitution onto PATH in scripts/install.sh
 
 ---
@@ -173,7 +173,7 @@ ADRs. Warning mode for first 2 weeks, manual flip to enforcement.
 Platform engineering team runs the full loop end-to-end on a fresh
 machine. Fix friction. Validate Phase 0 before proceeding.
 
-- [x] T033 Run end-to-end pilot: fresh install via curl|bash, lore-gen-constitution, /speckit.specify, /speckit.tasks, sync_tasks, ready_tasks, implement one task, /lore-pr
+- [x] T033 Run end-to-end pilot: fresh install via curl|bash, lore-gen-constitution, /speckit.specify, /speckit.tasks, lore_sync_tasks, lore_ready_tasks, implement one task, /lore-pr
 - [x] T034 Fix friction discovered during pilot run — document any workarounds
 - [x] T035 Verify Phase 0 gate: full loop in < 30 minutes, lore-doctor all green, no manual context loading required
 
@@ -186,7 +186,7 @@ Developer asks Claude Code a question and gets semantically relevant
 results from PostgreSQL via hybrid vector + keyword search in < 200ms.
 
 ### Independent Test Criteria
-- `search_context("ChargeBuilder idempotency")` returns code + PR.
+- `lore_search_context("ChargeBuilder idempotency")` returns code + PR.
 - Search results return in < 200ms p99.
 - Merged PR reasoning is searchable within 5 minutes.
 
@@ -196,7 +196,7 @@ results from PostgreSQL via hybrid vector + keyword search in < 200ms.
 - [x] T037 [US6] Create schema-per-team DDL: chunks table with VECTOR(768), HNSW index, GIN index on search_tsv for payments, platform, mobile, data, org_shared schemas
 - [x] T038 [US6] Configure namespaces (mcp-servers, lore-agent, alloydb) on existing GKE cluster in europe-west1
 - [x] T039 [US6] Configure Workload Identity bindings: per-team MCP service account (read own schema + org_shared), lore-agent SA (write ingestion + read GitHub)
-- [x] T040 [US6] Upgrade MCP server search_context to hybrid PostgreSQL search: HNSW vector + BM25 keyword with Reciprocal Rank Fusion (k=60) in mcp-server/src/index.ts
+- [x] T040 [US6] Upgrade MCP server lore_search_context to hybrid PostgreSQL search: HNSW vector + BM25 keyword with Reciprocal Rank Fusion (k=60) in mcp-server/src/index.ts
 - [x] T041 [US6] Upgrade MCP server get_context and get_adrs to query PostgreSQL instead of local files in mcp-server/src/index.ts
 - [x] T042 [US6] Add get_file_pr_history tool to MCP server: queries chunks WHERE content_type=pull_request AND file_path in metadata.files_changed in mcp-server/src/index.ts
 - [x] T043 [US6] Implement degraded-mode fallback: catch PostgreSQL connection errors, fall back to local files, display one-time warning in mcp-server/src/index.ts
@@ -221,19 +221,19 @@ developer continues locally.
 > in ephemeral Job pods via the LoreTask CRD, not in-process execution.
 
 ### Independent Test Criteria
-- `create_pipeline_task` returns immediately with tracking ID and creates a GitHub Issue.
-- `get_pipeline_status` returns current state (queued/running/completed/failed/needs-human-help).
+- `lore_create_pipeline_task` returns immediately with tracking ID and creates a GitHub Issue.
+- `lore_get_pipeline_status` returns current state (queued/running/completed/failed/needs-human-help).
 - Failed task: reason stored, no auto-retry (one retry with fix prompt, then needs-human-help).
-- `list_pipeline_tasks` shows all tasks for the repo.
+- `lore_list_pipeline_tasks` shows all tasks for the repo.
 
 ### Tasks
 
 - [x] T049 [US7] Build and deploy lore-agent TypeScript service on GKE (lore-agent namespace): calls Anthropic API directly. See ADR-007.
 - [x] T050 [US7] Implement consolidated lore-agent scheduler: nightly reindex, weekly gap detection, weekly spec drift, merge-check, memory lifecycle — replaces 5 standalone K8s CronJobs
-- [x] T051 [US7] Implement create_pipeline_task MCP tool: creates DB task record + GitHub Issue (lore-managed label), routes to lore-agent via HTTP in mcp-server/src/index.ts
-- [x] T052 [US7] Implement get_pipeline_status MCP tool: reads task state from pipeline.tasks, surfaces failure reason in mcp-server/src/index.ts
-- [x] T053 [US7] Implement get_task_logs MCP tool: reads task logs from GCS (no UI needed) in mcp-server/src/index.ts
-- [x] T054 [US7] Implement list_pipeline_tasks MCP tool: lists running/completed tasks for agent in mcp-server/src/index.ts
+- [x] T051 [US7] Implement lore_create_pipeline_task MCP tool: creates DB task record + GitHub Issue (lore-managed label), routes to lore-agent via HTTP in mcp-server/src/index.ts
+- [x] T052 [US7] Implement lore_get_pipeline_status MCP tool: reads task state from pipeline.tasks, surfaces failure reason in mcp-server/src/index.ts
+- [x] T053 [US7] Implement lore_get_task_logs MCP tool: reads task logs from GCS (no UI needed) in mcp-server/src/index.ts
+- [x] T054 [US7] Implement lore_list_pipeline_tasks MCP tool: lists running/completed tasks for agent in mcp-server/src/index.ts
 - [x] T055 [US7] Update AGENTS.md with delegation guidance: when to delegate, when not to, always pass context in re-cinq/lore/AGENTS.md
 
 ### LoreTask CRD (ADR-011) — Ephemeral Job Execution
@@ -344,7 +344,7 @@ Autoresearch loop autonomously improves context quality.
 
 - [x] T065 [US9] Write ontology definition file with 8 entity types and 15 relationships in scripts/graphiti/ontology.yaml
 - [x] T066 [US9] ~~Write K8s manifests for Graphiti deployment on GKE (graphiti namespace + FalkorDB)~~ — **PERMANENTLY DEFERRED** — superseded by ADR-010; PostgreSQL live knowledge graph (`memory.entities` + `memory.edges`) replaces Graphiti. `scripts/graphiti/ontology.yaml` kept for reference only.
-- [x] T067 [US9] ~~Rewrite mcp-server/src/graph.ts as Graphiti MCP proxy~~ — **PERMANENTLY DEFERRED** — `mcp-server/src/graph.ts` queries the PostgreSQL knowledge graph directly. `query_graph` MCP tool is live; temporal traversal (`get_entity_history`) not implemented (flat SQL only, not traversal-based).
+- [x] T067 [US9] ~~Rewrite mcp-server/src/graph.ts as Graphiti MCP proxy~~ — **PERMANENTLY DEFERRED** — `mcp-server/src/graph.ts` queries the PostgreSQL knowledge graph directly. `lore_query_graph` MCP tool is live; temporal traversal (`get_entity_history`) not implemented (flat SQL only, not traversal-based).
 - [x] T068 [US9] Write Lore Agent prompt for weekly spec drift detection with VIOLATES graph edges in scripts/agent-prompts/spec-drift.md
 - [x] T069 [US9] Add optional AgentDB local cache prompt to install.sh
 - [x] T070b [US9] Write Context Core manifest schema (lore-core.json) in scripts/context-cores/manifest-schema.json
@@ -369,7 +369,7 @@ validation. See ADR-015 for full context.
 - [x] T078 Replace 5-min `reviewReactorJob` cron with business-hours safety cron (`7 7-17 * * 1-5`): implement `isBusinessHours()` in `agent/src/lib/business-hours.ts` reading `LORE_BUSINESS_HOURS_{TZ,START,END}` and `LORE_BUSINESS_DAYS` (defaults: Europe/Berlin, 9, 18, Mon-Fri). Off-hours ticks no-op.
 - [x] T079 Implement prompt caching in `agent/src/lib/prompt-cache.ts`: `getCacheControl(jobName)` returns `{type:"ephemeral",ttl:"1h"}` for jobs in `LORE_CACHE_1H_JOBS` allowlist (default: auto-curation, review_reactor, fact-extraction, graph-extraction), `{type:"ephemeral"}` (5m) otherwise. `computeCachePrefixHash` (djb2). `analyzeCacheBreak` per-job in-memory tracker.
 - [x] T080 Wire prompt caching into `callLLM` and `callLLMWithTool` in `agent/src/anthropic.ts`: two cache breakpoints per request (system block + tool schema), `response.usage.cache_*` feeds cost accounting (1.25× writes, 0.1× reads). Hash system+tools prefix per `jobName`; emit `cache hit | first-call | break:system | break:tools | break:ttl(Xm)` on log line.
-- [x] T081 Reduce `assembleContext` default token budget from 16K to 8K. Research template keeps 16K. Implementation/review/default capped at 8K. Update `assemble_context` MCP tool `max_tokens` parameter default to 8K.
+- [x] T081 Reduce `assembleContext` default token budget from 16K to 8K. Research template keeps 16K. Implementation/review/default capped at 8K. Update `lore_assemble_context` MCP tool `max_tokens` parameter default to 8K.
 - [x] T082 Add two new required env vars to Helm values and Terraform: `LORE_AGENT_URL` (mcp-server needs to fan out to agent) and `LORE_AGENT_INTERNAL_TOKEN` (shared secret for mcp-server → agent calls). Document in `secrets.tfvars.example`.
 
 ---

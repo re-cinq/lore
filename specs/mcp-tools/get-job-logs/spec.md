@@ -1,12 +1,12 @@
-# Feature Specification: get_job_logs MCP Tool
+# Feature Specification: lore_get_job_logs MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | get_job_logs MCP Tool          |
+| Feature | lore_get_job_logs MCP Tool          |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `get_job_logs`                 |
+| Tool    | `lore_get_job_logs`                 |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
@@ -21,7 +21,7 @@ that full log by `(job_name, run_id)` without cluster access.
 
 Registered via `server.tool` ([registration + handler](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L392)).
 
-- **name**: `get_job_logs`
+- **name**: `lore_get_job_logs`
 - **description** (verbatim): *"Fetch full stdout/stderr of a scheduled batch-job
   run (K8s CronJob pod). The log_path is recorded in pipeline.job_runs by the
   agent's job-runner."*
@@ -79,5 +79,5 @@ In stdio mode the request proxies to the API with the job name and run id.
 
 ## Out of Scope
 
-- Per-task agent logs (covered by `get_task_logs`).
+- Per-task agent logs (covered by `lore_get_task_logs`).
 - Job scheduling / run-row creation (the agent job-runner owns that).
