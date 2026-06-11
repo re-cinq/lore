@@ -21,6 +21,14 @@ sections:
     priority: 1
     max_tokens: 3000
 
+  # Spec statements + tests coupled to this repo's code, ranked by collision
+  # signal (violated > drifted > untested). Deterministic; empty when the
+  # spec-traceability graph (LORE_DGRAPH_HTTP) is not wired.
+  - header: "Coupled Spec & Tests"
+    source: coupling
+    priority: 2
+    max_tokens: 2500
+
   - header: "Agent Memory"
     source: memories
     priority: 2

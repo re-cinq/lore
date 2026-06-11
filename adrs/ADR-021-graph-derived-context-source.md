@@ -60,6 +60,17 @@ Requirements and test-linked acceptance criteria live in
 - **Accepted:** assembly gains one Dgraph read (skippable via the null-port seam);
   the ADR-020 `ts_rank` chunk sources remain the breadth — this adds depth.
 
+## Status
+
+**Wired (fail-soft), pending the A/B gate.** `fetchCouplingSource` →
+`fetchGraphContext` → `assembleGraphContext` is now a `coupling` source in the
+`implementation` (P2) and `review` (P1) templates; `/api/context` builds the
+Dgraph client via `createDgraphClient(process.env)` and threads it into
+`assembleContext`. With `LORE_DGRAPH_HTTP` unset (today's cluster) the source
+returns `disabled` / empty, so it is inert in production until the graph
+projection is populated — which is also when the §4 A/B (rejection-rate /
+review-comment count) should run before the section is given real budget weight.
+
 ## Alternatives considered
 
 - **Fold into ADR-020.** Rejected — a new retrieval *source* with a new dependency
