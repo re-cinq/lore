@@ -286,6 +286,9 @@ export default function SpecGraphD3({
       .strength((l) => 1 / Math.max(1, Math.min(degOf(l.source), degOf(l.target))));
     const sim = d3
       .forceSimulation<SimNode>([])
+      // Heavier friction than the 0.4 default so the competing placement/charge
+      // forces settle instead of overshooting and shivering.
+      .velocityDecay(0.7)
       .force('link', linkForce)
       // Anti-crowding rule #2: degree-scaled repulsion — hubs shove their dense
       // neighbourhoods apart.
@@ -668,8 +671,13 @@ export default function SpecGraphD3({
     sim.on('end', saveState);
 
     const resize = new ResizeObserver(() => {
-      width = el.clientWidth || width;
-      height = el.clientHeight || height;
+      const w = el.clientWidth || width;
+      const h = el.clientHeight || height;
+      // Ignore sub-pixel / spurious resize callbacks — re-heating the sim on
+      // every one keeps it perpetually shivering.
+      if (Math.abs(w - width) < 2 && Math.abs(h - height) < 2) return;
+      width = w;
+      height = h;
       sim.alpha(0.3).restart();
     });
     resize.observe(el);
