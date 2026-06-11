@@ -142,15 +142,18 @@ which version was current at that point in time.
 ## R6: Agent Identity — UUID in ~/.lore/agent-id
 
 **Decision:** Generate a random UUID on first use and store it in
-`~/.lore/agent-id`. Klaus agents use their pod name, which is
-already unique per instance.
+`~/.lore/agent-id`. Agent identity resolves from the `LORE_AGENT_ID`
+env var when set, falling back to this file or an auto-generated UUID
+for local use. Runner and Job pods set `LORE_AGENT_ID` to their
+Kubernetes pod name, which is already unique per instance.
 
 **Rationale:** A file-based UUID is stable across sessions, requires
 no external dependencies, and works offline. The file survives shell
 restarts, editor changes, and MCP reconnections. It is simple to
 inspect (`cat ~/.lore/agent-id`) and simple to reset (delete the
-file). Klaus pod names are assigned by Kubernetes and are unique
-within the cluster.
+file). Pod names are assigned by Kubernetes and are unique within the
+cluster, so using the pod name as the agent ID gives runner pods a
+stable, collision-free identity without a separate registry.
 
 **Alternatives considered:**
 - GitHub username (via `gh` CLI): requires `gh` to be installed and

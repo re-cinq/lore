@@ -78,7 +78,7 @@ gcloud auth for local dev.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
 - `terraform/modules/gke-mcp/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every UI deploy by a `pre-install,pre-upgrade` Helm hook Job (`ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on both deploy paths (CI `helm upgrade` and terraform `helm_release.lore_ui`). Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
-- `scripts/klaus-prompts/` — legacy prompt templates (migration complete per ADR-007; kept only for reference, not loaded at runtime)
+- `scripts/agent-prompts/` — Lore Agent prompt templates for scheduled jobs (gap detection, spec drift, autoresearch, nightly reindex, etc.); ingested as context, not loaded as runtime code
 - `.claude/skills/` — platform skills (lore-feature, lore-pr, lore-init)
 - `terraform/modules/` — K8s manifests, Helm charts (lore-db, gke-mcp)
 - `docker/claude-runner/` — ephemeral container for Claude Code execution in K8s Jobs

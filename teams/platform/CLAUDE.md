@@ -4,14 +4,14 @@
 
 Building and validating the Lore platform. Phase 0 is validated
 (install, MCP server, skills, hooks all working). Phase 1 infra
-is deployed (PostgreSQL, Klaus, MCP server on GKE). Currently
+is deployed (PostgreSQL, Lore Agent service, MCP server on GKE). Currently
 working on embedding pipeline and testing the full stack end-to-end.
 
 ## What We Own
 
 - MCP server code and deployment
 - Install script and developer onboarding
-- Klaus agent prompts and scheduling
+- Lore Agent prompts and scheduling
 - Infrastructure (CNPG, Helm charts, CronJobs)
 - PromptFoo eval suites
 - Platform skills (/lore-feature, /lore-pr, /lore-init)

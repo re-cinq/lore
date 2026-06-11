@@ -11,7 +11,7 @@ on:
       - 'specs/**'
       - 'teams/**'
       - '.specify/**'
-      - 'scripts/klaus-prompts/**'
+      - 'scripts/agent-prompts/**'
       - '.claude/skills/**'
 
 jobs:
