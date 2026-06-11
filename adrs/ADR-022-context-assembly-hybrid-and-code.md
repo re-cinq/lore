@@ -43,8 +43,24 @@ deferral was the dominant quality problem:
    document may exceed half the section budget; a lone document keeps the whole
    budget. One mega-doc can no longer crowd out smaller, more-relevant chunks.
 
+### Phase 2 refinements
+
+4. **Keyword leg searches distinctive terms.** A paragraph query is reduced to its
+   key terms (stopwords/short words dropped) before the keyword leg, so filler
+   words don't dominate ranking — the vector leg already carries the full query.
+5. **Normalized relevance.** Scores are rescaled so the top result is `1.00` and
+   the rest are proportional fractions; raw RRF/`ts_rank` scores (~0.02) were
+   unreadable and identical-looking across a section.
+6. **No cross-section duplication.** A document is emitted in its highest-priority
+   section only (the same episode no longer appears in both Agent Memory and
+   Recent Episodes).
+7. **Repo-scoped graph.** `queryLiveGraph` drops the `repo IS NULL` clause, so a
+   repo-scoped query never returns another repo's (or unattributed) entities; the
+   graph section is also demoted in the implementation template (entity-level, not
+   file-level).
+
 Requirements + test-linked acceptance criteria: `specs/context-assembly/spec.md`
-(FR-2.7, FR-2.9, FR-4.5).
+(FR-2.7, FR-2.9–2.13, FR-4.5).
 
 ## Consequences
 

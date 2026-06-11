@@ -117,7 +117,8 @@ describe('assembleContext — traceable XML output', () => {
     };
     const result = await assembleContext(mockPool, 'dark factory', 'implementation', 8000, 'o/r');
     expect(result.text).toContain('<context query="dark factory"');
-    expect(result.text).toContain('<document source="adrs/ADR-016.md" type="adr" relevance="0.83"');
+    // Scores are normalized so the top (here, only) result is 1.00.
+    expect(result.text).toContain('<document source="adrs/ADR-016.md" type="adr" relevance="1.00"');
     // The chunk's own `##` heading lives inside the tag, not colliding with the skeleton.
     expect(result.text).toContain('## Decision');
   });

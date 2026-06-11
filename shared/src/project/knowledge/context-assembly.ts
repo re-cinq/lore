@@ -188,6 +188,55 @@ export function fitItemsToBudget(
   return { items: kept, truncated };
 }
 
+// Common words that add no retrieval signal — dropped from the keyword leg so a
+// paragraph-length query matches on its distinctive terms, not its filler.
+const STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'to', 'for', 'of', 'in', 'on', 'at', 'by', 'with', 'from',
+  'that', 'this', 'these', 'those', 'is', 'are', 'be', 'as', 'it', 'its', 'into', 'via', 'per',
+  'add', 'use', 'using', 'new', 'update', 'edit', 'change', 'make', 'set', 'get', 'also', 'should',
+  'would', 'can', 'will', 'not', 'but', 'so', 'if', 'when', 'then', 'than', 'they', 'their',
+  'you', 'your', 'we', 'our',
+]);
+
+/** Distinctive terms from a (possibly paragraph-length) query: drop stopwords and
+ *  ≤2-char words, de-duplicate (case-insensitive), preserve order, cap at `max`.
+ *  Used to focus the keyword retrieval leg. Exported for unit tests. */
+export function extractKeyTerms(query: string, max = 12): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of query.split(/[^A-Za-z0-9_.-]+/)) {
+    const lower = raw.toLowerCase();
+    if (lower.length <= 2 || STOPWORDS.has(lower) || seen.has(lower)) continue;
+    seen.add(lower);
+    out.push(raw);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** Filter out items already emitted in an earlier section (keyed by source path,
+ *  else text), recording the survivors as seen. Keeps a document in its highest-
+ *  priority section only — no duplicate across sections. Exported for unit tests. */
+export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
+  const kept: SourceItem[] = [];
+  for (const it of items) {
+    const key = it.source_path || it.text;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(it);
+  }
+  return kept;
+}
+
+/** Rescale item scores so the top result is 1.0 and the rest are proportional
+ *  fractions — RRF/`ts_rank` raw scores are tiny (~0.02) and unreadable as a
+ *  relevance signal. No-op when there is no positive score. */
+function normalizeScores(items: SourceItem[]): SourceItem[] {
+  const max = Math.max(0, ...items.map((i) => i.score ?? 0));
+  if (max <= 0) return items;
+  return items.map((i) => (i.score != null ? { ...i, score: i.score / max } : i));
+}
+
 /** Hybrid Reciprocal-Rank-Fusion retrieval over `org_shared.chunks` for a repo +
  *  content types. Combines a pgvector cosine leg with a BM25 (`ts_rank`) leg —
  *  the same RRF that powers `search_context` — so a natural-language query
@@ -202,14 +251,19 @@ export async function hybridChunkItems(
   limit: number,
 ): Promise<SourceItem[]> {
   const embedding = await getQueryEmbedding(query);
+  // The keyword leg searches the query's distinctive terms (OR'd) rather than the
+  // whole paragraph, which would AND every filler word and match almost nothing.
+  const keywordQuery = extractKeyTerms(query).join(' OR ') || query;
   const mapRows = (rows: any[]): SourceItem[] =>
-    rows.map((r) =>
-      mkItem(r.content, {
-        source_path: r.file_path,
-        content_type: r.content_type ?? contentTypes[0],
-        score: toScore(r.score),
-        ingested_at: toIso(r.ingested_at),
-      }),
+    normalizeScores(
+      rows.map((r) =>
+        mkItem(r.content, {
+          source_path: r.file_path,
+          content_type: r.content_type ?? contentTypes[0],
+          score: toScore(r.score),
+          ingested_at: toIso(r.ingested_at),
+        }),
+      ),
     );
 
   if (embedding) {
@@ -237,7 +291,7 @@ export async function hybridChunkItems(
               (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score
        FROM vec v FULL OUTER JOIN kw k ON v.id = k.id
        ORDER BY score DESC LIMIT $5`,
-      [repo, embStr, contentTypes, query, limit],
+      [repo, embStr, contentTypes, keywordQuery, limit],
     );
     return mapRows(rows);
   }
@@ -249,7 +303,7 @@ export async function hybridChunkItems(
      FROM org_shared.chunks
      WHERE repo = $1 AND content_type = ANY($3)
      ORDER BY score DESC NULLS LAST, ingested_at DESC LIMIT $4`,
-    [repo, query, contentTypes, limit],
+    [repo, keywordQuery, contentTypes, limit],
   );
   return mapRows(rows);
 }
@@ -568,9 +622,12 @@ export async function assembleContext(
   let remaining = minTokens;
   const serialized: SerializedSection[] = [];
   const traceSections: TraceSection[] = [];
+  // A document is emitted in its highest-priority section only — no repeats
+  // across sections (e.g. the same episode in both Agent Memory and Recent Episodes).
+  const seenAcrossSections = new Set<string>();
 
   for (const { section, res } of ordered) {
-    const deduped = dedupeItems(res.items);
+    const deduped = dropSeen(dedupeItems(res.items), seenAcrossSections);
     const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
 
     let allocatedBudget = 0;
