@@ -11,6 +11,7 @@ import { resolveExclusion, type Disc } from '@/lib/ring-exclusion';
 import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
+import { nodeDegrees, crowdedLinkStrength, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
 const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
@@ -173,6 +174,10 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
 
     const nodes: SimNode[] = data.nodes.map((n) => ({ ...n }));
     const links: SimLink[] = data.links.map((l) => ({ source: l.source, target: l.target, kind: l.kind }));
+    // Per-node degree feeds the anti-crowding rules in the force setup below
+    // (see lib/graph-crowding). Computed once from the raw link list.
+    const degree = nodeDegrees(data.links);
+    const degOf = (x: string | number | SimNode) => degree.get(idOf(x)) ?? 1;
     const expanded = new Map<string, ExpandData>(); // spec id → its two-ring layout
     let adj = new Map<string, Set<string>>();
     let nodeById = new Map<string, SimNode>();
@@ -206,15 +211,24 @@ export default function SpecGraphD3({ data, repo }: { data: SpecGraph; repo: str
       // Spec→Section/Statement (the expanded drill-down) gets more length so the
       // fanned-out children don't pile on top of each other.
       .distance((l) => (l.kind === 'in_feature' ? 170 : l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 150 : 110))
-      .strength(0.35);
+      // Anti-crowding rule #1: weaken a link by its busier endpoint so a hub's
+      // many neighbours stop collapsing into a knot (lib/graph-crowding).
+      .strength((l) => crowdedLinkStrength(degOf(l.source), degOf(l.target)));
     const sim = d3
       .forceSimulation<SimNode>([])
       .force('link', linkForce)
-      .force('charge', d3.forceManyBody<SimNode>().strength((d) => (d.type === 'Feature' ? -850 : d.type === 'Spec' ? -700 : -520)))
+      // Anti-crowding rule #2: degree-scaled repulsion — hubs shove their dense
+      // neighbourhoods apart.
+      .force(
+        'charge',
+        d3.forceManyBody<SimNode>().strength((d) => crowdedCharge(d.type === 'Feature' ? -850 : d.type === 'Spec' ? -700 : -520, degOf(d))),
+      )
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('x', d3.forceX(width / 2).strength(0.03))
       .force('y', d3.forceY(height / 2).strength(0.03))
-      .force('collide', d3.forceCollide<SimNode>((d) => RADIUS[d.type] + 16).strength(1))
+      // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
+      // their labels) reserve hard personal space and cannot pile up.
+      .force('collide', d3.forceCollide<SimNode>((d) => crowdedCollideRadius(RADIUS[d.type], degOf(d))).strength(1))
       // Spacing pass: Spec/ADR "anchor" nodes are kept clear of each other AND of
       // the open rings (resolveSpacing, gap = ANCHOR_SEPARATION); every other node
       // is just kept off the rings (resolveExclusion). Ring-owned nodes (the spec
