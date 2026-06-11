@@ -147,14 +147,26 @@ The tool retrieves from all available sources:
   (`ts_rank`) leg — the same hybrid that powers `search_context` — so a
   natural-language query surfaces semantically-relevant chunks, not just keyword
   overlap. Degrades to keyword-only (`ts_rank`/`websearch_to_tsquery`) when no
-  query embedding is available. ([validated by `ranks ADRs by ts_rank against the query`](mcp-server/src/features/context/context-assembly.test.ts#L125), [`uses a vector+keyword RRF query when an embedding is available`](shared/src/project/knowledge/context-assembly.test.ts#L51))
+  query embedding is available. ([validated by `ranks ADRs by ts_rank against the query`](mcp-server/src/features/context/context-assembly.test.ts#L125), [`uses a vector+keyword RRF query when an embedding is available`](shared/src/project/knowledge/context-assembly.test.ts#L82))
 - FR-2.8: **No cross-section duplication.** The `repo`/Conventions source pulls
   only `doc`/`spec` (never `adr`, which is its own section), and chunks sharing a
   `file_path` are de-duplicated, keeping the highest-scoring copy. ([validated by `requests doc + spec for the repo/Conventions source, not adr`](mcp-server/src/features/context/context-assembly.test.ts#L139), [`context-assembly-format.test.ts:23`](shared/src/project/knowledge/context-assembly-format.test.ts#L23))
 - FR-2.9: **Code retrieval.** A dedicated `code` source retrieves
   `content_type='code'` chunks via the same hybrid ranking, so implementation and
   review tasks receive the actual source files they edit (previously code was
-  never retrieved — the `repo` source excluded it). ([validated by `retrieves a dedicated code section for implementation tasks`](mcp-server/src/features/context/context-assembly.test.ts#L153), [`retrieves chunks bound to the repo + content types`](shared/src/project/knowledge/context-assembly.test.ts#L33))
+  never retrieved — the `repo` source excluded it). ([validated by `retrieves a dedicated code section for implementation tasks`](mcp-server/src/features/context/context-assembly.test.ts#L153), [`retrieves chunks bound to the repo + content types`](shared/src/project/knowledge/context-assembly.test.ts#L64))
+- FR-2.10: **Keyword leg searches distinctive terms.** A paragraph-length query
+  is reduced to its distinctive terms (stopwords + ≤2-char words dropped, capped)
+  for the keyword leg, so common filler words don't dominate ranking. ([validated by `keeps distinctive terms and drops stopwords + short words`](shared/src/project/knowledge/context-assembly.test.ts#L11))
+- FR-2.11: **Normalized relevance.** Item scores are rescaled so the top result
+  is `1.00` and the rest are proportional fractions — raw RRF/`ts_rank` scores are
+  tiny (~0.02) and unreadable as a relevance signal. ([validated by `normalizes scores so the top result is 1.0 and the rest are fractions`](shared/src/project/knowledge/context-assembly.test.ts#L98))
+- FR-2.12: **No cross-section duplication.** A document is emitted in its
+  highest-priority section only — the same item never appears in two sections
+  (e.g. an episode in both Agent Memory and Recent Episodes). ([validated by `drops items already emitted in an earlier section, keeping the first`](shared/src/project/knowledge/context-assembly.test.ts#L31))
+- FR-2.13: **Repo-scoped graph.** The knowledge-graph source returns only
+  entities scoped to the queried repo (no NULL-repo globals), so a task never sees
+  another repo's entities.
 
 ### FR-3: Template System
 
@@ -188,7 +200,7 @@ The tool retrieves from all available sources:
 - FR-4.5: **Per-document cap.** When a section has more than one document,
   no single document may exceed half the section budget — so one mega-doc
   (e.g. CLAUDE.md) cannot crowd out several smaller, more-relevant chunks. A
-  lone document keeps the whole budget. ([validated by `caps a single oversized document so smaller documents still fit`](shared/src/project/knowledge/context-assembly.test.ts#L13))
+  lone document keeps the whole budget. ([validated by `caps a single oversized document so smaller documents still fit`](shared/src/project/knowledge/context-assembly.test.ts#L44))
 
 ### FR-5: Output Format
 

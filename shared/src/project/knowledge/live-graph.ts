@@ -39,7 +39,7 @@ export async function queryLiveGraph(
        WHERE LOWER(s.name) = LOWER($1)
          ${validFilter}
          AND ($2::text IS NULL OR e.relation_type = $2)
-         AND ($3::text IS NULL OR s.repo = $3 OR s.repo IS NULL)
+         AND ($3::text IS NULL OR s.repo = $3)
        UNION ALL
        SELECT
          t.name as entity, t.entity_type,
@@ -53,7 +53,7 @@ export async function queryLiveGraph(
        WHERE LOWER(t.name) = LOWER($1)
          ${validFilter}
          AND ($2::text IS NULL OR e.relation_type = $2)
-         AND ($3::text IS NULL OR t.repo = $3 OR t.repo IS NULL)
+         AND ($3::text IS NULL OR t.repo = $3)
        ORDER BY valid_from DESC
        LIMIT 50`,
       [entity, relationType || null, repo || null],
@@ -74,7 +74,7 @@ export async function queryLiveGraph(
      WHERE 1=1
        ${validFilter}
        AND ($1::text IS NULL OR e.relation_type = $1)
-       AND ($2::text IS NULL OR s.repo = $2 OR s.repo IS NULL)
+       AND ($2::text IS NULL OR s.repo = $2)
      ORDER BY e.created_at DESC
      LIMIT 50`,
     [relationType || null, repo || null],
