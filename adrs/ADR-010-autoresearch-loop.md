@@ -17,7 +17,7 @@ Accepted
 
 ## Context
 
-Context quality was static — no automated mechanism to detect knowledge gaps from actual usage or improve context based on feedback. The constitution (Phase 3) described an autoresearch loop but it was designed around Klaus (removed) and BigQuery/OCI bundles (not deployed). Langfuse already traces low-confidence queries and PromptFoo evals already exist per team.
+Context quality was static — no automated mechanism to detect knowledge gaps from actual usage or improve context based on feedback. The constitution (Phase 3) described an autoresearch loop but it was designed around the retired agent runtime and BigQuery/OCI bundles (not deployed). Langfuse already traces low-confidence queries and PromptFoo evals already exist per team.
 
 ## Decision
 
@@ -42,9 +42,9 @@ Implement 3 new Lore Agent scheduled jobs:
 
 ## Alternatives Considered
 
-### 1. Full Klaus-based autoresearch
+### 1. Full original-design autoresearch
 
-Original design required BigQuery, OCI bundles (oras), Artifact Registry, and FalkorDB. Over-engineered for current scale. The simplified version uses existing PostgreSQL tables.
+The original design required BigQuery, OCI bundles (oras), Artifact Registry, and FalkorDB. Over-engineered for current scale. The simplified version uses existing PostgreSQL tables.
 
 ### 2. Manual gap detection
 

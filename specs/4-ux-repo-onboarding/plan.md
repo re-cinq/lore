@@ -78,8 +78,8 @@ Static template files, version-controlled in the lore repo:
   Alternatives Rejected, ADR References, Spec.
 - `.github/workflows/pr-description-check.yml` — CI check for PR
   description quality (warning-only first 2 weeks, hard fail after).
-- `.github/workflows/spec-agent.yml` — spec PR triggers
-  implementation agent via Klaus.
+- `.github/workflows/spec-agent.yml` — spec PR triggers the
+  implementation agent via the Lore Agent service.
 
 ### Day 3: API Routes + Integration Testing
 
@@ -202,7 +202,7 @@ that `/` is the repo list.
 
 - Webhook or polling: when the onboarding PR is merged, update
   `lore.repos` row: `onboarding_pr_merged = true`.
-- Trigger initial ingestion for the repo (via Klaus agent).
+- Trigger initial ingestion for the repo (via the Lore Agent service).
 
 **Task 3.2: Per-repo nightly ingestion**
 
@@ -251,7 +251,7 @@ End-to-end validation:
 | P6: Distributed Ownership | PASS | Onboarding PR is reviewed by repo owner, not platform |
 | P7: Architecture Decisions Are Final | PASS | Uses PostgreSQL (CNPG), GKE, existing stack |
 | P8: Schema-Per-Team Isolation | PASS | `lore` schema is platform-level, not team data |
-| P9: Intelligent Agents Over Mechanical Scripts | PASS | Post-merge ingestion runs via Klaus agent |
+| P9: Intelligent Agents Over Mechanical Scripts | PASS | Post-merge ingestion runs via the Lore Agent service |
 | P10: Opt-In Data Collection | PASS | Repo onboarding is explicit opt-in by the repo owner |
 
 ## Risk Register
@@ -290,4 +290,4 @@ fixes can be parallelized with the onboard page work.
 | Pipeline module (pipeline-github.ts) | Existing | Platform Engineering |
 | Web UI (Next.js App Router, lore-ui namespace) | Deployed on GKE | Platform Engineering |
 | GitHub OAuth | Working on the UI | Platform Engineering |
-| Klaus agents | Running in klaus namespace | Platform Engineering |
+| Lore Agent service | Running in the `lore-agent` namespace | Platform Engineering |

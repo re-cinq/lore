@@ -13,11 +13,11 @@
 
 > **Note (2026-04-13):** This spec has been updated to reflect the shipped
 > implementation. Several technology choices changed after the initial spec:
-> Beads + Dolt replaced by pipeline tasks in PostgreSQL (ADR-009), Klaus
-> replaced by the purpose-built Lore Agent service (ADR-007), Graphiti/
-> FalkorDB replaced by a PostgreSQL-backed live knowledge graph (ADR-010),
-> and OCI Context Cores replaced by DB-cached context assembly. All changes
-> are documented in `adrs/`.
+> Beads + Dolt replaced by pipeline tasks in PostgreSQL (ADR-009), the
+> purpose-built Lore Agent service deployed as the cluster agent runtime
+> (ADR-007), Graphiti/FalkorDB replaced by a PostgreSQL-backed live knowledge
+> graph (ADR-010), and OCI Context Cores replaced by DB-cached context
+> assembly. All changes are documented in `adrs/`.
 
 > **Note (2026-04-20):** Further updates to reflect ADR-015 (accepted
 > 2026-04-17) and post-April-13 implementation work. Key changes: the
@@ -657,7 +657,7 @@ non-terminal states and resolve them without manual intervention.
 ### Session 2026-04-13 (spec update)
 
 - Q: Why was Beads replaced? → A: Beads + Dolt had integration complexity and `bd` CLI instability. Pipeline tasks in PostgreSQL provide atomic claiming, dependency tracking, and full audit history without an external CLI dependency. (ADR-009)
-- Q: Why was Klaus replaced? → A: Klaus was Giant Swarm's agent, not purpose-built for Lore. The Lore Agent service provides direct Anthropic API access, LoreTask CRD for ephemeral K8s Jobs, pre-run context hydration, deterministic validation, and full lifecycle control. (ADR-007)
+- Q: How does the Lore Agent service run tasks? → A: A TypeScript worker in the `lore-agent` namespace polls the `pipeline.tasks` table and dispatches by task type. Simple tasks (onboard, feature-request, graph-ingest) run in-process via direct Anthropic API calls and the worker creates the PR. Complex tasks (implementation, general, review) run in ephemeral `claude-runner` Job pods created via the LoreTask CRD, with pre-run context hydration, deterministic validation, and full lifecycle control. (ADR-007)
 - Q: Why no Graphiti / FalkorDB? → A: PostgreSQL-backed live knowledge graph provides the same traversable fact store without an additional graph database dependency. (ADR-010)
 - Q: Why no OCI Context Cores? → A: DB-cached context assembly with the `assemble_context` tool provides equivalent freshness guarantees without OCI registry infrastructure overhead. (ADR-010)
 

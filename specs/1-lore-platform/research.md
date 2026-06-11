@@ -63,35 +63,42 @@ bd pull / bd push                # sync with Dolt remote
   surfaces the error.
 - The glue layer must catch this and present a clear error message.
 
-## R3: Klaus Cluster Agents
+## R3: Lore Agent Service
 
-**Decision:** Deploy Klaus on GKE as the cluster agent runtime,
-accessible via Streamable HTTP MCP endpoint.
+**Decision:** Deploy the Lore Agent service on GKE in the
+`lore-agent` namespace as the purpose-built cluster agent runtime
+(ADR-007).
 
-**Rationale:** Klaus runs Claude Code as a managed subprocess in
-Kubernetes. It handles lifecycle management (start, stop, timeout),
-resource limits, and exposes an HTTP API for task submission. This
-is simpler than building a custom agent runtime.
+**Rationale:** The Lore Agent service is a TypeScript worker that
+polls the `pipeline.tasks` table for pending tasks and dispatches by
+task type. Simple tasks (onboard, feature-request, graph-ingest) run
+in-process via direct Anthropic API calls, with the worker creating
+the PR. Complex tasks (implementation, general, review) run in
+ephemeral `claude-runner` Job pods. Building the runtime in-house
+gives Lore full control over lifecycle, context hydration, and
+deterministic validation.
 
 **Alternatives considered:**
 - GitHub Actions with Claude Code: no persistent state, cold start
   on every run, limited execution time.
-- Custom Kubernetes Jobs: no MCP interface, no lifecycle management,
-  more operational overhead.
+- Generic third-party agent runtime: output wrapping and model
+  selection not under Lore's control, no built-in context hydration.
 
 **Deployment model:**
-- Helm chart in `klaus` namespace.
-- Each task gets a dedicated pod with resource limits.
-- Tasks have configurable timeouts (default: 30 minutes).
-- On failure: pod terminates, Klaus marks task as failed with
-  reason, Beads claim released.
-- HTTP endpoint: `POST /mcp` for Streamable HTTP MCP protocol.
+- TypeScript service in the `lore-agent` namespace.
+- Complex tasks run as ephemeral `claude-runner` Job pods created
+  via the LoreTask custom resource (CRD); the `loretask-controller`
+  creates the Job and the `loretask-watcher` creates the PR on
+  completion.
+- Each Job pod has resource limits and a configurable timeout.
+- On failure: the pod terminates and the task's `failure_reason` is
+  recorded.
 
-**Klaus task lifecycle:**
+**Pipeline task lifecycle:**
 ```
-submitted → running → completed
-                   → failed (reason stored)
-                   → timed_out (treated as failure)
+pending → queued → running → pr-created → review → merged
+                          → failed (failure_reason stored)
+                          → cancelled
 ```
 
 ## R4: PostgreSQL + pgvector via CloudNativePG (Phase 1)
@@ -150,7 +157,7 @@ natively integrated. OTEL is the industry-standard instrumentation
 layer — no vendor lock-in. Eliminates the operational overhead of
 running a separate Langfuse instance (Cloud SQL, Helm chart, OIDC
 config). Gap candidate metrics are queryable via Cloud Monitoring
-API for the gap detection Klaus agent.
+API for the gap detection Lore Agent job.
 
 **Alternatives considered:**
 - Langfuse self-hosted: additional Cloud SQL instance, Helm chart

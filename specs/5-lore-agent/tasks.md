@@ -72,10 +72,10 @@ Test criteria: GET /healthz returns JSON with uptime, task counts, job schedules
 - [x] T024 Create multi-stage Dockerfile (builder + slim runner) in agent/Dockerfile
 - [x] T025 [P] Create Helm chart: deployment, service, serviceaccount, configmap, secrets in terraform/modules/gke-mcp/agent-helm/
 - [x] T026 [P] Create GitHub Actions CI workflow for agent build+push in .github/workflows/build-agent.yml
-- [x] T027 Remove Klaus pipeline poller, Klaus client, merge checker, and onboarding PR interval from MCP server in mcp-server/src/index.ts
-- [x] T028 Write ADR documenting Klaus replacement with rationale in adrs/ADR-007-lore-agent-replaces-klaus.md
-- [x] T037 Remove Klaus deployment from GKE cluster (helm uninstall klaus)
-- [x] T038 Update constitution to v1.2.0 — Klaus references replaced with Lore Agent
+- [x] T027 Remove the legacy agent-runtime pipeline poller, its client, merge checker, and onboarding PR interval from MCP server in mcp-server/src/index.ts
+- [x] T028 Write ADR-007 documenting the purpose-built Lore Agent service decision with rationale
+- [x] T037 Decommission the legacy agent-runtime deployment from GKE
+- [x] T038 Update constitution to v1.2.0 — agent-runtime references point to the Lore Agent service
 - [x] T039 Add /api/task endpoint to MCP server for local task delegation in mcp-server/src/index.ts
 - [x] T040 Update create_pipeline_task to proxy to GKE when running locally in mcp-server/src/index.ts
 - [x] T041 Update install.sh to configure LORE_API_URL and LORE_INGEST_TOKEN for local proxy in scripts/install.sh
@@ -140,7 +140,7 @@ T025, T026 — Helm chart and CI workflow are independent
 ## Implementation Strategy
 
 **MVP:** Phase 1 + Phase 2 + Phase 3 (US1: Task Processing)
-- This alone replaces Klaus for the critical onboarding flow
+- This alone delivers the critical onboarding flow end to end
 - 14 tasks, ~2 days
 
 **Full:** Add Phase 4 (US2: Scheduler) + Phase 5 (US3: Health)
@@ -148,5 +148,5 @@ T025, T026 — Helm chart and CI workflow are independent
 - 9 more tasks, ~1.5 days
 
 **Cutover:** Phase 6
-- Deploy, verify, remove Klaus
+- Deploy, verify, decommission the legacy agent runtime
 - 5 tasks, ~0.5 days

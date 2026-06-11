@@ -109,34 +109,46 @@ task_types:
     review_required: boolean  # Required. Whether to trigger review agent.
 ```
 
-## R4: Agent Spawning -- Extend Existing Klaus Client
+## R4: Agent Dispatch -- Lore Agent Worker + LoreTask CRD
 
-**Decision:** Extend the existing `klaus-client.ts` with a new
-function that submits tasks with pipeline-specific context (task
+**Decision:** The Lore Agent service runs a worker that polls
+`pipeline.tasks` and dispatches each task by type. Simple tasks
+(onboard, feature-request, graph-ingest) run in-process via direct
+Anthropic API calls (`Llm.instance.complete()` in
+`shared/src/llm/anthropic-provider.ts`); the worker creates the PR
+when done. Complex tasks (implementation, general, review) run in an
+ephemeral `claude-runner` Job pod created via the LoreTask custom
+resource — a `loretask-controller` watches LoreTask CRs and creates
+the Job, and a `loretask-watcher` polls completed Jobs and creates
+the PR. The dispatch payload carries pipeline-specific context (task
 type prompt, context bundle, GitHub token, branch naming convention).
 
-**Rationale:** Klaus already accepts task submissions via its HTTP
-endpoint at `/mcp`. The existing `submitTask()` function handles
-connection management, error handling, and response parsing. Adding
-pipeline-specific context to the submission payload is a minimal
-change that reuses proven infrastructure. No new HTTP client or
-transport layer needed.
+**Rationale:** The worker reads task state straight from
+`pipeline.tasks`, the single source of truth, so no separate task
+service or HTTP submission protocol is needed. Splitting by task
+complexity keeps cheap tasks fast and in-process while giving heavy,
+tool-using tasks a fully isolated sandbox (the `claude-runner` image)
+with its own filesystem, credentials, and resource limits. Per
+ADR-007, this purpose-built model replaces any third-party agent
+runtime so the pipeline owns the full dispatch, isolation, and
+status-tracking path.
 
 **Alternatives considered:**
-- New dedicated pipeline client: duplicates HTTP connection
-  management and error handling from `klaus-client.ts`. Two clients
-  to maintain for the same Klaus endpoint.
-- Direct Kubernetes API (create Job/Pod): bypasses Klaus entirely.
-  Loses Klaus's task management, logging, and status tracking.
-  Requires the MCP server to have K8s RBAC for pod creation --
-  broader permissions than needed.
-- gRPC to Klaus: would require Klaus to expose a gRPC endpoint in
-  addition to HTTP. The pipeline does not need streaming or
-  bidirectional communication -- HTTP request/response is sufficient.
+- Single in-process path for all task types: cheap tasks would share
+  a process with long-running, tool-heavy implementation runs,
+  coupling their failure and resource profiles. Job-pod isolation for
+  complex tasks avoids one runaway run starving the worker.
+- Direct Kubernetes Job creation from the worker (no CRD): the worker
+  would need broad K8s RBAC for Job lifecycle management and would
+  reimplement watching, retry, and cleanup. The LoreTask CRD +
+  controller encapsulate that behind a declarative custom resource.
+- A separate task-submission HTTP service: adds a network hop and a
+  second source of truth for task state. Polling `pipeline.tasks`
+  directly is simpler and atomic.
 
-**Extension to `klaus-client.ts`:**
+**LoreTask dispatch (complex task types):**
 ```typescript
-export interface PipelineTaskRequest extends SubmitTaskRequest {
+export interface LoreTaskSpec {
   target_repo: string;
   branch_name: string;
   github_token: string;
@@ -160,9 +172,9 @@ rate limiting and retries, and integrates directly with
 
 **Alternatives considered:**
 - Git CLI from the agent container: requires `git` to be installed
-  in Klaus containers, SSH key management or credential helper setup,
-  and shell command orchestration. More failure modes than REST API
-  calls.
+  in the `claude-runner` image, SSH key management or credential
+  helper setup, and shell command orchestration. More failure modes
+  than REST API calls.
 - GitHub GraphQL API: more efficient for complex queries but more
   verbose for simple CRUD operations like creating a branch or PR.
   The REST API is simpler for the operations the pipeline needs.
@@ -183,14 +195,15 @@ rate limiting and retries, and integrates directly with
 7. `POST /repos/{owner}/{repo}/issues/{number}/labels` -- add
    `agent-generated` label.
 
-## R6: Review Agent -- Same Klaus Spawning, Different Prompt
+## R6: Review Agent -- Same Dispatch Path, Different Prompt
 
-**Decision:** The review agent is a regular Klaus agent spawned
-through the same pipeline infrastructure, but with a review-specific
-prompt template that instructs it to review the PR rather than
-implement code.
+**Decision:** The review task is dispatched by the Lore Agent worker
+through the same path as an implementation task — a `claude-runner`
+Job pod via the LoreTask CRD — but with a review-specific prompt
+template that instructs it to review the PR rather than implement
+code.
 
-**Rationale:** Reusing the same spawning mechanism means no new
+**Rationale:** Reusing the same dispatch mechanism means no new
 infrastructure for reviews. The review agent has the same
 capabilities as the implementation agent -- it can search Lore
 context, read ADRs, and access GitHub. The only difference is the
@@ -245,14 +258,14 @@ and runs at most once per 10-second poll cycle.
 **Alternatives considered:**
 - In-memory counter only: breaks when multiple MCP server instances
   run (each has its own counter). Also breaks on restart (counter
-  resets to zero while tasks are still running on Klaus). Not
+  resets to zero while tasks are still running). Not
   suitable for production.
 - Redis semaphore: adds a Redis dependency for a single counter.
   Redis is not in the existing stack. The database query is equally
   fast and does not require new infrastructure.
 - Kubernetes resource quota: limits pods, not logical tasks. A task
-  might not correspond to exactly one pod (Klaus might batch). Also
-  ties the system to Kubernetes.
+  might not correspond to exactly one pod (in-process task types use
+  no pod at all). Also ties the system to Kubernetes.
 - Distributed lock (etcd, ZooKeeper): extreme overkill for counting
   to 5. Adds significant operational complexity for a trivial
   operation.

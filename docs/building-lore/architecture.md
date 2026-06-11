@@ -107,7 +107,7 @@ flowchart LR
     ING --> DB[("{team}.chunks<br/>+ pgvector embeddings")]
 ```
 
-> A legacy GCP Cloud Scheduler nightly (`lore-nightly-full-reindex` in `terraform/.../cloud-scheduler.tf`) still calls the `delegate_task` tool that was removed with Klaus (ADR-007). It is superseded by the `context-reindex` CronJob above and is safe to remove.
+> A legacy GCP Cloud Scheduler nightly (`lore-nightly-full-reindex` in `terraform/.../cloud-scheduler.tf`) still calls the `delegate_task` tool that was retired with the prior agent runtime (ADR-007). It is superseded by the `context-reindex` CronJob above and is safe to remove.
 
 The full job registry — every schedule and what it does — is in [Scheduled Jobs](scheduled-jobs.md).
 

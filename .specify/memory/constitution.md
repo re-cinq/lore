@@ -19,7 +19,7 @@ Previous (Version 2.1.0 — 2026-04-20, MINOR):
 Previous (Version 2.0.0 — 2026-04-13, MAJOR):
 - principles 5, 7, 9 materially redefined; technology stack and phases updated
 - added P11 (Intelligent Memory Lifecycle)
-- removed Klaus, Context Cores, Graphiti+FalkorDB references
+- replaced the third-party agent runtime with the purpose-built Lore Agent service; removed Context Cores, Graphiti+FalkorDB references
 -->
 
 # Project Constitution

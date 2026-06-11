@@ -36,8 +36,9 @@ then parse with `JSON.parse`. On failure, extract via brace-matching.
 On second failure, fall through to single-file PR.
 
 **Rationale:** Direct API control means we set the system prompt to
-enforce JSON output. No more `result_text` wrapping or code fences
-from Klaus. The fallback chain handles edge cases without losing work.
+enforce JSON output — the response is the raw model output, with no
+wrapping layer or code fences to strip. The fallback chain handles
+edge cases without losing work.
 
 **Alternatives considered:**
 - Anthropic's tool_use for structured output — viable but adds
@@ -77,11 +78,13 @@ ensures we don't reset tasks that another instance just picked up
 
 **Decision:** Copy and adapt `pipeline-github.ts` and `repo-onboard.ts`
 (fetchRepoContext) from the MCP server. Rewrite `pipeline.ts` (task
-processing) and `klaus-client.ts` (replace entirely with anthropic.ts).
+processing) and build `agent/src/anthropic.ts` for direct Anthropic
+API calls.
 
 **Rationale:** GitHub App auth and repo context fetching are well-tested
 and identical in both services. Task processing logic needs fundamental
-changes (direct API vs MCP protocol). Clean break from Klaus.
+changes to call the Anthropic API directly rather than route through an
+external runtime.
 
 **Modules to copy:**
 - `pipeline-github.ts` → `agent/src/github.ts` (branch, commit, PR)
@@ -89,7 +92,7 @@ changes (direct API vs MCP protocol). Clean break from Klaus.
 - `pipeline-config.ts` → `agent/src/config.ts` (task-types.yaml loader)
 
 **Modules to rewrite:**
-- `klaus-client.ts` → `agent/src/anthropic.ts` (direct API)
+- New: `agent/src/anthropic.ts` (direct Anthropic API client)
 - `pipeline.ts` → `agent/src/worker.ts` (sequential processor)
 - New: `agent/src/scheduler.ts` (cron jobs)
 - New: `agent/src/health.ts` (HTTP health endpoint)
