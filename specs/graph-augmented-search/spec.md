@@ -12,7 +12,7 @@
 
 ## Problem Statement
 
-`search_memory` returns facts and memories ranked by text
+`lore_search_memory` returns facts and memories ranked by text
 similarity. It has no awareness of the knowledge graph. If an
 agent searches for "database performance", it finds facts that
 mention those words — but misses related context like which
@@ -20,7 +20,7 @@ services use the database, which team owns them, and which ADRs
 govern the database layer.
 
 The knowledge graph has this information (entities + edges), but
-it's only accessible via the separate `query_graph` tool. Agents
+it's only accessible via the separate `lore_query_graph` tool. Agents
 would need to make two calls and merge the results themselves.
 
 This was specced as FR-5 in the live-knowledge-graph spec but
@@ -28,7 +28,7 @@ not implemented.
 
 ## Vision
 
-`search_memory` gains an optional `graph_augment` parameter.
+`lore_search_memory` gains an optional `graph_augment` parameter.
 When enabled, search results are enriched with 1-hop graph
 neighbors of matched entities. If a fact mentions "auth-service",
 the response also includes what auth-service uses, who owns it,
@@ -38,7 +38,7 @@ and what it depends on — without a separate tool call.
 
 ### FR-1: Entity Detection in Search Results
 
-- FR-1.1: After `search_memory` computes results via RRF, scan
+- FR-1.1: After `lore_search_memory` computes results via RRF, scan
   the top results for entity names that exist in `memory.entities`.
 - FR-1.2: Use a simple substring match against known entity names
   (cached at startup, refreshed every 5 minutes).
@@ -58,9 +58,9 @@ and what it depends on — without a separate tool call.
 - FR-3.2: Graph results that duplicate information already in the
   direct results are deduplicated.
 
-### FR-4: search_memory Parameter
+### FR-4: lore_search_memory Parameter
 
-- FR-4.1: Add `graph_augment: boolean` parameter to `search_memory`
+- FR-4.1: Add `graph_augment: boolean` parameter to `lore_search_memory`
   MCP tool (default: `false`).
 - FR-4.2: When false, behavior is unchanged.
 - FR-4.3: When true, graph augmentation runs after RRF merge.
@@ -76,7 +76,7 @@ and what it depends on — without a separate tool call.
 
 ### In Scope
 
-- `graph_augment` parameter on `search_memory`.
+- `graph_augment` parameter on `lore_search_memory`.
 - Entity name detection in results.
 - 1-hop neighbor retrieval.
 - Result merging with source tagging.
@@ -85,7 +85,7 @@ and what it depends on — without a separate tool call.
 
 - Multi-hop traversal (> 1 hop) in search augmentation.
 - Automatic `graph_augment: true` default (opt-in only).
-- Graph augmentation in `assemble_context` (it already queries
+- Graph augmentation in `lore_assemble_context` (it already queries
   the graph as a separate section).
 
 ## Data Model Changes
@@ -94,7 +94,7 @@ None — uses existing `memory.entities` and `memory.edges` tables.
 
 ## Success Criteria
 
-1. `search_memory("database performance", graph_augment=true)`
+1. `lore_search_memory("database performance", graph_augment=true)`
    returns direct fact matches PLUS graph context about which
    services use the database and who owns them.
 2. Search latency stays under 300ms with augmentation enabled.

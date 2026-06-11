@@ -12,7 +12,7 @@
 
 ## Problem Statement
 
-The statusline, the `assemble_context` freshness warning, and the UI need a cheap
+The statusline, the `lore_assemble_context` freshness warning, and the UI need a cheap
 read that answers: is this repo onboarded, how many tasks are in flight, how many
 PRs are awaiting a human, how many memories exist, is auto-review on, and is the
 ingested context stale (>7 days). One endpoint returns all of it, degrading

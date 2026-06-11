@@ -41,7 +41,7 @@ outcomes feed back into the memories that contributed to the task.
 
 ### Scenario 1: Retrieval Strengthening
 
-**Actor:** Any agent calling `search_memory`
+**Actor:** Any agent calling `lore_search_memory`
 
 **Flow:**
 1. Agent searches for "deployment pipeline."
@@ -64,7 +64,7 @@ outcomes feed back into the memories that contributed to the task.
 **Actor:** Agent receiving assembled context
 
 **Flow:**
-1. Agent calls `assemble_context`.
+1. Agent calls `lore_assemble_context`.
 2. Context assembly includes facts with confidence annotations:
    `[verified]`, `[observed]`, `[inferred]`, `[stale]`.
 3. Agent trusts `[verified]` facts fully, treats `[stale]` facts
@@ -78,7 +78,7 @@ outcomes feed back into the memories that contributed to the task.
 - Facts unretrieved for 30+ days auto-transition to `stale` via
   the decay job.
 - Facts retrieved while `stale` revive to `observed`.
-- `assemble_context` and `search_memory` include confidence in
+- `lore_assemble_context` and `lore_search_memory` include confidence in
   output.
 
 ### Scenario 3: Explicit Conflict Surfacing
@@ -89,7 +89,7 @@ outcomes feed back into the memories that contributed to the task.
 1. New fact contradicts an existing fact (similarity >= 0.92).
 2. Instead of silently invalidating the old fact, the system stores
    the conflict as a `memory.fact_conflicts` record.
-3. For high-stakes facts (architecture, security), `assemble_context`
+3. For high-stakes facts (architecture, security), `lore_assemble_context`
    surfaces `[CONFLICT]` annotations.
 4. Agent can make an informed decision about which fact to trust.
 
@@ -97,10 +97,10 @@ outcomes feed back into the memories that contributed to the task.
 - New `memory.fact_conflicts` table linking old/new fact pairs.
 - Contradiction detection still auto-invalidates (no change to
   default behavior) but also stores the conflict record.
-- `assemble_context` includes `[CONFLICT]` prefix for facts that
+- `lore_assemble_context` includes `[CONFLICT]` prefix for facts that
   have active conflicts (both the old invalidated and new valid
   fact are shown).
-- `search_memory` with `include_invalidated=true` shows conflict
+- `lore_search_memory` with `include_invalidated=true` shows conflict
   pairs.
 
 ### Scenario 4: Transfer Scoring for Cross-Repo
@@ -109,7 +109,7 @@ outcomes feed back into the memories that contributed to the task.
 repo B
 
 **Flow:**
-1. Agent calls `assemble_context` with cross-repo enabled.
+1. Agent calls `lore_assemble_context` with cross-repo enabled.
 2. Cross-repo fact search applies transfer scoring: facts with
    portable keywords (`error`, `pattern`, `gotcha`, `rule`) are
    boosted; facts with local keywords (`config`, `deploy`, `url`,
@@ -183,7 +183,7 @@ repo B
   `new_fact_id`, `similarity`, `created_at`.
 - FR-4.2: `invalidateContradictions()` inserts a conflict record
   before invalidating.
-- FR-4.3: `assemble_context` checks for conflicts on assembled
+- FR-4.3: `lore_assemble_context` checks for conflicts on assembled
   facts and prefixes with `[CONFLICT]` annotation.
 
 ### FR-5: Transfer Scoring
@@ -240,7 +240,7 @@ repo B
 
 ### NFR-3: Backward Compatibility
 
-- `search_memory` MCP tool response format unchanged (confidence
+- `lore_search_memory` MCP tool response format unchanged (confidence
   added as optional field).
 - Existing importance decay behavior preserved when `half_life_days`
   is at default values.
@@ -386,7 +386,7 @@ ALTER TABLE pipeline.tasks ADD COLUMN IF NOT EXISTS context_refs JSONB;
 The spec required "both the old invalidated and new valid fact are
 shown" when a conflict exists. The implementation only marks the
 new (currently valid) fact with `[CONFLICT]`. The old invalidated
-fact is accessible via `search_memory` with
+fact is accessible via `lore_search_memory` with
 `include_invalidated=true` but is not proactively surfaced in
 assembled context. Acceptable for now; can be revisited if agents
 need the contradicted fact text to reason about the conflict.

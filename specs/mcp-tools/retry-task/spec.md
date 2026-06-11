@@ -1,12 +1,12 @@
-# Feature Specification: retry_task MCP Tool
+# Feature Specification: lore_retry_task MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | retry_task MCP Tool            |
+| Feature | lore_retry_task MCP Tool            |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `retry_task`                   |
+| Tool    | `lore_retry_task`                   |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
@@ -21,7 +21,7 @@ hand is error-prone. Retrying must be refused for tasks that did not fail
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L182)).
 
-- **name**: `retry_task`
+- **name**: `lore_retry_task`
 - **description** (verbatim): *"Retry a failed pipeline task. Creates a new task
   with the same parameters and links it to the original."*
 
@@ -79,5 +79,5 @@ A task id with no matching row is rejected with `Task not found`.
 
 ## Out of Scope
 
-- The trust-gate re-check on the spawned task (inherited from `create_pipeline_task`).
-- Cancelling instead of retrying (covered by `cancel_task`).
+- The trust-gate re-check on the spawned task (inherited from `lore_create_pipeline_task`).
+- Cancelling instead of retrying (covered by `lore_cancel_task`).

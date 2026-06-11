@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 /**
- * Drives the registered ingest_files handler via a fake McpServer. Only the
+ * Drives the registered lore_ingest_files handler via a fake McpServer. Only the
  * deterministic guard branches are covered here — the success path is a live
  * fetch to LORE_API_URL and is left to integration. detectCurrentRepo is
  * mocked so the "could not detect repo" branch is reachable without a git
@@ -28,7 +28,7 @@ function ingestFilesHandler(getPool: () => unknown): ToolHandler {
     },
   };
   registerRepoTools(fakeServer as never, { getPool });
-  return handlers["ingest_files"];
+  return handlers["lore_ingest_files"];
 }
 
 afterEach(() => {
@@ -36,7 +36,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("ingest_files", () => {
+describe("lore_ingest_files", () => {
   beforeEach(() => {
     delete process.env.LORE_API_URL;
     delete process.env.LORE_INGEST_TOKEN;

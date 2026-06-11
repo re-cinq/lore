@@ -28,7 +28,7 @@ git activity in this repo), say:
 "Welcome to [repo name]. I have your team's context loaded — conventions,
 active decisions, and current work. A few things to know:
 
-- `ready_tasks` (MCP) shows what's available to work on
+- `lore_ready_tasks` (MCP) shows what's available to work on
 - `/lore-feature` sets up a new feature end-to-end
 - `/lore-pr` drafts your PR description when you're done
 
@@ -40,7 +40,7 @@ At the start of every session, check pipeline task state via MCP:
 
 - If a task is claimed: tell the developer which task is in progress and
   offer to continue.
-- If no task is claimed: call `ready_tasks` to see unblocked tasks.
+- If no task is claimed: call `lore_ready_tasks` to see unblocked tasks.
 - Never ask the developer to manually load context. MCP handles this.
 
 ## Starting a feature
@@ -50,7 +50,7 @@ or picking up a ticket:
 
 - Suggest `/lore-feature` before they do anything else.
 - Do not ask them to run specify, lore-gen-constitution, or
-  sync_tasks separately. `/lore-feature` handles all of it.
+  lore_sync_tasks separately. `/lore-feature` handles all of it.
 
 ## During implementation
 
@@ -63,7 +63,7 @@ or picking up a ticket:
 
 When the developer signals they are done with a piece of work:
 
-- Confirm the task should be marked done: call `complete_task` via MCP.
+- Confirm the task should be marked done: call `lore_complete_task` via MCP.
 - If the task had dependents, mention that they are now unblocked.
 
 ## Opening a PR
@@ -76,7 +76,7 @@ pushing for review:
 
 ## Delegating work to the cluster
 
-Use `create_pipeline_task` when:
+Use `lore_create_pipeline_task` when:
 
 - A task will take more than ~20 minutes (long tests, ingestion, gap analysis)
 - The task is well-defined and does not need interactive decisions
@@ -97,9 +97,9 @@ Always pass context when delegating:
 
 Run these yourself via MCP. Do not ask the developer to remember them:
 
-- `ready_tasks` — see unblocked tasks
-- `claim_task` — claim a task before starting
-- `complete_task` — mark complete
+- `lore_ready_tasks` — see unblocked tasks
+- `lore_claim_task` — claim a task before starting
+- `lore_complete_task` — mark complete
 - Pipeline tasks sync automatically via PostgreSQL (no manual pull needed)
 
 ## Never do
@@ -108,7 +108,7 @@ Run these yourself via MCP. Do not ask the developer to remember them:
 - Ask the developer to remember the spec-driven workflow steps
 - Ask the developer to write a PR description from scratch
 - Suggest running lore-gen-constitution, /speckit.specify, /speckit.tasks,
-  or sync_tasks individually — `/lore-feature` handles all of these
+  or lore_sync_tasks individually — `/lore-feature` handles all of these
 
 ## Landing the Plane (Session Completion)
 

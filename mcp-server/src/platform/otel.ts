@@ -120,7 +120,7 @@ export function traceRetrieval(params: {
   topScore: number;
   resultCount: number;
 }): void {
-  const span = tracer.startSpan("search_context");
+  const span = tracer.startSpan("lore_search_context");
   span.setAttributes({
     "lore.query": params.query,
     "lore.namespace": params.namespace,

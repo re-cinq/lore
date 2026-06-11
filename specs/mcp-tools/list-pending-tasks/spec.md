@@ -1,12 +1,12 @@
-# Feature Specification: list_pending_tasks MCP Tool
+# Feature Specification: lore_list_pending_tasks MCP Tool
 
 | Field   | Value                                          |
 |---------|------------------------------------------------|
-| Feature | list_pending_tasks MCP Tool                    |
+| Feature | lore_list_pending_tasks MCP Tool                    |
 | Status  | **Draft**                                      |
 | Created | 2026-06-10                                     |
 | Owner   | Platform Engineering                           |
-| Tool    | `list_pending_tasks`                           |
+| Tool    | `lore_list_pending_tasks`                           |
 | Module  | Pipeline (`features/pipeline/runner.local.ts`) |
 | Scope   | local                                          |
 
@@ -14,7 +14,7 @@
 
 A developer running Claude Code locally wants to see backlog pipeline tasks they
 could claim and run on their own machine (zero API cost) before the GKE agent
-picks them up. `list_pending_tasks` shows pending tasks across all repos by
+picks them up. `lore_list_pending_tasks` shows pending tasks across all repos by
 default, preferring a live API view and falling back to the locally-cached
 pending file written by the notifier.
 
@@ -22,7 +22,7 @@ pending file written by the notifier.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L429)).
 
-- **name**: `list_pending_tasks`
+- **name**: `lore_list_pending_tasks`
 - **description** (verbatim): *"Show pending pipeline tasks that can be claimed
   and run locally. Shows tasks across all repos by default."*
 
@@ -77,5 +77,5 @@ covered above.)*
 
 ## Out of Scope
 
-- Claiming or running a listed task — see `claim_and_run_locally` / `run_task_locally`.
-- The notifier that populates `~/.lore/pending-tasks.json` — see [`enable_task_notifications`](../enable-task-notifications/spec.md).
+- Claiming or running a listed task — see `lore_claim_and_run_locally` / `lore_run_task_locally`.
+- The notifier that populates `~/.lore/pending-tasks.json` — see [`lore_enable_task_notifications`](../enable-task-notifications/spec.md).

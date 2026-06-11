@@ -17,13 +17,13 @@ Phase 1. Phases 2 and 3 diverged significantly.
 
 | Original Plan | As Built | Reason |
 |---------------|----------|--------|
-| `shared_write` / `shared_read` MCP tools | `shared_pools` table only; writes via `write_memory(pool_id=...)` | Explicit pool tools added friction; pool scoping via existing `write_memory` proved sufficient |
+| `shared_write` / `shared_read` MCP tools | `shared_pools` table only; writes via `lore_write_memory(pool_id=...)` | Explicit pool tools added friction; pool scoping via existing `lore_write_memory` proved sufficient |
 | `create_snapshot` / `restore_snapshot` MCP tools | Tables exist (`memory.snapshots`) but no MCP tools exposed | Snapshot restore not used in practice; focus shifted to importance decay + consolidation as the recovery strategy |
-| `agent_health` + `agent_stats` (two tools) | Single `agent_stats` tool | Health info folded into stats response |
-| No episode concept | `write_episode` tool + `memory.episodes` table | Passive ingestion of raw conversation text was added per ADR-014; episodes are the primary source for automatic fact extraction |
-| No knowledge graph | `query_graph` tool + `memory.entities` + `memory.edges` | Graphiti/FalkorDB evaluation (spec 1) showed PostgreSQL graph tables were sufficient; replaces the static `graphrag/graph.json` |
+| `agent_health` + `lore_agent_stats` (two tools) | Single `lore_agent_stats` tool | Health info folded into stats response |
+| No episode concept | `lore_write_episode` tool + `memory.episodes` table | Passive ingestion of raw conversation text was added per ADR-014; episodes are the primary source for automatic fact extraction |
+| No knowledge graph | `lore_query_graph` tool + `memory.entities` + `memory.edges` | Graphiti/FalkorDB evaluation (spec 1) showed PostgreSQL graph tables were sufficient; replaces the static `graphrag/graph.json` |
 | Simple `memory.facts` (fact_text + embedding) | Facts with temporal validity, confidence tiers, retrieval metadata, conflict detection | ADR-014 and production usage revealed facts needed lifecycle management |
-| `assemble_context` not planned here | `assemble_context` as a top-level MCP tool | Reduces multi-tool call overhead; replaces pattern of calling `search_context` + `search_memory` + `get_adrs` separately |
+| `lore_assemble_context` not planned here | `lore_assemble_context` as a top-level MCP tool | Reduces multi-tool call overhead; replaces pattern of calling `lore_search_context` + `lore_search_memory` + `get_adrs` separately |
 | Web UI: Phase 3 (memory browser + pools + audit trail) | Web UI ships read-only memory browser + agent overview; pipeline/task UI took priority | Memory UI is functional but full audit trail and pools browser deferred |
 | File-backed fallback: simple JSON | File-backed fallback: implemented as planned | No change |
 
@@ -236,7 +236,7 @@ Append-only. Indexed on `(agent_id, created_at)`.
 
 #### 1.3 MCP Memory Tools (as shipped)
 
-**`write_memory`**
+**`lore_write_memory`**
 
 ```typescript
 {
@@ -255,7 +255,7 @@ Privacy filter (`sanitizeContent()` / `redactSecrets()`) runs before
 storage. Embedding generated synchronously via Vertex AI. If
 `extract_facts = true`, fact extraction runs async (never blocks write).
 
-**`read_memory`**
+**`lore_read_memory`**
 
 ```typescript
 {
@@ -265,11 +265,11 @@ storage. Embedding generated synchronously via Vertex AI. If
 }
 ```
 
-**`delete_memory`**
+**`lore_delete_memory`**
 
 Soft-delete (`is_deleted = TRUE`). Version history preserved.
 
-**`list_memories`**
+**`lore_list_memories`**
 
 ```typescript
 {
@@ -281,7 +281,7 @@ Soft-delete (`is_deleted = TRUE`). Version history preserved.
 
 Returns only active (not deleted, not expired) memories.
 
-**`search_memory`**
+**`lore_search_memory`**
 
 ```typescript
 {
@@ -303,7 +303,7 @@ Every search hit asynchronously increments `retrieval_count`,
 updates `last_retrieved_at`, and extends `half_life_days` (+2, cap
 365). Stale facts revive to `observed` on retrieval.
 
-**`write_episode`**
+**`lore_write_episode`**
 
 ```typescript
 {
@@ -316,10 +316,10 @@ updates `last_retrieved_at`, and extends `half_life_days` (+2, cap
 
 Ingests raw text (conversation turn, code review, observation).
 Automatically extracts facts and updates the knowledge graph. Triggers
-the same privacy filter as `write_memory`. The primary input path for
+the same privacy filter as `lore_write_memory`. The primary input path for
 passive memory capture (ADR-014).
 
-**`query_graph`**
+**`lore_query_graph`**
 
 ```typescript
 {
@@ -331,7 +331,7 @@ passive memory capture (ADR-014).
 Returns entities and relationships from the live knowledge graph.
 Replaced the static `graphrag/graph.json`.
 
-**`assemble_context`**
+**`lore_assemble_context`**
 
 ```typescript
 {
@@ -344,11 +344,11 @@ Replaced the static `graphrag/graph.json`.
 
 Top-level tool that assembles context from all sources (repo chunks,
 ADRs, memories, facts, episodes, graph) into a single token-budgeted
-block. Replaces the prior pattern of calling `search_context` +
-`search_memory` + `get_adrs` individually. Research template keeps
+block. Replaces the prior pattern of calling `lore_search_context` +
+`lore_search_memory` + `get_adrs` individually. Research template keeps
 16K tokens; implementation/review/default cap at 8K.
 
-**`agent_stats`**
+**`lore_agent_stats`**
 
 ```typescript
 { agent_id: z.string().optional() }
@@ -376,8 +376,8 @@ Cross-machine sharing requires PostgreSQL.
 
 #### 2.1 Fact Extraction (`mcp-server/src/facts.ts`)
 
-Async extraction triggered by `write_memory(..., extract_facts: true)`
-or automatically on every `write_episode` call.
+Async extraction triggered by `lore_write_memory(..., extract_facts: true)`
+or automatically on every `lore_write_episode` call.
 
 LLM configuration:
 - `LORE_FACT_LLM`: `claude` (default) / `openai` / `ollama`
@@ -392,14 +392,14 @@ tokens, cost_usd, duration_ms).
 
 #### 2.2 Knowledge Graph (`mcp-server/src/graph.ts`)
 
-Entity and relationship extraction runs on every `write_episode`
+Entity and relationship extraction runs on every `lore_write_episode`
 call alongside fact extraction. LLM prompt extracts up to 10
 entities and 10 edges per episode. Entity names normalized to
 lowercase for deduplication.
 
 Edges carry `valid_from` (episode creation time) and nullable
 `valid_to` for temporal tracking of relationship changes.
-`query_graph` traverses the live graph instead of the old static
+`lore_query_graph` traverses the live graph instead of the old static
 `graphrag/graph.json`.
 
 #### 2.3 Passive Session Capture (ADR-014)
@@ -451,12 +451,12 @@ include confidence annotations.
 When a new fact contradicts an existing one (cosine similarity >=
 0.92), the old fact's `valid_to` is set, its confidence becomes
 `stale`, and a record is written to `memory.fact_conflicts`.
-`assemble_context` prefixes `[CONFLICT]` on facts with recent (7-day)
+`lore_assemble_context` prefixes `[CONFLICT]` on facts with recent (7-day)
 conflicts to give agents visibility into disputed knowledge.
 
 #### 2.7 Retrieval Strengthening
 
-Every `search_memory` call asynchronously increments
+Every `lore_search_memory` call asynchronously increments
 `retrieval_count`, updates `last_retrieved_at`, and extends
 `half_life_days` (+2, cap 365) on returned facts and memories.
 Stale facts revive to `observed` on retrieval. Fire-and-forget —
@@ -470,11 +470,11 @@ partial index.
 
 #### 2.9 Phase 2 Verification (as verified)
 
-- `write_memory(key: "notes", value: "ADR-042 mandates integer cents...", extract_facts: true)` — returns immediately, facts appear within seconds.
-- `search_memory(query: "currency format")` — returns fact "ADR-042 mandates integer cents" (not the full paragraph).
+- `lore_write_memory(key: "notes", value: "ADR-042 mandates integer cents...", extract_facts: true)` — returns immediately, facts appear within seconds.
+- `lore_search_memory(query: "currency format")` — returns fact "ADR-042 mandates integer cents" (not the full paragraph).
 - Contradiction: writing a new fact that conflicts with an existing one creates a `fact_conflicts` row and invalidates the old fact.
-- `write_episode(content: "session transcript...", source: "session")` — facts and graph entities extracted automatically.
-- `query_graph(entity: "payments-service")` — returns live relationships from episode-derived graph.
+- `lore_write_episode(content: "session transcript...", source: "session")` — facts and graph entities extracted automatically.
+- `lore_query_graph(entity: "payments-service")` — returns live relationships from episode-derived graph.
 - Passive capture: session dump POSTed on stop hook, episode written, facts extracted without agent action.
 - Lifecycle job evicts lowest-scoring memories when agent exceeds 500 entries.
 - Consolidation job extracts patterns from 7-day fact window.
@@ -519,22 +519,22 @@ Internal-only access via GKE Ingress + IAP.
 
 ```
 Agent ID generation + memory schema DDL (Phase 1, day 1)
-  -> write_memory + read_memory (Phase 1, day 2)
-    -> search_memory with embeddings (Phase 1, day 3)
+  -> lore_write_memory + lore_read_memory (Phase 1, day 2)
+    -> lore_search_memory with embeddings (Phase 1, day 3)
       -> file-backed fallback (Phase 1, day 4)
         -> fact extraction (Phase 2, day 1)
-          -> write_episode + knowledge graph (Phase 2, day 2)
+          -> lore_write_episode + knowledge graph (Phase 2, day 2)
             -> confidence tiers + conflict detection (Phase 2, day 3)
               -> passive session capture (ADR-014, Phase 2, day 4)
                 -> memory lifecycle: decay + consolidation (Phase 2, day 5)
-                  -> assemble_context tool (Phase 2, day 6)
+                  -> lore_assemble_context tool (Phase 2, day 6)
                     -> retrieval strengthening (Phase 2, day 7)
                       -> Web UI: agent overview + memory browser (Phase 3)
 ```
 
-The addition of `write_episode` and the knowledge graph in Phase 2
+The addition of `lore_write_episode` and the knowledge graph in Phase 2
 shifted the critical path significantly from the original plan.
-These were not blocking but became foundational for `assemble_context`
+These were not blocking but became foundational for `lore_assemble_context`
 performance.
 
 ## Generated Artifacts

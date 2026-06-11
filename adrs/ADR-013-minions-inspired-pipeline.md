@@ -40,7 +40,7 @@ output. Cap at one retry — no infinite loops. If still failing, mark
 
 Fetch assembled context from the Lore API before spawning Claude Code.
 The agent starts with conventions, ADRs, memories, and graph on turn 1
-instead of spending its first action calling `assemble_context`.
+instead of spending its first action calling `lore_assemble_context`.
 Reduces cold-start latency and ensures context is always loaded even
 if the agent skips the required workflow.
 

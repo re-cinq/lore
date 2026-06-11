@@ -1,12 +1,12 @@
-# Feature Specification: list_tests MCP Tool
+# Feature Specification: lore_list_tests MCP Tool
 
 | Field   | Value                                       |
 |---------|---------------------------------------------|
-| Feature | list_tests MCP Tool                         |
+| Feature | lore_list_tests MCP Tool                         |
 | Status  | **Draft**                                   |
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
-| Tool    | `list_tests`                                |
+| Tool    | `lore_list_tests`                                |
 | Module  | Spec-Trace (`spec-trace-tools.ts`)          |
 | Scope   | local                                       |
 
@@ -14,7 +14,7 @@
 
 The spec-traceability graph needs the repo's authoritative list of tests — the
 runner-native ids, files, and line ranges — discovered by the project's own test
-runner rather than guessed by pattern matching. `list_tests` runs the repo's
+runner rather than guessed by pattern matching. `lore_list_tests` runs the repo's
 declared `list` command (from `.lore/test-commands.yml`) in the caller's local
 sandbox and returns the normalized test descriptors. Because the command is
 arbitrary shell, it must execute only where execution is trusted — the developer
@@ -24,7 +24,7 @@ machine, CI, or a claude-runner pod — never on the shared GKE server.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/spec-trace-tools.local.ts#L7)).
 
-- **name**: `list_tests`
+- **name**: `lore_list_tests`
 - **description** (verbatim): *"Enumerate the repo's tests via its declared
   test-command manifest (.lore/test-commands.yml), feeding the spec-traceability
   graph. Runs the project's own list command in your local sandbox; the shared

@@ -22,7 +22,7 @@ while the developer already has the repo locally.
 A local task runner that runs inside the developer's Claude Code
 session. It works in two modes:
 
-1. **Explicit** — developer calls `run_task_locally` to spawn a task
+1. **Explicit** — developer calls `lore_run_task_locally` to spawn a task
 2. **Polling** — local runner claims tasks from the pipeline before
    GKE picks them up (opt-in)
 
@@ -37,7 +37,7 @@ worktree on the developer's machine, using their subscription.
 Developer: "run this locally: add rate limiting to the API endpoint"
 
 Claude Code:
-  → Calls run_task_locally
+  → Calls lore_run_task_locally
   → Creates git worktree
   → Spawns background Claude Code
   → Returns immediately
@@ -70,11 +70,11 @@ PM creates Issue with "lore:implementation" label
 Developer's machine
 ├── Claude Code (main session — developer working)
 │   └── Lore MCP Server (stdio)
-│       ├── run_task_locally     → explicit trigger
+│       ├── lore_run_task_locally     → explicit trigger
 │       ├── enable_local_runner  → start polling
 │       ├── disable_local_runner → stop polling
-│       ├── list_local_tasks     → show running/completed
-│       ├── cancel_local_task    → kill + cleanup
+│       ├── lore_list_local_tasks     → show running/completed
+│       ├── lore_cancel_local_task    → kill + cleanup
 │       └── Task poller (background, 30s interval)
 │           └── Claims pending tasks → spawns workers
 │
@@ -124,7 +124,7 @@ Local runners claim immediately. This gives local runners priority.
 ### Execution Flow
 
 ```
-Task claimed (from poll or explicit run_task_locally)
+Task claimed (from poll or explicit lore_run_task_locally)
   │
   ├── 1. Create git worktree
   │     git worktree add ~/.lore/worktrees/{task-id} -b {branch}
@@ -175,10 +175,10 @@ instance automatically — the MCP server is configured in
 new MCP server child process per session. No conflicts.
 
 This means background tasks have full access to:
-- `assemble_context` — load conventions and ADRs
-- `search_memory` — check for prior solutions
-- `write_episode` — record learnings
-- `query_graph` — explore entity relationships
+- `lore_assemble_context` — load conventions and ADRs
+- `lore_search_memory` — check for prior solutions
+- `lore_write_episode` — record learnings
+- `lore_query_graph` — explore entity relationships
 
 The Lore workflow preamble ensures they follow the same protocol.
 
@@ -191,8 +191,8 @@ locally:
 |--------|-----------------|---------------------|
 | GitHub Issue (label dispatch) | Webhook → pending | Yes (if polling enabled) |
 | Lore UI "New Task" | API → pending | Yes (if polling enabled) |
-| `create_pipeline_task` MCP tool | API → pending | Yes (if polling enabled) |
-| `run_task_locally` MCP tool | Direct → running-local | Always local |
+| `lore_create_pipeline_task` MCP tool | API → pending | Yes (if polling enabled) |
+| `lore_run_task_locally` MCP tool | Direct → running-local | Always local |
 | Auto-review (watcher) | Watcher → pending | Yes (if polling enabled) |
 | Feature request (PM) | UI → pending | No (uses feature-request handler) |
 
@@ -265,7 +265,7 @@ const task = await query(
 | File | Change |
 |------|--------|
 | `mcp-server/src/local-runner.ts` | New: worktree management, process spawning, polling, monitoring |
-| `mcp-server/src/index.ts` | Add 5 tools: run_task_locally, enable_local_runner, disable_local_runner, list_local_tasks, cancel_local_task |
+| `mcp-server/src/index.ts` | Add 5 tools: lore_run_task_locally, enable_local_runner, disable_local_runner, lore_list_local_tasks, lore_cancel_local_task |
 | `agent/src/worker.ts` | Add 30s grace period before claiming tasks |
 | `scripts/lore-statusline.sh` | Show local task count |
 | `scripts/lore-status-cache.sh` | Count local worktrees |
@@ -293,14 +293,14 @@ const task = await query(
 
 ## Acceptance Criteria
 
-1. `run_task_locally` spawns background Claude Code in a worktree
+1. `lore_run_task_locally` spawns background Claude Code in a worktree
 2. Developer's main session continues uninterrupted
 3. Polling mode claims pending tasks before GKE (30s priority window) ([validated by `worker.test.ts:174`](agent/src/worker.test.ts#L174), [`worker.test.ts:179`](agent/src/worker.test.ts#L179))
 4. Tasks from GitHub Issues work through local runner when polling
 5. Background task commits, pushes, creates PR on completion
 6. Logs stored locally and in GCS (redacted)
 7. Statusline shows local task count
-8. `cancel_local_task` kills process and cleans up worktree
+8. `lore_cancel_local_task` kills process and cleans up worktree
 9. Failed tasks preserve worktree for debugging
 10. No API credits consumed (uses Claude Code subscription)
 11. Auto-review triggers on GKE after local PR creation

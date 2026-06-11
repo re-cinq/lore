@@ -15,6 +15,6 @@
 - [x] T008 Implement token budget allocation proportional to priority
 - [x] T009 Implement paragraph-boundary truncation
 - [x] T010 Implement output formatting with markdown section headers
-- [x] T011 Register `assemble_context` MCP tool in `index.ts`
+- [x] T011 Register `lore_assemble_context` MCP tool in `index.ts`
 - [x] T012 Add `COPY templates ./templates` to Dockerfile
 - [x] T013 Unit tests for token estimation, truncation, template loading, assembly

@@ -189,7 +189,7 @@ test FAILS, validates stmt    → ⛔ spec-violated  (the claim is currently fal
 ### Claude in-loop (via MCP)
 
 A generating/dev agent verifies its own work without a CI round-trip:
-`list_tests` → write code+test → `run_test <id>` → the statement turns
+`lore_list_tests` → write code+test → `lore_run_test <id>` → the statement turns
 `execution-verified` (or `spec-violated` if red). Execution happens in the
 agent's sandbox; the graph update is proxied through the MCP server.
 
@@ -205,7 +205,7 @@ agent's sandbox; the graph update is proxied through the MCP server.
 │  POST /api/repos/:o/:r/test-report  { commit, branch, tests[], results[] }             │
 │       covered[] = standard JSON list { file, startLine, endLine }                      │
 │  POST /api/repos/:o/:r/coverage     (bulk: same JSON list; LCOV/Cobertura normalized)  │
-│  MCP tools list_tests / run_test / query_trace  (proxy graph update; refuse to exec)   │
+│  MCP tools lore_list_tests / lore_run_test / query_trace  (proxy graph update; refuse to exec)   │
 │     → spec-trace graph units:                                                          │
 │         seed TestChunk(range) + VALIDATED_BY (when spec anchor)                        │
 │         upsert Coverage + COVERS (by line overlap)                                     │
@@ -216,7 +216,7 @@ agent's sandbox; the graph update is proxied through the MCP server.
 
 The shared service **never executes** project commands. If an MCP caller
 has no trusted local sandbox (e.g. a call hitting the GKE server directly
-with no working tree), `run_test`/`list_tests` return a "run in CI /
+with no working tree), `lore_run_test`/`lore_list_tests` return a "run in CI /
 locally" error.
 
 ## API
@@ -274,7 +274,7 @@ Wire shapes (descriptor + covered chunk) live in the contract.
 | `mcp-server/src/routes/test-report.ts` | NEW: `POST /test-report` handler → graph fan-out (seeds `TestChunk` + nested `TestSuite` chain from each descriptor's `suite`) |
 | `shared/src/spec-trace/ingest-coverage.ts` | Modify: consume command output, `test-report`, and bulk upload → `Coverage`/`COVERS` |
 | `shared/src/spec-trace/drift-check-file.ts` | Modify: `violated` distinct from `drifted`; flaky guard before flagging |
-| `mcp-server/src/index.ts` | Modify: register MCP tools `list_tests` / `run_test` / `query_trace` (Zod inputs) |
+| `mcp-server/src/index.ts` | Modify: register MCP tools `lore_list_tests` / `lore_run_test` / `query_trace` (Zod inputs) |
 | `mcp-server/src/routes.ts` | Modify: graph-update proxy for the MCP tools; refuse cluster execution |
 | `scripts/onboarding-templates/tests/{node,go,python,rust,java}.yml` | NEW: per-language `lore-tests.yml` CI workflow |
 | `scripts/task-types.yaml` (onboard) | Modify: add the **test-interface check** step — detect toolchain, check for an existing manifest, scaffold `.lore/test-commands.yml` + `lore-tests.yml` in the onboarding PR when absent (idempotent; declining = fallback) |
@@ -301,7 +301,7 @@ Wire shapes (descriptor + covered chunk) live in the contract.
 7. `POST /api/repos/:o/:r/test-report` ingests `{commit, branch, tests[], results[]}` and performs criteria 2–5 in one call; write-scope + bearer auth; idempotent on `commit`.
 8. The whole path is zero-LLM and deterministic; a per-invocation timeout skips the offending test (logged) without blocking ingest or sibling units. ([validated by `rejects when the command outlives the timeout`](mcp-server/src/spec-trace-tools.test.ts#L239), [validated by `rejects when the command outlives the timeout`](mcp-server/src/spec-trace-tools.test.ts#L43), [validated by `skips a descriptor whose run command exits non-zero and resolves with empty results`](mcp-server/src/spec-trace-tools.test.ts#L155))
 9. Project commands execute **only** in a trusted sandbox (local dev, the repo's CI, or the claude-runner Job pod); the long-lived shared MCP/agent services never execute them.
-10. MCP tools `list_tests` / `run_test` / `query_trace` run the commands in the caller's sandbox and update the graph through the MCP server (proxied to the backend like memory writes); a call with no trusted local sandbox returns a "run in CI / locally" error instead of executing on the cluster; a failing `run_test` on a validating test sets `violated` identically to the CI path.
+10. MCP tools `lore_list_tests` / `lore_run_test` / `query_trace` run the commands in the caller's sandbox and update the graph through the MCP server (proxied to the backend like memory writes); a call with no trusted local sandbox returns a "run in CI / locally" error instead of executing on the cluster; a failing `lore_run_test` on a validating test sets `violated` identically to the CI path.
 11. The `onboard` task emits a per-language `lore-tests.yml` (one per detected toolchain, subdir-scoped for monorepos) that runs the commands on push/PR and posts to `/test-report` (and/or `/coverage`).
 12. The `onboard` task runs a **test-interface check**: when no manifest is declared (neither `.lore/test-commands.yml` nor `lore.repos.settings.test_commands`), it detects the toolchain and scaffolds a suggested `.lore/test-commands.yml` (+ `lore-tests.yml`) in the onboarding PR; when a manifest already exists it reports "configured" and scaffolds nothing (idempotent); declining the scaffold leaves the repo in documented fallback mode with no error.
 13. The web UI surfaces a single, language-agnostic **setup prompt** (copy-to-clipboard, on the repo specs/coverage page + onboarding result, and as the `/lore-test-commands` skill) that names no language; running it with Claude in the repo produces a `.lore/test-commands.yml` + any wrapper scripts whose `list`/`run` output conforms to [`contracts/test-commands.md`](./contracts/test-commands.md). The prompt text is stored once and shared by the UI surface and the skill. ([validated by `renders the setup prompt text into the DOM`](web-ui/src/app/repos/[owner]/[repo]/specs/TestCommandsSetup.test.tsx#L12), [validated by `names no concrete language or test runner`](shared/src/test-command-setup-prompt.test.ts#L10), [validated by `copies the full setup prompt to the clipboard on Copy click`](web-ui/src/app/repos/[owner]/[repo]/specs/TestCommandsSetup.test.tsx#L26), [validated by `renders a "Set up test commands" heading`](web-ui/src/app/repos/[owner]/[repo]/specs/TestCommandsSetup.test.tsx#L19), [validated by `surfaces the Set up test commands section`](web-ui/src/app/repos/[owner]/[repo]/specs/RepoSpecsView.test.tsx#L37), [validated by `is a non-empty string`](shared/src/test-command-setup-prompt.test.ts#L5), [validated by `exports a byte-identical constant to the shared source`](web-ui/src/lib/test-command-setup-prompt.test.ts#L23), [validated by `carries the canonical TEST_COMMAND_SETUP_PROMPT verbatim`](shared/src/lore-test-commands-skill.test.ts#L11))

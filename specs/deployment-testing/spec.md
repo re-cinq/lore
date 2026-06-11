@@ -95,9 +95,9 @@ services:
 ```
 
 Tests:
-- `integration/memory.test.ts` — write_memory → search_memory → delete
+- `integration/memory.test.ts` — lore_write_memory → lore_search_memory → delete
 - `integration/pipeline.test.ts` — create_task → claim → complete lifecycle
-- `integration/ingest.test.ts` — ingest file → search_context finds it
+- `integration/ingest.test.ts` — ingest file → lore_search_context finds it
 - `integration/webhook.test.ts` — simulate GitHub webhook → task created
 - `integration/repo-status.test.ts` — onboarded repo returns correct data
 

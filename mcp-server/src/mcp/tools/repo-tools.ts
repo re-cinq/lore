@@ -11,7 +11,7 @@ export function registerRepoTools(server: McpServer, deps: ToolDeps) {
   const { getPool } = deps;
 
   server.tool(
-    "list_repos",
+    "lore_list_repos",
     "Returns all onboarded repos from lore.repos with pipeline task counts.",
     {},
     async () => {
@@ -21,7 +21,7 @@ export function registerRepoTools(server: McpServer, deps: ToolDeps) {
         }
         const repos = await getOnboardedReposWithCounts(getPool()!);
         if (repos.length === 0) {
-          return { content: [{ type: "text" as const, text: "No repos onboarded yet. Use onboard_repo to add one." }] };
+          return { content: [{ type: "text" as const, text: "No repos onboarded yet. Use lore_onboard_repo to add one." }] };
         }
         return { content: [{ type: "text" as const, text: JSON.stringify(repos, null, 2) }] };
       } catch (err: any) {
@@ -31,7 +31,7 @@ export function registerRepoTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "onboard_repo",
+    "lore_onboard_repo",
     "Onboard a GitHub repo: creates branch with CLAUDE.md, AGENTS.md and PR template, opens a PR, and registers the repo in lore.repos.",
     {
       full_name: z.string().describe('Repository in "owner/repo" format (e.g., "re-cinq/lore").'),
@@ -50,8 +50,8 @@ export function registerRepoTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "ingest_files",
-    "Manually ingest files from a repo into Lore's context store. Use this to make specific files searchable via search_context. The files are fetched from GitHub and embedded.",
+    "lore_ingest_files",
+    "Manually ingest files from a repo into Lore's context store. Use this to make specific files searchable via lore_search_context. The files are fetched from GitHub and embedded.",
     {
       files: z.array(z.string()).describe('File paths to ingest (e.g., ["CLAUDE.md", "adrs/ADR-001.md", "src/auth.ts"])'),
       repo: z.string().optional().describe('Repository in "owner/repo" format. Auto-detected from git remote if omitted.'),

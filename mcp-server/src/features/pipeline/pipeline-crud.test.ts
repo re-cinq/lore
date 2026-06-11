@@ -8,8 +8,8 @@ import {
 import { makePool } from "../../test-helpers/http-mock.js";
 
 /**
- * Drives the shared pipeline CRUD — the exact functions the cancel_task,
- * retry_task, and get_pipeline_status MCP handlers execute (mcp's pipeline.ts
+ * Drives the shared pipeline CRUD — the exact functions the lore_cancel_task,
+ * lore_retry_task, and lore_get_pipeline_status MCP handlers execute (mcp's pipeline.ts
  * binds the pool and re-exports them). The pool is a makePool() mock whose
  * `query` is sequenced per call so we exercise the real branching without a
  * live Postgres.

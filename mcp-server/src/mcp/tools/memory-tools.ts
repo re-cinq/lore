@@ -39,7 +39,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
   const trackLatency = makeTrackLatency(getPool);
 
   server.tool(
-    "write_memory",
+    "lore_write_memory",
     "Store a memory scoped to the current repo. Shared with every developer working in the same repo. Use for decisions, conventions, corrections, and session summaries.",
     {
       key: z.string().describe("Memory key (e.g. 'auth-pattern', 'session-summary/2026-03-30')"),
@@ -72,7 +72,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         // Proxy to GKE if available
         const proxied = await proxyMemory("write", { key, value, agent_id: agent_id || resolveAgentId(), ttl, repo });
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "unreachable") return unreachableError("write_memory", proxied.detail);
+        if (proxied.reason === "unreachable") return unreachableError("lore_write_memory", proxied.detail);
         // File fallback only when LORE_API_URL is not configured (true offline mode)
         const result = await writeMemoryFile(key, value, agent_id, ttl);
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
@@ -83,7 +83,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "read_memory",
+    "lore_read_memory",
     "Retrieve a specific memory by key. Supports version history.",
     {
       key: z.string().describe("Memory key to read."),
@@ -100,7 +100,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         }
         const proxied = await proxyMemory("read", { key, agent_id: agent_id || resolveAgentId(), version });
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "unreachable") return unreachableError("read_memory", proxied.detail);
+        if (proxied.reason === "unreachable") return unreachableError("lore_read_memory", proxied.detail);
         const result = await readMemoryFile(key, agent_id, ver);
         if (!result) return { content: [{ type: "text" as const, text: `Memory "${key}" not found.` }] };
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -111,7 +111,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "delete_memory",
+    "lore_delete_memory",
     "Soft-delete a memory (preserved in history but excluded from search).",
     {
       key: z.string().describe("Memory key to delete."),
@@ -125,7 +125,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         }
         const proxied = await proxyMemory("delete", { key, agent_id: agent_id || resolveAgentId() });
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "unreachable") return unreachableError("delete_memory", proxied.detail);
+        if (proxied.reason === "unreachable") return unreachableError("lore_delete_memory", proxied.detail);
         const result = await deleteMemoryFile(key, agent_id);
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       } catch (err: any) {
@@ -135,7 +135,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "list_memories",
+    "lore_list_memories",
     "List memories for the current repo. Auto-detects which repo you're in.",
     {
       agent_id: z.string().optional(),
@@ -151,7 +151,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         }
         const proxied = await proxyMemory("list", { agent_id: agent_id || undefined, limit, repo });
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "unreachable") return unreachableError("list_memories", proxied.detail);
+        if (proxied.reason === "unreachable") return unreachableError("lore_list_memories", proxied.detail);
         const result = await listMemoriesFile(agent_id, limit, offset);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       } catch (err: any) {
@@ -161,7 +161,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "search_memory",
+    "lore_search_memory",
     "Semantic search across all org memories and facts. Returns results ranked by similarity. Facts include temporal validity — only currently valid facts are returned by default.",
     {
       query: z.string().describe("Natural language search query."),
@@ -182,7 +182,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         }
         const proxied = await proxyMemory("search", { query, agent_id: agent_id || undefined, pool_name: pool, limit });
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "unreachable") return unreachableError("search_memory", proxied.detail);
+        if (proxied.reason === "unreachable") return unreachableError("lore_search_memory", proxied.detail);
         const results = await searchMemoryFile(query, agent_id, limit);
         return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
       } catch (err: any) {
@@ -192,7 +192,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "write_episode",
+    "lore_write_episode",
     "Ingest raw, unstructured text (conversation turn, code review, observation). The system stores it as an episode and automatically extracts searchable facts. Use this for passive knowledge capture — no need to curate what's important.",
     {
       content: z.string().min(1).max(50000).describe("Raw text to ingest (conversation, review, observation)."),
@@ -209,7 +209,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             content, source, ref, agent_id: agent_id || resolveAgentId(),
           });
           if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-          if (proxied.reason === "unreachable") return unreachableError("write_episode", proxied.detail);
+          if (proxied.reason === "unreachable") return unreachableError("lore_write_episode", proxied.detail);
           return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL or LORE_API_URL. Neither is configured." }] };
         }
         const agent = resolveAgentId(agent_id);
@@ -251,7 +251,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         // Audit log
         await dbPoolRef.query(
           `INSERT INTO memory.audit_log (agent_id, operation, metadata)
-           VALUES ($1, 'write_episode', $2)`,
+           VALUES ($1, 'lore_write_episode', $2)`,
           [agent, JSON.stringify({ episode_id: episodeId, source, ref })],
         ).catch(() => {});
 
@@ -263,7 +263,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "query_graph",
+    "lore_query_graph",
     "Query the live knowledge graph for entities and their relationships. Returns entities connected by typed edges (uses, owns, depends-on, etc.) with temporal validity.",
     {
       entity: z.string().optional().describe("Entity name to query (e.g. 'auth-service', 'postgres'). Omit to browse recent edges."),
@@ -272,11 +272,11 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
       include_invalidated: z.boolean().default(false).describe("Include invalidated (historical) relationships."),
     },
     async ({ entity, relation_type, repo, include_invalidated }) => {
-      return trackLatency('query_graph', async () => {
+      return trackLatency('lore_query_graph', async () => {
         try {
           if (!isMemoryDbAvailable()) {
             // Local stdio mode: proxy the read to the GKE server over LORE_API_URL
-            // (mirrors assemble_context) instead of requiring a direct DB.
+            // (mirrors lore_assemble_context) instead of requiring a direct DB.
             const params = new URLSearchParams();
             if (entity) params.set("entity", entity);
             if (relation_type) params.set("relation_type", relation_type);
@@ -287,7 +287,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
               return { content: [{ type: "text" as const, text: proxied.body }] };
             }
             if (proxied.reason === "unreachable") {
-              return unreachableError("query_graph", proxied.detail);
+              return unreachableError("lore_query_graph", proxied.detail);
             }
             return { content: [{ type: "text" as const, text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL." }] };
           }
@@ -304,7 +304,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "agent_stats",
+    "lore_agent_stats",
     "Returns comprehensive agent statistics: memory count, last activity, snapshot count, total memories, active/invalidated facts, searches, shared pools, and recent episodes.",
     {
       agent_id: z.string().optional().describe("Override agent ID."),

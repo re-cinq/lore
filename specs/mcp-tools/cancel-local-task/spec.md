@@ -1,26 +1,26 @@
-# Feature Specification: cancel_local_task MCP Tool
+# Feature Specification: lore_cancel_local_task MCP Tool
 
 | Field   | Value                                       |
 |---------|---------------------------------------------|
-| Feature | cancel_local_task MCP Tool                  |
+| Feature | lore_cancel_local_task MCP Tool                  |
 | Status  | **Draft**                                   |
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
-| Tool    | `cancel_local_task`                         |
+| Tool    | `lore_cancel_local_task`                         |
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
 ## Problem Statement
 
 A developer who started a background local task needs to stop it and reclaim the
-disk used by its worktree. `cancel_local_task` kills the task's process, marks it
+disk used by its worktree. `lore_cancel_local_task` kills the task's process, marks it
 failed, and removes the worktree.
 
 ## Interface
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/local-runner-tools.local.ts#L91)).
 
-- **name**: `cancel_local_task`
+- **name**: `lore_cancel_local_task`
 - **description** (verbatim): *"Cancel a running local background task and clean
   up its worktree."*
 
@@ -73,5 +73,5 @@ which the no-mocks convention forbids. The not-found branch is covered above.)*
 
 ## Out of Scope
 
-- Starting a task — [`run_task_locally`](../run-task-locally/spec.md).
+- Starting a task — [`lore_run_task_locally`](../run-task-locally/spec.md).
 - Stale-task cleanup (`cleanupStaleTasks`).

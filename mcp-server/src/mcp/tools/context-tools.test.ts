@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // The handler captures `CONTEXT_PATH` from the environment at module load,
-// and with no pg pool configured `isDbAvailable()` is false, so search_context
+// and with no pg pool configured `isDbAvailable()` is false, so lore_search_context
 // takes the file-based fallback over real .md files on disk. We point
 // CONTEXT_PATH at a real temp tree and drive the actual registered handler —
 // no logic is mocked.
@@ -37,7 +37,7 @@ beforeAll(async () => {
     },
   };
   registerContextTools(fakeServer as never, { getPool: () => null });
-  searchContext = handlers["search_context"];
+  searchContext = handlers["lore_search_context"];
 });
 
 afterAll(() => {
@@ -45,7 +45,7 @@ afterAll(() => {
   delete process.env.CONTEXT_PATH;
 });
 
-describe("search_context file-based fallback", () => {
+describe("lore_search_context file-based fallback", () => {
   it("returns the matching paragraph with its source path", async () => {
     const result = await searchContext({ query: "Friday afternoons", limit: 8 });
     const text = result.content[0].text;

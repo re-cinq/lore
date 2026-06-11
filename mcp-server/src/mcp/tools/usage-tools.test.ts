@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { registerUsageTools } from "./usage-tools.js";
 
 /**
- * Drives the actual registered my_usage / get_analytics handlers via a fake
+ * Drives the actual registered lore_my_usage / lore_get_analytics handlers via a fake
  * McpServer that captures the handler, and a recording pg pool whose `query`
  * matches on the inline SQL and returns canned rows. No logic is mocked — the
  * handler's period fan-out, SQL shape, and JSON envelope are exercised end to
@@ -34,7 +34,7 @@ afterEach(() => {
   process.env = { ...originalEnv };
 });
 
-describe("my_usage", () => {
+describe("lore_my_usage", () => {
   beforeEach(() => {
     process.env.LORE_AGENT_ID = "agent-12345678-abcd";
   });
@@ -53,7 +53,7 @@ describe("my_usage", () => {
         return { rows: [rowsByCall[call++]] };
       },
     };
-    const usage = registerWith(() => pool)["my_usage"];
+    const usage = registerWith(() => pool)["lore_my_usage"];
 
     const result = await usage({ agent_id: "agent-12345678-abcd" });
 
@@ -75,7 +75,7 @@ describe("my_usage", () => {
         return { rows: [{ tasks: 0, input_tokens: "0", output_tokens: "0" }] };
       },
     };
-    const usage = registerWith(() => pool)["my_usage"];
+    const usage = registerWith(() => pool)["lore_my_usage"];
 
     await usage({ agent_id: "agent-12345678-abcd" });
 
@@ -87,7 +87,7 @@ describe("my_usage", () => {
   });
 
   it("returns a PostgreSQL-required message when the pool is null", async () => {
-    const usage = registerWith(() => null)["my_usage"];
+    const usage = registerWith(() => null)["lore_my_usage"];
     const result = await usage({});
     expect(result.content[0].text).toEqual(
       "Usage tracking requires PostgreSQL (LORE_DB_HOST not set).",
@@ -100,13 +100,13 @@ describe("my_usage", () => {
         throw new Error("connection refused");
       },
     };
-    const usage = registerWith(() => pool)["my_usage"];
+    const usage = registerWith(() => pool)["lore_my_usage"];
     const result = await usage({ agent_id: "agent-12345678-abcd" });
     expect(result.content[0].text).toEqual("Error: connection refused");
   });
 });
 
-describe("get_analytics", () => {
+describe("lore_get_analytics", () => {
   beforeEach(() => {
     process.env.LORE_DB_HOST = "localhost";
   });
@@ -125,7 +125,7 @@ describe("get_analytics", () => {
         return { rows: [{ task_type: "implementation", tasks: "6" }, { task_type: "review", tasks: "4" }] };
       },
     };
-    const analytics = registerWith(() => pool)["get_analytics"];
+    const analytics = registerWith(() => pool)["lore_get_analytics"];
 
     const result = await analytics({ period: "month" });
 
@@ -150,7 +150,7 @@ describe("get_analytics", () => {
         return { rows: [] };
       },
     };
-    const analytics = registerWith(() => pool)["get_analytics"];
+    const analytics = registerWith(() => pool)["lore_get_analytics"];
 
     await analytics({ period: "today" });
 
@@ -160,7 +160,7 @@ describe("get_analytics", () => {
 
   it("returns a PostgreSQL-required message when LORE_DB_HOST is unset", async () => {
     delete process.env.LORE_DB_HOST;
-    const analytics = registerWith(() => null)["get_analytics"];
+    const analytics = registerWith(() => null)["lore_get_analytics"];
     const result = await analytics({ period: "month" });
     expect(result.content[0].text).toEqual(
       "Analytics requires PostgreSQL (LORE_DB_HOST not set).",
@@ -173,7 +173,7 @@ describe("get_analytics", () => {
         throw new Error("relation does not exist");
       },
     };
-    const analytics = registerWith(() => pool)["get_analytics"];
+    const analytics = registerWith(() => pool)["lore_get_analytics"];
     const result = await analytics({ period: "month" });
     expect(result.content[0].text).toEqual(
       "Error fetching analytics: relation does not exist",

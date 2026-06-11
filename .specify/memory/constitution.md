@@ -108,7 +108,7 @@ the embedding model is.
 A developer MUST need to remember exactly three things:
 
 ```
-ready_tasks (MCP) -> what should I work on right now?
+lore_ready_tasks (MCP) -> what should I work on right now?
 /lore-feature     -> I'm starting something new
 /lore-pr          -> I'm about to open a PR
 ```
@@ -131,14 +131,14 @@ agents (Lore Agent) directly — they talk to the Lore MCP server,
 which delegates on their behalf.
 
 MCP tools fall into three categories:
-- Context retrieval: `assemble_context`, `search_context`,
-  `search_memory`, `query_graph`, `get_file_pr_history`.
-- Memory operations: `write_memory`, `read_memory`, `delete_memory`,
-  `list_memories`, `write_episode`, `agent_stats`.
-- Cluster delegation: `create_pipeline_task`, `get_pipeline_status`,
-  `list_pipeline_tasks`, `cancel_task`, `retry_task`,
-  `list_task_group`, `get_task_logs`, `my_usage`,
-  `run_task_locally`, `list_local_tasks`, `cancel_local_task`.
+- Context retrieval: `lore_assemble_context`, `lore_search_context`,
+  `lore_search_memory`, `lore_query_graph`, `get_file_pr_history`.
+- Memory operations: `lore_write_memory`, `lore_read_memory`, `lore_delete_memory`,
+  `lore_list_memories`, `lore_write_episode`, `lore_agent_stats`.
+- Cluster delegation: `lore_create_pipeline_task`, `lore_get_pipeline_status`,
+  `lore_list_pipeline_tasks`, `lore_cancel_task`, `lore_retry_task`,
+  `lore_list_task_group`, `lore_get_task_logs`, `lore_my_usage`,
+  `lore_run_task_locally`, `lore_list_local_tasks`, `lore_cancel_local_task`.
 
 **Rationale:** A single interface means one thing to configure, one
 thing to debug, and one set of access controls. Exposing cluster
@@ -280,7 +280,7 @@ enforce this without agent cooperation:
    (500-entry ring buffer). On process exit, dumps to
    `~/.lore/last-session.json`. Stop hook POSTs to
    `/api/session-summary` for automatic episode + fact extraction.
-   No agent `write_episode` call required.
+   No agent `lore_write_episode` call required.
 
 2. **Importance-based decay** — Daily job (5 AM) scores memories
    0-10 using a half-life decay model
@@ -305,7 +305,7 @@ invalidated before storage; conflicts are recorded in
 `memory.fact_conflicts`. Context assembly prefixes `[CONFLICT]` on
 facts with contradictions in the past 7 days.
 
-4. **Retrieval strengthening** — Every `search_memory` call
+4. **Retrieval strengthening** — Every `lore_search_memory` call
    asynchronously increments `retrieval_count`, updates
    `last_retrieved_at`, and extends `half_life_days` (+2, cap 365)
    on returned facts and memories. Fire-and-forget; zero added latency.
@@ -321,7 +321,7 @@ facts with contradictions in the past 7 days.
    dominating search rankings.
 
 **Rationale:** Unbounded memory growth degrades search quality and
-increases cost. Agents that skip `write_episode` lose learnings
+increases cost. Agents that skip `lore_write_episode` lose learnings
 silently. Passive capture + bounded decay + consolidation + retrieval
 strengthening + outcome feedback keeps memory useful and
 self-improving without requiring explicit agent cooperation.
@@ -379,7 +379,7 @@ tolerance without reinstating continuous polling. See ADR-015.
 | Auth | Workload Identity (GKE), Workload Identity Federation (GHA) |
 | Code parsing | web-tree-sitter (TypeScript, Python, Go) |
 | Document parsing | LlamaIndex readers (GitHub, Confluence) + unstructured |
-| Knowledge graph | PostgreSQL `memory.entities` + `memory.edges` (incremental updates on `write_episode`) |
+| Knowledge graph | PostgreSQL `memory.entities` + `memory.edges` (incremental updates on `lore_write_episode`) |
 | Memory lifecycle | `agent/src/jobs/memory-lifecycle.ts` — importance decay (Ebbinghaus model) + Haiku-driven consolidation |
 | Privacy filtering | `@re-cinq/lore-shared` `redactSecrets()` — strips keys, JWTs, connection strings before memory writes |
 | Prompt caching | `agent/src/lib/prompt-cache.ts` — `getCacheControl(jobName)` returns ephemeral (5m) or 1h breakpoints; `analyzeCacheBreak` classifies hit / first-call / break |
@@ -441,14 +441,14 @@ Closed the loop — system improves based on actual usage. Deliverables:
 
 Deliverables:
 - Live knowledge graph (`memory.entities` + `memory.edges`) updated
-  incrementally on every `write_episode` call.
-- `query_graph` MCP tool for entity relationship queries.
+  incrementally on every `lore_write_episode` call.
+- `lore_query_graph` MCP tool for entity relationship queries.
 - Autonomous review loop (opt-in per repo via `auto_review` setting) —
   review Job posts PR comments, iterates up to 2 rounds.
 - PR outcome feedback: merge/rejection signals adjust fact `half_life_days`
   (+5 on merge, −3 on rejection, floor 7). Context refs tracked via
   `pipeline.tasks.context_refs`. Closed-without-merge detected as rejection.
-- Retrieval strengthening: `search_memory` increments `retrieval_count`,
+- Retrieval strengthening: `lore_search_memory` increments `retrieval_count`,
   updates `last_retrieved_at`, extends `half_life_days` (+2, cap 365)
   on returned facts and memories. Stale facts revive to `observed` on retrieval.
 - Confidence tiers: `verified`, `observed`, `inferred`, `stale`.
@@ -463,7 +463,7 @@ Deliverables:
 - Task groups: `task_group_id` coordinates multi-repo features. Summary
   episode written when all tasks in a group merge.
 - Production awareness: `settings.incidents` surfaced at priority 1 in
-  `assemble_context`. Populated via `/api/webhook/incident`
+  `lore_assemble_context`. Populated via `/api/webhook/incident`
   (PagerDuty / Opsgenie).
 - Event-driven review reactor: webhook fan-out from mcp-server to agent's
   `POST /api/trigger/review-reactor`; business-hours safety cron catches
@@ -471,9 +471,9 @@ Deliverables:
 - Prompt caching: two cache breakpoints per LLM call (system + tool schema);
   1h TTL allowlist via `LORE_CACHE_1H_JOBS`. Cost accounting at 1.25× writes,
   0.1× reads.
-- Per-template context budgets: default 8K, research 16K. `assemble_context`
+- Per-template context budgets: default 8K, research 16K. `lore_assemble_context`
   `max_tokens` parameter default 8K.
-- Context freshness: `assemble_context` warns on stale (>7 days) or missing
+- Context freshness: `lore_assemble_context` warns on stale (>7 days) or missing
   context. `/api/repo-status` exposes `last_ingested_at` + `stale` flag.
 - Spec drift detection with VIOLATES tracking.
 - AgentDB optional local read cache (stdio mode).

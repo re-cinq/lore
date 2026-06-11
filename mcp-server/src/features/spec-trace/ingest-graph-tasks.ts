@@ -1,6 +1,6 @@
 /**
  * Fan-out creator for spec-traceability graph ingestion tasks. Shared by the
- * `ingest_graph` MCP tool and the auto path (post-onboard / post-ingest). Each
+ * `lore_ingest_graph` MCP tool and the auto path (post-onboard / post-ingest). Each
  * kind becomes one `ingest-<kind>` pipeline task (id + human description,
  * identifiable in the UI), grouped under one task_group_id, carrying the kind +
  * branch/commit/glob in its context_bundle. Dedupes against an in-flight task
@@ -49,7 +49,7 @@ export async function createIngestGraphTasks(
       taskType,
       description: `Ingest ${kind} → graph for ${repo}`,
       targetRepo: repo,
-      createdBy: opts.createdBy ?? "ingest_graph",
+      createdBy: opts.createdBy ?? "lore_ingest_graph",
       taskGroupId: groupId,
       contextBundle: { kind, branch: opts.branch, commit: opts.commit, glob: opts.glob, force: opts.force },
     });

@@ -17,7 +17,7 @@ the memory DB is unavailable, the pre-run context hydration in the local + GKE
 runners, and the web UI — need an HTTP surface that returns a token-budgeted,
 provenance-tagged context block for a query, or a plain concatenation of a repo's
 docs/ADRs/specs when no query is supplied. This is the read counterpart to the
-`assemble_context` MCP tool over HTTP.
+`lore_assemble_context` MCP tool over HTTP.
 
 ## Interface
 

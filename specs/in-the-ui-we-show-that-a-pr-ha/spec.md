@@ -30,7 +30,7 @@ don't need new tables or columns. Instead:
    and returns computed PR state.
 3. **Add a client component** that fetches this route on mount and
    renders a PR status card (state badge, check results, review status).
-4. **Add an MCP tool** (`get_pr_status`) so agents can query PR state
+4. **Add an MCP tool** (`lore_get_pr_status`) so agents can query PR state
    programmatically.
 
 No polling jobs, no cached state, no schema migrations. The UI fetches
@@ -107,7 +107,7 @@ Fetches `/api/pipeline/{id}/pr-status` on mount. Renders:
 
 ### 5. `mcp-server/src/index.ts` — New MCP tool
 
-`get_pr_status(repo, pr_number)` — calls GitHub API, returns same
+`lore_get_pr_status(repo, pr_number)` — calls GitHub API, returns same
 `PRDetails` structure. Agents use this to check PR state.
 
 ### 6. Pipeline list view enhancement
@@ -129,6 +129,6 @@ show a small status indicator next to the PR link (fetched client-side).
 1. Task detail page shows live PR status badge when a PR exists ([validated by `github.test.ts:32`](web-ui/src/lib/github.test.ts#L32))
 2. Check results (pass/fail) visible without going to GitHub ([validated by `github.test.ts:44`](web-ui/src/lib/github.test.ts#L44))
 3. Review status (who approved, who requested changes) visible ([validated by `github.test.ts:52`](web-ui/src/lib/github.test.ts#L52))
-4. MCP tool `get_pr_status` returns structured PR state
+4. MCP tool `lore_get_pr_status` returns structured PR state
 5. Graceful fallback when GitHub API is unavailable. ([validated by `PRStatusCard.test.tsx:273`](web-ui/src/app/pipeline/[id]/PRStatusCard.test.tsx#L273))
 6. No database migrations required

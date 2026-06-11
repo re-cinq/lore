@@ -23,7 +23,7 @@ example transcript + a small CLAUDE.md / tasks.md note.
 ## Phase 4 — Follow-ups (deferred, not in v1)
 
 - [ ] F-cli-prep Add `agent/src/cli/lore-suggest-prep.ts` (or a `scripts/lore-suggest-prep`) shim that runs the deterministic helpers from `@re-cinq/lore-shared` locally (segment → classify → selectCandidates) and emits structured JSON for the skill to reason over. Tighter precision than the prose-driven Glob + Grep approach. Worth building only if v1 proves too lossy on noisy repos. (Spec §Limitations 1.)
-- [ ] F-ingested-spec Allow the skill to operate against the *ingested* spec via `assemble_context` / `search_context` when the developer isn't in the right local checkout. (Spec §Decisions deferred.)
+- [ ] F-ingested-spec Allow the skill to operate against the *ingested* spec via `lore_assemble_context` / `lore_search_context` when the developer isn't in the right local checkout. (Spec §Decisions deferred.)
 - [ ] F-batch-sweep An "all-stale-specs in this repo" mode that loops `/lore-suggest-links` over every spec with zero or partial coverage. (Spec §Decisions deferred.)
 - [ ] F-suggestion-telemetry Record suggestion-PR outcomes (merged / closed / partially-merged) back to a memory so future skill invocations can calibrate. (Spec §Limitations 4.)
 - [ ] F-coverage-aware When `specs/coverage-ingestion/` ships, surface coverage hits to the developer's session as extra evidence for the judge. (Spec §Limitations 5.)

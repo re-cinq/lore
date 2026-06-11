@@ -17,7 +17,7 @@ the repo and opens a PR adding `CLAUDE.md`, `AGENTS.md`, ADRs, a PR template, an
 CI workflows, and registers the repo for nightly ingestion. Because it writes to
 an external repo and creates a `lore.repos` row, it must be gated behind the
 strongest token scope. This route is the HTTP surface the `/onboard` UI and the
-`onboard_repo` MCP tool call.
+`lore_onboard_repo` MCP tool call.
 
 ## Interface
 

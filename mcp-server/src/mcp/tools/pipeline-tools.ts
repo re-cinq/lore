@@ -22,7 +22,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   const { getPool } = deps;
 
   server.tool(
-    "create_pipeline_task",
+    "lore_create_pipeline_task",
     "Create a pipeline task. By default tasks go to the backlog (priority=normal) for developers to pick up locally. Set priority=immediate to have the GKE agent auto-execute it. Available types: feature-request (PM intent → spec + tasks), onboard (add repo to Lore), general (open-ended), runbook (write ops runbook), implementation (code from spec), gap-fill (draft missing docs), review (review a PR).",
     {
       description: z.string().describe("What should the agent do? Be specific — this is the primary instruction. For feature-request: describe the feature in plain language. For onboard: just the repo name."),
@@ -64,7 +64,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           const result = await res.json() as any;
           const pickupMsg = priority === "immediate"
             ? "The GKE agent will pick this up within 30 seconds."
-            : "Task added to backlog. Claim it locally with claim_and_run_locally, or set priority to immediate via the UI.";
+            : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
           const msg = `Task created: ${result.task_id}\nType: ${result.task_type || task_type}\nPriority: ${priority}\nRepo: ${resolvedRepo || 'default'}\n\n${pickupMsg}`;
           return { content: [{ type: "text" as const, text: msg }] };
         }
@@ -74,7 +74,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         const result = await createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id);
         const pickupMsg = priority === "immediate"
           ? "The GKE agent will pick this up within 30 seconds."
-          : "Task added to backlog. Claim it locally with claim_and_run_locally, or set priority to immediate via the UI.";
+          : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
         const msg = `Task created: ${result.task_id}\nType: ${resolvedType}\nPriority: ${priority}\nRepo: ${resolvedRepo || 'default'}\n\n${pickupMsg}`;
         return { content: [{ type: "text" as const, text: msg }] };
       } catch (err: any) {
@@ -84,7 +84,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "get_pipeline_status",
+    "lore_get_pipeline_status",
     "Retrieve the current status of a pipeline task, including its full event timeline.",
     {
       task_id: z.string().describe("UUID of the pipeline task."),
@@ -109,7 +109,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "get_pr_status",
+    "lore_get_pr_status",
     "Fetch live PR state from GitHub for a given repo and PR number. Returns draft/open/checks-failing/changes-requested/approved/merged/closed status plus check results and review details.",
     {
       repo: z.string().describe('Repository in owner/name format, e.g. "re-cinq/lore".'),
@@ -128,7 +128,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "list_pipeline_tasks",
+    "lore_list_pipeline_tasks",
     "List pipeline tasks with optional filtering by status. Returns tasks ordered by creation time, newest first.",
     {
       status: z.string().optional().describe('Filter by status (e.g., "pending", "running", "pr-created", "failed"). Omit to return all tasks.'),
@@ -160,7 +160,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "cancel_task",
+    "lore_cancel_task",
     "Cancel a pipeline task. If the task has a running agent, attempts to cancel it.",
     {
       task_id: z.string().describe("UUID of the pipeline task to cancel."),
@@ -179,7 +179,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "retry_task",
+    "lore_retry_task",
     "Retry a failed pipeline task. Creates a new task with the same parameters and links it to the original.",
     {
       task_id: z.string().describe("UUID of the failed task to retry."),
@@ -199,7 +199,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "list_task_group",
+    "lore_list_task_group",
     "List all tasks in a task group. Task groups coordinate multi-repo features.",
     {
       group_id: z.string().describe("Task group UUID."),
@@ -228,7 +228,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "sync_tasks",
+    "lore_sync_tasks",
     "Parse a tasks.md file and sync spec-tasks into the pipeline. Handles dependencies and parallelization markers.",
     {
       tasks_markdown: z.string().describe("Contents of tasks.md (the full markdown text)."),
@@ -243,7 +243,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         }
         const dbPoolRef = getPool();
         if (!dbPoolRef) {
-          return { content: [{ type: "text" as const, text: "sync_tasks requires PostgreSQL (LORE_DB_HOST not set)." }] };
+          return { content: [{ type: "text" as const, text: "lore_sync_tasks requires PostgreSQL (LORE_DB_HOST not set)." }] };
         }
         const parsed = parseTasks(tasks_markdown);
         if (parsed.length === 0) {
@@ -259,7 +259,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "ready_tasks",
+    "lore_ready_tasks",
     "List spec-tasks that are ready to work on (all dependencies satisfied).",
     {
       repo: z.string().optional().describe('Target repo in "owner/repo" format. Auto-detected if omitted.'),
@@ -272,7 +272,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         }
         const dbPoolRef = getPool();
         if (!dbPoolRef) {
-          return { content: [{ type: "text" as const, text: "ready_tasks requires PostgreSQL (LORE_DB_HOST not set)." }] };
+          return { content: [{ type: "text" as const, text: "lore_ready_tasks requires PostgreSQL (LORE_DB_HOST not set)." }] };
         }
         const tasks = await getReadyTasks(dbPoolRef, resolvedRepo);
         if (tasks.length === 0) {
@@ -289,7 +289,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "claim_task",
+    "lore_claim_task",
     "Atomically claim a spec-task so no other agent works on it.",
     {
       task_id: z.string().describe("UUID of the pipeline task to claim."),
@@ -299,7 +299,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       try {
         const dbPoolRef = getPool();
         if (!dbPoolRef) {
-          return { content: [{ type: "text" as const, text: "claim_task requires PostgreSQL (LORE_DB_HOST not set)." }] };
+          return { content: [{ type: "text" as const, text: "lore_claim_task requires PostgreSQL (LORE_DB_HOST not set)." }] };
         }
         const resolvedAgent = agent_id || resolveAgentId();
         const claimed = await claimTask(dbPoolRef, task_id, resolvedAgent);
@@ -314,7 +314,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "complete_task",
+    "lore_complete_task",
     "Mark a spec-task as completed and report any newly unblocked tasks.",
     {
       task_id: z.string().describe("UUID of the pipeline task to complete."),
@@ -323,7 +323,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       try {
         const dbPoolRef = getPool();
         if (!dbPoolRef) {
-          return { content: [{ type: "text" as const, text: "complete_task requires PostgreSQL (LORE_DB_HOST not set)." }] };
+          return { content: [{ type: "text" as const, text: "lore_complete_task requires PostgreSQL (LORE_DB_HOST not set)." }] };
         }
         const result = await completeTask(dbPoolRef, task_id);
         if (!result.completed) {
@@ -341,7 +341,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "get_task_logs",
+    "lore_get_task_logs",
     "Fetch execution logs for a pipeline task. Returns the latest output from the task's log file.",
     {
       task_id: z.string().describe("UUID of the pipeline task."),
@@ -389,7 +389,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "get_job_logs",
+    "lore_get_job_logs",
     "Fetch full stdout/stderr of a scheduled batch-job run (K8s CronJob pod). The log_path is recorded in pipeline.job_runs by the agent's job-runner.",
     {
       job_name: z.string().describe("Job name (e.g. context_reindex, spec_test_linker)."),
@@ -426,7 +426,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "list_pending_tasks",
+    "lore_list_pending_tasks",
     "Show pending pipeline tasks that can be claimed and run locally. Shows tasks across all repos by default.",
     {
       repo: z.string().optional().describe('Filter by repo in "owner/repo" format. Omit to show all repos.'),
@@ -483,7 +483,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "skip_task",
+    "lore_skip_task",
     "Dismiss a pending task notification. GKE will pick it up instead.",
     {
       task_id: z.string().describe("Task ID to skip"),
@@ -500,7 +500,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "enable_task_notifications",
+    "lore_enable_task_notifications",
     "Start watching for pending pipeline tasks on repos you work with. Shows new tasks in the statusline so you can decide to run them locally or let GKE handle them.",
     {
       repos: z.array(z.string()).optional().describe("Repos to watch (e.g. ['re-cinq/lore']). Defaults to current repo."),
@@ -531,7 +531,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "disable_task_notifications",
+    "lore_disable_task_notifications",
     "Stop watching for pending pipeline tasks.",
     {},
     async () => {

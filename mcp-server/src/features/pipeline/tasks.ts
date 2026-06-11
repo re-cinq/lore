@@ -61,13 +61,13 @@ export async function syncTasksToDb(
       if (taskGroupId) {
         await pool.query(
           `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
-           VALUES ($1, 'spec-task', $2, $3, $4, 'sync_tasks', $5)`,
+           VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks', $5)`,
           [title, repo, status, JSON.stringify(metadata), taskGroupId],
         );
       } else {
         await pool.query(
           `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by)
-           VALUES ($1, 'spec-task', $2, $3, $4, 'sync_tasks')`,
+           VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks')`,
           [title, repo, status, JSON.stringify(metadata)],
         );
       }
@@ -142,7 +142,7 @@ export async function claimTask(
       await client.query(
         `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
          VALUES ($1, 'pending', 'running', $2)`,
-        [taskId, JSON.stringify({ agent_id: agentId, claimed_by: 'claim_task' })],
+        [taskId, JSON.stringify({ agent_id: agentId, claimed_by: 'lore_claim_task' })],
       );
     } catch { /* event recording must not block */ }
 

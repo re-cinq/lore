@@ -1,12 +1,12 @@
-# Feature Specification: enable_task_notifications MCP Tool
+# Feature Specification: lore_enable_task_notifications MCP Tool
 
 | Field   | Value                                          |
 |---------|------------------------------------------------|
-| Feature | enable_task_notifications MCP Tool             |
+| Feature | lore_enable_task_notifications MCP Tool             |
 | Status  | **Draft**                                      |
 | Created | 2026-06-10                                     |
 | Owner   | Platform Engineering                           |
-| Tool    | `enable_task_notifications`                    |
+| Tool    | `lore_enable_task_notifications`                    |
 | Module  | Pipeline (`features/pipeline/runner.local.ts`) |
 | Scope   | local                                          |
 
@@ -14,7 +14,7 @@
 
 A developer wants to be told when new pending pipeline tasks appear on the repos
 they work with, so they can choose to run one locally instead of waiting for
-GKE. `enable_task_notifications` starts a background poller that writes matching
+GKE. `lore_enable_task_notifications` starts a background poller that writes matching
 pending tasks to a cache file the statusline reads — a read-only notification
 mechanism that never claims or mutates tasks.
 
@@ -22,7 +22,7 @@ mechanism that never claims or mutates tasks.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L503)).
 
-- **name**: `enable_task_notifications`
+- **name**: `lore_enable_task_notifications`
 - **description** (verbatim): *"Start watching for pending pipeline tasks on
   repos you work with. Shows new tasks in the statusline so you can decide to run
   them locally or let GKE handle them."*
@@ -81,6 +81,6 @@ is no pure seam for the orchestration.)*
 
 ## Out of Scope
 
-- Reading the cache the notifier writes — see [`list_pending_tasks`](../list-pending-tasks/spec.md).
-- Stopping the notifier — see [`disable_task_notifications`](../disable-task-notifications/spec.md).
+- Reading the cache the notifier writes — see [`lore_list_pending_tasks`](../list-pending-tasks/spec.md).
+- Stopping the notifier — see [`lore_disable_task_notifications`](../disable-task-notifications/spec.md).
 - Stale-task cleanup / re-queue semantics (`cleanupStaleTasks`).

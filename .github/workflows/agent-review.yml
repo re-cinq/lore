@@ -19,7 +19,7 @@ jobs:
               "id": 1,
               "method": "tools/call",
               "params": {
-                "name": "create_pipeline_task",
+                "name": "lore_create_pipeline_task",
                 "arguments": {
                   "description": "Review PR #${{ github.event.number }}: ${{ github.event.pull_request.title }}. Check against Lore context, ADRs, and conventions. Post review comments on the PR.",
                   "task_type": "review",

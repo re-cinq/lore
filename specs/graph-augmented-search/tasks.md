@@ -8,5 +8,5 @@
 - [x] T002 Implement `detectEntities()` — substring match against cache
 - [x] T003 Implement `graphAugment()` — 1-hop neighbor retrieval from memory.edges
 - [x] T004 Wire graph augmentation into `searchMemories()` after RRF merge
-- [x] T005 Add `graph_augment` parameter to `search_memory` MCP tool
+- [x] T005 Add `graph_augment` parameter to `lore_search_memory` MCP tool
 - [x] T006 Add `'graph'` to MemorySearchResult source type

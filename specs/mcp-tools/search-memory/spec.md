@@ -1,12 +1,12 @@
-# Feature Specification: `search_memory` MCP tool
+# Feature Specification: `lore_search_memory` MCP tool
 
 | Field   | Value                                            |
 |---------|--------------------------------------------------|
-| Feature | `search_memory` MCP tool                         |
+| Feature | `lore_search_memory` MCP tool                         |
 | Status  | **Draft**                                        |
 | Created | 2026-06-10                                       |
 | Owner   | Platform Engineering                             |
-| Tool    | `search_memory`                                  |
+| Tool    | `lore_search_memory`                                  |
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
@@ -22,7 +22,7 @@ only currently-valid facts by default while still allowing historical lookups.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L162)).
 
-- **name**: `search_memory`
+- **name**: `lore_search_memory`
 - **description** (verbatim): *"Semantic search across all org memories and
   facts. Returns results ranked by similarity. Facts include temporal validity
   — only currently valid facts are returned by default."*
@@ -73,7 +73,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
    - Tool emits `JSON.stringify(results, null, 2)`.
 2. **Proxy path** — DB unavailable: `proxyMemory("search", { query, agent_id:
    agent_id || undefined, pool_name: pool, limit })`. `ok` → `proxied.body`;
-   `unreachable` → `unreachableError("search_memory", detail)`. (`pool` maps to
+   `unreachable` → `unreachableError("lore_search_memory", detail)`. (`pool` maps to
    `pool_name`; `include_invalidated` / `graph_augment` are not forwarded.)
 3. **File fallback** — proxy `not_configured`: `searchMemoryFile(query,
    agent_id, limit)`, return `JSON.stringify(…, null, 2)`.

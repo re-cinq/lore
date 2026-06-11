@@ -11,7 +11,7 @@
 
 ## Problem Statement
 
-Agents call `search_memory` and `get_context` and receive raw text
+Agents call `lore_search_memory` and `get_context` and receive raw text
 back. Every agent then assembles its own context: deciding what to
 include, how to order it, what format the LLM expects. This is
 duplicated work across every agent session, and each agent does it
@@ -30,7 +30,7 @@ retrieval and prompting.
 
 ## Vision
 
-A new `assemble_context` MCP tool that takes a query and an
+A new `lore_assemble_context` MCP tool that takes a query and an
 optional template name, retrieves relevant context from all
 sources (memories, facts, episodes, graph, repo context), and
 returns a single structured block optimized for LLM consumption.
@@ -43,7 +43,7 @@ Templates are centrally managed — tune once, every agent benefits.
 **Actor:** Any agent starting a task
 
 **Flow:**
-1. Agent calls `assemble_context(query: "implement auth middleware")`.
+1. Agent calls `lore_assemble_context(query: "implement auth middleware")`.
 2. System retrieves: relevant ADRs, CLAUDE.md conventions, recent
    memories about auth, graph entities for auth-related services,
    relevant PR history.
@@ -54,7 +54,7 @@ Templates are centrally managed — tune once, every agent benefits.
 
 **Acceptance Criteria:**
 - Single tool call replaces multiple `get_context` +
-  `search_memory` + `get_adrs` calls.
+  `lore_search_memory` + `get_adrs` calls.
 - Output is structured with clear section headers.
 - Total output fits within a configurable token budget.
 - Most relevant information appears first.
@@ -64,7 +64,7 @@ Templates are centrally managed — tune once, every agent benefits.
 **Actor:** Pipeline agent executing a review task
 
 **Flow:**
-1. Agent calls `assemble_context(query: "review PR #42",
+1. Agent calls `lore_assemble_context(query: "review PR #42",
    template: "review")`.
 2. The "review" template prioritizes: conventions, ADRs, recent
    review feedback, coding patterns. It deprioritizes: project
@@ -82,7 +82,7 @@ Templates are centrally managed — tune once, every agent benefits.
 **Actor:** Agent with a context window constraint
 
 **Flow:**
-1. Agent calls `assemble_context(query: "...", max_tokens: 8000)`.
+1. Agent calls `lore_assemble_context(query: "...", max_tokens: 8000)`.
 2. System assembles the most relevant context within the budget.
 3. Lower-priority sections are truncated or omitted to fit.
 
@@ -119,9 +119,9 @@ context it did, via the web-ui **Assembled** tab.
 
 ## Functional Requirements
 
-### FR-1: assemble_context MCP Tool
+### FR-1: lore_assemble_context MCP Tool
 
-- FR-1.1: `assemble_context(query, template?, max_tokens?,
+- FR-1.1: `lore_assemble_context(query, template?, max_tokens?,
   repo?, agent_id?)` is the single entry point.
 - FR-1.2: Returns a structured text block with section headers.
 - FR-1.3: `max_tokens` defaults to 16000. Minimum 2000.
@@ -136,11 +136,11 @@ The tool retrieves from all available sources:
 - FR-2.2: **ADRs** — relevant architecture decisions
   (from `get_adrs` logic).
 - FR-2.3: **Memories** — agent-specific and shared pool memories
-  (from `search_memory` logic).
+  (from `lore_search_memory` logic).
 - FR-2.4: **Facts** — including episode-derived facts
-  (from `search_memory` fact search).
+  (from `lore_search_memory` fact search).
 - FR-2.5: **Graph** — related entities and relationships
-  (from `query_graph` logic, 1-hop).
+  (from `lore_query_graph` logic, 1-hop).
 - FR-2.6: Each source is retrieved in parallel.
 - FR-2.7: **Relevance ranking.** Local `repo` and `adrs` sources rank by
   `ts_rank(search_tsv, websearch_to_tsquery(...))` against the query, not by
@@ -206,7 +206,7 @@ The tool retrieves from all available sources:
 
 ### NFR-1: Performance
 
-- `assemble_context` returns in under 500ms (parallel retrieval
+- `lore_assemble_context` returns in under 500ms (parallel retrieval
   from all sources).
 - Template loading is cached at startup (not read from disk on
   every call).
@@ -216,7 +216,7 @@ The tool retrieves from all available sources:
 - Debug mode (`debug=1`) returns a full assembly trace: per-section status,
   allocated budget, raw vs final tokens, truncation, omit reason, and the
   contributing documents with provenance. ([validated by `context-assembly.test.ts:149`](mcp-server/src/context-assembly.test.ts#L149))
-- Audit log records each `assemble_context` call with: query, template used,
+- Audit log records each `lore_assemble_context` call with: query, template used,
   sources hit, total tokens returned. *(Audit-log persistence is tracked as
   follow-up — the in-memory trace lands first.)*
 
@@ -224,7 +224,7 @@ The tool retrieves from all available sources:
 
 ### In Scope
 
-- `assemble_context` MCP tool.
+- `lore_assemble_context` MCP tool.
 - Template YAML format and built-in templates.
 - Token budget allocation.
 - Parallel retrieval from existing sources.
@@ -241,12 +241,12 @@ The tool retrieves from all available sources:
 
 - Episode ingestion (episodes as a fact source).
 - Live knowledge graph (graph as a context source).
-- Existing `get_context`, `get_adrs`, `search_memory` logic
+- Existing `get_context`, `get_adrs`, `lore_search_memory` logic
   (reused internally, not replaced).
 
 ## Success Criteria
 
-1. A single `assemble_context` call replaces 3+ separate MCP
+1. A single `lore_assemble_context` call replaces 3+ separate MCP
    tool calls for agents starting a task.
 2. The "review" template produces measurably more relevant context
    for code review tasks than the generic `get_context` call.

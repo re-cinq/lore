@@ -126,8 +126,8 @@ if [ "$TASK_TYPE" = "review" ]; then
   # --- Run Claude Code for review ---
   echo "[runner] Running Claude Code review (model=${MODEL})..."
   REVIEW_PREAMBLE="IMPORTANT: You have the Lore MCP server. Before reviewing:
-1. Call assemble_context with template 'review' to load conventions, ADRs, and review patterns.
-2. Call search_memory to check for known patterns and past review feedback on this repo.
+1. Call lore_assemble_context with template 'review' to load conventions, ADRs, and review patterns.
+2. Call lore_search_memory to check for known patterns and past review feedback on this repo.
 Then proceed with the review task:"
 
   CLAUDE_OUTPUT=$(claude --print --dangerously-skip-permissions --verbose --model "${MODEL}" -- "${REVIEW_PREAMBLE}
@@ -216,18 +216,18 @@ ${PRE_CONTEXT}
 
 ---
 
-Context was pre-loaded above. You may call assemble_context for fresh data during long tasks.
-2. BEFORE CODING: Call search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.
-3. DURING WORK: Use search_context for patterns. Use query_graph for entity relationships.
-4. WHEN DONE: Call write_episode with a summary of what you did and any non-obvious decisions.
+Context was pre-loaded above. You may call lore_assemble_context for fresh data during long tasks.
+2. BEFORE CODING: Call lore_search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.
+3. DURING WORK: Use lore_search_context for patterns. Use lore_query_graph for entity relationships.
+4. WHEN DONE: Call lore_write_episode with a summary of what you did and any non-obvious decisions.
 
 Now execute the following task:"
   else
     LORE_PREAMBLE="IMPORTANT: You have the Lore MCP server. Follow this workflow:
-1. FIRST: Call assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.
-2. BEFORE CODING: Call search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.
-3. DURING WORK: Use search_context for patterns. Use query_graph for entity relationships.
-4. WHEN DONE: Call write_episode with a summary of what you did and any non-obvious decisions.
+1. FIRST: Call lore_assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.
+2. BEFORE CODING: Call lore_search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.
+3. DURING WORK: Use lore_search_context for patterns. Use lore_query_graph for entity relationships.
+4. WHEN DONE: Call lore_write_episode with a summary of what you did and any non-obvious decisions.
 
 Now execute the following task:"
   fi

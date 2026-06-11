@@ -33,14 +33,14 @@ data volumes.
 
 ### FR-1: Server-Side Latency Tracking
 
-- FR-1.1: Instrument `search_memory`, `query_graph`,
-  `assemble_context`, `get_context`, and `get_adrs` with
+- FR-1.1: Instrument `lore_search_memory`, `lore_query_graph`,
+  `lore_assemble_context`, `get_context`, and `get_adrs` with
   timing.
 - FR-1.2: Record latency per call in `memory.audit_log` metadata
   (field: `latency_ms`).
-- FR-1.3: Break down `search_memory` latency into sub-timings:
+- FR-1.3: Break down `lore_search_memory` latency into sub-timings:
   embedding generation, vector search, keyword search, RRF merge.
-- FR-1.4: Break down `assemble_context` into: per-source fetch
+- FR-1.4: Break down `lore_assemble_context` into: per-source fetch
   time, token budgeting, total.
 
 ### FR-2: Analytics Dashboard Widget
@@ -64,7 +64,7 @@ data volumes.
 ### FR-4: Alert Thresholds
 
 - FR-4.1: Configurable latency thresholds per tool (default:
-  200ms p95 for search, 500ms for assemble_context).
+  200ms p95 for search, 500ms for lore_assemble_context).
 - FR-4.2: When threshold is exceeded for 3 consecutive benchmark
   runs, log a warning.
 - FR-4.3: Future: integrate with alerting system.

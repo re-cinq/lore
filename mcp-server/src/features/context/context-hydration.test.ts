@@ -54,7 +54,7 @@ describe("context hydration URL", () => {
 
 // ── Context hydration prompt construction ───────────────────────────
 // When pre-loaded context is available, the preamble changes from
-// "call assemble_context first" to "context was pre-loaded above".
+// "call lore_assemble_context first" to "context was pre-loaded above".
 
 describe("context hydration prompt", () => {
   it("includes pre-loaded context when available", () => {
@@ -62,30 +62,30 @@ describe("context hydration prompt", () => {
     const parts: string[] = [];
     if (preContext) {
       parts.push("## Pre-loaded Context\n\n" + preContext + "\n\n---\n");
-      parts.push("Context was pre-loaded above. You may call assemble_context for fresh data during long tasks.");
+      parts.push("Context was pre-loaded above. You may call lore_assemble_context for fresh data during long tasks.");
     } else {
       parts.push("IMPORTANT: You have the Lore MCP server. Follow this workflow:");
-      parts.push("1. FIRST: Call assemble_context with a query describing this task.");
+      parts.push("1. FIRST: Call lore_assemble_context with a query describing this task.");
     }
 
     const prompt = parts.join("\n");
     expect(prompt).toContain("Pre-loaded Context");
     expect(prompt).toContain("Use TypeScript strict mode");
-    expect(prompt).not.toContain("FIRST: Call assemble_context");
+    expect(prompt).not.toContain("FIRST: Call lore_assemble_context");
   });
 
-  it("falls back to assemble_context instruction when no pre-loaded context", () => {
+  it("falls back to lore_assemble_context instruction when no pre-loaded context", () => {
     const preContext = "";
     const parts: string[] = [];
     if (preContext) {
       parts.push("## Pre-loaded Context\n\n" + preContext);
     } else {
       parts.push("IMPORTANT: You have the Lore MCP server. Follow this workflow:");
-      parts.push("1. FIRST: Call assemble_context with a query describing this task.");
+      parts.push("1. FIRST: Call lore_assemble_context with a query describing this task.");
     }
 
     const prompt = parts.join("\n");
-    expect(prompt).toContain("FIRST: Call assemble_context");
+    expect(prompt).toContain("FIRST: Call lore_assemble_context");
     expect(prompt).not.toContain("Pre-loaded Context");
   });
 });

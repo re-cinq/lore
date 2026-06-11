@@ -146,7 +146,7 @@ resident process.
   CMEK encryption as task pod logs), under a job-run key
   (`__job_runs__/<job_name>/<run_id>/output.log`). `pipeline.job_runs` gains a
   `log_path` reference, and the output is retrievable in the UI / via MCP exactly
-  like task logs (`get_task_logs` → a `get_job_logs` sibling). This applies to
+  like task logs (`lore_get_task_logs` → a `lore_get_job_logs` sibling). This applies to
   the CronJob path, where each pod's entire stdout is one job's output;
   per-job-isolated capture for the shared in-process scheduler is noted as a
   follow-up (see Limitations).
@@ -217,7 +217,7 @@ resident process.
 | `agent/src/lib/job-run.ts` | New: shared run bookkeeping (`pipeline.job_runs` insert/update) extracted from `scheduler.ts`, reused by the runner |
 | `agent/src/lib/log-storage.ts` | Add `writeJobRunLogs`/`readJobRunLogs` (job-run-keyed) alongside the task-log helpers |
 | `terraform/modules/gke-mcp/ui-helm/migrations/NNNN_job_runs_log_path.sql` | New: `ALTER TABLE pipeline.job_runs ADD COLUMN log_path TEXT` (idempotent) |
-| `mcp-server` + `web-ui` | `get_job_logs` MCP tool + a job-run log view (mirrors `get_task_logs` / `TaskLogs.tsx`); `/analytics` job_runs rows link to the output |
+| `mcp-server` + `web-ui` | `lore_get_job_logs` MCP tool + a job-run log view (mirrors `lore_get_task_logs` / `TaskLogs.tsx`); `/analytics` job_runs rows link to the output |
 | `agent/src/jobs/cron/*.ts` | Moved: the 10 batch jobs (+ `spec-drift-rules.ts`, test files); import depth fixed |
 | `agent/src/jobs/cron/README.md` | New: "each file runs as its own K8s CronJob pod (separate container)" |
 | `agent/src/jobs/scheduled/*.ts` | Moved: the 6 in-process jobs; import depth fixed |

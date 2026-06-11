@@ -107,7 +107,7 @@ The "Add Spec" server action in the repo specs page does a raw
 `INSERT INTO ${schema}.chunks (...)`. It does **not** call the embedding
 pipeline. Rows inserted this way will appear in the web-ui list and detail
 views (exact DB lookup) but will **not** be returned by semantic search
-(`search_context`, `search_memory`) or `assemble_context` because those rely
+(`lore_search_context`, `lore_search_memory`) or `lore_assemble_context` because those rely
 on the `embedding` column. To make manually added specs searchable,
 trigger a re-ingest via `POST /api/repos/{owner}/{repo}/ingest` or the
 nightly ingest job.

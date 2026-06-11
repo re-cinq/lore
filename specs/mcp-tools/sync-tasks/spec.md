@@ -1,12 +1,12 @@
-# Feature Specification: sync_tasks MCP Tool
+# Feature Specification: lore_sync_tasks MCP Tool
 
 | Field   | Value                                  |
 |---------|----------------------------------------|
-| Feature | sync_tasks MCP Tool                    |
+| Feature | lore_sync_tasks MCP Tool                    |
 | Status  | **Draft**                              |
 | Created | 2026-06-10                             |
 | Owner   | Platform Engineering                   |
-| Tool    | `sync_tasks`                           |
+| Tool    | `lore_sync_tasks`                           |
 | Module  | Pipeline (`features/pipeline/tasks.ts`)|
 | Scope   | shared                                 |
 
@@ -16,7 +16,7 @@ A speckit `tasks.md` is a human-authored checklist of spec-tasks with phases,
 parallelization markers (`[P]`), explicit dependencies (`[DEPENDS ON: …]`), and
 optional file-path suffixes. To track and coordinate that work — including
 multi-agent claiming and dependency-gated readiness — those checkboxes must
-become rows in `pipeline.tasks` (`task_type = 'spec-task'`). `sync_tasks` parses
+become rows in `pipeline.tasks` (`task_type = 'spec-task'`). `lore_sync_tasks` parses
 the markdown and upserts each task idempotently so re-running after edits
 updates in place instead of duplicating.
 
@@ -24,7 +24,7 @@ updates in place instead of duplicating.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L231)).
 
-- **name**: `sync_tasks`
+- **name**: `lore_sync_tasks`
 - **description** (verbatim): *"Parse a tasks.md file and sync spec-tasks into
   the pipeline. Handles dependencies and parallelization markers."*
 
@@ -40,7 +40,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
 
 1. Resolve `repo || detectCurrentRepo()`. If neither yields a repo, return
    `"Could not detect repo. Specify repo parameter."`.
-2. `getPool()`. If null, return `"sync_tasks requires PostgreSQL (LORE_DB_HOST not set)."`.
+2. `getPool()`. If null, return `"lore_sync_tasks requires PostgreSQL (LORE_DB_HOST not set)."`.
 3. `parseTasks(tasks_markdown)` (from `@re-cinq/lore-shared`). If the parse
    yields zero tasks, return `"No tasks found in the provided markdown."`.
 4. Delegate to `syncTasksToDb(pool, resolvedRepo, spec_slug, parsed)`
@@ -50,7 +50,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
       `file_path`); `status = 'completed'` if the checkbox was ticked, else `'pending'`.
    2. `SELECT id, status FROM pipeline.tasks WHERE target_repo = $1 AND task_type = 'spec-task' AND context_bundle->>'spec_task_id' = $2 AND context_bundle->>'spec_slug' = $3`.
    3. If a row exists → `UPDATE pipeline.tasks SET description, context_bundle, status, updated_at = now() WHERE id = $4` (does **not** increment `created`).
-   4. If no row exists → `INSERT INTO pipeline.tasks (…, created_by = 'sync_tasks')`, adding `task_group_id` when a group id is supplied; increments `created`.
+   4. If no row exists → `INSERT INTO pipeline.tasks (…, created_by = 'lore_sync_tasks')`, adding `task_group_id` when a group id is supplied; increments `created`.
    5. Returns `{ synced: tasks.length, created }`.
 5. Return the summary `"Synced {synced} tasks ({created} new) for {repo} / {spec_slug}."`.
 6. Any thrown error → `"Error syncing tasks: {message}"`.
@@ -88,5 +88,5 @@ delegates to are covered above.)*
 ## Out of Scope
 
 - The `tasks.md` grammar (phases, `[P]`, `[DEPENDS ON:]`, file paths) — owned by `parseTasks` in `@re-cinq/lore-shared`.
-- Readiness/dependency evaluation — see [`ready_tasks`](../ready-tasks/spec.md).
+- Readiness/dependency evaluation — see [`lore_ready_tasks`](../ready-tasks/spec.md).
 - Phase-dependency inference (`inferPhaseDependencies`).

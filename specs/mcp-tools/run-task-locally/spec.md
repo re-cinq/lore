@@ -1,12 +1,12 @@
-# Feature Specification: run_task_locally MCP Tool
+# Feature Specification: lore_run_task_locally MCP Tool
 
 | Field   | Value                                       |
 |---------|---------------------------------------------|
-| Feature | run_task_locally MCP Tool                   |
+| Feature | lore_run_task_locally MCP Tool                   |
 | Status  | **Draft**                                   |
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
-| Tool    | `run_task_locally`                          |
+| Tool    | `lore_run_task_locally`                          |
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
@@ -14,7 +14,7 @@
 
 A developer wants to delegate an implementation task to a background Claude Code
 process that runs on their own machine, on their subscription (zero API cost),
-without blocking the interactive session. `run_task_locally` creates an isolated
+without blocking the interactive session. `lore_run_task_locally` creates an isolated
 git worktree on a fresh branch, spawns a detached headless `claude --print` in
 it, and returns immediately with the task id, branch, worktree path, log file,
 and PID — the session continues while the task runs and eventually opens a PR.
@@ -23,7 +23,7 @@ and PID — the session continues while the task runs and eventually opens a PR.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/local-runner-tools.local.ts#L7)).
 
-- **name**: `run_task_locally`
+- **name**: `lore_run_task_locally`
 - **description** (verbatim): *"Run a task in the background on your local
   machine using Claude Code in a git worktree. Returns immediately — your session
   continues normally while the task runs."*
@@ -111,7 +111,7 @@ mocking child_process, which the no-mocks convention forbids.)*
 
 ## Out of Scope
 
-- Claiming a pre-existing pending task — owned by [`claim_and_run_locally`](../claim-and-run-locally/spec.md).
-- Listing / cancelling tasks — [`list_local_tasks`](../list-local-tasks/spec.md),
-  [`cancel_local_task`](../cancel-local-task/spec.md).
+- Claiming a pre-existing pending task — owned by [`lore_claim_and_run_locally`](../claim-and-run-locally/spec.md).
+- Listing / cancelling tasks — [`lore_list_local_tasks`](../list-local-tasks/spec.md),
+  [`lore_cancel_local_task`](../cancel-local-task/spec.md).
 - Deterministic validation internals (`repo-validation.ts`).

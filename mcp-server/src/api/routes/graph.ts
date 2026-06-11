@@ -5,7 +5,7 @@ import { json } from "./http.js";
 
 /**
  * GET /api/graph — read the live knowledge graph. The remote counterpart of the
- * `query_graph` MCP tool, so a local stdio server (no Postgres) can proxy here
+ * `lore_query_graph` MCP tool, so a local stdio server (no Postgres) can proxy here
  * over LORE_API_URL instead of requiring a direct DB connection.
  */
 export async function handleGraph(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
