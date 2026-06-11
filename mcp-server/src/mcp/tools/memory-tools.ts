@@ -30,6 +30,7 @@ import {
   makeTrackLatency,
   proxyMemory,
   proxyToApi,
+  proxyGetApi,
   unreachableError,
 } from "./deps.js";
 
@@ -274,7 +275,21 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
       return trackLatency('query_graph', async () => {
         try {
           if (!isMemoryDbAvailable()) {
-            return { content: [{ type: "text" as const, text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST not set)." }] };
+            // Local stdio mode: proxy the read to the GKE server over LORE_API_URL
+            // (mirrors assemble_context) instead of requiring a direct DB.
+            const params = new URLSearchParams();
+            if (entity) params.set("entity", entity);
+            if (relation_type) params.set("relation_type", relation_type);
+            if (repo) params.set("repo", repo);
+            if (include_invalidated) params.set("include_invalidated", "true");
+            const proxied = await proxyGetApi(`/api/graph?${params.toString()}`);
+            if (proxied.ok) {
+              return { content: [{ type: "text" as const, text: proxied.body }] };
+            }
+            if (proxied.reason === "unreachable") {
+              return unreachableError("query_graph", proxied.detail);
+            }
+            return { content: [{ type: "text" as const, text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL." }] };
           }
           const results = await queryLiveGraph(getPool(), entity, relation_type, repo, include_invalidated);
           if (results.length === 0) {

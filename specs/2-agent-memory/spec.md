@@ -300,10 +300,17 @@ cleanup job removes expired memories periodically. Permanent memories
 
 ## File-Backed Fallback
 
-When PostgreSQL is unavailable, all memory operations fall back to
-`~/.lore/memory/` on disk (implemented in `memory-file.ts`). Search
-quality degrades (no vector similarity) but reads and writes continue.
-The fallback is transparent to callers.
+When PostgreSQL is unavailable, the key-value memory operations
+(`write`/`read`/`search`/`delete`/`list`) fall back to `~/.lore/memory/`
+on disk (implemented in `memory-file.ts`). Search quality degrades (no
+vector similarity) but reads and writes continue. The fallback is
+transparent to callers.
+
+Tools without a file representation proxy to the GKE server over
+`LORE_API_URL` instead: `write_episode` (`POST /api/episode`) and
+`query_graph` (`GET /api/graph`, added so the live knowledge graph is
+readable without a direct DB). `agent_stats` has neither a file fallback
+nor a proxy and returns a "requires PostgreSQL" message in local mode.
 
 ## Transfer Scoring (Cross-Repo Context)
 
