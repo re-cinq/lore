@@ -20,13 +20,13 @@ const SETTLE_PER_NODE = 3;
 // loose so leaves drift around the sides.
 const TIER: Record<SpecGraphNodeType, { fraction: number; strength: number }> = {
   Feature: { fraction: 0, strength: 0.5 },
-  Spec: { fraction: 0.42, strength: 0.28 },
-  Section: { fraction: 0.42, strength: 0.28 },
-  Statement: { fraction: 0.42, strength: 0.28 },
-  ADR: { fraction: 0.42, strength: 0.28 },
-  File: { fraction: 0.85, strength: 0.12 },
-  TestChunk: { fraction: 0.85, strength: 0.12 },
-  CodeChunk: { fraction: 0.85, strength: 0.12 },
+  Spec: { fraction: 0.36, strength: 0.28 },
+  Section: { fraction: 0.36, strength: 0.28 },
+  Statement: { fraction: 0.36, strength: 0.28 },
+  ADR: { fraction: 0.36, strength: 0.28 },
+  File: { fraction: 0.68, strength: 0.12 },
+  TestChunk: { fraction: 0.68, strength: 0.12 },
+  CodeChunk: { fraction: 0.68, strength: 0.12 },
 };
 
 /**
@@ -80,7 +80,7 @@ export interface BoundingRadiusOptions {
 export function boundingRadius(
   vertexCount: number,
   edgeCount: number,
-  { spacing = 40, floor = 260, cap = 1600 }: BoundingRadiusOptions = {},
+  { spacing = 28, floor = 220, cap = 1100 }: BoundingRadiusOptions = {},
 ): number {
   const raw = spacing * Math.sqrt(Math.max(0, vertexCount + edgeCount));
   return Math.min(cap, Math.max(floor, raw));

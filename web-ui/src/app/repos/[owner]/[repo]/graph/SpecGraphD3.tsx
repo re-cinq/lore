@@ -253,7 +253,7 @@ export default function SpecGraphD3({
       .id((d) => d.id)
       // Spec→Section/Statement (the expanded drill-down) gets more length so the
       // fanned-out children don't pile on top of each other.
-      .distance((l) => (l.kind === 'in_feature' ? 170 : l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 150 : 110))
+      .distance((l) => (l.kind === 'in_feature' ? 120 : l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 100 : 74))
       // Anti-crowding rule #1: weaken a link by its busier endpoint so a hub's
       // many neighbours stop collapsing into a knot (lib/graph-crowding).
       .strength((l) => crowdedLinkStrength(degOf(l.source), degOf(l.target)));
@@ -266,7 +266,7 @@ export default function SpecGraphD3({
         'charge',
         d3
           .forceManyBody<SimNode>()
-          .strength((d) => crowdedCharge(d.type === 'Feature' ? -850 : d.type === 'Spec' ? -700 : -520, degOf(d)))
+          .strength((d) => crowdedCharge(d.type === 'Feature' ? -560 : d.type === 'Spec' ? -460 : -340, degOf(d)))
           // Localise repulsion to the bound's range so the central mass can't
           // fling peripheral nodes off to infinity.
           .distanceMax(boundR),

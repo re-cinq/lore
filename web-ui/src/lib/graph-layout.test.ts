@@ -16,13 +16,13 @@ describe("radialTarget", () => {
 
   it("places Spec/Section/Statement/ADR on the middle ring", () => {
     for (const t of ["Spec", "Section", "Statement", "ADR"] as const) {
-      expect(radialTarget(t, boundR).radius).toBeCloseTo(0.42 * boundR);
+      expect(radialTarget(t, boundR).radius).toBeCloseTo(0.36 * boundR);
     }
   });
 
   it("places File/TestChunk/CodeChunk loose on the outer ring", () => {
     for (const t of ["File", "TestChunk", "CodeChunk"] as const) {
-      expect(radialTarget(t, boundR).radius).toBeCloseTo(0.85 * boundR);
+      expect(radialTarget(t, boundR).radius).toBeCloseTo(0.68 * boundR);
     }
   });
 
