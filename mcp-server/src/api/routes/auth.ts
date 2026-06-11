@@ -40,6 +40,7 @@ const ROUTE_SCOPES: Record<string, TokenScope> = {
   "/api/tasks": "read",
   "/api/task/": "read",
   "/api/context": "read",
+  "/api/graph": "read",
   "/api/repo-status": "read",
   "/api/memory": "write",
   "/api/episode": "write",

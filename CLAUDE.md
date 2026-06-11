@@ -206,8 +206,11 @@ searchable facts with embeddings.
 Agent ID resolved from: explicit parameter, `LORE_AGENT_ID` env,
 `~/.lore/agent-id` file, or auto-generated UUID.
 
-When the MCP server runs locally (stdio mode), all memory operations
-are proxied to the GKE MCP server via `LORE_API_URL`. Local learnings
+When the MCP server runs locally (stdio mode, no `LORE_DB_HOST`), the
+memory operations proxy to the GKE MCP server via `LORE_API_URL`:
+`write_memory`/`read_memory`/`search_memory`/`delete_memory`/`list_memories`
+(with a `~/.lore/memory/` file fallback), `write_episode`, and `query_graph`
+(reads `GET /api/graph`). `agent_stats` is still DB-only. Local learnings
 are shared across the org. AgentDB provides optional local read caching.
 
 ## Required Workflow
