@@ -1,85 +1,27 @@
 import { describe, it, expect } from "vitest";
-import {
-  connectedComponents,
-  assignComponentCenters,
-  settleTicks,
-  boundingRadius,
-  clampToRadius,
-} from "./graph-layout";
+import { settleTicks, boundingRadius, radialContainmentDelta, radialTarget } from "./graph-layout";
 
-describe("connectedComponents", () => {
-  it("groups two disjoint link sets into two components", () => {
-    const comps = connectedComponents(
-      ["a", "b", "c", "d"],
-      [
-        { source: "a", target: "b" },
-        { source: "c", target: "d" },
-      ],
-    );
+describe("radialTarget", () => {
+  const boundR = 1000;
 
-    const sorted = comps.map((c) => [...c].sort()).sort((x, y) => x[0].localeCompare(y[0]));
-    expect(sorted).toEqual([
-      ["a", "b"],
-      ["c", "d"],
-    ]);
+  it("pulls Feature nodes to the centre", () => {
+    expect(radialTarget("Feature", boundR).radius).toBe(0);
   });
 
-  it("collapses a chain of links into a single component", () => {
-    const comps = connectedComponents(
-      ["a", "b", "c"],
-      [
-        { source: "a", target: "b" },
-        { source: "b", target: "c" },
-      ],
-    );
-
-    expect(comps).toHaveLength(1);
-    expect([...comps[0]].sort()).toEqual(["a", "b", "c"]);
-  });
-
-  it("returns a singleton component for a node with no links", () => {
-    const comps = connectedComponents(["lonely"], []);
-
-    expect(comps).toEqual([["lonely"]]);
-  });
-});
-
-describe("assignComponentCenters", () => {
-  const opts = { width: 1000, height: 800, smallThreshold: 10, edgeRadius: 300 };
-  const center = { x: 500, y: 400 };
-  const dist = (p: { x: number; y: number }) => Math.hypot(p.x - center.x, p.y - center.y);
-
-  it("places every node of a large component (>= threshold) at the viewport centre", () => {
-    const big = Array.from({ length: 12 }, (_, i) => `n${i}`);
-
-    const centers = assignComponentCenters([big], opts);
-
-    for (const id of big) {
-      expect(centers.get(id)).toEqual(center);
+  it("places Spec/Section/Statement/ADR on the middle ring", () => {
+    for (const t of ["Spec", "Section", "Statement", "ADR"] as const) {
+      expect(radialTarget(t, boundR).radius).toBeCloseTo(0.42 * boundR);
     }
   });
 
-  it("places small components on the edge ring at the configured radius", () => {
-    const c1 = ["a", "b"];
-    const c2 = ["c", "d"];
-
-    const centers = assignComponentCenters([c1, c2], opts);
-
-    expect(dist(centers.get("a")!)).toBeCloseTo(300);
-    expect(dist(centers.get("c")!)).toBeCloseTo(300);
-    // both nodes of a component share one center
-    expect(centers.get("a")).toEqual(centers.get("b"));
+  it("places File/TestChunk/CodeChunk loose on the outer ring", () => {
+    for (const t of ["File", "TestChunk", "CodeChunk"] as const) {
+      expect(radialTarget(t, boundR).radius).toBeCloseTo(0.85 * boundR);
+    }
   });
 
-  it("spreads multiple small components to distinct angles on the ring", () => {
-    const centers = assignComponentCenters([["a"], ["b"], ["c"]], opts);
-
-    const pa = centers.get("a")!;
-    const pb = centers.get("b")!;
-    const pc = centers.get("c")!;
-    expect(pa).not.toEqual(pb);
-    expect(pb).not.toEqual(pc);
-    expect(pa).not.toEqual(pc);
+  it("attracts the centre tier more strongly than the loose outer tier", () => {
+    expect(radialTarget("Feature", boundR).strength).toBeGreaterThan(radialTarget("File", boundR).strength);
   });
 });
 
@@ -97,21 +39,29 @@ describe("boundingRadius", () => {
   });
 });
 
-describe("clampToRadius", () => {
+describe("radialContainmentDelta", () => {
   const center = { x: 0, y: 0 };
 
-  it("leaves a point inside the radius untouched", () => {
-    expect(clampToRadius({ x: 10, y: 0 }, center, 100)).toEqual({ x: 10, y: 0 });
+  it("applies no pull to a point inside the radius (soft border, not a wall)", () => {
+    expect(radialContainmentDelta({ x: 10, y: 0 }, center, 100, 0.5)).toEqual({ dvx: 0, dvy: 0 });
   });
 
-  it("pulls a point outside the radius back onto the circle", () => {
-    expect(clampToRadius({ x: 200, y: 0 }, center, 100)).toEqual({ x: 100, y: 0 });
+  it("pulls inward in proportion to how far the point overshoots the radius", () => {
+    const d = radialContainmentDelta({ x: 200, y: 0 }, center, 100, 0.5);
+    expect(d.dvx).toBeCloseTo(-50);
+    expect(d.dvy).toBeCloseTo(0);
   });
 
-  it("clamps along the radial direction for a diagonal point", () => {
-    const c = clampToRadius({ x: 30, y: 40 }, center, 25);
-    expect(c.x).toBeCloseTo(15);
-    expect(c.y).toBeCloseTo(20);
+  it("pulls a point farther out more strongly than one barely past the border", () => {
+    const near = radialContainmentDelta({ x: 110, y: 0 }, center, 100, 0.5);
+    const far = radialContainmentDelta({ x: 300, y: 0 }, center, 100, 0.5);
+    expect(Math.abs(far.dvx)).toBeGreaterThan(Math.abs(near.dvx));
+  });
+
+  it("directs the pull along the inward radial for a diagonal point", () => {
+    const d = radialContainmentDelta({ x: 30, y: 40 }, center, 25, 1);
+    expect(d.dvx).toBeCloseTo(-15);
+    expect(d.dvy).toBeCloseTo(-20);
   });
 });
 

@@ -1,93 +1,42 @@
 /**
- * Pure, deterministic placement helpers for the D3 spec-graph initial layout.
+ * Pure, deterministic placement helpers for the D3 spec-graph layout.
  *
- * The graph is laid out as a "cloud" of connected components: the big core sits
- * in the centre and small satellite clusters ring the outside. These helpers
- * compute that arrangement (and a headless pre-warm budget) as value-in/value-out
- * functions; the imperative D3 force setup consumes them. Siblings of the other
- * geometry modules (anchor-spacing, ring-exclusion, graph-crowding).
+ * The graph is arranged in concentric tiers by node type — Features pulled to
+ * the centre, the spec scaffolding (Spec/Section/Statement/ADR) on a middle
+ * ring, and the leaf artefacts (File/Test/Code) loose on the outer ring — and
+ * kept inside a soft radius border so nothing flies off. These helpers compute
+ * the tier targets, the border, and a headless pre-warm budget as value-in/
+ * value-out functions; the imperative D3 force setup consumes them. Siblings of
+ * the other geometry modules (anchor-spacing, ring-exclusion, graph-crowding).
  */
+import type { SpecGraphNodeType } from './spec-graph';
 
 const SETTLE_FLOOR = 120;
 const SETTLE_CAP = 400;
 const SETTLE_PER_NODE = 3;
 
-export interface LayoutLink {
-  source: string;
-  target: string;
-}
-
-export interface ComponentCentersOptions {
-  width: number;
-  height: number;
-  /** Components with fewer than this many nodes are treated as small. */
-  smallThreshold?: number;
-  /** Radius of the ring small components are spread around. */
-  edgeRadius: number;
-}
-
-/**
- * Partition the node set into connected components (union-find over the links).
- * Nodes that appear in no link come back as their own singleton component.
- */
-export function connectedComponents(nodeIds: string[], links: LayoutLink[]): string[][] {
-  const parent = new Map<string, string>();
-  const find = (x: string): string => {
-    let root = x;
-    while ((parent.get(root) ?? root) !== root) root = parent.get(root) ?? root;
-    let cur = x;
-    while (cur !== root) {
-      const next = parent.get(cur) ?? cur;
-      parent.set(cur, root);
-      cur = next;
-    }
-    return root;
-  };
-  const union = (a: string, b: string) => {
-    parent.set(find(a), find(b));
-  };
-
-  for (const id of nodeIds) if (!parent.has(id)) parent.set(id, id);
-  for (const { source, target } of links) {
-    if (!parent.has(source)) parent.set(source, source);
-    if (!parent.has(target)) parent.set(target, target);
-    union(source, target);
-  }
-
-  const groups = new Map<string, string[]>();
-  for (const id of nodeIds) {
-    const root = find(id);
-    (groups.get(root) ?? groups.set(root, []).get(root)!).push(id);
-  }
-  return [...groups.values()];
-}
+// Concentric tiers as a fraction of the bounding radius, with how hard each tier
+// is pulled toward its ring — the centre attracts firmly, the outer tier stays
+// loose so leaves drift around the sides.
+const TIER: Record<SpecGraphNodeType, { fraction: number; strength: number }> = {
+  Feature: { fraction: 0, strength: 0.5 },
+  Spec: { fraction: 0.42, strength: 0.28 },
+  Section: { fraction: 0.42, strength: 0.28 },
+  Statement: { fraction: 0.42, strength: 0.28 },
+  ADR: { fraction: 0.42, strength: 0.28 },
+  File: { fraction: 0.85, strength: 0.12 },
+  TestChunk: { fraction: 0.85, strength: 0.12 },
+  CodeChunk: { fraction: 0.85, strength: 0.12 },
+};
 
 /**
- * Assign each node a target centre for the initial layout: nodes of a large
- * component (size >= `smallThreshold`) target the viewport centre; small
- * components are spread at even angles around a ring of `edgeRadius`.
+ * The radial target for a node type: the ring radius (as a fraction of the
+ * bounding radius) it gravitates to, and how strongly. Drives a `forceRadial`
+ * so the layout layers by type while every node stays fluid and draggable.
  */
-export function assignComponentCenters(
-  components: string[][],
-  { width, height, smallThreshold = 10, edgeRadius }: ComponentCentersOptions,
-): Map<string, { x: number; y: number }> {
-  const center = { x: width / 2, y: height / 2 };
-  const smallCount = components.filter((c) => c.length < smallThreshold).length;
-  const out = new Map<string, { x: number; y: number }>();
-
-  let smallIndex = 0;
-  for (const comp of components) {
-    let target: { x: number; y: number };
-    if (comp.length >= smallThreshold) {
-      target = { x: center.x, y: center.y };
-    } else {
-      const angle = (2 * Math.PI * smallIndex) / smallCount;
-      target = { x: center.x + edgeRadius * Math.cos(angle), y: center.y + edgeRadius * Math.sin(angle) };
-      smallIndex += 1;
-    }
-    for (const id of comp) out.set(id, target);
-  }
-  return out;
+export function radialTarget(type: SpecGraphNodeType, boundR: number): { radius: number; strength: number } {
+  const tier = TIER[type];
+  return { radius: tier.fraction * boundR, strength: tier.strength };
 }
 
 /** Headless pre-warm tick budget: ~3 per node, floored at 120 and capped at 400. */
@@ -119,17 +68,23 @@ export function boundingRadius(
   return Math.min(cap, Math.max(floor, raw));
 }
 
-/** Clamp a point to within `radius` of `center`, projecting it radially inward
- * if it strays outside. Points already inside are returned unchanged. */
-export function clampToRadius(
+/**
+ * Soft radius border: the velocity nudge that pulls a point back toward `center`
+ * when it strays past `radius`. The pull grows with the overshoot (a one-sided
+ * spring), so nodes can poke past the border but are eased back rather than
+ * snapped to it — no hard wall. Zero inside the radius. The caller scales the
+ * result by the simulation's alpha and adds it to the node's velocity.
+ */
+export function radialContainmentDelta(
   point: { x: number; y: number },
   center: { x: number; y: number },
   radius: number,
-): { x: number; y: number } {
+  strength: number,
+): { dvx: number; dvy: number } {
   const dx = point.x - center.x;
   const dy = point.y - center.y;
   const dist = Math.hypot(dx, dy);
-  if (dist <= radius || dist === 0) return { x: point.x, y: point.y };
-  const k = radius / dist;
-  return { x: center.x + dx * k, y: center.y + dy * k };
+  if (dist <= radius || dist === 0) return { dvx: 0, dvy: 0 };
+  const k = (strength * (dist - radius)) / dist;
+  return { dvx: -dx * k, dvy: -dy * k };
 }

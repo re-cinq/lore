@@ -12,11 +12,12 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedLinkStrength, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
-import { connectedComponents, assignComponentCenters, settleTicks, boundingRadius, clampToRadius } from '@/lib/graph-layout';
+import { settleTicks, boundingRadius, radialContainmentDelta, radialTarget } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
 const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
+const BOUNDS_STRENGTH = 0.6; // soft radius-border spring constant (one-sided, past boundR)
 
 type SimNode = SpecGraphNode & d3.SimulationNodeDatum;
 type SimLink = d3.SimulationLinkDatum<SimNode> & { kind: string };
@@ -224,24 +225,22 @@ export default function SpecGraphD3({
 
     // Size-aware initial placement (fresh layouts only): lay the graph out as a
     // cloud of connected components — the big core centred, small satellite
-    // clusters ringed around the edge. Each node also gets a gentle per-component
-    // pull (forceX/forceY below) toward this centre. Seeding positions here means
-    // the headless pre-warm starts near equilibrium, so the first paint is settled.
-    // The whole layout is kept inside this radius (sized from the graph's V+E)
-    // so nodes can't fly off; the small-component ring hugs its inner edge.
+    // clusters by node type into concentric tiers (radialTarget + the forceRadial
+    // below): Features pulled to the centre, the spec scaffolding on a middle
+    // ring, leaf artefacts loose on the outside. The whole layout is kept inside
+    // boundR (sized from the graph's V+E) so nodes can't fly off. Seeding fresh
+    // positions on each node's tier ring means the pre-warm starts near
+    // equilibrium, so the first paint is settled.
     const boundR = boundingRadius(data.nodes.length, data.links.length);
-    const componentCenter = assignComponentCenters(
-      connectedComponents(data.nodes.map((n) => n.id), data.links),
-      { width, height, smallThreshold: 10, edgeRadius: 0.8 * boundR },
-    );
-    const centerOfNode = (x: string | number | SimNode) =>
-      componentCenter.get(idOf(x)) ?? { x: width / 2, y: height / 2 };
     if (!restoredFromStorage) {
+      const cx = width / 2;
+      const cy = height / 2;
       nodes.forEach((n, i) => {
-        const c = centerOfNode(n.id);
-        // Deterministic jitter so co-located component-mates don't start stacked.
-        n.x = c.x + ((i % 7) - 3) * 8;
-        n.y = c.y + ((Math.floor(i / 7) % 7) - 3) * 8;
+        const { radius } = radialTarget(n.type, boundR);
+        const angle = (2 * Math.PI * i) / nodes.length; // spread around the ring
+        const r = radius + ((i % 5) - 2) * 6; // deterministic jitter off the ring
+        n.x = cx + r * Math.cos(angle);
+        n.y = cy + r * Math.sin(angle);
       });
     }
 
@@ -268,12 +267,16 @@ export default function SpecGraphD3({
           // fling peripheral nodes off to infinity.
           .distanceMax(boundR),
       )
-      // Size-aware placement: pull each node toward its connected component's
-      // assigned centre (big core centred, small clusters ringed at the edge)
-      // instead of all toward the viewport centre. Gentle enough that charge +
-      // collide still spread a component's own members.
-      .force('x', d3.forceX<SimNode>((d) => centerOfNode(d).x).strength(0.08))
-      .force('y', d3.forceY<SimNode>((d) => centerOfNode(d).y).strength(0.08))
+      // Type-tiered placement: pull each node toward its type's concentric ring
+      // (Features → centre, spec scaffolding → middle, leaves → loose outer ring)
+      // around the viewport centre. Charge + collide still spread each ring's
+      // members around it, and every node stays fully fluid / draggable.
+      .force(
+        'radial',
+        d3
+          .forceRadial<SimNode>((d) => radialTarget(d.type, boundR).radius, width / 2, height / 2)
+          .strength((d) => radialTarget(d.type, boundR).strength),
+      )
       // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
       // their labels) reserve hard personal space and cannot pile up.
       .force('collide', d3.forceCollide<SimNode>((d) => crowdedCollideRadius(RADIUS[d.type], degOf(d))).strength(1))
@@ -305,20 +308,18 @@ export default function SpecGraphD3({
           n.vy = 0;
         }
       })
-      // Radius border: clamp every free node inside the bounding circle so a
-      // force blow-up can never fling nodes off-screen. Pinned/dragged nodes
-      // (fx/fy) are exempt. Runs last so it has the final say each tick.
-      .force('bounds', () => {
-        const cx = width / 2;
-        const cy = height / 2;
+      // Soft radius border: a one-sided spring that eases a node back toward the
+      // centre once it strays past the bounding circle — the pull grows with the
+      // overshoot, so nodes can poke past the edge but don't fly off and don't
+      // pile up against a hard wall. Velocity-based + alpha-scaled (standard d3
+      // force shape). Pinned/dragged nodes (fx/fy) are exempt.
+      .force('bounds', (alpha: number) => {
+        const center = { x: width / 2, y: height / 2 };
         for (const n of nodes) {
           if (n.fx != null || n.fy != null) continue;
-          const safe = clampToRadius({ x: n.x ?? 0, y: n.y ?? 0 }, { x: cx, y: cy }, boundR);
-          if (safe.x === n.x && safe.y === n.y) continue;
-          n.x = safe.x;
-          n.y = safe.y;
-          n.vx = 0;
-          n.vy = 0;
+          const { dvx, dvy } = radialContainmentDelta({ x: n.x ?? 0, y: n.y ?? 0 }, center, boundR, BOUNDS_STRENGTH);
+          n.vx = (n.vx ?? 0) + dvx * alpha;
+          n.vy = (n.vy ?? 0) + dvy * alpha;
         }
       });
 
