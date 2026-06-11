@@ -197,12 +197,26 @@ const SECTION_RULES: { match: RegExp; category: UntestableCategory }[] = [
   { match: /problem\s*statement/i, category: "background" },
   { match: /background/i, category: "background" },
   { match: /context\b/i, category: "background" },
+  { match: /research/i, category: "background" },
+  { match: /personas?/i, category: "background" },
+  { match: /implementation\s*phases?/i, category: "background" },
   { match: /vision/i, category: "vision" },
   { match: /goals?\s*[&/]\s*non[-\s]?goals?|non[-\s]?goals?/i, category: "vision" },
   { match: /clarif/i, category: "clarification" },
   { match: /open\s*questions?/i, category: "open-question" },
-  { match: /limitations?|known\s*gotchas?/i, category: "limitation" },
-  { match: /rationale|why\b/i, category: "rationale" },
+  { match: /limitations?|known\s*gotchas?|out[-\s]?of[-\s]?scope/i, category: "limitation" },
+  { match: /rationale|why\b|alternatives?\s*(considered)?|consequences/i, category: "rationale" },
+];
+
+/**
+ * Content-level rules over the statement *text*, section-independent. A
+ * `Decision:` record or a bare `See ADR-…`/`See … spec` cross-reference
+ * specifies no behaviour to test no matter which heading it sits under.
+ * Mirror of `shared/src/spec-segment.ts`.
+ */
+const CONTENT_RULES: { match: RegExp; category: UntestableCategory }[] = [
+  { match: /^\s*\*{0,2}\s*decision\s*\*{0,2}\s*[:—-]/i, category: "rationale" },
+  { match: /^\s*\(?see\b[^.!?]*\b(adr|spec|section|fr|§)\b/i, category: "rationale" },
 ];
 
 /** Build the set of statement ordinals considered "intro" — anything with no
@@ -242,6 +256,11 @@ export function classifyByHeuristic(
 ): Classification {
   if (introOrdinals.has(statement.ordinal)) {
     return { testability: "untestable", category: "intro", matchedBySection: true };
+  }
+  for (const { match, category } of CONTENT_RULES) {
+    if (match.test(statement.text)) {
+      return { testability: "untestable", category, matchedBySection: true };
+    }
   }
   const heading = statement.enclosingHeading;
   if (heading) {
