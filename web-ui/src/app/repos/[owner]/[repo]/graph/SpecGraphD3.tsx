@@ -555,7 +555,10 @@ export default function SpecGraphD3({
               d3
                 .drag<SVGGElement, SimNode>()
                 .on('start', (event, d) => {
-                  if (!event.active) sim.alphaTarget(0.3).restart();
+                  // Only barely re-heat the sim: enough for the dragged node's
+                  // immediate (strongly-linked) neighbours to follow, but not so
+                  // much that the whole frozen layout wakes up and far nodes drift.
+                  if (!event.active) sim.alphaTarget(0.1).restart();
                   d.fx = d.x;
                   d.fy = d.y;
                 })
