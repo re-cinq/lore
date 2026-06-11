@@ -21,6 +21,13 @@ sections:
     priority: 1
     max_tokens: 4000
 
+  # Spec rules + tests coupled to the code under review, flagged where violated
+  # or untested. Deterministic; empty when LORE_DGRAPH_HTTP is not wired.
+  - header: "Coupled Spec & Tests"
+    source: coupling
+    priority: 1
+    max_tokens: 3000
+
   - header: "Review Patterns & Feedback"
     source: memories
     priority: 2

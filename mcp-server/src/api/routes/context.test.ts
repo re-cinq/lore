@@ -31,7 +31,8 @@ describe("GET /api/context", () => {
     const pool = makePool();
     const res = makeRes();
     await handleApiRoute(makeReq({ url: "/api/context?query=hi&debug=1", headers: AUTH }), res, pool as any);
-    expect(vi.mocked(assembleContext).mock.calls[0]).toEqual([pool, "hi", "default", 8000, undefined, undefined, undefined, undefined, true]);
+    // Trailing null is the Dgraph port — createDgraphClient returns null when LORE_DGRAPH_HTTP is unset.
+    expect(vi.mocked(assembleContext).mock.calls[0]).toEqual([pool, "hi", "default", 8000, undefined, undefined, undefined, undefined, true, null]);
     expect(res.json).toEqual({ text: "ctx", sections: [], trace: [{ section: "repo", included: true }] });
   });
 
