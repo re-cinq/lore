@@ -59,14 +59,21 @@ export function connectedComponents(nodeIds: string[], links: LayoutLink[]): str
   return [...groups.values()];
 }
 
-/** Map every node id to the size of the connected component it belongs to — used
- * to keep the big component central and push small ones out to the rim. */
-export function componentSizeByNode(nodeIds: string[], links: LayoutLink[]): Map<string, number> {
-  const sizes = new Map<string, number>();
-  for (const comp of connectedComponents(nodeIds, links)) {
-    for (const id of comp) sizes.set(id, comp.length);
-  }
-  return sizes;
+/**
+ * Give each (small) component its own spot on a rim of `rimRadius` around
+ * `center`, evenly spaced by angle so the components sit apart instead of
+ * clumping on one ring. Every node of a component maps to that component's spot;
+ * charge then spreads the component's own members locally around it.
+ */
+export function rimTargets(components: string[][], center: Point, rimRadius: number): Map<string, Point> {
+  const out = new Map<string, Point>();
+  const n = Math.max(1, components.length);
+  components.forEach((comp, i) => {
+    const angle = (2 * Math.PI * i) / n;
+    const target = { x: center.x + rimRadius * Math.cos(angle), y: center.y + rimRadius * Math.sin(angle) };
+    for (const id of comp) out.set(id, target);
+  });
+  return out;
 }
 
 /** Headless pre-warm tick budget: ~3 per node, floored at 120 and capped at 400. */

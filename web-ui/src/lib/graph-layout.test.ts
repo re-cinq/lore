@@ -4,7 +4,7 @@ import {
   boundingRadius,
   containedVelocity,
   connectedComponents,
-  componentSizeByNode,
+  rimTargets,
 } from "./graph-layout";
 
 describe("connectedComponents", () => {
@@ -29,22 +29,26 @@ describe("connectedComponents", () => {
   });
 });
 
-describe("componentSizeByNode", () => {
-  it("labels every node with the size of its connected component", () => {
-    const sizes = componentSizeByNode(
-      ["a", "b", "c", "x", "y"],
-      [
-        { source: "a", target: "b" },
-        { source: "b", target: "c" },
-        { source: "x", target: "y" },
-      ],
-    );
+describe("rimTargets", () => {
+  const center = { x: 0, y: 0 };
+  const dist = (p: { x: number; y: number }) => Math.hypot(p.x - center.x, p.y - center.y);
 
-    expect(Object.fromEntries(sizes)).toEqual({ a: 3, b: 3, c: 3, x: 2, y: 2 });
+  it("places every component's spot on the rim at the given radius", () => {
+    const targets = rimTargets([["a"], ["b"], ["c", "d"]], center, 100);
+
+    expect(dist(targets.get("a")!)).toBeCloseTo(100);
+    expect(dist(targets.get("c")!)).toBeCloseTo(100);
   });
 
-  it("labels an unlinked node as a component of size 1", () => {
-    expect(componentSizeByNode(["solo"], []).get("solo")).toBe(1);
+  it("gives different components distinct spots but co-locates a component's own nodes", () => {
+    const targets = rimTargets([["a"], ["b"], ["c", "d"]], center, 100);
+
+    expect(targets.get("a")).not.toEqual(targets.get("b"));
+    expect(targets.get("c")).toEqual(targets.get("d"));
+  });
+
+  it("returns an empty map for no components", () => {
+    expect(rimTargets([], center, 100).size).toBe(0);
   });
 });
 
