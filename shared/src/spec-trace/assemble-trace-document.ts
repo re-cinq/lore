@@ -73,6 +73,13 @@ interface SpecRow {
     ib?: Array<{ uid: string; "CodeChunk.file_path"?: string; "CodeChunk.symbol_name"?: string; "CodeChunk.start_line"?: number }>;
     db?: Array<{ uid: string; "ADR.file_path"?: string; "ADR.number"?: number }>;
   }>;
+  acs?: Array<{
+    uid: string;
+    "AcceptanceCriterion.ordinal"?: number;
+    "AcceptanceCriterion.text"?: string;
+    vb?: Array<{ uid: string; "TestChunk.file_path"?: string; "TestChunk.test_name"?: string; "TestChunk.start_line"?: number }>;
+    ib?: Array<{ uid: string; "CodeChunk.file_path"?: string; "CodeChunk.symbol_name"?: string; "CodeChunk.start_line"?: number }>;
+  }>;
 }
 
 export interface TraceDocumentResult {
@@ -97,6 +104,12 @@ const TRACE_DOC_DQL = `query traceDoc($xid: string) {
       vb: Statement.validated_by { uid TestChunk.file_path TestChunk.test_name TestChunk.start_line }
       ib: Statement.implemented_by { uid CodeChunk.file_path CodeChunk.symbol_name CodeChunk.start_line }
       db: Statement.decided_by { uid ADR.file_path ADR.number }
+    }
+    acs: ~AcceptanceCriterion.spec {
+      uid
+      AcceptanceCriterion.ordinal AcceptanceCriterion.text
+      vb: AcceptanceCriterion.validated_by { uid TestChunk.file_path TestChunk.test_name TestChunk.start_line }
+      ib: AcceptanceCriterion.implemented_by { uid CodeChunk.file_path CodeChunk.symbol_name CodeChunk.start_line }
     }
   }
 }`;
@@ -197,7 +210,9 @@ function basename(path: string): string {
   return path.split("/").pop() ?? path;
 }
 
-function linksOf(stmt: NonNullable<SpecRow["stmts"]>[number]): TraceLinkRef[] {
+type LinkableRow = Pick<NonNullable<SpecRow["stmts"]>[number], "uid" | "vb" | "ib" | "db">;
+
+function linksOf(stmt: LinkableRow): TraceLinkRef[] {
   const links: TraceLinkRef[] = [];
   for (const t of stmt.vb ?? []) {
     const path = t["TestChunk.file_path"];
@@ -238,23 +253,37 @@ export function assembleTraceDocument(data: TraceDocumentResult): TraceDocument 
     .map((s) => ({ uid: s.uid, heading: s["Section.heading"] ?? "(section)", ordinal: s["Section.ordinal"] ?? 0, level: s["Section.level"] }))
     .sort((left, right) => left.ordinal - right.ordinal);
 
-  const statements: TraceStatement[] = (spec.stmts ?? [])
-    .map((st) => {
-      const links = linksOf(st);
-      return {
-        uid: st.uid,
-        ordinal: st["Statement.ordinal"] ?? 0,
-        text: (st["Statement.text"] ?? "").trim(),
-        kind: st["Statement.kind"],
-        testability: st["Statement.testability"],
-        sectionUid: st.sec?.uid,
-        state: stateOf(st["Statement.testability"], links.some((l) => l.kind === "test")),
-        drifted: st["Statement.drifted"],
-        violated: st["Statement.violated"],
-        links,
-      };
-    })
-    .sort((left, right) => left.ordinal - right.ordinal);
+  const fromStatements: TraceStatement[] = (spec.stmts ?? []).map((st) => {
+    const links = linksOf(st);
+    return {
+      uid: st.uid,
+      ordinal: st["Statement.ordinal"] ?? 0,
+      text: (st["Statement.text"] ?? "").trim(),
+      kind: st["Statement.kind"],
+      testability: st["Statement.testability"],
+      sectionUid: st.sec?.uid,
+      state: stateOf(st["Statement.testability"], links.some((l) => l.kind === "test")),
+      drifted: st["Statement.drifted"],
+      violated: st["Statement.violated"],
+      links,
+    };
+  });
+
+  const fromAcceptanceCriteria: TraceStatement[] = (spec.acs ?? []).map((ac) => {
+    const links = linksOf(ac);
+    return {
+      uid: ac.uid,
+      ordinal: ac["AcceptanceCriterion.ordinal"] ?? 0,
+      text: (ac["AcceptanceCriterion.text"] ?? "").trim(),
+      kind: "acceptance-criterion",
+      state: stateOf(undefined, links.some((l) => l.kind === "test")),
+      links,
+    };
+  });
+
+  const statements: TraceStatement[] = [...fromStatements, ...fromAcceptanceCriteria].sort(
+    (left, right) => left.ordinal - right.ordinal,
+  );
 
   const untestable = statements.filter((s) => s.state === "narrative").length;
   const covered = statements.filter((s) => s.state === "tested").length;
