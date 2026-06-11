@@ -90,7 +90,7 @@ lore.auto_merge.decision
 
 ## R8: Workflow YAML schema details
 
-**Decision:** Three node types (`agent | validate | gate | retrospective`), edge condition language is a small enum (`success | changes_requested | failed | always`), no scripting.
+**Decision:** Four node types (`agent | validate | gate | retrospective`), edge condition language is a small enum (`success | changes_requested | failed | always`), no scripting.
 
 **Rationale:** A scriptable edge language (e.g. CEL, expr) tempts complexity creep — workflow authors writing arbitrary expressions inside YAML. The four-condition enum is sufficient for every existing flow we'll port (Phase 2 Task 2.3) and forces complex branching to be modeled as nodes rather than expressions. If we need more, add a fifth condition later — additive change.
 

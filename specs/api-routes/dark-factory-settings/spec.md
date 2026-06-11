@@ -3,7 +3,7 @@
 | Field       | Value                                                                       |
 |-------------|-----------------------------------------------------------------------------|
 | Feature     | Dark-Factory Settings API Route                                             |
-| Status      | **Draft**                                                                   |
+| Status      | **Implemented**                                                             |
 | Created     | 2026-06-10                                                                  |
 | Owner       | Platform Engineering                                                        |
 | Route       | `GET / PUT /api/repos/:owner/:repo/settings/dark-factory`                   |
@@ -127,55 +127,11 @@ in; method resolved inside)
    handles).
 7. Success → `{ prRef, approver, prUrl }`.
 
-## Output
+## Response strings (verbatim)
 
-- `503 { error: "database unavailable" }` — null pool ([validated by `returns 503
-  when pool is null`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L63)).
-- `405 { error: "method not allowed" }` — non-GET/PUT ([validated by `returns 405
-  for unsupported methods`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L69)).
-- GET `404 { error: "repo not onboarded", repo }` ([validated by `returns 404 when
-  the repo is not onboarded`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L85)).
-- GET `200 <settings>` ([validated by `returns the resolved dark_factory
-  settings`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L92)).
-- GET `500 { error: "internal" }` ([validated by `returns 500 when resolution
-  throws`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L99)).
-- PUT `400 { error: "invalid_body" }` — bad JSON / >1 MB ([validated by `returns
-  400 on invalid JSON`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L119)
-  and `returns 400 when the body exceeds the 1MB
-  limit`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L125)).
-- PUT `400 { error: "invalid_settings", issues }` ([validated by `returns 400 with
-  issues when schema validation fails`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L131)
-  and `returns 400 with the message when a plain error is
-  thrown`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L139)).
-- PUT `200 { ok, applied, ceremony: { tier: "admin" } }` — admin-tier change +
-  audit ([validated by `applies an admin-tier change and writes the audit
-  log`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L147)).
-- PUT deep-merges `auto_merge` ([validated by `merges the nested auto_merge
-  object`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L154) and `merges
-  auto_merge when there is no prior auto_merge and null
-  settings`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L161)).
-- PUT `403 { error: "two_key_required", field_paths }` — privileged field, no
-  header ([validated by `returns 403 when a two-key field lacks the approval
-  header`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L168)).
-- PUT `200 { ceremony: { tier: "two_key", … } }` — after approval ([validated by
-  `applies a two-key change after CODEOWNERS
-  approval`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L175)).
-- PUT `403 { error: "codeowners_check_failed", code }` ([validated by `returns 403
-  on a CODEOWNERS check failure`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L185)).
-- PUT `503 { error: "github_api_unavailable" }` ([validated by `returns 503 when
-  the approval check hits a GitHub error`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L193)).
-- PUT `404 { error: "repo not onboarded", repo }` — repo vanished mid-txn
-  ([validated by `returns 404 when the repo vanishes inside the
-  transaction`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L201)).
-- PUT commits despite an audit-log insert failure ([validated by `commits even
-  when the audit-log insert fails`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L208)).
-- PUT `500 { error: "internal" }` + `ROLLBACK` on write failure ([validated by
-  `rolls back and returns 500 on a write
-  failure`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L215) and
-  `swallows a failing rollback after a write
-  failure`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L223)).
-
-Verbatim strings: `"database unavailable"`, `"method not allowed"`, `"repo not
+The full response/behavior matrix — each status, body, and the test that validates
+it — is the [§Acceptance Criteria](#acceptance-criteria) below; the exact literal
+strings the route emits are: `"database unavailable"`, `"method not allowed"`, `"repo not
 onboarded"`, `"invalid_body"`, `"invalid_settings"`, `"two_key_required"`,
 `"codeowners_check_failed"`, `"github_api_unavailable"`, `"internal"`; the
 ceremony tiers `"admin"` / `"two_key"`; the audit `event_type`
