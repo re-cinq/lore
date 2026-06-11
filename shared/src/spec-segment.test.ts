@@ -198,4 +198,36 @@ describe("classifyByHeuristic", () => {
       matchedBySection: false,
     });
   });
+
+  // ── Content + section tightening: narrative prose that specifies no behaviour ──
+  const stmt = (text: string, heading: string | null = "Functional Requirements") => ({
+    ordinal: 99,
+    text,
+    kind: "sentence" as const,
+    enclosingHeading: heading,
+  });
+
+  it("marks a Decision:-prefixed statement untestable regardless of section", () => {
+    expect(classifyByHeuristic(stmt("Decision: Deploy the Lore Agent service on GKE."), intro)).toMatchObject({ testability: "untestable" });
+    expect(classifyByHeuristic(stmt("**Decision:** Use Postgres for the knowledge graph."), intro)).toMatchObject({ testability: "untestable" });
+  });
+
+  it("marks a bare cross-reference (See ADR-NNN) untestable", () => {
+    expect(classifyByHeuristic(stmt("See ADR-015."), intro)).toMatchObject({ testability: "untestable" });
+    expect(classifyByHeuristic(stmt("See the dark-factory spec for details."), intro)).toMatchObject({ testability: "untestable" });
+  });
+
+  it("classifies narrative doc sections (alternatives/research/personas/consequences/out-of-scope/phases) as untestable", () => {
+    for (const h of ["Alternatives Considered", "Research", "User Personas", "Consequences", "Out of Scope", "Implementation Phases"]) {
+      expect(classifyByHeuristic(stmt("anything", h), intro)).toMatchObject({ testability: "untestable" });
+    }
+  });
+
+  it("leaves a real functional requirement testable (does not over-classify)", () => {
+    expect(classifyByHeuristic(stmt("FR-8.3: Gap signal feeds the autoresearch loop."), intro)).toEqual({
+      testability: "testable",
+      category: null,
+      matchedBySection: false,
+    });
+  });
 });
