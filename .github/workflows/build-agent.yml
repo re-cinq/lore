@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - 'agent/**'
+      # The compiled `shared` package is bundled into the image — a shared-only
+      # change must rebuild + redeploy, or the cluster runs stale shared code
+      # while main is green (rediscovered 2026-06-11).
+      - 'shared/**'
       # Chart or workflow changes need a redeploy too.
       - 'terraform/modules/gke-mcp/agent-helm/**'
       - '.github/workflows/build-agent.yml'
