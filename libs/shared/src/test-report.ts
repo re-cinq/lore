@@ -16,7 +16,8 @@ export interface TestDescriptor {
   startLine?: number;
   endLine?: number;
   suite?: string[];
-  spec?: string;
+  /** One `path#ordinal` spec anchor, or several when one test validates several statements. */
+  spec?: string | string[];
   passed?: boolean;
 }
 
@@ -46,6 +47,8 @@ export function parseTestDescriptors(raw: unknown): TestDescriptor[] {
     if (Array.isArray(entry.suite) && entry.suite.every((s) => typeof s === "string"))
       descriptor.suite = entry.suite as string[];
     if (typeof entry.spec === "string") descriptor.spec = entry.spec;
+    else if (Array.isArray(entry.spec) && entry.spec.every((anchor) => typeof anchor === "string"))
+      descriptor.spec = entry.spec as string[];
     if (typeof entry.passed === "boolean") descriptor.passed = entry.passed;
     return descriptor;
   });

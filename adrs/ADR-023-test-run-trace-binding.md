@@ -57,10 +57,11 @@ ingest created 12 edges or 1200.
    already authored (by hand, the backfill cron, or `/lore-suggest-links`)
    become live `validated_by` + `violated` signal on every run.
 
-2. **Resolve the binding 1:1; report the N:1 case.** `TestDescriptor.spec` is a
-   single string. A descriptor whose span resolves to more than one distinct
-   statement is left unanchored and the ambiguity is reported — never silently
-   collapsed to one. Multi-anchor (`spec: string[]`) is a deliberate follow-up.
+2. **Bind one-to-many.** `TestDescriptor.spec` is `string | string[]`. A
+   descriptor whose span resolves to a single statement carries that one anchor
+   (a string); a span resolving to several carries them all (a `string[]`), and
+   `parseSpecAnchors` normalizes either shape so `ingestTestReport` contributes
+   the test's TestChunk to every anchored statement.
 
 3. **Make the ingest result observable.** The agent surfaces
    `ingestTestReport`'s real `{validatedBy, violated, coverageNodes}` per ingest
@@ -78,10 +79,11 @@ ingest created 12 edges or 1200.
   authoring loop the rest of the platform already invests in.
 
 **Negative / risks**
-- A test validating several statements gets no anchor until multi-anchor lands
-  (mitigated: reported, and the sentence path still covers describe-chain cases).
-- The producer must read the repo's spec markdown during `list` — a bounded,
-  local filesystem scan, no network.
+- The producer must read the repo's spec markdown during `list`, and parse each
+  test file for `it` line spans — a bounded, local filesystem scan, no network.
+- `vitest list --json` is line-blind, so binding rides a regex `it`/`test`
+  declaration scan (`resolveTestLines`); a test whose leaf name does not match a
+  declaration stays line-blind and unbound (graceful — no false anchor).
 
 ## Alternatives Considered
 

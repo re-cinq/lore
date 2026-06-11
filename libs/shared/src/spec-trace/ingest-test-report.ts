@@ -24,6 +24,7 @@ import { ingestCoverageReport } from "./ingest-coverage.js";
 import { parseSentenceLink, sentenceLinkFromSuite } from "./sentence-link.js";
 import { resolveSentenceLink, type SentenceMatch } from "./resolve-sentence-link.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
+import { parseSpecAnchors } from "./spec-anchor.js";
 
 /** A coverage record as {@link ingestCoverageReport} consumes it. */
 interface CoverageRecord {
@@ -50,18 +51,6 @@ function coverageRecordsFor(report: TestReport): CoverageRecord[] {
     for (const chunk of result.covered) ranges.set(`${chunk.file}:${chunk.startLine}:${chunk.endLine}`, chunk);
   }
   return [...byFile].map(([file, ranges]) => ({ testFile: file, testName: file, covered: [...ranges.values()] }));
-}
-
-/**
- * Parse a `path#ordinal` spec anchor (as carried on a TestDescriptor's `spec`).
- * Returns null for a missing anchor, a blank path, or a non-integer ordinal.
- */
-export function parseSpecAnchor(spec: string | undefined): { specPath: string; ordinal: number } | null {
-  if (!spec?.includes("#")) return null;
-  const [specPath, ordinalStr] = spec.split("#");
-  const ordinal = Number(ordinalStr);
-  if (!specPath || !Number.isInteger(ordinal)) return null;
-  return { specPath, ordinal };
 }
 
 export interface TestReport {
@@ -113,13 +102,16 @@ function groupStatementsByAnchor(
 ): StatementGroup[] {
   const groups = new Map<string, StatementGroup>();
   for (const { descriptor, fileChunkUid } of entries) {
-    const anchor = parseSpecAnchor(descriptor.spec);
-    if (!anchor) continue;
-    const xid = `${repo}|${anchor.specPath}|${anchor.ordinal}`;
-    const group = groups.get(xid) ?? { xid, validatingChunkUids: [], failingTestNames: [] };
-    group.validatingChunkUids.push(fileChunkUid);
-    if (resultById.get(descriptor.id)?.passed === false) group.failingTestNames.push(descriptor.name);
-    groups.set(xid, group);
+    const failed = resultById.get(descriptor.id)?.passed === false;
+    // A descriptor may carry several anchors (one test validating several
+    // statements) — contribute its TestChunk to every anchored statement.
+    for (const anchor of parseSpecAnchors(descriptor.spec)) {
+      const xid = `${repo}|${anchor.specPath}|${anchor.ordinal}`;
+      const group = groups.get(xid) ?? { xid, validatingChunkUids: [], failingTestNames: [] };
+      group.validatingChunkUids.push(fileChunkUid);
+      if (failed) group.failingTestNames.push(descriptor.name);
+      groups.set(xid, group);
+    }
   }
   return [...groups.values()];
 }
@@ -169,7 +161,7 @@ async function groupStatementsBySentence(
 ): Promise<SentenceGroup[]> {
   const groups = new Map<string, SentenceGroup>();
   for (const { descriptor, fileChunkUid } of entries) {
-    if (parseSpecAnchor(descriptor.spec)) continue;
+    if (parseSpecAnchors(descriptor.spec).length > 0) continue;
     // Structural (describe-nesting) link is primary; fall back to a hand-written
     // `<spec> | <sentence> | <label>` name for backward compatibility.
     const link = sentenceLinkFromSuite(descriptor) ?? parseSentenceLink(descriptor.name);

@@ -9,6 +9,16 @@ import type { CoveredChunk, DgraphClientPort } from "./deps.js";
 import { ingestTestReport, type TestReport } from "./ingest-test-report.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 
+/** Normalized graph effect of one ingest, surfaced for logging + audit. */
+export interface SpecTraceOutcome {
+  kind: string;
+  testChunks: number;
+  validatedBy: number;
+  violated: number;
+  coverageNodes: number;
+  coversEdges: number;
+}
+
 /** Shape of the bulk `"coverage"` payload posted to the dispatcher. */
 interface CoveragePayload {
   commit?: string;
@@ -33,19 +43,20 @@ export async function ingestSpecTrace(
   repo: string,
   kind: string,
   payload: unknown,
-): Promise<void> {
+): Promise<SpecTraceOutcome> {
   switch (kind) {
-    case "test-report":
-      await ingestTestReport(dgraph, repo, payload as TestReport);
-      return;
+    case "test-report": {
+      const result = await ingestTestReport(dgraph, repo, payload as TestReport);
+      return { kind, ...result };
+    }
     case "coverage": {
       const report = payload as CoveragePayload;
-      await ingestCoverageReport(
+      const result = await ingestCoverageReport(
         dgraph,
         { repo, tool: "coverage-report", commit: report.commit ?? "" },
         coverageRecordsFromGroups(report),
       );
-      return;
+      return { kind, testChunks: 0, validatedBy: 0, violated: 0, coverageNodes: result.coverageNodes, coversEdges: result.coversEdges };
     }
     default:
       throw new Error(`ingestSpecTrace: unrecognized kind "${kind}"`);
