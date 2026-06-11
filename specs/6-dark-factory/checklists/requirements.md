@@ -36,7 +36,7 @@
 - Implementation-flavored phrases ("supervisor process", "graph node", "commit trailer") are accepted as **architectural terms-of-art** documented in Key Entities. They are necessary for unambiguous requirements.
 
 ### Requirement Completeness
-- Three open questions (Q1–Q3 in the spec) remain by design and are tagged for `/speckit.clarify` rather than `[NEEDS CLARIFICATION]`. They are scoped to: graph format choice, review-but-no-merge behavior, and trailer-gating policy. Within the maximum-three limit.
+- All five clarifications (Q1–Q5) were resolved in the 2026-04-28 session: graph format, bot review-but-no-merge behavior, settings authorization, supervisor concurrency control, and trailer-gating policy. No `[NEEDS CLARIFICATION]` markers remain.
 - Success criteria use measurable units (counts, percentages, time bounds) and avoid technology-specific metrics.
 - Edge cases addressed via Scenarios 2 (pod death), 3 (path outside allowlist), 5 (escalation), 6 (opt-out).
 
@@ -46,6 +46,6 @@
 
 ## Notes
 
-- Constitutional impact called out explicitly. Principle 7 row on task tracking will require a superseding ADR before the implementation phase begins. This is part of the plan workflow, not a blocker for the spec itself.
+- Constitutional impact called out explicitly. Principle 7's task-tracking row was superseded by ADR-016; the constitution was patched to v2.1.0 (MINOR).
 - Out-of-scope items (Operation phase, parallel red-team agents, CRD removal, multi-provider routing) are bounded and listed for follow-up specs.
-- Open questions Q1–Q3 are recommended inputs to `/speckit.clarify` before `/speckit.plan`.
+- The Q1–Q5 clarifications are resolved and recorded in spec.md; planning and implementation are complete (ADR-016 accepted, feature shipped).
