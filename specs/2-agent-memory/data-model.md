@@ -115,14 +115,14 @@ active  ──→ soft-deleted    (is_deleted=true, excluded from search)
 active  ──→ expired         (ttl reached, excluded from search, cleanup deletes)
 ```
 
-- **created to active**: When `write_memory` inserts a new row, it
+- **created to active**: When `lore_write_memory` inserts a new row, it
   becomes the active version for that agent+key pair.
 
-- **active to updated**: A subsequent `write_memory` with the same key
+- **active to updated**: A subsequent `lore_write_memory` with the same key
   creates a new row with an incremented version. The previous version
   is preserved for history and snapshot references.
 
-- **active to soft-deleted**: `delete_memory` sets `is_deleted=true`
+- **active to soft-deleted**: `lore_delete_memory` sets `is_deleted=true`
   on the current version. The row remains in the database for audit
   purposes but is excluded from all read and search operations.
 

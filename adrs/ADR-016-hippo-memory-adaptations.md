@@ -237,7 +237,7 @@ and `retrieval_count` for all memories in scope.
   decisions.
 
 **Negative:**
-- Every `search_memory` call issues one async DB write (retrieval
+- Every `lore_search_memory` call issues one async DB write (retrieval
   strengthening). Under high search load this adds write pressure.
   Monitor with OTEL counter `memory.retrieval_strength.updated`.
 - `context_refs` outcome feedback is currently inert (see Phase 6

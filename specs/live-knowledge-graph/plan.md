@@ -13,4 +13,4 @@
 |------|--------|
 | `scripts/infra/setup-memory-schema.sh` | Added `memory.entities` and `memory.edges` tables. Entities deduped by `(name, entity_type, repo)`. Edges have temporal validity (`valid_from`/`valid_to`). |
 | `mcp-server/src/graph.ts` | Added live graph functions alongside legacy static graph: `extractAndUpdateGraph()`, `queryLiveGraph()`, entity upsert, edge upsert with temporal invalidation. |
-| `mcp-server/src/index.ts` | Added `query_graph` MCP tool. Wired graph extraction into `write_episode` handler. |
+| `mcp-server/src/index.ts` | Added `lore_query_graph` MCP tool. Wired graph extraction into `lore_write_episode` handler. |

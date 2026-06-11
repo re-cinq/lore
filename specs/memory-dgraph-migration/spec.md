@@ -95,23 +95,23 @@ a rollback window.
 
 ## User Experience
 
-No developer-facing UX change. The MCP tools (`write_memory`,
-`read_memory`, `search_memory`, `query_graph`, `write_episode`,
-`assemble_context`, `agent_stats`) keep their schemas and return shapes —
+No developer-facing UX change. The MCP tools (`lore_write_memory`,
+`lore_read_memory`, `lore_search_memory`, `lore_query_graph`, `lore_write_episode`,
+`lore_assemble_context`, `lore_agent_stats`) keep their schemas and return shapes —
 ids are still the original UUIDs (carried as `xid`).
 
 The one new operator-facing capability is **deep graph traversal**:
-`query_graph` gains a `depth` parameter (1–N) that previously could only
+`lore_query_graph` gains a `depth` parameter (1–N) that previously could only
 return 1-hop neighbours.
 
 ```
 # Before (Postgres): only direct neighbours
-query_graph(entity="lore-agent")
+lore_query_graph(entity="lore-agent")
   → lore-agent --uses--> postgres
   → lore-agent --owns--> review-reactor
 
 # After (Dgraph @recurse, depth=3): the live subgraph around an entity
-query_graph(entity="lore-agent", depth=3)
+lore_query_graph(entity="lore-agent", depth=3)
   → lore-agent --uses--> postgres --hosts--> memory-schema
   → lore-agent --owns--> review-reactor --depends-on--> github-webhooks
   → … (active edges only, cycle-safe)
@@ -153,7 +153,7 @@ and rollback live in [`plan.md`](./plan.md).
 
 No new HTTP API. Two internal surfaces change shape behind the seam.
 
-**`query_graph` MCP tool** gains `depth`:
+**`lore_query_graph` MCP tool** gains `depth`:
 
 ```jsonc
 // request (additive; depth defaults to 1 for back-compat)
@@ -228,7 +228,7 @@ of the node types and how they map from Postgres:
 1. A `MemoryStore` interface exists in `shared/`; `PostgresMemoryStore` implements every method by delegating to the current SQL, and all existing memory/facts/graph/context-assembly tests stay green with `LORE_MEMORY_BACKEND` unset (default `postgres`). ([validated by `returns version 1 for a brand-new key`](shared/src/__tests__/postgres-memory-store.test.ts#L42), [validated by `returns the latest stored value with version 1 for a single write`](shared/src/__tests__/postgres-memory-store.test.ts#L132), [validated by `soft-deletes so readMemory returns nothing`](shared/src/__tests__/postgres-memory-store.test.ts#L70), [validated by `returns total 2 and the two live keys, excluding the soft-deleted one`](shared/src/__tests__/postgres-memory-store.test.ts#L99))
 2. `selectMemoryStore()` returns `DgraphMemoryStore` when `LORE_MEMORY_BACKEND=dgraph`, `PostgresMemoryStore` otherwise, and throws (not returns null) when the selected backend's client is absent. ([validated by `returns a postgres store when LORE_MEMORY_BACKEND is unset`](shared/src/memory-store.test.ts#L33), [validated by `throws when postgres backend is selected without a pgPool`](shared/src/memory-store.test.ts#L38), [validated by `throws when dgraph backend is selected without a dgraph client`](shared/src/memory-store.test.ts#L42))
 3. `DgraphMemoryStore` passes the same behavioral test fixtures as `PostgresMemoryStore` against a real local Dgraph container (no mocks): write→read version increment, soft-delete + TTL exclusion, paginated list, RRF hybrid search, contradiction detection at cosine ≥ 0.92, episode `content_hash` dedup, entity/edge temporal invalidation. ([validated by `returns the stored value at version 1 after writeMemory then readMemory of a new key`](shared/src/__tests__/dgraph-memory-store.test.ts#L189), [validated by `returns version 2 and the latest value after writing the same key twice`](shared/src/__tests__/dgraph-memory-store.test.ts#L203), [validated by `soft-deletes so readMemory returns nothing`](shared/src/__tests__/dgraph-memory-store.test.ts#L248), [validated by `excludes a memory whose expires_at is in the past`](shared/src/__tests__/dgraph-memory-store.test.ts#L219), [validated by `returns total 2 and the two live keys, excluding the soft-deleted one`](shared/src/__tests__/dgraph-memory-store.test.ts#L263), [validated by `searchMemories returns the memory whose value matches the keyword query`](shared/src/__tests__/dgraph-memory-store.test.ts#L282), [validated by `searchMemories returns the vector-nearest memory when the keyword query matches nothing`](shared/src/__tests__/dgraph-memory-store.test.ts#L303), [validated by `invalidates the prior fact and records a FactConflict for a near-duplicate embedding`](shared/src/__tests__/dgraph-memory-store.test.ts#L136), [validated by `writeEpisode of identical content twice creates exactly one Episode node`](shared/src/__tests__/dgraph-memory-store.test.ts#L353), [validated by `upsertEdge creates an active GraphRel of the given relation_type from source to target`](shared/src/__tests__/dgraph-memory-store.test.ts#L423), [validated by `invalidates the prior edge when a same-source same-relation edge points at a different target`](shared/src/__tests__/dgraph-memory-store.test.ts#L461))
-4. `query_graph` performs multi-hop traversal via `@recurse` to a caller-supplied `depth`, returns only `active` edges by default, and is cycle-safe (`loop:false`). ([validated by `queryGraph returns the 1-hop outgoing neighbour as a hop at depth 1`](shared/src/__tests__/dgraph-memory-store.test.ts#L498), [validated by `traverses two hops so A--uses-->B--hosts-->C yields the depth-2 hop B--hosts-->C`](shared/src/__tests__/dgraph-memory-store.test.ts#L522), [validated by `excludes an invalidated (active=false) edge from traversal by default`](shared/src/__tests__/dgraph-memory-store.test.ts#L548), [validated by `terminates on a cycle A--links-->B--links-->A without infinite recursion`](shared/src/__tests__/dgraph-memory-store.test.ts#L567))
+4. `lore_query_graph` performs multi-hop traversal via `@recurse` to a caller-supplied `depth`, returns only `active` edges by default, and is cycle-safe (`loop:false`). ([validated by `queryGraph returns the 1-hop outgoing neighbour as a hop at depth 1`](shared/src/__tests__/dgraph-memory-store.test.ts#L498), [validated by `traverses two hops so A--uses-->B--hosts-->C yields the depth-2 hop B--hosts-->C`](shared/src/__tests__/dgraph-memory-store.test.ts#L522), [validated by `excludes an invalidated (active=false) edge from traversal by default`](shared/src/__tests__/dgraph-memory-store.test.ts#L548), [validated by `terminates on a cycle A--links-->B--links-->A without infinite recursion`](shared/src/__tests__/dgraph-memory-store.test.ts#L567))
 5. RRF, session diversification, transfer scoring, and importance scoring are imported by both stores from `shared/src/memory-ranking.ts` — one definition, identical results. ([validated by `carries confidence from the candidate onto the fused result`](shared/src/memory-ranking.test.ts#L6), [validated by `returns 0.5 for neutral text with no portable or local keywords`](shared/src/memory-ranking.test.ts#L16), [validated by `keeps only the 3 highest-scoring from one agent_id::source over the cap`](shared/src/memory-ranking.test.ts#L38), [validated by `returns 10 for a fresh memory with no score adjustments`](shared/src/memory-ranking.test.ts#L87))
 6. The backfill exporter preserves every Postgres UUID as the node `xid`, preserves 768-dim embeddings (dim == 768, cosine(self) == 1.0 on a sample), resolves all relationships, and is idempotent (a second run leaves node counts unchanged). ([validated by `creates a Memory node whose Memory.xid equals the Postgres memories row id`](shared/src/__tests__/backfill-memory.test.ts#L106), [validated by `preserves the 768-dim embedding so cosine(original, stored) is 1.0`](shared/src/__tests__/backfill-memory.test.ts#L225), [validated by `points Fact.memory at the Memory node carrying the facts.memory_id xid`](shared/src/__tests__/backfill-memory.test.ts#L145), [validated by `creates exactly one Memory node per xid after running twice`](shared/src/__tests__/backfill-memory.test.ts#L189))
 7. The backfill Job exits non-zero unless row-count parity holds per table and retrieval top-K Jaccard ≥ 0.8 on a sampled query set. ([validated by `passes with exit 0 when every table count matches and mean jaccard is 0.87`](shared/src/backfill-parity.test.ts#L37), [validated by `fails with non-zero exit naming the table when facts count mismatches`](shared/src/backfill-parity.test.ts#L49), [validated by `fails with non-zero exit naming the jaccard gate when tables match but mean jaccard is 0.5`](shared/src/backfill-parity.test.ts#L65), [validated by `accumulates both a table-mismatch and a jaccard failure when both gates fail`](shared/src/backfill-parity.test.ts#L89))

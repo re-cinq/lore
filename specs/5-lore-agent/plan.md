@@ -271,7 +271,7 @@ Write `adrs/ADR-XXX-lore-agent-replaces-klaus.md`:
 ### Task 3.9: Local Task Proxy
 
 - Add `/api/task` REST endpoint to MCP server HTTP handler
-- Update `create_pipeline_task` MCP tool to proxy via fetch when LORE_DB_HOST not set
+- Update `lore_create_pipeline_task` MCP tool to proxy via fetch when LORE_DB_HOST not set
 - Update install.sh to prompt for LORE_INGEST_TOKEN and set LORE_API_URL env
 
 ### Task 3.10: GitHub Issue Sync
@@ -285,7 +285,7 @@ Wire GitHub Issue lifecycle into the task worker:
 ### Task 3.11: Analytics Dashboard
 
 - Web UI page at /analytics with 6 sections (cost cards, task summary, by type, by repo, daily trend, job runs)
-- `get_analytics` MCP tool returning cost + task stats for any period
+- `lore_get_analytics` MCP tool returning cost + task stats for any period
 
 ### Task 3.12: Review Reactor
 
@@ -346,10 +346,10 @@ Tasks completed to fix developer experience flaws across all flows:
 - install.sh: git clone --depth 1, conditional npm ci, remove team prompt, clear token instructions, silent AgentDB
 - get_context: reads cwd CLAUDE.md, queries by repo in DB, merges org context
 - systemPromptSuffix: auto-load context on conversation start
-- create_pipeline_task: lists task types, auto-detects repo, returns feedback message
-- list_pipeline_tasks / get_pipeline_status: proxy to GKE when local
+- lore_create_pipeline_task: lists task types, auto-detects repo, returns feedback message
+- lore_list_pipeline_tasks / lore_get_pipeline_status: proxy to GKE when local
 - /api/tasks and /api/task/:id REST endpoints
-- ingest_files MCP tool for manual ingestion
+- lore_ingest_files MCP tool for manual ingestion
 - Memory proxy already wired (write, read, search, delete, list → /api/memory)
 
 ## Quickstart (Verification Scenarios)

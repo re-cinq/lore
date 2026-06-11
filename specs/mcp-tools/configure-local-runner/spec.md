@@ -1,12 +1,12 @@
-# Feature Specification: configure_local_runner MCP Tool
+# Feature Specification: lore_configure_local_runner MCP Tool
 
 | Field   | Value                                       |
 |---------|---------------------------------------------|
-| Feature | configure_local_runner MCP Tool             |
+| Feature | lore_configure_local_runner MCP Tool             |
 | Status  | **Draft**                                   |
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
-| Tool    | `configure_local_runner`                    |
+| Tool    | `lore_configure_local_runner`                    |
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
@@ -14,14 +14,14 @@
 
 The local task runner watches a set of repos/task-types and bounds concurrency
 and default model. A developer needs to view the current settings and update them
-without hand-editing JSON. `configure_local_runner` reads the config, applies any
+without hand-editing JSON. `lore_configure_local_runner` reads the config, applies any
 provided fields, and persists.
 
 ## Interface
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/local-runner-tools.local.ts#L208)).
 
-- **name**: `configure_local_runner`
+- **name**: `lore_configure_local_runner`
 - **description** (verbatim): *"View or update local task runner settings.
   Controls which repos and task types the runner watches, concurrency limits, and
   default model."*

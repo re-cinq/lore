@@ -21,7 +21,7 @@ Beads (`bd` CLI) was the developer-facing task tracker with Dolt-based multi-dev
 
 ## Decision
 
-Extend the existing pipeline task system with 4 new MCP tools: `sync_tasks` (parse tasks.md and upsert to DB), `ready_tasks` (list unblocked tasks), `claim_task` (atomic claim), `complete_task` (mark done, report unblocked dependents). Task dependencies from `[DEPENDS ON: ...]` annotations in tasks.md are enforced — a task is not "ready" until all its dependencies are complete.
+Extend the existing pipeline task system with 4 new MCP tools: `lore_sync_tasks` (parse tasks.md and upsert to DB), `lore_ready_tasks` (list unblocked tasks), `lore_claim_task` (atomic claim), `lore_complete_task` (mark done, report unblocked dependents). Task dependencies from `[DEPENDS ON: ...]` annotations in tasks.md are enforced — a task is not "ready" until all its dependencies are complete.
 
 ## Rationale
 

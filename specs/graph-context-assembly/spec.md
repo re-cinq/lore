@@ -12,7 +12,7 @@
 
 ## Problem Statement
 
-`assemble_context` retrieves chunks by vector similarity and fuses them
+`lore_assemble_context` retrieves chunks by vector similarity and fuses them
 with RRF. That answers *"what text looks like the query"* — it does not
 answer *"what intent governs this code, and is that intent currently
 honored."* Two failure modes follow:
@@ -82,6 +82,6 @@ refs, and `truncated: false`.
 
 - The vector seeding step that picks *which* statements to expand from
   (this feature ranks an already-resolved coupled set).
-- Wiring the block into the live `assemble_context` template ordering.
+- Wiring the block into the live `lore_assemble_context` template ordering.
 - The code-seeded path — covered by
   [`trace-impact`](../../shared/src/spec-trace/trace-impact.ts).

@@ -1,19 +1,19 @@
-# Feature Specification: list_local_tasks MCP Tool
+# Feature Specification: lore_list_local_tasks MCP Tool
 
 | Field   | Value                                       |
 |---------|---------------------------------------------|
-| Feature | list_local_tasks MCP Tool                   |
+| Feature | lore_list_local_tasks MCP Tool                   |
 | Status  | **Draft**                                   |
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
-| Tool    | `list_local_tasks`                          |
+| Tool    | `lore_list_local_tasks`                          |
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
 ## Problem Statement
 
 A developer running background tasks needs to see what is running, completed, or
-failed, and whether a PR was opened. `list_local_tasks` reads the local task
+failed, and whether a PR was opened. `lore_list_local_tasks` reads the local task
 registry, reconciles stale "running" rows whose process has died, and prints a
 one-line summary per task.
 
@@ -21,7 +21,7 @@ one-line summary per task.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/local-runner-tools.local.ts#L70)).
 
-- **name**: `list_local_tasks`
+- **name**: `lore_list_local_tasks`
 - **description** (verbatim): *"List all local background tasks (running,
   completed, failed)."*
 
@@ -71,5 +71,5 @@ which the no-mocks convention forbids.)*
 
 ## Out of Scope
 
-- Pending (unclaimed) pipeline tasks — surfaced by `list_pending_tasks`.
+- Pending (unclaimed) pipeline tasks — surfaced by `lore_list_pending_tasks`.
 - Stale-task re-queue (`cleanupStaleTasks`, notifier loop).

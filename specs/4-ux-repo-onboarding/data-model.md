@@ -119,7 +119,7 @@ discovered → onboarding-pr-created → onboarded → active
 ### State Transitions
 
 ```
-                    onboard_repo()
+                    lore_onboard_repo()
   discovered ──────────────────────► onboarding-pr-created
                                             │
                                   PR merged (webhook/poll)

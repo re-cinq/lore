@@ -1,12 +1,12 @@
-# Feature Specification: get_analytics MCP Tool
+# Feature Specification: lore_get_analytics MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | get_analytics MCP Tool         |
+| Feature | lore_get_analytics MCP Tool         |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `get_analytics`                |
+| Tool    | `lore_get_analytics`                |
 | Module  | Usage (`usage-tools.ts`)       |
 | Scope   | shared                         |
 
@@ -14,13 +14,13 @@
 
 A team lead wants a quick org-wide pulse — task throughput, success rate, token
 spend, and a per-type task breakdown — over a chosen window, without opening the
-web UI. `get_analytics` returns those aggregates for one of four fixed periods.
+web UI. `lore_get_analytics` returns those aggregates for one of four fixed periods.
 
 ## Interface
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/usage-tools.ts#L53)).
 
-- **name**: `get_analytics`
+- **name**: `lore_get_analytics`
 - **description** (verbatim): *"Returns org-level analytics: task throughput,
   success rates, and token usage."*
 

@@ -115,7 +115,7 @@ available for historical queries.
 
 ### FR-3: Temporal-Aware Search
 
-- FR-3.1: `search_memory` and all fact queries filter to
+- FR-3.1: `lore_search_memory` and all fact queries filter to
   `valid_to IS NULL` by default (only current facts).
 - FR-3.2: New optional parameter `include_invalidated: boolean`
   (default false) to include historical facts.
@@ -124,7 +124,7 @@ available for historical queries.
 
 ### FR-4: Monitoring
 
-- FR-4.1: `agent_stats` includes count of invalidated facts.
+- FR-4.1: `lore_agent_stats` includes count of invalidated facts.
 - FR-4.2: Audit log records invalidation events with old and
   new fact IDs.
 

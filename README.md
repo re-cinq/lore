@@ -35,7 +35,7 @@ flowchart LR
         SRC["Repo files<br/>CLAUDE.md · ADRs · runbooks · specs · code"]
         PRH["PR history &amp; outcomes<br/>(merge-check)"]
         SESS["Agent sessions<br/>episodes · tool calls (Stop hook)"]
-        MEMW["Explicit memory<br/>write_memory · write_episode"]
+        MEMW["Explicit memory<br/>lore_write_memory · lore_write_episode"]
     end
 
     subgraph store["2 · Store — PostgreSQL + pgvector"]
@@ -48,9 +48,9 @@ flowchart LR
 
     subgraph pull["3 · Pull / Retrieve"]
         direction TB
-        ASM["assemble_context<br/>one-call, token-budgeted bundle"]
-        SEARCH["search_context · search_memory<br/>hybrid: vector + BM25 (RRF)"]
-        QG["query_graph"]
+        ASM["lore_assemble_context<br/>one-call, token-budgeted bundle"]
+        SEARCH["lore_search_context · lore_search_memory<br/>hybrid: vector + BM25 (RRF)"]
+        QG["lore_query_graph"]
     end
 
     SRC -->|"ingest: chunk + embed"| CHUNKS

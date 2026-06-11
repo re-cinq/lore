@@ -134,7 +134,7 @@ normalizes into this one shape.
 
 ## MCP tools
 
-`list_tests` / `run_test` / `query_trace` (see [`../spec.md`](../spec.md)) run
+`lore_list_tests` / `lore_run_test` / `query_trace` (see [`../spec.md`](../spec.md)) run
 the commands in the caller's sandbox and update the graph through the MCP
 server; the shared GKE server refuses to execute and returns a
 "run in CI / locally" error.

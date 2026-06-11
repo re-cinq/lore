@@ -31,8 +31,8 @@
 ## Phase 2: Foundational — Repo Backend
 
 - [x] T004 Create mcp-server/src/repo-onboard.ts: fetch repos from GitHub App installation, filter to unonboarded, onboard flow (create branch, commit templates, open PR, insert to lore.repos)
-- [x] T005 Register list_repos MCP tool in mcp-server/src/index.ts: query lore.repos with activity summary (task count from pipeline.tasks, last_ingested_at)
-- [x] T006 Register onboard_repo MCP tool in mcp-server/src/index.ts: calls repo-onboard.ts, returns PR URL
+- [x] T005 Register lore_list_repos MCP tool in mcp-server/src/index.ts: query lore.repos with activity summary (task count from pipeline.tasks, last_ingested_at)
+- [x] T006 Register lore_onboard_repo MCP tool in mcp-server/src/index.ts: calls repo-onboard.ts, returns PR URL
 - [x] T007 Create web-ui API route for fetching available repos: web-ui/src/app/api/repos/route.ts (queries GitHub App installation repos + lore.repos to show onboarded vs available)
 
 ---
@@ -76,7 +76,7 @@ onboarding PR with all required files.
 ### Tasks
 
 - [x] T016 [US2] Create web-ui/src/app/onboard/page.tsx: shows available repos (from API route T007), click to onboard, shows progress + PR link
-- [x] T017 [US2] Create web-ui/src/app/api/onboard/route.ts: server action that calls onboard_repo via direct PostgreSQL + GitHub API (not MCP, since UI has its own DB connection)
+- [x] T017 [US2] Create web-ui/src/app/api/onboard/route.ts: server action that calls lore_onboard_repo via direct PostgreSQL + GitHub API (not MCP, since UI has its own DB connection)
 - [x] T018 [US2] Add merge detection for onboarding PRs: polling or webhook that checks if onboarding PR is merged, updates lore.repos.onboarding_pr_merged = true
 - [x] T019 [US2] Trigger initial ingestion after onboarding PR merge: when PR merged, clone repo content into org_shared.chunks with repo attribution
 

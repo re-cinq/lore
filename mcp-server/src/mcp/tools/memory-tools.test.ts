@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterEach, beforeEach, vi } from "vitest";
 
-// No pg pool is configured, so isMemoryDbAvailable() is false and query_graph
+// No pg pool is configured, so isMemoryDbAvailable() is false and lore_query_graph
 // takes the remote-proxy branch. We register the real handler and stub global
 // fetch to assert the HTTP request it makes to /api/graph.
 
@@ -19,10 +19,10 @@ beforeAll(async () => {
     },
   };
   registerMemoryTools(fakeServer as never, { getPool: () => null });
-  queryGraph = handlers["query_graph"];
+  queryGraph = handlers["lore_query_graph"];
 });
 
-describe("query_graph remote proxy (no local DB)", () => {
+describe("lore_query_graph remote proxy (no local DB)", () => {
   beforeEach(() => {
     process.env.LORE_API_URL = "https://lore-api.example.com";
     process.env.LORE_INGEST_TOKEN = "tok";

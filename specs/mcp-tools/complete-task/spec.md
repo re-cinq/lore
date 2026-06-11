@@ -1,12 +1,12 @@
-# Feature Specification: complete_task MCP Tool
+# Feature Specification: lore_complete_task MCP Tool
 
 | Field   | Value                                  |
 |---------|----------------------------------------|
-| Feature | complete_task MCP Tool                 |
+| Feature | lore_complete_task MCP Tool                 |
 | Status  | **Draft**                              |
 | Created | 2026-06-10                             |
 | Owner   | Platform Engineering                   |
-| Tool    | `complete_task`                        |
+| Tool    | `lore_complete_task`                        |
 | Module  | Pipeline (`features/pipeline/tasks.ts`)|
 | Scope   | shared                                 |
 
@@ -14,7 +14,7 @@
 
 When an agent finishes a claimed (`running`) spec-task, that completion may
 unblock downstream tasks whose only remaining dependency was the one just
-finished. `complete_task` records the completion and reports exactly which
+finished. `lore_complete_task` records the completion and reports exactly which
 dependent tasks are now ready, so the caller can immediately pick up the next
 unit of work without re-running a full readiness scan.
 
@@ -22,7 +22,7 @@ unit of work without re-running a full readiness scan.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L317)).
 
-- **name**: `complete_task`
+- **name**: `lore_complete_task`
 - **description** (verbatim): *"Mark a spec-task as completed and report any
   newly unblocked tasks."*
 
@@ -34,7 +34,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
 
 ## Behavior
 
-1. `getPool()`. If null, return `"complete_task requires PostgreSQL (LORE_DB_HOST not set)."`.
+1. `getPool()`. If null, return `"lore_complete_task requires PostgreSQL (LORE_DB_HOST not set)."`.
 2. Delegate to `completeTask(pool, task_id)`
    ([handler](../../../mcp-server/src/features/pipeline/tasks.ts#L162)). It:
    1. `SELECT id, status, context_bundle, target_repo FROM pipeline.tasks WHERE id = $1`. If no row → `{ completed: false, unblocked: [] }`.
@@ -42,7 +42,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
    3. `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`.
    4. Best-effort `INSERT INTO pipeline.task_events (…, 'running','completed','{}')`; a failure is swallowed.
    5. Read `spec_task_id` + `spec_slug` from `context_bundle`. If either is missing → `{ completed: true, unblocked: [] }` (skips the dependents query).
-   6. Else query dependents: `pipeline.tasks` of `task_type = 'spec-task'`, same `target_repo` + `spec_slug`, `status = 'pending'`, whose `depends_on` array contains this `spec_task_id`, and for which no remaining dependency is unsatisfied (the same `NOT EXISTS` shape `ready_tasks` uses).
+   6. Else query dependents: `pipeline.tasks` of `task_type = 'spec-task'`, same `target_repo` + `spec_slug`, `status = 'pending'`, whose `depends_on` array contains this `spec_task_id`, and for which no remaining dependency is unsatisfied (the same `NOT EXISTS` shape `lore_ready_tasks` uses).
    7. Map dependents to `"{spec_task_id}: {description}"` → `{ completed: true, unblocked }`.
 3. If `result.completed` is false, return
    `"Could not complete task {task_id}. It may not be in 'running' state."`.
@@ -83,5 +83,5 @@ run only inside the tool handler. *(untested: handler-only orchestration around
 
 ## Out of Scope
 
-- Choosing / claiming the next unblocked task — see [`ready_tasks`](../ready-tasks/spec.md) and [`claim_task`](../claim-task/spec.md).
+- Choosing / claiming the next unblocked task — see [`lore_ready_tasks`](../ready-tasks/spec.md) and [`lore_claim_task`](../claim-task/spec.md).
 - Terminal states other than `completed` (e.g. `merged`, `failed`).

@@ -57,27 +57,27 @@ describe("session tracker", () => {
 
     it("formats a simple session", () => {
       const log: ToolCallEntry[] = [
-        { tool: "search_context", timestamp: new Date().toISOString(), durationMs: 150, success: true },
-        { tool: "assemble_context", timestamp: new Date().toISOString(), durationMs: 300, success: true },
-        { tool: "search_context", timestamp: new Date().toISOString(), durationMs: 200, success: true },
+        { tool: "lore_search_context", timestamp: new Date().toISOString(), durationMs: 150, success: true },
+        { tool: "lore_assemble_context", timestamp: new Date().toISOString(), durationMs: 300, success: true },
+        { tool: "lore_search_context", timestamp: new Date().toISOString(), durationMs: 200, success: true },
       ];
       const summary = formatSessionSummaryFromLog(log, new Date().toISOString());
 
       expect(summary).toContain("3 tool calls");
       expect(summary).toContain("0 errors");
-      expect(summary).toContain("search_context: 2x");
-      expect(summary).toContain("assemble_context: 1x");
+      expect(summary).toContain("lore_search_context: 2x");
+      expect(summary).toContain("lore_assemble_context: 1x");
     });
 
     it("includes error counts per tool", () => {
       const log: ToolCallEntry[] = [
-        { tool: "write_memory", timestamp: new Date().toISOString(), durationMs: 100, success: true },
-        { tool: "write_memory", timestamp: new Date().toISOString(), durationMs: 50, success: false },
+        { tool: "lore_write_memory", timestamp: new Date().toISOString(), durationMs: 100, success: true },
+        { tool: "lore_write_memory", timestamp: new Date().toISOString(), durationMs: 50, success: false },
       ];
       const summary = formatSessionSummaryFromLog(log, new Date().toISOString());
 
       expect(summary).toContain("1 errors");
-      expect(summary).toContain("write_memory: 2x");
+      expect(summary).toContain("lore_write_memory: 2x");
       expect(summary).toContain("(1 errors)");
     });
 

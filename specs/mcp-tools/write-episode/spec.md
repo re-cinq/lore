@@ -1,18 +1,18 @@
-# Feature Specification: `write_episode` MCP tool
+# Feature Specification: `lore_write_episode` MCP tool
 
 | Field   | Value                                            |
 |---------|--------------------------------------------------|
-| Feature | `write_episode` MCP tool                         |
+| Feature | `lore_write_episode` MCP tool                         |
 | Status  | **Draft**                                        |
 | Created | 2026-06-10                                       |
 | Owner   | Platform Engineering                             |
-| Tool    | `write_episode`                                  |
+| Tool    | `lore_write_episode`                                  |
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
 ## Problem Statement
 
-Curated `write_memory` calls capture only what an agent decides to write down.
+Curated `lore_write_memory` calls capture only what an agent decides to write down.
 Most useful knowledge — conversation turns, code reviews, observations —
 arrives as raw, unstructured text that no one will hand-curate. We need passive
 capture: ingest the raw blob once, de-duplicate it, and let the system extract
@@ -23,7 +23,7 @@ asynchronously, without leaking secrets into the org-wide store.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L193)).
 
-- **name**: `write_episode`
+- **name**: `lore_write_episode`
 - **description** (verbatim): *"Ingest raw, unstructured text (conversation
   turn, code review, observation). The system stores it as an episode and
   automatically extracts searchable facts. Use this for passive knowledge
@@ -44,7 +44,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
 2. **Proxy path** — if **not** `isMemoryDbAvailable()`:
    - `proxyToApi("/api/episode", { content, source, ref, agent_id: agent_id ||
      resolveAgentId() })`. `ok` → `proxied.body`; `unreachable` →
-     `unreachableError("write_episode", detail)`; `not_configured` → literal
+     `unreachableError("lore_write_episode", detail)`; `not_configured` → literal
      `"Episodes require PostgreSQL or LORE_API_URL. Neither is configured."`
 3. **DB path**:
    1. `agent = resolveAgentId(agent_id)`.
@@ -71,7 +71,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
         content, repoFromRef, episodeId, null, graphLlmCall)`
         ([graph](../../../mcp-server/src/features/memory/graph.ts#L119)) — upsert entities + temporally-invalidating
         edge upserts. `.catch` logs a warning.
-   7. `INSERT INTO memory.audit_log (agent_id, operation='write_episode',
+   7. `INSERT INTO memory.audit_log (agent_id, operation='lore_write_episode',
       metadata={episode_id, source, ref})` (best-effort `.catch`).
    8. Return `{ status: "ok", episode_id, source, ref }`.
 4. Any thrown error → `"Error writing episode: {message}"`.
@@ -105,5 +105,5 @@ ingested."}`; the proxied body; the `unreachableError` message; the
 - The episode INSERT / dedupe / audit composed inline in the tool handler.
   *(untested: requires live `memory.episodes` + a content-hash conflict.)*
 - Embedding generation and secret redaction (owned by their own modules).
-- The graph-side projection (covered by the `query_graph` spec).
+- The graph-side projection (covered by the `lore_query_graph` spec).
 - GKE-side `/api/episode` route handling.

@@ -142,8 +142,8 @@ Non-root `runner` user.
 ```
 1. Validate: GITHUB_TOKEN, TARGET_REPO, PR_NUMBER, TASK_PROMPT
 2. git clone + gh pr checkout {PR_NUMBER}
-3. Prepend review preamble (assemble_context with template=review,
-   search_memory for patterns)
+3. Prepend review preamble (lore_assemble_context with template=review,
+   lore_search_memory for patterns)
 4. Run claude --print → full output captured
 5. Parse structured result from output:
    - REVIEW_RESULT:APPROVED or REVIEW_APPROVED → result="approved"

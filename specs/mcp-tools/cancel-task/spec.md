@@ -1,12 +1,12 @@
-# Feature Specification: cancel_task MCP Tool
+# Feature Specification: lore_cancel_task MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | cancel_task MCP Tool           |
+| Feature | lore_cancel_task MCP Tool           |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `cancel_task`                  |
+| Tool    | `lore_cancel_task`                  |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
@@ -22,7 +22,7 @@ or misleading.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L163)).
 
-- **name**: `cancel_task`
+- **name**: `lore_cancel_task`
 - **description** (verbatim): *"Cancel a pipeline task. If the task has a running
   agent, attempts to cancel it."*
 
@@ -77,4 +77,4 @@ A task already in a terminal state (e.g. merged) is rejected with a
 
 - Killing the live agent process / Job pod (best-effort, handled by the
   lore-agent service).
-- Retrying a cancelled or failed task (covered by `retry_task`).
+- Retrying a cancelled or failed task (covered by `lore_retry_task`).

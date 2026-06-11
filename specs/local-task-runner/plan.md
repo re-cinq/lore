@@ -2,7 +2,7 @@
 
 ## Phase 1: Core — Explicit Local Execution
 
-Get `run_task_locally` working end-to-end. Developer manually triggers,
+Get `lore_run_task_locally` working end-to-end. Developer manually triggers,
 task runs in background, PR created.
 
 ### P1.1 DB Schema
@@ -22,9 +22,9 @@ task runs in background, PR created.
 - PID tracked in `~/.lore/worktrees/{task-id}/.lore-task.json`
 
 ### P1.3 MCP Tools
-- `run_task_locally` — validates args, creates pipeline task via API, calls `spawnLocalTask`, returns task ID
-- `list_local_tasks` — reads local task registry, returns running/completed/failed
-- `cancel_local_task` — kills process, cleans worktree, updates task status
+- `lore_run_task_locally` — validates args, creates pipeline task via API, calls `spawnLocalTask`, returns task ID
+- `lore_list_local_tasks` — reads local task registry, returns running/completed/failed
+- `lore_cancel_local_task` — kills process, cleans worktree, updates task status
 - All in `mcp-server/src/index.ts` (stdio tools section)
 
 ### P1.4 Post-Completion
@@ -36,7 +36,7 @@ task runs in background, PR created.
 - Link PR to GitHub Issue (if webhook-dispatched)
 
 ### P1.5 Test
-- Run `run_task_locally` on a small task (e.g. "add .editorconfig")
+- Run `lore_run_task_locally` on a small task (e.g. "add .editorconfig")
 - Verify: worktree created, Claude Code runs, PR created, worktree cleaned up
 - Verify: statusline shows local task count
 
@@ -63,27 +63,27 @@ whether to run locally or let GKE handle it. No auto-claiming.
   ```
   ◉ Lore 1 new task · 36 memories
   ```
-- Notification details available via `list_pending_tasks` MCP tool
+- Notification details available via `lore_list_pending_tasks` MCP tool
 
 ### P2.3 Interactive Claim
-- New MCP tool: `claim_and_run_locally(task_id)` — claims the
+- New MCP tool: `lore_claim_and_run_locally(task_id)` — claims the
   pending task (sets status to `running-local`) and spawns
   `spawnLocalTask`. Developer explicitly decides.
-- New MCP tool: `skip_task(task_id)` — marks task as skipped locally
+- New MCP tool: `lore_skip_task(task_id)` — marks task as skipped locally
   so the notification goes away. GKE picks it up after 30s.
-- New MCP tool: `enable_task_notifications` — starts the notifier
-- New MCP tool: `disable_task_notifications` — stops the notifier
+- New MCP tool: `lore_enable_task_notifications` — starts the notifier
+- New MCP tool: `lore_disable_task_notifications` — stops the notifier
 
 ### P2.4 Developer Flow
 ```
 Statusline: ◉ Lore 1 new task · auto-review · 36 memories
 
 Developer: "what tasks are pending?"
-Claude: calls list_pending_tasks
+Claude: calls lore_list_pending_tasks
   → "Issue #150: Add rate limiting to API (implementation, re-cinq/lore)"
 
 Developer: "run that locally"
-Claude: calls claim_and_run_locally(task_id)
+Claude: calls lore_claim_and_run_locally(task_id)
   → "Task claimed, running in background on branch lore/..."
 
 -- OR --
@@ -117,7 +117,7 @@ where to run them.
 - Distinct from GKE tasks: `1 local` vs `1 running`
 
 ### P3.3 Config via MCP
-- `configure_local_runner` tool — set repos, task_types, max_concurrent, model
+- `lore_configure_local_runner` tool — set repos, task_types, max_concurrent, model
 - Reads/writes `~/.lore/local-runner.json`
 
 ### P3.4 Logging

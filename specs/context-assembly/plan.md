@@ -12,7 +12,7 @@
 | File | Change |
 |------|--------|
 | `mcp-server/src/context-assembly.ts` | New file. Template loading, parallel source retrieval, token budget allocation, paragraph-boundary truncation. |
-| `mcp-server/src/index.ts` | Registered `assemble_context` MCP tool. Added `loadTemplates()` call at startup. |
+| `mcp-server/src/index.ts` | Registered `lore_assemble_context` MCP tool. Added `loadTemplates()` call at startup. |
 | `mcp-server/templates/default.yaml` | New. All sources with balanced priorities. |
 | `mcp-server/templates/review.yaml` | New. Conventions and ADRs prioritized. |
 | `mcp-server/templates/implementation.yaml` | New. Repo context and ADRs first. |

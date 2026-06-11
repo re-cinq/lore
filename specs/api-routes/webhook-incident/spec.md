@@ -12,7 +12,7 @@
 
 ## Problem Statement
 
-`assemble_context` surfaces recent production incidents at priority 1 so agents
+`lore_assemble_context` surfaces recent production incidents at priority 1 so agents
 know a service is on fire before they touch it. Incident sources (PagerDuty,
 Opsgenie, or a direct caller) POST an incident here; the endpoint normalizes the
 payload and upserts it into `lore.repos.settings.incidents`, keeping the 10 most
@@ -87,6 +87,6 @@ A DB failure and a malformed JSON body both return 500. ([validated by `returns 
 ## Out of Scope
 
 - Provider webhook configuration (PagerDuty/Opsgenie subscription setup).
-- How `assemble_context` reads and ranks `settings.incidents`.
+- How `lore_assemble_context` reads and ranks `settings.incidents`.
 - Any signature/auth enforcement (the handler has none — gated only by the
   shared-secret URL the deployment exposes and the `webhook` rate-limit bucket).
