@@ -12,7 +12,7 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedLinkStrength, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
-import { settleTicks, boundingRadius, radialContainmentDelta, radialTarget } from '@/lib/graph-layout';
+import { settleTicks, boundingRadius, radialContainmentDelta, radialTarget, degreeAnchoredStrength } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
@@ -280,7 +280,9 @@ export default function SpecGraphD3({
         'radial',
         d3
           .forceRadial<SimNode>((d) => radialTarget(d.type, boundR).radius, width / 2, height / 2)
-          .strength((d) => radialTarget(d.type, boundR).strength),
+          // Anchor well-connected nodes harder to their ring so high-degree hubs
+          // (strong charge, weak links) can't drift out to the border.
+          .strength((d) => degreeAnchoredStrength(radialTarget(d.type, boundR).strength, degOf(d))),
       )
       // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
       // their labels) reserve hard personal space and cannot pile up.

@@ -41,6 +41,22 @@ export function radialTarget(type: SpecGraphNodeType, boundR: number): { radius:
   return { radius: tier.fraction * boundR, strength: tier.strength };
 }
 
+/**
+ * Firm up a node's radial pull in proportion to its degree, ramping from the
+ * tier's base strength (degree ≤ 1) to `max` (degree ≥ `cap`). High-degree hubs
+ * get strong repulsion but weak links, so without this anchor they drift out to
+ * the border; pulling well-connected nodes harder toward their ring keeps the
+ * cloud compact.
+ */
+export function degreeAnchoredStrength(
+  baseStrength: number,
+  degree: number,
+  { cap = 16, max = 0.9 }: { cap?: number; max?: number } = {},
+): number {
+  const factor = Math.min(1, Math.max(0, (degree - 1) / (cap - 1)));
+  return baseStrength + (max - baseStrength) * factor;
+}
+
 /** Headless pre-warm tick budget: ~3 per node, floored at 120 and capped at 400. */
 export function settleTicks(nodeCount: number): number {
   return Math.min(SETTLE_CAP, Math.max(SETTLE_FLOOR, nodeCount * SETTLE_PER_NODE));

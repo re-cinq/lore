@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { settleTicks, boundingRadius, radialContainmentDelta, radialTarget } from "./graph-layout";
+import {
+  settleTicks,
+  boundingRadius,
+  radialContainmentDelta,
+  radialTarget,
+  degreeAnchoredStrength,
+} from "./graph-layout";
 
 describe("radialTarget", () => {
   const boundR = 1000;
@@ -27,6 +33,26 @@ describe("radialTarget", () => {
   it("falls back to the loose outer tier for an unknown node type", () => {
     // The live projection can emit a type outside the declared union; never throw.
     expect(radialTarget("Mystery" as never, boundR)).toEqual(radialTarget("File", boundR));
+  });
+});
+
+describe("degreeAnchoredStrength", () => {
+  it("leaves a low-degree node at its base radial strength", () => {
+    expect(degreeAnchoredStrength(0.12, 1, { cap: 16, max: 0.9 })).toBeCloseTo(0.12);
+  });
+
+  it("pulls a high-degree hub up to the max anchor strength so it can't fly out", () => {
+    expect(degreeAnchoredStrength(0.12, 16, { cap: 16, max: 0.9 })).toBeCloseTo(0.9);
+  });
+
+  it("caps the anchor at the max for a degree beyond the cap", () => {
+    expect(degreeAnchoredStrength(0.12, 100, { cap: 16, max: 0.9 })).toBeCloseTo(0.9);
+  });
+
+  it("anchors a busier node more firmly than a quieter one", () => {
+    expect(degreeAnchoredStrength(0.12, 8, { cap: 16, max: 0.9 })).toBeGreaterThan(
+      degreeAnchoredStrength(0.12, 3, { cap: 16, max: 0.9 }),
+    );
   });
 });
 
