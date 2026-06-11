@@ -11,6 +11,11 @@ sections:
     priority: 1
     max_tokens: 4000
 
+  - header: "Relevant Code"
+    source: code
+    priority: 2
+    max_tokens: 3000
+
   - header: "Architecture Decisions"
     source: adrs
     priority: 2
