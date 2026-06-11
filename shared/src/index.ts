@@ -18,6 +18,13 @@ export { resolveAgentId } from './agent-id.js';
 export { projectSpecFile } from './spec-trace/project-spec-file.js';
 export { projectAdrFile } from './spec-trace/project-adr-file.js';
 export { descriptorsFromVitestList, groupRunsByFile, type VitestListEntry } from './spec-trace/trace-descriptors.js';
+export {
+  bindDescriptorsToSpecLinks,
+  type SpecSource,
+  type AmbiguousBinding,
+  type BindResult,
+} from './spec-trace/bind-descriptors-to-spec-links.js';
+export { resolveTestLines } from './spec-trace/resolve-test-lines.js';
 export { mapWithLimit } from './concurrency/map-with-limit.js';
 export { ingestSpecTrace } from './spec-trace/ingest-spec-trace.js';
 export {

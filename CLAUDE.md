@@ -132,20 +132,23 @@ repos declare a list. Absent manifest → graceful fallback to pattern
 detection + bulk upload. Schema/loader: `shared/src/test-command-manifest.ts`
 (`resolveTestCommandManifest`, `decideTestInterfaceCheck`, `isManifestDeclared`).
 
-**Ingest endpoints** (write-scope bearer auth; idempotent on `commit` once
-graph persistence lands — currently they parse/normalize/count from the body):
+**Ingest endpoints** (write-scope bearer auth). The endpoint counts the body and
+fires a fire-and-forget `triggerAgentSpecTrace` to the agent's
+`/api/trigger/spec-trace`, which runs `ingestSpecTrace` → `ingestTestReport` /
+`ingestCoverageReport` to persist the graph (idempotent via xid upserts). No-ops
+when the agent env (or `LORE_DGRAPH_HTTP`) is unset.
 - `POST /api/repos/:o/:r/test-report` — `{commit, branch, tests[], results[]}` →
   `{tests_seen, test_chunks, validated_by, coverage_nodes, covers_edges, violated}`.
-  `mcp-server/src/routes/test-report.ts`.
+  `mcp-server/src/api/routes/test-report.ts`.
 - `POST /api/repos/:o/:r/coverage` — canonical JSON list `{file,startLine,endLine}[]`
   (optionally per-test grouped); LCOV (incl. `TN:` per-test attribution) and
   Cobertura accepted and normalized → `{coverage_nodes, covers_edges, files_covered}`.
-  `mcp-server/src/routes/coverage.ts` (`parseLcov`/`parseLcovGroups`/`parseCobertura`).
+  `mcp-server/src/api/routes/coverage.ts` (`parseLcov`/`parseLcovGroups`/`parseCobertura`).
 
 **MCP tools** (`mcp-server/src/index.ts` → `mcp-server/src/spec-trace-tools.ts`):
 `lore_list_tests` / `lore_run_test` (run the manifest commands in the **caller's local
-sandbox**) and `query_trace` (graph reads — stub until the Dgraph projection
-lands). **Trust boundary**: execution only in a trusted sandbox (local dev /
+sandbox**) and `query_trace` (live graph reads — proxies `GET /trace/document`,
+formats coverage + validated_by/violated). **Trust boundary**: execution only in a trusted sandbox (local dev /
 CI / claude-runner pod); the shared GKE server refuses (`executionRefusal`
 keyed on `LORE_DB_HOST`) and returns a "run in CI / locally" error.
 
@@ -160,9 +163,15 @@ suggested `.lore/test-commands.yml` + a per-toolchain `.github/workflows/lore-te
 repo is left untouched. The web UI + `/lore-test-commands` skill surface the
 canonical `TEST_COMMAND_SETUP_PROMPT` for developers to run with Claude.
 
-> **Deferred seam:** the actual graph fan-out (persisting `TestChunk`/`Coverage`/
-> `COVERS`/`violated`, idempotency) is blocked on the unbuilt Dgraph projection
-> layer (`spec-traceability-graph`); the HTTP/parse/validate/count layer is complete.
+> **Status:** the graph fan-out is **built and live** — `ingestTestReport`
+> persists `TestChunk`/`Coverage`/`COVERS`/`validated_by`/`violated` idempotently
+> (xid upserts), driven on every push to `main` by `.github/workflows/lore-tests.yml`.
+> Remaining (ADR-023, `specs/test-run-trace-binding/`): the run side only sets
+> `validated_by`/`violated` when a descriptor carries a `spec` anchor — derived by
+> `bindDescriptorsToSpecLinks` from the inline `([validated by](test.ts#Lline))`
+> links (`list-tests.mjs` resolves per-`it` lines via `resolveTestLines` first,
+> since `vitest list` is line-blind). Plus surfacing the ingest result counts
+> (observability) instead of discarding them.
 
 ## Agent Memory
 
