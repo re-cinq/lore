@@ -122,4 +122,34 @@ describe("classifyByHeuristic", () => {
       matchedBySection: false,
     });
   });
+
+  const stmt = (text: string, heading: string | null = "Functional Requirements") => ({
+    ordinal: 99,
+    text,
+    kind: "sentence" as const,
+    enclosingHeading: heading,
+  });
+
+  it("marks a Decision:-prefixed statement untestable regardless of section", () => {
+    expect(classifyByHeuristic(stmt("Decision: Deploy on GKE."), intro)).toMatchObject({ testability: "untestable" });
+    expect(classifyByHeuristic(stmt("**Decision:** Use Postgres."), intro)).toMatchObject({ testability: "untestable" });
+  });
+
+  it("marks a bare cross-reference (See ADR-NNN) untestable", () => {
+    expect(classifyByHeuristic(stmt("See ADR-015."), intro)).toMatchObject({ testability: "untestable" });
+  });
+
+  it("classifies narrative doc sections (alternatives/research/personas/out-of-scope) as untestable", () => {
+    for (const h of ["Alternatives Considered", "Research", "User Personas", "Out of Scope"]) {
+      expect(classifyByHeuristic(stmt("anything", h), intro)).toMatchObject({ testability: "untestable" });
+    }
+  });
+
+  it("leaves a real functional requirement testable", () => {
+    expect(classifyByHeuristic(stmt("FR-8.3: Gap signal feeds the autoresearch loop."), intro)).toEqual({
+      testability: "testable",
+      category: null,
+      matchedBySection: false,
+    });
+  });
 });
