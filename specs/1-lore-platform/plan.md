@@ -12,13 +12,13 @@
 
 ## Architectural Pivots
 
-Three major technologies were replaced during implementation. The original
-plan referenced Klaus, Beads/Dolt, and Graphiti/FalkorDB. All three were
-swapped for alternatives before reaching production.
+Several technologies were replaced during implementation. The original
+plan referenced Beads/Dolt and Graphiti/FalkorDB; both were swapped for
+alternatives before reaching production. The cluster agent runtime is the
+purpose-built Lore Agent service (ADR-007).
 
 | Original Plan | Replacement | ADR |
 |---------------|-------------|-----|
-| Klaus (GKE agent runtime) | Lore Agent service (direct Anthropic API + headless Claude Code) | ADR-007 |
 | Beads (`bd` CLI) + Dolt | Pipeline tasks via PostgreSQL + GitHub Issues | ADR-009 |
 | Graphiti + FalkorDB | Live knowledge graph in PostgreSQL (`memory.entities` + `memory.edges`) | — |
 | Context Cores as OCI bundles | YAML context assembly templates (`mcp-server/templates/`) | — |
@@ -42,7 +42,7 @@ swapped for alternatives before reaching production.
 | Vector Store       | PostgreSQL + pgvector (CNPG on GKE, europe-west1) | 1 |
 | Embeddings         | Vertex AI `text-embedding-005` (768 dimensions) | 1 |
 | Hybrid Search      | HNSW vector + BM25 keyword + Reciprocal Rank Fusion | 1 |
-| Cluster Agents     | Lore Agent service on GKE (replaces Klaus) | 1 |
+| Cluster Agents     | Lore Agent service on GKE | 1 |
 | Task Pipeline      | PostgreSQL `pipeline.tasks` + GitHub Issues (replaces Beads) | 1 |
 | Task Execution     | LoreTask CRD + ephemeral K8s Job pods | 1 |
 | Observability      | OpenTelemetry → Cloud Monitoring | 1 |
@@ -154,7 +154,7 @@ re-cinq/lore/
 | P4: Three-Command Interface | PASS | `/lore-feature`, `/lore-pr`, `/lore-init` delivered. |
 | P5: Single Interface (Lore MCP) | PASS | MCP server is the only developer-facing interface. Agent tasks accessed only via MCP delegation. |
 | P6: Distributed Ownership | PASS | CODEOWNERS enforced. PromptFoo evals owned by teams. |
-| P7: Architecture Final | PASS | Klaus → Lore Agent and Beads → Pipeline Tasks were documented pivots via ADRs, not ad-hoc changes. |
+| P7: Architecture Final | PASS | The Lore Agent service (ADR-007) and the Pipeline Tasks pipeline were documented architecture decisions via ADRs, not ad-hoc changes. |
 | P8: Schema-Per-Team | PASS | PostgreSQL (CNPG) uses schema-per-team isolation. |
 | P9: Agents Over Scripts | PASS | All scheduled jobs run as Lore Agent CronJob-triggered tasks, not shell scripts. |
 | P10: Opt-In Data | PASS | Slack indexing opt-in per channel. PII classifier at ingest. DMs never indexed. |
@@ -211,8 +211,8 @@ dependency. All 35 tasks shipped.
 ### Phase 1: Managed Infrastructure — COMPLETE
 
 Phase 1 replaced the file-backed MCP server with PostgreSQL + hybrid search,
-deployed the Lore Agent service (instead of the planned Klaus), and
-established the task pipeline (instead of Beads).
+deployed the Lore Agent service, and established the task pipeline (instead
+of Beads).
 
 #### Infrastructure
 
@@ -229,14 +229,15 @@ established the task pipeline (instead of Beads).
 - **External Secrets Operator (ESO)** — pulls secrets from GCP Secret
   Manager. Single `terraform apply` deploys everything.
 
-#### Lore Agent Service (replaces Klaus)
+#### Lore Agent Service
 
-Klaus was dropped after 8+ attempts to fix output wrapping and model
-parameter rejection issues. See ADR-007.
-
-The Lore Agent service (`lore-agent` namespace on GKE) replaced it:
-- Simple tasks: direct Anthropic API calls (Haiku model).
-- Complex tasks: headless Claude Code in ephemeral K8s Job pods.
+The Lore Agent service (`lore-agent` namespace on GKE) is the purpose-built
+cluster agent runtime (ADR-007). A worker polls the `pipeline.tasks` table
+and dispatches by task type:
+- Simple tasks (onboard, feature-request, graph-ingest): direct Anthropic
+  API calls; the worker creates the PR.
+- Complex tasks (implementation, general, review): an ephemeral
+  `claude-runner` Job pod created via the LoreTask CRD.
 - Jobs: `reindex.ts`, `gap-detect.ts`, `spec-drift.ts`, `autoresearch.ts`,
   `context-core-builder.ts`, `merge-check.ts`, `memory-lifecycle.ts`,
   `loretask-watcher.ts`.

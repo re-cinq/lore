@@ -28,21 +28,21 @@
 
 | Principle                          | Status | Notes                                   |
 |------------------------------------|--------|-----------------------------------------|
-| DX-First Delivery                  | PASS   | Replaces broken Klaus flow              |
+| DX-First Delivery                  | PASS   | Reliable task-to-PR flow, first attempt |
 | Zero Stored Credentials            | PASS   | Workload Identity for GKE; API key via K8s Secret |
 | PR Description Quality Gates       | PASS   | Agent generates PRs with structured descriptions |
 | Three-Command Developer Interface  | PASS   | Transparent — developers use same MCP tools |
 | Single Interface (Lore MCP)        | PASS   | MCP server still handles CRUD; agent is backend worker |
 | Distributed Ownership              | PASS   | No change to ownership model |
-| Architecture Decisions Are Final   | NOTE   | This supersedes "Klaus in GKE" from Principle 7/9. ADR needed. |
+| Architecture Decisions Are Final   | NOTE   | Agent-runtime decision recorded in ADR-007. |
 | Schema-Per-Team Isolation          | PASS   | Agent resolves team schema from lore.repos |
 | Intelligent Agents Over Scripts    | PASS   | Direct LLM calls — still intelligent, not mechanical |
 | Opt-In Data Collection             | PASS   | No change to data collection |
 
-**Gate:** Constitution Principle 7 lists "Klaus in GKE" as a final
-decision. This feature replaces Klaus with a purpose-built service.
-An ADR is required to document why the original decision is superseded.
-This is justified by the production failures documented in the spec.
+**Gate:** Constitution Principle 7 fixes the pipeline's agent-runtime
+decision. This feature builds the Lore Agent service as that runtime,
+so an ADR is required to record the decision and its rationale. ADR-007
+documents it, justified by the requirements in the spec.
 
 ## Project Structure
 
@@ -244,10 +244,10 @@ Multi-stage build:
 
 Run `setup-agent-schema.sh` on the cluster to create new tables.
 
-### Task 3.5: Remove Klaus Dependencies from MCP Server
+### Task 3.5: Remove Legacy Agent-Runtime Dependencies from MCP Server
 
 - Remove pipeline poller (startPoller) from MCP server index.ts
-- Remove Klaus client import and calls
+- Remove the legacy agent-runtime client import and calls
 - Remove merge checker from MCP server
 - Remove onboarding PR check interval
 - MCP server keeps: task CRUD tools, task creation, status queries
@@ -255,18 +255,18 @@ Run `setup-agent-schema.sh` on the cluster to create new tables.
 
 ### Task 3.6: ADR
 
-Write `adrs/ADR-XXX-lore-agent-replaces-klaus.md`:
-- Decision: Replace Klaus with purpose-built lore-agent service
-- Context: Klaus output parsing failures, session fragility, model inflexibility
+Write ADR-007:
+- Decision: Build the purpose-built lore-agent service as the pipeline's agent runtime
+- Context: pipeline needs predictable output, direct repo access, full model control, restart-safe execution
 - Rationale: Direct API control, predictable output, cost efficiency
-- Supersedes: Constitution Principle 7 "Klaus in GKE" row
+- Records: the agent-runtime decision for Constitution Principle 7
 
-### Task 3.8: Remove Klaus
+### Task 3.8: Decommission Legacy Agent Runtime
 
-- `helm uninstall klaus -n klaus`
+- Uninstall the legacy agent-runtime deployment from GKE
 - Update constitution to v1.2.0 (Principles 7, 9)
 - Update CLAUDE.md architecture section
-- Mark klaus-client.ts as deprecated
+- Mark the legacy agent-runtime client as deprecated
 
 ### Task 3.9: Local Task Proxy
 
@@ -337,7 +337,7 @@ Wire GitHub Issue lifecycle into the task worker:
 - Create a test onboarding task
 - Verify multi-file PR is created
 - Monitor health endpoint
-- Remove Klaus deployment after verification
+- Decommission the legacy agent-runtime deployment after verification
 
 ## Phase 4: DX Polish
 

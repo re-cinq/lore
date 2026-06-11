@@ -17,12 +17,12 @@
 |----------------------------|----------------------------------------------------|-------|
 | Task pipeline DB schema    | PostgreSQL (`pipeline` schema in existing CNPG `lore-db-1`) | 1 |
 | Task poller + spawner      | TypeScript (extends `mcp-server/src/index.ts`)     | 1 |
-| Klaus integration          | Existing `klaus-client.ts` extended with task context | 1 |
+| Agent dispatch             | Lore Agent worker: in-process Anthropic API (simple) + LoreTask CRD (complex) | 1 |
 | GitHub App auth            | `octokit` + `@octokit/auth-app` (installation tokens) | 1 |
 | Task type config           | YAML file in context repo (`scripts/task-types.yaml`) | 1 |
 | Pipeline MCP tools         | TypeScript (new `mcp-server/src/pipeline.ts`)      | 1 |
 | PR creation                | `octokit` REST API (branch, commit, PR)            | 2 |
-| Review agent               | Klaus spawning with review prompt template         | 2 |
+| Review agent               | Same Lore Agent dispatch path with review prompt template | 2 |
 | Web UI pages               | Next.js (extends existing `web-ui/`)               | 3 |
 
 ### Key Dependencies
@@ -30,7 +30,7 @@
 | Dependency                          | Purpose                           | Risk |
 |-------------------------------------|-----------------------------------|------|
 | Existing CNPG `lore-db-1`          | Task state storage                | Low -- already operational |
-| Existing `klaus-client.ts`         | Agent spawning HTTP client        | Low -- verified with `delegate_task` |
+| Lore Agent worker + LoreTask CRD   | Agent dispatch + Job-pod isolation | Low -- verified with `delegate_task` |
 | Existing `context-bundle.ts`       | Task context assembly             | Low -- already wired |
 | GitHub App (org-level install)     | Branch + PR creation, repo access | Medium -- requires App setup |
 | `@octokit/auth-app`               | Short-lived installation tokens   | Low -- well-maintained library |
@@ -42,8 +42,7 @@
 ```
 mcp-server/src/
   index.ts              # Extended with pipeline tool registrations + poller start
-  klaus-client.ts       # Extended with task-context-aware spawning
-  pipeline.ts           # NEW: task CRUD, poller, spawner, status management
+  pipeline.ts           # NEW: task CRUD, poller, dispatcher, status management
   pipeline-github.ts    # NEW: GitHub App auth, branch creation, PR creation
   pipeline-config.ts    # NEW: task type config loader (YAML)
 
@@ -78,9 +77,9 @@ specs/3-task-agent-pipeline/
 | P4: Three-Command Interface | PASS | Developers do not need new commands. `delegate_task` already exists -- pipeline routes it through the task lifecycle automatically. |
 | P5: Single Interface (Lore MCP) | PASS | All pipeline interactions go through Lore MCP tools. Web UI reads from the same PostgreSQL. No separate pipeline API. |
 | P6: Distributed Ownership | N/A | Pipeline is platform infrastructure, not team-owned content. |
-| P7: Architecture Final | PASS | Uses existing PostgreSQL, existing GKE cluster, existing Klaus. No new infrastructure decisions. GitHub App is an integration, not an architecture choice. |
+| P7: Architecture Final | PASS | Uses existing PostgreSQL, existing GKE cluster, and the Lore Agent service. No new infrastructure decisions. GitHub App is an integration, not an architecture choice. |
 | P8: Schema Isolation | PASS | Pipeline tables live in a dedicated `pipeline` schema. No interference with `org_shared`, `memory`, or team schemas. |
-| P9: Agents Over Scripts | PASS | Tasks spawn Klaus agents that reason about context, not mechanical scripts. Review agent checks against ADRs and conventions semantically. |
+| P9: Agents Over Scripts | PASS | Tasks dispatch agents that reason about context, not mechanical scripts. Review agent checks against ADRs and conventions semantically. |
 | P10: Opt-In Data | N/A | Pipeline does not index personal content. Task descriptions are user-created and explicitly submitted. |
 
 No constitution violations. All applicable gates pass.
@@ -182,28 +181,30 @@ A `setInterval` loop running every 10 seconds inside the MCP server process:
 4. If a pending task is found and a slot is available:
    a. Transition task to `queued` (insert event).
    b. Build context bundle using `context-bundle.ts`.
-   c. Submit to Klaus via `submitTask()` from `klaus-client.ts`.
-   d. On success: transition to `running`, set `agent_id` from Klaus response.
+   c. Dispatch via the Lore Agent worker — in-process Anthropic API
+      call (`Llm.instance.complete()`) for simple task types, or a
+      LoreTask CR for complex ones.
+   d. On success: transition to `running`, set `agent_id` from the dispatch.
    e. On failure: transition to `failed`, set `failure_reason`.
 5. Deduplication: the poller uses `SELECT ... FOR UPDATE SKIP LOCKED` to prevent two poller instances (if running) from picking up the same task.
 
 The poller starts automatically in `main()` after the MCP server is initialized, but only when `LORE_DB_HOST` is set (pipeline requires PostgreSQL).
 
-**Verification:** Create a task via SQL insert, poller picks it up within 10 seconds and calls Klaus.
+**Verification:** Create a task via SQL insert, poller picks it up within 10 seconds and dispatches it via the Lore Agent worker.
 
 #### 1.4 Agent Spawner
 
 **File:** `mcp-server/src/pipeline.ts` (same module as poller)
 
-Extends the existing `submitTask()` call from `klaus-client.ts` with pipeline-specific context:
+The Lore Agent worker dispatches the task with pipeline-specific context:
 
 1. Resolve task type config from `pipeline-config.ts`.
 2. Build prompt: task type's `prompt_template` + task `description` + context bundle.
 3. Generate GitHub App installation token (from `pipeline-github.ts`).
-4. Submit to Klaus with: prompt, context bundle, target repo, branch name pattern (`agent/<task-id>/<slug>`), GitHub token, timeout.
-5. Store the Klaus `task_id` as `agent_id` on the pipeline task.
+4. Dispatch with: prompt, context bundle, target repo, branch name pattern (`agent/<task-id>/<slug>`), GitHub token, timeout. Simple task types run in-process via `Llm.instance.complete()`; complex ones create a LoreTask CR (a `claude-runner` Job pod).
+5. Store the dispatch's run identifier as `agent_id` on the pipeline task.
 
-**Verification:** Task transitions from `pending` to `queued` to `running`. Klaus receives the submission. Agent ID is recorded.
+**Verification:** Task transitions from `pending` to `queued` to `running`. The worker dispatches the task (in-process or as a LoreTask CR). Agent ID is recorded.
 
 #### 1.5 GitHub App Token Generation
 
@@ -252,7 +253,7 @@ End-to-end:
 2. Call `lore_create_pipeline_task(description: "Write auth runbook")`.
 3. Poller picks up task within 10 seconds.
 4. Task transitions: `pending` -> `queued` -> `running`.
-5. Klaus receives the submission with correct prompt + context.
+5. The worker dispatches the task with correct prompt + context.
 6. `lore_get_pipeline_status` shows running state with agent ID.
 7. `lore_list_pipeline_tasks` shows the task.
 8. `lore_cancel_task` stops the task.
@@ -266,11 +267,11 @@ End-to-end:
 
 **File:** `mcp-server/src/pipeline.ts`
 
-When a Klaus agent completes (detected via status polling on the Klaus side):
+When an agent run completes (in-process result for simple tasks, or a completed Job pod detected by the `loretask-watcher` for complex tasks):
 
-1. Poller checks `running` tasks every 10 seconds against Klaus status API.
+1. The watcher checks `running` tasks every 10 seconds for completed Job pods (in-process tasks report their result directly).
 2. On completion:
-   a. Retrieve agent output from Klaus (`getTaskResult()`).
+   a. Read the agent output (in-process return value, or the Job result via the `loretask-watcher`).
    b. Create branch `agent/<task-id>/<slug>` on target repo via GitHub API.
    c. Commit agent output to the branch.
    d. Create PR with structured description:
@@ -280,7 +281,7 @@ When a Klaus agent completes (detected via status polling on the Klaus side):
    e. Label the PR `agent-generated`.
    f. Transition task to `pr-created`, set `pr_url` and `pr_number`.
 3. On failure:
-   a. Transition task to `failed`, set `failure_reason` from Klaus error.
+   a. Transition task to `failed`, set `failure_reason` from the agent's error output (read from the Job result by the `loretask-watcher` for complex tasks).
    b. Record agent logs in task event metadata.
 
 **Verification:** Agent completes, PR appears on GitHub with correct labels and description.
@@ -308,7 +309,7 @@ After a task transitions to `pr-created`:
 1. Check task type config: if `review_required` is true, trigger review.
 2. Create a review task internally (not a new pipeline task -- an internal sub-operation).
 3. Build review prompt: "Review this PR against the original task, relevant ADRs, and team conventions. Post specific, actionable comments."
-4. Submit review agent to Klaus with: PR diff, original task description, relevant Lore context.
+4. Dispatch the review agent via the Lore Agent worker with: PR diff, original task description, relevant Lore context.
 5. Transition task to `review`.
 
 #### 2.4 Review Agent Logic
@@ -414,7 +415,7 @@ When an agent completes a task:
 
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|------------|------------|
-| Klaus agent fails silently (no status update) | Medium | Medium | Timeout handler in poller: if a running task exceeds its configured timeout, transition to `failed` with reason "agent timeout". Check every poll cycle. |
+| Agent run fails silently (no status update) | Medium | Medium | Timeout handler in poller: if a running task exceeds its configured timeout, transition to `failed` with reason "agent timeout". Check every poll cycle. |
 | GitHub App rate limiting | Medium | Low | Installation tokens have 5000 req/hour. Pipeline creates ~1 PR per task. At max 5 concurrent agents, well within limits. Monitor via `x-ratelimit-remaining` header. |
 | Poller misses a task (DB connection drop) | Medium | Low | Poller reconnects on next cycle (10s). `pg.Pool` handles reconnection automatically. Task stays in `pending` until picked up -- no data loss. |
 | Review agent produces low-quality reviews | Medium | Medium | Start with `review_required: false` for low-risk task types (gap-fill). Enable reviews incrementally. Human can always override. |
@@ -440,7 +441,7 @@ Pipeline schema DDL (Phase 1, day 1)
 
 The critical dependency is GitHub App setup. If the App is not installed on the org before Phase 2 starts, PR creation is blocked. Phase 1 can proceed without the App (agent spawning works, but no PR creation). The App setup should be initiated in parallel with Phase 1 development.
 
-The poller is the second critical dependency -- all downstream work depends on tasks being picked up. If Klaus is unreachable during development, mock the `submitTask` call to unblock Phase 1 testing.
+The poller is the second critical dependency -- all downstream work depends on tasks being picked up. If the Lore Agent dispatch path is unavailable during development, stub the dispatch call to unblock Phase 1 testing.
 
 ## Generated Artifacts
 

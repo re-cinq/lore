@@ -116,7 +116,7 @@ PipelineTask ──→ TaskTypeConfig
 
 ```
 pending ──→ queued      (poller picks up task, slot available)
-queued  ──→ running     (Klaus accepts the agent submission)
+queued  ──→ running     (worker dispatches the task; state in pipeline.tasks)
 running ──→ pr-created  (agent completes, PR opened)
 running ──→ failed      (agent error or timeout)
 pr-created ──→ review   (review agent triggered, if review_required)
@@ -125,7 +125,7 @@ review  ──→ running     (revision triggered, review_iteration < 2)
 review  ──→ merged      (PR approved and merged)
 review  ──→ failed      (max review iterations exceeded, escalate to human)
 pending ──→ cancelled   (user cancels before agent starts)
-queued  ──→ cancelled   (user cancels while waiting for Klaus)
+queued  ──→ cancelled   (user cancels before the agent starts)
 running ──→ cancelled   (user cancels, running agent killed)
 ```
 
@@ -136,19 +136,24 @@ running ──→ cancelled   (user cancels, running agent killed)
   The poller claims the task with `SELECT ... FOR UPDATE SKIP
   LOCKED` to prevent double-pickup.
 
-- **queued to running**: The Klaus HTTP endpoint accepts the task
-  submission and returns a Klaus task ID. The pipeline stores this
-  as `agent_id` on the task.
+- **queued to running**: The Lore Agent worker dispatches the task —
+  in-process for simple task types, or by creating a LoreTask CR
+  (which the `loretask-controller` turns into a `claude-runner` Job
+  pod) for complex ones. The dispatch state is tracked in
+  `pipeline.tasks`, with the run identifier stored as `agent_id` on
+  the task.
 
-- **running to pr-created**: The poller detects that the Klaus agent
-  has completed successfully. The pipeline creates a branch and PR
+- **running to pr-created**: The worker (for in-process tasks) or the
+  `loretask-watcher` (for Job-pod tasks) detects that the agent has
+  completed successfully. The pipeline creates a branch and PR
   on the target repo via GitHub API. The `pr_url` and `pr_number`
   are set on the task.
 
-- **running to failed**: The Klaus agent crashes, times out
+- **running to failed**: The agent crashes, times out
   (exceeds `timeout_minutes` from task type config), or returns an
-  error. The `failure_reason` is set from the Klaus error response
-  or a timeout message.
+  error. The `loretask-watcher` reads the Job result and the
+  `failure_reason` is set from the agent's error output or a timeout
+  message.
 
 - **pr-created to review**: If the task type has
   `review_required: true`, a review agent is spawned. The review
@@ -171,9 +176,10 @@ running ──→ cancelled   (user cancels, running agent killed)
   intervention. A comment is posted on the PR with full context.
 
 - **cancelled**: A user calls `lore_cancel_task`. If the task was
-  `running`, the pipeline attempts to cancel the Klaus agent
-  (best-effort). The task transitions to `cancelled` regardless
-  of whether the agent cancellation succeeds.
+  `running`, the pipeline attempts to stop the agent run (deleting
+  the LoreTask CR / Job pod for complex tasks, best-effort). The
+  task transitions to `cancelled` regardless of whether the agent
+  cancellation succeeds.
 
 ## DDL
 

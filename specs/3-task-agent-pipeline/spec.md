@@ -13,21 +13,23 @@
 Today, tasks exist in two disconnected worlds. A product owner
 creates a task in the Lore UI or a developer writes a spec — but
 nothing happens until a human manually picks it up in Claude Code
-and runs `/lore-feature`. Klaus agents run on schedules (nightly
-reindex, weekly gap detection) but can't be triggered by a task
-or a PR.
+and runs `/lore-feature`. The Lore Agent service runs on schedules
+(nightly reindex, weekly gap detection) but can't be triggered by a
+task or a PR.
 
 The missing link: when a task is created or a PR is opened, an
-agent should automatically start working on it. The agent runs in
-GKE as a Klaus container, does the work, and creates a PR for
+agent should automatically start working on it. The agent runs on
+GKE in the `lore-agent` namespace — simple tasks in-process via
+direct Anthropic API calls, complex tasks in an ephemeral
+`claude-runner` Job pod — does the work, and creates a PR for
 human review. Platform engineers define *what* agents do; the
 pipeline handles *when* they run.
 
 ## Vision
 
 Any task created in Lore — via the UI, via the MCP tools, or via
-a PR to the context repo — automatically spawns a Klaus agent on
-GKE. The agent reads the task description, pulls relevant context
+a PR to the context repo — is automatically picked up by the Lore
+Agent service on GKE. The agent reads the task description, pulls relevant context
 from Lore's memory and knowledge base, does the work (writes code,
 drafts docs, generates specs), commits to a branch, and opens a PR.
 A human or another agent reviews and merges.
@@ -65,7 +67,8 @@ and audit trail.
 **Flow:**
 1. PO creates a task in the Lore UI: "Write a runbook for the
    new payment retry flow."
-2. System detects the new task and spawns a Klaus agent.
+2. The Lore Agent worker polls `pipeline.tasks`, picks up the new
+   task, and dispatches it.
 3. Agent reads the task, pulls relevant context from Lore (payment
    team conventions, existing runbooks, ADRs).
 4. Agent writes the runbook, commits to a branch, opens a PR.
@@ -84,7 +87,7 @@ and audit trail.
 
 **Flow:**
 1. Developer pushes a `.specify/spec.md` to a branch.
-2. System detects the spec PR and spawns a Klaus agent.
+2. The Lore Agent worker picks up the spec task and dispatches it.
 3. Agent reads the spec, generates implementation plan and code.
 4. Agent commits implementation to the same branch or a child
    branch.
@@ -102,7 +105,8 @@ and audit trail.
 
 **Flow:**
 1. Developer calls `delegate_task` with a task description.
-2. Klaus agent starts on GKE with the context bundle.
+2. The Lore Agent worker picks up the task and runs it on GKE with
+   the context bundle.
 3. Agent does the work and opens a PR.
 4. Developer gets notified via `task_status`.
 
@@ -159,17 +163,21 @@ The system MUST detect new tasks from multiple sources.
   can be packaged and deployed anywhere.
 - FR-1.2: PR with `.specify/` files triggers agent via GitHub
   webhook or Actions workflow.
-- FR-1.3: `delegate_task` MCP tool triggers agent via Klaus HTTP
-  endpoint (existing).
+- FR-1.3: `delegate_task` MCP tool enqueues a row in
+  `pipeline.tasks`; the Lore Agent worker polls the table and
+  dispatches it.
 - FR-1.4: Event deduplication: same task does not spawn multiple
   agents.
 
 ### FR-2: Agent Spawning
 
-The system MUST spawn Klaus agents in response to task events.
+The system MUST run agents in response to task events.
 
-- FR-2.1: Each task gets a dedicated Klaus agent (one container
-  per task).
+- FR-2.1: Each task gets a dedicated agent run. Simple tasks
+  (onboard, feature-request, graph-ingest) run in-process via direct
+  Anthropic API calls; complex tasks (implementation, general,
+  review) run in an ephemeral `claude-runner` Job pod created via
+  the LoreTask CRD (one pod per task).
 - FR-2.2: Agent receives: task description, context bundle (Lore
   memory, relevant context chunks, spec if available), target
   repo + branch. Lore is one instance per org managing multiple
@@ -276,7 +284,8 @@ The system MUST support configurable agent behavior per task type.
 ### In Scope
 
 - Task event detection (UI, PR, MCP).
-- Klaus agent spawning with context bundle.
+- Lore Agent dispatch (in-process or `claude-runner` Job pod) with
+  context bundle.
 - Git branch creation + PR opening.
 - Task status tracking (PostgreSQL + UI + MCP).
 - Review agent pipeline (configurable).
@@ -292,7 +301,8 @@ The system MUST support configurable agent behavior per task type.
 
 ## Dependencies
 
-- Klaus on GKE (already deployed).
+- Lore Agent service on GKE (`lore-agent` namespace) with the
+  LoreTask CRD and `loretask-controller` / `loretask-watcher`.
 - Lore MCP server with memory tools (Feature 2).
 - GitHub API access from agent containers.
 - Lore Web UI (Feature 2, for status display).
@@ -300,7 +310,8 @@ The system MUST support configurable agent behavior per task type.
 
 ## Assumptions
 
-- Klaus can accept task submissions and spawn containers on demand
+- The Lore Agent worker dispatches tasks from `pipeline.tasks` and
+  can create `claude-runner` Job pods on demand via the LoreTask CRD
   (verified with existing `delegate_task`).
 - GitHub Actions can trigger agent spawning via webhook or workflow.
 - Agent containers have access to the Lore MCP server on GKE

@@ -33,7 +33,7 @@
 
 - [x] T005 Create mcp-server/src/pipeline-config.ts: load and parse task-types.yaml, export getTaskTypeConfig(type) function, reload on SIGHUP
 - [x] T006 Create mcp-server/src/pipeline-github.ts: GitHub App auth (generate installation token from APP_ID + PRIVATE_KEY env), create branch, commit files, open PR, add label, post review comment. All via octokit REST.
-- [x] T007 Create mcp-server/src/pipeline.ts: task CRUD (createTask, getTask, listTasks, cancelTask, updateTaskStatus), task event recording (recordEvent), poller (pollPendingTasks — query every 10s, spawn agents, respect max 5 concurrent), agent spawner (buildContextBundle + call Klaus)
+- [x] T007 Create mcp-server/src/pipeline.ts: task CRUD (createTask, getTask, listTasks, cancelTask, updateTaskStatus), task event recording (recordEvent), poller (pollPendingTasks — query every 10s, dispatch agents, respect max 5 concurrent), agent dispatcher (buildContextBundle + dispatch via the Lore Agent worker: in-process Anthropic API for simple task types, LoreTask CR for complex ones)
 
 ---
 
@@ -46,7 +46,7 @@ on GKE, does the work, task status trackable via MCP.
 ### Independent Test Criteria
 - lore_create_pipeline_task returns task_id with status pending.
 - Poller picks up pending task within 10 seconds.
-- Agent spawned via Klaus with context bundle.
+- Agent dispatched by the Lore Agent worker with context bundle.
 - lore_get_pipeline_status returns current status and events.
 
 ### Tasks
@@ -56,7 +56,7 @@ on GKE, does the work, task status trackable via MCP.
 - [x] T010 [US3] Register lore_list_pipeline_tasks MCP tool in mcp-server/src/index.ts: filterable by status, paginated
 - [x] T011 [US3] Register lore_cancel_task MCP tool in mcp-server/src/index.ts: transitions to cancelled, kills agent if running
 - [x] T012 [US3] Start the poller in main() function of index.ts: call pollPendingTasks every 10s after server starts, log poll cycle to console
-- [x] T013 [US3] Wire agent spawner in pipeline.ts: on pending task found, check concurrent count < 5, transition to queued → running, call Klaus with task prompt + context bundle
+- [x] T013 [US3] Wire agent dispatcher in pipeline.ts: on pending task found, check concurrent count < 5, transition to queued → running, dispatch via the Lore Agent worker (in-process Anthropic API or LoreTask CR) with task prompt + context bundle
 
 ---
 
@@ -76,8 +76,8 @@ PO sees PR link in the UI.
 ### Tasks
 
 - [x] T014 [US1] Implement PR creation in pipeline-github.ts: after agent completes, create branch agent/<task-id>/<slug>, commit agent output, open PR with structured description (task link, context refs), label agent-generated
-- [x] T015 [US1] Add agent completion handler in pipeline.ts: when Klaus reports task done, call pipeline-github to create PR, update task status to pr-created with pr_url
-- [x] T016 [US1] Add agent failure handler in pipeline.ts: when Klaus reports failure or timeout, update task status to failed with failure_reason
+- [x] T015 [US1] Add agent completion handler in pipeline.ts: when the loretask-watcher reports the task done, call pipeline-github to create PR, update task status to pr-created with pr_url
+- [x] T016 [US1] Add agent failure handler in pipeline.ts: when the loretask-watcher reports failure or timeout, update task status to failed with failure_reason
 - [x] T017 [P] [US1] Create web-ui/src/app/pipeline/create/page.tsx: task creation form with description textarea, task type selector (loaded from task-types.yaml via API), target repo input, submit button (Server Action writes to pipeline.tasks)
 - [x] T018 [P] [US1] Create web-ui/src/app/pipeline/page.tsx: pipeline dashboard listing all tasks with status badge, agent ID, PR link, created time, filterable by status
 - [x] T019 [US1] Create web-ui/src/app/pipeline/[id]/page.tsx: task detail page with full event timeline, agent logs, PR link, cancel button
@@ -139,7 +139,7 @@ both UI and MCP.
 
 ### Tasks
 
-- [x] T027 [US5] Add status webhook listener in pipeline.ts: when Klaus reports status changes (running, completed, failed), call recordEvent and updateTaskStatus
+- [x] T027 [US5] Add status listener in pipeline.ts: when the loretask-watcher reports status changes (running, completed, failed), call recordEvent and updateTaskStatus
 - [x] T028 [US5] Add PR merge detection: GitHub webhook or polling that detects when agent-generated PR is merged, transitions task to merged status
 - [x] T029 [P] [US5] Add auto-refresh to web-ui/src/app/pipeline/page.tsx: client component that polls lore_get_pipeline_status every 5s for active tasks
 - [x] T030 [US5] Update web-ui/src/app/pipeline/[id]/page.tsx: show full event timeline with timestamps, failure_reason display, cancel button functionality

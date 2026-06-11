@@ -10,7 +10,7 @@
 | Updated | 2026-04-20 (spec drift reconciliation — ADR-015 + deferred tasks) |
 
 > **Architecture note:** Several foundational decisions changed after the original tasks were written.
-> ADR-007 replaced Klaus with the purpose-built **Lore Agent** service.
+> ADR-007 establishes the purpose-built **Lore Agent** service.
 > ADR-009 replaced Beads/`bd` CLI and Dolt with **pipeline task MCP tools**.
 > ADR-011 introduced the **LoreTask CRD** for ephemeral Claude Code execution.
 > ADR-015 replaced the 5-min polling cron with a webhook-driven review reactor, added prompt
@@ -215,9 +215,10 @@ Developer delegates well-defined background work to the Lore Agent
 via the Lore MCP server. Task runs independently on GKE while
 developer continues locally.
 
-> **Architecture change (ADR-007, ADR-011):** Original plan used Klaus HTTP delegation.
-> Klaus was replaced by lore-agent (direct Anthropic SDK). Implementation and review
-> tasks use ephemeral Job pods via the LoreTask CRD, not in-process execution.
+> **Architecture (ADR-007, ADR-011):** The Lore Agent service runs tasks via a
+> worker that polls `pipeline.tasks` and dispatches by type — simple tasks via the
+> direct Anthropic SDK (the worker creates the PR), implementation and review tasks
+> in ephemeral Job pods via the LoreTask CRD, not in-process execution.
 
 ### Independent Test Criteria
 - `lore_create_pipeline_task` returns immediately with tracking ID and creates a GitHub Issue.
@@ -227,7 +228,7 @@ developer continues locally.
 
 ### Tasks
 
-- [x] T049 [US7] Build and deploy lore-agent TypeScript service on GKE (lore-agent namespace): calls Anthropic API directly, replaces Klaus. See ADR-007 in adrs/ADR-007-lore-agent-replaces-klaus.md
+- [x] T049 [US7] Build and deploy lore-agent TypeScript service on GKE (lore-agent namespace): calls Anthropic API directly. See ADR-007.
 - [x] T050 [US7] Implement consolidated lore-agent scheduler: nightly reindex, weekly gap detection, weekly spec drift, merge-check, memory lifecycle — replaces 5 standalone K8s CronJobs
 - [x] T051 [US7] Implement lore_create_pipeline_task MCP tool: creates DB task record + GitHub Issue (lore-managed label), routes to lore-agent via HTTP in mcp-server/src/index.ts
 - [x] T052 [US7] Implement lore_get_pipeline_status MCP tool: reads task state from pipeline.tasks, surfaces failure reason in mcp-server/src/index.ts
@@ -293,7 +294,7 @@ review required.
 - [x] T061 [US8] ~~Deploy self-hosted Dolt remote~~ — superseded by ADR-009; pipeline tasks use PostgreSQL pipeline.tasks table, no Dolt required
 - [x] T062 [US8] Add .specify/** to context-evals.yml trigger paths (1 line) in .github/workflows/context-evals.yml
 - [x] T063 [US8] Deploy weekly gap detection job in lore-agent scheduler (Monday 9am UTC): runs gap-detect.ts which queries Cloud Monitoring for gap candidate metrics
-- [x] T064 [US8] Write Lore Agent prompt for gap detection: query Cloud Monitoring for gap candidate metrics, cluster by similarity, draft missing content, open PR to re-cinq/lore with context-gap-draft label in scripts/klaus-prompts/gap-detection.md
+- [x] T064 [US8] Write Lore Agent prompt for gap detection: query Cloud Monitoring for gap candidate metrics, cluster by similarity, draft missing content, open PR to re-cinq/lore with context-gap-draft label in scripts/agent-prompts/gap-detection.md
 
 ---
 
@@ -344,12 +345,12 @@ Autoresearch loop autonomously improves context quality.
 - [x] T065 [US9] Write ontology definition file with 8 entity types and 15 relationships in scripts/graphiti/ontology.yaml
 - [x] T066 [US9] ~~Write K8s manifests for Graphiti deployment on GKE (graphiti namespace + FalkorDB)~~ — **PERMANENTLY DEFERRED** — superseded by ADR-010; PostgreSQL live knowledge graph (`memory.entities` + `memory.edges`) replaces Graphiti. `scripts/graphiti/ontology.yaml` kept for reference only.
 - [x] T067 [US9] ~~Rewrite mcp-server/src/graph.ts as Graphiti MCP proxy~~ — **PERMANENTLY DEFERRED** — `mcp-server/src/graph.ts` queries the PostgreSQL knowledge graph directly. `lore_query_graph` MCP tool is live; temporal traversal (`get_entity_history`) not implemented (flat SQL only, not traversal-based).
-- [x] T068 [US9] Write Lore Agent prompt for weekly spec drift detection with VIOLATES graph edges in scripts/klaus-prompts/spec-drift.md
+- [x] T068 [US9] Write Lore Agent prompt for weekly spec drift detection with VIOLATES graph edges in scripts/agent-prompts/spec-drift.md
 - [x] T069 [US9] Add optional AgentDB local cache prompt to install.sh
 - [x] T070b [US9] Write Context Core manifest schema (lore-core.json) in scripts/context-cores/manifest-schema.json
-- [x] T071b [US9] Write Lore Agent prompt for nightly Context Core builder (build → eval → promote/discard) in scripts/klaus-prompts/context-core-builder.md
+- [x] T071b [US9] Write Lore Agent prompt for nightly Context Core builder (build → eval → promote/discard) in scripts/agent-prompts/context-core-builder.md
 - [x] T072b [US9] Write research-charter.md with standing instructions for the autoresearch loop in research-charter.md
-- [x] T073b [US9] Write Lore Agent prompt for weekly autoresearch loop (generate → eval → promote/discard) in scripts/klaus-prompts/autoresearch-loop.md
+- [x] T073b [US9] Write Lore Agent prompt for weekly autoresearch loop (generate → eval → promote/discard) in scripts/agent-prompts/autoresearch-loop.md
 
 ---
 

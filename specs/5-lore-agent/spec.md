@@ -10,32 +10,36 @@
 
 ## Problem Statement
 
-Lore's pipeline currently delegates tasks to Klaus, a third-party
-agent runtime. This creates multiple pain points:
+Lore's pipeline needs a purpose-built agent runtime that it fully
+owns and controls — one that turns pipeline tasks into PRs reliably,
+on the first attempt. To do that, the Lore Agent service must satisfy
+five requirements:
 
-1. **Black-box output format** — Klaus wraps agent output in
-   unpredictable layers (`result_text` JSON, markdown code fences),
-   causing parsing failures when creating PRs from agent work.
+1. **Predictable structured output** — The agent must emit clean,
+   parseable output (no wrapping layers, no markdown code fences) so
+   the PR creation pipeline can build multi-file PRs directly from
+   the response without parsing failures.
 
-2. **No repo access** — Klaus cannot inspect target repositories,
-   requiring complex pre-fetch workarounds in the pipeline.
+2. **Direct repo access** — The agent must be able to inspect target
+   repositories (tree, key files, conventions) before generating
+   output, so it produces accurate, repo-specific results.
 
-3. **Model inflexibility** — Klaus rejects model parameters and
-   doesn't reliably use configured model env vars, forcing expensive
-   Sonnet usage for tasks that Haiku handles well.
+3. **Full model control** — The agent must select the model per task
+   type, using a cost-effective model (Haiku) for routine work and
+   reserving larger models only where needed.
 
-4. **Session fragility** — Klaus's MCP session protocol requires
-   initialization, polling, and reconnection logic. Pod restarts
-   lose in-flight task callbacks.
+4. **Robust execution that survives pod restarts** — The agent must
+   process tasks durably, with crash recovery that resets in-flight
+   tasks on startup so no task is lost when a pod restarts.
 
-5. **Scattered scheduling** — Periodic jobs (reindex, gap detection,
-   spec drift, merge checks, TTL cleanup) are split across K8s
-   CronJobs and polling loops inside the MCP server, making them
-   hard to monitor and maintain.
+5. **Consolidated scheduling** — Periodic maintenance jobs (reindex,
+   gap detection, spec drift, merge checks, TTL cleanup) must be run
+   and monitored from one place rather than scattered across K8s
+   CronJobs and ad-hoc polling loops.
 
-The result: onboarding a single repo has required 7+ manual
-retries due to output parsing failures, empty responses, and
-race conditions.
+Meeting these requirements lets onboarding produce a correct
+multi-file PR on the first attempt — no manual retries, empty
+responses, or race conditions.
 
 ## Vision
 
@@ -296,7 +300,7 @@ When the MCP server runs locally without database access, all memory operations 
 - Multi-tenant task isolation (all tasks share one agent)
 - Interactive agent sessions (this is batch processing only)
 - Multi-model routing (all tasks use a single configured model per type)
-- Migration of existing Klaus-processed tasks
+- Migration of tasks created under the prior runtime
 
 ## Key Entities
 

@@ -1,7 +1,7 @@
 # Lore Research Charter
 
 This file is the standing instructions for the weekly autoresearch
-Klaus agent. It defines what the research system optimizes for, what
+Lore Agent job. It defines what the research system optimizes for, what
 good context looks like, and what is out of scope. Platform engineers
 update this file to steer the research system — they do not maintain
 every piece of context directly.

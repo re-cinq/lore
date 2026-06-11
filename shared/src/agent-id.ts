@@ -9,7 +9,7 @@ export function resolveAgentId(explicit?: string): string {
   // 1. Explicit parameter
   if (explicit) return explicit;
 
-  // 2. Environment variable (Klaus pods set this to pod name)
+  // 2. Environment variable (runner pods set this to the pod name)
   if (process.env.LORE_AGENT_ID) return process.env.LORE_AGENT_ID;
 
   // 3. File-based (~/.lore/agent-id)

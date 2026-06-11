@@ -2,7 +2,7 @@
  * Repo onboarding module.
  *
  * Lists repos the GitHub App can access, compares against lore.repos,
- * and submits onboarding tasks to the Klaus pipeline so an agent can
+ * and submits onboarding tasks to the Lore Agent pipeline so an agent can
  * inspect the repo and generate customized CLAUDE.md / onboarding PRs.
  */
 
@@ -117,7 +117,7 @@ export interface OnboardResult {
 
 /**
  * Onboards a repo by inserting it into lore.repos and submitting an
- * "onboard" task to the Klaus pipeline. The agent will inspect the repo,
+ * "onboard" task to the Lore Agent pipeline. The agent will inspect the repo,
  * understand its tech stack, and generate a customized CLAUDE.md plus
  * supporting files — then open a single onboarding PR.
  */
