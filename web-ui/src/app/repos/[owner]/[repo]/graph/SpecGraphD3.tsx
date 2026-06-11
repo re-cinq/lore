@@ -11,7 +11,7 @@ import { resolveExclusion, type Disc } from '@/lib/ring-exclusion';
 import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
-import { nodeDegrees, crowdedLinkStrength, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
+import { nodeDegrees, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
 import { settleTicks, boundingRadius, componentSizeByNode } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 
@@ -253,9 +253,9 @@ export default function SpecGraphD3({
       // Spec→Section/Statement (the expanded drill-down) gets more length so the
       // fanned-out children don't pile on top of each other.
       .distance((l) => (l.kind === 'in_feature' ? 120 : l.kind === 'in_section' || l.kind === 'has_statement' || l.kind === 'in_spec' ? 100 : 74))
-      // Anti-crowding rule #1: weaken a link by its busier endpoint so a hub's
-      // many neighbours stop collapsing into a knot (lib/graph-crowding).
-      .strength((l) => crowdedLinkStrength(degOf(l.source), degOf(l.target)));
+      // d3's standard 1/min(degree): a leaf (degree 1) is held firmly to its hub
+      // so it can't drift off into a comet tail, while hub↔hub links stay loose.
+      .strength((l) => 1 / Math.max(1, Math.min(degOf(l.source), degOf(l.target))));
     const sim = d3
       .forceSimulation<SimNode>([])
       .force('link', linkForce)
