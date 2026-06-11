@@ -1,12 +1,12 @@
-# Feature Specification: get_task_logs MCP Tool
+# Feature Specification: lore_get_task_logs MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | get_task_logs MCP Tool         |
+| Feature | lore_get_task_logs MCP Tool         |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `get_task_logs`                |
+| Tool    | `lore_get_task_logs`                |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
@@ -21,7 +21,7 @@ whether the task has finished so a poller can stop.
 
 Registered via `server.tool` ([registration + handler](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L344)).
 
-- **name**: `get_task_logs`
+- **name**: `lore_get_task_logs`
 - **description** (verbatim): *"Fetch execution logs for a pipeline task. Returns
   the latest output from the task's log file."*
 
@@ -82,5 +82,5 @@ An unknown task id returns a `Task not found` message.
 
 ## Out of Scope
 
-- Scheduled batch-job (CronJob) logs (covered by `get_job_logs`).
+- Scheduled batch-job (CronJob) logs (covered by `lore_get_job_logs`).
 - Log retention / bucket lifecycle (infra concern).

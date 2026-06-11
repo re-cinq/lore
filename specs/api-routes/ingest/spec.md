@@ -14,7 +14,7 @@
 
 Repo content (docs, ADRs, specs, source files) must be chunked, embedded, and
 written into the per-team vector store so that context assembly and search can
-retrieve it. Callers — the nightly ingestion job, the `ingest_files` MCP tool,
+retrieve it. Callers — the nightly ingestion job, the `lore_ingest_files` MCP tool,
 and CI — need a single authenticated endpoint that accepts a batch of files for
 one repo at one commit, persists them, and reports per-file outcomes. After a
 batch lands, downstream graph re-projection and spec→test re-linking must be

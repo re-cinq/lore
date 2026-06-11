@@ -107,15 +107,15 @@ if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
 const lorePrompt = `
 IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules strictly:
 
-1. FIRST ACTION: Call assemble_context with a query describing what the user wants. This loads conventions, ADRs, memories, facts, and graph relationships in one call. Do not skip this.
+1. FIRST ACTION: Call lore_assemble_context with a query describing what the user wants. This loads conventions, ADRs, memories, facts, and graph relationships in one call. Do not skip this.
 
-2. BEFORE PLANNING OR BUILDING: Call search_memory to check if this problem was already solved, if there are known gotchas, or if a previous session left relevant learnings. Search with multiple queries if needed — try exact terms, likely key names (e.g. "deployment-gotchas-{date}"), and broader descriptions. Never assume "no memory exists" after one failed search.
+2. BEFORE PLANNING OR BUILDING: Call lore_search_memory to check if this problem was already solved, if there are known gotchas, or if a previous session left relevant learnings. Search with multiple queries if needed — try exact terms, likely key names (e.g. "deployment-gotchas-{date}"), and broader descriptions. Never assume "no memory exists" after one failed search.
 
-3. DURING WORK: Use search_context for patterns and history. Use query_graph to understand entity relationships. Use create_pipeline_task to delegate work to agents on GKE (API cost).
+3. DURING WORK: Use lore_search_context for patterns and history. Use lore_query_graph to understand entity relationships. Use lore_create_pipeline_task to delegate work to agents on GKE (API cost).
 
-4. CRITICAL — LOCAL TASK EXECUTION: When the user says "run locally", "run this locally", "do this in the background", "background task", or "local task", you MUST call the run_task_locally MCP tool. Do NOT do the work yourself. The tool spawns a separate background Claude Code process in an isolated git worktree. This frees the current session for other work. NEVER interpret "run locally" as an instruction to do the work in this session — ALWAYS delegate via the tool.
+4. CRITICAL — LOCAL TASK EXECUTION: When the user says "run locally", "run this locally", "do this in the background", "background task", or "local task", you MUST call the lore_run_task_locally MCP tool. Do NOT do the work yourself. The tool spawns a separate background Claude Code process in an isolated git worktree. This frees the current session for other work. NEVER interpret "run locally" as an instruction to do the work in this session — ALWAYS delegate via the tool.
 
-5. BEFORE SESSION ENDS: Call write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call write_episode with raw session observations for passive fact extraction.`;
+5. BEFORE SESSION ENDS: Call lore_write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call lore_write_episode with raw session observations for passive fact extraction.`;
 
 // Always replace — strip ALL old Lore prompts and write fresh
 if (settings.systemPromptSuffix) {
@@ -137,7 +137,7 @@ if (!hasHook(settings.hooks, "Stop", "session-summary")) {
       {
         type: "command",
         command:
-          "echo '[lore] Save session learnings: call write_memory with a summary of decisions, patterns, and corrections from this session.'",
+          "echo '[lore] Save session learnings: call lore_write_memory with a summary of decisions, patterns, and corrections from this session.'",
       },
     ],
   });

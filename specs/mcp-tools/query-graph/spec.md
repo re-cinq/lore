@@ -1,12 +1,12 @@
-# Feature Specification: `query_graph` MCP tool
+# Feature Specification: `lore_query_graph` MCP tool
 
 | Field   | Value                                            |
 |---------|--------------------------------------------------|
-| Feature | `query_graph` MCP tool                           |
+| Feature | `lore_query_graph` MCP tool                           |
 | Status  | **Draft**                                        |
 | Created | 2026-06-10                                       |
 | Owner   | Platform Engineering                             |
-| Tool    | `query_graph`                                    |
+| Tool    | `lore_query_graph`                                    |
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
@@ -22,10 +22,10 @@ edges must be temporally invalidated as new episodes arrive.
 ## Interface
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L264)). The handler body is wrapped in
-`trackLatency('query_graph', …)` (records latency into `memory.audit_log` +
+`trackLatency('lore_query_graph', …)` (records latency into `memory.audit_log` +
 OTEL span).
 
-- **name**: `query_graph`
+- **name**: `lore_query_graph`
 - **description** (verbatim): *"Query the live knowledge graph for entities and
   their relationships. Returns entities connected by typed edges (uses, owns,
   depends-on, etc.) with temporal validity."*
@@ -66,7 +66,7 @@ OTEL span).
 4. Otherwise return `JSON.stringify(results, null, 2)`.
 5. Any thrown error → `"Error querying graph: {message}"`.
 
-**Graph population** is owned by `write_episode` →
+**Graph population** is owned by `lore_write_episode` →
 `extractAndUpdateGraph` ([graph.ts](../../../mcp-server/src/features/memory/graph.ts#L119)): entities are upserted
 (`ON CONFLICT (name, entity_type, COALESCE(repo,''))`); an edge with the same
 source+relation but a different target sets the prior edge's `valid_to`; an
@@ -82,7 +82,7 @@ A single MCP text content block. One of: pretty-printed JSON array of
 
 ## Dependencies & side effects
 
-- `isMemoryDbAvailable()`, `getPool()`, `trackLatency('query_graph', …)`.
+- `isMemoryDbAvailable()`, `getPool()`, `trackLatency('lore_query_graph', …)`.
 - Query handler `queryLiveGraph` ([graph.ts](../../../mcp-server/src/features/memory/graph.ts#L165)); population via `extractAndUpdateGraph` ([graph.ts](../../../mcp-server/src/features/memory/graph.ts#L119)).
 - Tables: `memory.entities` + `memory.edges` (read); `memory.audit_log` (latency insert via `trackLatency`).
 - Env: `LORE_DB_HOST` (direct DB) **or** `LORE_API_URL` + `LORE_INGEST_TOKEN`
@@ -110,4 +110,4 @@ A single MCP text content block. One of: pretty-printed JSON array of
 
 - The legacy file-based static graph (`graphSearchHandler` / `graphrag/*.json`).
 - LLM entity extraction prompt accuracy.
-- Graph augmentation in `search_memory` (covered there).
+- Graph augmentation in `lore_search_memory` (covered there).

@@ -1,22 +1,22 @@
-# Feature Specification: run_test MCP Tool
+# Feature Specification: lore_run_test MCP Tool
 
 | Field   | Value                                       |
 |---------|---------------------------------------------|
-| Feature | run_test MCP Tool                           |
+| Feature | lore_run_test MCP Tool                           |
 | Status  | **Draft**                                   |
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
-| Tool    | `run_test`                                  |
+| Tool    | `lore_run_test`                                  |
 | Module  | Spec-Trace (`spec-trace-tools.ts`)          |
 | Scope   | local                                       |
 
 ## Problem Statement
 
 To attach per-test coverage to the spec-traceability graph, the system needs to
-run one test and learn which code chunks it exercises. `run_test` runs a single
+run one test and learn which code chunks it exercises. `lore_run_test` runs a single
 test by its runner-native id through the repo's declared `run` command (from
 `.lore/test-commands.yml`) in the caller's local sandbox and returns the
-pass/fail outcome plus the covered code ranges. As with `list_tests`, the
+pass/fail outcome plus the covered code ranges. As with `lore_list_tests`, the
 arbitrary `run` command may execute only in a trusted sandbox, never on the
 shared GKE server.
 
@@ -24,7 +24,7 @@ shared GKE server.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/spec-trace-tools.local.ts#L23)).
 
-- **name**: `run_test`
+- **name**: `lore_run_test`
 - **description** (verbatim): *"Run one test by its runner-native id via the
   repo's test-command manifest; returns pass/fail + the covered code chunks.
   Executes in your local sandbox; the shared cluster server refuses and tells you
@@ -34,7 +34,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/s
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `selector` | string | yes | — | Runner-native test id from `list_tests` (e.g. pytest `path::Class::test`, vitest file+name, Go `TestX`). Substituted into the manifest's `run` command at the `{selector}` placeholder. |
+| `selector` | string | yes | — | Runner-native test id from `lore_list_tests` (e.g. pytest `path::Class::test`, vitest file+name, Go `TestX`). Substituted into the manifest's `run` command at the `{selector}` placeholder. |
 
 ## Behavior
 
@@ -103,7 +103,7 @@ is covered above.)*
 
 ## Out of Scope
 
-- The `list` command path — owned by [`list_tests`](../list-tests/spec.md).
+- The `list` command path — owned by [`lore_list_tests`](../list-tests/spec.md).
 - Full-suite report assembly (`buildTestReport`) and report chunking — used by the
   `trace:run-tests` CLI, not this tool.
 - Graph persistence of coverage edges (Dgraph projection — deferred seam).

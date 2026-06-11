@@ -33,8 +33,8 @@ and graph edge upserts in real-time.
 ## Vision
 
 Replace the static file-based graph with an incremental, Postgres-
-backed knowledge graph that updates on every `write_memory` and
-`write_episode` call. Entity extraction runs as part of the
+backed knowledge graph that updates on every `lore_write_memory` and
+`lore_write_episode` call. Entity extraction runs as part of the
 ingestion pipeline. The graph is useful from day one — no
 accumulation period required.
 
@@ -137,7 +137,7 @@ accumulation period required.
 
 ### FR-4: Graph Query MCP Tool
 
-- FR-4.1: `query_graph(entity?, relation_type?, depth?)` returns
+- FR-4.1: `lore_query_graph(entity?, relation_type?, depth?)` returns
   entities and their relationships.
 - FR-4.2: `depth` controls traversal hops (default 1, max 3).
 - FR-4.3: Results filtered to `valid_to IS NULL` by default.
@@ -145,7 +145,7 @@ accumulation period required.
 
 ### FR-5: Graph-Augmented Search
 
-- FR-5.1: `search_memory` gains optional `graph_augment: boolean`
+- FR-5.1: `lore_search_memory` gains optional `graph_augment: boolean`
   parameter (default false).
 - FR-5.2: When enabled, search results are enriched with 1-hop
   graph neighbors of matched entities.
@@ -179,8 +179,8 @@ accumulation period required.
 - `memory.entities` and `memory.edges` tables.
 - Entity extraction in the fact extraction pipeline.
 - Temporal edge invalidation.
-- `query_graph` MCP tool.
-- Optional graph augmentation in `search_memory`.
+- `lore_query_graph` MCP tool.
+- Optional graph augmentation in `lore_search_memory`.
 - Migration from `graphrag/graph.json`.
 
 ### Out of Scope
@@ -244,7 +244,7 @@ CREATE INDEX edges_relation_idx
    updates the graph without a separate build step.
 3. Contradictory relationships are automatically invalidated
    (temporal edges).
-4. `query_graph` returns useful results for "what uses X?" and
+4. `lore_query_graph` returns useful results for "what uses X?" and
    "what does team Y own?" queries.
 5. Graph-augmented search surfaces related context that pure
    vector search misses.

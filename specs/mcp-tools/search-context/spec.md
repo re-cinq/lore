@@ -1,12 +1,12 @@
-# Feature Specification: search_context MCP Tool
+# Feature Specification: lore_search_context MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | search_context MCP Tool        |
+| Feature | lore_search_context MCP Tool        |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `search_context`               |
+| Tool    | `lore_search_context`               |
 | Module  | Context (`context-tools.ts`)   |
 | Scope   | shared                         |
 
@@ -14,7 +14,7 @@
 
 A developer or agent needs to find relevant passages across a repo's ingested
 context (CLAUDE.md, ADRs, team docs) without knowing which file holds them.
-`search_context` is the keyword/passage search over that corpus — backed by the
+`lore_search_context` is the keyword/passage search over that corpus — backed by the
 hybrid vector+BM25 store when a database is available, and degrading to a
 deterministic file-system text scan when it is not, so it works locally before
 any ingest has run.
@@ -23,7 +23,7 @@ any ingest has run.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/context-tools.ts#L23)).
 
-- **name**: `search_context`
+- **name**: `lore_search_context`
 - **description** (verbatim): *"Naive case-insensitive text search across all .md
   files in the context repository."*
 
@@ -38,7 +38,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/c
 ## Behavior
 
 1. **Repo auto-detect** — when no `team` is given, call `detectCurrentRepo()` and
-   log `"[lore] search_context: auto-detected repo {repo}"` to stderr (advisory).
+   log `"[lore] lore_search_context: auto-detected repo {repo}"` to stderr (advisory).
 2. **DB path** — if `isDbAvailable()`:
    1. `schema = team || "org_shared"`; `results = hybridSearch(query, schema, limit)`
       ([hybridSearch](../../../mcp-server/src/platform/db.ts#L120) — HNSW vector +

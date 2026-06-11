@@ -1,26 +1,26 @@
-# Feature Specification: disable_task_notifications MCP Tool
+# Feature Specification: lore_disable_task_notifications MCP Tool
 
 | Field   | Value                                          |
 |---------|------------------------------------------------|
-| Feature | disable_task_notifications MCP Tool            |
+| Feature | lore_disable_task_notifications MCP Tool            |
 | Status  | **Draft**                                      |
 | Created | 2026-06-10                                     |
 | Owner   | Platform Engineering                           |
-| Tool    | `disable_task_notifications`                   |
+| Tool    | `lore_disable_task_notifications`                   |
 | Module  | Pipeline (`features/pipeline/runner.local.ts`) |
 | Scope   | local                                          |
 
 ## Problem Statement
 
 A developer who turned on pending-task notifications needs a clean way to stop
-the background poller and clear the statusline. `disable_task_notifications`
+the background poller and clear the statusline. `lore_disable_task_notifications`
 tears down the interval and removes the pending cache file.
 
 ## Interface
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L534)).
 
-- **name**: `disable_task_notifications`
+- **name**: `lore_disable_task_notifications`
 - **description** (verbatim): *"Stop watching for pending pipeline tasks."*
 
 ### Input schema (Zod)
@@ -59,5 +59,5 @@ unit seam.)*
 
 ## Out of Scope
 
-- Starting the notifier — see [`enable_task_notifications`](../enable-task-notifications/spec.md).
-- The cache file's consumers (statusline, [`list_pending_tasks`](../list-pending-tasks/spec.md)).
+- Starting the notifier — see [`lore_enable_task_notifications`](../enable-task-notifications/spec.md).
+- The cache file's consumers (statusline, [`lore_list_pending_tasks`](../list-pending-tasks/spec.md)).

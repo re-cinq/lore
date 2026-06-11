@@ -1,12 +1,12 @@
-# Feature Specification: claim_and_run_locally MCP Tool
+# Feature Specification: lore_claim_and_run_locally MCP Tool
 
 | Field   | Value                                       |
 |---------|---------------------------------------------|
-| Feature | claim_and_run_locally MCP Tool              |
+| Feature | lore_claim_and_run_locally MCP Tool              |
 | Status  | **Draft**                                   |
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
-| Tool    | `claim_and_run_locally`                      |
+| Tool    | `lore_claim_and_run_locally`                      |
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
@@ -14,7 +14,7 @@
 
 A pending pipeline task surfaced by the notifier should be claimable by a
 developer so it runs on their machine (their subscription, zero API cost) instead
-of waiting for a GKE agent. `claim_and_run_locally` resolves the pending task
+of waiting for a GKE agent. `lore_claim_and_run_locally` resolves the pending task
 (from the local cache or the API), claims it best-effort, then either runs a
 deterministic in-process graph-ingest task or spawns a background worktree task —
 and removes it from the local pending list either way.
@@ -23,7 +23,7 @@ and removes it from the local pending list either way.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/local-runner-tools.local.ts#L115)).
 
-- **name**: `claim_and_run_locally`
+- **name**: `lore_claim_and_run_locally`
 - **description** (verbatim): *"Claim a pending pipeline task and run it locally
   in the background. The task runs in a git worktree using your Claude Code
   subscription (zero API cost)."*
@@ -32,7 +32,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/l
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `task_id` | string | yes | — | Task ID to claim (from `list_pending_tasks`). Matched by exact id or id prefix. |
+| `task_id` | string | yes | — | Task ID to claim (from `lore_list_pending_tasks`). Matched by exact id or id prefix. |
 | `model` | string | no | — | Model override. |
 
 ## Behavior
@@ -42,7 +42,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/l
    On a miss, when `LORE_API_URL` + `LORE_INGEST_TOKEN` are set, `GET
    /api/task/{task_id}` and adopt it only when its `status === "pending"`.
 2. When still unresolved, return `"Task {task_id} not found or not in pending
-   status. Run list_pending_tasks first."`.
+   status. Run lore_list_pending_tasks first."`.
 3. **Claim** — best-effort `POST /api/task` with `action: "claim"` (failures
    ignored).
 4. **Dispatch by execution mode** — when `task_type` starts with `"ingest-"`:
@@ -96,4 +96,4 @@ pending-list helpers it leans on are covered above.)*
 
 - The notifier loop that populates the pending list (`startNotifier`).
 - Graph-ingest internals (`graph-ingest.local.ts`).
-- Starting an ad-hoc task — [`run_task_locally`](../run-task-locally/spec.md).
+- Starting an ad-hoc task — [`lore_run_task_locally`](../run-task-locally/spec.md).

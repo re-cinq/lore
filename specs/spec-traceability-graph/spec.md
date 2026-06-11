@@ -166,8 +166,8 @@ which ships first. Phasing in [`plan.md`](./plan.md).
 
 Test discovery, per-test coverage, the bulk coverage endpoint
 (`POST /api/repos/:o/:r/coverage`), the `POST /test-report` ingest
-endpoint, the `tests.list`/`tests.run` manifest, and the `list_tests` /
-`run_test` MCP tools are **defined by
+endpoint, the `tests.list`/`tests.run` manifest, and the `lore_list_tests` /
+`lore_run_test` MCP tools are **defined by
 [`project-test-interface`](../project-test-interface/spec.md)** (shipped
 first). This graph **consumes** that output: a posted report/coverage run
 seeds `TestChunk`, upserts `Coverage` + `COVERS`, sets `VALIDATED_BY` when
@@ -229,7 +229,7 @@ invariant), so the projection is lossless by construction.
 | `shared/src/chunker.ts` | Compute `metadata.content_hash = sha256(chunk.content)`; (optional) add tree-sitter grammars (Rust/Java/Kotlin/C#/Ruby/PHP/C/C++/Swift) |
 | `shared/src/commit-trailers.ts` | Add `Lore-Validates:` to the trailer vocabulary (parse/format) |
 | `mcp-server/src/ingest.ts`, `agent/src/jobs/cron/reindex.ts` | Persist `content_hash` at both ingest paths |
-| _Test interface_ (`mcp-server/src/routes/coverage.ts`, `/test-report`, `test-command-runner.ts`, `list_tests`/`run_test` MCP tools, CI templates) | **Owned by [`project-test-interface`](../project-test-interface/spec.md)** (built first); this graph consumes its posted output |
+| _Test interface_ (`mcp-server/src/routes/coverage.ts`, `/test-report`, `test-command-runner.ts`, `lore_list_tests`/`lore_run_test` MCP tools, CI templates) | **Owned by [`project-test-interface`](../project-test-interface/spec.md)** (built first); this graph consumes its posted output |
 | `shared/src/spec-trace/project-spec-file.ts` | NEW: per-spec projection unit (upsert Repo root → **lossless `Block` layer** via `segmentBlocks` + the Section/Statement/AcceptanceCriterion semantic overlay; parse links → VALIDATED_BY/IMPLEMENTED_BY/DECIDED_BY; prune orphans by reverse-edge sweep) |
 | `shared/src/spec-trace/project-adr-file.ts` | NEW: per-ADR projection — projects the ADR's **lossless `Block` layer** (shared `projectDocumentBlocks`, keyed by `Block.file_path`, pruned by `pruneOrphanBlocksByFile`) so ADRs reconstruct byte-exact; the ADR metadata node (number/title/status/supersedes for DECIDED_BY/SUPERSEDES) is a later overlay |
 | `shared/src/spec-trace/project-blocks.ts` | NEW: shared block writer/pruner — `projectDocumentBlocks` (spec + ADR) + `pruneOrphanBlocksByFile` (file_path-scoped) |

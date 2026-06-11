@@ -152,7 +152,7 @@ The system MUST maintain a registry of onboarded repos.
 - FR-1.2: Repos populated from GitHub App installation (which repos
   the App has access to).
 - FR-1.3: Repo list shown as the home page of the UI.
-- FR-1.4: MCP tool `list_repos` returns all onboarded repos.
+- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos.
 
 ### FR-2: Repo Onboarding via PR
 

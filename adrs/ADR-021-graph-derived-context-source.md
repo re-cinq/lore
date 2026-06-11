@@ -10,7 +10,7 @@ domains: [shared, mcp-server, context, retrieval, spec-trace]
 
 ## Context
 
-[ADR-020](ADR-020-context-assembly-xml-and-relevance.md) made `assemble_context`
+[ADR-020](ADR-020-context-assembly-xml-and-relevance.md) made `lore_assemble_context`
 retrieval relevance-ranked (`ts_rank` BM25), deduped, and XML-tagged. But it ranks
 by **textual similarity to the query** and draws **only from the Postgres chunk
 store**; it explicitly deferred embeddings and does not touch the spec-traceability

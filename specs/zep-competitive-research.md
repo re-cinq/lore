@@ -23,7 +23,7 @@ Zep tracks *when* facts are valid. When a new fact contradicts an old one ("user
 
 Zep's unit of ingestion is an **episode** — any time-stamped blob of data (conversation turn, business event, document). Episodes flow through a pipeline: extract entities -> update graph -> update facts.
 
-**Lore today**: Memory is explicit key-value writes by agents. There's no passive ingestion path. An agent has to call `write_memory` deliberately. If it doesn't, nothing is captured.
+**Lore today**: Memory is explicit key-value writes by agents. There's no passive ingestion path. An agent has to call `lore_write_memory` deliberately. If it doesn't, nothing is captured.
 
 ### 3. Live graph vs. static graph
 
@@ -35,7 +35,7 @@ Zep's knowledge graph is **live** — updated in real-time as episodes arrive.
 
 Zep has **context blocks** — structured templates that define how retrieved facts, summaries, and relationships are formatted before being sent to the LLM. This is a separate, explicit step.
 
-**Lore today**: Agents get raw text back from `search_memory` and assemble their own context. No structured assembly layer exists.
+**Lore today**: Agents get raw text back from `lore_search_memory` and assemble their own context. No structured assembly layer exists.
 
 ### 5. Per-user and group graphs
 
@@ -64,6 +64,6 @@ Zep is a generic agent memory platform. Lore's differentiation is **code-context
 
 | # | Follow-up | Effort | Why |
 |---|-----------|--------|-----|
-| 5 | Auto-episode hooks | Lower | `write_episode` exists but requires explicit calls. Hooks on SessionStart/PostToolUse should auto-capture session summaries and PR reviews — makes ingestion truly passive. |
-| 6 | Graph-augmented search | Lower | `search_memory` should gain `graph_augment: boolean` to enrich results with 1-hop graph neighbors. Specced in live-knowledge-graph FR-5 but not built. |
-| 7 | Retrieval benchmarks | Lower | Measure p95 latency for `search_memory` and `assemble_context`. Zep targets <200ms — we don't know our actual numbers. |
+| 5 | Auto-episode hooks | Lower | `lore_write_episode` exists but requires explicit calls. Hooks on SessionStart/PostToolUse should auto-capture session summaries and PR reviews — makes ingestion truly passive. |
+| 6 | Graph-augmented search | Lower | `lore_search_memory` should gain `graph_augment: boolean` to enrich results with 1-hop graph neighbors. Specced in live-knowledge-graph FR-5 but not built. |
+| 7 | Retrieval benchmarks | Lower | Measure p95 latency for `lore_search_memory` and `lore_assemble_context`. Zep targets <200ms — we don't know our actual numbers. |

@@ -1,12 +1,12 @@
-# Feature Specification: ingest_graph MCP Tool
+# Feature Specification: lore_ingest_graph MCP Tool
 
 | Field   | Value                                  |
 |---------|----------------------------------------|
-| Feature | ingest_graph MCP Tool                  |
+| Feature | lore_ingest_graph MCP Tool                  |
 | Status  | **Draft**                              |
 | Created | 2026-06-10                             |
 | Owner   | Platform Engineering                   |
-| Tool    | `ingest_graph`                         |
+| Tool    | `lore_ingest_graph`                         |
 | Module  | Spec-trace (`spec-trace-tools.ts`)     |
 | Scope   | shared                                 |
 
@@ -15,8 +15,8 @@
 The spec-traceability graph (Spec → Section → Statement → TestChunk, plus
 Coverage edges) is built by projecting a repo's specs, ADRs, and test reports.
 That projection is a per-kind job that walks source files and writes graph nodes.
-`ingest_graph` fans out one pipeline task per requested kind so the agent runner
-(specs/adrs) or a local `run_task_locally` (tests) can pick them up — without the
+`lore_ingest_graph` fans out one pipeline task per requested kind so the agent runner
+(specs/adrs) or a local `lore_run_task_locally` (tests) can pick them up — without the
 caller hand-creating three tasks and a group id. It is idempotent: re-running
 when nothing changed is a no-op (only changed files re-project).
 
@@ -24,11 +24,11 @@ when nothing changed is a no-op (only changed files re-project).
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/spec-trace-tools.ts#L10)).
 
-- **name**: `ingest_graph`
+- **name**: `lore_ingest_graph`
 - **description** (verbatim): *"Create spec-traceability graph ingestion tasks —
   one per kind (specs, adrs, tests). Each is a pipeline task (id + description,
   visible in the UI) the agent runner picks up (specs/adrs) or you run locally
-  with run_task_locally. Idempotent: re-running with no changes is a no-op (only
+  with lore_run_task_locally. Idempotent: re-running with no changes is a no-op (only
   changed files re-project)."*
 
 ### Input schema (Zod)
@@ -47,7 +47,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/s
 2. **Availability gate** — `dbPoolRef = getPool()`. If null, return the literal
    text `"Database not available — cannot create ingestion tasks."`
 3. Dynamic-import and call `createIngestGraphTasks(dbPoolRef, targetRepo,
-   { kinds, branch: ref, createdBy: "ingest_graph" })`
+   { kinds, branch: ref, createdBy: "lore_ingest_graph" })`
    ([handler](../../../mcp-server/src/features/spec-trace/ingest-graph-tasks.ts#L23)):
    1. `kinds` defaults to `["specs", "adrs", "tests"]` when omitted or empty.
    2. Generate one `groupId = randomUUID()`.
@@ -63,7 +63,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/s
    5. Return `{ groupId, created, skipped }`.
 4. **Success envelope** — build a bulleted list of `  • {kind}: {id}` lines and a
    `Skipped (already in flight): {kinds…}` note when any were skipped, then return
-   `Created {N} ingestion task(s) for {repo} (group {groupId}):\n{lines}{skippedNote}\n\nRun one locally with: run_task_locally <task_id>`.
+   `Created {N} ingestion task(s) for {repo} (group {groupId}):\n{lines}{skippedNote}\n\nRun one locally with: lore_run_task_locally <task_id>`.
 5. Any thrown error is caught and returned as
    `"Error creating ingestion tasks: {message}"`.
 
@@ -71,7 +71,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/s
 
 A single MCP text content block. One of, in priority order: the no-repo text, the
 database-not-available text, the `Created N ingestion task(s) …` success block
-(with the optional skipped note + the `run_task_locally` hint), or the
+(with the optional skipped note + the `lore_run_task_locally` hint), or the
 `"Error creating ingestion tasks: …"` text. **Never throws** — every path returns
 text.
 

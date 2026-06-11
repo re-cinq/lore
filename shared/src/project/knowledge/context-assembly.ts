@@ -464,10 +464,10 @@ export async function assembleContext(
       );
       if (rows.length === 0) {
         freshnessState = 'first-run';
-        freshnessWarning = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`ingest_files\` to manually add specific files\n> 3. Call \`search_memory\` to check if others have left learnings\n\n`;
+        freshnessWarning = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`;
       } else if (!rows[0].last_ingested_at) {
         freshnessState = 'never-ingested';
-        freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`ingest_files\` or wait for the nightly reindex.\n\n`;
+        freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
       } else {
         const age = Date.now() - new Date(rows[0].last_ingested_at).getTime();
         if (age > 7 * 86400000) {

@@ -1,12 +1,12 @@
-# Feature Specification: get_pipeline_status MCP Tool
+# Feature Specification: lore_get_pipeline_status MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | get_pipeline_status MCP Tool   |
+| Feature | lore_get_pipeline_status MCP Tool   |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `get_pipeline_status`          |
+| Tool    | `lore_get_pipeline_status`          |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
@@ -22,7 +22,7 @@ error.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
 
-- **name**: `get_pipeline_status`
+- **name**: `lore_get_pipeline_status`
 - **description** (verbatim): *"Retrieve the current status of a pipeline task,
   including its full event timeline."*
 
@@ -78,6 +78,6 @@ only against a live API or DB.
 
 ## Out of Scope
 
-- Live PR / CI state (covered by `get_pr_status`).
-- Execution log bytes (covered by `get_task_logs`).
-- Cross-task group rollups (covered by `list_task_group`).
+- Live PR / CI state (covered by `lore_get_pr_status`).
+- Execution log bytes (covered by `lore_get_task_logs`).
+- Cross-task group rollups (covered by `lore_list_task_group`).

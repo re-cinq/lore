@@ -1,12 +1,12 @@
-# Feature Specification: ingest_files MCP Tool
+# Feature Specification: lore_ingest_files MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | ingest_files MCP Tool          |
+| Feature | lore_ingest_files MCP Tool          |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `ingest_files`                 |
+| Tool    | `lore_ingest_files`                 |
 | Module  | Repo (`repo-tools.ts`)         |
 | Scope   | shared                         |
 
@@ -14,7 +14,7 @@
 
 Nightly ingestion picks up a repo's content on a schedule, but a developer who
 just merged a key file (a new ADR, an updated CLAUDE.md) wants it searchable via
-`search_context` immediately. `ingest_files` lets them push specific paths into
+`lore_search_context` immediately. `lore_ingest_files` lets them push specific paths into
 the context store on demand. The MCP server runs locally, so the tool resolves
 the repo + commit locally and proxies the embed work to the GKE ingest API.
 
@@ -22,9 +22,9 @@ the repo + commit locally and proxies the embed work to the GKE ingest API.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/repo-tools.ts#L53)).
 
-- **name**: `ingest_files`
+- **name**: `lore_ingest_files`
 - **description** (verbatim): *"Manually ingest files from a repo into Lore's
-  context store. Use this to make specific files searchable via search_context.
+  context store. Use this to make specific files searchable via lore_search_context.
   The files are fetched from GitHub and embedded."*
 
 ### Input schema (Zod)
@@ -94,4 +94,4 @@ seam; only the two pre-fetch guards are unit-testable.)*
 
 - The GKE `/api/ingest` route: chunking, Vertex embeddings, chunk inserts.
 - Nightly scheduled ingestion (the cron path).
-- Search over ingested content — `search_context`.
+- Search over ingested content — `lore_search_context`.

@@ -1,12 +1,12 @@
-# Feature Specification: onboard_repo MCP Tool
+# Feature Specification: lore_onboard_repo MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | onboard_repo MCP Tool          |
+| Feature | lore_onboard_repo MCP Tool          |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `onboard_repo`                 |
+| Tool    | `lore_onboard_repo`                 |
 | Module  | Repo (`repo-tools.ts`)         |
 | Scope   | shared                         |
 
@@ -14,7 +14,7 @@
 
 Adding a repo to Lore requires both a registry row in `lore.repos` and an agent
 pass that inspects the repo and opens an onboarding PR (CLAUDE.md, AGENTS.md, PR
-template, CI workflows). `onboard_repo` does both atomically from a single
+template, CI workflows). `lore_onboard_repo` does both atomically from a single
 `owner/repo` argument: it upserts the registry row and spawns the `onboard`
 pipeline task.
 
@@ -22,7 +22,7 @@ pipeline task.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/repo-tools.ts#L34)).
 
-- **name**: `onboard_repo`
+- **name**: `lore_onboard_repo`
 - **description** (verbatim): *"Onboard a GitHub repo: creates branch with
   CLAUDE.md, AGENTS.md and PR template, opens a PR, and registers the repo in
   lore.repos."*

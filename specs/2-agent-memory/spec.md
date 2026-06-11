@@ -68,24 +68,24 @@ available to agents. They are the authoritative interface.
 
 ### Memory CRUD
 
-- **`write_memory(key, value, agent_id?, ttl?, extract_facts?)`** —
+- **`lore_write_memory(key, value, agent_id?, ttl?, extract_facts?)`** —
   creates or updates a memory. Every write to an existing key creates
   a new version (monotonic). Returns the memory with version number.
   If `extract_facts=true`, fact extraction runs asynchronously and
   does not block the response.
 
-- **`read_memory(key, agent_id?, version?)`** — returns the latest
+- **`lore_read_memory(key, agent_id?, version?)`** — returns the latest
   version by default. Pass `version="all"` for full version history.
 
-- **`delete_memory(key, agent_id?)`** — soft-deletes (sets `is_deleted`,
+- **`lore_delete_memory(key, agent_id?)`** — soft-deletes (sets `is_deleted`,
   preserved in history but excluded from search).
 
-- **`list_memories(agent_id?, limit?, offset?)`** — paginated listing
+- **`lore_list_memories(agent_id?, limit?, offset?)`** — paginated listing
   of active (non-deleted, non-expired) memories for an agent.
 
 ### Semantic Search
 
-- **`search_memory(query, agent_id?, limit?, pool?, include_invalidated?,
+- **`lore_search_memory(query, agent_id?, limit?, pool?, include_invalidated?,
   graph_augment?)`** — hybrid semantic + keyword search over memories
   and extracted facts using Reciprocal Rank Fusion. Results include
   confidence annotations and similarity scores.
@@ -100,7 +100,7 @@ available to agents. They are the authoritative interface.
 
 ### Episode Ingestion
 
-- **`write_episode(text, agent_id?, repo?, source?)`** — ingests raw
+- **`lore_write_episode(text, agent_id?, repo?, source?)`** — ingests raw
   text (conversation turns, code reviews, observations). Fact
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
@@ -109,14 +109,14 @@ available to agents. They are the authoritative interface.
 
 ### Knowledge Graph
 
-- **`query_graph(entity?, relation?, repo?, limit?)`** — queries the
+- **`lore_query_graph(entity?, relation?, repo?, limit?)`** — queries the
   live knowledge graph for entities and their relationships. Entities
   carry temporal validity (`valid_from`/`valid_to`). Returns matching
   entities with their edge relationships.
 
 ### Monitoring
 
-- **`agent_stats(agent_id?)`** — returns memory count, total facts
+- **`lore_agent_stats(agent_id?)`** — returns memory count, total facts
   extracted, search count, episode count, and daily breakdown of
   activity. Primary health and usage tool. (Snapshot count and shared
   pool count are always 0 — those MCP tools were not shipped; see
@@ -159,7 +159,7 @@ database.
 ### memory_versions
 
 Mirrors each write to `memories` preserving full history. Version
-history is queryable via `read_memory(key, version="all")`.
+history is queryable via `lore_read_memory(key, version="all")`.
 
 ### facts
 
@@ -194,7 +194,7 @@ with a `[CONFLICT]` prefix.
 
 ### episodes
 
-Raw text blobs ingested via `write_episode`. Source of truth for
+Raw text blobs ingested via `lore_write_episode`. Source of truth for
 passive knowledge capture. Fact and graph extraction runs
 asynchronously after write.
 
@@ -217,7 +217,7 @@ MCP tools. Created manually via internal functions only.
 Named memory spaces. Shared pool functions (`sharedWrite`,
 `sharedRead`) exist in the implementation but are not exposed as MCP
 tools. Memories can be assigned to a pool via the `pool` field on
-`write_memory`, and `search_memory` accepts a `pool` parameter for
+`lore_write_memory`, and `lore_search_memory` accepts a `pool` parameter for
 scoped search.
 
 ### audit_log
@@ -227,8 +227,8 @@ with timestamp and agent ID.
 
 ## Fact Extraction
 
-Triggered by `extract_facts=true` on `write_memory`, or automatically
-on all `write_episode` calls.
+Triggered by `extract_facts=true` on `lore_write_memory`, or automatically
+on all `lore_write_episode` calls.
 
 Extraction is asynchronous and non-blocking. If the LLM is unreachable,
 the memory write succeeds immediately and the memory is searchable as
@@ -307,9 +307,9 @@ vector similarity) but reads and writes continue. The fallback is
 transparent to callers.
 
 Tools without a file representation proxy to the GKE server over
-`LORE_API_URL` instead: `write_episode` (`POST /api/episode`) and
-`query_graph` (`GET /api/graph`, added so the live knowledge graph is
-readable without a direct DB). `agent_stats` has neither a file fallback
+`LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
+`lore_query_graph` (`GET /api/graph`, added so the live knowledge graph is
+readable without a direct DB). `lore_agent_stats` has neither a file fallback
 nor a proxy and returns a "requires PostgreSQL" message in local mode.
 
 ## Transfer Scoring (Cross-Repo Context)
@@ -326,18 +326,18 @@ The following features were specified but not exposed as MCP tools:
 
 | Specified Tool        | Status | Notes |
 |-----------------------|--------|-------|
-| `shared_write`        | Not exposed | Functions exist in memory.ts; pool field on write_memory is the workaround |
-| `shared_read`         | Not exposed | Functions exist in memory.ts; search_memory with pool= is the workaround |
+| `shared_write`        | Not exposed | Functions exist in memory.ts; pool field on lore_write_memory is the workaround |
+| `shared_read`         | Not exposed | Functions exist in memory.ts; lore_search_memory with pool= is the workaround |
 | `create_snapshot`     | Not exposed | Internal function exists; not registered as MCP tool |
 | `restore_snapshot`    | Not exposed | Internal function exists; not registered as MCP tool |
-| `agent_health`        | Not exposed | Data subsumed by agent_stats |
+| `agent_health`        | Not exposed | Data subsumed by lore_agent_stats |
 
 The following capabilities were added beyond the original spec:
 
 | Addition                          | Shipped in |
 |-----------------------------------|------------|
-| `write_episode` tool              | 2-agent-memory |
-| `query_graph` tool                | live-knowledge-graph |
+| `lore_write_episode` tool              | 2-agent-memory |
+| `lore_query_graph` tool                | live-knowledge-graph |
 | Knowledge graph (entities + edges)| live-knowledge-graph |
 | Fact contradiction detection      | 2-agent-memory |
 | Confidence tiers (verified/observed/inferred/stale) | 2-agent-memory |
@@ -389,11 +389,11 @@ The following capabilities were added beyond the original spec:
 2. A Lore agent remembers what gap detection candidates it tried
    last week and avoids repeating them.
 3. Two agents share findings through a named pool (via `pool=` on
-   `write_memory` and `search_memory`).
-4. `write_episode` turns raw conversation text into searchable facts
+   `lore_write_memory` and `lore_search_memory`).
+4. `lore_write_episode` turns raw conversation text into searchable facts
    and knowledge graph updates without agent-side structuring.
 5. A platform engineer can inspect any agent's memories and search
-   across all agents via `search_memory` with no `agent_id` filter.
+   across all agents via `lore_search_memory` with no `agent_id` filter.
 6. The system handles 100 concurrent agents with memories bounded by
    the importance-decay eviction policy.
 
@@ -405,7 +405,7 @@ The following capabilities were added beyond the original spec:
 - Q: What happens when fact extraction LLM is unreachable? → A: Write succeeds immediately. Fact extraction is dropped (not retried). Memory searchable as raw text.
 - Q: How is agent identity established for Claude Code sessions? → A: Random UUID generated on first use, stored in ~/.lore/agent-id. Stable per machine. Lore Agent pods use pod name. Overridable via explicit agent_id parameter.
 - Q: How are snapshots stored at scale? → A: Reference-based. Snapshot stores memory IDs + version numbers, not full copies. Restore sets version pointers. No data duplication. (Note: snapshot MCP tools not shipped — internal only.)
-- Q: Should memory operations emit OTEL spans? → A: No. agent_stats provides visibility into memory activity. Web UI for browsing memories is not yet implemented.
+- Q: Should memory operations emit OTEL spans? → A: No. lore_agent_stats provides visibility into memory activity. Web UI for browsing memories is not yet implemented.
 
 ## Dependencies
 

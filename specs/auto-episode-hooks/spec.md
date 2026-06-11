@@ -12,7 +12,7 @@
 
 ## Problem Statement
 
-`write_episode` exists but agents must call it explicitly. In
+`lore_write_episode` exists but agents must call it explicitly. In
 practice, no agent remembers to do this — the most valuable
 context (session summaries, debugging observations, PR review
 feedback) is lost because nobody calls the tool.
@@ -24,7 +24,7 @@ automatic triggers.
 
 ## Vision
 
-Claude Code hooks automatically call `write_episode` at key
+Claude Code hooks automatically call `lore_write_episode` at key
 moments — session end, after tool use, on PR review events.
 Developers don't configure anything; the install script sets
 it up. Every session leaves a trace that enriches the org's
@@ -39,10 +39,10 @@ knowledge graph and fact store.
 **Flow:**
 1. Developer works in Claude Code for 30 minutes.
 2. Session ends (Ctrl+C, `/exit`, or timeout).
-3. A hook fires that calls `write_episode` with a summary of
+3. A hook fires that calls `lore_write_episode` with a summary of
    the session: files changed, decisions made, problems hit.
 4. Facts and graph entities are extracted automatically. ([validated by `session-summary.test.ts:79`](mcp-server/src/routes/session-summary.test.ts#L79))
-5. Next session, `search_memory` returns insights from this one.
+5. Next session, `lore_search_memory` returns insights from this one.
 
 **Acceptance Criteria:**
 - Hook fires on session end without developer action.
@@ -58,7 +58,7 @@ knowledge graph and fact store.
 **Flow:**
 1. A human posts a PR review with inline comments.
 2. The review-reactor job (or webhook) captures the review text.
-3. It calls `write_episode` with `source: "pr-review"` and
+3. It calls `lore_write_episode` with `source: "pr-review"` and
    `ref: "owner/repo#42"`.
 4. Facts like "reviewer prefers explicit error types" are
    extracted and searchable org-wide.
@@ -91,7 +91,7 @@ knowledge graph and fact store.
 ### FR-1: Session Summary Hook
 
 - FR-1.1: Add a `PreExit` or `SessionEnd` hook to the Lore
-  install script that calls `write_episode` via the MCP server.
+  install script that calls `lore_write_episode` via the MCP server.
 - FR-1.2: The hook generates a summary by reading the
   conversation context (last N tool calls + responses) and
   calling a lightweight LLM (Haiku) to summarize.
@@ -101,7 +101,7 @@ knowledge graph and fact store.
 
 ### FR-2: PR Review Capture
 
-- FR-2.1: Extend the `review-reactor` job to call `write_episode`
+- FR-2.1: Extend the `review-reactor` job to call `lore_write_episode`
   when it detects new PR reviews.
 - FR-2.2: Episode content includes: reviewer name, review body,
   inline comments with file paths and line numbers.

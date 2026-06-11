@@ -1,12 +1,12 @@
-# Feature Specification: my_usage MCP Tool
+# Feature Specification: lore_my_usage MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | my_usage MCP Tool              |
+| Feature | lore_my_usage MCP Tool              |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `my_usage`                     |
+| Tool    | `lore_my_usage`                     |
 | Module  | Usage (`usage-tools.ts`)       |
 | Scope   | shared                         |
 
@@ -14,7 +14,7 @@
 
 A developer delegating tasks to Lore agents wants to see their own footprint —
 how many tasks they kicked off and how many tokens those tasks burned — over
-recent windows, without an admin dashboard. `my_usage` reports the caller's task
+recent windows, without an admin dashboard. `lore_my_usage` reports the caller's task
 count plus input/output token totals broken down by today, 7-day, and 30-day
 periods.
 
@@ -22,7 +22,7 @@ periods.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/usage-tools.ts#L10)).
 
-- **name**: `my_usage`
+- **name**: `lore_my_usage`
 - **description** (verbatim): *"Show your personal task and token usage. Breaks
   down by today, 7-day, and 30-day periods."*
 

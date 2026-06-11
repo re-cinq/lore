@@ -32,7 +32,7 @@ jobs:
               "id": 1,
               "method": "tools/call",
               "params": {
-                "name": "create_pipeline_task",
+                "name": "lore_create_pipeline_task",
                 "arguments": {
                   "description": "Implement spec from PR #${{ github.event.number }}: ${{ github.event.pull_request.title }}",
                   "task_type": "implementation",

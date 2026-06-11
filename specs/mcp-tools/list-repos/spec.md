@@ -1,12 +1,12 @@
-# Feature Specification: list_repos MCP Tool
+# Feature Specification: lore_list_repos MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | list_repos MCP Tool            |
+| Feature | lore_list_repos MCP Tool            |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `list_repos`                   |
+| Tool    | `lore_list_repos`                   |
 | Module  | Repo (`repo-tools.ts`)         |
 | Scope   | shared                         |
 
@@ -14,14 +14,14 @@
 
 A developer or agent inspecting the Lore deployment needs to know which repos
 have been onboarded and how much pipeline activity each has seen, without
-opening the web UI or querying Postgres by hand. `list_repos` returns the full
+opening the web UI or querying Postgres by hand. `lore_list_repos` returns the full
 `lore.repos` table joined with a per-repo pipeline task count in one call.
 
 ## Interface
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/repo-tools.ts#L14)).
 
-- **name**: `list_repos`
+- **name**: `lore_list_repos`
 - **description** (verbatim): *"Returns all onboarded repos from lore.repos with
   pipeline task counts."*
 
@@ -46,7 +46,7 @@ The tool takes no parameters — the schema object is `{}`.
    COALESCE(tc.task_count, 0)::int AS task_count`, ordered by `r.onboarded_at
    DESC`.
 3. **Empty guard** — if the result array is empty, return the literal text
-   `"No repos onboarded yet. Use onboard_repo to add one."`
+   `"No repos onboarded yet. Use lore_onboard_repo to add one."`
 4. **Success envelope** — return `JSON.stringify(repos, null, 2)`.
 5. Any thrown error is caught and returned as `"Error listing repos: {message}"`.
 

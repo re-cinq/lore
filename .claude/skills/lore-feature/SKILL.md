@@ -66,8 +66,8 @@ When all tasks are done:
 - If you discover the spec is wrong or missing something, say so and
   suggest an update. Don't silently deviate.
 - Follow the repo's code conventions (from CLAUDE.md) exactly.
-- Use `search_context` (Lore MCP) if you need to understand org patterns.
-- Use `search_memory` (Lore MCP) to check if others worked on related things.
+- Use `lore_search_context` (Lore MCP) if you need to understand org patterns.
+- Use `lore_search_memory` (Lore MCP) to check if others worked on related things.
 
 ## Start
 

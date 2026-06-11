@@ -86,7 +86,7 @@ error.
 
 **Files:** `mcp-server/src/index.ts`, `mcp-server/src/routes.ts`
 
-`list_tests` / `run_test` / `query_trace` (Zod inputs). Execute in the
+`lore_list_tests` / `lore_run_test` / `query_trace` (Zod inputs). Execute in the
 caller's sandbox; proxy the graph write through the MCP server to the
 backend (like memory writes). Shared GKE server refuses to execute →
 run-locally error.

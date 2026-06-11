@@ -1,12 +1,12 @@
-# Feature Specification: `read_memory` MCP tool
+# Feature Specification: `lore_read_memory` MCP tool
 
 | Field   | Value                                            |
 |---------|--------------------------------------------------|
-| Feature | `read_memory` MCP tool                           |
+| Feature | `lore_read_memory` MCP tool                           |
 | Status  | **Draft**                                        |
 | Created | 2026-06-10                                       |
 | Owner   | Platform Engineering                             |
-| Tool    | `read_memory`                                    |
+| Tool    | `lore_read_memory`                                    |
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
@@ -21,7 +21,7 @@ specific past version of a memory that has since changed.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L84)).
 
-- **name**: `read_memory`
+- **name**: `lore_read_memory`
 - **description** (verbatim): *"Retrieve a specific memory by key. Supports
   version history."*
 
@@ -55,7 +55,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
      found.`; otherwise `JSON.stringify(result, null, 2)`.
 3. **Proxy path** — DB unavailable: `proxyMemory("read", { key, agent_id:
    agent_id || resolveAgentId(), version })`. `ok` → `proxied.body`;
-   `unreachable` → `unreachableError("read_memory", detail)`.
+   `unreachable` → `unreachableError("lore_read_memory", detail)`.
 4. **File fallback** — proxy `not_configured`: `readMemoryFile(key, agent_id,
    ver)`; null → `Memory "{key}" not found.`, else `JSON.stringify(…, null, 2)`.
 5. Any thrown error → `"Error reading memory: {message}"`.
@@ -86,6 +86,6 @@ proxied body, the `unreachableError` message, or
 
 ## Out of Scope
 
-- Retrieval strengthening side-effects (`search_memory` only).
+- Retrieval strengthening side-effects (`lore_search_memory` only).
 - File-backed fallback read (`readMemoryFile`).
 - GKE-side `/api/memory` route handling.

@@ -10,7 +10,7 @@ domains: [mcp-server, context, retrieval, web-ui]
 
 ## Context
 
-`assemble_context` builds the context block every Claude session and task runner
+`lore_assemble_context` builds the context block every Claude session and task runner
 receives on turn 1 (see `specs/context-assembly/`). Two defects, invisible from
 the old Assembled tab, made that block lower-quality than it looked:
 

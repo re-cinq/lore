@@ -269,7 +269,7 @@ describe("cancelLocalTask", () => {
 });
 
 // ---------------------------------------------------------------------------
-// configure_local_runner update merge — the handler overwrites only the fields
+// lore_configure_local_runner update merge — the handler overwrites only the fields
 // the caller provides and keeps the rest. This is the pure object logic from
 // the tool registration (max_concurrent applied only when !== undefined).
 // ---------------------------------------------------------------------------
@@ -286,7 +286,7 @@ function applyConfigUpdate(
   return next;
 }
 
-describe("configure_local_runner update merge", () => {
+describe("lore_configure_local_runner update merge", () => {
   it("merge overwrites only provided fields and keeps the rest", () => {
     const base: LocalRunnerConfig = {
       enabled: true,

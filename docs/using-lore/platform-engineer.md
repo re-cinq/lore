@@ -84,7 +84,7 @@ Additional pages:
 - `/episodes` — browse ingested episodes with a source filter and fact counts
 - `/graph` — explore knowledge graph entities, relationships, and temporal validity
 
-The same data is available programmatically via the `get_analytics` MCP tool.
+The same data is available programmatically via the `lore_get_analytics` MCP tool.
 
 ## Per-repo settings
 

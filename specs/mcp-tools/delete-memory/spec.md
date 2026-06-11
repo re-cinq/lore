@@ -1,12 +1,12 @@
-# Feature Specification: `delete_memory` MCP tool
+# Feature Specification: `lore_delete_memory` MCP tool
 
 | Field   | Value                                            |
 |---------|--------------------------------------------------|
-| Feature | `delete_memory` MCP tool                         |
+| Feature | `lore_delete_memory` MCP tool                         |
 | Status  | **Draft**                                        |
 | Created | 2026-06-10                                       |
 | Owner   | Platform Engineering                             |
-| Tool    | `delete_memory`                                  |
+| Tool    | `lore_delete_memory`                                  |
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
@@ -22,7 +22,7 @@ search while keeping its history intact.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L112)).
 
-- **name**: `delete_memory`
+- **name**: `lore_delete_memory`
 - **description** (verbatim): *"Soft-delete a memory (preserved in history but
   excluded from search)."*
 
@@ -46,13 +46,13 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
    - Tool returns `JSON.stringify(result)`.
 2. **Proxy path** — DB unavailable: `proxyMemory("delete", { key, agent_id:
    agent_id || resolveAgentId() })`. `ok` → `proxied.body`; `unreachable` →
-   `unreachableError("delete_memory", detail)`.
+   `unreachableError("lore_delete_memory", detail)`.
 3. **File fallback** — proxy `not_configured`: `deleteMemoryFile(key,
    agent_id)`, return `JSON.stringify`.
 4. Any thrown error → `"Error deleting memory: {message}"`.
 
-Soft-deleted rows are excluded from `read_memory`, `list_memories`, and
-`search_memory` (all carry `is_deleted = FALSE` predicates).
+Soft-deleted rows are excluded from `lore_read_memory`, `lore_list_memories`, and
+`lore_search_memory` (all carry `is_deleted = FALSE` predicates).
 
 ## Output
 

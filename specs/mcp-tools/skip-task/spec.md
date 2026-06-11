@@ -1,12 +1,12 @@
-# Feature Specification: skip_task MCP Tool
+# Feature Specification: lore_skip_task MCP Tool
 
 | Field   | Value                                          |
 |---------|------------------------------------------------|
-| Feature | skip_task MCP Tool                             |
+| Feature | lore_skip_task MCP Tool                             |
 | Status  | **Draft**                                      |
 | Created | 2026-06-10                                     |
 | Owner   | Platform Engineering                           |
-| Tool    | `skip_task`                                    |
+| Tool    | `lore_skip_task`                                    |
 | Module  | Pipeline (`features/pipeline/runner.local.ts`) |
 | Scope   | local                                          |
 
@@ -15,14 +15,14 @@
 A pending-task notification surfaced in the statusline is a prompt, not an
 obligation. When a developer decides not to run a task locally, they need to
 dismiss the notification — without modifying server state — so GKE picks the
-task up after its grace period. `skip_task` removes the task from the local
+task up after its grace period. `lore_skip_task` removes the task from the local
 pending cache.
 
 ## Interface
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L486)).
 
-- **name**: `skip_task`
+- **name**: `lore_skip_task`
 - **description** (verbatim): *"Dismiss a pending task notification. GKE will
   pick it up instead."*
 
@@ -66,5 +66,5 @@ filter expression.)*
 
 ## Out of Scope
 
-- Cancelling server-side task state (the task stays `pending`) — see `cancel_task`.
-- The notifier that populates the pending cache — see [`enable_task_notifications`](../enable-task-notifications/spec.md).
+- Cancelling server-side task state (the task stays `pending`) — see `lore_cancel_task`.
+- The notifier that populates the pending cache — see [`lore_enable_task_notifications`](../enable-task-notifications/spec.md).

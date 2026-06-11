@@ -224,7 +224,7 @@ Helm v3.12`.
 
 ### 3.4 Expose in MCP tool response
 
-**File:** `mcp-server/src/index.ts` (or wherever `search_memory`
+**File:** `mcp-server/src/index.ts` (or wherever `lore_search_memory`
 formats its response)
 
 Include `confidence` field in the response JSON for fact results.
@@ -323,7 +323,7 @@ Import `computeTransferScore` from `memory-search.ts`.
 **File:** `mcp-server/src/index.ts` (or the task creation handler
 in `routes.ts`)
 
-When `create_pipeline_task` is called, if context was assembled
+When `lore_create_pipeline_task` is called, if context was assembled
 for this task, store the fact/memory IDs in `context_refs`:
 
 ```typescript
@@ -347,7 +347,7 @@ should include IDs that the runner can store. Similarly, the GKE
 runner (`docker/claude-runner/entrypoint.sh`) fetches context via
 curl — the response needs to include IDs.
 
-For this to work, `assemble_context` needs to return IDs alongside
+For this to work, `lore_assemble_context` needs to return IDs alongside
 text. Add an optional `include_ids: boolean` parameter to the
 internal `assembleContext()` function that returns structured
 results with IDs.
@@ -474,7 +474,7 @@ LIMIT $2
 | `mcp-server/src/facts.ts` | 3, 4 | Set `confidence` on INSERT. Insert `fact_conflicts` records in `invalidateContradictions()`. |
 | `agent/src/jobs/memory-lifecycle.ts` | 3, 7 | Add stale confidence transition. Rewrite `scoreImportance()` with half-life model. Update candidate query. |
 | `mcp-server/src/context-assembly.ts` | 3, 4, 5 | Render confidence annotations. Surface conflicts. Filter cross-repo by transfer score. |
-| `mcp-server/src/index.ts` | 3 | Add `confidence` to `search_memory` response. |
+| `mcp-server/src/index.ts` | 3 | Add `confidence` to `lore_search_memory` response. |
 | `agent/src/jobs/merge-check.ts` | 6 | Read `context_refs`, adjust `half_life_days` on merge/reject. |
 | `mcp-server/src/routes.ts` or task creation code | 6 | Store `context_refs` on task creation. |
 

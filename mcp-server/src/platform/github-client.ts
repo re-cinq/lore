@@ -104,7 +104,7 @@ export async function postReviewComment(
 /**
  * Fetch live PR state from GitHub via raw REST + Bearer token. Returns
  * null when GitHub is not configured. Extracted verbatim from the
- * get_pr_status MCP tool.
+ * lore_get_pr_status MCP tool.
  */
 export async function fetchPrStatus(repo: string, prNumber: number): Promise<Record<string, any> | null> {
   const token = await getGitHubToken();

@@ -1,28 +1,28 @@
-# Feature Specification: ready_tasks MCP Tool
+# Feature Specification: lore_ready_tasks MCP Tool
 
 | Field   | Value                                  |
 |---------|----------------------------------------|
-| Feature | ready_tasks MCP Tool                   |
+| Feature | lore_ready_tasks MCP Tool                   |
 | Status  | **Draft**                              |
 | Created | 2026-06-10                             |
 | Owner   | Platform Engineering                   |
-| Tool    | `ready_tasks`                          |
+| Tool    | `lore_ready_tasks`                          |
 | Module  | Pipeline (`features/pipeline/tasks.ts`)|
 | Scope   | shared                                 |
 
 ## Problem Statement
 
-Once a `tasks.md` is synced (see [`sync_tasks`](../sync-tasks/spec.md)), an agent
+Once a `tasks.md` is synced (see [`lore_sync_tasks`](../sync-tasks/spec.md)), an agent
 needs to know which spec-tasks it can start *now* — i.e. those still `pending`
 whose every declared dependency has already reached a terminal-success state.
-`ready_tasks` answers that question for one repo so the agent (or developer)
+`lore_ready_tasks` answers that question for one repo so the agent (or developer)
 picks the next workable item without scanning the whole backlog.
 
 ## Interface
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L262)).
 
-- **name**: `ready_tasks`
+- **name**: `lore_ready_tasks`
 - **description** (verbatim): *"List spec-tasks that are ready to work on (all
   dependencies satisfied)."*
 
@@ -36,7 +36,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
 
 1. Resolve `repo || detectCurrentRepo()`. If neither yields a repo, return
    `"Could not detect repo. Specify repo parameter."`.
-2. `getPool()`. If null, return `"ready_tasks requires PostgreSQL (LORE_DB_HOST not set)."`.
+2. `getPool()`. If null, return `"lore_ready_tasks requires PostgreSQL (LORE_DB_HOST not set)."`.
 3. Delegate to `getReadyTasks(pool, resolvedRepo)`
    ([handler](../../../mcp-server/src/features/pipeline/tasks.ts#L85)). It runs a single query
    selecting `id, description, status, context_bundle, agent_id` from
@@ -76,6 +76,6 @@ layer is covered above.)*
 
 ## Out of Scope
 
-- Claiming a returned task — see [`claim_task`](../claim-task/spec.md).
-- Marking tasks done / unblocking — see [`complete_task`](../complete-task/spec.md).
+- Claiming a returned task — see [`lore_claim_task`](../claim-task/spec.md).
+- Marking tasks done / unblocking — see [`lore_complete_task`](../complete-task/spec.md).
 - The dependency-satisfaction SQL's exact `merged`-state semantics beyond the row set it returns.

@@ -13,6 +13,6 @@
 - [x] T006 Implement `upsertEdge()` — insert edge, invalidate contradictory edges
 - [x] T007 Implement `extractAndUpdateGraph()` — LLM entity extraction + graph upsert
 - [x] T008 Implement `queryLiveGraph()` — query entities/edges with temporal filtering
-- [x] T009 Register `query_graph` MCP tool with entity, relation_type, repo, include_invalidated params
-- [x] T010 Wire graph extraction into `write_episode` handler (async, best-effort)
+- [x] T009 Register `lore_query_graph` MCP tool with entity, relation_type, repo, include_invalidated params
+- [x] T010 Wire graph extraction into `lore_write_episode` handler (async, best-effort)
 - [x] T011 Unit tests for graph extraction parsing and edge invalidation

@@ -7,7 +7,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
   const { getPool } = deps;
 
   server.tool(
-    "my_usage",
+    "lore_my_usage",
     "Show your personal task and token usage. Breaks down by today, 7-day, and 30-day periods.",
     {
       agent_id: z.string().optional().describe("Override agent ID. Auto-detected if omitted."),
@@ -50,7 +50,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
   );
 
   server.tool(
-    "get_analytics",
+    "lore_get_analytics",
     "Returns org-level analytics: task throughput, success rates, and token usage.",
     {
       period: z.enum(["today", "week", "month", "all"]).default("month").describe("Time period for analytics."),

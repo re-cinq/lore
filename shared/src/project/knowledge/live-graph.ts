@@ -4,7 +4,7 @@ import type { PgPool } from "../../memory-store.js";
  * Live knowledge-graph read over memory.entities + memory.edges. Relocated from
  * mcp-server/src/graph.ts so the query lives once; mcp re-exports it and the
  * KnowledgePort adapter calls it. Returns rows in the same snake_case shape the
- * query_graph tool + context-assembly already consume — byte-for-byte the same.
+ * lore_query_graph tool + context-assembly already consume — byte-for-byte the same.
  */
 export interface LiveGraphResult {
   entity: string;

@@ -9,7 +9,7 @@ PR history, and task state.
 **MCP server** (`mcp-server/src/index.ts` + `routes.ts`): TypeScript,
 serves context to Claude Code via MCP protocol. Dual transport: stdio
 for local (Phase 0), Streamable HTTP for GKE (Phase 1). Three core tools:
-`assemble_context`, `search_context`, `search_memory`. Pipeline
+`lore_assemble_context`, `lore_search_context`, `lore_search_memory`. Pipeline
 delegation, local task runner, and 30+ tools total.
 
 **Vector store**: PostgreSQL + pgvector via CloudNativePG on GKE.
@@ -143,7 +143,7 @@ graph persistence lands — currently they parse/normalize/count from the body):
   `mcp-server/src/routes/coverage.ts` (`parseLcov`/`parseLcovGroups`/`parseCobertura`).
 
 **MCP tools** (`mcp-server/src/index.ts` → `mcp-server/src/spec-trace-tools.ts`):
-`list_tests` / `run_test` (run the manifest commands in the **caller's local
+`lore_list_tests` / `lore_run_test` (run the manifest commands in the **caller's local
 sandbox**) and `query_trace` (graph reads — stub until the Dgraph projection
 lands). **Trust boundary**: execution only in a trusted sandbox (local dev /
 CI / claude-runner pod); the shared GKE server refuses (`executionRefusal`
@@ -167,15 +167,15 @@ canonical `TEST_COMMAND_SETUP_PROMPT` for developers to run with Claude.
 ## Agent Memory
 
 MCP memory tools for persistent agent memory:
-- **write_memory** — store a key-value memory with optional TTL
-- **read_memory** — retrieve a memory by key (supports version history)
-- **delete_memory** — soft-delete a memory
-- **list_memories** — paginated listing of active memories
-- **search_memory** — semantic search across memories and facts (supports `include_invalidated` for historical queries)
-- **write_episode** — ingest raw text (conversation, review, observation); auto-extracts facts and updates knowledge graph
-- **query_graph** — query the live knowledge graph for entities and relationships
-- **assemble_context** — retrieve and assemble context from all sources into a structured, token-budgeted block
-- **agent_stats** — health, memory count, episode count, facts, searches, daily breakdown
+- **lore_write_memory** — store a key-value memory with optional TTL
+- **lore_read_memory** — retrieve a memory by key (supports version history)
+- **lore_delete_memory** — soft-delete a memory
+- **lore_list_memories** — paginated listing of active memories
+- **lore_search_memory** — semantic search across memories and facts (supports `include_invalidated` for historical queries)
+- **lore_write_episode** — ingest raw text (conversation, review, observation); auto-extracts facts and updates knowledge graph
+- **lore_query_graph** — query the live knowledge graph for entities and relationships
+- **lore_assemble_context** — retrieve and assemble context from all sources into a structured, token-budgeted block
+- **lore_agent_stats** — health, memory count, episode count, facts, searches, daily breakdown
 
 Memory is stored in the PostgreSQL `memory` schema (tables:
 `memories`, `memory_versions`, `facts`, `fact_conflicts`, `episodes`,
@@ -196,7 +196,7 @@ graph entities are automatically extracted from episodes.
 
 The live knowledge graph (`memory.entities` + `memory.edges`)
 tracks entities (services, teams, technologies) and their
-relationships. Updated incrementally on every write_episode call.
+relationships. Updated incrementally on every lore_write_episode call.
 Replaces the static `graphrag/graph.json` for new deployments.
 
 Fact extraction via configurable LLM (`LORE_FACT_LLM` env:
@@ -208,32 +208,32 @@ Agent ID resolved from: explicit parameter, `LORE_AGENT_ID` env,
 
 When the MCP server runs locally (stdio mode, no `LORE_DB_HOST`), the
 memory operations proxy to the GKE MCP server via `LORE_API_URL`:
-`write_memory`/`read_memory`/`search_memory`/`delete_memory`/`list_memories`
-(with a `~/.lore/memory/` file fallback), `write_episode`, and `query_graph`
-(reads `GET /api/graph`). `agent_stats` is still DB-only. Local learnings
+`lore_write_memory`/`lore_read_memory`/`lore_search_memory`/`lore_delete_memory`/`lore_list_memories`
+(with a `~/.lore/memory/` file fallback), `lore_write_episode`, and `lore_query_graph`
+(reads `GET /api/graph`). `lore_agent_stats` is still DB-only. Local learnings
 are shared across the org. AgentDB provides optional local read caching.
 
 ## Required Workflow
 
 Every Claude Code session connected to Lore MUST follow this order:
 
-1. **First action**: Call `assemble_context` with a query describing
+1. **First action**: Call `lore_assemble_context` with a query describing
    the task. This loads conventions, ADRs, memories, facts, and
    graph relationships in one call. Do not skip this.
 
-2. **Before planning or building**: Call `search_memory` to check
+2. **Before planning or building**: Call `lore_search_memory` to check
    if the problem was already solved or if previous sessions left
    relevant learnings. Search with multiple queries — exact terms,
    likely key names (e.g. `deployment-gotchas-{date}`), and broader
    descriptions. Never assume "no memory exists" after one search.
 
-3. **During work**: Use `search_context` for patterns and history.
-   Use `query_graph` to understand entity relationships. Use
-   `create_pipeline_task` to delegate work to agents.
+3. **During work**: Use `lore_search_context` for patterns and history.
+   Use `lore_query_graph` to understand entity relationships. Use
+   `lore_create_pipeline_task` to delegate work to agents.
 
-4. **Before session ends**: Call `write_memory` with a session
+4. **Before session ends**: Call `lore_write_memory` with a session
    summary of decisions, corrections, and non-obvious learnings.
-   Call `write_episode` with raw observations for passive fact
+   Call `lore_write_episode` with raw observations for passive fact
    extraction.
 
 This workflow is enforced via the system prompt injected by
@@ -246,7 +246,7 @@ agents to follow this order.
 - MCP server (serves context for ALL onboarded repos)
 - Skills (/lore-feature, /lore-pr)
 - Hooks (SessionStart syncs context, Stop captures episode)
-- System prompt (enforces assemble_context + search_memory workflow)
+- System prompt (enforces lore_assemble_context + lore_search_memory workflow)
 - Agent ID (~/.lore/agent-id)
 
 No per-repo install needed. The MCP server auto-detects which repo
@@ -314,7 +314,7 @@ CI workflows also require the GitHub Actions variable `GCP_PROJECT_ID`
 
 ## Repo Onboarding
 
-Add a repo to Lore via the UI (/onboard) or MCP tool (onboard_repo).
+Add a repo to Lore via the UI (/onboard) or MCP tool (lore_onboard_repo).
 Creates a PR on the target repo with CLAUDE.md, AGENTS.md, PR
 template, and CI workflows. After merge, nightly ingestion picks
 up the repo's content. Repos table: lore.repos.
@@ -322,10 +322,10 @@ up the repo's content. Repos table: lore.repos.
 ## Task Pipeline
 
 Tasks created via UI, MCP, or PR trigger agents on GKE.
-Pipeline tools: create_pipeline_task, get_pipeline_status,
-list_pipeline_tasks, cancel_task, retry_task, list_task_group,
-get_task_logs, my_usage. Local runner tools: run_task_locally,
-list_local_tasks, cancel_local_task.
+Pipeline tools: lore_create_pipeline_task, lore_get_pipeline_status,
+lore_list_pipeline_tasks, lore_cancel_task, lore_retry_task, lore_list_task_group,
+lore_get_task_logs, lore_my_usage. Local runner tools: lore_run_task_locally,
+lore_list_local_tasks, lore_cancel_local_task.
 Task types configured in
 scripts/task-types.yaml:
 
@@ -363,7 +363,7 @@ files to avoid false positives from pre-existing issues.
 runners fetch assembled context from the Lore API (`/api/context`
 with `query` param). The agent starts with conventions, ADRs,
 memories, and graph on turn 1 instead of spending its first action
-calling `assemble_context`.
+calling `lore_assemble_context`.
 
 **Subdirectory convention rules**: `.claude/rules/*.md` files are
 loaded conditionally during context assembly based on task query
@@ -416,14 +416,14 @@ ops, 200/min other (in-memory sliding window). 1MB body size limit.
 Linux capabilities, disallow privilege escalation. NetworkPolicy
 restricts egress to DNS + HTTPS + internal Lore API only.
 
-**Context freshness**: `assemble_context` warns when repo context
+**Context freshness**: `lore_assemble_context` warns when repo context
 is stale (>7 days since last ingest) or missing (first-run welcome
 with suggested actions). Statusline shows `⚠ stale` indicator.
 `/api/repo-status` includes `last_ingested_at` and `stale` flag.
 
 **Cross-repo context**: Repos can link to specific other repos via
 `settings.cross_repo_repos` (configured in settings UI). When
-enabled, `assemble_context` searches the linked repos for relevant
+enabled, `lore_assemble_context` searches the linked repos for relevant
 context. Links are bidirectional — adding repo B from repo A's
 settings auto-adds repo A to repo B's list.
 
@@ -439,8 +439,8 @@ Auto-promotes after 3 successful merges at current level. Defaults
 to `implementation` for backward compatibility.
 
 **Task groups**: `task_group_id` on pipeline tasks coordinates
-multi-repo features. `create_pipeline_task` accepts `group_id`.
-`list_task_group` tool shows all tasks in a group with completion
+multi-repo features. `lore_create_pipeline_task` accepts `group_id`.
+`lore_list_task_group` tool shows all tasks in a group with completion
 status. When all tasks in a group merge, a summary episode is written.
 
 **PR outcome feedback**: `merge-check` job captures PR stats on
@@ -451,7 +451,7 @@ Tracks aggregate `outcome_stats` per repo. On merge, boosts
 task's context. On rejection, penalizes (-3, min 7). Contributing
 refs tracked via `pipeline.tasks.context_refs` JSONB column.
 
-**Retrieval strengthening**: Every `search_memory` call
+**Retrieval strengthening**: Every `lore_search_memory` call
 asynchronously increments `retrieval_count`, updates
 `last_retrieved_at`, and extends `half_life_days` (+2, cap 365)
 on returned facts and memories. Stale facts revive to `observed`
@@ -476,10 +476,10 @@ repo-specific configuration from polluting other repos.
 
 **Production awareness**: `settings.incidents` array (populated via
 `/api/webhook/incident` for PagerDuty/Opsgenie) surfaces recent
-incidents in `assemble_context` at priority 1.
+incidents in `lore_assemble_context` at priority 1.
 
-**Developer tools**: `get_task_logs` MCP tool reads task logs from
-GCS (no UI needed). `my_usage` shows per-developer token usage
+**Developer tools**: `lore_get_task_logs` MCP tool reads task logs from
+GCS (no UI needed). `lore_my_usage` shows per-developer token usage
 (today/7-day/30-day).
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
@@ -525,7 +525,7 @@ line. `response.usage.cache_*` feeds cost accounting (1.25x writes,
 static prefixes below Haiku's 2048-token cache minimum so caching
 there would not trigger and is not attempted. Default
 `assembleContext` budget is 8K tokens (research template keeps 16K;
-implementation / review / default cap at 8K); the `assemble_context`
+implementation / review / default cap at 8K); the `lore_assemble_context`
 MCP tool's `max_tokens` parameter default is also 8K.
 
 - Every task creates a GitHub Issue on the target repo (`lore-managed` label). Issues get status comments and are closed when the PR is created. **Dark-factory mode (per ADR-016) narrows this**: when `dark_factory.enabled = true`, Issues are created only for approval-gated tasks, on-the-fly escalations (`needs-human-help`), or repos that explicitly opted into `create_issue: always`. The PR remains the canonical artifact; cross-reference is via the `Lore-Task: <uuid>` trailer in the PR body.

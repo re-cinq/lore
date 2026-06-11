@@ -1,12 +1,12 @@
-# Feature Specification: create_pipeline_task MCP Tool
+# Feature Specification: lore_create_pipeline_task MCP Tool
 
 | Field   | Value                          |
 |---------|--------------------------------|
-| Feature | create_pipeline_task MCP Tool  |
+| Feature | lore_create_pipeline_task MCP Tool  |
 | Status  | **Draft**                      |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
-| Tool    | `create_pipeline_task`         |
+| Tool    | `lore_create_pipeline_task`         |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
@@ -17,7 +17,7 @@ pipeline — generating specs, implementing from a spec, onboarding a repo,
 drafting docs — without learning the task-type catalogue, the repo remote, or
 whether the server is running locally (stdio proxy) or on GKE (direct DB). The
 same call must respect per-repo trust gates so a repo that has not earned
-`implementation` trust cannot be made to write code. `create_pipeline_task`
+`implementation` trust cannot be made to write code. `lore_create_pipeline_task`
 validates the description, resolves the repo, maps the type, inserts the
 `pipeline.tasks` row (recording the `pending` event), and tells the caller how
 the task will be picked up.
@@ -26,7 +26,7 @@ the task will be picked up.
 
 Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L25)).
 
-- **name**: `create_pipeline_task`
+- **name**: `lore_create_pipeline_task`
 - **description** (verbatim): *"Create a pipeline task. By default tasks go to
   the backlog (priority=normal) for developers to pick up locally. Set
   priority=immediate to have the GKE agent auto-execute it. Available types:
@@ -74,7 +74,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
    `"Task created: {task_id}\nType: {type}\nPriority: {priority}\nRepo: {repo|'default'}\n\n{pickupMsg}"`
    where `pickupMsg` is *"The GKE agent will pick this up within 30 seconds."*
    for `immediate`, else *"Task added to backlog. Claim it locally with
-   claim_and_run_locally, or set priority to immediate via the UI."*
+   lore_claim_and_run_locally, or set priority to immediate via the UI."*
 6. Any thrown error is caught and returned as `"Error creating pipeline task: {message}"`.
 
 ## Output
@@ -115,6 +115,6 @@ A description over 10000 chars is rejected by the shared CRUD.
 ## Out of Scope
 
 - Task execution (handled by the lore-agent service).
-- Local claim/run (`claim_and_run_locally`, `run_task_locally`).
-- The `sync_tasks` spec-task ingestion path.
+- Local claim/run (`lore_claim_and_run_locally`, `lore_run_task_locally`).
+- The `lore_sync_tasks` spec-task ingestion path.
 - Trust-level configuration (settings UI / `lore.repos.settings.trust`).

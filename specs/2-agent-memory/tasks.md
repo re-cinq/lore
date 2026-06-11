@@ -54,18 +54,18 @@ An agent writes a memory in one session and retrieves it by semantic
 search in a later session, without any manual loading.
 
 ### Independent Test Criteria
-- write_memory returns version 1 with agent ID.
-- read_memory returns the stored value.
-- search_memory returns the memory when queried with related terms.
+- lore_write_memory returns version 1 with agent ID.
+- lore_read_memory returns the stored value.
+- lore_search_memory returns the memory when queried with related terms.
 - Memory persists after MCP server restart.
 
 ### Tasks
 
-- [x] T009 [US1] Register write_memory MCP tool in mcp-server/src/index.ts: calls writeMemory from memory.ts, generates embedding via getQueryEmbedding, falls back to memory-file.ts when DB unavailable
-- [x] T010 [US1] Register read_memory MCP tool in mcp-server/src/index.ts: calls readMemory, supports version parameter ("all" for history)
-- [x] T011 [US1] Register delete_memory MCP tool in mcp-server/src/index.ts: calls deleteMemory (soft-delete)
-- [x] T012 [US1] Register list_memories MCP tool in mcp-server/src/index.ts: calls listMemories with pagination
-- [x] T013 [US1] Register search_memory MCP tool in mcp-server/src/index.ts: calls searchMemory from memory-search.ts, scoped by agent_id or pool
+- [x] T009 [US1] Register lore_write_memory MCP tool in mcp-server/src/index.ts: calls writeMemory from memory.ts, generates embedding via getQueryEmbedding, falls back to memory-file.ts when DB unavailable
+- [x] T010 [US1] Register lore_read_memory MCP tool in mcp-server/src/index.ts: calls readMemory, supports version parameter ("all" for history)
+- [x] T011 [US1] Register lore_delete_memory MCP tool in mcp-server/src/index.ts: calls deleteMemory (soft-delete)
+- [x] T012 [US1] Register lore_list_memories MCP tool in mcp-server/src/index.ts: calls listMemories with pagination
+- [x] T013 [US1] Register lore_search_memory MCP tool in mcp-server/src/index.ts: calls searchMemory from memory-search.ts, scoped by agent_id or pool
 
 ---
 
@@ -77,7 +77,7 @@ preserved and queryable. Latest returned by default.
 
 ### Independent Test Criteria
 - Second write to same key returns version 2.
-- read_memory(key, version="all") returns both versions.
+- lore_read_memory(key, version="all") returns both versions.
 - Concurrent writes both succeed (last-write-wins).
 
 ### Tasks
@@ -95,7 +95,7 @@ Search returns relevant memories ranked by semantic similarity in
 under 100ms. Works across all agent memories simultaneously.
 
 ### Independent Test Criteria
-- search_memory("greeting") finds memory with value "hello world".
+- lore_search_memory("greeting") finds memory with value "hello world".
 - Results include similarity score.
 - Cross-agent search works when agent_id is omitted.
 - Sub-100ms latency for 10,000 memories.
@@ -115,16 +115,16 @@ Unstructured text is automatically broken into individual searchable
 facts. Each fact independently searchable via semantic search.
 
 ### Independent Test Criteria
-- write_memory with extract_facts=true stores raw text AND extracted facts.
-- search_memory finds individual facts, not just the raw paragraph.
+- lore_write_memory with extract_facts=true stores raw text AND extracted facts.
+- lore_search_memory finds individual facts, not just the raw paragraph.
 - Extraction is async — write returns immediately.
 - When LLM is down, write succeeds without facts.
 
 ### Tasks
 
 - [x] T020 [US4] Create mcp-server/src/facts.ts: async fact extraction via configurable LLM (LORE_FACT_LLM env: claude/openai/ollama). Prompt extracts individual facts. Stores each in memory.facts with embedding. Retry queue (3 attempts, exponential backoff).
-- [x] T021 [US4] Update write_memory in memory.ts: when extract_facts=true, queue async fact extraction after write succeeds. Log extraction status to audit_log.
-- [x] T022 [P] [US4] Update search_memory in memory-search.ts: include facts table in vector search, merge with memory results via RRF, indicate source="fact" in results
+- [x] T021 [US4] Update lore_write_memory in memory.ts: when extract_facts=true, queue async fact extraction after write succeeds. Log extraction status to audit_log.
+- [x] T022 [P] [US4] Update lore_search_memory in memory-search.ts: include facts table in vector search, merge with memory results via RRF, indicate source="fact" in results
 
 ---
 
@@ -137,7 +137,7 @@ custom integration code.
 ### Status
 Schema tables (`memory.shared_pools`) are present. MCP tools
 `shared_write` and `shared_read` were planned but not registered in
-the final implementation. The `search_memory` `pool` parameter works
+the final implementation. The `lore_search_memory` `pool` parameter works
 for pool-scoped search. Full pool CRUD tools remain deferred.
 
 ### Tasks
@@ -145,7 +145,7 @@ for pool-scoped search. Full pool CRUD tools remain deferred.
 - [x] T023 [US5] Schema: memory.shared_pools table created in setup-memory-schema.sh
 - [x] T024 [US5] Register shared_write MCP tool — resolved as deferred (see Status above; pool CRUD not shipped)
 - [x] T025 [US5] Register shared_read MCP tool — resolved as deferred (see Status above)
-- [x] T026 [P] [US5] search_memory pool parameter: scopes search to pool entries
+- [x] T026 [P] [US5] lore_search_memory pool parameter: scopes search to pool entries
 
 ---
 
@@ -184,8 +184,8 @@ Temporary memories expire automatically and are excluded from search.
 
 - [x] T030 [US7] Implement TTL in memory.ts writeMemory: compute expires_at from ttl_seconds, add to partial index filter
 - [x] T031 [US7] TTL cleanup: handled by memory-lifecycle job in agent/src/jobs/memory-lifecycle.ts (replaces planned k8s/memory-ttl-cronjob.yaml; runs as in-process cron via registerJob)
-- [x] T032 [US7] Register agent_stats MCP tool in mcp-server/src/index.ts: returns total_memories, total_facts, total_searches, memories_by_day from audit_log
-- [x] T033 [US7] Register agent_health MCP tool — resolved as deferred (agent_stats covers this use case)
+- [x] T032 [US7] Register lore_agent_stats MCP tool in mcp-server/src/index.ts: returns total_memories, total_facts, total_searches, memories_by_day from audit_log
+- [x] T033 [US7] Register agent_health MCP tool — resolved as deferred (lore_agent_stats covers this use case)
 
 ---
 
@@ -237,20 +237,20 @@ implementation. They supersede or extend the planned design.
 ### Episodes System (see also ADR-014)
 
 - [x] T053 Create memory.episodes table: agent_id, content, content_hash (unique per agent), source, ref, embedding. Dedup on content_hash.
-- [x] T054 Register write_episode MCP tool: ingest raw text, store episode, trigger async fact extraction + knowledge graph extraction. Privacy-filtered before storage.
-- [x] T055 write_episode triggers async extractFactsFromEpisode (mcp-server/src/facts.ts) and extractAndUpdateGraph (mcp-server/src/graph.ts)
+- [x] T054 Register lore_write_episode MCP tool: ingest raw text, store episode, trigger async fact extraction + knowledge graph extraction. Privacy-filtered before storage.
+- [x] T055 lore_write_episode triggers async extractFactsFromEpisode (mcp-server/src/facts.ts) and extractAndUpdateGraph (mcp-server/src/graph.ts)
 
 ### Live Knowledge Graph (see also ADR-014)
 
 - [x] T056 Create memory.entities and memory.edges tables: typed entities (service/team/technology/concept/person), typed edges (uses/owns/depends-on/replaced-by/part-of/implements), temporal validity
 - [x] T057 Create mcp-server/src/graph.ts: extractAndUpdateGraph(), queryLiveGraph(). Contradiction detection invalidates conflicting edges on upsert.
-- [x] T058 Register query_graph MCP tool: query entities by name/relation/repo, optional include_invalidated for history
+- [x] T058 Register lore_query_graph MCP tool: query entities by name/relation/repo, optional include_invalidated for history
 
 ### Fact Confidence Tiers
 
 - [x] T059 Add confidence column to memory.facts: verified/observed/inferred/stale. Defaults to "observed" on episode extraction, "inferred" on memory-sourced extraction.
 - [x] T060 Stale transition: daily lifecycle job transitions unretrieved facts (30+ days) to stale. Stale facts get -1 importance penalty.
-- [x] T061 search_memory confidence annotations: results include confidence field; stale facts included in results with annotation
+- [x] T061 lore_search_memory confidence annotations: results include confidence field; stale facts included in results with annotation
 
 ### Fact Conflict Detection
 
@@ -260,7 +260,7 @@ implementation. They supersede or extend the planned design.
 
 ### Retrieval Strengthening
 
-- [x] T065 Async retrieval increment in memory-search.ts: every search_memory call fire-and-forgets UPDATE on returned facts/memories — increments retrieval_count, updates last_retrieved_at, extends half_life_days (+2, cap 365). Stale facts revive to "observed".
+- [x] T065 Async retrieval increment in memory-search.ts: every lore_search_memory call fire-and-forgets UPDATE on returned facts/memories — increments retrieval_count, updates last_retrieved_at, extends half_life_days (+2, cap 365). Stale facts revive to "observed".
 
 ### Memory Lifecycle Management (see also ADR-014)
 
@@ -274,7 +274,7 @@ implementation. They supersede or extend the planned design.
 
 ### Post-Task Auto-Curation (see also ADR-014)
 
-- [x] T070 Create agent/src/lib/episode-writer.ts: shared episode writer. After every task completion (PR, no-changes, failure), writes episode via write_episode REST path.
+- [x] T070 Create agent/src/lib/episode-writer.ts: shared episode writer. After every task completion (PR, no-changes, failure), writes episode via lore_write_episode REST path.
 - [x] T071 High-signal events (PR created, task failure): Haiku extracts "lesson learned" and stores as auto-curation/{ref} memory entry.
 
 ### Privacy Filtering
