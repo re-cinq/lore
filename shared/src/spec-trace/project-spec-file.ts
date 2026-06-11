@@ -108,8 +108,18 @@ async function projectFeature(
   });
 }
 
-/** Statements under this heading become AcceptanceCriterion nodes, not Statements. */
-const ACCEPTANCE_CRITERIA_HEADING = "Acceptance Criteria";
+/**
+ * Segments under an acceptance-criteria heading become AcceptanceCriterion nodes,
+ * not Statements. Matches the title variants in use across specs — `Acceptance
+ * Criteria`, `Success Criteria`, `Independent Test Criteria`, and `… & Acceptance
+ * Criteria` wrappers — under any heading level / case / trailing colon / bold, so
+ * they all fall into the one AcceptanceCriterion category.
+ */
+export function isAcceptanceCriteriaHeading(heading: string | null): boolean {
+  if (!heading) return false;
+  const norm = heading.toLowerCase().replace(/\*/g, "").replace(/[:\s]+$/g, "").trim();
+  return /acceptance criteria/.test(norm) || norm === "success criteria" || norm === "independent test criteria";
+}
 
 /** Reads the persisted Spec.content_hash for an xid, or undefined when no Spec exists yet. */
 async function readSpecContentHash(dgraph: DgraphClientPort, specXid: string): Promise<string | undefined> {
@@ -213,6 +223,60 @@ async function projectLinkedChunks(
 }
 
 /**
+ * The `validated_by`/`implemented_by` predicate names for one owner node type
+ * (Statement or AcceptanceCriterion). Both facets link to the same TestChunk /
+ * CodeChunk identities; only the owning predicate differs.
+ */
+interface LinkPredicates {
+  validatedBy: string;
+  implementedBy: string;
+}
+
+/**
+ * Projects a text's inline links onto an owner node: TestChunks via the owner's
+ * `validated_by` predicate (file-scoped xid) and CodeChunks via `implemented_by`
+ * (line-scoped xid). Edges are REPLACED (delete-then-set) so a re-projection that
+ * changed the inline links can't set-union stale chunk refs, and dropped chunks
+ * are orphan-GC'd. Shared verbatim by {@link projectStatement} and
+ * {@link projectAcceptanceCriterion} — only `predicates` differs.
+ */
+async function projectLinkEdges(
+  context: ProjectionContext,
+  ownerUid: string,
+  text: string,
+  predicates: LinkPredicates,
+): Promise<void> {
+  const { dgraph } = context;
+  const validatedBy = await projectLinkedChunks(
+    context,
+    text,
+    parseTestLinksInStatement,
+    "TestChunk",
+    fileScopedXid,
+    (link) => ({ "TestChunk.test_name": link.label, "TestChunk.link_label": link.label }),
+  );
+  const implementedBy = await projectLinkedChunks(
+    context,
+    text,
+    parseCodeLinksInStatement,
+    "CodeChunk",
+    lineScopedXid,
+  );
+
+  const previousLinks = await readLinkTargets(dgraph, ownerUid, predicates);
+  const newValidated = validatedBy.map((ref) => ref.uid);
+  const newImplemented = implementedBy.map((ref) => ref.uid);
+  await replaceEdge(dgraph, ownerUid, predicates.validatedBy, newValidated);
+  await replaceEdge(dgraph, ownerUid, predicates.implementedBy, newImplemented);
+
+  // A chunk this owner just unlinked is deleted only if NOTHING else owns it
+  // (another statement's link, or — for code — a Coverage). Scoped to the dropped
+  // uids so it never touches chunks the ingest paths created and left unlinked.
+  await gcOrphanChunks(dgraph, "TestChunk", previousLinks.validated, newValidated);
+  await gcOrphanChunks(dgraph, "CodeChunk", previousLinks.implemented, newImplemented);
+}
+
+/**
  * Upserts one Statement, its inline-link chunks (TestChunks via
  * `Statement.validated_by`, CodeChunks via `Statement.implemented_by`), and its
  * `Statement.section` edge when the segment sits under a heading. Linked back to
@@ -225,26 +289,8 @@ async function projectStatement(
   classification: Classification,
 ): Promise<void> {
   const { dgraph, repo, filePath, specUid } = context;
-  const validatedBy = await projectLinkedChunks(
-    context,
-    segment.text,
-    parseTestLinksInStatement,
-    "TestChunk",
-    fileScopedXid,
-    (link) => ({ "TestChunk.test_name": link.label, "TestChunk.link_label": link.label }),
-  );
-  const implementedBy = await projectLinkedChunks(
-    context,
-    segment.text,
-    parseCodeLinksInStatement,
-    "CodeChunk",
-    lineScopedXid,
-  );
   const embedding = await context.embed(segment.text);
 
-  // Link edges are REPLACED (delete-then-set), not folded into the scalar upsert:
-  // a re-projected statement that changed its inline links would otherwise
-  // set-union the stale TestChunk/CodeChunk refs onto validated_by/implemented_by.
   const statementUid = await upsertByXid(dgraph, "Statement", `${repo}|${filePath}|${segment.ordinal}`, {
     "Statement.repo": repo,
     "Statement.ordinal": segment.ordinal,
@@ -260,17 +306,10 @@ async function projectStatement(
     ...(embedding ? { "Statement.embedding": vectorLiteral(embedding) } : {}),
   });
 
-  const previousLinks = await readStatementLinkTargets(dgraph, statementUid);
-  const newValidated = validatedBy.map((ref) => ref.uid);
-  const newImplemented = implementedBy.map((ref) => ref.uid);
-  await replaceEdge(dgraph, statementUid, "Statement.validated_by", newValidated);
-  await replaceEdge(dgraph, statementUid, "Statement.implemented_by", newImplemented);
-
-  // A chunk this statement just unlinked is deleted only if NOTHING else owns it
-  // (another statement's link, or — for code — a Coverage). Scoped to the dropped
-  // uids so it never touches chunks the ingest paths created and left unlinked.
-  await gcOrphanChunks(dgraph, "TestChunk", previousLinks.validated, newValidated);
-  await gcOrphanChunks(dgraph, "CodeChunk", previousLinks.implemented, newImplemented);
+  await projectLinkEdges(context, statementUid, segment.text, {
+    validatedBy: "Statement.validated_by",
+    implementedBy: "Statement.implemented_by",
+  });
 
   // DECIDED_BY: a statement that cites an ADR ("per ADR-016") links to that ADR
   // node by number — the "why". Best-effort: only ADRs already projected resolve
@@ -297,22 +336,23 @@ async function resolveAdrUids(dgraph: DgraphClientPort, repo: string, numbers: n
   });
 }
 
-/** Reads a Statement's current TestChunk/CodeChunk link target uids. */
-async function readStatementLinkTargets(
+/** Reads an owner's current TestChunk/CodeChunk link target uids on the given predicates. */
+async function readLinkTargets(
   dgraph: DgraphClientPort,
-  statementUid: string,
+  ownerUid: string,
+  predicates: LinkPredicates,
 ): Promise<{ validated: string[]; implemented: string[] }> {
   return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($uid: string) {
-        stmt(func: uid($uid)) {
-          validated: Statement.validated_by { uid }
-          implemented: Statement.implemented_by { uid }
+        node(func: uid($uid)) {
+          validated: ${predicates.validatedBy} { uid }
+          implemented: ${predicates.implementedBy} { uid }
         }
       }`,
-      { $uid: statementUid },
+      { $uid: ownerUid },
     );
-    const node = (res.data?.stmt?.[0] ?? {}) as {
+    const node = (res.data?.node?.[0] ?? {}) as {
       validated?: { uid: string }[];
       implemented?: { uid: string }[];
     };
@@ -369,12 +409,15 @@ async function pruneOrphans(
 /**
  * Upserts one AcceptanceCriterion node (xid = `${repo}|${filePath}|ac|${ordinal}`)
  * carrying its verbatim text + text_hash, linked back to the Spec via
- * `AcceptanceCriterion.spec`. Returns its uid for the forward `Spec.acceptance_criteria` edge.
+ * `AcceptanceCriterion.spec`, plus its inline-link chunks (TestChunks via
+ * `AcceptanceCriterion.validated_by`, CodeChunks via `AcceptanceCriterion.implemented_by`)
+ * through the shared {@link projectLinkEdges}. Returns its uid for the forward
+ * `Spec.acceptance_criteria` edge.
  */
 async function projectAcceptanceCriterion(context: ProjectionContext, segment: SpecSegment): Promise<string> {
   const { dgraph, repo, filePath, specUid } = context;
   const embedding = await context.embed(segment.text);
-  return upsertByXid(dgraph, "AcceptanceCriterion", `${repo}|${filePath}|ac|${segment.ordinal}`, {
+  const criterionUid = await upsertByXid(dgraph, "AcceptanceCriterion", `${repo}|${filePath}|ac|${segment.ordinal}`, {
     "AcceptanceCriterion.repo": repo,
     "AcceptanceCriterion.ordinal": segment.ordinal,
     "AcceptanceCriterion.text": segment.text,
@@ -382,6 +425,11 @@ async function projectAcceptanceCriterion(context: ProjectionContext, segment: S
     "AcceptanceCriterion.spec": { uid: specUid },
     ...(embedding ? { "AcceptanceCriterion.embedding": vectorLiteral(embedding) } : {}),
   });
+  await projectLinkEdges(context, criterionUid, segment.text, {
+    validatedBy: "AcceptanceCriterion.validated_by",
+    implementedBy: "AcceptanceCriterion.implemented_by",
+  });
+  return criterionUid;
 }
 
 /**
@@ -446,8 +494,8 @@ export async function projectSpecFile(
   const context: ProjectionContext = { dgraph, repo, filePath, specUid, embed };
   const segments = segmentStatements(content);
   const introOrdinals = buildIntroOrdinals(segments);
-  const acSegments = segments.filter((segment) => segment.enclosingHeading === ACCEPTANCE_CRITERIA_HEADING);
-  const statementSegments = segments.filter((segment) => segment.enclosingHeading !== ACCEPTANCE_CRITERIA_HEADING);
+  const acSegments = segments.filter((segment) => isAcceptanceCriteriaHeading(segment.enclosingHeading));
+  const statementSegments = segments.filter((segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading));
 
   const sectionUidByHeading = await projectSections(context, statementSegments);
   for (const segment of statementSegments) {
