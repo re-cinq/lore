@@ -35,7 +35,9 @@ const TIER: Record<SpecGraphNodeType, { fraction: number; strength: number }> = 
  * so the layout layers by type while every node stays fluid and draggable.
  */
 export function radialTarget(type: SpecGraphNodeType, boundR: number): { radius: number; strength: number } {
-  const tier = TIER[type];
+  // The live projection can emit a type outside the declared union, so fall back
+  // to the loose outer tier rather than throwing on an unknown type.
+  const tier = TIER[type] ?? TIER.File;
   return { radius: tier.fraction * boundR, strength: tier.strength };
 }
 

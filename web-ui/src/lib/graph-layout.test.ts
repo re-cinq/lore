@@ -23,6 +23,11 @@ describe("radialTarget", () => {
   it("attracts the centre tier more strongly than the loose outer tier", () => {
     expect(radialTarget("Feature", boundR).strength).toBeGreaterThan(radialTarget("File", boundR).strength);
   });
+
+  it("falls back to the loose outer tier for an unknown node type", () => {
+    // The live projection can emit a type outside the declared union; never throw.
+    expect(radialTarget("Mystery" as never, boundR)).toEqual(radialTarget("File", boundR));
+  });
 });
 
 describe("boundingRadius", () => {

@@ -111,6 +111,11 @@ const COLORS: Record<SpecGraphNode['type'], string> = {
 };
 const RADIUS: Record<SpecGraphNode['type'], number> = { Feature: 20, Spec: 16, Section: 10, Statement: 8, TestChunk: 11, CodeChunk: 11, File: 12, ADR: 13 };
 
+// The live projection can emit a type outside the declared union; default rather
+// than index to undefined (which would NaN a radius or blank a fill).
+const radiusOf = (type: SpecGraphNode['type']): number => RADIUS[type] ?? 11;
+const colorOf = (type: SpecGraphNode['type']): string => COLORS[type] ?? '#94a3b8';
+
 // Focus + context: opacity by graph distance from the selected node, fading with
 // depth (level 0 = selected, then 1/2/3 hops); past 3 hops is dimmed.
 const LEVEL_OPACITY = [1, 0.85, 0.5, 0.28];
@@ -279,7 +284,7 @@ export default function SpecGraphD3({
       )
       // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
       // their labels) reserve hard personal space and cannot pile up.
-      .force('collide', d3.forceCollide<SimNode>((d) => crowdedCollideRadius(RADIUS[d.type], degOf(d))).strength(1))
+      .force('collide', d3.forceCollide<SimNode>((d) => crowdedCollideRadius(radiusOf(d.type), degOf(d))).strength(1))
       // Spacing pass: Spec/ADR "anchor" nodes are kept clear of each other AND of
       // the open rings (resolveSpacing, gap = ANCHOR_SEPARATION); every other node
       // is just kept off the rings (resolveExclusion). Ring-owned nodes (the spec
@@ -555,14 +560,14 @@ export default function SpecGraphD3({
                 }),
             );
           g.append('circle')
-            .attr('r', (d) => RADIUS[d.type])
-            .attr('fill', (d) => COLORS[d.type])
+            .attr('r', (d) => radiusOf(d.type))
+            .attr('fill', (d) => colorOf(d.type))
             .style('stroke', 'var(--bg-surface)')
             .attr('stroke-width', 2);
           g.filter((d) => d.label !== '')
             .append('text')
             .text((d) => d.label)
-            .attr('x', (d) => RADIUS[d.type] + 4)
+            .attr('x', (d) => radiusOf(d.type) + 4)
             .attr('y', 4)
             .attr('font-size', '12px')
             .attr('font-weight', (d) => (d.type === 'Spec' ? 600 : 400))
@@ -735,7 +740,7 @@ export default function SpecGraphD3({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: COLORS[selected.type], display: 'inline-block' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: colorOf(selected.type), display: 'inline-block' }} />
               <strong>{selected.type}</strong>
               {selected.type === 'Spec' && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>· double-click to expand</span>}
               <button
