@@ -4,7 +4,7 @@
 |----------|--------------------------------|
 | Feature  | Dark Factory Mode              |
 | Branch   | 6-dark-factory                 |
-| Status   | Draft                          |
+| Status   | Implemented                    |
 | Created  | 2026-04-28                     |
 | Owner    | Platform Engineering           |
 
@@ -96,11 +96,11 @@ produces an Issue with full context attached.
 
 ### Session 2026-04-28
 
-- Q: Workflow graph on-disk format → A: Pure YAML (matches `task-types.yaml`, single source of truth, web-ui renders directly)
-- Q: Bot behavior on PRs outside the auto-merge path allowlist → A: Review-and-await-human (bot posts inline comments + verdict, PR sits open until a human merges; no time-based auto-merge fallback in v1)
-- Q: Authorization required to change `dark_factory.*` settings → A: Two-key — `enabled` toggle and `auto_merge.paths` changes require admin-scope token + CODEOWNERS approval recorded in audit log; lighter sub-settings (`notify`, `create_issue`, `review`) need only admin scope
-- Q: Concurrency control when two supervisors think they own the same task → A: DB row-level lease keyed on branch name; first action of any supervisor is `acquire_lease(branch_name)`; lease has a TTL that expires automatically for pod-death recovery
-- Q: Commit-trailer behavior in opt-out repos → A: Trailers always on regardless of `dark_factory.enabled` — strictly additive, single supervisor code path, pod-death recovery works uniformly across opt-in and opt-out repos
+- **Q1.** Workflow graph on-disk format → A: Pure YAML (matches `task-types.yaml`, single source of truth, web-ui renders directly)
+- **Q2.** Bot behavior on PRs outside the auto-merge path allowlist → A: Review-and-await-human (bot posts inline comments + verdict, PR sits open until a human merges; no time-based auto-merge fallback in v1)
+- **Q3.** Authorization required to change `dark_factory.*` settings → A: Two-key — `enabled` toggle and `auto_merge.paths` changes require admin-scope token + CODEOWNERS approval recorded in audit log; lighter sub-settings (`notify`, `create_issue`, `review`) need only admin scope
+- **Q4.** Concurrency control when two supervisors think they own the same task → A: DB row-level lease keyed on branch name; first action of any supervisor is `acquire_lease(branch_name)`; lease has a TTL that expires automatically for pod-death recovery
+- **Q5.** Commit-trailer behavior in opt-out repos → A: Trailers always on regardless of `dark_factory.enabled` — strictly additive, single supervisor code path, pod-death recovery works uniformly across opt-in and opt-out repos
 
 ## Goals
 
@@ -188,7 +188,7 @@ fewer PRs, each carrying genuine human-decision weight.
 - The branch's commit log contains, in order, `[stage:draft]`, `[stage:validate]`, `[stage:review]`, `[stage:retrospective]` trailers.
 - The PR body includes a `Lore-Task: <uuid>` line and a link to the policy that justified auto-merge.
 - The audit log entry names the rule applied (path-allowlist, trust level, CI status, bot-approval).
-- Time from task creation to merge is bounded only by CI; no human latency contributes.
+- No human action occurs between push and merge: the PR merges automatically once CI is green (auto-merge engine SLA ≤ 60s per research R6), so wall-clock-to-merge is bounded by CI duration alone.
 
 ### Scenario 2: Implementation task survives pod death
 
@@ -290,32 +290,32 @@ fewer PRs, each carrying genuine human-decision weight.
 
 ### FR1 — Branch-as-state checkpoints
 
-- **FR1.1** Every workflow phase MUST end with a git commit containing a structured trailer block including at minimum `Lore-Stage:`, `Lore-Iteration:`, and `Lore-Task:`. Trailers are emitted unconditionally on every Lore-authored commit, regardless of the repo's `dark_factory.enabled` setting; they are the audit substrate for both dark-mode and opt-out repos.
-- **FR1.2** A supervisor process MUST be able to determine the next workflow node to execute by inspecting the branch's commit log alone, without reading the database or the CRD.
+- **FR1.1** Every workflow phase MUST end with a git commit containing a structured trailer block including at minimum `Lore-Stage:`, `Lore-Iteration:`, and `Lore-Task:`. Trailers are emitted unconditionally on every Lore-authored commit, regardless of the repo's `dark_factory.enabled` setting; they are the audit substrate for both dark-mode and opt-out repos. ([validated by `commit-trailers.test.ts:11`](shared/src/commit-trailers.test.ts#L11); implemented by [`commit-trailers.ts:25`](shared/src/commit-trailers.ts#L25))
+- **FR1.2** A supervisor process MUST be able to determine the next workflow node to execute by inspecting the branch's commit log alone, without reading the database or the CRD. ([validated by `graph-executor.test.ts:293`](agent/src/supervisor/graph-executor.test.ts#L293); implemented by [`graph-executor.ts:119`](agent/src/supervisor/graph-executor.ts#L119))
 - **FR1.3** Phases that produce no file changes (e.g. a no-op review) MUST still produce a commit (empty commit allowed) so the trailer is captured.
 - **FR1.4** Branch history MUST NOT be rewritten by agents (no `--amend`, no force-push, no rebase) for any branch carrying stage trailers.
-- **FR1.5** The `Lore-Task: <uuid>` trailer MUST also appear in the final PR body, replacing the today's `Refs #<issue>` cross-reference.
-- **FR1.6** Concurrency control: a supervisor process MUST acquire a database row-level lease keyed on the branch name as its first action, before reading any state or executing any phase. The lease MUST have a TTL (default 10 minutes, refreshed on phase commit) that expires automatically so a successor pod can take over after pod death without operator intervention. A second supervisor that fails to acquire the lease MUST abort cleanly without writing to the branch or the database. Lease acquisition, refresh, and release MUST be observable via OpenTelemetry spans. ([validated by `lease-reaper.test.ts:23`](agent/src/jobs/lease-reaper.test.ts#L23), [`leases.test.ts:13`](agent/src/repositories/leases.test.ts#L13))
+- **FR1.5** The `Lore-Task: <uuid>` trailer MUST also appear in the final PR body, replacing the today's `Refs #<issue>` cross-reference. ([validated by `pr-body.test.ts:11`](agent/src/lib/pr-body.test.ts#L11); implemented by [`pr-body.ts:10`](agent/src/lib/pr-body.ts#L10))
+- **FR1.6** Concurrency control: a supervisor process MUST acquire a database row-level lease keyed on the branch name as its first action, before reading any state or executing any phase. The lease MUST have a TTL (default 10 minutes, refreshed on phase commit) that expires automatically so a successor pod can take over after pod death without operator intervention. A second supervisor that fails to acquire the lease MUST abort cleanly without writing to the branch or the database. Lease acquisition, refresh, and release MUST be observable via OpenTelemetry spans. ([validated by `lease-reaper.test.ts:23`](agent/src/jobs/lease-reaper.test.ts#L23), [`leases.test.ts:13`](agent/src/repositories/leases.test.ts#L13); implemented by [`lease.ts:54`](agent/src/supervisor/lease.ts#L54), [`lease-reaper.ts:26`](agent/src/jobs/lease-reaper.ts#L26))
 
 ### FR2 — Workflow graph
 
-- **FR2.1** Workflow definitions MUST live as YAML files outside of TypeScript code, in a directory parallel to `scripts/task-types.yaml`. No alternate formats (DOT, JSON, custom DSL) are introduced; web-ui renders the graph from YAML directly.
-- **FR2.2** A workflow definition MUST express: nodes (typed: agent stage, validation, gate, retrospective), edges (with conditions on commit / CI / review outcomes), and entry/exit nodes.
-- **FR2.3** The local runner and the GKE supervisor MUST interpret the same workflow definition file.
-- **FR2.4** Existing flows (implementation, gap-fill, runbook, review, feature-request, onboard, general) MUST be migratable to graph definitions without losing current behavior.
+- **FR2.1** Workflow definitions MUST live as YAML files outside of TypeScript code, in a directory parallel to `scripts/task-types.yaml`. No alternate formats (DOT, JSON, custom DSL) are introduced; web-ui renders the graph from YAML directly. ([validated by `loader.test.ts:35`](agent/src/workflow/loader.test.ts#L35); implemented by [`loader.ts:63`](agent/src/workflow/loader.ts#L63))
+- **FR2.2** A workflow definition MUST express: nodes (typed: agent stage, validation, gate, retrospective), edges (with conditions on commit / CI / review outcomes), and entry/exit nodes. ([validated by `loader.test.ts:144`](agent/src/workflow/loader.test.ts#L144); implemented by [`loader.ts:63`](agent/src/workflow/loader.ts#L63))
+- **FR2.3** The local runner and the GKE supervisor MUST interpret the same workflow definition file. ([validated by `graph-executor.test.ts:125`](agent/src/supervisor/graph-executor.test.ts#L125); implemented by [`graph-executor.ts:119`](agent/src/supervisor/graph-executor.ts#L119))
+- **FR2.4** Existing flows (implementation, gap-fill, runbook, review, feature-request, onboard, general) MUST be migratable to graph definitions without losing current behavior. ([validated by `loader.test.ts:226`](agent/src/workflow/loader.test.ts#L226); implemented by [`loader.ts:96`](agent/src/workflow/loader.ts#L96))
 - **FR2.5** Adding a new flow MUST require only a new graph definition + any new agent prompts referenced by it; no changes to supervisor / runner code.
 
 ### FR3 — Opt-out human gates
 
-- **FR3.1** Per-repo `settings.dark_factory.enabled` boolean (default `false` at migration time) MUST gate all dark-factory behavior changes.
-- **FR3.2** Sub-setting `create_issue` MUST support `never | on_gate | always`. Default when dark-mode-on: `on_gate`.
-- **FR3.3** Sub-setting `auto_merge` MUST express path allowlist, minimum repo trust level, CI requirement, and bot-approval requirement. Default paths: `specs/`, `adrs/`, `*.md`, `CLAUDE.md`, `.claude/`. Default min trust: `docs`. ([validated by `pr-policy.test.ts:68`](agent/src/lib/pr-policy.test.ts#L68))
-- **FR3.4** Sub-setting `review` MUST support `trust_based | always | never`. Default when dark-mode-on: `trust_based`. When `trust_based` is active and a PR's changed paths are *outside* the configured `auto_merge.paths` allowlist, the bot MUST post its inline review comments and verdict and then stop; the PR remains open awaiting human merge. Time-based "no-objection" auto-merge is explicitly out of scope for v1.
-- **FR3.5** Sub-setting `notify` MUST support a list of channels: `escalation`, `watched`, `all`. Default when dark-mode-on: `[escalation]`.
+- **FR3.1** Per-repo `settings.dark_factory.enabled` boolean (default `false` at migration time) MUST gate all dark-factory behavior changes. ([validated by `dark-factory-settings.test.ts:52`](mcp-server/src/features/dark-factory/dark-factory-settings.test.ts#L52); implemented by [`dark-factory-settings.ts:63`](shared/src/dark-factory-settings.ts#L63))
+- **FR3.2** Sub-setting `create_issue` MUST support `never | on_gate | always`. Default when dark-mode-on: `on_gate`. ([validated by `dark-factory.test.ts:51`](agent/src/lib/dark-factory.test.ts#L51); implemented by [`dark-factory.ts:52`](agent/src/lib/dark-factory.ts#L52))
+- **FR3.3** Sub-setting `auto_merge` MUST express path allowlist, minimum repo trust level, CI requirement, and bot-approval requirement. Default paths: `specs/`, `adrs/`, `*.md`, `CLAUDE.md`, `.claude/`. Default min trust: `docs`. ([validated by `pr-policy.test.ts:68`](agent/src/lib/pr-policy.test.ts#L68); implemented by [`auto-merge.ts:60`](agent/src/jobs/auto-merge.ts#L60), [`path-match.ts:18`](agent/src/lib/path-match.ts#L18))
+- **FR3.4** Sub-setting `review` MUST support `trust_based | always | never`. Default when dark-mode-on: `trust_based`. When `trust_based` is active and a PR's changed paths are *outside* the configured `auto_merge.paths` allowlist, the bot MUST post its inline review comments and verdict and then stop; the PR remains open awaiting human merge. Time-based "no-objection" auto-merge is explicitly out of scope for v1. ([validated by `dark-factory.test.ts:181`](agent/src/lib/dark-factory.test.ts#L181); implemented by [`dark-factory.ts:100`](agent/src/lib/dark-factory.ts#L100))
+- **FR3.5** Sub-setting `notify` MUST support a list of channels: `escalation`, `watched`, `all`. Default when dark-mode-on: `[escalation]`. ([validated by `notify.test.ts:44`](agent/src/lib/notify.test.ts#L44); implemented by [`notify-decision.ts:13`](shared/src/project/notify/notify-decision.ts#L13))
 - **FR3.6** Per-task overrides at creation time MUST be able to force `human_review: required`, `with_issue: true`, or `notify: completion` for a single task without changing repo settings.
-- **FR3.7** Auto-merge decisions MUST be recorded in the audit log with the rule that justified them (path matched, trust level, CI status, bot-approval). ([validated by `audit.test.ts:6`](agent/src/lib/audit.test.ts#L6))
-- **FR3.8** Issues created on escalation MUST contain: task description, branch link, failing phase output (if any), diagnostic from the supervisor, and links to contributing facts/memories.
-- **FR3.9** Authorization on `dark_factory.*` settings MUST be tiered. Privileged changes — toggling `dark_factory.enabled` and modifying `dark_factory.auto_merge.paths` — MUST require both an admin-scope API token and a CODEOWNERS approval recorded in the audit log (a labeled PR against the settings, or an equivalent ceremony surfaced via the web-ui). Lighter sub-settings (`notify`, `create_issue`, `review`, `auto_merge.min_trust`, `auto_merge.require_*`) MAY be changed with admin scope alone. Every mutation, regardless of tier, MUST write an audit_log entry naming the actor, the previous value, the new value, and the authorization path used.
+- **FR3.7** Auto-merge decisions MUST be recorded in the audit log with the rule that justified them (path matched, trust level, CI status, bot-approval). ([validated by `audit.test.ts:6`](agent/src/lib/audit.test.ts#L6), [`auto-merge.test.ts:117`](agent/src/jobs/auto-merge.test.ts#L117); implemented by [`auto-merge.ts:60`](agent/src/jobs/auto-merge.ts#L60), [`audit.ts:9`](agent/src/lib/audit.ts#L9))
+- **FR3.8** Issues created on escalation MUST contain: task description, branch link, failing phase output (if any), diagnostic from the supervisor, and links to contributing facts/memories. ([validated by `escalation.test.ts:35`](agent/src/lib/escalation.test.ts#L35); implemented by [`escalation.ts:65`](agent/src/lib/escalation.ts#L65))
+- **FR3.9** Authorization on `dark_factory.*` settings MUST be tiered. Privileged changes — toggling `dark_factory.enabled` and modifying `dark_factory.auto_merge.paths` — MUST require both an admin-scope API token and a CODEOWNERS approval recorded in the audit log (a labeled PR against the settings, or an equivalent ceremony surfaced via the web-ui). Lighter sub-settings (`notify`, `create_issue`, `review`, `auto_merge.min_trust`, `auto_merge.require_*`) MAY be changed with admin scope alone. Every mutation, regardless of tier, MUST write an audit_log entry naming the actor, the previous value, the new value, and the authorization path used. ([validated by `dark-factory.test.ts:168`](mcp-server/src/api/routes/dark-factory.test.ts#L168), [`dark-factory-settings.test.ts:85`](mcp-server/src/features/dark-factory/dark-factory-settings.test.ts#L85); implemented by [`dark-factory-authz.ts:69`](mcp-server/src/features/dark-factory/dark-factory-authz.ts#L69), [`dark-factory-settings.ts:63`](mcp-server/src/features/dark-factory/dark-factory-settings.ts#L63))
 
 ### FR4 — Migration and compatibility
 
@@ -328,7 +328,40 @@ fewer PRs, each carrying genuine human-decision weight.
 
 - **FR5.1** OpenTelemetry traces MUST cover supervisor phase transitions; each phase produces a span linked to its commit SHA.
 - **FR5.2** A repo dashboard view (web-ui) MUST surface: tasks run dark this week, tasks auto-merged, tasks escalated, current trust level, current `dark_factory` settings. ([validated by `RepoOverviewView.test.tsx:81`](web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L81))
-- **FR5.3** The web-ui task detail page MUST resolve `Lore-Task: <uuid>` from a PR URL and render the branch's stage timeline. ([validated by `Timeline.test.tsx:149`](web-ui/src/app/pipeline/[id]/Timeline.test.tsx#L149))
+- **FR5.3** The web-ui task detail page MUST resolve `Lore-Task: <uuid>` from a PR URL and render the branch's stage timeline. ([validated by `Timeline.test.tsx:149`](web-ui/src/app/pipeline/[id]/Timeline.test.tsx#L149); implemented by [`Timeline.tsx:61`](web-ui/src/app/pipeline/[id]/Timeline.tsx#L61), [`task-timeline.ts:62`](mcp-server/src/api/routes/task-timeline.ts#L62))
+
+## Requirement Traceability
+
+Each functional requirement maps to the user scenario(s) that exercise it and the
+success criteria it advances. Per-statement test and implementation links live
+inline on each FR above (`validated by` / `implemented by`).
+
+| Requirement | Scenario(s) | Success criteria |
+|---|---|---|
+| FR1.1 Trailers on every commit | 1, 6 | SC5 |
+| FR1.2 Next node from git log alone | 2 | SC2 |
+| FR1.3 Empty commit for no-op phases | 1 | SC5 |
+| FR1.4 No history rewrite | 2 | SC2, SC5 |
+| FR1.5 `Lore-Task:` in PR body | 7 | SC5 |
+| FR1.6 Branch-name lease | 2 | SC2 |
+| FR2.1 Workflow YAML (no alt formats) | 1, 3 | SC1 |
+| FR2.2 Node/edge model | 1, 3 | SC1 |
+| FR2.3 Same definition local + GKE | 1, 2, 3 | SC1 |
+| FR2.4 Migrate existing flows | 6 | SC1 |
+| FR2.5 New flow = new graph only | — | SC1 |
+| FR3.1 `enabled` gate | 6 | SC4 |
+| FR3.2 `create_issue` | 1, 4 | SC4 |
+| FR3.3 `auto_merge` allowlist + trust | 1, 3 | SC3, SC6, SC7 |
+| FR3.4 `review` gate | 3 | SC6 |
+| FR3.5 `notify` channels | 5 | SC4 |
+| FR3.6 Per-task overrides | 4 | — |
+| FR3.7 Auto-merge audit record | 1, 3 | SC5, SC7 |
+| FR3.8 Escalation Issue content | 5 | SC4 |
+| FR3.9 Two-key settings authz | (settings change) | SC7 |
+| FR4.1–4.4 Migration & compatibility | 6 | SC8 |
+| FR5.1 OTEL phase spans | 2 | SC2 |
+| FR5.2 Repo dashboard | 7 | — |
+| FR5.3 Timeline + `Lore-Task:` resolver | 7 | SC5 |
 
 ## Success Criteria
 
@@ -359,19 +392,19 @@ At least **three repos representing distinct trust tiers (`docs`, `tests`, `impl
 ## Key Entities
 
 ### Workflow Graph
-A declarative description of a flow as nodes and edges. Stored in `workflows/*.yaml` (or equivalent) and loaded by both the local runner and the GKE supervisor.
+A declarative description of a flow as nodes and edges. Stored in `workflows/*.yaml` (or equivalent) and loaded by both the local runner and the GKE supervisor. ([implemented by `loader.ts:63`](agent/src/workflow/loader.ts#L63))
 
 ### Stage Commit
-A git commit produced at the end of a workflow phase. Carries trailers identifying the stage, iteration, and originating task. The commit is the durable handover unit between phases.
+A git commit produced at the end of a workflow phase. Carries trailers identifying the stage, iteration, and originating task. The commit is the durable handover unit between phases. ([implemented by `commit-trailers.ts:25`](shared/src/commit-trailers.ts#L25))
 
 ### Dark-Factory Policy
-The merged result of the per-repo `settings.dark_factory.*` block plus per-task overrides. Determines: whether to create an Issue, whether to auto-merge on success, who to notify, and how strict the review gate is.
+The merged result of the per-repo `settings.dark_factory.*` block plus per-task overrides. Determines: whether to create an Issue, whether to auto-merge on success, who to notify, and how strict the review gate is. ([implemented by `dark-factory-settings.ts:63`](shared/src/dark-factory-settings.ts#L63))
 
 ### Auto-Merge Decision Record
-An audit-log entry capturing every auto-merge: the PR, the task, the policy that applied, the trust level at decision time, the CI status, and the bot-review verdict. Required for forensic reconstruction.
+An audit-log entry capturing every auto-merge: the PR, the task, the policy that applied, the trust level at decision time, the CI status, and the bot-review verdict. Required for forensic reconstruction. ([implemented by `auto-merge.ts:60`](agent/src/jobs/auto-merge.ts#L60), [`audit.ts:9`](agent/src/lib/audit.ts#L9))
 
 ### Escalation Issue
-A GitHub Issue created on the fly when a task hits `needs-human-help`. Differs from today's per-task Issue in that it carries diagnostic context and links to partial work; humans can act on it without re-deriving state.
+A GitHub Issue created on the fly when a task hits `needs-human-help`. Differs from today's per-task Issue in that it carries diagnostic context and links to partial work; humans can act on it without re-deriving state. ([implemented by `escalation.ts:65`](agent/src/lib/escalation.ts#L65))
 
 ## Constitutional Impact
 
