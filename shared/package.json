@@ -7,7 +7,10 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./project/*.js": { "types": "./dist/project/*.d.ts", "default": "./dist/project/*.js" }
+    "./project/*.js": { "types": "./dist/project/*.d.ts", "default": "./dist/project/*.js" },
+    "./spec-link-parser.js": { "types": "./dist/spec-link-parser.d.ts", "default": "./dist/spec-link-parser.js" },
+    "./spec-segment.js": { "types": "./dist/spec-segment.d.ts", "default": "./dist/spec-segment.js" },
+    "./test-paths.js": { "types": "./dist/test-paths.d.ts", "default": "./dist/test-paths.js" }
   },
   "scripts": {
     "build": "tsc",

@@ -1,0 +1,84 @@
+{
+  "name": "lore-vscode",
+  "displayName": "Lore — spec ↔ code",
+  "description": "Highlights source lines that fulfil a spec statement and links to the local spec, tests, and ADRs.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "re-cinq",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.cjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/re-cinq/lore.git",
+    "directory": "vscode-extension"
+  },
+  "license": "UNLICENSED",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "lore.refresh",
+        "title": "Lore: Refresh spec ↔ code links"
+      },
+      {
+        "command": "lore.toggleHighlights",
+        "title": "Lore: Toggle spec highlights"
+      },
+      {
+        "command": "lore.openLocal",
+        "title": "Lore: Open local file at line"
+      }
+    ],
+    "configuration": {
+      "title": "Lore",
+      "properties": {
+        "lore.apiUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Lore API base URL. Falls back to `git config --global lore.api-url` when empty."
+        },
+        "lore.token": {
+          "type": "string",
+          "default": "",
+          "description": "Lore API bearer token (read scope). Falls back to `git config --global lore.ingest-token` when empty."
+        },
+        "lore.highlightImplemented": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlight lines an inline ([code](file#Lnn)) link marks as implementing a spec statement."
+        },
+        "lore.highlightCovered": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlight lines a spec-linked test exercises (coverage layer, from the remote graph)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "vscode:prepublish": "node esbuild.mjs"
+  },
+  "dependencies": {
+    "@re-cinq/lore-shared": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.2"
+  }
+}
