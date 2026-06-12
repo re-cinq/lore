@@ -3,7 +3,8 @@
   "workspaces": [
     "shared",
     "mcp-server",
-    "agent"
+    "agent",
+    "vscode-extension"
   ],
   "scripts": {
     "start": "bash scripts/dev-local.sh",
