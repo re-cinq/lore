@@ -19,9 +19,13 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
   { name: "base64-blob", re: /[A-Za-z0-9+\/]{100,}={0,2}/g },
 ];
 
-export function redactSecrets(text: string): string {
+export function redactSecrets(
+  text: string,
+  extraPatterns?: Array<{ name: string; re: RegExp }>,
+): string {
   let result = text;
-  for (const p of PATTERNS) {
+  const allPatterns = extraPatterns ? [...PATTERNS, ...extraPatterns] : PATTERNS;
+  for (const p of allPatterns) {
     result = result.replace(p.re, `[REDACTED:${p.name}]`);
   }
   return result;

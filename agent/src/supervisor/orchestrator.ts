@@ -16,7 +16,7 @@ import {
   resolvePrForTaskFromDb,
   type PrForAutoMerge,
 } from "../lib/pr-policy.js";
-import { prFooter } from "../lib/pr-body.js";
+import { prFooter } from "@re-cinq/lore-shared";
 import { escalate } from "../lib/escalation.js";
 import { runSupervisor } from "./index.js";
 import { loadWorkflowDir, type Workflow } from "../workflow/loader.js";

@@ -79,4 +79,12 @@ describe("redactSecrets", () => {
     const input = "status: sk-short";
     expect(redactSecrets(input)).toBe(input);
   });
+
+  it("redacts caller-supplied extra patterns", () => {
+    const result = redactSecrets("custom: SECRET_VALUE_12345", [
+      { name: "custom-secret", re: /SECRET_VALUE_\d+/g },
+    ]);
+    expect(result).toContain("[REDACTED:custom-secret]");
+    expect(result).not.toContain("SECRET_VALUE_12345");
+  });
 });

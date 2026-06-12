@@ -11,7 +11,7 @@
 import * as k8s from "@kubernetes/client-node";
 import { GitHubPlatform } from "../../platform/github.js";
 import { writeLogs } from "../../lib/log-storage.js";
-import { isAlreadyExistsError } from "../../lib/k8s-errors.js";
+import { isAlreadyExistsError } from "@re-cinq/lore-shared";
 
 // ── Constants ───────────────────────────────────────────────────────
 
