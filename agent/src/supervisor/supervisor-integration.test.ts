@@ -6,7 +6,7 @@ import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import type { Octokit } from "octokit";
 import { runSupervisor } from "./index.js";
-import { FileLeaseBackend } from "./lease.js";
+import { FileLeaseBackend } from "@re-cinq/lore-shared";
 import { parseWorkflow } from "../workflow/loader.js";
 import { createAgentHandler } from "./agent-handler.js";
 import { createProductionHandlers } from "./handlers.js";

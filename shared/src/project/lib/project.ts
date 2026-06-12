@@ -10,6 +10,9 @@ import { TestSuite } from "../test-runner/test-suite.js";
 import { TraceView } from "../trace/trace.js";
 import { Agents } from "../agents/agents.js";
 import { Workspace } from "../workspace/workspace.js";
+import { Leases } from "../leases/leases.js";
+import { Audit } from "../audit/audit.js";
+import { Usage } from "../usage/usage.js";
 import { assertCanClone } from "./trust.js";
 
 import type { GitHubPort } from "./github-port.js";
@@ -23,6 +26,9 @@ import type { TestRunnerPort } from "../test-runner/test-runner-port.js";
 import type { TracePort } from "../trace/trace-port.js";
 import type { AgentRunnerPort } from "../agents/agent-runner-port.js";
 import type { GitPort } from "../workspace/git-port.js";
+import type { LeaseBackend } from "../leases/lease-backends.js";
+import type { AuditPort } from "../audit/audit-port.js";
+import type { UsagePort } from "../usage/usage-port.js";
 
 /**
  * The unified internal API. Built by createProject from a repo fullName
@@ -81,6 +87,21 @@ export class Project {
 
   get agents(): Agents {
     return new Agents(this.fullName, this.port<AgentRunnerPort>("agents"), this.env);
+  }
+
+  /** Branch-lease coordination (supervisor pod ownership). */
+  get leases(): Leases {
+    return new Leases(this.port<LeaseBackend>("leases"));
+  }
+
+  /** Append-only audit trail (lease takeovers, auto-merge decisions). */
+  get audit(): Audit {
+    return new Audit(this.fullName, this.port<AuditPort>("audit"));
+  }
+
+  /** LLM-call accounting (pipeline.llm_calls). */
+  get usage(): Usage {
+    return new Usage(this.port<UsagePort>("usage"));
   }
 
   /** Clone the repo to a cache dir and return a Workspace for writes. Refuses on

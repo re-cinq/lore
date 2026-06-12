@@ -6,7 +6,7 @@ import {
   DbLeaseBackend,
   FileLeaseBackend,
   type LeaseBackend,
-} from "./lease.js";
+} from "@re-cinq/lore-shared";
 import {
   executeGraph,
   IterationMaxExceededError,
