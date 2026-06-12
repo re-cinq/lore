@@ -1,57 +1,80 @@
-export const dynamic = "force-dynamic";
-import { queryOne } from '@/lib/db';
-import { revalidatePath } from 'next/cache';
-import { parsePrivilegedChanges, type CurrentSettings } from '@/lib/settings-form';
-import { putPrivilegedSettings, isEmptyPatch, type PrivilegedSaveResult } from '@/lib/mcp-settings';
-import { resolveDarkFactorySettings, DEFAULT_EXECUTION_IMAGE } from '@/lib/dark-factory-resolve';
-import DarkFactoryView from './DarkFactoryView';
-import type { SaveState } from '../settings/SaveResultBanner';
+export const dynamic = 'force-dynamic';
 
-interface RepoSettings {
-  dark_factory?: { execution?: { image?: string } };
+import { query, queryOne } from '@/lib/db';
+import { resolveDarkFactorySettings, type DarkFactorySettings } from '@/lib/dark-factory-resolve';
+import { deriveDarkFactoryConsole, type ConsoleTask, type ConsoleAuditEvent } from './derive-console';
+import DarkFactoryConsoleView from './DarkFactoryConsoleView';
+
+const DF_EVENT_TYPES = ['auto_merge_decision', 'escalation_issued', 'lease_expired', 'spec_trace_ingest'];
+
+interface TaskRow {
+  id: string;
+  task_type: string;
+  status: string;
+  pr_url: string | null;
+  created_at: string | Date;
 }
 
-async function saveDarkFactory(_prev: SaveState, formData: FormData): Promise<SaveState> {
-  'use server';
-  const fullName = formData.get('full_name') as string;
-
-  const repoRow = await queryOne<{ settings: RepoSettings }>(
-    `SELECT settings FROM lore.repos WHERE full_name = $1`, [fullName],
-  );
-  const cur = (repoRow?.settings ?? {}) as RepoSettings;
-  const resolved = resolveDarkFactorySettings(cur.dark_factory ?? null);
-  const current: CurrentSettings = {
-    dark_factory: { ...resolved, execution: cur.dark_factory?.execution },
-  };
-  const patch = parsePrivilegedChanges(formData, current, []);
-
-  let privileged: PrivilegedSaveResult | null = null;
-  if (!isEmptyPatch(patch)) {
-    const approvalPr = (formData.get('approval_pr') as string || '').trim() || undefined;
-    privileged = await putPrivilegedSettings(fullName, patch, approvalPr);
-  }
-
-  revalidatePath(`/repos/${fullName}/dark-factory`);
-  return { saved: true, privileged };
+interface AuditRow {
+  event_type: string;
+  payload: Record<string, unknown> | null;
+  created_at: string | Date;
 }
 
-export default async function RepoDarkFactory({ params }: { params: Promise<{ owner: string; repo: string }> }) {
+const iso = (value: string | Date): string => new Date(value).toISOString();
+
+export default async function DarkFactoryPage({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
-  const repoData = await queryOne<{ settings: RepoSettings | null }>(
-    `SELECT settings FROM lore.repos WHERE full_name = $1`, [fullName],
+
+  const repoData = await queryOne<{ settings: Record<string, unknown> | null }>(
+    `SELECT settings FROM lore.repos WHERE full_name = $1`,
+    [fullName],
   );
   if (!repoData) return <div>Repo not found</div>;
-  const settings = repoData.settings ?? {};
-  const resolved = resolveDarkFactorySettings(settings.dark_factory ?? null);
 
-  return (
-    <DarkFactoryView
-      fullName={fullName}
-      resolved={resolved}
-      rawImage={settings.dark_factory?.execution?.image}
-      defaultExecutionImage={DEFAULT_EXECUTION_IMAGE}
-      saveAction={saveDarkFactory}
-    />
-  );
+  const settings = repoData.settings ?? {};
+  const resolved = resolveDarkFactorySettings(settings.dark_factory as DarkFactorySettings | undefined);
+  const trustLevel = ((settings.trust as { level?: string } | undefined)?.level) ?? 'unset';
+  const clusterGateEnabled = process.env.LORE_DARK_FACTORY_CLUSTER_ENABLED === 'true';
+
+  // Best-effort: pipeline.audit_log may be absent on legacy clusters, and we
+  // never want the console to 500 over an empty operational history.
+  let tasks: ConsoleTask[] = [];
+  let decisions: ConsoleAuditEvent[] = [];
+  try {
+    const taskRows = await query<TaskRow>(
+      `SELECT id, task_type, status, pr_url, created_at FROM pipeline.tasks
+        WHERE target_repo = $1 ORDER BY created_at DESC LIMIT 15`,
+      [fullName],
+    );
+    tasks = taskRows.map((row) => ({
+      id: String(row.id),
+      task_type: row.task_type,
+      status: row.status,
+      pr_url: row.pr_url,
+      created_at: iso(row.created_at),
+    }));
+  } catch {
+    // pipeline.tasks missing — leave tasks empty.
+  }
+  try {
+    const auditRows = await query<AuditRow>(
+      `SELECT event_type, payload, created_at FROM pipeline.audit_log
+        WHERE repo = $1 AND event_type = ANY($2)
+        ORDER BY created_at DESC LIMIT 25`,
+      [fullName, DF_EVENT_TYPES],
+    );
+    decisions = auditRows.map((row) => ({
+      event_type: row.event_type,
+      payload: row.payload ?? {},
+      created_at: iso(row.created_at),
+    }));
+  } catch {
+    // pipeline.audit_log missing — leave decisions empty.
+  }
+
+  const model = deriveDarkFactoryConsole({ resolved, clusterGateEnabled, trustLevel, tasks, decisions });
+
+  return <DarkFactoryConsoleView owner={owner} repo={repo} model={model} />;
 }
