@@ -30,26 +30,6 @@ spec:
           env:
             - name: NAMESPACE
               value: lore-floor
-            - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: lore-floor-anthropic-key
-                  key: anthropic-api-key
-            - name: GITHUB_APP_ID
-              valueFrom:
-                secretKeyRef:
-                  name: lore-floor-github-app
-                  key: app-id
-            - name: GITHUB_APP_PRIVATE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: lore-floor-github-app
-                  key: private-key
-            - name: GITHUB_APP_INSTALLATION_ID
-              valueFrom:
-                secretKeyRef:
-                  name: lore-floor-github-app
-                  key: installation-id
             - name: LORE_LOG_BUCKET
               value: lore-task-logs-${project_id}
             - name: LORE_INGEST_URL
