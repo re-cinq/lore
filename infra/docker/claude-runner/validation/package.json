@@ -4,10 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc"
+    "build": "esbuild src/repo-validation-cli.ts --bundle --platform=node --format=esm --alias:@re-cinq/lore-shared/repo-validation/repo-validation.js=./src/repo-validation.ts --outfile=dist/validation.js"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10",
-    "typescript": "^5.7.3"
+    "esbuild": "^0.25.0"
   }
 }

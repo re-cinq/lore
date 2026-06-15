@@ -13,7 +13,14 @@
  * Outputs JSON to stdout with the validation result.
  */
 
-import { detectTooling, runValidation, formatValidationOutput } from "@re-cinq/lore-shared";
+// Subpath (not the barrel) so the claude-runner image can esbuild-bundle this
+// CLI into a self-contained /validation.js — repo-validation.ts has no heavy
+// deps, the barrel would drag in dgraph/tree-sitter/etc.
+import {
+  detectTooling,
+  runValidation,
+  formatValidationOutput,
+} from "@re-cinq/lore-shared/repo-validation/repo-validation.js";
 
 const args = process.argv.slice(2);
 
