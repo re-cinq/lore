@@ -143,7 +143,7 @@ jobs:
           "
 
       - name: Run integration tests
-        working-directory: mcp-server
+        working-directory: apps/mcp-server
         env:
           LORE_DB_HOST: localhost
           LORE_DB_PORT: 5432

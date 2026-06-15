@@ -5,8 +5,8 @@ on:
     branches: [main]
     paths:
       - 'infra/docker/claude-runner/**'
-      - 'mcp-server/src/repo-validation.ts'
-      - 'mcp-server/src/repo-validation-cli.ts'
+      - 'apps/mcp-server/src/features/repo/repo-validation.ts'
+      - 'apps/mcp-server/src/features/repo/repo-validation-cli.ts'
       - 'apps/agent/**'
       - 'libs/shared/**'
       - 'libs/runner/**'
