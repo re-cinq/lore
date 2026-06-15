@@ -46,6 +46,7 @@ export class K8sLoreTaskClient implements K8sPort {
         timeoutMinutes: spec.timeoutMinutes ?? 30,
         ...(spec.prNumber !== undefined ? { prNumber: spec.prNumber } : {}),
         ...(spec.darkFactory ? { darkFactory: spec.darkFactory } : {}),
+        ...(spec.image ? { image: spec.image } : {}),
       },
     };
 

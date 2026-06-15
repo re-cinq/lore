@@ -20,6 +20,8 @@ export interface LoreTaskSpec {
   name?: string;
   extraLabels?: Record<string, string>;
   darkFactory?: { workflowName: string; baseBranch: string };
+  /** BYO execution container (ADR-025); omitted → CR/controller default. */
+  image?: string;
 }
 
 export interface K8sPort {

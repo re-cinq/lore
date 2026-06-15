@@ -27,6 +27,8 @@ export interface AgentRunOpts {
   name?: string;
   extraLabels?: Record<string, string>;
   darkFactory?: { workflowName: string; baseBranch: string };
+  /** BYO execution container (ADR-025); omitted → controller default. */
+  image?: string;
 }
 
 export interface AgentRunnerPort {
