@@ -2,8 +2,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import {
   parseDarkFactorySettings,
+  parseTaskOverrides,
   twoKeyFieldsTouched,
   type DarkFactorySettings,
+  type TaskOverridesPatch,
 } from "../../features/dark-factory/dark-factory-settings.js";
 import { projectFor } from "../../platform/project-boot.js";
 import { verifyApproval, TwoKeyError } from "../../features/dark-factory/dark-factory-authz.js";
@@ -77,8 +79,13 @@ async function handlePutDarkFactorySettings(
   }
 
   let patch: DarkFactorySettings;
+  let toPatch: TaskOverridesPatch | undefined;
   try {
     patch = parseDarkFactorySettings(body);
+    // Optional sibling: per-task-type overrides. `execution.image` here is
+    // two-key gated like dark_factory.execution.image (ADR-025).
+    const rawTo = (body as { task_overrides?: unknown } | null)?.task_overrides;
+    toPatch = rawTo !== undefined ? parseTaskOverrides(rawTo) : undefined;
   } catch (err) {
     const issues =
       typeof err === "object" && err !== null && "issues" in err
@@ -89,7 +96,7 @@ async function handlePutDarkFactorySettings(
   }
 
   // Two-key check (FR3.9): privileged fields require an approval-PR header.
-  const twoKey = twoKeyFieldsTouched(patch);
+  const twoKey = twoKeyFieldsTouched(patch, toPatch);
   let ceremony: { tier: "two_key" | "admin"; pr_ref?: string; approver?: string; pr_url?: string } = { tier: "admin" };
   if (twoKey.length > 0) {
     const prRef = req.headers["x-lore-approval-pr"];
@@ -152,6 +159,23 @@ async function handlePutDarkFactorySettings(
     }
     settings.dark_factory = next;
 
+    // Per-task-type overrides: deep-merge each touched type (and its nested
+    // `execution`) over the existing entry, leaving untouched types intact.
+    const prevTo = settings.task_overrides ?? {};
+    if (toPatch) {
+      const nextTo: Record<string, Record<string, unknown>> = { ...prevTo };
+      for (const [type, ov] of Object.entries(toPatch)) {
+        nextTo[type] = { ...(prevTo[type] ?? {}), ...ov };
+        if (ov.execution) {
+          nextTo[type].execution = {
+            ...(prevTo[type]?.execution ?? {}),
+            ...ov.execution,
+          };
+        }
+      }
+      settings.task_overrides = nextTo;
+    }
+
     await client.query(
       `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`,
       [settings, repo],
@@ -159,10 +183,15 @@ async function handlePutDarkFactorySettings(
 
     // Audit log entry per FR3.9.
     const auditPayload = {
-      field_paths_changed: Object.keys(patch),
+      field_paths_changed: [
+        ...Object.keys(patch),
+        ...(toPatch
+          ? Object.keys(toPatch).map((t) => `task_overrides.${t}`)
+          : []),
+      ],
       two_key_fields: twoKey,
-      prev: prev,
-      next: next,
+      prev: { dark_factory: prev, task_overrides: prevTo },
+      next: { dark_factory: next, task_overrides: settings.task_overrides ?? prevTo },
       ceremony,
     };
     await client
