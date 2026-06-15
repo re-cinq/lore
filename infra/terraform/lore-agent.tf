@@ -124,7 +124,7 @@ resource "helm_release" "lore_agent" {
   # can't handle commas in multi-line string values.
   values = [
     yamlencode({
-      taskTypesConfig = file("${path.module}/../scripts/task-types.yaml")
+      taskTypesConfig = file("${path.module}/../../scripts/task-types.yaml")
     })
   ]
 

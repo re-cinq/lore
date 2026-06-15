@@ -13,7 +13,7 @@ on:
       # @re-cinq/lore-runner) — a runner-only change must rebuild + redeploy.
       - 'runner/**'
       # Chart or workflow changes need a redeploy too.
-      - 'terraform/modules/gke-mcp/agent-helm/**'
+      - 'infra/terraform/modules/gke-mcp/agent-helm/**'
       - '.github/workflows/build-agent.yml'
   workflow_dispatch:
 
@@ -97,7 +97,7 @@ jobs:
         run: |
           # --reset-then-reuse-values (helm 3.14+) preserves user --set
           # overrides while picking up new chart defaults from values.yaml.
-          helm upgrade --install lore-agent ./terraform/modules/gke-mcp/agent-helm \
+          helm upgrade --install lore-agent ./infra/terraform/modules/gke-mcp/agent-helm \
             --namespace lore-agent \
             --set image.tag=${{ needs.build.outputs.image_tag }} \
             --reset-then-reuse-values \

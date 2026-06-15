@@ -14,7 +14,7 @@
 # uid 1000 (matches K8s SecurityContext).
 #
 # Build context = repo root.
-#   docker build -f docker/claude-runner/Dockerfile -t lore-claude-runner .
+#   docker build -f infra/docker/claude-runner/Dockerfile -t lore-claude-runner .
 
 # ── Stage 1: agent build ──────────────────────────────────────────────
 FROM node:24-slim AS agent-builder
@@ -55,7 +55,7 @@ RUN npm prune --omit=dev --workspace=shared --workspace=runner --workspace=agent
 FROM node:24-slim AS validation-builder
 WORKDIR /build
 COPY mcp-server/src/features/repo/repo-validation.ts mcp-server/src/features/repo/repo-validation-cli.ts ./src/
-COPY docker/claude-runner/validation/package.json docker/claude-runner/validation/tsconfig.json ./
+COPY infra/docker/claude-runner/validation/package.json infra/docker/claude-runner/validation/tsconfig.json ./
 RUN npm install --ignore-scripts && npx tsc
 
 # ── Stage 3: runtime image ────────────────────────────────────────────
@@ -98,7 +98,7 @@ COPY scripts/task-types.yaml /config/task-types.yaml
 RUN useradd -m -s /bin/bash -u 1000 -o runner
 RUN mkdir -p /workspace && chown 1000:1000 /workspace
 WORKDIR /workspace
-COPY docker/claude-runner/entrypoint.sh /entrypoint.sh
+COPY infra/docker/claude-runner/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 USER runner
 ENTRYPOINT ["/entrypoint.sh"]

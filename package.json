@@ -17,8 +17,8 @@
     "dgraph:down": "docker rm -f lore-dgraph",
     "dgraph:schema": "bash scripts/infra/setup-memory-dgraph-schema.sh && bash scripts/infra/setup-spec-trace-schema.sh",
     "trace:schema": "bash scripts/infra/setup-spec-trace-schema.sh",
-    "services:up": "docker compose up -d --wait",
-    "services:down": "docker compose down"
+    "services:up": "docker compose -f infra/compose.yaml up -d --wait",
+    "services:down": "docker compose -f infra/compose.yaml down"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

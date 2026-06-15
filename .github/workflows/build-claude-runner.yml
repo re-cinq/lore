@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'docker/claude-runner/**'
+      - 'infra/docker/claude-runner/**'
       - 'mcp-server/src/repo-validation.ts'
       - 'mcp-server/src/repo-validation-cli.ts'
       - 'agent/**'
@@ -60,7 +60,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: docker/claude-runner/Dockerfile
+          file: infra/docker/claude-runner/Dockerfile
           load: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}

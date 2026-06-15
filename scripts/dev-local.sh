@@ -30,7 +30,7 @@ docker compose version >/dev/null 2>&1 || fail "docker compose v2 not found — 
 #    across restarts. Idempotent: re-running starts/recreates only what's needed.
 #    Dgraph HTTP is published on :8081 (host) to avoid the agent's :8080.
 log "Bringing up backing services (Postgres + Dgraph) via docker compose..."
-docker compose -f "$ROOT/compose.yaml" up -d --wait \
+docker compose -f "$ROOT/infra/compose.yaml" up -d --wait \
   || fail "backing services did not become healthy — check 'docker compose logs'"
 log "Postgres ready on localhost:5432 (db=lore user=postgres password=lore); Dgraph ready on localhost:9080 (gRPC) / :8081 (HTTP)"
 
