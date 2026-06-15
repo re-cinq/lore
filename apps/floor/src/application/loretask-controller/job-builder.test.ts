@@ -78,4 +78,10 @@ describe("buildLoreTaskJob — BYO toolchain image (sidecar)", () => {
     const relay = kernel?.env?.find((e) => e.name === "LORE_TOOLCHAIN_RELAY");
     expect(relay?.value).toBe("/workspace/.lore/relay");
   });
+
+  it("gives the toolchain sidecar a writable HOME on the shared volume", () => {
+    const toolchain = initContainers(job).find((c) => c.name === "toolchain");
+    const home = toolchain?.env?.find((e) => e.name === "HOME");
+    expect(home?.value).toBe("/workspace/.home");
+  });
 });
