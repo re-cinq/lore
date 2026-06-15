@@ -1,3 +1,12 @@
+# Lore test-command interface. Discovery + per-test coverage come from this
+# repo's own vitest runner, spanning every traceability package (shared, agent,
+# mcp-server, web-ui) so spec links to any package's tests get covered. The
+# scripts run vitest per-package internally, so cwd is the repo root.
+# Descriptors are per-`it` (the describe chain feeds spec-sentence acceptance
+# links); `run` executes one whole FILE under buildTestReport's concurrency cap.
+# coverage_format MUST be json: the local run path JSON.parses stdout.
 list: npm run trace:list-tests
 run: npm run trace:run-test -- {selector}
 coverage_format: json
+cwd: "."
+path_prefix_strip: ""
