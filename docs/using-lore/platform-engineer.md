@@ -8,7 +8,7 @@ If you're standing up Lore for the first time, deploy the backend first, then co
 
 ## Tasks via the Web UI or API
 
-A product owner or platform engineer creates a task through the dashboard. The Lore Agent processes it — either via a direct API call (simple tasks) or by delegating to ephemeral Job pods through the LoreTask CRD (complex tasks).
+A product owner or platform engineer creates a task through the dashboard. The Floor processes it — either via a direct API call (simple tasks) or by delegating to ephemeral Job pods through the LoreTask CRD (complex tasks).
 
 <p align="center"><img src="../../badges/flow2-webui.svg" width="600" alt="Tasks via Web UI or API" /></p>
 

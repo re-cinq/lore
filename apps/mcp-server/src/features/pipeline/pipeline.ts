@@ -3,7 +3,7 @@
  * recordEvent/cancelTask/markTaskMerged) lives once in @re-cinq/lore-shared and
  * is re-exported here; this file keeps the mcp-specific policy (trust-level gate
  * + getDefaultRepo on createTask, retry, review-iteration). Task processing
- * itself is handled by the lore-agent service.
+ * itself is handled by the Floor service.
  */
 
 import { getDefaultRepo } from './pipeline-config.js';

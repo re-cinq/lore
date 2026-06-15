@@ -1,14 +1,14 @@
 {{/*
-Shared environment block for the lore-agent Deployment AND every CronJob
+Shared environment block for the lore-floor Deployment AND every CronJob
 spawned by templates/cronjob.yaml. Centralizing here keeps the
 in-process scheduler and the K8s CronJob pods on the exact same env,
 secrets, and value sources — no drift, no per-target literals.
 
 Usage:
   env:
-    {{- include "lore-agent.env" . | nindent 12 }}
+    {{- include "lore-floor.env" . | nindent 12 }}
 */}}
-{{- define "lore-agent.env" -}}
+{{- define "lore-floor.env" -}}
 {{- range $key, $val := .Values.env }}
 - name: {{ $key }}
   value: {{ $val | quote }}

@@ -24,7 +24,7 @@ flowchart TB
 
     subgraph gke["GKE cluster"]
         MCP["MCP server<br/>(Streamable HTTP)"]
-        AGENT["Lore Agent<br/>worker + scheduler + HTTP :8080"]
+        AGENT["Floor<br/>worker + scheduler + HTTP :8080"]
         CTRL["LoreTask controller"]
         POD["Ephemeral Job pods<br/>(claude-runner image)"]
         UI["Web UI (Next.js)"]
@@ -116,7 +116,7 @@ The full job registry — every schedule and what it does — is in [Scheduled J
 | Component | What it does |
 |-----------|-------------|
 | **MCP Server** | Serves org context to Claude Code via the MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. Per-client scoped tokens. Rate-limited. |
-| **Lore Agent** | Processes pipeline tasks. Calls the Claude API for simple tasks; delegates complex tasks (implementation) to ephemeral Job pods via the LoreTask CRD. Runs the scheduled maintenance jobs. Creates PRs via the GitHub App. Every task automatically opens a GitHub Issue on the target repo so developers see what Lore is doing without checking the dashboard; Issues are updated on status changes and closed when the PR is created. |
+| **Floor** | Processes pipeline tasks. Calls the Claude API for simple tasks; delegates complex tasks (implementation) to ephemeral Job pods via the LoreTask CRD. Runs the scheduled maintenance jobs. Creates PRs via the GitHub App. Every task automatically opens a GitHub Issue on the target repo so developers see what Lore is doing without checking the dashboard; Issues are updated on status changes and closed when the PR is created. |
 | **LoreTask Controller** | Watches LoreTask custom resources and spawns ephemeral K8s Job pods with the claude-runner image. Each Job pod clones the target repo, runs Claude Code, commits, and pushes. Tasks survive agent deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and an egress-restricted NetworkPolicy. |
 | **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector search, GIN for keyword. |

@@ -32,5 +32,5 @@ roleRef:
   name: loretask-agent
 subjects:
   - kind: ServiceAccount
-    name: lore-agent
-    namespace: lore-agent
+    name: lore-floor
+    namespace: lore-floor

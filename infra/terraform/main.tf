@@ -66,7 +66,7 @@ resource "kubernetes_namespace" "mcp_servers" {
 }
 
 resource "kubernetes_namespace" "lore_agent" {
-  metadata { name = "lore-agent" }
+  metadata { name = "lore-floor" }
 }
 
 resource "kubernetes_namespace" "lore_ui" {

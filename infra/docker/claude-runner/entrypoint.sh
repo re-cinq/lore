@@ -33,7 +33,7 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   fi
 
   # --- Configure git ---
-  git config --global user.name "Lore Agent"
+  git config --global user.name "Lore Floor"
   git config --global user.email "lore@re-cinq.com"
 
   # --- Clone repo + branch ---
@@ -48,9 +48,9 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   # inside the same workdir, retrospective writes the stage commit,
   # iteration_max bounds loops. exit code 0 = workflow completed.
   export WORKDIR=/workspace/repo
-  export GIT_AUTHOR_NAME="Lore Agent"
+  export GIT_AUTHOR_NAME="Lore Floor"
   export GIT_AUTHOR_EMAIL="lore@re-cinq.com"
-  export GIT_COMMITTER_NAME="Lore Agent"
+  export GIT_COMMITTER_NAME="Lore Floor"
   export GIT_COMMITTER_EMAIL="lore@re-cinq.com"
 
   # task-types.yaml is baked into the image at /config/task-types.yaml
@@ -109,7 +109,7 @@ if [ "$TASK_TYPE" = "review" ]; then
 
   # --- Configure git ---
   echo "[runner] Configuring git..."
-  git config --global user.name "Lore Agent"
+  git config --global user.name "Lore Floor"
   git config --global user.email "lore@re-cinq.com"
 
   # --- Configure gh auth ---
@@ -175,7 +175,7 @@ else
 
   # --- Configure git ---
   echo "[runner] Configuring git..."
-  git config --global user.name "Lore Agent"
+  git config --global user.name "Lore Floor"
   git config --global user.email "lore@re-cinq.com"
 
   # --- Clone repo ---

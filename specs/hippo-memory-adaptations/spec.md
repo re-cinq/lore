@@ -213,11 +213,11 @@ repo B
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
-  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-lifecycle.test.ts:69`](apps/agent/src/application/jobs/cron/memory-lifecycle.test.ts#L69))
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`. ([validated by `memory-lifecycle.test.ts:58`](apps/agent/src/application/jobs/cron/memory-lifecycle.test.ts#L58))
+  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-lifecycle.test.ts:69`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L69))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`. ([validated by `memory-lifecycle.test.ts:58`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L58))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
-  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-lifecycle.test.ts:101`](apps/agent/src/application/jobs/cron/memory-lifecycle.test.ts#L101))
-- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-lifecycle.test.ts:117`](apps/agent/src/application/jobs/cron/memory-lifecycle.test.ts#L117))
+  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-lifecycle.test.ts:101`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L101))
+- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-lifecycle.test.ts:117`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L117))
 
 ## Non-Functional Requirements
 

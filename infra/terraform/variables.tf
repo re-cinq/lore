@@ -59,7 +59,7 @@ variable "webhook_secret" {
 }
 
 variable "agent_internal_token" {
-  description = "Shared secret between mcp-server and lore-agent for /api/trigger/* (e.g. review-reactor webhook fan-out)."
+  description = "Shared secret between mcp-server and lore-floor for /api/trigger/* (e.g. review-reactor webhook fan-out)."
   type        = string
   sensitive   = true
 }

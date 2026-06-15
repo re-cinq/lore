@@ -23,7 +23,7 @@ kind: CronJob
 metadata:
   name: {{ $root.Release.Name }}-{{ .name }}
   labels:
-    app: lore-agent
+    app: lore-floor
     component: cronjob
     job: {{ .job }}
 spec:
@@ -39,11 +39,11 @@ spec:
       template:
         metadata:
           labels:
-            app: lore-agent
+            app: lore-floor
             component: cronjob
             job: {{ .job }}
         spec:
-          serviceAccountName: lore-agent
+          serviceAccountName: lore-floor
           restartPolicy: Never
           {{- if $root.Values.imagePullSecrets }}
           imagePullSecrets:
@@ -55,7 +55,7 @@ spec:
               imagePullPolicy: {{ $root.Values.image.pullPolicy }}
               command: ["node", "dist/delivery/job-runner.js", {{ .job | quote }}]
               env:
-                {{- include "lore-agent.env" $root | nindent 16 }}
+                {{- include "lore-floor.env" $root | nindent 16 }}
               volumeMounts:
                 - name: config
                   mountPath: /config

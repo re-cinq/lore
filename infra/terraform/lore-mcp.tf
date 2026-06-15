@@ -112,7 +112,7 @@ resource "helm_release" "lore_mcp" {
   }
   set {
     name  = "env.LORE_AGENT_URL"
-    value = "http://lore-agent.lore-agent.svc.cluster.local:8080"
+    value = "http://lore-floor.lore-floor.svc.cluster.local:8080"
   }
 
   # Task type config — inlined from scripts/task-types.yaml.
