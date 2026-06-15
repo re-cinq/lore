@@ -1,6 +1,6 @@
 {{/*
 One CronJob per entry in .Values.cronJobs. Each pod runs
-`node dist/job-runner.js <job>` inside the same agent image, with the
+`node dist/delivery/job-runner.js <job>` inside the same agent image, with the
 shared env from _env.tpl (no drift vs. the Deployment).
 
 Per-entry overrides:
@@ -53,7 +53,7 @@ spec:
             - name: job
               image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}"
               imagePullPolicy: {{ $root.Values.image.pullPolicy }}
-              command: ["node", "dist/job-runner.js", {{ .job | quote }}]
+              command: ["node", "dist/delivery/job-runner.js", {{ .job | quote }}]
               env:
                 {{- include "lore-agent.env" $root | nindent 16 }}
               volumeMounts:
