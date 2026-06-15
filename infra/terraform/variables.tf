@@ -52,6 +52,17 @@ variable "ingest_token" {
   sensitive = true
 }
 
+# Gates the web-ui admin-token ExternalSecret. The web-ui calls the mcp-server's
+# two-key-gated dark-factory settings endpoint with an admin-scoped token. Mint
+# the token via the mcp `/api/tokens` endpoint (scope: admin), store it in GCP
+# Secret Manager as `lore-admin-token`, then set this true and re-apply. Until
+# then the UI's LORE_ADMIN_TOKEN env is unset (optional) and privileged settings
+# saves surface an "API not configured" notice — general settings still persist.
+variable "enable_ui_admin_token" {
+  type    = bool
+  default = false
+}
+
 variable "webhook_secret" {
   type      = string
   sensitive = true

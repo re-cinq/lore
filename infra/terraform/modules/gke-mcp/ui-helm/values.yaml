@@ -54,6 +54,15 @@ ingestTokenSecret:
   name: lore-ingest-token
   key: token
 
+# Admin-scoped token for server-to-server calls to the mcp-server's two-key-gated
+# dark-factory settings endpoint (privileged per-repo settings writes). Optional:
+# the deployment references it with optional: true, so a missing secret (before
+# the operator mints the token + enables the ExternalSecret) does not stall the
+# rollout — privileged saves just surface an "API not configured" notice.
+adminTokenSecret:
+  name: lore-admin-token
+  key: token
+
 githubAppSecret:
   name: github-app-credentials
   appIdKey: app-id

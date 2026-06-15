@@ -37,6 +37,15 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.ingestTokenSecret.name }}
                   key: {{ .Values.ingestTokenSecret.key }}
+            # Optional: present only once the admin-token ExternalSecret is
+            # enabled (var.enable_ui_admin_token). optional: true keeps the
+            # rollout from stalling on a missing secret.
+            - name: LORE_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.adminTokenSecret.name }}
+                  key: {{ .Values.adminTokenSecret.key }}
+                  optional: true
             - name: LORE_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
