@@ -1,5 +1,6 @@
 import type { PgPool, DgraphClientPort } from "../../memory-store.js";
 import type { ProjectProviders } from "./providers.js";
+import type { LeasePool } from "../leases/lease-backends.js";
 import { Project } from "./project.js";
 
 /**
@@ -56,6 +57,29 @@ export async function createProject(
 
   const { AgentRunner } = await import("../agents/agent-runner.js");
   ports.set("agents", new AgentRunner(env, { k8s: providers.k8s, llm: providers.llm }));
+
+  const { PgAudit } = await import("../audit/audit-pg.js");
+  ports.set("audit", new PgAudit(pgPool));
+
+  const { PgUsage } = await import("../usage/usage-pg.js");
+  ports.set("usage", new PgUsage(pgPool));
+
+  // Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under
+  // ~/.lore/leases for the local runner. Mirrors the agent's leaseBackendForEnv.
+  const { DbLeaseBackend, FileLeaseBackend } = await import(
+    "../leases/lease-backends.js"
+  );
+  if (env.LORE_DB_HOST) {
+    // The real pg pool returns rowCount; PgPool's narrow type omits it.
+    ports.set("leases", new DbLeaseBackend(pgPool as unknown as LeasePool));
+  } else {
+    const os = await import("node:os");
+    const path = await import("node:path");
+    ports.set(
+      "leases",
+      new FileLeaseBackend(path.join(os.homedir(), ".lore", "leases")),
+    );
+  }
 
   return new Project(fullName, ports, env);
 }

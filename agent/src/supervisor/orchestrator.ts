@@ -10,18 +10,23 @@ import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import { query } from "../platform/db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
-import { evaluateAndMerge } from "../jobs/auto-merge.js";
+import { evaluateAndMerge, type AutoMergeJobInputs } from "../jobs/auto-merge.js";
 import {
   buildOctokit,
   resolvePrForTaskFromDb,
   type PrForAutoMerge,
 } from "../lib/pr-policy.js";
-import { prFooter } from "../lib/pr-body.js";
+import { prFooter } from "@re-cinq/lore-shared";
 import { escalate } from "../lib/escalation.js";
-import { runSupervisor } from "./index.js";
-import { loadWorkflowDir, type Workflow } from "../workflow/loader.js";
-import { createAgentHandler } from "./agent-handler.js";
-import { createProductionHandlers } from "./handlers.js";
+import { writeAuditLog } from "../lib/audit.js";
+import { leaseBackendForEnv } from "./lease-backend.js";
+import {
+  runSupervisor,
+  loadBuiltinWorkflows,
+  createAgentHandler,
+  createProductionHandlers,
+  type Workflow,
+} from "@re-cinq/lore-runner";
 import { buildPrompt, getTaskTypeConfig } from "../platform/config.js";
 
 const execFile = promisify(execFileCb);
@@ -52,8 +57,8 @@ export interface ProcessTaskViaSupervisorOptions {
    * when omitted (greenfield tasks).
    */
   branchName?: string;
-  /** Override for tests — defaults to load from `agent/src/workflows/`. */
-  loadWorkflows?: (dir: string) => Promise<Map<string, Workflow>>;
+  /** Override for tests — defaults to the runner's bundled workflows. */
+  loadWorkflows?: () => Promise<Map<string, Workflow>>;
   /** Override for tests — defaults to constructing an Octokit. */
   octokit?: Octokit;
   /** Override for tests — defaults to using a tmpdir under `os.tmpdir()`. */
@@ -72,12 +77,6 @@ export interface ProcessTaskViaSupervisorResult {
   branchName?: string;
   errorMessage?: string;
 }
-
-const WORKFLOWS_DIR = path.resolve(
-  new URL(".", import.meta.url).pathname,
-  "..",
-  "workflows",
-);
 
 /**
  * Maps task_type → workflow name. The workflow YAML's `name` field is
@@ -110,7 +109,7 @@ export async function processTaskViaSupervisor(
   const { task, settings } = opts;
   const branchName = opts.branchName ?? buildBranchName(task);
 
-  const workflows = await (opts.loadWorkflows ?? loadWorkflowDir)(WORKFLOWS_DIR);
+  const workflows = await (opts.loadWorkflows ?? loadBuiltinWorkflows)();
   const workflow = workflows.get(task.task_type);
   if (!workflow) {
     return {
@@ -157,7 +156,9 @@ export async function processTaskViaSupervisor(
         writeEpisode,
         writeEpisodeWithCuration,
         curate: true,
-        evaluateAndMerge,
+        // The kernel types `policy` opaquely; the real engine expects
+        // AutoMergeJobInputs, so cast at this boundary.
+        evaluateAndMerge: (i) => evaluateAndMerge(i as AutoMergeJobInputs),
         resolvePrForTask: async (taskId) =>
           await resolvePrForTaskFromDb(taskId, settings, octokit),
       },
@@ -170,6 +171,8 @@ export async function processTaskViaSupervisor(
       gitDir: workdir,
       workflow,
       handlers,
+      leaseBackend: leaseBackendForEnv(),
+      audit: process.env.LORE_DB_HOST ? { write: writeAuditLog } : undefined,
       // FR3.8 / T040: a stuck task must produce a needs-human-help
       // Issue + Slack ping with full context. Wired here so the
       // dark-factory dispatch path doesn't lose the escalation hook.

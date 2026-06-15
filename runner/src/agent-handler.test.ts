@@ -6,7 +6,7 @@ import {
   createAgentHandler,
   extractJsonFiles,
 } from "./agent-handler.js";
-import type { WorkflowNode } from "../workflow/loader.js";
+import type { WorkflowNode } from "./loader.js";
 import type { NodeContext } from "./graph-executor.js";
 import type { LlmCompletion } from "@re-cinq/lore-shared";
 

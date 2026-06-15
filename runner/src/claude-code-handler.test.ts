@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { createClaudeCodeAgentHandler } from "./claude-code-handler.js";
-import type { WorkflowNode } from "../workflow/loader.js";
+import type { WorkflowNode } from "./loader.js";
 import type { NodeContext } from "./graph-executor.js";
-import type { ClaudeCodeResult } from "../features/task-processing/claude-code.js";
+import type { ClaudeCodeResult } from "./claude-code.js";
 
 const node: WorkflowNode = {
   id: "implement",

@@ -17,7 +17,7 @@ import {
   summarizeFailures,
   TaskFailure,
   type StepFailure,
-} from "../../lib/error-classify.js";
+} from "@re-cinq/lore-shared";
 import type { PipelineTask } from "@re-cinq/lore-shared";
 import { linkifyMarkdown, LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, TRACE_IMPACT_WORKFLOW_PATH, TRACE_IMPACT_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck, setTaskStatus, recordTaskEvent, createDgraphClient } from "@re-cinq/lore-shared";
 import { handleGraphIngest } from "../spec-trace/graph-ingest-handler.js";
@@ -398,10 +398,10 @@ async function linkPrToIssue(
 
 /**
  * Get the PR footer with optional `Refs #N` and required `Lore-Task: <uuid>`
- * (T047 / FR1.5). Re-exported via `lib/pr-body.ts` for reuse in
- * loretask-watcher.ts.
+ * (T047 / FR1.5). Sourced from `@re-cinq/lore-shared` (pr-body) for reuse
+ * across the agent.
  */
-import { prFooter } from "../../lib/pr-body.js";
+import { prFooter } from "@re-cinq/lore-shared";
 function issueRef(issueNumber: number | null, taskId: string): string {
   return prFooter({ issueNumber, taskId });
 }

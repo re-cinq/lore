@@ -221,7 +221,9 @@ describe("loadWorkflowDir — bundled workflows", () => {
   // workflows directory relative to this test file so this works in
   // both source-tree and dist-tree runs.
   const here = new URL(".", import.meta.url).pathname;
-  const workflowsDir = path.resolve(here, "..", "workflows");
+  // The bundled YAMLs are a sibling of this file (src/workflows/), and the
+  // build copies them to dist/workflows/ — same relative position either way.
+  const workflowsDir = path.resolve(here, "workflows");
 
   it("loads gap-fill, general, and implementation without error", async () => {
     const map = await loadWorkflowDir(workflowsDir);

@@ -4,7 +4,7 @@
  */
 
 import { Storage } from "@google-cloud/storage";
-import { redactSecrets } from "./redact.js";
+import { redactSecrets } from "@re-cinq/lore-shared";
 
 const BUCKET_NAME = process.env.LORE_LOG_BUCKET || "lore-task-logs";
 let storage: Storage | null = null;

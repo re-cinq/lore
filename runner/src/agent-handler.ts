@@ -5,8 +5,8 @@ import type {
   NodeHandler,
   NodeResult,
 } from "./graph-executor.js";
-import type { WorkflowNode } from "../workflow/loader.js";
-import type { LlmCompletion } from "@re-cinq/lore-shared";
+import type { WorkflowNode } from "./loader.js";
+import type { LlmCompletion } from "@re-cinq/lore-shared/llm/llm-provider.js";
 
 /**
  * Factory dependencies. All injectable so the handler can be unit-tested

@@ -9,6 +9,9 @@ on:
       # change must rebuild + redeploy, or the cluster runs stale shared code
       # while main is green (rediscovered 2026-06-11).
       - 'shared/**'
+      # The compiled `runner` kernel is bundled too (the agent imports
+      # @re-cinq/lore-runner) — a runner-only change must rebuild + redeploy.
+      - 'runner/**'
       # Chart or workflow changes need a redeploy too.
       - 'terraform/modules/gke-mcp/agent-helm/**'
       - '.github/workflows/build-agent.yml'

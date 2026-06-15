@@ -4,13 +4,20 @@ WORKDIR /app
 # Copy workspace root + all package.jsons for workspace resolution
 COPY package.json ./
 COPY shared/package.json ./shared/
+COPY runner/package.json ./runner/
 COPY agent/package.json ./agent/
-RUN npm install --workspace=shared --workspace=agent
+RUN npm install --workspace=shared --workspace=runner --workspace=agent
 
 # Build shared
 COPY shared/tsconfig.json ./shared/
 COPY shared/src ./shared/src
 RUN npm run build --workspace=shared
+
+# Build the runner kernel (the agent imports @re-cinq/lore-runner; its build
+# also copies the workflow YAMLs to runner/dist/workflows for loadBuiltinWorkflows).
+COPY runner/tsconfig.json ./runner/
+COPY runner/src ./runner/src
+RUN npm run build --workspace=runner
 
 # Build agent
 COPY agent/tsconfig.json ./agent/
@@ -21,6 +28,9 @@ FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/shared ./shared
+# /app/runner mirrors /app/shared so the workspace symlink
+# node_modules/@re-cinq/lore-runner → ../../runner resolves at runtime.
+COPY --from=builder /app/runner ./runner
 COPY --from=builder /app/agent/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/agent/package.json ./
