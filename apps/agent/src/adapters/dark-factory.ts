@@ -1,5 +1,5 @@
 import { query } from "../data/db.js";
-import { requiresApproval } from "../application/approval/approval.js";
+import { requiresApproval } from "./approval/approval.js";
 // Canonical types + resolver moved to @re-cinq/lore-shared so all
 // consumers (agent, mcp-server, GKE Job pod runner) share one source.
 import {

@@ -1,7 +1,7 @@
 import { trace } from "@opentelemetry/api";
 import { allPathsMatch, matchingPatterns } from "@re-cinq/lore-shared";
 import { writeAuditLog } from "../../adapters/audit.js";
-import { projectFor } from "../../ports/project-boot.js";
+import { projectFor } from "../../application/project-boot.js";
 
 const tracer = trace.getTracer("lore.auto_merge");
 

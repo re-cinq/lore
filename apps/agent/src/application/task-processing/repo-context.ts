@@ -1,4 +1,4 @@
-import { projectFor } from "../../ports/project-boot.js";
+import { projectFor } from "../../application/project-boot.js";
 
 export interface RepoContext {
   tree: string[];

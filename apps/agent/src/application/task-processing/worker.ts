@@ -7,7 +7,7 @@
 
 import { query, getPool } from "../../data/db.js";
 import { generateArtifactCopy } from "../../adapters/artifact-copy.js";
-import { projectFor } from "../../ports/project-boot.js";
+import { projectFor } from "../../application/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../data/config.js";
 import {
   classifyError,
@@ -156,7 +156,7 @@ async function processTask(task: any): Promise<void> {
   }
 
   // Check if this task requires approval
-  const { requiresApproval, getApprovalLabel } = await import("../approval/approval.js");
+  const { requiresApproval, getApprovalLabel } = await import("../../adapters/approval/approval.js");
   if (requiresApproval(task.task_type, targetRepo)) {
     await setStatus(task.id, "awaiting_approval");
     await insertEvent(task.id, "pending", "awaiting_approval", { reason: "approval-required" });

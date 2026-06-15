@@ -1,5 +1,5 @@
 import { query } from "../../../data/db.js";
-import { projectFor } from "../../../ports/project-boot.js";
+import { projectFor } from "../../../application/project-boot.js";
 import { writeEpisodeWithCuration } from "../../../adapters/episode-writer.js";
 import { parseTasks, inferPhaseDependencies } from "@re-cinq/lore-shared";
 

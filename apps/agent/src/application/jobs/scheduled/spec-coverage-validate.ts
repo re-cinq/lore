@@ -30,7 +30,7 @@ import {
   type TestLinkRef,
 } from "@re-cinq/lore-shared";
 import { query } from "../../../data/db.js";
-import { projectFor } from "../../../ports/project-boot.js";
+import { projectFor } from "../../../application/project-boot.js";
 
 export interface ChunkLineRange {
   file_path: string;

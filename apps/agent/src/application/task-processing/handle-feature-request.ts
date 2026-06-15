@@ -7,7 +7,7 @@
 
 import { query } from "../../data/db.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { projectFor } from "../../ports/project-boot.js";
+import { projectFor } from "../../application/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { writeEpisode } from "../../adapters/episode-writer.js";
 import { slugify, setStatus, insertEvent, issueRef, linkPrToIssue } from "./task-helpers.js";

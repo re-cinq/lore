@@ -8,7 +8,7 @@
  */
 
 import { KubeConfig, CustomObjectsApi, CoreV1Api } from "@kubernetes/client-node";
-import { projectFor } from "../../../ports/project-boot.js";
+import { projectFor } from "../../../application/project-boot.js";
 import { query } from "../../../data/db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../../../adapters/episode-writer.js";
 import { tryAutoMergeForCompletedTask } from "../auto-merge-trigger.js";

@@ -5,7 +5,7 @@ import { recoverStaleTasks, startWorker } from "../application/task-processing/w
 import { registerJob, startScheduler, getJobStatus } from "../application/scheduling/scheduler.js";
 import { startHealthServer } from "./health.js";
 
-import { loadApprovalConfig } from "../application/approval/approval.js";
+import { loadApprovalConfig } from "../adapters/approval/approval.js";
 import { approvalCheckJob } from "../application/jobs/scheduled/approval-check.js";
 import { mergeCheckJob } from "../application/jobs/scheduled/merge-check.js";
 import { reviewReactorJob } from "../application/jobs/scheduled/review-reactor.js";

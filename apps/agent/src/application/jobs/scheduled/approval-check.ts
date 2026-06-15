@@ -1,6 +1,6 @@
 import { query } from "../../../data/db.js";
-import { projectFor } from "../../../ports/project-boot.js";
-import { getApprovalLabel } from "../../approval/approval.js";
+import { projectFor } from "../../../application/project-boot.js";
+import { getApprovalLabel } from "../../../adapters/approval/approval.js";
 
 interface AwaitingTask {
   id: string;

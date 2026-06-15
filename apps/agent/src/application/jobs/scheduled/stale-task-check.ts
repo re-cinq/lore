@@ -19,7 +19,7 @@
  */
 
 import { query } from "../../../data/db.js";
-import { projectFor } from "../../../ports/project-boot.js";
+import { projectFor } from "../../../application/project-boot.js";
 
 const STALE_THRESHOLD_HOURS = 6;
 

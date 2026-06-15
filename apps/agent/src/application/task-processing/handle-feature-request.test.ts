@@ -20,7 +20,7 @@ const fetchRepoContext = vi.fn();
 const query = vi.fn();
 const writeEpisode = vi.fn();
 
-vi.mock("../../ports/project-boot.js", () => ({ projectFor: async () => fakeProject }));
+vi.mock("../../application/project-boot.js", () => ({ projectFor: async () => fakeProject }));
 vi.mock("./repo-context.js", () => ({ fetchRepoContext: (...a: unknown[]) => fetchRepoContext(...a) }));
 vi.mock("../../data/db.js", () => ({
   query: (...a: unknown[]) => query(...a),

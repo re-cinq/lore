@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { query } from "../../../data/db.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { projectFor } from "../../../ports/project-boot.js";
+import { projectFor } from "../../../application/project-boot.js";
 
 const execFileAsync = promisify(execFile);
 

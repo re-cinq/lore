@@ -1,5 +1,5 @@
 import { query } from "../../../data/db.js";
-import { projectFor } from "../../../ports/project-boot.js";
+import { projectFor } from "../../../application/project-boot.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { writeEpisode } from "../../../adapters/episode-writer.js";
 import { isBusinessHours } from "@re-cinq/lore-shared";

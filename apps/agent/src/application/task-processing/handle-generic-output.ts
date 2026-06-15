@@ -6,7 +6,7 @@
  */
 
 import { generateArtifactCopy } from "../../adapters/artifact-copy.js";
-import { projectFor } from "../../ports/project-boot.js";
+import { projectFor } from "../../application/project-boot.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import { setStatus, insertEvent, issueRef, linkPrToIssue } from "./task-helpers.js";
 

@@ -6,7 +6,7 @@
  */
 
 import { getPool } from "../../data/db.js";
-import { projectFor } from "../../ports/project-boot.js";
+import { projectFor } from "../../application/project-boot.js";
 import { prFooter, setTaskStatus, recordTaskEvent } from "@re-cinq/lore-shared";
 
 // ── Helpers ───────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@
  * Runs every minute.
  */
 
-import { projectFor } from "../../../ports/project-boot.js";
+import { projectFor } from "../../../application/project-boot.js";
 import { query } from "../../../data/db.js";
 import { buildPrompt, getTaskTypeConfig } from "../../../data/config.js";
 
