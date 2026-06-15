@@ -1,282 +1,265 @@
-# Feature Specification: LoreTask CRD — Ephemeral Claude Code Execution
+# Lore System Specification
 
-| Field          | Value                                    |
-|----------------|------------------------------------------|
-| Feature        | LoreTask CRD + Controller                |
-| Branch         | feat/loretask-crd                        |
-| Status         | Shipped                                  |
-| Created        | 2026-04-01                               |
-| Last Updated   | 2026-04-06                               |
-| Owner          | Platform Engineering                     |
+## Overview
 
-## Problem Statement
+Lore is a shared context infrastructure platform that makes Claude Code organization-aware. It enables developers to access org-wide conventions, team-specific patterns, architectural decisions, and current task state automatically—without manual context loading. Beyond context delivery, Lore functions as an **agent operating system** that runs background autonomous agents for repository onboarding, documentation gap detection, specification drift checking, and PR review, all producing pull requests for human review and merge.
 
-Implementation tasks run `claude --print` inside the long-lived agent
-pod. This is fundamentally broken:
+**Status:** Production (GKE-deployed)  
+**Primary Users:** Developers, product managers, platform engineers  
+**Core Technology Stack:** TypeScript (MCP server), Python (glue scripts), Bash (install/infra), PostgreSQL + pgvector (vector store), Kubernetes (cluster runtime), Anthropic Claude API (agent execution)
 
-1. **CI deploys kill running tasks** — Every push to main triggers
-   `build-agent.yml` → deploy → `kubectl rollout restart`, which
-   terminates the pod while Claude Code is mid-execution. Tasks go
-   `pending` → `running` → orphaned.
-2. **No parallelism** — The worker is single-threaded. One Claude Code
-   session blocks the entire agent for 5-15 minutes.
-3. **No isolation** — A runaway Claude Code session can OOM the agent
-   pod, taking down task polling, schedulers, and health checks.
-4. **No observability** — Claude Code stdout/stderr is lost when the
-   pod restarts. No way to stream progress to the UI.
+## Key Capabilities
 
-## Solution: LoreTask CRD + Controller
+### Context Delivery
+- **lore_assemble_context** — Single-call, token-budgeted retrieval of org conventions, ADRs, team patterns, PR history, and task state
+- **lore_search_context** — Hybrid search (vector + BM25 via Reciprocal Rank Fusion) across repo documentation, code patterns, and structured knowledge
+- **lore_search_memory** — Semantic search across persistent agent memories, facts, and episodes with confidence annotations
+- **lore_query_graph** — Query live knowledge graph for entities and relationships
 
-Replace in-process `spawn("claude")` with a Kubernetes-native pattern:
+### Agent Memory & Knowledge
+- **lore_write_memory** — Store persistent key-value memories with optional TTL
+- **lore_read_memory** — Retrieve memories with version history
+- **lore_write_episode** — Ingest unstructured text (conversations, observations); auto-extracts facts and updates knowledge graph
+- **lore_agent_stats** — Health metrics, memory count, episode count, facts, searches, daily breakdown
+- Auto-curated facts with temporal validity, confidence tiers (verified/observed/inferred/stale), and retrieval strengthening
+- Knowledge graph with entities and relationships extracted from episodes
+- Automatic consolidation of recent facts into higher-level patterns
+- Importance-based memory decay with half-life model; eviction when count exceeds 500
 
-```
-Agent Worker                    K8s API                     Job Pod
-─────────────                   ───────                     ─────────
-detects pending task ──────►  creates LoreTask CR
-                              controller watches ──────►  creates Job
-                                                          clone repo
-                                                          hydrate context
-                                                          claude --print ...
-                                                          validate (lint/typecheck)
-                                                          git add/commit/push
-                              Job completes ◄──────────   exit 0
-controller reads Job logs ◄─  updates LoreTask status
-loretask-watcher polls ────►  creates PR, updates DB
-                              writes episode, posts Slack
-```
+### Task Pipeline & Execution
+- **lore_create_pipeline_task** — Delegate work to cluster agents with context pre-loading
+- **lore_get_pipeline_status** — Poll task completion
+- **lore_list_pipeline_tasks** — Browse available and in-progress work
+- **lore_run_task_locally** — Execute tasks in local worktrees with background Claude Code
+- Task types: feature-request, onboard, general, runbook, implementation, gap-fill, review
+- Per-repo task-type overrides (model, timeout, system prompt, review requirement)
+- Task groups for coordinating multi-repo features
+- Progressive trust levels (docs → tests → implementation → full) with auto-promotion after 3 successful merges
 
-## CRD: `LoreTask`
+### Repository Onboarding
+- Auto-generate CLAUDE.md, AGENTS.md, ADRs, specs, and CI workflows
+- Schema-per-team isolation in PostgreSQL
+- Automatic nightly ingestion of repo content
+- Deterministic validation pipeline (lint/typecheck) post-implementation
+- Test-interface support for language-neutral test discovery and coverage tracking
 
-```yaml
-apiVersion: lore.re-cinq.com/v1alpha1
-kind: LoreTask
-metadata:
-  name: loretask-{task-id-short}
-  namespace: lore-agent
-  labels:
-    lore.re-cinq.com/task-id: {full-uuid}
-    lore.re-cinq.com/task-type: implementation|review
-spec:
-  taskId: {uuid}                    # pipeline.tasks.id
-  taskType: implementation|review|general  # from task-types.yaml
-  description: "..."                # task description
-  prompt: "..."                     # full rendered prompt
-  targetRepo: "re-cinq/lore"       # owner/repo
-  branch: "lore/impl/..."          # branch to create (implementation)
-  prNumber: 42                      # PR to review (review tasks only)
-  model: "claude-sonnet-4-6"       # Claude Code model
-  timeoutMinutes: 30               # max Job duration
-  image: "ghcr.io/re-cinq/lore-claude-runner:latest"
-status:
-  phase: Pending | Running | Succeeded | Failed
-  jobName: ""                       # created Job name
-  startedAt: null
-  completedAt: null
-  exitCode: null
-  output: ""                        # Claude Code stdout (last 5000 chars)
-  changedFiles: 0
-  prUrl: ""                         # set after PR creation; "no-changes" for general tasks
-  prNumber: 0
-  reviewResult: "approved|changes-requested"  # review tasks only
-  parentTaskId: ""                  # review tasks only — links to impl task
-  failureReason: ""
-  logUrl: ""                        # gs://{LORE_LOG_BUCKET}/{repo}/{taskId}/output.log
-```
+### Autonomous Review Loop
+- Opt-in per-repo auto-review mode
+- Review Job pod reads spec + conventions, posts PR comments
+- Feedback iteration (up to 2 rounds); escalation to human after 2 iterations
+- Webhook-driven review reactor for post-PR feedback processing
+- Business-hours safety cron gate (Europe/Berlin 9-18, Mon-Fri; configurable)
 
-## Controller (`agent/src/loretask-controller.ts`)
+### Dark Factory Mode (Opt-In)
+- Per-repo autonomous workflow with minimal Issue creation
+- Two-gate enablement (repo setting + cluster env var) for safety
+- Two-key authorization for privileged changes (admin scope + CODEOWNERS approval)
+- Branch-as-state via commit trailers (Lore-Stage, Lore-Iteration, Lore-Task)
+- Workflow definitions as YAML (declarative, composable, resumable)
+- Auto-merge after [stage:retrospective] with path-based safety gates
+- Audit log tracking of all decisions (auto-merge rules, escalations, notifications)
 
-Polls every 15 seconds. For each `phase: Pending` LoreTask:
+### Developer Tools
+- `/lore-feature` — End-to-end feature creation (spec → tasks → implementation)
+- `/lore-pr` — Draft PR descriptions from spec + conventions
+- `lore-doctor` — Health check script
+- `lore_my_usage` — Per-developer token usage (today/7-day/30-day)
+- `lore_get_task_logs` — Read task logs from GCS
 
-1. **Creates a per-task GitHub token Secret** — calls
-   `GitHubPlatform.getInstallationToken()` and stores as
-   `loretask-github-token-{taskIdShort}`. Short-lived; deleted after
-   Job completes. On 409 (pre-existing), deletes and recreates.
-2. **Creates a Job** with the claude-runner image:
-   - Env: `TARGET_REPO`, `BRANCH_NAME`, `TASK_PROMPT`, `MODEL`,
-     `TASK_TYPE`, `PR_NUMBER`, `ANTHROPIC_API_KEY`, `LORE_API_URL`,
-     `LORE_INGEST_TOKEN`
-   - GitHub token from the per-task Secret (not shared agent secret)
-   - Resources: 1 CPU, 2Gi memory
-   - `activeDeadlineSeconds`: `timeoutMinutes * 60`
-   - `ttlSecondsAfterFinished: 300` (auto-delete pod)
-   - `backoffLimit: 1` (allow one restart on pod failure)
-3. **Monitors** the Job: updates `phase` on completion/failure
-4. **On success**: reads Job pod logs, stores to GCS, extracts
-   `changedFiles` count, captures `reviewResult` (review tasks),
-   sets `phase: Succeeded`
-5. **On failure**: captures stderr, sets `phase: Failed` with reason
-6. **Deletes token Secret** after Job completes (success or failure)
+### Observability & Audit
+- OpenTelemetry traces + metrics → Cloud Monitoring
+- Structured commit trailers on all Lore-authored commits (append-only audit substrate)
+- Pipeline audit log with decision reasoning (auto-merge rules, escalations, notifications)
+- PR outcome feedback (files changed, time to merge, review comments)
+- Session tracking (tool calls, exit dumps) with auto-curation
 
-## Claude Runner Image (`docker/claude-runner/`)
+## Core Data Model
 
-Base: `node:24-slim` + `git` + `curl` + `jq` + `gh` CLI + `claude` CLI
-(installed via `npm install -g @anthropic-ai/claude-code`).
+### Primary Entities
 
-Validation CLI (`/validation.js`) is compiled from
-`docker/claude-runner/validation/` during image build — provides
-deterministic lint/typecheck detection for Node/Go/Python/Rust.
-Non-root `runner` user.
+**Repository (lore.repos)**
+- owner, name, team schema
+- settings (dark_factory, task_overrides, trust_level, cross_repo_repos, incidents, slack_channel_id, test_commands)
+- last_ingested_at, stale flag
 
-### Implementation flow (`TASK_TYPE != review`)
+**Pipeline Task (lore.pipeline.tasks)**
+- UUID, task_type, repo_ref, branch, status (created/claimed/done/failed)
+- Lore-Task trailer for PR traceability
+- context_refs (JSONB) for retrieval strengthening on merge
+- task_group_id for coordination
+- session_id, agent_id
 
-```
-1. Validate required env vars
-2. git clone --depth=1 + checkout branch
-3. Pre-run context hydration (if LORE_API_URL + LORE_INGEST_TOKEN set):
-   - GET /api/context?repo=&template=implementation&query=...
-   - Prepends assembled context (conventions, ADRs, memories) to prompt
-4. Run claude --print --dangerously-skip-permissions
-5. Check for changes (git status --porcelain)
-   - No changes + TASK_TYPE=general → exit 0
-   - No changes + other type → exit 1 (NO_CHANGES printed)
-6. Deterministic validation: node /validation.js --quick --repo . --files {changed}
-   - On failure: spawn one fix pass with error output, re-validate
-   - Still failing: print NEEDS_HUMAN_HELP, continue to commit
-7. git add -A && git commit -m "lore: {TASK_TYPE} — {branch-slug}"
-8. git push origin {BRANCH_NAME}
-9. Print CHANGES={count}
-```
+**GitHub Issue & PR**
+- Issues created per task (labeled `lore-managed`; optional approval gate)
+- PRs created on agent branches with `Lore-Task:` footer
+- PR outcome tracking: merge/close stats, time-to-merge, review comments
+- LoreTask CRD (Kubernetes custom resource) for cluster-side Job dispatch
 
-### Review flow (`TASK_TYPE=review`)
+**Knowledge Graph (memory schema)**
+- Chunks: repo content + 768-d embeddings (PostgreSQL + pgvector with HNSW indexes)
+- Episodes: raw text blobs from conversations, reviews, observations
+- Facts: extracted from episodes with temporal validity (valid_from/valid_to), confidence (verified/observed/inferred/stale), retrieval metadata (count, last_retrieved_at, half_life_days)
+- Entities & Edges: live knowledge graph updated on every episode ingest
+- Memories: key-value store with optional TTL and version history
+- Fact Conflicts: records when a new fact contradicts existing ones (cosine similarity >= 0.92)
+- Memories & Facts: consolidated daily to extract higher-level patterns
 
-```
-1. Validate: GITHUB_TOKEN, TARGET_REPO, PR_NUMBER, TASK_PROMPT
-2. git clone + gh pr checkout {PR_NUMBER}
-3. Prepend review preamble (lore_assemble_context with template=review,
-   lore_search_memory for patterns)
-4. Run claude --print → full output captured
-5. Parse structured result from output:
-   - REVIEW_RESULT:APPROVED or REVIEW_APPROVED → result="approved"
-   - REVIEW_RESULT:CHANGES_REQUESTED:<msg> → result="changes-requested"
-   - No match → treat as changes-requested (last 500 chars as feedback)
-6. Write /tmp/review-result.txt
-7. Print REVIEW_RESULT:{result}
-```
+**Audit & Observability (lore.pipeline.audit_log)**
+- Event type, repo, task/PR/branch, decision (auto_merge_decision, escalation, notification), rule trace, timestamp
+- Outcome stats per repo (files changed, time-to-merge, review comments)
+- Session summaries and episode text
 
-## Watcher Job (`agent/src/jobs/loretask-watcher.ts`)
+### Storage Layers
 
-Scheduled every 15s. Processes completed LoreTasks:
+**PostgreSQL + pgvector (primary)**
+- Schema-per-team (org_shared for cross-repo), CloudNativePG on GKE
+- HNSW vector indexes (768-d embeddings)
+- GIN indexes for BM25 keyword search
+- Hybrid search via Reciprocal Rank Fusion
+- Embeddings from Vertex AI text-embedding-005
 
-### Implementation task succeeded (changedFiles > 0)
+**Dgraph (Knowledge Graph, optional)**
+- Live entities + relationships
+- Spec-trace graph (test→coverage→statements, validated_by/violated edges)
 
-1. `platform().createPR(targetRepo, branch, title, body)`
-2. Update `pipeline.tasks` → `status=pr-created`, `pr_url`, `pr_number`
-3. Set `log_url = gs://{LORE_LOG_BUCKET}/{repo}/{taskId}/output.log`
-4. Comment on GitHub Issue + close it
-5. Patch LoreTask CR `status.prUrl` + `status.prNumber`
-6. Post PR link to Slack (originating `slack_channel_id` or repo-mapped)
-7. `writeEpisodeWithCuration(...)` — auto-captures outcome for memory
-8. If `lore.repos.settings.auto_review = true`:
-   - Insert review task in `pipeline.tasks`
-   - Create review LoreTask CR with `taskType=review`, `prNumber`
-   - Update impl task status → `review`
+**File-backed Fallback**
+- ~/.lore/memory/ (when DB unavailable)
+- ~/.lore/local-tasks.json (local task state)
+- ~/.lore/agent-id (persistent agent ID)
+- ~/.lore/leases/ (lease files for worktree mode, FR1.6)
 
-### Implementation task succeeded (changedFiles = 0, general tasks)
+### Data Lifecycle
 
-1. Create GitHub Issue with Claude output as body (if no existing issue)
-   OR comment result on existing issue
-2. Update `pipeline.tasks` → `status=completed`
-3. Patch LoreTask CR `status.prUrl = "no-changes"`
-4. Post to Slack if applicable
-5. `writeEpisode(...)` — auto-captures outcome
+1. **Collect**: From repo files (CLAUDE.md, ADRs, runbooks, specs, code), PR history, agent sessions, explicit memory writes
+2. **Store**: Chunk + embed (PostgreSQL), extract facts from episodes (LLM), update knowledge graph (entity extraction)
+3. **Pull**: lore_assemble_context (one-call bundle), lore_search_context (hybrid search), lore_query_graph (entity relationships)
+4. **Feedback**: Learnings from task completion feed back via lore_write_memory/lore_write_episode
 
-### Implementation task failed
+## User Roles
 
-1. Update `pipeline.tasks` → `status=failed`, `failure_reason`
-2. Comment failure on GitHub Issue + add `lore-failed` label
-3. Post failure message to Slack
-4. `writeEpisodeWithCuration(...)` — lesson extraction via Haiku
+### Developer
+- **Context usage**: Call lore_assemble_context on session start, lore_search_memory for prior learnings, lore_search_context for patterns
+- **Task delegation**: Use lore_create_pipeline_task for async work (>20 min tasks, well-defined)
+- **Local execution**: lore_run_task_locally for interactive work in worktrees
+- **Memory curation**: lore_write_memory / lore_write_episode on session end with learnings
+- **Required workflow**: assemble context → search memory → work → write memory/episode
 
-### Review task succeeded
+### Product Manager
+- **Feature creation**: /lore-feature to turn plain-language idea into spec.md + tasks
+- **Task tracking**: lore_ready_tasks, lore_claim_task, lore_complete_task
+- **Delegation**: Create pipeline tasks with clear specs
 
-1. If `reviewResult = "approved"`:
-   - Update parent impl task → `status=completed`
-   - Comment "approved, ready for human merge" on Issue
-2. If `reviewResult = "changes-requested"`:
-   - Increment `review_iteration` on parent task
-   - If iteration < 2: create new impl LoreTask CR on same branch with
-     feedback in prompt
-   - If iteration >= 2: set parent status → `review` (escalate),
-     add `needs-human-review` label to Issue
+### Platform Engineer
+- **Repo onboarding**: UI (/onboard) or MCP (lore_onboard_repo) with auto-generated CLAUDE.md, AGENTS.md, specs, CI
+- **Settings & tuning**: Dark factory mode, task overrides, trust levels, incident links, Slack channel mapping
+- **Cluster management**: GKE deployment, PostgreSQL + pgvector administration, External Secrets Operator (ESO) integration
+- **Monitoring**: OpenTelemetry traces, pipeline audit logs, memory health, session tracking
+- **API security**: Bearer token management (per-client scoped tokens, HMAC verification for webhooks)
 
-### Cleanup
+### Autonomous Agent (Claude CLI + MCP)
+- **Ephemeral execution**: Single run of Claude + prompt in a Station (K8s Job pod or local sandbox)
+- **Context injection**: Pre-loaded via /api/context before agent starts (no lore_assemble_context needed for first action)
+- **Task execution**: Follows workflow YAML (gap-fill, general, implementation) with structured trailers
+- **Memory integration**: Auto-curated episodes on task completion, fact extraction via Haiku
+- **Review loop**: Optional 2-iteration feedback cycle before escalation to human
 
-Delete LoreTask CRs older than 1 hour that are Succeeded (with
-`prUrl` set or `changedFiles=0`) or Failed. Also delete orphaned
-`loretask-github-token-{taskIdShort}` Secrets.
+## Business Rules
 
-## GitHub Issues Integration
+### Context Assembly
+- One-call retrieval with token budget (default 8K, research 16K)
+- Stale warning when repo context >7 days old
+- Cross-repo context filtered by transfer score (portable keywords boost, local keywords reduce; threshold 0.5)
+- Subdirectory rules (.claude/rules/*.md) loaded conditionally by keyword match
+- Recent incidents surfaced at priority 1
+- Conflicts flagged with `[CONFLICT]` prefix when detected in past 7 days
 
-Every pipeline task gets a GitHub Issue on the target repo:
+### Task Pipeline
+- Tasks created via UI, MCP, or GitHub Issue trigger
+- Simple tasks use direct Anthropic API; implementation/review use K8s Job pods
+- Deterministic validation mandatory (lint/typecheck on changed files only)
+- One retry on validation failure; escalation to needs-human-help after that
+- PR outcome feedback feeds importance adjustments (merge +5 half-life, reject -3, min 7)
+- Retrieval count and last-retrieved-at updated asynchronously on every search (zero latency)
 
-- Created by the worker before the LoreTask CR is submitted, labeled
-  `lore-managed` + `{taskType}`
-- Progress comments added by the watcher (PR link, failures)
-- Closed (state=completed) when PR is created
-- `lore-failed` label added on failure
-- `needs-human-review` label added on review escalation
+### Dark Factory Mode
+- **Enablement**: Per-repo setting AND cluster env var (LORE_DARK_FACTORY_CLUSTER_ENABLED) both required
+- **Issue creation**: Only for approval-gated tasks, on-the-fly escalations, or opt-in repos
+- **Approval gates**: Two-key auth for privileged changes (admin scope + CODEOWNERS approval PR)
+- **Auto-merge**: After [stage:retrospective], when green CI + path matches all changes + repo trust >= min_trust
+- **Workflow resumption**: Branch-as-state; read last trailer on branch to resume after pod death
+- **Audit**: All decisions logged with rule trace
 
-For `general`/research tasks that produce no code: issue is created
-with the Claude output as the body (not closed — it is the deliverable).
+### Memory & Knowledge
+- Facts have temporal validity (valid_from/valid_to) and confidence tiers
+- New fact contradicts existing (cosine >= 0.92) → auto-invalidate old, record conflict
+- Stale facts (unretrieved 30+ days) transition to stale confidence tier
+- Importance decay: daily job scores (0-10) via half-life model; evict lowest when >500 memories
+- Consolidation: daily job groups 7-day facts by repo, Haiku extracts patterns
+- Conflict surfacing: Context assembly flags facts with recent conflicts
+- Fact eviction: Keep 2000 invalidated facts max, clean older ones daily
 
-## Slack Integration
+### Privacy & Security
+- **Sanitization**: All memory writes pass through sanitizeContent() / redactSecrets() (strip API keys, JWTs, private keys, connection strings, bearer tokens)
+- **API security**: Bearer token validation on every /api/* route; scoped tokens (read/write/task/webhook/admin); rate limiting (30/min webhooks, 60/min tasks, 200/min other); 1MB body limit
+- **Webhook auth**: HMAC signature verification for GitHub, Slack
+- **Pod security**: Non-root (uid 1000), dropped capabilities, no privilege escalation, NetworkPolicy egress restriction
+- **Lease management**: Atomic acquire with takeover detection (DbLeaseBackend CTE or FileLeaseBackend per ~/.lore/leases/)
 
-Watcher posts messages via `chat.postMessage` using `LORE_SLACK_BOT_TOKEN`.
-Channel resolved in order:
-1. `pipeline.tasks.context_bundle.slack_channel_id` (task originated
-   from Slack `/lore` command)
-2. `lore.repos.settings.slack_channel_id` (repo-level default)
+### Trust & Progression
+- Progressive trust levels: docs → tests → implementation → full
+- Auto-promote after 3 successful merges at current level
+- Per-repo task-type overrides (model, timeout, system_prompt_suffix, review_required)
 
-Messages:
-- PR created → `"PR ready for review: {url}"`
-- Task failed → `"Task failed on {repo}: {taskType}\n> {reason[:200]}"`
-- General task completed → `"Task completed: {issue_url}"`
+### Review & Escalation
+- Autonomous review loop: up to 2 feedback iterations, then escalate
+- Escalation to needs-human-help Issue with diagnostic, branch link, contributing refs
+- Review reactor webhook-driven with business-hours safety cron (configurable TZ, start/end, days)
+- Non-merge treated as rejection signal; merge boosts half-life on contributing facts
 
-## Automatic Memory Capture
+### Spec-Test Traceability (v3, 2026-06-02)
+- Markdown inline links in spec.md: `Statement. ([validated by name](path/to/test.ts#L42))`
+- Three write-paths: hand-written, /lore-suggest-links (MCP skill, subscription-billed), spec-coverage-backfill cron (weekly Mon 11:00 UTC, API-billed)
+- Validate pass daily + post-ingest; file spec-link-rot issues on broken links
+- Test-interface support: language-neutral test discovery (.lore/test-commands.yml), idempotent ingest, zero-LLM
 
-Every task outcome writes to the Lore memory system:
+### Prompt Caching
+- Two cache breakpoints per LLM call (system block + tool schema)
+- 1h TTL for jobs in LORE_CACHE_1H_JOBS allowlist (auto-curation, review_reactor, fact-extraction, graph-extraction); 5m default
+- Cache hit / first-call / break:system / break:tools / break:ttl tracked per job
+- Cost: 1.25x writes, 0.1x reads
 
-- PR created: `writeEpisodeWithCuration(...)` — Haiku extracts a lesson,
-  stored as `auto-curation/{repo}/{taskId}`
-- No changes: `writeEpisode(...)` — raw episode for fact extraction
-- Failure: `writeEpisodeWithCuration(...)` — lesson extraction from failure
+## Success Metrics
 
-## What Was Built
+### Context Quality
+- **SC1**: Reduction in "I need context on X" questions during development (tracked via session analysis)
+- **SC2**: Improvement in task completion time (baseline via dark_factory_baseline snapshot; delta vs. prior 30 days)
+- **SC3**: Fact retrieval count and confidence distribution (higher confidence = better onboarding)
+- **SC4**: Cross-repo context transfer score (portable knowledge successfully applied to new repos)
+- **SC5**: Memory consolidation patterns (facts → higher-level learnings)
+- **SC6**: Dark-factory task success rate (spec quality, implementation correctness, review efficiency)
 
-| Component | Status |
-|-----------|--------|
-| `terraform/modules/gke-mcp/loretask-crd/` | CRD YAML, controller Deployment, RBAC |
-| `agent/src/loretask-controller.ts` | Controller: watches CRs, creates Jobs, stores logs to GCS |
-| `agent/src/loretask-controller-main.ts` | Standalone entry point for controller process |
-| `agent/src/worker.ts` | `handleClaudeCodeTask` creates LoreTask CR |
-| `agent/src/jobs/loretask-watcher.ts` | Watcher: polls, creates PRs, auto-review, Slack, episodes |
-| `docker/claude-runner/Dockerfile` | node:24-slim + gh + claude CLI + validation.js |
-| `docker/claude-runner/entrypoint.sh` | Dual-mode: implementation + review |
-| `.github/workflows/build-claude-runner.yml` | CI for claude-runner image |
-| `agent/src/lib/log-storage.ts` | GCS log upload helper |
+### Task Pipeline
+- **TP1**: Implementation success rate (first-attempt merge / one-retry-merge / escalation)
+- **TP2**: Time-to-merge for agent-created PRs (vs. developer baseline)
+- **TP3**: Auto-merge adoption rate (repos opting in to dark-factory mode)
+- **TP4**: Review feedback iteration count (goal: ≤1 round before escalation)
+- **TP5**: Validation catch rate (bugs found by deterministic checks before human review)
 
-## Out of Scope (Unchanged)
+### Knowledge Accumulation
+- **KA1**: Memory growth rate (memories + facts added daily; decay rate)
+- **KA2**: Fact reuse rate (searches that retrieve previously-observed facts)
+- **KA3**: Conflict resolution accuracy (facts invalidated due to true contradictions vs. false positives)
+- **KA4**: Episode quality (Haiku-curated lessons captured per task completion)
 
-1. **Multi-cluster** — Single cluster only (your-gke-cluster)
-2. **Priority queues** — All tasks equal priority
-3. **Resource quotas per team** — No per-team limits on concurrent Jobs
-4. **Streaming logs to UI** — Phase 2 (WebSocket)
-5. **CRD versioning** — v1alpha1 only, no conversion webhooks
+### Operational
+- **OP1**: Onboarding time (hours from repo discovery to first successful task)
+- **OP2**: Cluster uptime and task SLA (P50/P99 task execution time)
+- **OP3**: API rate-limit rejection rate (<1%)
+- **OP4**: Storage growth (PostgreSQL size, pgvector index effectiveness)
+- **OP5**: Cost per task (API spend, compute, storage)
 
-## Acceptance Criteria
-
-1. `implementation` tasks create a LoreTask CR instead of spawning claude
-2. Controller creates a Job pod within 15s of CR creation
-3. Job pod: clones repo, hydrates context, runs Claude Code, validates,
-   commits, pushes
-4. Controller updates LoreTask status on Job completion; logs stored in GCS
-5. Watcher creates PR from pushed branch when LoreTask succeeds
-6. Agent pod restarts do NOT affect running Job pods
-7. Failed Jobs surface error in `pipeline.tasks.failure_reason`
-8. Token Secrets are deleted after Job completion
-9. Multiple tasks can run in parallel
-10. Review tasks parse APPROVED/CHANGES_REQUESTED from Claude output
-11. Auto-review loop iterates up to 2 times before escalating to human
-12. Slack notifications fire for PR creation and failures
-13. GitHub Issues are created, updated, and closed per task lifecycle
-14. Every task outcome captured as a memory episode
+### Adoption
+- **AD1**: Developer session frequency (daily/weekly active developers)
+- **AD2**: MCP tool usage distribution (which tools most common; dark-factory adoption)
+- **AD3**: Memory retention (facts retrieved after 7/14/30 days; half-life calibration)
+- **AD4**: Org-wide context reuse (cross-repo searches, shared pools)
