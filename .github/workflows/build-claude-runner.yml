@@ -81,14 +81,14 @@ jobs:
           echo "image=${{ steps.build.outputs.imageid }}" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test — runner-cli env-missing → exit 9
-        # Exercises that /app/dist/supervisor/runner-cli.js is present
+        # Exercises that /app/dist/delivery/runner-cli.js is present
         # and the documented exit-code matrix (PR #310 review fix) is
         # honored. Running with no env vars + LORE_DARK_FACTORY_WORKFLOW
         # unset triggers MissingEnvError → exit 9.
         run: |
           set +e
           docker run --rm --entrypoint node "${{ steps.tag.outputs.image }}" \
-            /app/dist/supervisor/runner-cli.js
+            /app/dist/delivery/runner-cli.js
           rc=$?
           set -e
           if [ "$rc" != "9" ]; then
@@ -132,7 +132,7 @@ jobs:
             -e WORKDIR=/tmp/repo \
             --entrypoint sh \
             "${{ steps.tag.outputs.image }}" -c \
-            'mkdir -p /tmp/repo/.git && exec node /app/dist/supervisor/runner-cli.js'
+            'mkdir -p /tmp/repo/.git && exec node /app/dist/delivery/runner-cli.js'
           rc=$?
           set -e
           if [ "$rc" != "4" ]; then

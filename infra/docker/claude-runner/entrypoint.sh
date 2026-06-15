@@ -62,7 +62,7 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   # The runner CLI lives in the agent build, copied into /app/dist by
   # the multi-stage Dockerfile; the workflow YAMLs it loads ship in the
   # runner kernel at /app/libs/runner/dist/workflows/*.yaml.
-  node /app/dist/supervisor/runner-cli.js
+  node /app/dist/delivery/runner-cli.js
   RUNNER_EXIT=$?
   echo "[runner] runner-cli exited with ${RUNNER_EXIT}"
 
