@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web-ui/public/logo.svg" width="120" alt="Lore" />
+  <img src="apps/web-ui/public/logo.svg" width="120" alt="Lore" />
 </p>
 
 <h1 align="center">Lore</h1>
@@ -23,6 +23,22 @@
 Lore is the shared context layer that makes Claude Code organization-aware. Developers open Claude Code and it already knows: org-wide conventions, team-specific patterns, architectural decisions, and current task state — without any manual context loading.
 
 Beyond context, Lore is an **agent operating system**. It runs background agents that onboard repos, detect documentation gaps, check for spec drift, and review PRs — all producing pull requests that humans review and merge.
+
+## Repository layout
+
+```
+apps/        deployable services        agent · mcp-server · web-ui · vscode-extension
+libs/        shared libraries           shared (@re-cinq/lore-shared) · runner (@re-cinq/lore-runner)
+infra/       deploy & runtime           terraform · docker · k8s · compose.yaml
+specs/       speckit specs (spec/plan/tasks/contracts) — first-class, links into code
+adrs/        architecture decision records (MADR)
+runbooks/    incident & operational runbooks        teams/  per-team CLAUDE.md
+scripts/     install.sh · lore-doctor · task-types.yaml · infra & glue scripts
+docs/        guides & longer-form docs
+```
+
+npm workspaces live under `apps/*` + `libs/*`; `web-ui` is a standalone Next.js app (its own lockfile, not a workspace).
+
 
 ### The context lifecycle
 

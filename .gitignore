@@ -65,3 +65,4 @@ next-env.d.ts
 .lore-github-app.pem
 .claude/scheduled_tasks.lock
 vscode-extension/lore-vscode-0.1.0.vsix
+output/
