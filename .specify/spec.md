@@ -11,19 +11,12 @@
 
 ## Problem Statement
 
-Implementation tasks run `claude --print` inside the long-lived agent
-pod. This is fundamentally broken:
+Implementation tasks run `claude --print` inside the long-lived agent pod. This is fundamentally broken:
 
-1. **CI deploys kill running tasks** — Every push to main triggers
-   `build-agent.yml` → deploy → `kubectl rollout restart`, which
-   terminates the pod while Claude Code is mid-execution. Tasks go
-   `pending` → `running` → orphaned.
-2. **No parallelism** — The worker is single-threaded. One Claude Code
-   session blocks the entire agent for 5-15 minutes.
-3. **No isolation** — A runaway Claude Code session can OOM the agent
-   pod, taking down task polling, schedulers, and health checks.
-4. **No observability** — Claude Code stdout/stderr is lost when the
-   pod restarts. No way to stream progress to the UI.
+1. **CI deploys kill running tasks** — Every push to main triggers `build-agent.yml` → deploy → `kubectl rollout restart`, which terminates the pod while Claude Code is mid-execution. Tasks go `pending` → `running` → orphaned.
+2. **No parallelism** — The worker is single-threaded. One Claude Code session blocks the entire agent for 5-15 minutes.
+3. **No isolation** — A runaway Claude Code session can OOM the agent pod, taking down task polling, schedulers, and health checks.
+4. **No observability** — Claude Code stdout/stderr is lost when the pod restarts. No way to stream progress to the UI.
 
 ## Solution: LoreTask CRD + Controller
 
@@ -87,35 +80,24 @@ status:
 
 Polls every 15 seconds. For each `phase: Pending` LoreTask:
 
-1. **Creates a per-task GitHub token Secret** — calls
-   `GitHubPlatform.getInstallationToken()` and stores as
-   `loretask-github-token-{taskIdShort}`. Short-lived; deleted after
-   Job completes. On 409 (pre-existing), deletes and recreates.
+1. **Creates a per-task GitHub token Secret** — calls `GitHubPlatform.getInstallationToken()` and stores as `loretask-github-token-{taskIdShort}`. Short-lived; deleted after Job completes. On 409 (pre-existing), deletes and recreates.
 2. **Creates a Job** with the claude-runner image:
-   - Env: `TARGET_REPO`, `BRANCH_NAME`, `TASK_PROMPT`, `MODEL`,
-     `TASK_TYPE`, `PR_NUMBER`, `ANTHROPIC_API_KEY`, `LORE_API_URL`,
-     `LORE_INGEST_TOKEN`
+   - Env: `TARGET_REPO`, `BRANCH_NAME`, `TASK_PROMPT`, `MODEL`, `TASK_TYPE`, `PR_NUMBER`, `ANTHROPIC_API_KEY`, `LORE_API_URL`, `LORE_INGEST_TOKEN`
    - GitHub token from the per-task Secret (not shared agent secret)
    - Resources: 1 CPU, 2Gi memory
    - `activeDeadlineSeconds`: `timeoutMinutes * 60`
    - `ttlSecondsAfterFinished: 300` (auto-delete pod)
    - `backoffLimit: 1` (allow one restart on pod failure)
 3. **Monitors** the Job: updates `phase` on completion/failure
-4. **On success**: reads Job pod logs, stores to GCS, extracts
-   `changedFiles` count, captures `reviewResult` (review tasks),
-   sets `phase: Succeeded`
+4. **On success**: reads Job pod logs, stores to GCS, extracts `changedFiles` count, captures `reviewResult` (review tasks), sets `phase: Succeeded`
 5. **On failure**: captures stderr, sets `phase: Failed` with reason
 6. **Deletes token Secret** after Job completes (success or failure)
 
 ## Claude Runner Image (`docker/claude-runner/`)
 
-Base: `node:24-slim` + `git` + `curl` + `jq` + `gh` CLI + `claude` CLI
-(installed via `npm install -g @anthropic-ai/claude-code`).
+Base: `node:24-slim` + `git` + `curl` + `jq` + `gh` CLI + `claude` CLI (installed via `npm install -g @anthropic-ai/claude-code`).
 
-Validation CLI (`/validation.js`) is compiled from
-`docker/claude-runner/validation/` during image build — provides
-deterministic lint/typecheck detection for Node/Go/Python/Rust.
-Non-root `runner` user.
+Validation CLI (`/validation.js`) is compiled from `docker/claude-runner/validation/` during image build — provides deterministic lint/typecheck detection for Node/Go/Python/Rust. Non-root `runner` user.
 
 ### Implementation flow (`TASK_TYPE != review`)
 
@@ -142,8 +124,7 @@ Non-root `runner` user.
 ```
 1. Validate: GITHUB_TOKEN, TARGET_REPO, PR_NUMBER, TASK_PROMPT
 2. git clone + gh pr checkout {PR_NUMBER}
-3. Prepend review preamble (lore_assemble_context with template=review,
-   lore_search_memory for patterns)
+3. Prepend review preamble (lore_assemble_context with template=review, lore_search_memory for patterns)
 4. Run claude --print → full output captured
 5. Parse structured result from output:
    - REVIEW_RESULT:APPROVED or REVIEW_APPROVED → result="approved"
@@ -173,8 +154,7 @@ Scheduled every 15s. Processes completed LoreTasks:
 
 ### Implementation task succeeded (changedFiles = 0, general tasks)
 
-1. Create GitHub Issue with Claude output as body (if no existing issue)
-   OR comment result on existing issue
+1. Create GitHub Issue with Claude output as body (if no existing issue) OR comment result on existing issue
 2. Update `pipeline.tasks` → `status=completed`
 3. Patch LoreTask CR `status.prUrl = "no-changes"`
 4. Post to Slack if applicable
@@ -194,37 +174,30 @@ Scheduled every 15s. Processes completed LoreTasks:
    - Comment "approved, ready for human merge" on Issue
 2. If `reviewResult = "changes-requested"`:
    - Increment `review_iteration` on parent task
-   - If iteration < 2: create new impl LoreTask CR on same branch with
-     feedback in prompt
-   - If iteration >= 2: set parent status → `review` (escalate),
-     add `needs-human-review` label to Issue
+   - If iteration < 2: create new impl LoreTask CR on same branch with feedback in prompt
+   - If iteration >= 2: set parent status → `review` (escalate), add `needs-human-review` label to Issue
 
 ### Cleanup
 
-Delete LoreTask CRs older than 1 hour that are Succeeded (with
-`prUrl` set or `changedFiles=0`) or Failed. Also delete orphaned
-`loretask-github-token-{taskIdShort}` Secrets.
+Delete LoreTask CRs older than 1 hour that are Succeeded (with `prUrl` set or `changedFiles=0`) or Failed. Also delete orphaned `loretask-github-token-{taskIdShort}` Secrets.
 
 ## GitHub Issues Integration
 
 Every pipeline task gets a GitHub Issue on the target repo:
 
-- Created by the worker before the LoreTask CR is submitted, labeled
-  `lore-managed` + `{taskType}`
+- Created by the worker before the LoreTask CR is submitted, labeled `lore-managed` + `{taskType}`
 - Progress comments added by the watcher (PR link, failures)
 - Closed (state=completed) when PR is created
 - `lore-failed` label added on failure
 - `needs-human-review` label added on review escalation
 
-For `general`/research tasks that produce no code: issue is created
-with the Claude output as the body (not closed — it is the deliverable).
+For `general`/research tasks that produce no code: issue is created with the Claude output as the body (not closed — it is the deliverable).
 
 ## Slack Integration
 
-Watcher posts messages via `chat.postMessage` using `LORE_SLACK_BOT_TOKEN`.
-Channel resolved in order:
-1. `pipeline.tasks.context_bundle.slack_channel_id` (task originated
-   from Slack `/lore` command)
+Watcher posts messages via `chat.postMessage` using `LORE_SLACK_BOT_TOKEN`. Channel resolved in order:
+
+1. `pipeline.tasks.context_bundle.slack_channel_id` (task originated from Slack `/lore` command)
 2. `lore.repos.settings.slack_channel_id` (repo-level default)
 
 Messages:
@@ -236,8 +209,7 @@ Messages:
 
 Every task outcome writes to the Lore memory system:
 
-- PR created: `writeEpisodeWithCuration(...)` — Haiku extracts a lesson,
-  stored as `auto-curation/{repo}/{taskId}`
+- PR created: `writeEpisodeWithCuration(...)` — Haiku extracts a lesson, stored as `auto-curation/{repo}/{taskId}`
 - No changes: `writeEpisode(...)` — raw episode for fact extraction
 - Failure: `writeEpisodeWithCuration(...)` — lesson extraction from failure
 
@@ -267,8 +239,7 @@ Every task outcome writes to the Lore memory system:
 
 1. `implementation` tasks create a LoreTask CR instead of spawning claude
 2. Controller creates a Job pod within 15s of CR creation
-3. Job pod: clones repo, hydrates context, runs Claude Code, validates,
-   commits, pushes
+3. Job pod: clones repo, hydrates context, runs Claude Code, validates, commits, pushes
 4. Controller updates LoreTask status on Job completion; logs stored in GCS
 5. Watcher creates PR from pushed branch when LoreTask succeeds
 6. Agent pod restarts do NOT affect running Job pods
