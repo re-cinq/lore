@@ -4,6 +4,7 @@ import { makeReq, makeRes, makePool, makeOctokit, useRateLimitSafeClock, AUTH, L
 
 vi.mock("../../features/dark-factory/dark-factory-settings.js", () => ({
   parseDarkFactorySettings: vi.fn((b: unknown) => b),
+  parseTaskOverrides: vi.fn((b: unknown) => b),
   resolveSettings: vi.fn((p: unknown) => ({ resolved: true, partial: p })),
   twoKeyFieldsTouched: vi.fn(() => [] as string[]),
 }));
@@ -170,6 +171,20 @@ describe("routes — dark-factory settings", () => {
       const { res } = await put({ enabled: true });
       expect(res.statusCode).toBe(403);
       expect(res.json.error).toBe("two_key_required");
+    });
+
+    it("two-key gates a per-task-type execution.image change", async () => {
+      vi.mocked(twoKeyFieldsTouched).mockReturnValue([
+        "task_overrides.implementation.execution.image",
+      ]);
+      const { res } = await put({
+        task_overrides: { implementation: { execution: { image: "golang:1.23" } } },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json.error).toBe("two_key_required");
+      expect(res.json.field_paths).toContain(
+        "task_overrides.implementation.execution.image",
+      );
     });
 
     it("applies a two-key change after CODEOWNERS approval", async () => {
