@@ -89,6 +89,22 @@ flowchart LR
     CC -.->|"new learnings feed back"| MEMW
 ```
 
+## Terminology
+
+Lore is modeled as an autonomous software **factory** ("Dark Factory" is a *mode* of it). One vocabulary is used everywhere — code, specs, ADRs (see [ADR-024](adrs/ADR-024-ubiquitous-language-execution-model.md)):
+
+| Term | What it is | Cardinality |
+|---|---|---|
+| **Factory** | the whole platform — Lore itself | 1 |
+| **Floor** | the long-running coordinator runtime: dispatches Agents onto Stations, runs the AssemblyLines, reaps leases | 1 → N (per team / cluster / trust tier) |
+| **AssemblyLine** | a workflow of Stations with distinct responsibilities that hand off / wait on each other | per task |
+| **Station** | the unit that runs exactly one Agent — a Kubernetes Job pod, or a local sandbox/worktree | per task-run |
+| **Agent** | a single ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
+
+Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents.**
+
+> **"Agent" means only the Claude-CLI-plus-prompt run** — not the pod that hosts it (a **Station**) nor the coordinator that dispatches work (the **Floor**). The coordinator deployment was historically called "Lore Agent"; the rename to **Floor** (`apps/agent` → `apps/floor`) is in progress.
+
 ## Documentation
 
 Pick the guide that matches what you're doing.
