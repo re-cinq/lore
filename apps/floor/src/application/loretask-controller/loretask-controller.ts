@@ -9,6 +9,7 @@
  */
 
 import * as k8s from "@kubernetes/client-node";
+import { buildLoreTaskJob } from "./job-builder.js";
 import { GitHubPlatform } from "../../adapters/github.js";
 import { writeLogs } from "../../adapters/log-storage.js";
 import { isAlreadyExistsError } from "@re-cinq/lore-shared";
@@ -181,110 +182,15 @@ async function reconcile(lt: LoreTask): Promise<void> {
 
   const jobName = `loretask-job-${taskIdShort}`;
 
-  const job: k8s.V1Job = {
-    apiVersion: "batch/v1",
-    kind: "Job",
-    metadata: {
-      name: jobName,
-      namespace: NAMESPACE,
-      labels: { "lore.re-cinq.com/task-id": taskId },
-    },
-    spec: {
-      activeDeadlineSeconds: (lt.spec.timeoutMinutes || 30) * 60,
-      ttlSecondsAfterFinished: 300,
-      backoffLimit: 1,
-      template: {
-        metadata: {
-          labels: {
-            "lore.re-cinq.com/task-id": taskId,
-            "lore.re-cinq.com/component": "job",
-          },
-        },
-        spec: {
-          restartPolicy: "Never",
-          imagePullSecrets: [{ name: "ghcr-pull-secret" }],
-          securityContext: {
-            runAsNonRoot: true,
-            runAsUser: 1000,
-            runAsGroup: 1000,
-            fsGroup: 1000,
-          },
-          containers: [
-            {
-              name: "claude-runner",
-              image: lt.spec.image || "ghcr.io/re-cinq/lore-claude-runner:latest",
-              securityContext: {
-                allowPrivilegeEscalation: false,
-                capabilities: { drop: ["ALL"] },
-              },
-              env: [
-                { name: "TARGET_REPO", value: lt.spec.targetRepo },
-                { name: "BRANCH_NAME", value: lt.spec.branch },
-                { name: "TASK_PROMPT", value: lt.spec.prompt },
-                { name: "MODEL", value: lt.spec.model || "claude-sonnet-4-6" },
-                { name: "TASK_TYPE", value: lt.spec.taskType || "implementation" },
-                { name: "PR_NUMBER", value: String(lt.spec.prNumber || "") },
-                // Dark-factory env vars (PR #309). When workflowName
-                // is set, entrypoint.sh routes to the supervisor CLI;
-                // otherwise the legacy claude --print flow runs. The
-                // task description is surfaced raw so the runner-cli
-                // can re-render the prompt per node via the workflow.
-                {
-                  name: "LORE_DARK_FACTORY_WORKFLOW",
-                  value: lt.spec.darkFactory?.workflowName ?? "",
-                },
-                {
-                  name: "BASE_BRANCH",
-                  value: lt.spec.darkFactory?.baseBranch ?? "",
-                },
-                { name: "LORE_TASK_ID", value: lt.spec.taskId },
-                {
-                  name: "TASK_DESCRIPTION",
-                  value: lt.spec.description ?? lt.spec.prompt,
-                },
-                {
-                  name: "ANTHROPIC_API_KEY",
-                  valueFrom: {
-                    secretKeyRef: {
-                      name: "lore-anthropic-key",
-                      key: "anthropic-api-key",
-                    },
-                  },
-                },
-                {
-                  name: "GITHUB_TOKEN",
-                  valueFrom: {
-                    secretKeyRef: {
-                      name: tokenSecretName,
-                      key: "github-token",
-                    },
-                  },
-                },
-                {
-                  name: "LORE_API_URL",
-                  value: process.env.LORE_INGEST_URL || "",
-                },
-                {
-                  name: "LORE_INGEST_TOKEN",
-                  valueFrom: {
-                    secretKeyRef: {
-                      name: "lore-ingest-token",
-                      key: "token",
-                      optional: true,
-                    },
-                  },
-                },
-              ],
-              resources: {
-                requests: { cpu: "500m", memory: "1Gi" },
-                limits: { cpu: "1", memory: "2Gi" },
-              },
-            },
-          ],
-        },
-      },
-    },
-  };
+  // Pod shape (single-container default, or kernel + BYO toolchain sidecar) is
+  // built by the pure buildLoreTaskJob (ADR-025). jobName is recomputed there
+  // and kept here for status/logging.
+  const job = buildLoreTaskJob({
+    spec: lt.spec,
+    namespace: NAMESPACE,
+    tokenSecretName,
+    ingestUrl: process.env.LORE_INGEST_URL || "",
+  });
 
   try {
     await batchApi.createNamespacedJob({ namespace: NAMESPACE, body: job });

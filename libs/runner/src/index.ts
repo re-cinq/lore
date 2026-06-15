@@ -69,3 +69,9 @@ export {
 } from "./loader.js";
 
 export { loadBuiltinWorkflows } from "./builtin-workflows.js";
+
+export {
+  RelayExecutor,
+  type RelayResult,
+} from "./relay/relay-executor.js";
+export { RELAY_SCRIPT } from "./relay/relay-script.js";
