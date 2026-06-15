@@ -3,16 +3,16 @@
   "version": "0.1.0",
   "description": "Lore agent runner — processes pipeline tasks via Anthropic API, runs scheduled jobs",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/delivery/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "start:watch": "node --watch-path=./dist --watch-path=../../libs/shared/dist dist/index.js",
+    "start": "node dist/delivery/index.js",
+    "start:watch": "node --watch-path=./dist --watch-path=../../libs/shared/dist dist/delivery/index.js",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "job": "node dist/job-runner.js",
-    "jobs:all": "for j in context_reindex eval_runner context_core_builder importance_decay consolidation autoresearch gap_detection spec_drift spec_test_linker memory_ttl; do echo \"[jobs:all] === $j ===\"; node dist/job-runner.js $j || exit 1; done"
+    "job": "node dist/delivery/job-runner.js",
+    "jobs:all": "for j in context_reindex eval_runner context_core_builder importance_decay consolidation autoresearch gap_detection spec_drift spec_test_linker memory_ttl; do echo \"[jobs:all] === $j ===\"; node dist/delivery/job-runner.js $j || exit 1; done"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

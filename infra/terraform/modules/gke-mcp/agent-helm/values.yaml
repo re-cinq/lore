@@ -56,7 +56,7 @@ env:
   LORE_CACHE_1H_JOBS: "auto-curation,review_reactor,fact-extraction,graph-extraction"
   # Dark-factory cluster path gate (ADR-016, PR #310). When "true",
   # dark-mode repos route impl/general/review tasks through the in-pod
-  # supervisor (`/app/dist/supervisor/runner-cli.js`); when "false",
+  # supervisor (`/app/dist/delivery/runner-cli.js`); when "false",
   # those tasks continue through the legacy `claude --print` path.
   # Required state before flipping to "true": claude-runner image must
   # ship the agent dist (PR #311). The helm default stays "false" until
@@ -107,7 +107,7 @@ slackBotTokenSecret:
 gcpProject: ""
 
 # K8s CronJob batch jobs (one pod per run, isolated from the Deployment).
-# Each entry produces a CronJob that calls `node dist/job-runner.js {{ .job }}`
+# Each entry produces a CronJob that calls `node dist/delivery/job-runner.js {{ .job }}`
 # inside the agent image, reusing the same env block as the Deployment
 # (see templates/_env.tpl). Schedules match the in-process pre-split
 # cadence one-for-one. Resources/deadlines override `cronJobDefaults`

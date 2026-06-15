@@ -73,7 +73,7 @@ COPY --from=validation-builder /build/dist/repo-validation.js /repo-validation.j
 
 # Agent supervisor + workflows + workspace deps. Layout chosen to match
 # the loretask-controller's entrypoint expectation
-# (`node /app/dist/supervisor/runner-cli.js`).
+# (`node /app/dist/delivery/runner-cli.js`).
 COPY --from=agent-builder /build/apps/agent/dist /app/dist
 # `/app/libs` is REQUIRED at this exact path — not arbitrary. The npm workspace
 # install creates relative symlinks `node_modules/@re-cinq/lore-shared →
