@@ -1,5 +1,3 @@
-```yaml
 list: npm run trace:list-tests
 run: npm run trace:run-test -- {selector}
 coverage_format: json
-```
