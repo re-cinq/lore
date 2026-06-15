@@ -26,6 +26,7 @@ export async function handleClaudeCodeTask(
   repoOverrides?: any,
   darkFactoryWorkflow?: string,
   darkFactoryBaseBranch?: string,
+  image?: string,
 ): Promise<void> {
   const fullPrompt = buildPrompt(task.task_type, task.description);
   const timeoutMinutes =
@@ -43,6 +44,7 @@ export async function handleClaudeCodeTask(
     branch: branchName,
     model: model || "claude-sonnet-4-6",
     timeoutMinutes,
+    ...(image ? { image } : {}),
     ...(darkFactoryWorkflow
       ? {
           extraLabels: { "lore.re-cinq.com/dark-factory": "true" },

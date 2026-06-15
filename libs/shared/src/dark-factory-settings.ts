@@ -28,6 +28,16 @@ export interface DarkFactorySettings {
   auto_merge?: DarkFactoryAutoMerge;
   review?: ReviewMode;
   notify?: NotifyChannel[];
+  execution?: DarkFactoryExecution;
+}
+
+/**
+ * Which container image a task's Station runs in (ADR-025). The only
+ * user-facing knob is `image`; the execution backend is derived in code,
+ * not configured here.
+ */
+export interface DarkFactoryExecution {
+  image?: string;
 }
 
 export interface ResolvedDarkFactorySettings {
@@ -93,4 +103,33 @@ export function trustMeets(
 ): boolean {
   if (!actual) return false;
   return TRUST_ORDER[actual] >= TRUST_ORDER[min];
+}
+
+/** The container image a task runs in by default (ADR-025). */
+export const DEFAULT_EXECUTION_IMAGE =
+  "ghcr.io/re-cinq/lore-claude-runner:latest";
+
+/** Repo settings shape needed to resolve a task's execution image. */
+export interface ExecutionImageSettings {
+  dark_factory?: DarkFactorySettings | null;
+  task_overrides?: Record<
+    string,
+    { execution?: DarkFactoryExecution } | undefined
+  > | null;
+}
+
+/**
+ * Resolve which container image a task's Station runs in, newest-wins:
+ * per-task-type override → per-repo `dark_factory.execution.image` →
+ * the platform default (ADR-025).
+ */
+export function resolveExecutionImage(
+  settings: ExecutionImageSettings | null | undefined,
+  taskType: string,
+): string {
+  return (
+    settings?.task_overrides?.[taskType]?.execution?.image ??
+    settings?.dark_factory?.execution?.image ??
+    DEFAULT_EXECUTION_IMAGE
+  );
 }

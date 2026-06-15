@@ -9,12 +9,15 @@ import { z } from "zod";
  */
 export {
   resolveDarkFactorySettings as resolveSettings,
+  resolveExecutionImage,
   trustMeets,
   DEFAULT_AUTO_MERGE_PATHS,
+  DEFAULT_EXECUTION_IMAGE,
 } from "@re-cinq/lore-shared";
 export type {
   DarkFactorySettings,
   DarkFactoryAutoMerge,
+  DarkFactoryExecution,
   ResolvedDarkFactorySettings,
   TrustLevel as DarkFactoryTrustLevel,
 } from "@re-cinq/lore-shared";
@@ -32,12 +35,17 @@ const AutoMergeSchema = z.object({
 
 const NotifyChannel = z.enum(["escalation", "watched", "all"]);
 
+const ExecutionSchema = z.object({
+  image: z.string().min(1).max(256).optional(),
+});
+
 export const DarkFactorySettingsSchema = z.object({
   enabled: z.boolean().optional(),
   create_issue: z.enum(["never", "on_gate", "always"]).optional(),
   auto_merge: AutoMergeSchema.optional(),
   review: z.enum(["trust_based", "always", "never"]).optional(),
   notify: z.array(NotifyChannel).optional(),
+  execution: ExecutionSchema.optional(),
 });
 
 /**
@@ -57,6 +65,7 @@ export function parseDarkFactorySettings(raw: unknown): DarkFactorySettings {
  *   - dark_factory.auto_merge.paths (any change)
  *   - dark_factory.auto_merge.require_green_ci (only when set to false — downgrade)
  *   - dark_factory.auto_merge.require_bot_approval (only when set to false — downgrade)
+ *   - dark_factory.execution.image (any change — controls what code runs + which secrets it can read)
  *
  * All other sub-fields require admin scope only.
  */
@@ -70,5 +79,6 @@ export function twoKeyFieldsTouched(patch: DarkFactorySettings): string[] {
   if (patch.auto_merge?.require_bot_approval === false) {
     touched.push("auto_merge.require_bot_approval");
   }
+  if (patch.execution?.image !== undefined) touched.push("execution.image");
   return touched;
 }

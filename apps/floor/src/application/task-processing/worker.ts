@@ -12,6 +12,7 @@ import { buildPrompt, getTaskTypeConfig } from "../../data/config.js";
 import {
   classifyError,
   TaskFailure,
+  resolveExecutionImage,
 } from "@re-cinq/lore-shared";
 import type { PipelineTask } from "@re-cinq/lore-shared";
 import { linkifyMarkdown, createDgraphClient } from "@re-cinq/lore-shared";
@@ -329,6 +330,11 @@ async function processTask(task: any): Promise<void> {
           );
         }
       }
+      // BYO execution container (ADR-025): resolve the image from the
+      // settings hierarchy (default → per-repo → per-task-type). Unset →
+      // the platform default, which equals the controller's default, so
+      // unconfigured repos see no change.
+      const executionImage = resolveExecutionImage(repoSettings, task.task_type);
       await handleClaudeCodeTask(
         task,
         targetRepo,
@@ -338,6 +344,7 @@ async function processTask(task: any): Promise<void> {
         repoOverrides,
         darkFactoryWorkflow,
         darkFactoryBaseBranch,
+        executionImage,
       );
     }
   } catch (err: any) {

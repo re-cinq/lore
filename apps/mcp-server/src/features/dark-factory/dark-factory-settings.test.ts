@@ -46,6 +46,18 @@ describe("parseDarkFactorySettings", () => {
       }),
     ).toThrow();
   });
+
+  it("accepts an execution image", () => {
+    expect(
+      parseDarkFactorySettings({ execution: { image: "golang:1.23" } }),
+    ).toEqual({ execution: { image: "golang:1.23" } });
+  });
+
+  it("rejects an empty execution image", () => {
+    expect(() =>
+      parseDarkFactorySettings({ execution: { image: "" } }),
+    ).toThrow();
+  });
 });
 
 describe("resolveSettings", () => {
@@ -129,6 +141,12 @@ describe("twoKeyFieldsTouched", () => {
       }).sort(),
     ).toEqual(
       ["auto_merge.paths", "auto_merge.require_green_ci", "enabled"].sort(),
+    );
+  });
+
+  it("flags execution.image (security boundary)", () => {
+    expect(twoKeyFieldsTouched({ execution: { image: "golang:1.23" } })).toEqual(
+      ["execution.image"],
     );
   });
 });
