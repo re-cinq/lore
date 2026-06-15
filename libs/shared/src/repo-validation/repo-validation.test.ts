@@ -29,7 +29,7 @@ function writeFile(name: string, content: string): void {
 // ---------------------------------------------------------------------------
 
 describe("detectTooling", () => {
-  it("detects Node repo with lint and typecheck scripts", () => {
+  it("detects Node repo with lint and typecheck scripts", async () => {
     writeFile("package.json", JSON.stringify({
       scripts: { lint: "eslint .", typecheck: "tsc --noEmit", test: "vitest run" },
     }));
@@ -40,7 +40,7 @@ describe("detectTooling", () => {
     expect(tooling.fullChecks.map((s) => s.name)).toContain("test");
   });
 
-  it("detects Node repo with eslint config but no lint script", () => {
+  it("detects Node repo with eslint config but no lint script", async () => {
     writeFile("package.json", JSON.stringify({ scripts: {} }));
     writeFile("eslint.config.mjs", "export default {};");
     const tooling = detectTooling(tmpDir);
@@ -48,7 +48,7 @@ describe("detectTooling", () => {
     expect(tooling.quickChecks.map((s) => s.name)).toContain("eslint");
   });
 
-  it("detects Node repo with tsconfig but no typecheck script", () => {
+  it("detects Node repo with tsconfig but no typecheck script", async () => {
     writeFile("package.json", JSON.stringify({ scripts: {} }));
     writeFile("tsconfig.json", "{}");
     const tooling = detectTooling(tmpDir);
@@ -56,7 +56,7 @@ describe("detectTooling", () => {
     expect(tooling.quickChecks.map((s) => s.name)).toContain("tsc");
   });
 
-  it("detects vitest and adds --run flag", () => {
+  it("detects vitest and adds --run flag", async () => {
     writeFile("package.json", JSON.stringify({
       scripts: { test: "vitest run" },
     }));
@@ -65,7 +65,7 @@ describe("detectTooling", () => {
     expect(testStep?.command).toContain("--run");
   });
 
-  it("detects jest and adds --bail flag", () => {
+  it("detects jest and adds --bail flag", async () => {
     writeFile("package.json", JSON.stringify({
       scripts: { test: "jest" },
     }));
@@ -74,7 +74,7 @@ describe("detectTooling", () => {
     expect(testStep?.command).toContain("--bail");
   });
 
-  it("detects Go repo", () => {
+  it("detects Go repo", async () => {
     writeFile("go.mod", "module example.com/foo\n\ngo 1.22\n");
     const tooling = detectTooling(tmpDir);
     expect(tooling.language).toBe("go");
@@ -82,7 +82,7 @@ describe("detectTooling", () => {
     expect(tooling.fullChecks.map((s) => s.name)).toContain("go-test");
   });
 
-  it("detects Python repo with ruff and pytest", () => {
+  it("detects Python repo with ruff and pytest", async () => {
     writeFile("pyproject.toml", `
 [tool.ruff]
 line-length = 120
@@ -96,21 +96,21 @@ testpaths = ["tests"]
     expect(tooling.fullChecks.map((s) => s.name)).toContain("pytest");
   });
 
-  it("detects Rust repo", () => {
+  it("detects Rust repo", async () => {
     writeFile("Cargo.toml", '[package]\nname = "foo"\nversion = "0.1.0"\n');
     const tooling = detectTooling(tmpDir);
     expect(tooling.language).toBe("rust");
     expect(tooling.quickChecks.map((s) => s.name)).toEqual(["cargo-check", "cargo-clippy"]);
   });
 
-  it("returns unknown for empty directory", () => {
+  it("returns unknown for empty directory", async () => {
     const tooling = detectTooling(tmpDir);
     expect(tooling.language).toBe("unknown");
     expect(tooling.quickChecks).toEqual([]);
     expect(tooling.fullChecks).toEqual([]);
   });
 
-  it("prefers Node over other languages when package.json exists", () => {
+  it("prefers Node over other languages when package.json exists", async () => {
     writeFile("package.json", JSON.stringify({ scripts: { lint: "eslint ." } }));
     writeFile("go.mod", "module example.com/foo\n");
     const tooling = detectTooling(tmpDir);
@@ -123,8 +123,8 @@ testpaths = ["tests"]
 // ---------------------------------------------------------------------------
 
 describe("runValidation", () => {
-  it("returns passed=true for successful commands", () => {
-    const result = runValidation(tmpDir, [
+  it("returns passed=true for successful commands", async () => {
+    const result = await runValidation(tmpDir, [
       { name: "echo-test", command: "echo hello", timeoutMs: 5000 },
     ]);
     expect(result.passed).toBe(true);
@@ -133,16 +133,16 @@ describe("runValidation", () => {
     expect(result.steps[0].output).toContain("hello");
   });
 
-  it("returns passed=false for failing commands", () => {
-    const result = runValidation(tmpDir, [
+  it("returns passed=false for failing commands", async () => {
+    const result = await runValidation(tmpDir, [
       { name: "fail-test", command: "exit 1", timeoutMs: 5000 },
     ]);
     expect(result.passed).toBe(false);
     expect(result.steps[0].passed).toBe(false);
   });
 
-  it("runs all steps even if one fails", () => {
-    const result = runValidation(tmpDir, [
+  it("runs all steps even if one fails", async () => {
+    const result = await runValidation(tmpDir, [
       { name: "fail", command: "exit 1", timeoutMs: 5000 },
       { name: "pass", command: "echo ok", timeoutMs: 5000 },
     ]);
@@ -152,22 +152,22 @@ describe("runValidation", () => {
     expect(result.steps[1].passed).toBe(true);
   });
 
-  it("returns passed=true with empty steps", () => {
-    const result = runValidation(tmpDir, []);
+  it("returns passed=true with empty steps", async () => {
+    const result = await runValidation(tmpDir, []);
     expect(result.passed).toBe(true);
     expect(result.steps).toEqual([]);
   });
 
-  it("skips lint steps when no matching changed files", () => {
-    const result = runValidation(tmpDir, [
+  it("skips lint steps when no matching changed files", async () => {
+    const result = await runValidation(tmpDir, [
       { name: "eslint", command: "echo should-not-run", timeoutMs: 5000 },
     ], ["README.md"]); // .md files don't match eslint extensions
     expect(result.passed).toBe(true);
     expect(result.steps[0].output).toContain("skipped");
   });
 
-  it("tracks duration per step", () => {
-    const result = runValidation(tmpDir, [
+  it("tracks duration per step", async () => {
+    const result = await runValidation(tmpDir, [
       { name: "quick", command: "echo fast", timeoutMs: 5000 },
     ]);
     expect(result.steps[0].durationMs).toBeGreaterThanOrEqual(0);
@@ -180,7 +180,7 @@ describe("runValidation", () => {
 // ---------------------------------------------------------------------------
 
 describe("formatValidationOutput", () => {
-  it("formats passing results", () => {
+  it("formats passing results", async () => {
     const output = formatValidationOutput({
       passed: true,
       steps: [{ name: "lint", passed: true, output: "ok", durationMs: 100 }],
@@ -188,7 +188,7 @@ describe("formatValidationOutput", () => {
     expect(output).toContain("[PASS] lint");
   });
 
-  it("formats failing results with output", () => {
+  it("formats failing results with output", async () => {
     const output = formatValidationOutput({
       passed: false,
       steps: [{ name: "tsc", passed: false, output: "error TS1234: bad types", durationMs: 500 }],

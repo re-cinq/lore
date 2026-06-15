@@ -201,14 +201,47 @@ function truncateOutput(output: string): string {
 }
 
 /**
- * Runs validation steps sequentially. Returns as soon as all steps
- * have run (does NOT bail on first failure — collects all errors).
+ * How a single validation command is executed. Default runs it locally
+ * (`localValidationExec`); the BYO sidecar (ADR-025) injects an exec that runs
+ * the command in the repo's toolchain container over the relay.
  */
-export function runValidation(
+export type ValidationExec = (
+  command: string,
+  opts: { cwd: string; timeoutMs?: number },
+) => Promise<{ output: string; passed: boolean }>;
+
+/** Default exec — runs the command locally via `execSync`. */
+export const localValidationExec: ValidationExec = async (
+  command,
+  { cwd, timeoutMs },
+) => {
+  try {
+    const output = execSync(command, {
+      cwd,
+      encoding: "utf-8",
+      timeout: timeoutMs,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, CI: "true", FORCE_COLOR: "0" },
+    });
+    return { output: output || "", passed: true };
+  } catch (err: unknown) {
+    const e = err as { stdout?: string; stderr?: string; message?: string };
+    const output = [e.stdout || "", e.stderr || ""].join("\n").trim();
+    return { output: output || e.message || "unknown error", passed: false };
+  }
+};
+
+/**
+ * Runs validation steps sequentially. Returns as soon as all steps have run
+ * (does NOT bail on first failure — collects all errors). Each command runs
+ * through `exec` (local by default; relay-backed for BYO).
+ */
+export async function runValidation(
   repoRoot: string,
   steps: ValidationStep[],
   changedFiles?: string[],
-): ValidationResult {
+  exec: ValidationExec = localValidationExec,
+): Promise<ValidationResult> {
   if (steps.length === 0) return { passed: true, steps: [] };
 
   const results: StepResult[] = [];
@@ -227,30 +260,16 @@ export function runValidation(
       command = scopeCommandToFiles(step.name, step.command, relevantFiles);
     }
 
-    try {
-      const output = execSync(command, {
-        cwd: repoRoot,
-        encoding: "utf-8",
-        timeout: step.timeoutMs,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, CI: "true", FORCE_COLOR: "0" },
-      });
-      results.push({
-        name: step.name,
-        passed: true,
-        output: truncateOutput(output || ""),
-        durationMs: Date.now() - start,
-      });
-    } catch (err: unknown) {
-      const execErr = err as { stdout?: string; stderr?: string; status?: number; message?: string };
-      const output = [execErr.stdout || "", execErr.stderr || ""].join("\n").trim();
-      results.push({
-        name: step.name,
-        passed: false,
-        output: truncateOutput(output || execErr.message || "unknown error"),
-        durationMs: Date.now() - start,
-      });
-    }
+    const { output, passed } = await exec(command, {
+      cwd: repoRoot,
+      timeoutMs: step.timeoutMs,
+    });
+    results.push({
+      name: step.name,
+      passed,
+      output: truncateOutput(output),
+      durationMs: Date.now() - start,
+    });
   }
 
   return {

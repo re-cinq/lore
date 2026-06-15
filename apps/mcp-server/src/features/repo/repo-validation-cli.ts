@@ -13,7 +13,7 @@
  * Outputs JSON to stdout with the validation result.
  */
 
-import { detectTooling, runValidation, formatValidationOutput } from "./repo-validation.js";
+import { detectTooling, runValidation, formatValidationOutput } from "@re-cinq/lore-shared";
 
 const args = process.argv.slice(2);
 
@@ -41,7 +41,7 @@ if (steps.length === 0) {
 
 console.error(`[validation] ${mode} checks for ${tooling.language} repo: ${steps.map((s) => s.name).join(", ")}`);
 
-const result = runValidation(repoRoot, steps, changedFiles);
+const result = await runValidation(repoRoot, steps, changedFiles);
 
 console.log(JSON.stringify({
   passed: result.passed,

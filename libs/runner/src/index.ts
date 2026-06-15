@@ -75,3 +75,8 @@ export {
   type RelayResult,
 } from "./relay/relay-executor.js";
 export { RELAY_SCRIPT } from "./relay/relay-script.js";
+
+export {
+  createValidateHandler,
+  type ValidateHandlerDeps,
+} from "./validate-handler.js";
