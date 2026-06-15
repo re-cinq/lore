@@ -18,6 +18,7 @@ set -u
 RELAY_DIR="\${LORE_RELAY_DIR:-/workspace/.lore/relay}"
 WORKDIR="\${LORE_RELAY_WORKDIR:-/workspace/repo}"
 mkdir -p "$RELAY_DIR"
+[ -n "\${HOME:-}" ] && mkdir -p "$HOME" 2>/dev/null || true
 : > "$RELAY_DIR/relay.up"
 while true; do
   [ -f "$RELAY_DIR/shutdown" ] && exit 0

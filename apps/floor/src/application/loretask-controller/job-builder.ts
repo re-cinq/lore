@@ -20,6 +20,10 @@ const WORKSPACE_VOLUME = "workspace";
 const WORKSPACE_PATH = "/workspace";
 const RELAY_DIR = "/workspace/.lore/relay";
 const RELAY_WORKDIR = "/workspace/repo";
+// Writable HOME on the shared volume — the pod runs non-root (uid 1000) and the
+// BYO image's default HOME (often /root) isn't writable, so toolchain caches
+// (npm ~/.npm, go $HOME/.cache, cargo ~/.cargo) would fail on first run.
+const TOOLCHAIN_HOME = "/workspace/.home";
 
 export interface LoreTaskJobInput {
   spec: {
@@ -135,6 +139,7 @@ export function buildLoreTaskJob(input: LoreTaskJobInput): k8s.V1Job {
         env: [
           { name: "LORE_RELAY_DIR", value: RELAY_DIR },
           { name: "LORE_RELAY_WORKDIR", value: RELAY_WORKDIR },
+          { name: "HOME", value: TOOLCHAIN_HOME },
         ],
         securityContext: {
           allowPrivilegeEscalation: false,
