@@ -7,7 +7,7 @@ on:
       - 'infra/docker/claude-runner/**'
       - 'apps/mcp-server/src/features/repo/repo-validation.ts'
       - 'apps/mcp-server/src/features/repo/repo-validation-cli.ts'
-      - 'apps/agent/**'
+      - 'apps/floor/**'
       - 'libs/shared/**'
       - 'libs/runner/**'
       - 'scripts/task-types.yaml'

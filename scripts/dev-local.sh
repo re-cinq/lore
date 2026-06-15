@@ -87,7 +87,7 @@ fi
 log "Building shared, mcp-server, agent..."
 npm run build -w @re-cinq/lore-shared
 npm run build -w @re-cinq/lore-mcp
-npm run build -w @re-cinq/lore-agent
+npm run build -w @re-cinq/lore-floor
 
 # 5. Run everything with live reload — one slot per process so -k kills all.
 #    Each TS service gets a tsc --watch (recompile) + node --watch (restart) pair.
@@ -120,8 +120,8 @@ setsid npx concurrently -k \
   "npm run dev -w @re-cinq/lore-shared" \
   "npm run dev -w @re-cinq/lore-mcp" \
   "MCP_TRANSPORT=http PORT=3001 npm run start:watch -w @re-cinq/lore-mcp" \
-  "npm run dev -w @re-cinq/lore-agent" \
-  "npm run start:watch -w @re-cinq/lore-agent" \
+  "npm run dev -w @re-cinq/lore-floor" \
+  "npm run start:watch -w @re-cinq/lore-floor" \
   "npm --prefix web-ui run dev" &
 STACK_PGID=$!
 wait "$STACK_PGID"

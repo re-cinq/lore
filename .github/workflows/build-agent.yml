@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'apps/agent/**'
+      - 'apps/floor/**'
       # The compiled `shared` package is bundled into the image — a shared-only
       # change must rebuild + redeploy, or the cluster runs stale shared code
       # while main is green (rediscovered 2026-06-11).
@@ -61,7 +61,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: apps/agent/Dockerfile
+          file: apps/floor/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
