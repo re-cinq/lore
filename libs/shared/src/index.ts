@@ -308,3 +308,16 @@ export {
   buildReviewFixDescription,
   formatReviewFeedback,
 } from './review-feedback.js';
+// Deterministic repo validation (lint/typecheck), relocated from mcp-server so
+// the runner kernel can drive it in a BYO toolchain sidecar (ADR-025).
+export {
+  detectTooling,
+  runValidation,
+  formatValidationOutput,
+  localValidationExec,
+  type ValidationStep,
+  type RepoTooling,
+  type StepResult,
+  type ValidationResult,
+  type ValidationExec,
+} from './repo-validation/repo-validation.js';

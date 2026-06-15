@@ -42,11 +42,13 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
 import {
   runSupervisor,
   loadBuiltinWorkflows,
   createClaudeCodeAgentHandler,
   createProductionHandlers,
+  createValidateHandler,
   runClaudeCode,
   type Workflow,
 } from "@re-cinq/lore-runner";
@@ -152,8 +154,31 @@ async function main(): Promise<number> {
     { taskId, description: taskDescription, taskType },
   );
 
+  // BYO toolchain sidecar (ADR-025): when a relay is present, run the
+  // deterministic validation in the repo's container over the relay, scoped to
+  // the changed files. Without a relay (default image) the validate node keeps
+  // its no-op default — unchanged behavior.
+  const relayDir = process.env.LORE_TOOLCHAIN_RELAY;
+  const changedFiles = (): string[] => {
+    const base = process.env.BASE_BRANCH;
+    if (!base) return [];
+    try {
+      return execSync(`git diff --name-only origin/${base}...HEAD`, {
+        cwd: workdir,
+        encoding: "utf-8",
+      })
+        .split("\n")
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
   const handlers = createProductionHandlers({
     agent: agentHandler,
+    ...(relayDir
+      ? { validate: createValidateHandler({ relayDir, changedFiles }) }
+      : {}),
     // Auto-merge intentionally NOT wired here — the loretask-watcher
     // owns PR creation, and firing evaluateAndMerge from inside the
     // pod would race the watcher (the PR doesn't exist yet at this

@@ -13,7 +13,8 @@
     "./llm/*.js": { "types": "./dist/llm/*.d.ts", "default": "./dist/llm/*.js" },
     "./spec-link-parser.js": { "types": "./dist/spec-link-parser.d.ts", "default": "./dist/spec-link-parser.js" },
     "./spec-segment.js": { "types": "./dist/spec-segment.d.ts", "default": "./dist/spec-segment.js" },
-    "./test-paths.js": { "types": "./dist/test-paths.d.ts", "default": "./dist/test-paths.js" }
+    "./test-paths.js": { "types": "./dist/test-paths.d.ts", "default": "./dist/test-paths.js" },
+    "./repo-validation/repo-validation.js": { "types": "./dist/repo-validation/repo-validation.d.ts", "default": "./dist/repo-validation/repo-validation.js" }
   },
   "scripts": {
     "build": "tsc",

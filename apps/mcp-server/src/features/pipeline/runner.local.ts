@@ -12,7 +12,7 @@ import { spawn, execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { detectTooling, runValidation, formatValidationOutput } from "../repo/repo-validation.js";
+import { detectTooling, runValidation, formatValidationOutput } from "@re-cinq/lore-shared";
 import { redactSecrets } from "@re-cinq/lore-shared";
 
 // ---------------------------------------------------------------------------
@@ -268,7 +268,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
 
       if (tooling.quickChecks.length > 0) {
         console.log(`[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`);
-        const validation = runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
+        const validation = await runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
 
         if (!validation.passed) {
           // Attempt one retry: spawn Claude Code with fix prompt
@@ -298,7 +298,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
             await waitForExit(fixChild.pid);
 
             // Re-validate after fix attempt
-            const retryValidation = runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
+            const retryValidation = await runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
             if (!retryValidation.passed) {
               const retryOutput = formatValidationOutput(retryValidation);
               fs.appendFileSync(task.logFile, `\n\n--- RETRY VALIDATION FAILED ---\n${retryOutput}\n`);
