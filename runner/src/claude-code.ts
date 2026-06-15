@@ -7,13 +7,26 @@
  */
 
 import { execFile, execFileSync, spawn } from "node:child_process";
-import { query } from "../../platform/db.js";
 
 export interface ClaudeCodeResult {
   output: string;
   exitCode: number;
   durationMs: number;
 }
+
+/**
+ * Optional usage sink — the caller (agent bootstrap) backs this with
+ * `project.usage.logLlmCall` so the kernel records the call without
+ * importing a pg pool. Absent in tests / API-less runs.
+ */
+export type LogUsage = (record: {
+  taskId?: string | null;
+  jobName: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+}) => Promise<void>;
 
 /**
  * Check if the `claude` CLI is available in PATH.
@@ -38,6 +51,8 @@ export async function runClaudeCode(params: {
   model?: string;
   maxTokens?: number;
   taskId?: string;
+  /** Injected accounting sink; when absent, the call is not logged. */
+  logUsage?: LogUsage;
 }): Promise<ClaudeCodeResult> {
   const workDir = params.workDir || "/tmp";
   const model = params.model || "claude-sonnet-4-6";
@@ -87,24 +102,21 @@ export async function runClaudeCode(params: {
       const estimatedOutputTokens = Math.ceil(stdout.length / 4);
       const estimatedInputTokens = Math.ceil(params.prompt.length / 4);
 
-      // Log to pipeline.llm_calls
-      try {
-        await query(
-          `INSERT INTO pipeline.llm_calls
-             (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [
-            params.taskId || null,
-            "claude-code",
+      // Account the call through the injected usage sink (project.usage).
+      // Non-fatal: a logging failure must not fail the task.
+      if (params.logUsage) {
+        try {
+          await params.logUsage({
+            taskId: params.taskId ?? null,
+            jobName: "claude-code",
             model,
-            estimatedInputTokens,
-            estimatedOutputTokens,
-            0, // actual cost tracked by Claude Code internally
+            inputTokens: estimatedInputTokens,
+            outputTokens: estimatedOutputTokens,
             durationMs,
-          ],
-        );
-      } catch (logErr: any) {
-        console.error(`[agent] Failed to log Claude Code call: ${logErr.message}`);
+          });
+        } catch (logErr: any) {
+          console.error(`[agent] Failed to log Claude Code call: ${logErr.message}`);
+        }
       }
 
       console.log(

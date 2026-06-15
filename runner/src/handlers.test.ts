@@ -3,7 +3,7 @@ import {
   createProductionRetrospectiveHandler,
   createProductionHandlers,
 } from "./handlers.js";
-import type { WorkflowNode } from "../workflow/loader.js";
+import type { WorkflowNode } from "./loader.js";
 import type { NodeContext } from "./graph-executor.js";
 
 const node: WorkflowNode = {
@@ -61,6 +61,7 @@ describe("createProductionRetrospectiveHandler", () => {
         captured.push(content);
         return "ep";
       },
+      writeEpisodeWithCuration: async () => undefined,
       curate: false,
     });
     await handler(node, ctx);
@@ -90,6 +91,11 @@ describe("createProductionHandlers", () => {
     const handlers = createProductionHandlers({
       agent: async () => ({ outcome: "success" }),
       validate: customValidate,
+      episodeDeps: {
+        writeEpisode: vi.fn(async () => "ep"),
+        writeEpisodeWithCuration: vi.fn(async () => undefined),
+        curate: false,
+      },
     });
     const r = await handlers.validate(node, ctx);
     expect(r.outcome).toBe("failed");

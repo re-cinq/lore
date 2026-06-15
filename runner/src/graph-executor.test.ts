@@ -7,7 +7,7 @@ import {
   type NodeHandlers,
   type NodeResult,
 } from "./graph-executor.js";
-import { parseWorkflow, type Workflow } from "../workflow/loader.js";
+import { parseWorkflow, type Workflow } from "./loader.js";
 import type { LeaseBackend } from "@re-cinq/lore-shared";
 
 // ── Fixtures ────────────────────────────────────────────────────────────

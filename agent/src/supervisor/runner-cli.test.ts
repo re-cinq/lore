@@ -7,13 +7,13 @@ import { tmpdir } from "node:os";
 // logic in main(): env validation, workflow lookup, and reason → exit
 // code mapping. The supervisor itself is well-tested elsewhere.
 const runSupervisorMock = vi.fn();
-vi.mock("./index.js", () => ({
+const loadBuiltinWorkflowsMock = vi.fn();
+vi.mock("@re-cinq/lore-runner", () => ({
   runSupervisor: (...args: unknown[]) => runSupervisorMock(...args),
-}));
-
-const loadWorkflowDirMock = vi.fn();
-vi.mock("../workflow/loader.js", () => ({
-  loadWorkflowDir: (...args: unknown[]) => loadWorkflowDirMock(...args),
+  loadBuiltinWorkflows: (...args: unknown[]) => loadBuiltinWorkflowsMock(...args),
+  createClaudeCodeAgentHandler: () => async () => ({ outcome: "success" }),
+  createProductionHandlers: () => ({}),
+  runClaudeCode: async () => ({ output: "", exitCode: 0, durationMs: 0 }),
 }));
 
 vi.mock("../platform/config.js", () => ({
@@ -53,9 +53,9 @@ beforeEach(() => {
   delete process.env.LORE_DB_HOST;
   delete process.env.TASK_TYPES_PATH;
 
-  loadWorkflowDirMock.mockReset();
+  loadBuiltinWorkflowsMock.mockReset();
   runSupervisorMock.mockReset();
-  loadWorkflowDirMock.mockResolvedValue(
+  loadBuiltinWorkflowsMock.mockResolvedValue(
     new Map([
       [
         "implementation",
@@ -87,7 +87,7 @@ describe("runner-cli main()", () => {
   });
 
   it("returns 3 when workflow loading throws", async () => {
-    loadWorkflowDirMock.mockRejectedValueOnce(new Error("yaml parse fail"));
+    loadBuiltinWorkflowsMock.mockRejectedValueOnce(new Error("yaml parse fail"));
     expect(await main()).toBe(3);
   });
 

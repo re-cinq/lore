@@ -5,7 +5,7 @@ import type {
   NodeHandler,
   NodeResult,
 } from "./graph-executor.js";
-import type { WorkflowNode } from "../workflow/loader.js";
+import type { WorkflowNode } from "./loader.js";
 import type { LlmCompletion } from "@re-cinq/lore-shared";
 
 /**

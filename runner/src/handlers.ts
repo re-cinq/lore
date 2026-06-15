@@ -1,50 +1,57 @@
-import type { Octokit } from "octokit";
 import type { NodeHandler, NodeHandlers } from "./graph-executor.js";
-import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
-import {
-  evaluateAndMerge,
-  type AutoMergeJobInputs,
-} from "../jobs/auto-merge.js";
+
+/** Writes one `memory.episodes` row. Injected by the agent bootstrap. */
+export type WriteEpisode = (
+  content: string,
+  source: string,
+  ref: string,
+  agentId: string,
+) => Promise<unknown>;
+
+/** Writes an episode + an auto-curated lesson. Injected by the agent bootstrap. */
+export type WriteEpisodeWithCuration = (
+  summary: string,
+  phase: string,
+  ref: string,
+  agentId: string,
+  taskId: string,
+) => Promise<void>;
+
+/**
+ * An auto-merge candidate at retrospective time. `policy` is opaque to the
+ * kernel — it is resolved by the agent and handed straight back to
+ * {@link ProductionHandlersDeps.evaluateAndMerge}.
+ */
+export interface AutoMergeCandidate {
+  repo: string;
+  prNumber: number;
+  policy: unknown;
+}
 
 export interface ProductionHandlersDeps {
-  /** Override for testing — defaults to the real episode-writer. */
-  writeEpisode?: typeof writeEpisode;
-  /** Override for testing — defaults to the curating variant. */
-  writeEpisodeWithCuration?: typeof writeEpisodeWithCuration;
+  /** Episode writer — required (the kernel cannot reach the agent's DB directly). */
+  writeEpisode: WriteEpisode;
+  /** Curating episode writer (Haiku lesson extraction). */
+  writeEpisodeWithCuration: WriteEpisodeWithCuration;
   /**
-   * Whether to call the curation step (Haiku lesson extraction) in
-   * addition to writing the episode. Defaults to true; tests turn it
-   * off to avoid hitting Anthropic.
+   * Whether to call the curation step in addition to writing the episode.
+   * Defaults to true; the pod path turns it off to avoid the Haiku call.
    */
   curate?: boolean;
   /**
-   * Optional auto-merge trigger. When provided AND a PR is associated
-   * with the task at retrospective time, the retrospective handler
-   * calls `evaluateAndMerge()` after writing the episode. The orchestrator
-   * (worker.ts dispatcher in production) supplies the inputs; tests
-   * use a stub that returns an outcome.
+   * Optional auto-merge trigger. When provided AND a PR is associated with
+   * the task at retrospective time, the retrospective handler calls it after
+   * writing the episode. The agent backs this with the real auto-merge engine.
    */
   evaluateAndMerge?: (
-    inputs: AutoMergeJobInputs,
+    inputs: { taskId: string } & AutoMergeCandidate,
   ) => Promise<{ outcome: string }>;
   /**
-   * Lookup the PR associated with the current task at retrospective
-   * time. Returns null when no PR exists yet (e.g. handler exits
-   * before push). Production wires this to the pipeline.tasks query;
-   * tests inject a stub.
-   *
-   * The caller owns Octokit construction and threads it through here
-   * so the auto-merge engine has a real client (rather than the handler
-   * holding `undefined as any`).
+   * Lookup the PR associated with the current task at retrospective time.
+   * Returns null when no PR exists yet. The agent wires this to its
+   * pipeline.tasks query.
    */
-  resolvePrForTask?: (
-    taskId: string,
-  ) => Promise<{
-    repo: string;
-    prNumber: number;
-    policy: AutoMergeJobInputs["policy"];
-    octokit: Octokit;
-  } | null>;
+  resolvePrForTask?: (taskId: string) => Promise<AutoMergeCandidate | null>;
 }
 
 /**
@@ -62,10 +69,10 @@ export interface ProductionHandlersDeps {
  * a re-run resume that re-executes the retrospective node is safe.
  */
 export function createProductionRetrospectiveHandler(
-  deps: ProductionHandlersDeps = {},
+  deps: ProductionHandlersDeps,
 ): NodeHandler {
-  const writer = deps.writeEpisode ?? writeEpisode;
-  const curator = deps.writeEpisodeWithCuration ?? writeEpisodeWithCuration;
+  const writer = deps.writeEpisode;
+  const curator = deps.writeEpisodeWithCuration;
   const curate = deps.curate ?? true;
 
   return async (_node, ctx) => {
@@ -120,15 +127,13 @@ export function createProductionHandlers(opts: {
   validate?: NodeHandler;
   gate?: NodeHandler;
   retrospective?: NodeHandler;
-  episodeDeps?: ProductionHandlersDeps;
+  episodeDeps: ProductionHandlersDeps;
 }): NodeHandlers {
   return {
     agent: opts.agent,
-    // Validate handler defaults to a no-op success — the real
-    // lint/typecheck integration lives in mcp-server/src/repo-validation
-    // and is invoked by the GKE Job pod's entrypoint.sh today. Wiring
-    // it into this codepath happens when the supervisor integrates with
-    // executeGraph in production (see T058 follow-up).
+    // Validate handler defaults to a no-op success — the deterministic
+    // lint/typecheck integration (repo-validation) is invoked by the GKE
+    // Job pod's entrypoint.sh today; wiring it into the graph is a follow-up.
     validate: opts.validate ?? (async () => ({ outcome: "success" })),
     gate: opts.gate ?? (async () => ({ outcome: "success" })),
     retrospective:
