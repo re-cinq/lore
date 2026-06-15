@@ -19,7 +19,7 @@ whether the task has finished so a poller can stop.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L344)).
+Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L344)).
 
 - **name**: `lore_get_task_logs`
 - **description** (verbatim): *"Fetch execution logs for a pipeline task. Returns
@@ -34,7 +34,7 @@ Registered via `server.tool` ([registration + handler](../../../mcp-server/src/m
 
 ## Behavior
 
-1. **Task lookup** — `getTask(task_id)` ([task lookup](../../../mcp-server/src/features/pipeline/pipeline.ts#L35));
+1. **Task lookup** — `getTask(task_id)` ([task lookup](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L35));
    if `null`, return `"Task not found: {task_id}"`. `repo = task.target_repo`.
 2. **Transport branch on `process.env.LORE_DB_HOST`:**
    - **stdio mode (no `LORE_DB_HOST`)** — if `LORE_API_URL` + `LORE_INGEST_TOKEN`

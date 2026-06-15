@@ -20,7 +20,7 @@ or misleading.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L163)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L163)).
 
 - **name**: `lore_cancel_task`
 - **description** (verbatim): *"Cancel a pipeline task. If the task has a running
@@ -36,8 +36,8 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
 
 1. **DB gate** — if `process.env.LORE_DB_HOST` is unset, return
    `"Pipeline requires PostgreSQL (LORE_DB_HOST not set)."` (no stdio proxy for cancel).
-2. Call `cancelTask(task_id)` ([handler wrapper](../../../mcp-server/src/features/pipeline/pipeline.ts#L41)).
-3. **Shared CRUD** ([`cancelTask`](../../../shared/src/pipeline-tasks.ts#L195)):
+2. Call `cancelTask(task_id)` ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L41)).
+3. **Shared CRUD** ([`cancelTask`](../../../libs/shared/src/pipeline-tasks.ts#L195)):
    1. `getTask(pool, taskId)` (SELECT row + events); if `null`, throw `"Task not found"`.
    2. If `status ∈ {merged, failed, cancelled}`, throw `"Cannot cancel task in {status} state"`.
    3. Otherwise `updateTaskStatus(pool, taskId, "cancelled", {cancelled_by: "user"})`
@@ -64,14 +64,14 @@ A single MCP text content block — one of: the missing-DB message, the compact
 ## Acceptance Criteria
 
 A running task transitions to `cancelled` and the call returns that status.
-([validated by `returns cancelled status when the task is running`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L66))
+([validated by `returns cancelled status when the task is running`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L66))
 
 A task id with no matching row is rejected with `Task not found`.
-([validated by `throws task not found when no row matches`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L77))
+([validated by `throws task not found when no row matches`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L77))
 
 A task already in a terminal state (e.g. merged) is rejected with a
 `Cannot cancel task in <state> state` error.
-([validated by `throws cannot cancel when the task is already merged`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L83))
+([validated by `throws cannot cancel when the task is already merged`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L83))
 
 ## Out of Scope
 

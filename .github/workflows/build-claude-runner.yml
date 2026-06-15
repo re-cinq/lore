@@ -7,9 +7,9 @@ on:
       - 'infra/docker/claude-runner/**'
       - 'mcp-server/src/repo-validation.ts'
       - 'mcp-server/src/repo-validation-cli.ts'
-      - 'agent/**'
-      - 'shared/**'
-      - 'runner/**'
+      - 'apps/agent/**'
+      - 'libs/shared/**'
+      - 'libs/runner/**'
       - 'scripts/task-types.yaml'
   workflow_dispatch:
 

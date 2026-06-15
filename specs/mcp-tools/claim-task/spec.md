@@ -19,7 +19,7 @@ one caller wins; everyone else is told the task is already taken.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L292)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L292)).
 
 - **name**: `lore_claim_task`
 - **description** (verbatim): *"Atomically claim a spec-task so no other agent
@@ -37,7 +37,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
 1. `getPool()`. If null, return `"lore_claim_task requires PostgreSQL (LORE_DB_HOST not set)."`.
 2. Resolve `agent_id || resolveAgentId()` (env / `~/.lore/agent-id` / generated).
 3. Delegate to `claimTask(pool, task_id, resolvedAgent)`
-   ([handler](../../../mcp-server/src/features/pipeline/tasks.ts#L114)). It:
+   ([handler](../../../apps/mcp-server/src/features/pipeline/tasks.ts#L114)). It:
    1. `pool.connect()` → `BEGIN`.
    2. `SELECT id FROM pipeline.tasks WHERE id = $1 AND status = 'pending' FOR UPDATE SKIP LOCKED`.
    3. If no row → `ROLLBACK`, release, return `false`.
@@ -64,13 +64,13 @@ Never throws.
 ## Acceptance Criteria
 
 A pending task is locked, flipped to `running` with the claiming agent, and the
-transaction commits returning true. ([validated by `commits and returns true when a pending task is locked`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L131))
+transaction commits returning true. ([validated by `commits and returns true when a pending task is locked`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L131))
 
 When the row is already locked or absent the handler rolls back and returns
-false. ([validated by `rolls back and returns false when the row is already locked or absent`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L151))
+false. ([validated by `rolls back and returns false when the row is already locked or absent`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L151))
 
 A failure recording the claim event does not abort the claim; the transaction
-still commits. ([validated by `still commits when the event-recording insert throws`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L166))
+still commits. ([validated by `still commits when the event-recording insert throws`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L166))
 
 The no-pool guard, agent resolution, and success/failure message framing run
 only inside the tool handler. *(untested: handler-only orchestration around

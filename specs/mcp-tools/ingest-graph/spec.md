@@ -22,7 +22,7 @@ when nothing changed is a no-op (only changed files re-project).
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/spec-trace-tools.ts#L10)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/spec-trace-tools.ts#L10)).
 
 - **name**: `lore_ingest_graph`
 - **description** (verbatim): *"Create spec-traceability graph ingestion tasks —
@@ -48,7 +48,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/s
    text `"Database not available — cannot create ingestion tasks."`
 3. Dynamic-import and call `createIngestGraphTasks(dbPoolRef, targetRepo,
    { kinds, branch: ref, createdBy: "lore_ingest_graph" })`
-   ([handler](../../../mcp-server/src/features/spec-trace/ingest-graph-tasks.ts#L23)):
+   ([handler](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.ts#L23)):
    1. `kinds` defaults to `["specs", "adrs", "tests"]` when omitted or empty.
    2. Generate one `groupId = randomUUID()`.
    3. For each kind, `taskType = "ingest-{kind}"`. **Dedupe** — `SELECT id FROM
@@ -89,11 +89,11 @@ text.
 ## Acceptance Criteria
 
 The auto fan-out (which delegates to `createIngestGraphTasks`) creates
-`ingest-specs` + `ingest-adrs` tasks when the repo opted in. ([validated by `creates specs+adrs tasks when auto_ingest_graph is enabled`](../../../mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L26))
+`ingest-specs` + `ingest-adrs` tasks when the repo opted in. ([validated by `creates specs+adrs tasks when auto_ingest_graph is enabled`](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L26))
 
-It creates no tasks when the `auto_ingest_graph` setting is off. ([validated by `does nothing when the setting is off`](../../../mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L32))
+It creates no tasks when the `auto_ingest_graph` setting is off. ([validated by `does nothing when the setting is off`](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L32))
 
-It creates no tasks when repo settings are absent. ([validated by `does nothing when settings are absent`](../../../mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L38))
+It creates no tasks when repo settings are absent. ([validated by `does nothing when settings are absent`](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L38))
 
 The tool wrapper's repo/db guards and the per-kind in-flight dedupe branch are
 exercised only against a live DB. *(untested: the dedupe `SELECT` + insert and the

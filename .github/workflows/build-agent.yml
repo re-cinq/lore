@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'agent/**'
+      - 'apps/agent/**'
       # The compiled `shared` package is bundled into the image — a shared-only
       # change must rebuild + redeploy, or the cluster runs stale shared code
       # while main is green (rediscovered 2026-06-11).
-      - 'shared/**'
+      - 'libs/shared/**'
       # The compiled `runner` kernel is bundled too (the agent imports
       # @re-cinq/lore-runner) — a runner-only change must rebuild + redeploy.
-      - 'runner/**'
+      - 'libs/runner/**'
       # Chart or workflow changes need a redeploy too.
       - 'infra/terraform/modules/gke-mcp/agent-helm/**'
       - '.github/workflows/build-agent.yml'
@@ -61,7 +61,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: agent/Dockerfile
+          file: apps/agent/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

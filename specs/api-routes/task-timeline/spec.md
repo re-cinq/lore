@@ -24,14 +24,14 @@ an ordered timeline, and overlays PR state + lease state.
 
 Registered as `pattern(/^\/api\/tasks\/[^/]+\/timeline(\?|$)/, "GET")` →
 `handleTaskTimeline(req, res, pool)`
-([registration](../../../mcp-server/src/api/routes/index.ts#L57),
-[handler](../../../mcp-server/src/api/routes/task-timeline.ts#L62)). Placed
+([registration](../../../apps/mcp-server/src/api/routes/index.ts#L57),
+[handler](../../../apps/mcp-server/src/api/routes/task-timeline.ts#L62)). Placed
 **before** the broad `prefix("/api/tasks", "GET")` list route so the timeline
 regex wins.
 
 - **Method + path**: `GET /api/tasks/:id/timeline` (`:id` is `[^/]+`, URL-decoded).
 - **Auth scope**: `read`. No `SCOPE_OVERRIDES` match; first `ROUTE_SCOPES` prefix
-  is `/api/tasks` → `"read"` ([scope map](../../../mcp-server/src/api/routes/auth.ts#L40)).
+  is `/api/tasks` → `"read"` ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L40)).
   Rate-limit bucket `task` (60/min).
 - **Request**: path param only; no body, no query (a `?…` suffix is tolerated by
   the matcher but ignored).
@@ -78,7 +78,7 @@ duration_ms, summary, extras? }`. Degenerate 200s add `pending: "no_branch"`
    3. Any other thrown error logs `"[timeline] listCommits failed:"` →
       `500 { error: "github_api" }`.
 7. **Fold** — `buildTimeline(commitsApi, task.created_at)`
-   ([pure fn](../../../mcp-server/src/api/routes/task-timeline.ts#L33)):
+   ([pure fn](../../../apps/mcp-server/src/api/routes/task-timeline.ts#L33)):
    reverse the newest-first GitHub list to chronological; for each commit parse
    `parseTrailers(message)` and skip commits with none; emit a `TimelineCommit`
    with `outcome = extras["Lore-Outcome"] ?? "success"`,
@@ -108,39 +108,39 @@ Verbatim error strings: `"database unavailable"`, `"not found"`, `"internal"`,
 
 ## Acceptance Criteria
 
-A null pool returns 503. ([validated by `returns 503 when pool is null`](../../../mcp-server/src/api/routes/timeline.test.ts#L49))
+A null pool returns 503. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L49))
 
-A path the dispatcher admits but the handler regex rejects returns 404 `not found`. ([validated by `returns 404 when the path fails the stricter handler regex`](../../../mcp-server/src/api/routes/timeline.test.ts#L54))
+A path the dispatcher admits but the handler regex rejects returns 404 `not found`. ([validated by `returns 404 when the path fails the stricter handler regex`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L54))
 
-A throwing task lookup returns 500. ([validated by `returns 500 when the task lookup throws`](../../../mcp-server/src/api/routes/timeline.test.ts#L60))
+A throwing task lookup returns 500. ([validated by `returns 500 when the task lookup throws`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L60))
 
-An unknown task returns `task_not_found`. ([validated by `returns 404 when the task does not exist`](../../../mcp-server/src/api/routes/timeline.test.ts#L67))
+An unknown task returns `task_not_found`. ([validated by `returns 404 when the task does not exist`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L67))
 
-A task with no branch returns `pending: no_branch` with empty commits. ([validated by `returns pending:no_branch when the task has no branch`](../../../mcp-server/src/api/routes/timeline.test.ts#L73))
+A task with no branch returns `pending: no_branch` with empty commits. ([validated by `returns pending:no_branch when the task has no branch`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L73))
 
-A full run yields ordered stage commits, merged PR state, current stage, and a held lease. ([validated by `builds the timeline with stage commits, merged PR, and held lease`](../../../mcp-server/src/api/routes/timeline.test.ts#L79))
+A full run yields ordered stage commits, merged PR state, current stage, and a held lease. ([validated by `builds the timeline with stage commits, merged PR, and held lease`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L79))
 
-A failing PR fetch and empty lease degrade to null PR state and an unheld lease. ([validated by `tolerates a failing PR fetch and empty lease, no trailers`](../../../mcp-server/src/api/routes/timeline.test.ts#L106))
+A failing PR fetch and empty lease degrade to null PR state and an unheld lease. ([validated by `tolerates a failing PR fetch and empty lease, no trailers`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L106))
 
-A task with no `pr_number` skips the PR fetch. ([validated by `skips the PR fetch when there is no pr_number`](../../../mcp-server/src/api/routes/timeline.test.ts#L119))
+A task with no `pr_number` skips the PR fetch. ([validated by `skips the PR fetch when there is no pr_number`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L119))
 
-Commit field fallbacks (null date, missing extras, non-finite duration) are handled. ([validated by `covers commit field fallbacks (null date, no extras, non-finite duration)`](../../../mcp-server/src/api/routes/timeline.test.ts#L129))
+Commit field fallbacks (null date, missing extras, non-finite duration) are handled. ([validated by `covers commit field fallbacks (null date, no extras, non-finite duration)`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L129))
 
-A GitHub 404 on the branch returns `branch_deleted: true`. ([validated by `returns branch_deleted when GitHub 404s`](../../../mcp-server/src/api/routes/timeline.test.ts#L146))
+A GitHub 404 on the branch returns `branch_deleted: true`. ([validated by `returns branch_deleted when GitHub 404s`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L146))
 
-A non-404 GitHub error returns 500 `github_api`. ([validated by `returns 500 on a non-404 GitHub error`](../../../mcp-server/src/api/routes/timeline.test.ts#L155))
+A non-404 GitHub error returns 500 `github_api`. ([validated by `returns 500 on a non-404 GitHub error`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L155))
 
-A failing lease query leaves the lease null. ([validated by `tolerates a failing lease query`](../../../mcp-server/src/api/routes/timeline.test.ts#L164))
+A failing lease query leaves the lease null. ([validated by `tolerates a failing lease query`](../../../apps/mcp-server/src/api/routes/timeline.test.ts#L164))
 
-`buildTimeline` returns empty when no commit carries trailers. ([validated by `returns empty array when no commits carry trailers`](../../../mcp-server/src/api/routes/timeline-build.test.ts#L12))
+`buildTimeline` returns empty when no commit carries trailers. ([validated by `returns empty array when no commits carry trailers`](../../../apps/mcp-server/src/api/routes/timeline-build.test.ts#L12))
 
-`buildTimeline` reverses newest-first order into chronological stages. ([validated by `reverses GitHub newest-first order into chronological stages`](../../../mcp-server/src/api/routes/timeline-build.test.ts#L17))
+`buildTimeline` reverses newest-first order into chronological stages. ([validated by `reverses GitHub newest-first order into chronological stages`](../../../apps/mcp-server/src/api/routes/timeline-build.test.ts#L17))
 
-`buildTimeline` computes per-stage duration from the previous commit time. ([validated by `computes per-stage duration from the previous commit time`](../../../mcp-server/src/api/routes/timeline-build.test.ts#L34))
+`buildTimeline` computes per-stage duration from the previous commit time. ([validated by `computes per-stage duration from the previous commit time`](../../../apps/mcp-server/src/api/routes/timeline-build.test.ts#L34))
 
-`buildTimeline` defaults outcome to success and surfaces `Lore-Outcome`. ([validated by `defaults outcome to success and surfaces Lore-Outcome extras`](../../../mcp-server/src/api/routes/timeline-build.test.ts#L50))
+`buildTimeline` defaults outcome to success and surfaces `Lore-Outcome`. ([validated by `defaults outcome to success and surfaces Lore-Outcome extras`](../../../apps/mcp-server/src/api/routes/timeline-build.test.ts#L50))
 
-`buildTimeline` filters non-trailer commits while keeping trailered ones. ([validated by `filters non-trailer commits while keeping trailered ones`](../../../mcp-server/src/api/routes/timeline-build.test.ts#L66))
+`buildTimeline` filters non-trailer commits while keeping trailered ones. ([validated by `filters non-trailer commits while keeping trailered ones`](../../../apps/mcp-server/src/api/routes/timeline-build.test.ts#L66))
 
 ## Out of Scope
 

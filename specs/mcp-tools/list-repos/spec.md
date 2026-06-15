@@ -19,7 +19,7 @@ opening the web UI or querying Postgres by hand. `lore_list_repos` returns the f
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/repo-tools.ts#L14)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/repo-tools.ts#L14)).
 
 - **name**: `lore_list_repos`
 - **description** (verbatim): *"Returns all onboarded repos from lore.repos with
@@ -38,7 +38,7 @@ The tool takes no parameters — the schema object is `{}`.
 1. **Availability gate** — if `process.env.LORE_DB_HOST` is unset, return the
    literal text `"Repo management requires PostgreSQL (LORE_DB_HOST not set)."`
 2. Call `getOnboardedReposWithCounts(getPool()!)`
-   ([handler](../../../mcp-server/src/features/repo/repo-onboard.ts#L80)), which runs a
+   ([handler](../../../apps/mcp-server/src/features/repo/repo-onboard.ts#L80)), which runs a
    single `SELECT` over `lore.repos r LEFT JOIN (SELECT target_repo, COUNT(*) AS
    task_count FROM pipeline.tasks GROUP BY target_repo) tc ON tc.target_repo =
    r.full_name`, projecting `id, owner, name, full_name, team, onboarded_at,

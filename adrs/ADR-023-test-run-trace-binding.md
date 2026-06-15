@@ -16,18 +16,18 @@ The **spec side** is the source of truth for *which* test validates a
 statement: each statement in `spec.md` carries an inline
 `([validated by `name`](path/to/test.ts#L42))` parenthetical
 ([`spec-test-coverage` v3](../specs/spec-test-coverage/spec.md)), and
-[`projectSpecFile`](../shared/src/spec-trace/project-spec-file.ts) turns it into
+[`projectSpecFile`](../libs/shared/src/spec-trace/project-spec-file.ts) turns it into
 a `Statement.validated_by` edge at ingest.
 
 The **run side** is the source of truth for *whether that test passed*:
 [`lore-tests.yml`](../.github/workflows/lore-tests.yml) POSTs ~2.4k test
 descriptors + results to `/api/repos/:o/:r/test-report` on every push to `main`,
-and [`ingestTestReport`](../shared/src/spec-trace/ingest-test-report.ts) projects
+and [`ingestTestReport`](../libs/shared/src/spec-trace/ingest-test-report.ts) projects
 them — already setting `Statement.validated_by` **and** `Statement.violated`
 when a descriptor carries a `spec` anchor (`path#ordinal`).
 
 The gap: the producer
-([`descriptorsFromVitestList`](../shared/src/spec-trace/trace-descriptors.ts))
+([`descriptorsFromVitestList`](../libs/shared/src/spec-trace/trace-descriptors.ts))
 emits no `spec` anchor, and the only other binding —
 `groupStatementsBySentence` resolving a describe-chain against statement prose —
 rarely fires for conventional `describe("fnName", …)` tests. So the run side
@@ -47,7 +47,7 @@ ingest created 12 edges or 1200.
 1. **Derive descriptor `spec` anchors from the inline spec links.** A pure
    inverter, `bindDescriptorsToSpecLinks(descriptors, specs)`
    (`shared/src/spec-trace/`), reuses
-   [`linksForStatements`](../shared/src/spec-link-parser.ts) to index every
+   [`linksForStatements`](../libs/shared/src/spec-link-parser.ts) to index every
    statement's inline test links by `(path, line)`, then stamps
    `descriptor.spec = `${specPath}#${ordinal}`` on each descriptor whose `file`
    matches a link path and whose `[startLine, endLine]` span contains the link

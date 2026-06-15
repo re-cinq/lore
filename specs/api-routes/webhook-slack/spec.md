@@ -23,7 +23,7 @@ task. All replies are Slack message JSON (`response_type` + `text`).
 
 ## Interface
 
-Registered in the route table ([registration](../../../mcp-server/src/api/routes/index.ts#L65)).
+Registered in the route table ([registration](../../../apps/mcp-server/src/api/routes/index.ts#L65)).
 
 - **Method + path**: `POST /api/webhook/slack`
 - **Auth**: HMAC SHA-256 + replay window. Handler reads
@@ -32,7 +32,7 @@ Registered in the route table ([registration](../../../mcp-server/src/api/routes
   `verifySlackSignature(secret, ts, sig, rawBody)` recomputes
   `v0=hex(hmac(secret, "v0:{ts}:{rawBody}"))` and constant-time compares. The
   router does not apply bearer-scope auth to `/api/webhook/*`
-  ([auth exemption](../../../mcp-server/src/api/routes/index.ts#L100)); rate
+  ([auth exemption](../../../apps/mcp-server/src/api/routes/index.ts#L100)); rate
   limiting uses the `webhook` bucket.
 - **Request body** (raw, URL-encoded form): Slack slash-command params —
   `text`, `channel_id`, `user_name`, and for the URL handshake `type`,
@@ -102,21 +102,21 @@ Registered in the route table ([registration](../../../mcp-server/src/api/routes
 
 ## Acceptance Criteria
 
-A valid `v0=` signature over `v0:{ts}:{body}` verifies; a mismatched timestamp or a length-mismatched signature is rejected without throwing. ([validated by `returns true for a matching v0 signature`](../../../mcp-server/src/api/routes/webhook-signature.test.ts#L29), [`returns false when the timestamp differs`](../../../mcp-server/src/api/routes/webhook-signature.test.ts#L33), [`returns false on a length mismatch without throwing`](../../../mcp-server/src/api/routes/webhook-signature.test.ts#L37))
+A valid `v0=` signature over `v0:{ts}:{body}` verifies; a mismatched timestamp or a length-mismatched signature is rejected without throwing. ([validated by `returns true for a matching v0 signature`](../../../apps/mcp-server/src/api/routes/webhook-signature.test.ts#L29), [`returns false when the timestamp differs`](../../../apps/mcp-server/src/api/routes/webhook-signature.test.ts#L33), [`returns false on a length mismatch without throwing`](../../../apps/mcp-server/src/api/routes/webhook-signature.test.ts#L37))
 
-An unset secret returns 503; missing signature headers, a stale timestamp, and an invalid signature each return 401. ([validated by `returns 503 when the signing secret is unset`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L44), [`returns 401 when signature headers are missing`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L49), [`returns 401 when the timestamp is too old`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L54), [`returns 401 on an invalid signature`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L58))
+An unset secret returns 503; missing signature headers, a stale timestamp, and an invalid signature each return 401. ([validated by `returns 503 when the signing secret is unset`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L44), [`returns 401 when signature headers are missing`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L49), [`returns 401 when the timestamp is too old`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L54), [`returns 401 on an invalid signature`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L58))
 
-The url_verification handshake echoes the challenge, and an absent challenge yields an empty body. ([validated by `answers the url_verification challenge`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L62), [`answers url_verification with an empty challenge when absent`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L67))
+The url_verification handshake echoes the challenge, and an absent challenge yields an empty body. ([validated by `answers the url_verification challenge`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L62), [`answers url_verification with an empty challenge when absent`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L67))
 
-An empty command returns the ephemeral usage help. ([validated by `returns usage help when text is empty`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L72))
+An empty command returns the ephemeral usage help. ([validated by `returns usage help when text is empty`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L72))
 
-`retry <id>` retries the task and reports the new id; a failing retry reports it ephemerally; a bare `retry` with no id is treated as a general-task description. ([validated by `retries a task`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L76), [`reports a failed retry`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L82), [`treats a bare retry with no task id as a general-task description`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L125))
+`retry <id>` retries the task and reports the new id; a failing retry reports it ephemerally; a bare `retry` with no id is treated as a general-task description. ([validated by `retries a task`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L76), [`reports a failed retry`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L82), [`treats a bare retry with no task id as a general-task description`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L125))
 
-An unmapped channel, a null pool, and a failing channel lookup all return the "No repo mapped" ephemeral message. ([validated by `returns the no-repo message when the channel is unmapped`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L87), [`returns the no-repo message when pool is null`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L93), [`falls through to no-repo when the channel query throws`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L97))
+An unmapped channel, a null pool, and a failing channel lookup all return the "No repo mapped" ephemeral message. ([validated by `returns the no-repo message when the channel is unmapped`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L87), [`returns the no-repo message when pool is null`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L93), [`falls through to no-repo when the channel query throws`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L97))
 
-A `! implementation …` command creates an immediate implementation task with the exact createTask arguments; a `! …` with no known type creates an immediate general task; a normal-priority command reports the backlog; a createTask failure is reported ephemerally. ([validated by `creates an immediate task with a known type`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L103), [`creates an immediate general-typed task when no known type follows the bang`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L133), [`creates a normal-priority task and reports the backlog`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L111), [`reports a failed task creation`](../../../mcp-server/src/api/routes/webhook-slack.test.ts#L118))
+A `! implementation …` command creates an immediate implementation task with the exact createTask arguments; a `! …` with no known type creates an immediate general task; a normal-priority command reports the backlog; a createTask failure is reported ephemerally. ([validated by `creates an immediate task with a known type`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L103), [`creates an immediate general-typed task when no known type follows the bang`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L133), [`creates a normal-priority task and reports the backlog`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L111), [`reports a failed task creation`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L118))
 
-The pure command parser extracts the type, defaults to general, handles the `!` prefix, and does not match partial type names. ([validated by `parses /lore implementation add auth`](../../../mcp-server/src/api/routes/slack-webhook.test.ts#L88), [`defaults to general when no type specified`](../../../mcp-server/src/api/routes/slack-webhook.test.ts#L94), [`parses ! prefix as immediate priority`](../../../mcp-server/src/api/routes/slack-webhook.test.ts#L129), [`does not match partial type names`](../../../mcp-server/src/api/routes/slack-webhook.test.ts#L106))
+The pure command parser extracts the type, defaults to general, handles the `!` prefix, and does not match partial type names. ([validated by `parses /lore implementation add auth`](../../../apps/mcp-server/src/api/routes/slack-webhook.test.ts#L88), [`defaults to general when no type specified`](../../../apps/mcp-server/src/api/routes/slack-webhook.test.ts#L94), [`parses ! prefix as immediate priority`](../../../apps/mcp-server/src/api/routes/slack-webhook.test.ts#L129), [`does not match partial type names`](../../../apps/mcp-server/src/api/routes/slack-webhook.test.ts#L106))
 
 ## Out of Scope
 

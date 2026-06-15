@@ -11,7 +11,7 @@ on:
     branches: [main]
   pull_request:
     paths:
-      - 'web-ui/**'
+      - 'apps/web-ui/**'
       - 'infra/terraform/modules/gke-mcp/ui-helm/**'
       - '.github/workflows/build-ui.yml'
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
             echo "relevant=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           if git diff --name-only "$base" "${{ github.sha }}" \
-               | grep -qE '^(web-ui/|infra/terraform/modules/gke-mcp/ui-helm/|\.github/workflows/build-ui\.yml$)'; then
+               | grep -qE '^(apps/web-ui/|infra/terraform/modules/gke-mcp/ui-helm/|\.github/workflows/build-ui\.yml$)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
@@ -89,7 +89,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: web-ui
+          context: apps/web-ui
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -25,12 +25,12 @@ object on every validation or runtime failure.
 ## Interface
 
 Registered in the route table as `exact("/api/memory", "POST")`
-([registration](../../../mcp-server/src/api/routes/index.ts#L61)), dispatched by
+([registration](../../../apps/mcp-server/src/api/routes/index.ts#L61)), dispatched by
 `handleApiRoute` after the cross-cutting rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/memory`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/memory"] = "write"`
-  ([scope map](../../../mcp-server/src/api/routes/auth.ts#L44)). No
+  ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L44)). No
   `SCOPE_OVERRIDES` entry applies. A bearer token is mandatory (the route is not
   auth-exempt); `admin` scope satisfies it, `read`-only does not.
 - **Rate bucket**: `default` (200/min) — the URL is neither `/api/webhook/*` nor
@@ -132,56 +132,56 @@ no per-request flag. `searchMemories` receives the live `pool` (non-null asserti
 
 A `write` with a `value` present computes the embedding for `value` and persists
 via the DB writer, returning its result. ([validated by `writes via DB when
-memory DB available`](../../../mcp-server/src/api/routes/memory.test.ts#L45))
+memory DB available`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L45))
 
 When the memory DB is unavailable, `write` routes to the file fallback writer.
-([validated by `writes via file fallback when memory DB unavailable`](../../../mcp-server/src/api/routes/memory.test.ts#L53))
+([validated by `writes via file fallback when memory DB unavailable`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L53))
 
 A `write` missing `value` returns 400 without calling a store. ([validated by
-`returns 400 when write is missing value`](../../../mcp-server/src/api/routes/memory.test.ts#L60))
+`returns 400 when write is missing value`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L60))
 
 A `read` with a numeric `version` string is coerced to a number before the DB
-read. ([validated by `reads via DB`](../../../mcp-server/src/api/routes/memory.test.ts#L65))
+read. ([validated by `reads via DB`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L65))
 
 A `read` with `version=all` passes `"all"` through unchanged. ([validated by
-`reads full history via DB with version=all`](../../../mcp-server/src/api/routes/memory.test.ts#L73))
+`reads full history via DB with version=all`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L73))
 
 A `read` with no version passes `undefined` (latest). ([validated by `reads
-latest via DB when no version given`](../../../mcp-server/src/api/routes/memory.test.ts#L80))
+latest via DB when no version given`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L80))
 
 A falsy embedding result is passed to the writer as `undefined`, not the falsy
 value. ([validated by `writes with undefined embedding when the embedder returns
-falsy`](../../../mcp-server/src/api/routes/memory.test.ts#L108))
+falsy`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L108))
 
 A `read` missing `key` returns 400. ([validated by `returns 400 when read is
-missing key`](../../../mcp-server/src/api/routes/memory.test.ts#L116))
+missing key`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L116))
 
 A `search` computes the embedding for `query` and returns the DB search result.
-([validated by `searches via DB`](../../../mcp-server/src/api/routes/memory.test.ts#L121))
+([validated by `searches via DB`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L121))
 
 A `search` falls back to the file searcher with `limit` defaulting to 10.
-([validated by `searches via file fallback`](../../../mcp-server/src/api/routes/memory.test.ts#L129))
+([validated by `searches via file fallback`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L129))
 
 A `search` missing `query` returns 400. ([validated by `returns 400 when search
-is missing query`](../../../mcp-server/src/api/routes/memory.test.ts#L136))
+is missing query`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L136))
 
 A `delete` missing `key` returns 400. ([validated by `returns 400 when delete is
-missing key`](../../../mcp-server/src/api/routes/memory.test.ts#L155))
+missing key`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L155))
 
 A `list` defaults `limit` to 50 and offset to 0. ([validated by `lists via
-DB`](../../../mcp-server/src/api/routes/memory.test.ts#L160))
+DB`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L160))
 
 An unrecognized action returns 400 with the action-list message. ([validated by
-`returns 400 for an unknown action`](../../../mcp-server/src/api/routes/memory.test.ts#L174))
+`returns 400 for an unknown action`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L174))
 
 A malformed JSON body returns 500. ([validated by `returns 500 on invalid
-JSON`](../../../mcp-server/src/api/routes/memory.test.ts#L179))
+JSON`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L179))
 
 A request with no bearer token is rejected 401 before dispatch. ([validated by
-`returns 401 when the bearer token is absent`](../../../mcp-server/src/api/routes/memory.test.ts#L185))
+`returns 401 when the bearer token is absent`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L185))
 
 A token whose scopes lack `write` is rejected 403 before dispatch. ([validated by
-`returns 403 when the token lacks write scope`](../../../mcp-server/src/api/routes/memory.test.ts#L191))
+`returns 403 when the token lacks write scope`](../../../apps/mcp-server/src/api/routes/memory.test.ts#L191))
 
 The embedding-vector contents and the live semantic-ranking output of
 `searchMemories`/`getQueryEmbedding` are exercised only against live Postgres +
@@ -198,5 +198,5 @@ contract.)*
 - The file-store layout under `~/.lore/memory/`.
 - Token issuance and the scope schema (`/api/tokens`).
 
-Code: handler [`handleMemory`](../../../mcp-server/src/api/routes/memory.ts#L14)
-(IMPLEMENTED_BY); route [registration](../../../mcp-server/src/api/routes/index.ts#L61).
+Code: handler [`handleMemory`](../../../apps/mcp-server/src/api/routes/memory.ts#L14)
+(IMPLEMENTED_BY); route [registration](../../../apps/mcp-server/src/api/routes/index.ts#L61).

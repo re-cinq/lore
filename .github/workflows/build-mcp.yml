@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'mcp-server/**'
+      - 'apps/mcp-server/**'
       # The compiled `shared` package is bundled into the image — a shared-only
       # change must rebuild + redeploy, or the cluster runs stale shared code
       # while main is green (rediscovered 2026-06-11: AC-traceability fix lived
       # in shared/ only, so mcp/agent never rebuilt and prod stayed broken).
-      - 'shared/**'
+      - 'libs/shared/**'
       # Chart or workflow changes need a redeploy too — without this,
       # a chart-only PR merges to main and nothing redeploys, leaving
       # the cluster on old code forever (rediscovered 2026-04-29).
@@ -17,8 +17,8 @@ on:
       - '.github/workflows/build-mcp.yml'
   pull_request:
     paths:
-      - 'mcp-server/**'
-      - 'shared/**'
+      - 'apps/mcp-server/**'
+      - 'libs/shared/**'
       - 'infra/terraform/modules/gke-mcp/mcp-helm/**'
       - '.github/workflows/build-mcp.yml'
   workflow_dispatch:
@@ -69,7 +69,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: mcp-server/Dockerfile
+          file: apps/mcp-server/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -1,11 +1,10 @@
 {
   "private": true,
   "workspaces": [
-    "shared",
-    "runner",
-    "mcp-server",
-    "agent",
-    "vscode-extension"
+    "libs/*",
+    "apps/agent",
+    "apps/mcp-server",
+    "apps/vscode-extension"
   ],
   "scripts": {
     "start": "bash scripts/dev-local.sh",

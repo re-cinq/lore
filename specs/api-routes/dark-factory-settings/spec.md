@@ -27,17 +27,17 @@ mutation in the audit log.
 Registered with a path-only matcher
 (`/^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/`, both verbs route
 in; method resolved inside)
-([registration](../../../mcp-server/src/api/routes/index.ts#L71)).
+([registration](../../../apps/mcp-server/src/api/routes/index.ts#L71)).
 
 - **Auth (key 1)**: `admin` scope. `getRequiredScope` matches the
   `SCOPE_OVERRIDES` entry before the generic prefix map, so this route demands
   `admin` (not the `read` a bare `/api/repos/...` prefix would imply)
-  ([override](../../../mcp-server/src/api/routes/auth.ts#L62)). Enforced by the
+  ([override](../../../apps/mcp-server/src/api/routes/auth.ts#L62)). Enforced by the
   dispatcher before the handler.
 - **Auth (key 2)**: the two-key ceremony, applied *inside* the handler only when
   `twoKeyFieldsTouched(patch)` is non-empty (PUT). Driven by the
   `X-Lore-Approval-PR` header and `verifyApproval`
-  ([authz](../../../mcp-server/src/features/dark-factory/dark-factory-authz.ts#L69)).
+  ([authz](../../../apps/mcp-server/src/features/dark-factory/dark-factory-authz.ts#L69)).
 - **Path params**: `owner`, `repo` — URL-decoded, joined as `owner/repo`.
 
 ### `GET` — resolved settings
@@ -141,7 +141,7 @@ the header `X-Lore-Approval-PR`.
 ## Dependencies & side effects
 
 - Handler: `handleDarkFactorySettingsRoute`
-  ([code](../../../mcp-server/src/api/routes/dark-factory.ts#L16)).
+  ([code](../../../apps/mcp-server/src/api/routes/dark-factory.ts#L16)).
 - `projectFor(repo).settings.resolveOrNull()` (GET read path).
 - `parseDarkFactorySettings` / `twoKeyFieldsTouched` from
   `features/dark-factory/dark-factory-settings.ts`.
@@ -157,71 +157,71 @@ the header `X-Lore-Approval-PR`.
 ## Acceptance Criteria
 
 A null pool returns `503 { error: "database unavailable" }`. ([validated by
-`returns 503 when pool is null`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L63))
+`returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L63))
 
 Any method other than GET/PUT returns `405 { error: "method not allowed" }`.
 ([validated by `returns 405 for unsupported
-methods`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L69))
+methods`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L69))
 
 GET on an un-onboarded repo returns `404 { error: "repo not onboarded", repo }`.
 ([validated by `returns 404 when the repo is not
-onboarded`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L85))
+onboarded`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L85))
 
 GET returns the resolved dark-factory settings. ([validated by `returns the
-resolved dark_factory settings`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L92))
+resolved dark_factory settings`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L92))
 
 A GET resolution throw degrades to `500 { error: "internal" }`. ([validated by
-`returns 500 when resolution throws`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L99))
+`returns 500 when resolution throws`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L99))
 
 PUT with an unparseable or oversized body returns `400 { error: "invalid_body" }`.
 ([validated by `returns 400 on invalid
-JSON`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L119))
+JSON`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L119))
 
 PUT with a schema-invalid patch returns `400 { error: "invalid_settings", issues }`.
 ([validated by `returns 400 with issues when schema validation
-fails`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L131))
+fails`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L131))
 
 A non-privileged PUT applies at `tier: "admin"` and writes the audit log.
 ([validated by `applies an admin-tier change and writes the audit
-log`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L147))
+log`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L147))
 
 PUT deep-merges the nested `auto_merge` object over prior settings. ([validated by
 `merges the nested auto_merge
-object`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L154))
+object`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L154))
 
 A privileged-field PUT with no `X-Lore-Approval-PR` header returns `403 { error:
 "two_key_required" }`. ([validated by `returns 403 when a two-key field lacks the
-approval header`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L168))
+approval header`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L168))
 
 A privileged-field PUT applies at `tier: "two_key"` after a passing CODEOWNERS
 approval. ([validated by `applies a two-key change after CODEOWNERS
-approval`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L175))
+approval`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L175))
 
 A failed CODEOWNERS check returns `403 { error: "codeowners_check_failed", code }`.
 ([validated by `returns 403 on a CODEOWNERS check
-failure`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L185))
+failure`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L185))
 
 A non-`TwoKeyError` GitHub failure returns `503 { error: "github_api_unavailable" }`.
 ([validated by `returns 503 when the approval check hits a GitHub
-error`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L193))
+error`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L193))
 
 A repo deleted between auth and the `FOR UPDATE` read returns `404`. ([validated by
 `returns 404 when the repo vanishes inside the
-transaction`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L201))
+transaction`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L201))
 
 A best-effort audit-log insert failure does not block the settings commit.
 ([validated by `commits even when the audit-log insert
-fails`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L208))
+fails`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L208))
 
 A write failure rolls the transaction back and returns `500 { error: "internal" }`.
 ([validated by `rolls back and returns 500 on a write
-failure`](../../../mcp-server/src/api/routes/dark-factory.test.ts#L215))
+failure`](../../../apps/mcp-server/src/api/routes/dark-factory.test.ts#L215))
 
 The route requires `admin` scope via the `SCOPE_OVERRIDES` override. ([validated by
 `returns admin for the dark-factory settings route via
-override`](../../../mcp-server/src/api/routes/auth.test.ts#L21) and `applies the
+override`](../../../apps/mcp-server/src/api/routes/auth.test.ts#L21) and `applies the
 dark-factory admin scope override (403 for a read
-token)`](../../../mcp-server/src/api/routes/dispatch.test.ts#L181))
+token)`](../../../apps/mcp-server/src/api/routes/dispatch.test.ts#L181))
 
 The live `verifyApproval` GitHub interactions (PR fetch, label-event lookup,
 CODEOWNERS resolution) are exercised at the handler level only through a mocked

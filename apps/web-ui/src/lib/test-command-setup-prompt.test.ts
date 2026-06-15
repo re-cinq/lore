@@ -9,8 +9,8 @@ import { resolve } from 'node:path';
  * web-ui/CLAUDE.md warns about for every mirrored constant.
  */
 
-// vitest runs with cwd = web-ui/, so the shared source sits one level up.
-const SHARED = resolve(process.cwd(), '../shared/src/test-command-setup-prompt.ts');
+// vitest runs with cwd = apps/web-ui/; the shared source lives at libs/shared.
+const SHARED = resolve(process.cwd(), '../../libs/shared/src/test-command-setup-prompt.ts');
 const MIRROR = resolve(process.cwd(), 'src/lib/test-command-setup-prompt.ts');
 
 const exportBlock = (file: string): string => {

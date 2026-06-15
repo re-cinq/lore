@@ -20,7 +20,7 @@ only currently-valid facts by default while still allowing historical lookups.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L162)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L162)).
 
 - **name**: `lore_search_memory`
 - **description** (verbatim): *"Semantic search across all org memories and
@@ -42,7 +42,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
 
 1. **DB path** — if `isMemoryDbAvailable()`: call `searchMemories(getPool(),
    query, agent_id, pool, limit, include_invalidated, graph_augment)`
-   ([handler](../../../mcp-server/src/features/memory/memory-search.ts#L4), re-export of
+   ([handler](../../../apps/mcp-server/src/features/memory/memory-search.ts#L4), re-export of
    `@re-cinq/lore-shared/project/knowledge/memory-search`). The engine:
    1. Resolve `agent` (or null) and, when `pool` given, resolve its `pool_id`
       via `SELECT id FROM memory.shared_pools WHERE name = $1`. **Missing pool →
@@ -90,19 +90,19 @@ A single MCP text content block. Pretty-printed JSON array of
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `getPool()`.
-- Engine `searchMemories` ([memory-search.ts](../../../mcp-server/src/features/memory/memory-search.ts#L4)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../mcp-server/src/mcp/tools/deps.ts#L98)); `searchMemoryFile` (offline).
+- Engine `searchMemories` ([memory-search.ts](../../../apps/mcp-server/src/features/memory/memory-search.ts#L4)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `searchMemoryFile` (offline).
 - Tables: `memory.memories`, `memory.facts`, `memory.shared_pools`, `memory.entities`, `memory.edges` (reads); `memory.facts` / `memory.memories` (retrieval-strengthening updates); `memory.audit_log` (insert, `operation='search'`).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
 ## Acceptance Criteria
 
-1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `resolves the pool by name before searching`](../../../mcp-server/src/features/memory/memory-search.test.ts#L31))
+1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `resolves the pool by name before searching`](../../../apps/mcp-server/src/features/memory/memory-search.test.ts#L31))
 2. When the named pool does not exist, search short-circuits to an empty
-   result. ([validated by `returns empty when the named pool does not exist`](../../../mcp-server/src/features/memory/memory-search.test.ts#L23))
-3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `carries confidence from the candidate onto the fused result`](../../../shared/src/memory-ranking.test.ts#L6))
+   result. ([validated by `returns empty when the named pool does not exist`](../../../apps/mcp-server/src/features/memory/memory-search.test.ts#L23))
+3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `carries confidence from the candidate onto the fused result`](../../../libs/shared/src/memory-ranking.test.ts#L6))
 4. Diversification slices the total output to the requested limit across all
-   sources. ([validated by `slices the total output to limit across all sources`](../../../shared/src/memory-ranking.test.ts#L66))
+   sources. ([validated by `slices the total output to limit across all sources`](../../../libs/shared/src/memory-ranking.test.ts#L66))
 
 ## Out of Scope
 

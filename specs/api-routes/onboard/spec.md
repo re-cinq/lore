@@ -51,7 +51,7 @@ JSON body:
 4. Destructure `{ repo }`. If `repo` is falsy **or** `!repo.includes("/")` → 400
    with the verbatim required-fields error; return.
 5. `await onboardRepo(pool, repo)`
-   ([feature](../../../mcp-server/src/features/repo/repo-onboard.js)); write 200
+   ([feature](../../../apps/mcp-server/src/features/repo/repo-onboard.js)); write 200
    with the result.
 6. **Catch** — log `[onboard] API error: <message>` and write 500
    `{ error: err.message }`.
@@ -71,15 +71,15 @@ JSON body:
 
 ## Acceptance Criteria
 
-A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](../../../mcp-server/src/api/routes/onboard.test.ts#L21))
+A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L21))
 
-A repo without a slash returns 400. ([validated by `returns 400 when repo is missing or malformed`](../../../mcp-server/src/api/routes/onboard.test.ts#L27))
+A repo without a slash returns 400. ([validated by `returns 400 when repo is missing or malformed`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L27))
 
-A valid repo returns 200 with the onboard result. ([validated by `returns 200 with the onboard result`](../../../mcp-server/src/api/routes/onboard.test.ts#L34))
+A valid repo returns 200 with the onboard result. ([validated by `returns 200 with the onboard result`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L34))
 
-A throwing `onboardRepo` returns 500. ([validated by `returns 500 when onboardRepo throws`](../../../mcp-server/src/api/routes/onboard.test.ts#L42))
+A throwing `onboardRepo` returns 500. ([validated by `returns 500 when onboardRepo throws`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L42))
 
-The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../mcp-server/src/api/routes/index.ts#L54)) ([implemented by](../../../mcp-server/src/api/routes/ingest.ts#L41))
+The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L54)) ([implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L41))
 
 ## Out of Scope
 

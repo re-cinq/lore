@@ -20,7 +20,7 @@ picks the next workable item without scanning the whole backlog.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L262)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L262)).
 
 - **name**: `lore_ready_tasks`
 - **description** (verbatim): *"List spec-tasks that are ready to work on (all
@@ -38,7 +38,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
    `"Could not detect repo. Specify repo parameter."`.
 2. `getPool()`. If null, return `"lore_ready_tasks requires PostgreSQL (LORE_DB_HOST not set)."`.
 3. Delegate to `getReadyTasks(pool, resolvedRepo)`
-   ([handler](../../../mcp-server/src/features/pipeline/tasks.ts#L85)). It runs a single query
+   ([handler](../../../apps/mcp-server/src/features/pipeline/tasks.ts#L85)). It runs a single query
    selecting `id, description, status, context_bundle, agent_id` from
    `pipeline.tasks` where `task_type = 'spec-task'`, `target_repo = $1`,
    `status = 'pending'`, and a correlated `NOT EXISTS` over each
@@ -65,9 +65,9 @@ A single MCP text content block: the `## Ready tasks` markdown list, the
 ## Acceptance Criteria
 
 The dependency query returns the rows it produces, filtered to pending
-spec-tasks with satisfied dependencies. ([validated by `returns the rows the dependency query produces`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L107))
+spec-tasks with satisfied dependencies. ([validated by `returns the rows the dependency query produces`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L107))
 
-When nothing qualifies the handler returns an empty list. ([validated by `returns an empty list when no tasks are ready`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L123))
+When nothing qualifies the handler returns an empty list. ([validated by `returns an empty list when no tasks are ready`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L123))
 
 The repo-detection / no-pool guards, the empty-result message, and the markdown
 list framing run only inside the tool handler. *(untested: handler-only

@@ -19,7 +19,7 @@ provided fields, and persists.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/local-runner-tools.local.ts#L208)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L208)).
 
 - **name**: `lore_configure_local_runner`
 - **description** (verbatim): *"View or update local task runner settings.
@@ -38,7 +38,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/l
 ## Behavior
 
 1. `readConfig()`
-   ([reader](../../../mcp-server/src/features/pipeline/runner.local.ts#L41)) —
+   ([reader](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L41)) —
    parse `~/.lore/local-runner.json`; on any read/parse failure return the
    defaults `{enabled:false, max_concurrent:2, repos:[], task_types:
    ["implementation","general","runbook","gap-fill"], model:"claude-sonnet-4-6"}`.
@@ -46,7 +46,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/l
    `task_types`, `model` all falsy), return the current config as pretty JSON.
 3. **Update mode** — overwrite each provided field
    (`max_concurrent` is applied only when `!== undefined`), then `writeConfig`
-   ([writer](../../../mcp-server/src/features/pipeline/runner.local.ts#L49))
+   ([writer](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L49))
    (mkdir-p the parent, write pretty JSON) and return `"Config updated:\n{json}"`.
 4. Any thrown error is caught and returned as `"Error: {message}"`.
 
@@ -68,17 +68,17 @@ A single MCP text content block: the pretty-printed current config (view mode),
 ## Acceptance Criteria
 
 `readConfig` returns a config with the expected shape (all five fields, correct
-types). ([validated by `returns defaults when config file does not exist`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L81))
+types). ([validated by `returns defaults when config file does not exist`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L81))
 
 The default config carries sensible values (`max_concurrent` 2, includes
 `implementation`/`general`, model `claude-sonnet-4-6`).
-([validated by `default config has sensible values`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L97))
+([validated by `default config has sensible values`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L97))
 
 The config serializes and round-trips through JSON unchanged.
-([validated by `writeConfig creates the config file`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L123))
+([validated by `writeConfig creates the config file`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L123))
 
 The update merge keeps untouched fields and overwrites only provided ones.
-([validated by `merge overwrites only provided fields and keeps the rest`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L290))
+([validated by `merge overwrites only provided fields and keeps the rest`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L290))
 
 `writeConfig` writing to the live `~/.lore/local-runner.json` path is exercised
 only end-to-end. *(untested: `readConfig`/`writeConfig` use a module-load-fixed

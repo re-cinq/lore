@@ -20,7 +20,7 @@ the repo + commit locally and proxies the embed work to the GKE ingest API.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/repo-tools.ts#L53)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/repo-tools.ts#L53)).
 
 - **name**: `lore_ingest_files`
 - **description** (verbatim): *"Manually ingest files from a repo into Lore's
@@ -80,10 +80,10 @@ the config-required text, the `"Ingestion failed: …"` text, the
 ## Acceptance Criteria
 
 The handler returns the detect-repo guidance when no repo is passed and detection
-returns null. ([validated by `returns a detect-repo message when no repo is given and detection fails`](../../../mcp-server/src/mcp/tools/repo-tools.test.ts#L45))
+returns null. ([validated by `returns a detect-repo message when no repo is given and detection fails`](../../../apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L45))
 
 The handler returns the config-required message when `LORE_API_URL` /
-`LORE_INGEST_TOKEN` are unset. ([validated by `returns a config-required message when LORE_API_URL / token are unset`](../../../mcp-server/src/mcp/tools/repo-tools.test.ts#L54))
+`LORE_INGEST_TOKEN` are unset. ([validated by `returns a config-required message when LORE_API_URL / token are unset`](../../../apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L54))
 
 The local-HEAD commit resolution, the proxy POST, and the success / failure
 framing are exercised only against a live `LORE_API_URL`. *(untested: the
