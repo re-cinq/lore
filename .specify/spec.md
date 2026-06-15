@@ -4,8 +4,8 @@
 
 Lore is a shared context infrastructure platform that makes Claude Code organization-aware. It enables developers to access org-wide conventions, team-specific patterns, architectural decisions, and current task state automatically—without manual context loading. Beyond context delivery, Lore functions as an **agent operating system** that runs background autonomous agents for repository onboarding, documentation gap detection, specification drift checking, and PR review, all producing pull requests for human review and merge.
 
-**Status:** Production (GKE-deployed)  
-**Primary Users:** Developers, product managers, platform engineers  
+**Status:** Production (GKE-deployed)
+**Primary Users:** Developers, product managers, platform engineers
 **Core Technology Stack:** TypeScript (MCP server), Python (glue scripts), Bash (install/infra), PostgreSQL + pgvector (vector store), Kubernetes (cluster runtime), Anthropic Claude API (agent execution)
 
 ## Key Capabilities
