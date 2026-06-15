@@ -1,7 +1,18 @@
-import type { Pool } from "pg";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { trace, type Tracer } from "@opentelemetry/api";
+
+/**
+ * The narrow Postgres surface {@link DbLeaseBackend} needs — `query` returning
+ * `rowCount` so the CTE/UPSERT outcome can be read. A real `pg.Pool` satisfies
+ * this structurally; keeping it local means shared never imports `pg`.
+ */
+export interface LeasePool {
+  query<R = unknown>(
+    text: string,
+    params?: unknown[],
+  ): Promise<{ rows: R[]; rowCount: number | null }>;
+}
 
 const DEFAULT_TTL_SEC = 600;
 
@@ -52,7 +63,7 @@ export interface LeaseBackend {
 }
 
 export class DbLeaseBackend implements LeaseBackend {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: LeasePool) {}
 
   async acquire(
     branchName: string,

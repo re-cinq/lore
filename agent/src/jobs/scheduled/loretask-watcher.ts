@@ -12,7 +12,7 @@ import { projectFor } from "../../platform/project-boot.js";
 import { query } from "../../platform/db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../../lib/episode-writer.js";
 import { tryAutoMergeForCompletedTask } from "../auto-merge-trigger.js";
-import { buildReviewFixDescription, formatReviewFeedback } from "../../lib/review-feedback.js";
+import { buildReviewFixDescription, formatReviewFeedback } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../../lib/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
 
@@ -270,7 +270,7 @@ export async function watchLoreTasks(): Promise<void> {
       // Create PR from the pushed branch (skip review tasks — they don't push code)
       try {
         const { issue_number, target_repo } = await getIssueNumber(taskId);
-        const { prFooter } = await import("../../lib/pr-body.js");
+        const { prFooter } = await import("@re-cinq/lore-shared");
         const footer = prFooter({ issueNumber: issue_number, taskId });
 
         const copy = await generateArtifactCopy({

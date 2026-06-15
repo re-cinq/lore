@@ -42,12 +42,36 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { runSupervisor } from "./index.js";
-import { loadWorkflowDir, type Workflow } from "../workflow/loader.js";
-import { createClaudeCodeAgentHandler } from "./claude-code-handler.js";
-import { createProductionHandlers } from "./handlers.js";
+import {
+  runSupervisor,
+  loadBuiltinWorkflows,
+  createClaudeCodeAgentHandler,
+  createProductionHandlers,
+  runClaudeCode,
+  type Workflow,
+} from "@re-cinq/lore-runner";
 import { buildPrompt, getTaskTypeConfig, loadTaskTypes } from "../platform/config.js";
-import { initPool } from "../platform/db.js";
+import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
+import { writeAuditLog } from "../lib/audit.js";
+import { leaseBackendForEnv } from "./lease-backend.js";
+import { initPool, query } from "../platform/db.js";
+
+/** Logs one pipeline.llm_calls row. Injected into runClaudeCode in cluster mode. */
+async function logLlmCall(r: {
+  taskId?: string | null;
+  jobName: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+}): Promise<void> {
+  await query(
+    `INSERT INTO pipeline.llm_calls
+       (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [r.taskId ?? null, r.jobName, r.model, r.inputTokens, r.outputTokens, 0, r.durationMs],
+  );
+}
 
 class MissingEnvError extends Error {
   constructor(public readonly varName: string) {
@@ -55,12 +79,6 @@ class MissingEnvError extends Error {
     this.name = "MissingEnvError";
   }
 }
-
-const WORKFLOWS_DIR = path.resolve(
-  fileURLToPath(new URL(".", import.meta.url)),
-  "..",
-  "workflows",
-);
 
 async function main(): Promise<number> {
   const workflowName = requireEnv("LORE_DARK_FACTORY_WORKFLOW");
@@ -105,7 +123,7 @@ async function main(): Promise<number> {
 
   let workflows: Map<string, Workflow>;
   try {
-    workflows = await loadWorkflowDir(WORKFLOWS_DIR);
+    workflows = await loadBuiltinWorkflows();
   } catch (err) {
     console.error(`[runner-cli] Failed to load workflows: ${(err as Error).message}`);
     return 3;
@@ -119,6 +137,7 @@ async function main(): Promise<number> {
     return 4;
   }
 
+  const dbEnabled = !!process.env.LORE_DB_HOST;
   const agentHandler = createClaudeCodeAgentHandler(
     {
       resolvePrompt: (promptRef, description) => {
@@ -126,6 +145,9 @@ async function main(): Promise<number> {
         if (!config) return null;
         return buildPrompt(promptRef, description);
       },
+      // Account each Claude Code call to pipeline.llm_calls in cluster mode.
+      runClaudeCode: (p) =>
+        runClaudeCode({ ...p, logUsage: dbEnabled ? logLlmCall : undefined }),
     },
     { taskId, description: taskDescription, taskType },
   );
@@ -140,7 +162,7 @@ async function main(): Promise<number> {
     // jobs/auto-merge-trigger.ts → jobs/loretask-watcher.ts), so cluster-path
     // PRs auto-merge under the same policy as the in-agent path
     // (gap-fill / runbook). Per ADR-016.
-    episodeDeps: { curate: false },
+    episodeDeps: { writeEpisode, writeEpisodeWithCuration, curate: false },
   });
 
   const result = await runSupervisor({
@@ -150,6 +172,8 @@ async function main(): Promise<number> {
     gitDir: workdir,
     workflow,
     handlers,
+    leaseBackend: leaseBackendForEnv(),
+    audit: dbEnabled ? { write: writeAuditLog } : undefined,
   });
 
   console.log(

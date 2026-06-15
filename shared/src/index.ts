@@ -277,3 +277,30 @@ export { createDgraphClient } from './dgraph-client.js';
 export { classifyFile, type ContentType } from './content-classify.js';
 export { TEST_COMMAND_SETUP_PROMPT } from './test-command-setup-prompt.js';
 export { LORE_TESTS_INSTRUCTION } from './lore-tests-instruction.js';
+
+// Pure-domain helpers relocated from agent/src/lib (Slice 2).
+export { allPathsMatch, matchingPatterns } from './path-match.js';
+export {
+  classifyError,
+  summarizeFailures,
+  TaskFailure,
+  type FailureCategory,
+  type StepFailure,
+  type ClassifiedFailure,
+} from './error-classify.js';
+export { isBusinessHours } from './business-hours.js';
+export { isAlreadyExistsError } from './k8s-errors.js';
+export { prFooter } from './pr-body.js';
+// Branch-lease backends (Slice 3) — the agent supervisor imports these until
+// it moves to the runner package and switches to project.leases (Slice 4).
+export {
+  DbLeaseBackend,
+  FileLeaseBackend,
+  type LeaseBackend,
+  type LeasePool,
+  type AcquireResult,
+} from './project/leases/lease-backends.js';
+export {
+  buildReviewFixDescription,
+  formatReviewFeedback,
+} from './review-feedback.js';

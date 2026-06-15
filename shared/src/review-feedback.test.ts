@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildReviewFixDescription, formatReviewFeedback } from "./review-feedback.js";
-import type { ReviewComment } from "../platform/platform.js";
+import type { ReviewComment } from "./project/pulls/pull-requests-port.js";
 
 const comment = (over: Partial<ReviewComment>): ReviewComment => ({
   id: 1,

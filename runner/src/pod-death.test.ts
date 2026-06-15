@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { FileLeaseBackend } from "./lease.js";
+import { FileLeaseBackend } from "@re-cinq/lore-shared";
 import { runSupervisor } from "./index.js";
 
 /**

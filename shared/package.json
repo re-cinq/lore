@@ -8,6 +8,9 @@
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
     "./project/*.js": { "types": "./dist/project/*.d.ts", "default": "./dist/project/*.js" },
+    "./project/leases/lease-backends.js": { "types": "./dist/project/leases/lease-backends.d.ts", "default": "./dist/project/leases/lease-backends.js" },
+    "./commit-trailers.js": { "types": "./dist/commit-trailers.d.ts", "default": "./dist/commit-trailers.js" },
+    "./llm/*.js": { "types": "./dist/llm/*.d.ts", "default": "./dist/llm/*.js" },
     "./spec-link-parser.js": { "types": "./dist/spec-link-parser.d.ts", "default": "./dist/spec-link-parser.js" },
     "./spec-segment.js": { "types": "./dist/spec-segment.d.ts", "default": "./dist/spec-segment.js" },
     "./test-paths.js": { "types": "./dist/test-paths.d.ts", "default": "./dist/test-paths.js" }
@@ -20,6 +23,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@opentelemetry/api": "^1.9.0",
     "dgraph-js-http": "^23.0.0-rc1",
     "minimatch": "^10.0.1",
     "tree-sitter-wasms": "^0.1.11",

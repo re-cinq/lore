@@ -2,7 +2,7 @@ import { query } from "../../platform/db.js";
 import { projectFor } from "../../platform/project-boot.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { writeEpisode } from "../../lib/episode-writer.js";
-import { isBusinessHours } from "../../lib/business-hours.js";
+import { isBusinessHours } from "@re-cinq/lore-shared";
 
 interface PendingTask {
   id: string;

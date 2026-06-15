@@ -4,9 +4,9 @@ import {
   formatTrailers,
   lastStageOnBranch,
   type Trailers,
-} from "@re-cinq/lore-shared";
-import type { Workflow, WorkflowNode } from "../workflow/loader.js";
-import type { LeaseBackend } from "./lease.js";
+} from "@re-cinq/lore-shared/commit-trailers.js";
+import type { Workflow, WorkflowNode } from "./loader.js";
+import type { LeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 
 const execFile = promisify(execFileCb);
 

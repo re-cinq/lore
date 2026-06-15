@@ -9,6 +9,7 @@ on:
       - 'mcp-server/src/repo-validation-cli.ts'
       - 'agent/**'
       - 'shared/**'
+      - 'runner/**'
       - 'scripts/task-types.yaml'
   workflow_dispatch:
 
