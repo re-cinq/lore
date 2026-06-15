@@ -23,3 +23,56 @@
 .hint {
   font-size: var(--fs-xs);
 }
+
+.section {
+  margin-top: 24px;
+  margin-bottom: 4px;
+  border-top: 1px solid var(--border, #e3e3e3);
+  padding-top: 16px;
+}
+
+.gated {
+  font-size: var(--fs-xs);
+  font-weight: normal;
+  color: var(--warn-fg, #9a6700);
+  border: 1px solid var(--warn-border, #d4b106);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.override {
+  border: 1px solid var(--border, #e3e3e3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.override legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
+
+.banner {
+  margin: 12px 0;
+  max-width: 500px;
+}
+
+.savedOk {
+  color: var(--ok-fg, #1a7f37);
+  margin: 4px 0;
+}
+
+.warn {
+  color: var(--warn-fg, #9a6700);
+  background: var(--warn-bg, #fff8c5);
+  border: 1px solid var(--warn-border, #d4b106);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 6px 0;
+}
+
+.incidents {
+  max-width: 500px;
+}
