@@ -139,7 +139,7 @@ Dark Factory mode lets a repo run autonomously by default, with humans only at i
 | Gate | Where | Purpose |
 |------|-------|---------|
 | Per-repo | `lore.repos.settings.dark_factory.enabled = true` | Repo opts in via the settings UI / API |
-| Cluster | `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the agent deployment env | Permits the worker to forward dark-mode workflows to the LoreTask CRD path |
+| Cluster | `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the Floor deployment env | Permits the worker to forward dark-mode workflows to the LoreTask CRD path |
 
 The cluster gate exists so the Helm flag can't get ahead of the claude-runner image — the cluster supervisor needs `/app/dist/supervisor/runner-cli.js` and `/app/libs/runner/dist/workflows/*.yaml` baked in. Both gates default to **off** for existing repos, so there's no behavior change at migration.
 
