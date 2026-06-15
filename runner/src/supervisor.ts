@@ -1,5 +1,5 @@
 import * as os from "node:os";
-import type { LeaseBackend } from "@re-cinq/lore-shared";
+import type { LeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 import {
   executeGraph,
   IterationMaxExceededError,
