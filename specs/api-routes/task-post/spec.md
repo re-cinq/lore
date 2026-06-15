@@ -25,15 +25,15 @@ The local runner reports progress back through the same endpoint with an
 
 Registered as `exact("/api/task", "POST")` →
 `handleTaskPost(req, res, pool)`
-([registration](../../../mcp-server/src/api/routes/index.ts#L60),
-[handler](../../../mcp-server/src/api/routes/tasks.ts#L30)). Ordered **after**
+([registration](../../../apps/mcp-server/src/api/routes/index.ts#L60),
+[handler](../../../apps/mcp-server/src/api/routes/tasks.ts#L30)). Ordered **after**
 the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 `/api/task` is the only way in.
 
 - **Method + path**: `POST /api/task`
 - **Auth scope**: `task`. `getRequiredScope` finds no `SCOPE_OVERRIDES` match and
   the first `ROUTE_SCOPES` prefix hit is `/api/task` → `"task"`
-  ([scope map](../../../mcp-server/src/api/routes/auth.ts#L47)). The legacy
+  ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L47)). The legacy
   `LORE_INGEST_TOKEN` and any `admin`-scoped token also pass. Rate-limit bucket
   is `task` (60/min).
 - **Body**: JSON object. The `action` field is the discriminator.
@@ -128,37 +128,37 @@ Branch precedence is strict top-to-bottom: a `set-priority` action with no
 
 ## Acceptance Criteria
 
-A null pool returns 503 before any body is read. ([validated by `returns 503 when pool is null`](../../../mcp-server/src/api/routes/task-post.test.ts#L27))
+A null pool returns 503 before any body is read. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L27))
 
-A `retry` action returns the `retryTask` result verbatim. ([validated by `retries a task`](../../../mcp-server/src/api/routes/task-post.test.ts#L32))
+A `retry` action returns the `retryTask` result verbatim. ([validated by `retries a task`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L32))
 
-A `cancel` action returns `{ ok: true, task_id }`. ([validated by `cancels a task`](../../../mcp-server/src/api/routes/task-post.test.ts#L37))
+A `cancel` action returns `{ ok: true, task_id }`. ([validated by `cancels a task`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L37))
 
-A `cancel` action issues the guarded `pipeline.tasks` UPDATE with the task id. ([validated by `cancel issues the guarded tasks UPDATE with the task_id`](../../../mcp-server/src/api/routes/task-post.test.ts#L95))
+A `cancel` action issues the guarded `pipeline.tasks` UPDATE with the task id. ([validated by `cancel issues the guarded tasks UPDATE with the task_id`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L95))
 
-`set-priority` with `immediate` echoes `immediate`. ([validated by `sets immediate priority`](../../../mcp-server/src/api/routes/task-post.test.ts#L43))
+`set-priority` with `immediate` echoes `immediate`. ([validated by `sets immediate priority`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L43))
 
-`set-priority` with any other value normalizes to `normal`. ([validated by `normalizes a non-immediate priority`](../../../mcp-server/src/api/routes/task-post.test.ts#L49))
+`set-priority` with any other value normalizes to `normal`. ([validated by `normalizes a non-immediate priority`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L49))
 
-`set-priority` updates only `pending` tasks with the resolved priority. ([validated by `set-priority updates only pending tasks with the resolved priority`](../../../mcp-server/src/api/routes/task-post.test.ts#L104))
+`set-priority` updates only `pending` tasks with the resolved priority. ([validated by `set-priority updates only pending tasks with the resolved priority`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L104))
 
-`set-priority` missing `priority` falls through to the create branch and 400s on the missing description. ([validated by `set-priority without a priority falls through to create and 400s`](../../../mcp-server/src/api/routes/task-post.test.ts#L112))
+`set-priority` missing `priority` falls through to the create branch and 400s on the missing description. ([validated by `set-priority without a priority falls through to create and 400s`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L112))
 
-A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by `updates status with pr_url and error`](../../../mcp-server/src/api/routes/task-post.test.ts#L55))
+A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by `updates status with pr_url and error`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L55))
 
-A status update without optional fields still returns the status envelope. ([validated by `updates status without optional fields`](../../../mcp-server/src/api/routes/task-post.test.ts#L61))
+A status update without optional fields still returns the status envelope. ([validated by `updates status without optional fields`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L61))
 
-An out-of-allow-list status returns 400. ([validated by `rejects an invalid status`](../../../mcp-server/src/api/routes/task-post.test.ts#L67))
+An out-of-allow-list status returns 400. ([validated by `rejects an invalid status`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L67))
 
-A create with a known `task_type` calls `createTask` with that type. ([validated by `creates a task with a known type`](../../../mcp-server/src/api/routes/task-post.test.ts#L71))
+A create with a known `task_type` calls `createTask` with that type. ([validated by `creates a task with a known type`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L71))
 
-A create with an unknown `task_type` falls back to `general`. ([validated by `falls back to general for an unknown type`](../../../mcp-server/src/api/routes/task-post.test.ts#L76))
+A create with an unknown `task_type` falls back to `general`. ([validated by `falls back to general for an unknown type`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L76))
 
-A create with no `task_type` defaults to `general`. ([validated by `defaults to general when no task_type is provided`](../../../mcp-server/src/api/routes/task-post.test.ts#L81))
+A create with no `task_type` defaults to `general`. ([validated by `defaults to general when no task_type is provided`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L81))
 
-A blank `description` returns 400. ([validated by `returns 400 when description is blank`](../../../mcp-server/src/api/routes/task-post.test.ts#L86))
+A blank `description` returns 400. ([validated by `returns 400 when description is blank`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L86))
 
-Invalid JSON returns 500. ([validated by `returns 500 on invalid JSON`](../../../mcp-server/src/api/routes/task-post.test.ts#L90))
+Invalid JSON returns 500. ([validated by `returns 500 on invalid JSON`](../../../apps/mcp-server/src/api/routes/task-post.test.ts#L90))
 
 ## Out of Scope
 

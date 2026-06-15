@@ -154,8 +154,8 @@ resource "kubernetes_config_map_v1" "lore_dgraph_schema" {
     namespace = local.dgraph_namespace
   }
   data = {
-    "setup-memory-dgraph-schema.sh" = file("${path.module}/../scripts/infra/setup-memory-dgraph-schema.sh")
-    "setup-spec-trace-schema.sh"    = file("${path.module}/../scripts/infra/setup-spec-trace-schema.sh")
+    "setup-memory-dgraph-schema.sh" = file("${path.module}/../../scripts/infra/setup-memory-dgraph-schema.sh")
+    "setup-spec-trace-schema.sh"    = file("${path.module}/../../scripts/infra/setup-spec-trace-schema.sh")
   }
 
   depends_on = [kubernetes_namespace.lore_dgraph]

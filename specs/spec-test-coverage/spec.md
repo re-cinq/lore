@@ -65,10 +65,10 @@ is markdown in `spec.md`:
 ## Acceptance Criteria
 
 1. The runner claims a pending task before GKE picks it up.
-   ([validated by `runner.test.ts:88`](mcp-server/src/local-runner.test.ts#L88))
+   ([validated by `runner.test.ts:88`](apps/mcp-server/src/local-runner.test.ts#L88))
 2. Tasks survive rollout restarts via the lease backend.
-   ([validated by `lease-backend.test.ts:42`](agent/src/supervisor/lease.test.ts#L42),
-   [`lease-backend.test.ts:74`](agent/src/supervisor/lease.test.ts#L74))
+   ([validated by `lease-backend.test.ts:42`](apps/agent/src/supervisor/lease.test.ts#L42),
+   [`lease-backend.test.ts:74`](apps/agent/src/supervisor/lease.test.ts#L74))
 3. The runner re-queues a stale task after 30 minutes.
    <!-- no link yet — cron's backfill pass will suggest one -->
 ```
@@ -191,7 +191,7 @@ Author commits, opens PR.
           ([validated by lease-backend.test.ts:42](...))
     -  3. The runner re-queues a stale task after 30 minutes.
     +  3. The runner re-queues a stale task after 30 minutes.
-    +     ([validated by runner.test.ts:142](mcp-server/src/local-runner.test.ts#L142))
+    +     ([validated by runner.test.ts:142](apps/mcp-server/src/local-runner.test.ts#L142))
 
   Author reviews, merges (or rejects with a comment explaining why
   the suggestion misses).
@@ -349,15 +349,15 @@ CronJob via `node dist/job-runner.js spec_coverage_backfill`.
 
 ## Acceptance Criteria
 
-1. The per-repo specs page renders an `<a>` whose `href`'s path passes `isTestFile()` with the green `stmt-tested` class; regular links render unchanged. ([validated by `SpecDetails.test.tsx:17`](web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L17), [`test-paths.test.ts:4`](web-ui/src/lib/test-paths.test.ts#L4))
-2. A statement carrying ≥1 test link counts as `covered` in the `CoverageBar`; the headline percentage is `covered / (covered + uncovered)`, with `narrative` excluded from the denominator (same formula as v2). ([validated by `CoverageBar.test.tsx:7`](web-ui/src/components/CoverageBar.test.tsx#L7))
-3. A statement under a section heading the heuristic marks `untestable` (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale, plus the H1 intro) renders grey and is counted as `narrative`. ([validated by `spec-coverage-derive.test.ts:43`](web-ui/src/lib/spec-coverage-derive.test.ts#L43), [`spec-segment.test.ts:106`](web-ui/src/lib/spec-segment.test.ts#L106))
-4. A testable statement with no test link renders red and counts toward `uncovered`. ([validated by `SpecDetails.test.tsx:34`](web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L34))
-5. Hovering a green statement reveals the linked test name(s) + source URL(s) extracted directly from the markdown link, no DB join. ([validated by `SpecDetails.test.tsx:126`](web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L126))
+1. The per-repo specs page renders an `<a>` whose `href`'s path passes `isTestFile()` with the green `stmt-tested` class; regular links render unchanged. ([validated by `SpecDetails.test.tsx:17`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L17), [`test-paths.test.ts:4`](apps/web-ui/src/lib/test-paths.test.ts#L4))
+2. A statement carrying ≥1 test link counts as `covered` in the `CoverageBar`; the headline percentage is `covered / (covered + uncovered)`, with `narrative` excluded from the denominator (same formula as v2). ([validated by `CoverageBar.test.tsx:7`](apps/web-ui/src/components/CoverageBar.test.tsx#L7))
+3. A statement under a section heading the heuristic marks `untestable` (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale, plus the H1 intro) renders grey and is counted as `narrative`. ([validated by `spec-coverage-derive.test.ts:43`](apps/web-ui/src/lib/spec-coverage-derive.test.ts#L43), [`spec-segment.test.ts:106`](apps/web-ui/src/lib/spec-segment.test.ts#L106))
+4. A testable statement with no test link renders red and counts toward `uncovered`. ([validated by `SpecDetails.test.tsx:34`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L34))
+5. Hovering a green statement reveals the linked test name(s) + source URL(s) extracted directly from the markdown link, no DB join. ([validated by `SpecDetails.test.tsx:126`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L126))
 6. The per-repo specs page issues NO query against `spec_statements`, `spec_test_links`, or `spec_coverage_runs` (and the v3 cleanup migration drops these tables).
-7. `parseTestLinksInStatement(text)` extracts every `(...[label](path#Lline)...)` token at the end of a statement; multiple links comma-separated inside one paren are parsed as a list. ([validated by `spec-link-parser.test.ts:26`](shared/src/spec-link-parser.test.ts#L26), [`spec-link-parser.test.ts:26`](web-ui/src/lib/spec-link-parser.test.ts#L26))
-8. The cron `spec_coverage_validate` runs on every successful `/api/ingest` for a repo, parses each spec's links, resolves them against `{schema}.chunks` AST metadata, and opens a PR comment listing broken links when any exist. ([validated by `spec-coverage-validate-trigger.test.ts:18`](mcp-server/src/routes/spec-coverage-validate-trigger.test.ts#L18), [`spec-coverage-validate.test.ts:77`](agent/src/jobs/scheduled/spec-coverage-validate.test.ts#L77))
-9. The cron `spec_coverage_backfill` runs weekly (Mon 11:00 UTC) and on demand, segments + classifies + judges each spec's testable un-linked statements, and **opens a PR per spec** adding the suggested `([validated by ...](path#Lline))` parentheticals; no DB writes. ([validated by `spec-coverage-backfill.test.ts:23`](agent/src/jobs/cron/spec-coverage-backfill.test.ts#L23), [`spec-judge.test.ts:141`](shared/src/spec-judge.test.ts#L141), [`spec-judge.test.ts:198`](shared/src/spec-judge.test.ts#L198))
+7. `parseTestLinksInStatement(text)` extracts every `(...[label](path#Lline)...)` token at the end of a statement; multiple links comma-separated inside one paren are parsed as a list. ([validated by `spec-link-parser.test.ts:26`](libs/shared/src/spec-link-parser.test.ts#L26), [`spec-link-parser.test.ts:26`](apps/web-ui/src/lib/spec-link-parser.test.ts#L26))
+8. The cron `spec_coverage_validate` runs on every successful `/api/ingest` for a repo, parses each spec's links, resolves them against `{schema}.chunks` AST metadata, and opens a PR comment listing broken links when any exist. ([validated by `spec-coverage-validate-trigger.test.ts:18`](apps/mcp-server/src/routes/spec-coverage-validate-trigger.test.ts#L18), [`spec-coverage-validate.test.ts:77`](apps/agent/src/jobs/scheduled/spec-coverage-validate.test.ts#L77))
+9. The cron `spec_coverage_backfill` runs weekly (Mon 11:00 UTC) and on demand, segments + classifies + judges each spec's testable un-linked statements, and **opens a PR per spec** adding the suggested `([validated by ...](path#Lline))` parentheticals; no DB writes. ([validated by `spec-coverage-backfill.test.ts:23`](apps/agent/src/jobs/cron/spec-coverage-backfill.test.ts#L23), [`spec-judge.test.ts:141`](libs/shared/src/spec-judge.test.ts#L141), [`spec-judge.test.ts:198`](libs/shared/src/spec-judge.test.ts#L198))
 10. The v2 MCP tools (`prepare_spec_link`, `persist_spec_link`, `list_stale_spec_coverage`), the persist API endpoints, and the `/lore-link-coverage` skill no longer exist in the repo.
 11. The v2 migrations remain intact (no destructive in-place rewrite of migration history); Phase 4's new migration `NNNN_drop_v2_spec_coverage_tables.sql` drops the now-unused tables idempotently.
 12. The cron's backfill PR is **the only** mechanism by which Lore writes a test link into the spec; everything else is read-only or comment-only.

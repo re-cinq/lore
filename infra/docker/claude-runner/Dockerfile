@@ -2,19 +2,20 @@
 #
 # Stage 1: build shared → runner → agent (TS → JS) inside the workspace so the
 # final image has /app/dist (the agent's supervisor/runner-cli.js entry) plus
-# /app/runner (the @re-cinq/lore-runner kernel + its workflow YAMLs) ready to
-# execute. Mirrors agent/Dockerfile so workspace symlink resolution works.
+# /app/libs (the @re-cinq/lore-shared + lore-runner packages + workflow YAMLs)
+# ready to execute. The in-image layout mirrors the repo (apps/ + libs/) so the
+# npm workspace symlinks resolve.
 #
-# Stage 2: build the validation CLI (vendored from mcp-server) — kept
+# Stage 2: build the validation CLI (vendored from apps/mcp-server) — kept
 # in-image because it has near-zero runtime deps and the source TS files
-# live in mcp-server/, not docker/.
+# live in apps/mcp-server/, not infra/docker/.
 #
 # Stage 3 (final): node:24-slim with claude CLI + git/gh/jq + the agent
 # dist + node_modules + workflow YAMLs + task-types.yaml. Runs as
 # uid 1000 (matches K8s SecurityContext).
 #
 # Build context = repo root.
-#   docker build -f docker/claude-runner/Dockerfile -t lore-claude-runner .
+#   docker build -f infra/docker/claude-runner/Dockerfile -t lore-claude-runner .
 
 # ── Stage 1: agent build ──────────────────────────────────────────────
 FROM node:24-slim AS agent-builder
@@ -23,39 +24,39 @@ WORKDIR /build
 # Workspace package.jsons first so npm can resolve the workspace graph
 # without a full source copy (cacheable layer).
 COPY package.json ./
-COPY shared/package.json shared/
-COPY runner/package.json runner/
-COPY agent/package.json agent/
-RUN npm install --workspace=shared --workspace=runner --workspace=agent
+COPY libs/shared/package.json libs/shared/
+COPY libs/runner/package.json libs/runner/
+COPY apps/agent/package.json apps/agent/
+RUN npm install --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-agent
 
 # Build shared (runner + agent depend on @re-cinq/lore-shared dist).
-COPY shared/tsconfig.json shared/
-COPY shared/src shared/src
-RUN npm run build --workspace=shared
+COPY libs/shared/tsconfig.json libs/shared/
+COPY libs/shared/src libs/shared/src
+RUN npm run build --workspace=@re-cinq/lore-shared
 
 # Build the runner kernel (agent depends on @re-cinq/lore-runner dist). Its
-# build script also copies the workflow YAMLs to runner/dist/workflows, where
+# build script also copies the workflow YAMLs to dist/workflows, where
 # loadBuiltinWorkflows() resolves them via import.meta.url.
-COPY runner/tsconfig.json runner/
-COPY runner/src runner/src
-RUN npm run build --workspace=runner
+COPY libs/runner/tsconfig.json libs/runner/
+COPY libs/runner/src libs/runner/src
+RUN npm run build --workspace=@re-cinq/lore-runner
 
-# Build agent (produces /build/agent/dist, incl. supervisor/runner-cli.js).
-COPY agent/tsconfig.json agent/
-COPY agent/src agent/src
-RUN npm run build --workspace=agent
+# Build agent (produces /build/apps/agent/dist, incl. supervisor/runner-cli.js).
+COPY apps/agent/tsconfig.json apps/agent/
+COPY apps/agent/src apps/agent/src
+RUN npm run build --workspace=@re-cinq/lore-agent
 
 # Drop dev deps before the runtime stage copies node_modules. The
 # initial install above pulls in vitest, typescript, @types/* — pure
 # overhead in the runtime image. Prune is faster than a fresh
 # `npm install --omit=dev`.
-RUN npm prune --omit=dev --workspace=shared --workspace=runner --workspace=agent
+RUN npm prune --omit=dev --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-agent
 
 # ── Stage 2: validation CLI build ─────────────────────────────────────
 FROM node:24-slim AS validation-builder
 WORKDIR /build
-COPY mcp-server/src/features/repo/repo-validation.ts mcp-server/src/features/repo/repo-validation-cli.ts ./src/
-COPY docker/claude-runner/validation/package.json docker/claude-runner/validation/tsconfig.json ./
+COPY apps/mcp-server/src/features/repo/repo-validation.ts apps/mcp-server/src/features/repo/repo-validation-cli.ts ./src/
+COPY infra/docker/claude-runner/validation/package.json infra/docker/claude-runner/validation/tsconfig.json ./
 RUN npm install --ignore-scripts && npx tsc
 
 # ── Stage 3: runtime image ────────────────────────────────────────────
@@ -71,24 +72,19 @@ COPY --from=validation-builder /build/dist/repo-validation-cli.js /validation.js
 COPY --from=validation-builder /build/dist/repo-validation.js /repo-validation.js
 
 # Agent supervisor + workflows + workspace deps. Layout chosen to match
-# runner-cli.ts WORKFLOWS_DIR resolution and the loretask-controller's
-# entrypoint expectation (`node /app/dist/supervisor/runner-cli.js`).
-COPY --from=agent-builder /build/agent/dist /app/dist
-# `/app/shared` is REQUIRED at this exact path — not arbitrary. The
-# npm workspace install creates a relative symlink
-# `node_modules/@re-cinq/lore-shared → ../../shared` (relative to the
-# symlink's parent dir `node_modules/@re-cinq/`). Once that symlink is
-# under `/app/node_modules/@re-cinq/lore-shared`, its target resolves
-# to `/app/shared`. Move `shared/` elsewhere and `import` from
-# `@re-cinq/lore-shared` in compiled supervisor code silently breaks.
-COPY --from=agent-builder /build/shared /app/shared
-# `/app/runner` mirrors `/app/shared`: the workspace symlink
-# node_modules/@re-cinq/lore-runner → ../../runner resolves to /app/runner.
-# The agent's runner-cli imports @re-cinq/lore-runner; loadBuiltinWorkflows
-# reads the workflow YAMLs from /app/runner/dist/workflows.
-COPY --from=agent-builder /build/runner /app/runner
+# the loretask-controller's entrypoint expectation
+# (`node /app/dist/supervisor/runner-cli.js`).
+COPY --from=agent-builder /build/apps/agent/dist /app/dist
+# `/app/libs` is REQUIRED at this exact path — not arbitrary. The npm workspace
+# install creates relative symlinks `node_modules/@re-cinq/lore-shared →
+# ../../libs/shared` (and likewise lore-runner) under /app/node_modules/@re-cinq/,
+# so their targets must resolve to /app/libs/{shared,runner}. The agent's
+# runner-cli imports @re-cinq/lore-runner; loadBuiltinWorkflows reads the
+# workflow YAMLs from /app/libs/runner/dist/workflows. Move libs/ elsewhere and
+# imports from `@re-cinq/lore-*` in compiled supervisor code silently break.
+COPY --from=agent-builder /build/libs /app/libs
 COPY --from=agent-builder /build/node_modules /app/node_modules
-COPY --from=agent-builder /build/agent/package.json /app/package.json
+COPY --from=agent-builder /build/apps/agent/package.json /app/package.json
 
 # task-types.yaml is read by runner-cli at startup (TASK_TYPES_PATH
 # defaults to /config/task-types.yaml) — bake it in so cluster pods
@@ -98,7 +94,7 @@ COPY scripts/task-types.yaml /config/task-types.yaml
 RUN useradd -m -s /bin/bash -u 1000 -o runner
 RUN mkdir -p /workspace && chown 1000:1000 /workspace
 WORKDIR /workspace
-COPY docker/claude-runner/entrypoint.sh /entrypoint.sh
+COPY infra/docker/claude-runner/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 USER runner
 ENTRYPOINT ["/entrypoint.sh"]

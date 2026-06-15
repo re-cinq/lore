@@ -23,12 +23,12 @@ write-once-extract-async endpoint.
 ## Interface
 
 Registered as `exact("/api/episode", "POST")`
-([registration](../../../mcp-server/src/api/routes/index.ts#L62)), dispatched by
+([registration](../../../apps/mcp-server/src/api/routes/index.ts#L62)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/episode`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/episode"] = "write"`
-  ([scope map](../../../mcp-server/src/api/routes/auth.ts#L45)). Bearer required;
+  ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L45)). Bearer required;
   `admin` satisfies, `read`-only does not.
 - **Rate bucket**: `default` (200/min).
 
@@ -117,29 +117,29 @@ not awaited; the route returns 200 regardless of their eventual outcome.
 ## Acceptance Criteria
 
 A request without `content` returns 400 without touching the DB. ([validated by
-`returns 400 when content is missing`](../../../mcp-server/src/api/routes/episode.test.ts#L43))
+`returns 400 when content is missing`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L43))
 
 A token whose scopes lack `write` is rejected 403 before the handler runs.
-([validated by `returns 403 when the token lacks write scope`](../../../mcp-server/src/api/routes/episode.test.ts#L48))
+([validated by `returns 403 when the token lacks write scope`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L48))
 
 An insert that conflicts (returns no rows) yields `{ status: "duplicate" }`.
-([validated by `returns duplicate when the insert conflicts`](../../../mcp-server/src/api/routes/episode.test.ts#L60))
+([validated by `returns duplicate when the insert conflicts`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L60))
 
 A new episode returns `{ status: "ok", episode_id }`, triggers fact extraction,
 and — when `ANTHROPIC_API_KEY` is set — runs the graph LLM closure. ([validated by
-`stores a new episode and runs the graph LLM closure when key is set`](../../../mcp-server/src/api/routes/episode.test.ts#L67))
+`stores a new episode and runs the graph LLM closure when key is set`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L67))
 
 With `ANTHROPIC_API_KEY` unset, graph extraction is skipped entirely. ([validated
-by `skips graph extraction when ANTHROPIC_API_KEY is unset`](../../../mcp-server/src/api/routes/episode.test.ts#L85))
+by `skips graph extraction when ANTHROPIC_API_KEY is unset`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L85))
 
 A thrown insert returns 500. ([validated by `returns 500 when the episode insert
-throws`](../../../mcp-server/src/api/routes/episode.test.ts#L93))
+throws`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L93))
 
 A rejecting fact extraction is swallowed and the response stays 200. ([validated
-by `swallows a failing fact extraction`](../../../mcp-server/src/api/routes/episode.test.ts#L100))
+by `swallows a failing fact extraction`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L100))
 
 A rejecting graph update is swallowed and the response stays 200. ([validated by
-`swallows a failing graph update`](../../../mcp-server/src/api/routes/episode.test.ts#L109))
+`swallows a failing graph update`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L109))
 
 The actual fact/entity/edge content produced by the extraction LLM is exercised
 only against the live model. *(untested: fact + graph extraction are live-IO LLM
@@ -154,5 +154,5 @@ contract.)*
 - Episode lifecycle (decay, consolidation, snapshots).
 - Token issuance and the scope schema.
 
-Code: handler [`handleEpisode`](../../../mcp-server/src/api/routes/memory.ts#L61)
-(IMPLEMENTED_BY); route [registration](../../../mcp-server/src/api/routes/index.ts#L62).
+Code: handler [`handleEpisode`](../../../apps/mcp-server/src/api/routes/memory.ts#L61)
+(IMPLEMENTED_BY); route [registration](../../../apps/mcp-server/src/api/routes/index.ts#L62).

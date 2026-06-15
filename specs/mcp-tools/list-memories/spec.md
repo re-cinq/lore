@@ -19,7 +19,7 @@ accumulates many memories. Expired and soft-deleted memories must not appear.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L136)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L136)).
 
 - **name**: `lore_list_memories`
 - **description** (verbatim): *"List memories for the current repo. Auto-detects
@@ -37,7 +37,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
 
 1. Resolve `repo = detectCurrentRepo() || undefined`.
 2. **DB path** — if `isMemoryDbAvailable()`: call `listMemories(agent_id, limit,
-   offset, repo)` ([handler](../../../mcp-server/src/features/memory/memory.ts#L198)). Inside the handler the **scope precedence** is:
+   offset, repo)` ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L198)). Inside the handler the **scope precedence** is:
    - `repo` present → `filter = "repo = $1 AND"`, params `[repo, limit,
      offset]`.
    - else `agentId` present → `filter = "agent_id = $1 AND"`, params
@@ -72,20 +72,20 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
 ## Dependencies & side effects
 
 - `detectCurrentRepo()`, `isMemoryDbAvailable()`, `resolveAgentId()`.
-- Handler `listMemories` ([memory.ts](../../../mcp-server/src/features/memory/memory.ts#L198)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../mcp-server/src/mcp/tools/deps.ts#L98)); `listMemoriesFile` (offline).
+- Handler `listMemories` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L198)).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `listMemoriesFile` (offline).
 - Tables: `memory.memories` (read), `memory.facts` (EXISTS subquery), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
 ## Acceptance Criteria
 
 1. A repo-scoped list passes the repo as the first param and returns
-   `{ memories, total }`. ([validated by `scopes by repo and returns rows plus total`](../../../mcp-server/src/features/memory/memory.test.ts#L164))
-2. When both repo and agent are supplied, the repo filter wins. ([validated by `repo filter wins over agent when both supplied`](../../../mcp-server/src/features/memory/memory.test.ts#L181))
+   `{ memories, total }`. ([validated by `scopes by repo and returns rows plus total`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L164))
+2. When both repo and agent are supplied, the repo filter wins. ([validated by `repo filter wins over agent when both supplied`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L181))
 3. With no repo, the list scopes by agent and the count query carries only the
-   agent param. ([validated by `scopes by agent when no repo, count params hold only the agent`](../../../mcp-server/src/features/memory/memory.test.ts#L192))
+   agent param. ([validated by `scopes by agent when no repo, count params hold only the agent`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L192))
 4. With neither repo nor agent, the list is org-wide and the count query takes
-   no scope params. ([validated by `org-wide list when no repo and no agent uses empty filter`](../../../mcp-server/src/features/memory/memory.test.ts#L203))
+   no scope params. ([validated by `org-wide list when no repo and no agent uses empty filter`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L203))
 
 ## Out of Scope
 

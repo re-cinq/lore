@@ -19,7 +19,7 @@ quiet or runaway agent means hand-writing SQL across several `memory.*` tables.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L291)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L291)).
 
 - **name**: `lore_agent_stats`
 - **description** (verbatim): *"Returns comprehensive agent statistics: memory
@@ -39,10 +39,10 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
    proxy/file path).
 2. `agent = resolveAgentId(agent_id)`; `dbPoolRef = getPool()`.
 3. Run three queries via `Promise.all`:
-   - `agentHealth(agent_id)` ([handler](../../../mcp-server/src/features/memory/memory.ts#L304)) → `{ agent_id, memory_count,
+   - `agentHealth(agent_id)` ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L304)) → `{ agent_id, memory_count,
      last_active, snapshot_count }` from `memory.memories` (active) +
      `memory.snapshots`.
-   - `agentStats(agent_id)` ([handler](../../../mcp-server/src/features/memory/memory.ts#L315)) → `{ agent_id, total_memories,
+   - `agentStats(agent_id)` ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L315)) → `{ agent_id, total_memories,
      total_facts, active_facts, invalidated_facts, total_searches,
      shared_pools_created }`. `active`/`invalidated` split on `f.valid_to IS
      NULL`; `total_searches` counts `memory.audit_log` rows with
@@ -74,15 +74,15 @@ PostgreSQL-required text, or `"Error fetching agent stats: {message}"`.
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `getPool()`, `resolveAgentId()`.
-- Handlers `agentHealth` ([memory.ts](../../../mcp-server/src/features/memory/memory.ts#L304)) + `agentStats` ([memory.ts](../../../mcp-server/src/features/memory/memory.ts#L315)).
+- Handlers `agentHealth` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L304)) + `agentStats` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L315)).
 - Tables (read-only): `memory.memories`, `memory.facts`, `memory.snapshots`, `memory.audit_log`, `memory.shared_pools`, `memory.episodes`.
 - Env: `LORE_DB_HOST`.
 - No writes (read-only aggregation).
 
 ## Acceptance Criteria
 
-1. Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `returns fact/memory/search counters keyed to the agent`](../../../mcp-server/src/features/memory/memory.test.ts#L238))
-2. Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `returns memory/snapshot counts keyed to the agent`](../../../mcp-server/src/features/memory/memory.test.ts#L217))
+1. Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `returns fact/memory/search counters keyed to the agent`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L238))
+2. Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `returns memory/snapshot counts keyed to the agent`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L217))
 3. The recent-episodes preview query and the merge/DB-gate framing have no unit
    seam. *(untested: composed inline in the tool handler; requires live
    `memory.episodes` rows — the health + stats aggregators are covered above.)*

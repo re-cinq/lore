@@ -134,9 +134,9 @@ Defaults: label=`lore`, type=`general`.
 
 ## Acceptance Criteria
 
-1. Adding `lore` label to a GitHub Issue creates a pipeline task ([validated by `webhook-github.test.ts:347`](mcp-server/src/routes/webhook-github.test.ts#L347))
-2. Task type determined from `lore:*` label variants ([validated by `webhook-github.test.ts:315`](mcp-server/src/routes/webhook-github.test.ts#L315))
+1. Adding `lore` label to a GitHub Issue creates a pipeline task ([validated by `webhook-github.test.ts:347`](apps/mcp-server/src/routes/webhook-github.test.ts#L347))
+2. Task type determined from `lore:*` label variants ([validated by `webhook-github.test.ts:315`](apps/mcp-server/src/routes/webhook-github.test.ts#L315))
 3. Agent works on the task, creates PR linked to the issue
 4. Issue gets comment with task ID and PR link
-5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook-github.test.ts:326`](mcp-server/src/routes/webhook-github.test.ts#L326))
+5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook-github.test.ts:326`](apps/mcp-server/src/routes/webhook-github.test.ts#L326))
 6. Works on any onboarded repo with webhook configured

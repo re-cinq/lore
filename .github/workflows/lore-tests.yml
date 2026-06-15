@@ -38,7 +38,7 @@ jobs:
       - name: Install deps
         run: |
           npm ci
-          npm install --prefix web-ui
+          npm install --prefix apps/web-ui
 
       # shared/dist feeds the trace `list`/`run` scripts; mcp-server/dist is the
       # `trace:run-tests` CLI itself.

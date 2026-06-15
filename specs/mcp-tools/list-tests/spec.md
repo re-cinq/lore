@@ -22,7 +22,7 @@ machine, CI, or a claude-runner pod — never on the shared GKE server.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/spec-trace-tools.local.ts#L7)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/spec-trace-tools.local.ts#L7)).
 
 - **name**: `lore_list_tests`
 - **description** (verbatim): *"Enumerate the repo's tests via its declared
@@ -40,13 +40,13 @@ root and manifest are resolved at call time, not passed by the caller.
 1. Resolve the repo root: `getRepoRoot()` (git toplevel of the cwd) or fall back
    to `process.cwd()`.
 2. Load the manifest with `loadTestCommandManifest(root)`
-   ([loader](../../../mcp-server/src/features/spec-trace/spec-trace-tools.ts#L202)) —
+   ([loader](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L202)) —
    reads `<root>/.lore/test-commands.yml`, parses the YAML, and resolves it to a
    `TestCommandManifest` (or `null` when the file is absent).
 3. Delegate to `listTestsTool(process.env, manifest, root)`
-   ([handler](../../../mcp-server/src/features/spec-trace/spec-trace-tools.ts#L82)):
+   ([handler](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L82)):
    1. **Trust-boundary gate** — `executionRefusal(env)`
-      ([gate](../../../shared/src/project/lib/trust.ts#L11)) returns a non-null
+      ([gate](../../../libs/shared/src/project/lib/trust.ts#L11)) returns a non-null
       string when `LORE_DB_HOST` is set (i.e. the shared cluster server). When
       non-null, return it immediately **without running the list command**.
    2. **Manifest precondition** — when `manifest` is `null`, return the literal
@@ -80,40 +80,40 @@ the `"No test-command manifest declared for this repo."` text, a JSON array of
 ## Acceptance Criteria
 
 `executionRefusal` returns a non-empty refusal string when `LORE_DB_HOST` is set.
-([validated by `returns a non-empty string when LORE_DB_HOST is set`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L20))
+([validated by `returns a non-empty string when LORE_DB_HOST is set`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L20))
 
 `executionRefusal` returns null on a local sandbox where `LORE_DB_HOST` is unset.
-([validated by `returns null when LORE_DB_HOST is unset`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L26))
+([validated by `returns null when LORE_DB_HOST is unset`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L26))
 
 The refusal text names CI / local as the remedy.
-([validated by `names the remedy of running in CI or locally when refusing`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L30))
+([validated by `names the remedy of running in CI or locally when refusing`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L30))
 
 The tool returns the CI-or-local refusal without running the list command when
-`LORE_DB_HOST` is set. ([validated by `returns the CI-or-local refusal without running the list command on the cluster`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L115))
+`LORE_DB_HOST` is set. ([validated by `returns the CI-or-local refusal without running the list command on the cluster`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L115))
 
 A null manifest yields the "no manifest declared" message on a local sandbox.
-([validated by `reports no manifest declared when the manifest is null on a local sandbox`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L127))
+([validated by `reports no manifest declared when the manifest is null on a local sandbox`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L127))
 
 A local sandbox with a manifest runs the list command and returns the parsed
-descriptors. ([validated by `runs the list command and returns the descriptors on a local sandbox`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L132))
+descriptors. ([validated by `runs the list command and returns the descriptors on a local sandbox`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L132))
 
 `runTestsList` returns parsed descriptors from the list command stdout.
-([validated by `returns parsed descriptors from the list command stdout`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L91))
+([validated by `returns parsed descriptors from the list command stdout`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L91))
 
 `runTestsList` rejects when the command outlives the timeout.
-([validated by `rejects when the command outlives the timeout`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L101))
+([validated by `rejects when the command outlives the timeout`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L101))
 
 `runTestsList` rejects naming the list command when stdout is not JSON.
-([validated by `rejects naming the list command when stdout is not JSON`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L107))
+([validated by `rejects naming the list command when stdout is not JSON`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L107))
 
 `loadTestCommandManifest` returns the parsed manifest from `.lore/test-commands.yml`.
-([validated by `returns the manifest parsed from .lore/test-commands.yml`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L173))
+([validated by `returns the manifest parsed from .lore/test-commands.yml`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L173))
 
 `loadTestCommandManifest` returns null when no manifest file exists.
-([validated by `returns null when no .lore/test-commands.yml exists`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L190))
+([validated by `returns null when no .lore/test-commands.yml exists`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L190))
 
 `path_prefix_strip` is removed from descriptor file paths.
-([validated by `removes a matching leading prefix`](../../../mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L375))
+([validated by `removes a matching leading prefix`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L375))
 
 The registration wrapper's `getRepoRoot()` cwd-resolution and `Error: …` framing
 are exercised only end-to-end through the live MCP server. *(untested: the thin

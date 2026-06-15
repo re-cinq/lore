@@ -19,7 +19,7 @@ specific past version of a memory that has since changed.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/memory-tools.ts#L84)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L84)).
 
 - **name**: `lore_read_memory`
 - **description** (verbatim): *"Retrieve a specific memory by key. Supports
@@ -38,7 +38,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/m
 1. Normalize `version`: `"all"` stays `"all"`; a non-empty string → `Number(version)`;
    omitted → `undefined`.
 2. **DB path** — if `isMemoryDbAvailable()`: call
-   `readMemory(key, agent_id, ver)` ([handler](../../../mcp-server/src/features/memory/memory.ts#L131)). Inside the handler
+   `readMemory(key, agent_id, ver)` ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L131)). Inside the handler
    (`agent = resolveAgentId(agent_id)`):
    - **`version === 'all'`** → `SELECT mv.version, mv.value, mv.created_at FROM
      memory.memory_versions mv JOIN memory.memories m ON m.id = mv.memory_id
@@ -70,16 +70,16 @@ proxied body, the `unreachableError` message, or
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
-- Handler `readMemory` ([memory.ts](../../../mcp-server/src/features/memory/memory.ts#L131)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../mcp-server/src/mcp/tools/deps.ts#L98)); `readMemoryFile` (offline).
+- Handler `readMemory` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L131)).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `readMemoryFile` (offline).
 - Tables: `memory.memories` (read), `memory.memory_versions` (read), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
 ## Acceptance Criteria
 
-1. A plain read returns the latest non-deleted version for the key. ([validated by `returns the latest non-deleted version for a key`](../../../mcp-server/src/features/memory/memory.test.ts#L89))
-2. `version: "all"` returns every version newest-first. ([validated by `returns all versions newest-first when version is "all"`](../../../mcp-server/src/features/memory/memory.test.ts#L108))
-3. A missing key returns null. ([validated by `returns null when the key does not exist`](../../../mcp-server/src/features/memory/memory.test.ts#L128))
+1. A plain read returns the latest non-deleted version for the key. ([validated by `returns the latest non-deleted version for a key`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L89))
+2. `version: "all"` returns every version newest-first. ([validated by `returns all versions newest-first when version is "all"`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L108))
+3. A missing key returns null. ([validated by `returns null when the key does not exist`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L128))
 4. The tool-level "not found" / proxy / file-fallback framing has no unit seam.
    *(untested: the handler null→message mapping and the proxy/file branches need
    a live DB or `LORE_API_URL`; the handler read paths are covered above.)*

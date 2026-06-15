@@ -20,7 +20,7 @@ error.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
 
 - **name**: `lore_get_pipeline_status`
 - **description** (verbatim): *"Retrieve the current status of a pipeline task,
@@ -41,8 +41,8 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
      on non-2xx return `"Remote error: {statusText}"`; on success return the
      pretty-printed (`JSON.stringify(…, null, 2)`) response body.
    - **DB mode (`LORE_DB_HOST` set)** — call `getTask(task_id)`
-     ([handler wrapper](../../../mcp-server/src/features/pipeline/pipeline.ts#L35)).
-2. **Shared CRUD** ([`getTask`](../../../shared/src/pipeline-tasks.ts#L107)) — `SELECT * FROM
+     ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L35)).
+2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/pipeline-tasks.ts#L107)) — `SELECT * FROM
    pipeline.tasks WHERE id = $1`; if no row, return `null`; otherwise `SELECT *
    FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at` and return
    the task row spread with an `events` array.
@@ -67,10 +67,10 @@ task JSON (`{...row, events: [...]}`), or `"Error: {message}"`. **Never throws.*
 
 A task id with no matching row resolves to `null` (the handler surfaces this as
 `task not found`).
-([validated by `returns null when no task row matches the id`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L21))
+([validated by `returns null when no task row matches the id`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L21))
 
 A matching id returns the task row merged with its ordered `events` array.
-([validated by `returns the task with its ordered events when the id matches`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L27))
+([validated by `returns the task with its ordered events when the id matches`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L27))
 
 The stdio-proxy branch and the not-found/error envelope framing are exercised
 only against a live API or DB.

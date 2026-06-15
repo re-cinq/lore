@@ -24,8 +24,8 @@ diff's changed ranges and returns the `ImpactReport` plus pre-shaped Checks-API
 
 - **Method + path**: `POST /api/repos/:owner/:repo/impact`
   (regex `^/api/repos/[^/]+/[^/]+/impact(\?|$)`).
-  Implemented by the [route registration](../../../mcp-server/src/api/routes/index.ts#L74)
-  dispatching to the [`handleImpactRoute` handler](../../../mcp-server/src/api/routes/impact.ts#L35).
+  Implemented by the [route registration](../../../apps/mcp-server/src/api/routes/index.ts#L74)
+  dispatching to the [`handleImpactRoute` handler](../../../apps/mcp-server/src/api/routes/impact.ts#L35).
 - **Auth scope**: `write`. Matched by `SCOPE_OVERRIDES`
   (`/api/repos/[^/]+/[^/]+/impact(\?|$|/)` → `write`). The write scope reflects
   the privileged ingest surface, **not** test execution — a graph read is not
@@ -102,9 +102,9 @@ The handler never touches `_pool` — the graph lives in Dgraph, not Postgres.
 
 With Dgraph unconfigured, the route fails soft to `200` with
 `status:"unavailable"` and empty statements/orphaned/annotations — never a 500.
-([validated by `returns 200 status unavailable with empty annotations when Dgraph is not configured`](../../../mcp-server/src/api/routes/impact-route.test.ts#L24))
+([validated by `returns 200 status unavailable with empty annotations when Dgraph is not configured`](../../../apps/mcp-server/src/api/routes/impact-route.test.ts#L24))
 
-A request without a `write`-scoped token is rejected with 403. ([validated by `rejects a request without a write-scoped token`](../../../mcp-server/src/api/routes/impact-route.test.ts#L45))
+A request without a `write`-scoped token is rejected with 403. ([validated by `rejects a request without a write-scoped token`](../../../apps/mcp-server/src/api/routes/impact-route.test.ts#L45))
 
 The `status:"ok"` branch (coupled statements + orphans + non-empty annotations
 from a live graph walk) is exercised only against live Dgraph. *(untested: the

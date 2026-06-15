@@ -89,7 +89,7 @@ is already stored in LoreTask `status.output` and transferred to
 
 ## Acceptance Criteria
 
-1. Running task shows live logs in pipeline detail page. ([validated by `TaskLogs.test.tsx:68`](web-ui/src/app/pipeline/[id]/TaskLogs.test.tsx#L68))
-2. Logs update every 5s while task is running. ([validated by `TaskLogs.test.tsx:307`](web-ui/src/app/pipeline/[id]/TaskLogs.test.tsx#L307))
-3. Completed/failed tasks show final output. ([validated by `TaskLogs.test.tsx:81`](web-ui/src/app/pipeline/[id]/TaskLogs.test.tsx#L81))
+1. Running task shows live logs in pipeline detail page. ([validated by `TaskLogs.test.tsx:68`](apps/web-ui/src/app/pipeline/[id]/TaskLogs.test.tsx#L68))
+2. Logs update every 5s while task is running. ([validated by `TaskLogs.test.tsx:307`](apps/web-ui/src/app/pipeline/[id]/TaskLogs.test.tsx#L307))
+3. Completed/failed tasks show final output. ([validated by `TaskLogs.test.tsx:81`](apps/web-ui/src/app/pipeline/[id]/TaskLogs.test.tsx#L81))
 4. No kubectl access needed to see what the agent is doing

@@ -24,7 +24,7 @@ the task will be picked up.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L25)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L25)).
 
 - **name**: `lore_create_pipeline_task`
 - **description** (verbatim): *"Create a pipeline task. By default tasks go to
@@ -61,8 +61,8 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
    - **DB mode (`LORE_DB_HOST` set)** — `validTypes = getTaskTypes()`;
      `resolvedType = validTypes.includes(task_type) ? task_type : "general"`.
      Call `createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id)`
-     ([handler wrapper](../../../mcp-server/src/features/pipeline/pipeline.ts#L48)).
-4. **Shared CRUD** ([`createTask`](../../../shared/src/pipeline-tasks.ts#L35)) — rejects descriptions
+     ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L48)).
+4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/pipeline-tasks.ts#L35)) — rejects descriptions
    over 10000 chars; when a repo is set, `SELECT settings FROM lore.repos WHERE full_name = $1`
    and enforce the trust gate (`settings.trust.level` → allowed task types; a
    disallowed type throws `Task type "{t}" not allowed at trust level "{level}" for {repo}. Allowed: …`,
@@ -97,7 +97,7 @@ message, or the `"Error creating pipeline task: …"` message. **Never throws.**
 A valid create inserts a `pipeline.tasks` row, records the `pending` transition
 event, and returns the new id with `pending` status — exercised end-to-end via the
 retry path, which calls the same shared `createTask`.
-([validated by `creates a linked task when the original is failed`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L95))
+([validated by `creates a linked task when the original is failed`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L95))
 
 An empty or whitespace-only description is rejected before any insert.
 *(untested: the guard is inline in the handler closure and not separately exported.)*

@@ -9,8 +9,10 @@ import { join } from "node:path";
 // `memory.facts.confidence` missing and broke all memory/episode retrieval.
 const MIGRATIONS_DIR = join(
   import.meta.dirname,
-  "..",
-  "..",
+  "..", // src → mcp-server
+  "..", // mcp-server → apps
+  "..", // apps → repo root
+  "infra",
   "terraform",
   "modules",
   "gke-mcp",

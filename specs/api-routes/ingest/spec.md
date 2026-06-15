@@ -56,7 +56,7 @@ JSON body:
 4. Destructure `{ files, repo, commit }`. If `files` is not an array **or**
    `repo` is falsy → 400 with the verbatim required-fields error; return.
 5. `await ingestFiles(pool, files, repo, commit || "HEAD")`
-   ([engine](../../../mcp-server/src/features/spec-trace/ingest.js)).
+   ([engine](../../../apps/mcp-server/src/features/spec-trace/ingest.js)).
 6. Write 200 with the `result` object.
 7. **Landed gate** — compute `landed`: true iff `result.results` is an array and
    at least one entry has `status === "ingested"` or `status === "deleted"`.
@@ -93,25 +93,25 @@ JSON body:
 
 ## Acceptance Criteria
 
-A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](../../../mcp-server/src/api/routes/ingest.test.ts#L25))
+A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L25))
 
-A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](../../../mcp-server/src/api/routes/ingest.test.ts#L31))
+A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L31))
 
-A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](../../../mcp-server/src/api/routes/ingest.test.ts#L56))
+A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L56))
 
-A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and fires the spec-coverage trigger when a file lands`](../../../mcp-server/src/api/routes/ingest.test.ts#L38))
+A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and fires the spec-coverage trigger when a file lands`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L38))
 
-A landed batch also fires the graph auto-ingest fan-out with the pool and repo. ([validated by `fires the graph auto-ingest fan-out when a file lands`](../../../mcp-server/src/api/routes/ingest.test.ts#L64))
+A landed batch also fires the graph auto-ingest fan-out with the pool and repo. ([validated by `fires the graph auto-ingest fan-out when a file lands`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L64))
 
-A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and fires the trigger`](../../../mcp-server/src/api/routes/ingest.test.ts#L79))
+A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and fires the trigger`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L79))
 
-An all-skipped batch fires neither the graph fan-out nor the trigger. ([validated by `does not fire the graph fan-out when nothing landed`](../../../mcp-server/src/api/routes/ingest.test.ts#L96)) ([validated by `does not fire the trigger when nothing landed`](../../../mcp-server/src/api/routes/ingest.test.ts#L111))
+An all-skipped batch fires neither the graph fan-out nor the trigger. ([validated by `does not fire the graph fan-out when nothing landed`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L96)) ([validated by `does not fire the trigger when nothing landed`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L111))
 
-A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](../../../mcp-server/src/api/routes/ingest.test.ts#L127))
+A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L127))
 
-A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](../../../mcp-server/src/api/routes/ingest.test.ts#L143))
+A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L143))
 
-The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../mcp-server/src/api/routes/index.ts#L53)) ([implemented by](../../../mcp-server/src/api/routes/ingest.ts#L9))
+The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L53)) ([implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L9))
 
 ## Out of Scope
 

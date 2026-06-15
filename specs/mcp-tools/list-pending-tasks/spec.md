@@ -20,7 +20,7 @@ pending file written by the notifier.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L429)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L429)).
 
 - **name**: `lore_list_pending_tasks`
 - **description** (verbatim): *"Show pending pipeline tasks that can be claimed
@@ -46,7 +46,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
       sections joined by a blank line.
 3. **Local fallback** — when the API is unconfigured or non-2xx, dynamically
    import `listPendingTasks` from `runner.local`
-   ([handler](../../../mcp-server/src/features/pipeline/runner.local.ts#L884)), which reads
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L884)), which reads
    `~/.lore/pending-tasks.json` (returning `[]` if missing/unreadable). If empty →
    `"No pending tasks."`. Else emit one block per task:
    `"{id[0:8]} {task_type} {target_repo}{ #issue_number?}\n  {description}"`, joined
@@ -67,7 +67,7 @@ listing, a "No pending tasks" message, or the error message. Never throws.
 ## Acceptance Criteria
 
 `listPendingTasks` returns an array (empty when the cached pending file is
-absent). ([validated by `listPendingTasks returns empty array when file is missing`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L158))
+absent). ([validated by `listPendingTasks returns empty array when file is missing`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L158))
 
 The handler's API-path grouping/formatting, the `repo` filter, and the
 local-fallback formatting run only inside the tool. *(untested: the API branch

@@ -26,7 +26,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./.lore-pgdata:/var/lib/postgresql/data
+      - ../.lore-pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d lore"]
       interval: 5s
@@ -44,7 +44,7 @@ services:
       - "${DGRAPH_HTTP_PORT:-8081}:8080"   # HTTP / admin / health (8081 host → avoid agent's 8080)
       - "9080:9080"                         # gRPC — the DgraphMemoryStore client
     volumes:
-      - ./.lore-dgraphdata:/dgraph
+      - ../.lore-dgraphdata:/dgraph
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 5s
