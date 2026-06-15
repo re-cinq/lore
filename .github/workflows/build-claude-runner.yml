@@ -98,12 +98,14 @@ jobs:
           echo "runner-cli exit-code matrix verified (env_missing → 9)"
 
       - name: Smoke test — workflow YAMLs present
-        # Confirms agent/src/workflows/*.yaml made it to /app/dist/workflows/.
-        # If the Dockerfile drops the cp step, runner-cli would exit 3
+        # Confirms libs/runner/src/workflows/*.yaml made it to
+        # /app/libs/runner/dist/workflows/ — the path loadBuiltinWorkflows()
+        # resolves relative to its compiled module. If the runner kernel's
+        # copy:workflows build step is dropped, runner-cli would exit 3
         # (workflow_load_failed) on every invocation.
         run: |
           docker run --rm --entrypoint sh "${{ steps.tag.outputs.image }}" -c \
-            'ls /app/dist/workflows/*.yaml' \
+            'ls /app/libs/runner/dist/workflows/*.yaml' \
             | tee /tmp/workflows.txt
           test -s /tmp/workflows.txt
 

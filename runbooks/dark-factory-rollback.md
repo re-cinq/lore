@@ -185,7 +185,7 @@ docker pull "$IMAGE"
 
 # Both must succeed:
 docker run --rm --entrypoint sh "$IMAGE" -c \
-  'test -f /app/dist/supervisor/runner-cli.js && ls /app/dist/workflows/*.yaml'
+  'test -f /app/dist/supervisor/runner-cli.js && ls /app/libs/runner/dist/workflows/*.yaml'
 ```
 
 If either check fails, the image build pipeline (PR #311 onward) didn't
