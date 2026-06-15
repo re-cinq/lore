@@ -32,7 +32,7 @@ Click **Create Task**. That's it for you.
 
 ### Step 2 — The agent generates the spec (automatic)
 
-Within about 10 minutes, the Lore Agent:
+Within about 10 minutes, the Floor:
 
 - Fetches the repo's context (CLAUDE.md, ADRs, existing specs, org memories)
 - Generates `specs/export-timesheets-pdf/spec.md` — a proper engineering spec with problem statement, user scenarios, functional requirements, and success criteria

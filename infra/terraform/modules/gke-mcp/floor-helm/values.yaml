@@ -9,7 +9,7 @@ podDisruptionBudget:
   minAvailable: 1
 
 image:
-  repository: ghcr.io/re-cinq/lore-agent
+  repository: ghcr.io/re-cinq/lore-floor
   tag: latest
   pullPolicy: Always
 
@@ -71,21 +71,21 @@ env:
   LORE_REVIEW_BOT_LOGIN: "lore-agent[bot]"
 
 dbPasswordSecret:
-  name: lore-agent-db-password
+  name: lore-floor-db-password
   key: password
 
 anthropicKeySecret:
-  name: lore-agent-anthropic-key
+  name: lore-floor-anthropic-key
   key: anthropic-api-key
 
 # Optional Admin API key (sk-ant-admin…) for the anthropic-cost-sync cron.
 # Absent → the cron no-ops and the /spend page degrades to Lore-computed costs.
 anthropicAdminKeySecret:
-  name: lore-agent-anthropic-key
+  name: lore-floor-anthropic-key
   key: anthropic-admin-key
 
 githubAppSecret:
-  name: lore-agent-github-app
+  name: lore-floor-github-app
   appIdKey: app-id
   privateKeyKey: private-key
   installationIdKey: installation-id
@@ -97,7 +97,7 @@ internalTokenSecret:
   key: token
 
 configMap:
-  name: lore-agent-config
+  name: lore-floor-config
 
 # Slack integration (optional — for PR/failure notifications back to Slack)
 slackBotTokenSecret:
@@ -119,7 +119,7 @@ gcpProject: ""
 cronJobDefaults:
   # concurrencyPolicy=Forbid mirrors the in-process scheduler's
   # "running" set — a tick that fires while the previous run is still
-  # going is dropped, not queued. (5-lore-agent SC2.)
+  # going is dropped, not queued. (5-lore-floor SC2.)
   concurrencyPolicy: Forbid
   # startingDeadlineSeconds gives K8s a window to launch a missed tick
   # after a brief outage, replacing scheduler.checkMissedRuns() for

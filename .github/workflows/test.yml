@@ -37,7 +37,7 @@ jobs:
           # both shared and runner must be built before its suite runs.
           - name: agent
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-runner
-            test: npm test -w @re-cinq/lore-agent
+            test: npm test -w @re-cinq/lore-floor
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui

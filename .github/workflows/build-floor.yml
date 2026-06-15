@@ -1,10 +1,10 @@
-name: Build and push Lore Agent
+name: Build and push Lore Floor
 
 on:
   push:
     branches: [main]
     paths:
-      - 'apps/agent/**'
+      - 'apps/floor/**'
       # The compiled `shared` package is bundled into the image — a shared-only
       # change must rebuild + redeploy, or the cluster runs stale shared code
       # while main is green (rediscovered 2026-06-11).
@@ -13,7 +13,7 @@ on:
       # @re-cinq/lore-runner) — a runner-only change must rebuild + redeploy.
       - 'libs/runner/**'
       # Chart or workflow changes need a redeploy too.
-      - 'infra/terraform/modules/gke-mcp/agent-helm/**'
+      - 'infra/terraform/modules/gke-mcp/floor-helm/**'
       - '.github/workflows/build-agent.yml'
   workflow_dispatch:
 
@@ -23,7 +23,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: re-cinq/lore-agent
+  IMAGE_NAME: re-cinq/lore-floor
 
 jobs:
   build:
@@ -61,7 +61,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: apps/agent/Dockerfile
+          file: apps/floor/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -97,8 +97,8 @@ jobs:
         run: |
           # --reset-then-reuse-values (helm 3.14+) preserves user --set
           # overrides while picking up new chart defaults from values.yaml.
-          helm upgrade --install lore-agent ./infra/terraform/modules/gke-mcp/agent-helm \
-            --namespace lore-agent \
+          helm upgrade --install lore-floor ./infra/terraform/modules/gke-mcp/floor-helm \
+            --namespace lore-floor \
             --set image.tag=${{ needs.build.outputs.image_tag }} \
             --reset-then-reuse-values \
             --wait --timeout 5m
@@ -107,8 +107,8 @@ jobs:
         run: |
           kubectl set image deployment/loretask-controller \
             controller=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }} \
-            -n lore-agent
-          kubectl rollout status deployment/loretask-controller -n lore-agent --timeout=60s
+            -n lore-floor
+          kubectl rollout status deployment/loretask-controller -n lore-floor --timeout=60s
 
   smoke:
     needs: deploy

@@ -26,8 +26,8 @@ WORKDIR /build
 COPY package.json ./
 COPY libs/shared/package.json libs/shared/
 COPY libs/runner/package.json libs/runner/
-COPY apps/agent/package.json apps/agent/
-RUN npm install --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-agent
+COPY apps/floor/package.json apps/floor/
+RUN npm install --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-floor
 
 # Build shared (runner + agent depend on @re-cinq/lore-shared dist).
 COPY libs/shared/tsconfig.json libs/shared/
@@ -41,16 +41,16 @@ COPY libs/runner/tsconfig.json libs/runner/
 COPY libs/runner/src libs/runner/src
 RUN npm run build --workspace=@re-cinq/lore-runner
 
-# Build agent (produces /build/apps/agent/dist, incl. supervisor/runner-cli.js).
-COPY apps/agent/tsconfig.json apps/agent/
-COPY apps/agent/src apps/agent/src
-RUN npm run build --workspace=@re-cinq/lore-agent
+# Build agent (produces /build/apps/floor/dist, incl. supervisor/runner-cli.js).
+COPY apps/floor/tsconfig.json apps/floor/
+COPY apps/floor/src apps/floor/src
+RUN npm run build --workspace=@re-cinq/lore-floor
 
 # Drop dev deps before the runtime stage copies node_modules. The
 # initial install above pulls in vitest, typescript, @types/* — pure
 # overhead in the runtime image. Prune is faster than a fresh
 # `npm install --omit=dev`.
-RUN npm prune --omit=dev --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-agent
+RUN npm prune --omit=dev --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-floor
 
 # ── Stage 2: validation CLI build ─────────────────────────────────────
 FROM node:24-slim AS validation-builder
@@ -74,7 +74,7 @@ COPY --from=validation-builder /build/dist/repo-validation.js /repo-validation.j
 # Agent supervisor + workflows + workspace deps. Layout chosen to match
 # the loretask-controller's entrypoint expectation
 # (`node /app/dist/delivery/runner-cli.js`).
-COPY --from=agent-builder /build/apps/agent/dist /app/dist
+COPY --from=agent-builder /build/apps/floor/dist /app/dist
 # `/app/libs` is REQUIRED at this exact path — not arbitrary. The npm workspace
 # install creates relative symlinks `node_modules/@re-cinq/lore-shared →
 # ../../libs/shared` (and likewise lore-runner) under /app/node_modules/@re-cinq/,
@@ -84,7 +84,7 @@ COPY --from=agent-builder /build/apps/agent/dist /app/dist
 # imports from `@re-cinq/lore-*` in compiled supervisor code silently break.
 COPY --from=agent-builder /build/libs /app/libs
 COPY --from=agent-builder /build/node_modules /app/node_modules
-COPY --from=agent-builder /build/apps/agent/package.json /app/package.json
+COPY --from=agent-builder /build/apps/floor/package.json /app/package.json
 
 # task-types.yaml is read by runner-cli at startup (TASK_TYPES_PATH
 # defaults to /config/task-types.yaml) — bake it in so cluster pods

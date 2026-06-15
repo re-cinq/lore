@@ -232,7 +232,7 @@ review:
 1. Implementation PR → review LoreTask CR created automatically (when auto_review enabled)
 2. Review Job pod clones repo, reads spec + diff, posts PR comments
 3. Approved: parent task marked as `review/approved`
-4. Changes requested (iteration < 2): new implementation LoreTask with feedback, same branch ([validated by `review-feedback.test.ts:16`](apps/agent/src/lib/review-feedback.test.ts#L16))
+4. Changes requested (iteration < 2): new implementation LoreTask with feedback, same branch ([validated by `review-feedback.test.ts:16`](libs/shared/src/review-feedback.test.ts#L16))
 5. Changes requested (iteration >= 2): escalate with `needs-human-review` label
 6. Review completes in <5 min
 7. Review result visible in pipeline UI

@@ -1,5 +1,5 @@
 {
-  "name": "@re-cinq/lore-agent",
+  "name": "@re-cinq/lore-floor",
   "version": "0.1.0",
   "description": "Lore agent runner — processes pipeline tasks via Anthropic API, runs scheduled jobs",
   "type": "module",

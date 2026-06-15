@@ -36,8 +36,8 @@ describe("runner package boundaries", () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
-  it("never imports the agent package", () => {
-    expect(offenders(/from\s+["']@re-cinq\/lore-agent/)).toEqual([]);
+  it("never imports the floor app package", () => {
+    expect(offenders(/from\s+["']@re-cinq\/lore-floor/)).toEqual([]);
   });
 
   it("imports @re-cinq/lore-shared only via subpaths, never the barrel", () => {

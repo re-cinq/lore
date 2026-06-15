@@ -66,7 +66,7 @@ This creates:
 - External Secrets Operator (syncs secrets to K8s)
 - GCS bucket for task logs (CMEK encrypted, 30-day retention)
 - KMS key ring + crypto key
-- Helm releases: Lore Agent, MCP Server
+- Helm releases: Floor, MCP Server
 - LoreTask CRD + controller deployment
 - Web UI deployment + ingress
 - ConfigMaps for task-types.yaml

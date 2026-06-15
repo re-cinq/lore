@@ -46,7 +46,7 @@ async function main() {
   loadTaskTypes();
   loadTemplates(join(import.meta.dirname, "..", "templates"));
   if (process.env.LORE_DB_HOST) {
-    console.error('[lore] Pipeline task CRUD ready (processing handled by lore-agent)');
+    console.error('[lore] Pipeline task CRUD ready (processing handled by the Floor)');
   }
 
   await startTransport(server, getPool);

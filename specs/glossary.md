@@ -23,11 +23,11 @@ autonomous software **factory** (Dark Factory, ADR-016, is a *mode* of it).
 - A **Floor** may be one of several (per team / cluster / trust tier); write
   "the Floor" for the local/default one, "a Floor" when multiplicity matters.
 
-## Mapping to today's code (rename in progress)
+## Mapping to today's code
 
 | Term | Today |
 |---|---|
-| Floor | `apps/agent` (the `lore-agent` deployment) — rename to `apps/floor` pending |
+| Floor | `apps/floor` (the `lore-floor` deployment) |
 | AssemblyLine | the `workflow` YAML + supervisor graph in `@re-cinq/lore-runner` |
 | Station | the `claude-runner` Job pod / the local runner sandbox |
 | Agent | the `claude --print` / `Llm` invocation |

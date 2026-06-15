@@ -14,7 +14,7 @@
 
 There is no queryable, bidirectional, sentence-level map from a spec to
 the tests and code that implement it. Drift detection today
-([`spec-coverage-validate`](../../apps/agent/src/application/jobs/scheduled/spec-coverage-validate.ts))
+([`spec-coverage-validate`](../../apps/floor/src/application/jobs/scheduled/spec-coverage-validate.ts))
 only catches **link rot** — a test link whose file was deleted or whose
 line moved out of range. It cannot catch the case that matters most:
 

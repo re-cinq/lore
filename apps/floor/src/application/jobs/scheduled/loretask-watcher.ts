@@ -154,7 +154,7 @@ export async function watchLoreTasks(): Promise<void> {
   const kc = new KubeConfig();
   kc.loadFromCluster();
   const k8sApi = kc.makeApiClient(CustomObjectsApi);
-  const namespace = process.env.NAMESPACE || "lore-agent";
+  const namespace = process.env.NAMESPACE || "lore-floor";
 
   const result = await k8sApi.listNamespacedCustomObject({
     group: GROUP,

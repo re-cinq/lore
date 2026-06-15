@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: {{ .Values.configMap.name }}
   labels:
-    app: lore-agent
+    app: lore-floor
 data:
   task-types.yaml: |
     {{- .Values.taskTypesConfig | default "" | nindent 4 }}

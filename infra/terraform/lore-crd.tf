@@ -52,10 +52,10 @@ resource "kubectl_manifest" "loretask_networkpolicy" {
   ]
 }
 
-# --- Agent RBAC (ClusterRole + ClusterRoleBinding for lore-agent SA) ---
+# --- Agent RBAC (ClusterRole + ClusterRoleBinding for lore-floor SA) ---
 
 data "kubectl_file_documents" "agent_rbac" {
-  content = file("${path.module}/modules/gke-mcp/loretask-crd/agent-rbac.yaml")
+  content = file("${path.module}/modules/gke-mcp/loretask-crd/floor-rbac.yaml")
 }
 
 resource "kubectl_manifest" "agent_rbac" {
