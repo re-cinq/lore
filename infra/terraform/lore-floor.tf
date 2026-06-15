@@ -1,11 +1,11 @@
 # --------------------------------------------------------------------------
-# Lore Agent — Helm release
+# Lore Floor — Helm release
 # --------------------------------------------------------------------------
 
 resource "helm_release" "lore_agent" {
-  name             = "lore-agent"
-  chart            = "${path.module}/modules/gke-mcp/agent-helm"
-  namespace        = "lore-agent"
+  name             = "lore-floor"
+  chart            = "${path.module}/modules/gke-mcp/floor-helm"
+  namespace        = "lore-floor"
   create_namespace = false
 
   set {

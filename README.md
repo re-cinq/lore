@@ -27,7 +27,7 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 ## Repository layout
 
 ```
-apps/        deployable services        agent · mcp-server · web-ui · vscode-extension
+apps/        deployable services        floor · mcp-server · web-ui · vscode-extension
 libs/        shared libraries           shared (@re-cinq/lore-shared) · runner (@re-cinq/lore-runner)
 infra/       deploy & runtime           terraform · docker · k8s · compose.yaml
 specs/       speckit specs (spec/plan/tasks/contracts) — first-class, links into code
@@ -103,7 +103,7 @@ Lore is modeled as an autonomous software **factory** ("Dark Factory" is a *mode
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents.**
 
-> **"Agent" means only the Claude-CLI-plus-prompt run** — not the pod that hosts it (a **Station**) nor the coordinator that dispatches work (the **Floor**). The coordinator deployment was historically called "Lore Agent"; the rename to **Floor** (`apps/agent` → `apps/floor`) is in progress.
+> **"Agent" means only the Claude-CLI-plus-prompt run** — not the pod that hosts it (a **Station**) nor the coordinator that dispatches work (the **Floor**). The coordinator deployment was historically called "Lore Agent"; it is now the **Floor** (`apps/floor`, the `lore-floor` deployment).
 
 ## Documentation
 

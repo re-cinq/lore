@@ -20,7 +20,7 @@ export class K8sLoreTaskClient implements K8sPort {
     kc.loadFromCluster();
     const k8sApi = kc.makeApiClient(CustomObjectsApi);
 
-    const namespace = opts?.namespace ?? process.env.NAMESPACE ?? "lore-agent";
+    const namespace = opts?.namespace ?? process.env.NAMESPACE ?? "lore-floor";
     const name = spec.name ?? `loretask-${spec.taskId.substring(0, 8)}`;
 
     const cr = {

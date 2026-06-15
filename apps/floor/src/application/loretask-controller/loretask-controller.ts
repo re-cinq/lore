@@ -18,7 +18,7 @@ import { isAlreadyExistsError } from "@re-cinq/lore-shared";
 const GROUP = "lore.re-cinq.com";
 const VERSION = "v1alpha1";
 const PLURAL = "loretasks";
-const NAMESPACE = process.env.LORETASK_NAMESPACE || "lore-agent";
+const NAMESPACE = process.env.LORETASK_NAMESPACE || "lore-floor";
 const POLL_INTERVAL_MS = 15_000;
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -246,7 +246,7 @@ async function reconcile(lt: LoreTask): Promise<void> {
                   name: "ANTHROPIC_API_KEY",
                   valueFrom: {
                     secretKeyRef: {
-                      name: "lore-agent-anthropic-key",
+                      name: "lore-floor-anthropic-key",
                       key: "anthropic-api-key",
                     },
                   },

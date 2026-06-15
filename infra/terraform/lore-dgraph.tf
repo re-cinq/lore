@@ -15,7 +15,7 @@
 #
 # Apps reach it via LORE_DGRAPH_HTTP (createDgraphClient in
 # shared/src/dgraph-client.ts); unset → the client is null and /impact + graph
-# ingest fail soft. Wired into mcp-server + agent in lore-mcp.tf / lore-agent.tf.
+# ingest fail soft. Wired into mcp-server + agent in lore-mcp.tf / lore-floor.tf.
 # ---------------------------------------------------------------------------
 
 variable "dgraph_storage_size" {

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: loretask-controller
-  namespace: lore-agent
+  namespace: lore-floor
   labels:
     app: loretask-controller
 spec:
@@ -22,33 +22,33 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: controller
-          image: ghcr.io/re-cinq/lore-agent:latest
+          image: ghcr.io/re-cinq/lore-floor:latest
           imagePullPolicy: Always
           command:
             - node
             - dist/delivery/loretask-controller-main.js
           env:
             - name: NAMESPACE
-              value: lore-agent
+              value: lore-floor
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: lore-agent-anthropic-key
+                  name: lore-floor-anthropic-key
                   key: anthropic-api-key
             - name: GITHUB_APP_ID
               valueFrom:
                 secretKeyRef:
-                  name: lore-agent-github-app
+                  name: lore-floor-github-app
                   key: app-id
             - name: GITHUB_APP_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: lore-agent-github-app
+                  name: lore-floor-github-app
                   key: private-key
             - name: GITHUB_APP_INSTALLATION_ID
               valueFrom:
                 secretKeyRef:
-                  name: lore-agent-github-app
+                  name: lore-floor-github-app
                   key: installation-id
             - name: LORE_LOG_BUCKET
               value: lore-task-logs-${project_id}

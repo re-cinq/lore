@@ -212,10 +212,10 @@ psql "$LORE_DB_URL" -c "
 ```
 
 ```bash
-helm upgrade --reuse-values lore-agent ./terraform/modules/gke-mcp/agent-helm \
-  --namespace lore-agent \
+helm upgrade --reuse-values lore-floor ./infra/terraform/modules/gke-mcp/floor-helm \
+  --namespace lore-floor \
   --set-string env.LORE_DARK_FACTORY_CLUSTER_ENABLED=true
-kubectl rollout status deployment/lore-agent -n lore-agent --timeout=5m
+kubectl rollout status deployment/lore-floor -n lore-floor --timeout=5m
 ```
 
 `--set-string` (not `--set`) — helm's `--set` parses `=true` as a
@@ -232,7 +232,7 @@ least 30 s after `Available: True` to catch immediate startup
 failures (bad image, missing env, etc.) before proceeding to step 2:
 
 ```bash
-kubectl logs deployment/lore-agent -n lore-agent -f --tail=200
+kubectl logs deployment/lore-floor -n lore-floor -f --tail=200
 ```
 
 For repos that already had `dark_factory.enabled = true`, confirm the
@@ -294,7 +294,7 @@ Watch:
 - **Escalation Issues** labelled `needs-human-help` — should be rare
   (< 1 per 50 tasks).
 - **Cluster-pod failures** —
-  `kubectl get loretasks -n lore-agent -l lore.re-cinq.com/dark-factory=true`,
+  `kubectl get loretasks -n lore-floor -l lore.re-cinq.com/dark-factory=true`,
   then `kubectl describe` any in `Failed` state.
 
 #### Step 4 — ramp
@@ -322,8 +322,8 @@ default for opted-in repos.
 To unflip the cluster gate:
 
 ```bash
-helm upgrade --reuse-values lore-agent ./terraform/modules/gke-mcp/agent-helm \
-  --namespace lore-agent \
+helm upgrade --reuse-values lore-floor ./infra/terraform/modules/gke-mcp/floor-helm \
+  --namespace lore-floor \
   --set-string env.LORE_DARK_FACTORY_CLUSTER_ENABLED=false
 ```
 

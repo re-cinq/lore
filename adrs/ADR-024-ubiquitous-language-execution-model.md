@@ -50,11 +50,11 @@ Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents.**
   not named "Factory" (that would forbid ever saying "the Factory" about the
   product, and preclude multiple Floors).
 
-Current-code mapping (the code rename follows; see Consequences):
+Current-code mapping:
 
 | Term | Today's code |
 |---|---|
-| Floor | `apps/agent` (the `lore-agent` deployment) |
+| Floor | `apps/floor` (the `lore-floor` deployment) |
 | AssemblyLine | the `workflow` YAML + supervisor graph (`@re-cinq/lore-runner`) |
 | Station | the claude-runner Job pod / the local runner sandbox |
 | Agent | the `claude --print` / `Llm` invocation |
@@ -75,11 +75,14 @@ Current-code mapping (the code rename follows; see Consequences):
   Phase 3 (BYO container) names itself — "make a **Station** any image,"
   `ExecutionBackend` selects/builds a Station, `settings.execution.image` is the
   Station's image.
-- **Negative / pending:** the code still says "agent" for the Floor. Renaming
-  `apps/agent` → `apps/floor`, the `lore-agent` namespace → `lore-floor`, and
-  the related Helm/Docker/CI references is a **follow-up PR**, kept separate so
-  its blast radius (deploy + CI) is reviewed on its own. During the transition,
-  treat "Lore Agent" / `apps/agent` as the Floor.
+- **Done (follow-up PR):** the rename landed — `apps/agent` → `apps/floor`, the
+  `lore-agent` namespace → `lore-floor`, package `@re-cinq/lore-agent` →
+  `@re-cinq/lore-floor`, and the related Helm/Docker/CI references. Three
+  external identities are intentionally preserved to avoid breakage: the GCP
+  service account `lore-agent@…` (renaming a GSA is destroy+recreate, dropping
+  its grants), the GitHub bot login `lore-agent[bot]`, and the
+  `lore-agent-internal-token` secret (Secret-Manager source of truth). The
+  `lore-agent` memory `agent_id` is also kept so existing memories still resolve.
 - Specs reference the canonical glossary at [`specs/glossary.md`](../specs/glossary.md);
   retro-rewriting existing spec prose to the new terms rides with the code
   rename (it is link-safe but per-usage judgment, since "the agent" sometimes

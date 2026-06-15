@@ -8,10 +8,10 @@ kind: PodDisruptionBudget
 metadata:
   name: {{ .Release.Name }}
   labels:
-    app: lore-agent
+    app: lore-floor
 spec:
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable | default 1 }}
   selector:
     matchLabels:
-      app: lore-agent
+      app: lore-floor
 {{- end }}

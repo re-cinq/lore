@@ -1,6 +1,6 @@
 # scheduled/ — in-process node-cron jobs
 
-Each `.ts` file here runs **in-process** inside the always-on `lore-agent`
+Each `.ts` file here runs **in-process** inside the always-on Floor
 container via `node-cron`, registered in
 [`agent/src/index.ts`](../../index.ts) with `registerJob(...)`.
 

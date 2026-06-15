@@ -2,7 +2,7 @@
 # ExternalSecret CRs — one per K8s secret per namespace
 # ---------------------------------------------------------------------------
 
-# ===== lore-agent namespace =================================================
+# ===== lore-floor namespace =================================================
 
 resource "kubectl_manifest" "es_agent_github_app" {
   yaml_body = yamlencode({
@@ -10,7 +10,7 @@ resource "kubectl_manifest" "es_agent_github_app" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "github-app-credentials"
-      namespace = "lore-agent"
+      namespace = "lore-floor"
     }
     spec = {
       refreshInterval = "1h"
@@ -53,7 +53,7 @@ resource "kubectl_manifest" "es_agent_anthropic" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-anthropic-key"
-      namespace = "lore-agent"
+      namespace = "lore-floor"
     }
     spec = {
       refreshInterval = "1h"
@@ -91,7 +91,7 @@ resource "kubectl_manifest" "es_agent_db_password" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-db-password"
-      namespace = "lore-agent"
+      namespace = "lore-floor"
     }
     spec = {
       refreshInterval = "1h"
@@ -122,7 +122,7 @@ resource "kubectl_manifest" "es_agent_ingest_token" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-ingest-token"
-      namespace = "lore-agent"
+      namespace = "lore-floor"
     }
     spec = {
       refreshInterval = "1h"
@@ -153,7 +153,7 @@ resource "kubectl_manifest" "es_agent_ghcr" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "ghcr-pull-secret"
-      namespace = "lore-agent"
+      namespace = "lore-floor"
     }
     spec = {
       refreshInterval = "1h"
@@ -328,7 +328,7 @@ resource "kubectl_manifest" "es_agent_internal_token" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-agent-internal-token"
-      namespace = "lore-agent"
+      namespace = "lore-floor"
     }
     spec = {
       refreshInterval = "1h"
@@ -452,7 +452,7 @@ resource "kubectl_manifest" "es_mcp_ghcr" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-# Slack credentials — shared by both mcp-servers and lore-agent namespaces
+# Slack credentials — shared by both mcp-servers and lore-floor namespaces
 resource "kubectl_manifest" "es_mcp_slack" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -496,7 +496,7 @@ resource "kubectl_manifest" "es_agent_slack" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-slack-credentials"
-      namespace = "lore-agent"
+      namespace = "lore-floor"
     }
     spec = {
       refreshInterval = "1h"

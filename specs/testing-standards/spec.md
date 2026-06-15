@@ -139,7 +139,7 @@ one job per subproject on every PR to `main`:
 |------------|--------------------|---------------------------------------|-------------------------------|
 | shared     | `npm install`      | —                                     | `npm test -w @re-cinq/lore-shared` |
 | mcp-server | `npm install`      | `npm run build -w @re-cinq/lore-shared` | `npm test -w @re-cinq/lore-mcp` |
-| agent      | `npm install`      | `npm run build -w @re-cinq/lore-shared` | `npm test -w @re-cinq/lore-agent` |
+| agent      | `npm install`      | `npm run build -w @re-cinq/lore-shared` | `npm test -w @re-cinq/lore-floor` |
 | web-ui     | `npm install --prefix web-ui` | —                          | `npm test --prefix web-ui`    |
 
 `mcp-server` and `agent` import the compiled `@re-cinq/lore-shared`, so shared is

@@ -78,7 +78,7 @@ resource "google_service_account" "loretask_controller" {
 resource "google_service_account_iam_member" "controller_wi" {
   service_account_id = google_service_account.loretask_controller.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-agent/loretask-controller]"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-floor/loretask-controller]"
 }
 
 resource "google_service_account" "lore_ui" {
@@ -92,21 +92,25 @@ resource "google_service_account_iam_member" "ui_wi" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-ui/lore-ui]"
 }
 
-# --- Lore Agent SA: batch jobs (reindex/ingest) + on-demand task work ---
+# --- Floor GCP SA: batch jobs (reindex/ingest) + on-demand task work ---
 #
-# The agent Deployment and the K8s CronJob batch pods run as KSA
-# `lore-agent` in the `lore-agent` namespace (created by the agent Helm
+# The Floor Deployment and the K8s CronJob batch pods run as KSA
+# `lore-floor` in the `lore-floor` namespace (created by the Floor Helm
 # chart) and impersonate this GCP SA via Workload Identity. Replaces the
 # retired Klaus agent SA (ADR-007): the KSA annotation
-# (agent-helm/templates/serviceaccount.yaml) points at
+# (floor-helm/templates/serviceaccount.yaml) points at
 # `lore-agent@<project>.iam.gserviceaccount.com`, which previously did not
 # exist — so every pod failed to mint a GCP token ("Gaia id not found"),
 # breaking Vertex embeddings and GCS log upload. (DB access uses CNPG
 # password auth and GitHub uses the App token, so those were unaffected.)
+#
+# NB: the GCP SA keeps account_id "lore-agent" intentionally. Renaming a GSA
+# is destroy+recreate (drops every IAM grant attached to it); the apps/agent
+# → apps/floor rename only changes the KSA/namespace it trusts (→ lore-floor).
 
 resource "google_service_account" "lore_agent" {
   account_id   = "lore-agent"
-  display_name = "Lore Agent — batch reindex/ingest, Vertex embeddings, job logs"
+  display_name = "Lore Floor — batch reindex/ingest, Vertex embeddings, job logs"
 }
 
 # Vertex AI — generate text-embedding-005 embeddings during reindex/ingest.
@@ -124,9 +128,9 @@ resource "google_storage_bucket_iam_member" "lore_agent_logs_admin" {
   member = "serviceAccount:${google_service_account.lore_agent.email}"
 }
 
-# Workload Identity: the helm-managed KSA lore-agent/lore-agent impersonates this SA.
+# Workload Identity: the helm-managed KSA lore-floor/lore-floor impersonates this SA.
 resource "google_service_account_iam_member" "lore_agent_wi" {
   service_account_id = google_service_account.lore_agent.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-agent/lore-agent]"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-floor/lore-floor]"
 }

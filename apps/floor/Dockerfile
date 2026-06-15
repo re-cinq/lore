@@ -7,8 +7,8 @@ WORKDIR /app
 COPY package.json ./
 COPY libs/shared/package.json ./libs/shared/
 COPY libs/runner/package.json ./libs/runner/
-COPY apps/agent/package.json ./apps/agent/
-RUN npm install --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-agent
+COPY apps/floor/package.json ./apps/floor/
+RUN npm install --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-floor
 
 # Build shared
 COPY libs/shared/tsconfig.json ./libs/shared/
@@ -22,9 +22,9 @@ COPY libs/runner/src ./libs/runner/src
 RUN npm run build --workspace=@re-cinq/lore-runner
 
 # Build agent
-COPY apps/agent/tsconfig.json ./apps/agent/
-COPY apps/agent/src/ ./apps/agent/src/
-RUN npm run build --workspace=@re-cinq/lore-agent
+COPY apps/floor/tsconfig.json ./apps/floor/
+COPY apps/floor/src/ ./apps/floor/src/
+RUN npm run build --workspace=@re-cinq/lore-floor
 
 FROM node:22-slim
 WORKDIR /app
@@ -32,8 +32,8 @@ ENV NODE_ENV=production
 # /app/libs mirrors the repo so node_modules/@re-cinq/{lore-shared,lore-runner}
 # → ../../libs/{shared,runner} resolve at runtime.
 COPY --from=builder /app/libs ./libs
-COPY --from=builder /app/apps/agent/dist ./dist
+COPY --from=builder /app/apps/floor/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/agent/package.json ./
+COPY --from=builder /app/apps/floor/package.json ./
 EXPOSE 8080
 CMD ["node", "dist/delivery/index.js"]

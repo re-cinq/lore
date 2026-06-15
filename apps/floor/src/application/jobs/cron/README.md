@@ -8,7 +8,7 @@ Schedules and per-job overrides live in
 (`cronJobs:` list). The shared manifest is
 [`agent-helm/templates/cronjob.yaml`](../../../../terraform/modules/gke-mcp/agent-helm/templates/cronjob.yaml).
 
-These jobs share **no** in-memory state with the `lore-agent` Deployment.
+These jobs share **no** in-memory state with the Floor Deployment.
 Add a new batch job by:
 
 1. Dropping the `.ts` file here.

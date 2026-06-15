@@ -36,7 +36,7 @@ for f in "$REPO"/mcp-server/src/*.ts; do [ -f "$f" ] && insert code "mcp-server/
 # Scripts
 for f in "$REPO"/scripts/*.sh "$REPO"/scripts/*.js "$REPO"/scripts/*.py; do [ -f "$f" ] && insert code "scripts/$(basename "$f")"; done
 
-# Lore Agent prompts
+# Lore Floor prompts
 for f in "$REPO"/scripts/agent-prompts/*.md; do [ -f "$f" ] && insert doc "scripts/agent-prompts/$(basename "$f")"; done
 
 # Skills
