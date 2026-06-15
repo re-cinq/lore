@@ -41,6 +41,7 @@ export class AgentRunner implements AgentRunnerPort {
         name: opts?.name,
         extraLabels: opts?.extraLabels,
         darkFactory: opts?.darkFactory,
+        image: opts?.image,
       });
       return { taskId, mode, started: res.created };
     }

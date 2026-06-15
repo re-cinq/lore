@@ -120,10 +120,14 @@ export {
 } from './commit-trailers.js';
 export {
   resolveDarkFactorySettings,
+  resolveExecutionImage,
   trustMeets,
   DEFAULT_AUTO_MERGE_PATHS,
+  DEFAULT_EXECUTION_IMAGE,
   type DarkFactorySettings,
   type DarkFactoryAutoMerge,
+  type DarkFactoryExecution,
+  type ExecutionImageSettings,
   type ResolvedDarkFactorySettings,
   type TrustLevel,
   type ReviewMode,

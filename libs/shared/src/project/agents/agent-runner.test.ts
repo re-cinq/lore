@@ -52,6 +52,24 @@ describe("AgentRunner", () => {
     });
   });
 
+  it("cluster mode passes the execution image to the LoreTask CR", async () => {
+    const created: LoreTaskSpec[] = [];
+    const k8s: K8sPort = {
+      createLoreTask: async (spec) => {
+        created.push(spec);
+        return { name: `loretask-${spec.taskId}`, created: true };
+      },
+    };
+    const runner = new AgentRunner(process.env, { k8s });
+
+    await runner.run("re-cinq/lore", "task-img", {
+      mode: "cluster",
+      image: "golang:1.23",
+    });
+
+    expect(created[0]?.image).toBe("golang:1.23");
+  });
+
   it("direct mode calls the injected LlmPort", async () => {
     const prompts: string[] = [];
     const llm: LlmPort = {
