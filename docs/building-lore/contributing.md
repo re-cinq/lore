@@ -12,7 +12,7 @@
 npm start
 ```
 
-This runs `scripts/dev-local.sh`, which brings up a Docker Postgres (pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds `shared` → `mcp-server` → `agent`, then runs all four components under `concurrently` with live reload.
+This runs `scripts/dev-local.sh`, which brings up a Docker Postgres (pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds `libs/shared` → `libs/runner` → `apps/mcp-server` → `apps/floor`, then runs all four components under `concurrently` with live reload.
 
 Ports:
 
@@ -20,7 +20,7 @@ Ports:
 |-----------|------|
 | web-ui | `:3000` |
 | mcp-server | `:3001` |
-| agent | `:8080` |
+| floor | `:8080` |
 | Postgres | `:5432` |
 
 Useful sub-commands:
@@ -34,26 +34,36 @@ On first run, `scripts/infra/setup-local-schema.sh` bootstraps the `lore`/`lore_
 
 ```
 lore/
-├── mcp-server/          # MCP server (TypeScript, serves context + memory + pipeline)
-├── agent/               # Lore Agent service (TypeScript, task runner + scheduler)
-├── shared/              # @re-cinq/lore-shared — npm workspace package (chunker, redact, types)
-├── web-ui/              # Next.js dashboard (repo-centric UI, GitHub OAuth)
-├── scripts/             # install.sh, lore-doctor, infra setup scripts
-├── docker/claude-runner/ # Ephemeral container for Claude Code in K8s Jobs
-├── terraform/modules/   # Helm charts (mcp-helm, agent-helm, ui-helm), LoreTask CRD
-├── k8s/                 # Ingress manifests, CronJobs
-├── adrs/                # Architecture decision records (MADR format)
-├── specs/               # Feature specifications (speckit workflow)
-├── teams/               # Per-team CLAUDE.md overrides
-└── .github/workflows/   # CI: build + push containers for MCP, agent, UI, runner
+├── apps/                       # deployable services
+│   ├── floor/                  # Floor — coordinator runtime (TypeScript: task runner, scheduler, controllers)
+│   ├── mcp-server/             # MCP server (serves context + memory + pipeline)
+│   ├── web-ui/                 # Next.js dashboard (repo-centric UI, GitHub OAuth)
+│   └── vscode-extension/       # VS Code extension (spec ↔ code highlighting)
+├── libs/                       # shared libraries (consumed by apps)
+│   ├── shared/                 # @re-cinq/lore-shared — chunker, redact, Project facade, types
+│   └── runner/                 # @re-cinq/lore-runner — execution kernel (supervisor, workflows)
+├── infra/                      # deploy & runtime
+│   ├── terraform/modules/      # Helm charts (floor-helm, mcp-helm, ui-helm, lore-db-helm), LoreTask CRD
+│   ├── docker/claude-runner/   # Ephemeral container for Claude Code in K8s Jobs
+│   ├── k8s/                    # Ingress manifests, CronJobs
+│   └── compose.yaml            # Local Postgres/Dgraph for the dev stack
+├── scripts/                    # install.sh, lore-doctor, infra setup scripts
+├── adrs/                       # Architecture decision records (MADR format)
+├── specs/                      # Feature specifications (speckit workflow)
+├── runbooks/                   # Incident & operational runbooks
+├── teams/                      # Per-team CLAUDE.md overrides
+├── docs/                       # Guides (using-lore, building-lore)
+└── .github/workflows/          # CI: build + push containers for Floor, MCP, UI, runner
 ```
+
+npm workspaces live under `apps/*` + `libs/*`; `web-ui` is a standalone Next.js app (its own lockfile, not a workspace).
 
 ## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
 | MCP Server | TypeScript, `@modelcontextprotocol/sdk`, Zod |
-| Agent | TypeScript, `@anthropic-ai/sdk`, Claude Code (headless) |
+| Floor | TypeScript, `@anthropic-ai/sdk`, Claude Code (headless) |
 | Web UI | Next.js 15, NextAuth v4 (GitHub OAuth) |
 | Database | PostgreSQL 16 + pgvector (CloudNativePG) |
 | Embeddings | Vertex AI `text-embedding-005` (768 dim) |
@@ -83,6 +93,6 @@ Use the `/lore-feature` skill to start or continue a feature — it guides you t
 ## See also
 
 - [Architecture](architecture.md) — how the components you're editing fit together.
-- [Scheduled Jobs](scheduled-jobs.md) — the recurring jobs the agent runs.
+- [Scheduled Jobs](scheduled-jobs.md) — the recurring jobs the Floor runs.
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) and [CLAUDE.md](../../CLAUDE.md) — PR checklist and full code conventions.
 - [Back to README](../../README.md)
