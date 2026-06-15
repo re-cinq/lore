@@ -628,6 +628,44 @@ resource "kubectl_manifest" "es_ui_ingest_token" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+# Admin-scoped token for web-ui → mcp-server two-key-gated settings writes.
+# Gated by var.enable_ui_admin_token so it isn't a perpetually-failing sync
+# before the operator mints the token + populates the `lore-admin-token` GCP
+# Secret Manager key. The deployment's LORE_ADMIN_TOKEN env is optional, so a
+# missing secret never stalls the UI rollout.
+resource "kubectl_manifest" "es_ui_admin_token" {
+  count = var.enable_ui_admin_token ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-admin-token"
+      namespace = "lore-ui"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-admin-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-admin-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 resource "kubectl_manifest" "es_ui_oauth" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
