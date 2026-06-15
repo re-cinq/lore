@@ -246,7 +246,7 @@ async function reconcile(lt: LoreTask): Promise<void> {
                   name: "ANTHROPIC_API_KEY",
                   valueFrom: {
                     secretKeyRef: {
-                      name: "lore-floor-anthropic-key",
+                      name: "lore-anthropic-key",
                       key: "anthropic-api-key",
                     },
                   },
