@@ -1,6 +1,6 @@
 ---
 adr_number: 25
-title: "BYO execution container: per-repo/per-task image, Lore-hosted, injected portable kernel"
+title: "BYO execution container: per-repo/per-task image, Lore-hosted, kernel sidecar"
 status: accepted
 date: 2026-06-15
 domains: [agent, pipeline, infra, security]
@@ -26,8 +26,8 @@ unit that runs one Agent (ADR-024) — should be able to be any image.
 ## Decision
 
 Adopt **Lore-hosted, Bring-Your-Own image** execution. Execution stays in Lore's
-GKE cluster; the repo supplies the container image; Lore injects its execution
-kernel into that image at runtime.
+GKE cluster; the repo supplies the toolchain container image; Lore runs its
+execution kernel in a **sidecar** container next to it (not inside it).
 
 **Configuration — a default container, overridable per agent.** "Which image
 does this task run in" resolves through a hierarchy (last match wins):
@@ -62,18 +62,23 @@ plus a CODEOWNERS-approved PR — exactly like `dark_factory.enabled`
   `AgentRunOpts.image` → `LoreTaskSpec.image` → `CR.spec.image`. The worker
   resolves the image via `resolveExecutionImage` and passes it; everything else
   is unchanged.
-- The kernel (`@re-cinq/lore-runner`) is compiled to a self-contained **Node SEA
-  (Single Executable Application)** binary so it can run inside an image that has
-  no Node. A tiny Lore-owned **`lore-kernel` init container** copies the binary
-  into a shared `emptyDir`; the **main container is the repo's image** and runs
-  the injected binary. The kernel is already port-based and boundary-enforced —
-  only workflow loading (embed the YAMLs) and the lazy `@anthropic-ai/sdk` import
-  need adjustment.
-- In BYO mode the Agent runs **over the Anthropic API** (`createAgentHandler` +
-  `AnthropicProvider`), not the `claude` CLI (which won't exist in a Go/Python
-  image). The default image keeps the CLI handler.
-- `detectTooling` already runs in the pod's working directory; in the repo's
-  image the native toolchain is present, so polyglot validation works.
+- **Sidecar, not injection.** The kernel runs in **its own container on our
+  image** (`lore-claude-runner` already carries node + claude + the supervisor),
+  and the BYO image runs **alongside** it as a **native sidecar** (an
+  initContainer with `restartPolicy: Always`, k8s ≥ 1.28). Both mount a shared
+  `workspace` emptyDir. So the kernel is never hostage to the BYO image's runtime
+  — no static binary, no SEA, no Go rewrite. `execution.image` names the
+  **toolchain** container; default/unset ⇒ a single kernel container (today's
+  pod, byte-for-byte). The pure `buildLoreTaskJob` templates both shapes.
+- **The kernel drives toolchain commands over a POSIX-sh relay.** The BYO
+  sidecar runs `RELAY_SCRIPT` — a small `sh` loop that watches the shared volume,
+  runs each requested command in the repo's toolchain, and writes the result
+  back; the kernel sends commands via `RelayExecutor`. The BYO image needs only
+  `sh` + its toolchain — **nothing Lore-specific is injected into it**.
+- **Polyglot validation** runs by having `detectTooling`'s commands execute in
+  the BYO container through the relay, so `go vet` / `mypy` / `cargo check` run in
+  the native toolchain. (Same relay later carries a full agentic tool-use loop:
+  kernel = brain, BYO sidecar = hands.)
 
 ## Alternatives rejected
 
@@ -86,9 +91,19 @@ plus a CODEOWNERS-approved PR — exactly like `dark_factory.enabled`
 - **A new `ExecutionBackend` port / `backend` user setting** — speculative and
   duplicative: the existing `agents` port already abstracts the backends, and the
   backend is selected by task type, not a user knob.
-- **Bun / Deno compile for the kernel** — Bun is viable but adds a build
-  toolchain; Deno isn't Node-compatible without a rewrite. Node SEA keeps the
-  kernel in the toolchain we already run.
+- **Inject the kernel INTO the BYO container** (Node SEA single binary, or
+  node+bundle) — **rejected after trying it**: node always links a libc, so a
+  glibc binary won't run in musl (alpine) or `scratch` images — no node packaging
+  can mean "runs in any container." And `postject` couldn't even inject the SEA
+  blob into the *stripped* official node binary (it can't find the `NODE_SEA_FUSE`
+  sentinel; it fails silently, producing a plain node). The sidecar sidesteps the
+  whole libc/injection problem — the kernel runs in our own image.
+- **Rewrite the kernel in Go (a truly static binary)** — genuinely portable, but
+  a full rewrite plus cross-language duplication of the workflow engine, leases,
+  trailers, and LLM client that the TS kernel shares with the in-agent and local
+  runner paths. The sidecar reaches the same outcome reusing the proven TS kernel.
+  (Kept open as the future shape for a *remote/customer-hosted* static agent that
+  connects back to Lore's API — the GitLab-runner model.)
 
 ## Consequences
 
@@ -96,17 +111,19 @@ plus a CODEOWNERS-approved PR — exactly like `dark_factory.enabled`
   the three informal execution paths unify behind one tested port; the security
   posture is unchanged (Lore-hosted, image change is two-key gated). The default
   is preserved, so existing repos are unaffected.
-- **Phased delivery:** (1) **Foundation** — `execution.image` settings (two-key
-  gated) + `resolveExecutionImage` + threading the image through the existing
-  `agents` port onto `CR.spec.image`, with **no behavior change** (the default
-  image equals the controller's default). (2) **Portable kernel** — embed
-  workflows, lazy SDK, Node SEA build, the `lore-kernel` init image. (3)
-  **Two-stage pod + API agent node** — the controller templates
-  initContainer→`emptyDir`→BYO main and selects the API handler for custom
-  images (live execution-path change, staged). (4) **Proof** — a Go repo runs
-  `go vet` end-to-end. A custom non-Node image is non-functional until phase 3, so
-  until then a repo should leave `execution.image` at the default
-  (`lore-claude-runner`-compatible).
+- **Phased delivery:** (1) **Foundation** (done, #601) — `execution.image`
+  settings (two-key gated) + `resolveExecutionImage` + threading the image onto
+  `CR.spec.image`, no behavior change. (2) **Sidecar mechanism** (this) — the
+  relay (`RELAY_SCRIPT` + `RelayExecutor`, proven by a real round-trip test) and
+  the pure `buildLoreTaskJob` (single-container default / kernel + BYO native
+  sidecar + shared volume), wired into the controller; still no behavior change
+  (the default image ⇒ single container). (3) **Validation-via-relay + live
+  cutover** — the kernel runs `detectTooling`'s commands in the BYO sidecar over
+  the relay when `LORE_TOOLCHAIN_RELAY` is set; staged live rollout. (4) **Proof**
+  — a Go repo runs `go vet` end-to-end. BYO isn't end-to-end until phase 3, so a
+  repo should leave `execution.image` at the default until then.
 - **Negative / risk:** phase 3 touches the live execution path and needs a staged
-  cutover + rollback runbook (cf. the lore-floor namespace cutover). The SEA
-  binary is Node-version-locked and must be rebuilt with the kernel.
+  cutover + rollback runbook (cf. the lore-floor namespace cutover). The relay
+  adds a small command/result protocol over the shared volume; the BYO image must
+  carry `sh` + its toolchain (true for real coding images; `scratch`/distroless-
+  static can't host a task anyway). Native sidecars require k8s ≥ 1.28.
