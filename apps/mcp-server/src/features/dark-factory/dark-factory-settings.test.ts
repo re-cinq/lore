@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseDarkFactorySettings,
+  parseTaskOverrides,
   resolveSettings,
   twoKeyFieldsTouched,
   trustMeets,
@@ -148,6 +149,45 @@ describe("twoKeyFieldsTouched", () => {
     expect(twoKeyFieldsTouched({ execution: { image: "golang:1.23" } })).toEqual(
       ["execution.image"],
     );
+  });
+
+  it("flags a per-task-type task_overrides execution.image", () => {
+    expect(
+      twoKeyFieldsTouched(
+        {},
+        { implementation: { execution: { image: "golang:1.23" } } },
+      ),
+    ).toEqual(["task_overrides.implementation.execution.image"]);
+  });
+
+  it("does not flag non-execution task_overrides fields", () => {
+    expect(
+      twoKeyFieldsTouched(
+        {},
+        { implementation: { model: "claude-x", timeout_minutes: 45 } },
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("parseTaskOverrides", () => {
+  it("accepts per-task-type model, timeout, suffix, review_required, execution.image", () => {
+    const doc = {
+      implementation: {
+        model: "claude-opus-4-8",
+        timeout_minutes: 45,
+        system_prompt_suffix: "be terse",
+        review_required: true,
+        execution: { image: "golang:1.23" },
+      },
+    };
+    expect(parseTaskOverrides(doc)).toEqual(doc);
+  });
+
+  it("rejects an empty per-task-type execution image", () => {
+    expect(() =>
+      parseTaskOverrides({ implementation: { execution: { image: "" } } }),
+    ).toThrow();
   });
 });
 

@@ -57,6 +57,28 @@ export function parseDarkFactorySettings(raw: unknown): DarkFactorySettings {
 }
 
 /**
+ * Per-task-type overrides (`settings.task_overrides.<type>`). Merged over the
+ * global `task-types.yaml` at task creation. `execution.image` is the BYO
+ * toolchain image for that task type (ADR-025) and is two-key gated like
+ * `dark_factory.execution.image`.
+ */
+const TaskOverrideSchema = z.object({
+  model: z.string().min(1).max(128).optional(),
+  timeout_minutes: z.number().int().positive().max(1440).optional(),
+  system_prompt_suffix: z.string().max(8000).optional(),
+  review_required: z.boolean().optional(),
+  prompt_template: z.string().max(8000).optional(),
+  execution: ExecutionSchema.optional(),
+});
+
+export const TaskOverridesSchema = z.record(z.string(), TaskOverrideSchema);
+export type TaskOverridesPatch = z.infer<typeof TaskOverridesSchema>;
+
+export function parseTaskOverrides(raw: unknown): TaskOverridesPatch {
+  return TaskOverridesSchema.parse(raw);
+}
+
+/**
  * Returns the field paths in `patch` that require the two-key ceremony
  * (admin scope + CODEOWNERS-approval PR). Per FR3.9 + R9.
  *
@@ -66,10 +88,14 @@ export function parseDarkFactorySettings(raw: unknown): DarkFactorySettings {
  *   - dark_factory.auto_merge.require_green_ci (only when set to false — downgrade)
  *   - dark_factory.auto_merge.require_bot_approval (only when set to false — downgrade)
  *   - dark_factory.execution.image (any change — controls what code runs + which secrets it can read)
+ *   - task_overrides.<type>.execution.image (any change — same boundary, per task type)
  *
  * All other sub-fields require admin scope only.
  */
-export function twoKeyFieldsTouched(patch: DarkFactorySettings): string[] {
+export function twoKeyFieldsTouched(
+  patch: DarkFactorySettings,
+  taskOverrides?: TaskOverridesPatch,
+): string[] {
   const touched: string[] = [];
   if (patch.enabled !== undefined) touched.push("enabled");
   if (patch.auto_merge?.paths !== undefined) touched.push("auto_merge.paths");
@@ -80,5 +106,10 @@ export function twoKeyFieldsTouched(patch: DarkFactorySettings): string[] {
     touched.push("auto_merge.require_bot_approval");
   }
   if (patch.execution?.image !== undefined) touched.push("execution.image");
+  for (const [type, ov] of Object.entries(taskOverrides ?? {})) {
+    if (ov?.execution?.image !== undefined) {
+      touched.push(`task_overrides.${type}.execution.image`);
+    }
+  }
   return touched;
 }
