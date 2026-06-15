@@ -22,14 +22,14 @@ canonical GCS object per task (`{repo}/{task_id}/output.log`). The companion
 
 Registered as `exact("/api/task-logs", "POST")` →
 `handleTaskLogs(req, res)`
-([registration](../../../mcp-server/src/api/routes/index.ts#L66),
-[handler](../../../mcp-server/src/api/routes/logs.ts#L4)). The pool is **not**
+([registration](../../../apps/mcp-server/src/api/routes/index.ts#L66),
+[handler](../../../apps/mcp-server/src/api/routes/logs.ts#L4)). The pool is **not**
 passed to this handler — it takes only `(req, res)`.
 
 - **Method + path**: `POST /api/task-logs`.
 - **Auth scope**: `write`. No `SCOPE_OVERRIDES` match; first `ROUTE_SCOPES` prefix
   is `/api/task-logs` → `"write"`
-  ([scope map](../../../mcp-server/src/api/routes/auth.ts#L50)). Note the
+  ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L50)). Note the
   `/api/task-logs` entry precedes the `/api/task` entry as a longer prefix is
   checked, but `startsWith` order in the map puts `/api/task` (`task`) earlier —
   the GET sibling shares `write`. Rate-limit bucket `task` (the URL starts with
@@ -78,19 +78,19 @@ the body is not echoed.
 
 ## Acceptance Criteria
 
-A missing field returns 400. ([validated by `returns 400 when fields are missing`](../../../mcp-server/src/api/routes/task-logs.test.ts#L30))
+A missing field returns 400. ([validated by `returns 400 when fields are missing`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L30))
 
-A complete body saves the logs to GCS and returns `{ ok: true }`. ([validated by `saves logs to storage`](../../../mcp-server/src/api/routes/task-logs.test.ts#L35))
+A complete body saves the logs to GCS and returns `{ ok: true }`. ([validated by `saves logs to storage`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L35))
 
-A GCS failure returns 500. ([validated by `returns 500 when storage throws`](../../../mcp-server/src/api/routes/task-logs.test.ts#L42))
+A GCS failure returns 500. ([validated by `returns 500 when storage throws`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L42))
 
-The companion read returns 400 without `task_id`/`repo`. ([validated by `returns 400 when task_id or repo missing`](../../../mcp-server/src/api/routes/task-logs.test.ts#L51))
+The companion read returns 400 without `task_id`/`repo`. ([validated by `returns 400 when task_id or repo missing`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L51))
 
-The companion read returns empty for a missing object. ([validated by `returns empty when the log file does not exist`](../../../mcp-server/src/api/routes/task-logs.test.ts#L56))
+The companion read returns empty for a missing object. ([validated by `returns empty when the log file does not exist`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L56))
 
-The companion read returns the slice from `offset` for an existing object. ([validated by `returns a slice from offset when the file exists`](../../../mcp-server/src/api/routes/task-logs.test.ts#L62))
+The companion read returns the slice from `offset` for an existing object. ([validated by `returns a slice from offset when the file exists`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L62))
 
-The companion read returns 500 on a GCS failure. ([validated by `returns 500 when storage throws`](../../../mcp-server/src/api/routes/task-logs.test.ts#L69))
+The companion read returns 500 on a GCS failure. ([validated by `returns 500 when storage throws`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L69))
 
 The live-GCS save body (real bucket I/O, resumable flag, contentType) is exercised only against a real bucket. *(untested: real `@google-cloud/storage` network I/O has no unit seam beyond the mocked save call already asserted above.)*
 

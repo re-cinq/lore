@@ -41,7 +41,7 @@ knowledge graph and fact store.
 2. Session ends (Ctrl+C, `/exit`, or timeout).
 3. A hook fires that calls `lore_write_episode` with a summary of
    the session: files changed, decisions made, problems hit.
-4. Facts and graph entities are extracted automatically. ([validated by `session-summary.test.ts:79`](mcp-server/src/routes/session-summary.test.ts#L79))
+4. Facts and graph entities are extracted automatically. ([validated by `session-summary.test.ts:79`](apps/mcp-server/src/routes/session-summary.test.ts#L79))
 5. Next session, `lore_search_memory` returns insights from this one.
 
 **Acceptance Criteria:**

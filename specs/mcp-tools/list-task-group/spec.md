@@ -19,7 +19,7 @@ SQL by hand.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L202)).
+Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L202)).
 
 - **name**: `lore_list_task_group`
 - **description** (verbatim): *"List all tasks in a task group. Task groups
@@ -35,7 +35,7 @@ Registered via `server.tool` ([registration + handler](../../../mcp-server/src/m
 
 1. **Pool gate** — `getPool()` (from `ToolDeps`); if null, return
    `"Task groups require PostgreSQL (LORE_DB_HOST not set)."` (no stdio proxy).
-2. **Inline SELECT** ([query body](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L214)):
+2. **Inline SELECT** ([query body](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L214)):
    ```sql
    SELECT id, description, task_type, status, target_repo, pr_url, created_at
    FROM pipeline.tasks WHERE task_group_id = $1 ORDER BY created_at

@@ -20,7 +20,7 @@ periods.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/usage-tools.ts#L10)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/usage-tools.ts#L10)).
 
 - **name**: `lore_my_usage`
 - **description** (verbatim): *"Show your personal task and token usage. Breaks
@@ -80,14 +80,14 @@ PostgreSQL-required text, the pretty-printed JSON usage object, or the
 ## Acceptance Criteria
 
 Per-period task counts and token totals are returned as a JSON usage object keyed
-by today / 7_day / 30_day. ([validated by `returns per-period task and token totals as JSON`](../../../mcp-server/src/mcp/tools/usage-tools.test.ts#L42))
+by today / 7_day / 30_day. ([validated by `returns per-period task and token totals as JSON`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L42))
 
 One query is issued per period, parameterized with the resolved agent id and an
-8-char LIKE prefix, with the correct interval filters. ([validated by `issues one query per period with the agent id and 8-char LIKE prefix params`](../../../mcp-server/src/mcp/tools/usage-tools.test.ts#L70))
+8-char LIKE prefix, with the correct interval filters. ([validated by `issues one query per period with the agent id and 8-char LIKE prefix params`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L70))
 
-A null pool yields the PostgreSQL-required message. ([validated by `returns a PostgreSQL-required message when the pool is null`](../../../mcp-server/src/mcp/tools/usage-tools.test.ts#L89))
+A null pool yields the PostgreSQL-required message. ([validated by `returns a PostgreSQL-required message when the pool is null`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L89))
 
-A thrown query error is caught and returned as an `Error:` text block. ([validated by `returns an Error message when the query throws`](../../../mcp-server/src/mcp/tools/usage-tools.test.ts#L97))
+A thrown query error is caught and returned as an `Error:` text block. ([validated by `returns an Error message when the query throws`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L97))
 
 ## Out of Scope
 

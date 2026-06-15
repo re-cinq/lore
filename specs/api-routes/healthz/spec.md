@@ -24,13 +24,13 @@ two-field response, upgraded to a full diagnostic payload when authenticated.
 
 Registered as the first entry in the route table, matched on path only
 (`url === "/healthz"`, method-agnostic)
-([registration](../../../mcp-server/src/api/routes/index.ts#L51)).
+([registration](../../../apps/mcp-server/src/api/routes/index.ts#L51)).
 
 - **Method + path**: `GET /healthz` (the matcher ignores method; any verb on
   `/healthz` dispatches here).
 - **Auth**: none. The dispatcher exempts `/healthz` from both the rate limiter
   (`url !== "/healthz"` gate) and the bearer-token gate (`authExempt`)
-  ([dispatch gates](../../../mcp-server/src/api/routes/index.ts#L88)).
+  ([dispatch gates](../../../apps/mcp-server/src/api/routes/index.ts#L88)).
 - **Request**: no body, no required query params. An optional
   `Authorization: Bearer <token>` header upgrades the response.
 - **Response**:
@@ -43,7 +43,7 @@ Registered as the first entry in the route table, matched on path only
 ## Behavior
 
 1. Call `getHealthStatus()` → `{ connected, … }`
-   ([db.getHealthStatus](../../../mcp-server/src/platform/db.js)).
+   ([db.getHealthStatus](../../../apps/mcp-server/src/platform/db.js)).
 2. Compute `status`: `"ok"` when `health.connected` is true **or**
    `process.env.LORE_DB_HOST` is unset; otherwise `"error"`. (Rationale: in a
    no-DB deployment the server is still a healthy liveness target.)
@@ -64,19 +64,19 @@ Registered as the first entry in the route table, matched on path only
 ## Output
 
 - `200 { status: "ok" }` — anonymous, connected ([validated by `returns 200
-  {status:ok} unauthenticated when connected`](../../../mcp-server/src/api/routes/healthz.test.ts#L23)).
+  {status:ok} unauthenticated when connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L23)).
 - `503 { status: "error" }` — disconnected with `LORE_DB_HOST` set ([validated by
-  `returns 503 {status:error} when disconnected and LORE_DB_HOST set`](../../../mcp-server/src/api/routes/healthz.test.ts#L30)).
+  `returns 503 {status:error} when disconnected and LORE_DB_HOST set`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L30)).
 - `200 { status: "ok" }` — disconnected with no `LORE_DB_HOST` ([validated by
-  `returns 200 ok when disconnected but no LORE_DB_HOST configured`](../../../mcp-server/src/api/routes/healthz.test.ts#L39)).
+  `returns 200 ok when disconnected but no LORE_DB_HOST configured`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L39)).
 - `200 { status, database, tasks }` — authenticated + connected ([validated by
-  `includes database + task stats when authenticated and connected`](../../../mcp-server/src/api/routes/healthz.test.ts#L46)).
+  `includes database + task stats when authenticated and connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L46)).
 - The `error` value verbatim is the string `"error"`; the `ok` value verbatim is
   the string `"ok"`.
 
 ## Dependencies & side effects
 
-- Handler: `handleHealthz` ([code](../../../mcp-server/src/api/routes/health.ts#L7)).
+- Handler: `handleHealthz` ([code](../../../apps/mcp-server/src/api/routes/health.ts#L7)).
 - `getHealthStatus()` from `platform/db.ts` (read-only connectivity probe).
 - `validateClientToken(pool, bearer, "read")` from `auth.ts` (a *successful* DB
   validation issues an `UPDATE pipeline.api_tokens SET last_used = now()` as a
@@ -90,34 +90,34 @@ Registered as the first entry in the route table, matched on path only
 
 An anonymous probe against a connected server returns `200 { status: "ok" }` with
 no database/tasks detail. ([validated by `returns 200 {status:ok} unauthenticated
-when connected`](../../../mcp-server/src/api/routes/healthz.test.ts#L23))
+when connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L23))
 
 A disconnected DB with `LORE_DB_HOST` configured returns `503 { status: "error" }`.
 ([validated by `returns 503 {status:error} when disconnected and LORE_DB_HOST
-set`](../../../mcp-server/src/api/routes/healthz.test.ts#L30))
+set`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L30))
 
 A disconnected DB with no `LORE_DB_HOST` configured stays `200 { status: "ok" }`.
 ([validated by `returns 200 ok when disconnected but no LORE_DB_HOST
-configured`](../../../mcp-server/src/api/routes/healthz.test.ts#L39))
+configured`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L39))
 
 An authenticated probe on a connected server adds `database` and `tasks` counters.
 ([validated by `includes database + task stats when authenticated and
-connected`](../../../mcp-server/src/api/routes/healthz.test.ts#L46))
+connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L46))
 
 A failing task-stats query degrades to zeroed counters rather than erroring.
 ([validated by `falls back to zeroed task stats when the stats query
-throws`](../../../mcp-server/src/api/routes/healthz.test.ts#L58))
+throws`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L58))
 
 An authenticated probe with a null pool skips the stats query and returns zeroed
 counters. ([validated by `skips the stats query when authed but pool is
-null`](../../../mcp-server/src/api/routes/healthz.test.ts#L66))
+null`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L66))
 
 A stats query returning no rows zeroes the counters. ([validated by `zeroes task
-stats when the stats query returns no rows`](../../../mcp-server/src/api/routes/healthz.test.ts#L72))
+stats when the stats query returns no rows`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L72))
 
 The dispatcher exempts `/healthz` from rate limiting and bearer auth (no 401/403/429
 is ever returned on this path). ([validated by `returns 200 {status:ok}
-unauthenticated when connected`](../../../mcp-server/src/api/routes/healthz.test.ts#L23))
+unauthenticated when connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L23))
 
 ## Out of Scope
 

@@ -248,8 +248,8 @@ Remove: no more log entries in `task_events` (`to_status = 'log'`).
 
 ## Acceptance Criteria
 
-1. Logs persist in GCS after pod cleanup ([validated by `log-storage.test.ts:42`](agent/src/lib/log-storage.test.ts#L42), [`log-storage.test.ts:61`](agent/src/lib/log-storage.test.ts#L61))
-2. Secrets redacted before storage (API keys, JWTs, private keys, connection strings) ([validated by `redact.test.ts:7`](agent/src/lib/redact.test.ts#L7), [`redact.test.ts:51`](agent/src/lib/redact.test.ts#L51))
+1. Logs persist in GCS after pod cleanup ([validated by `log-storage.test.ts:42`](apps/agent/src/lib/log-storage.test.ts#L42), [`log-storage.test.ts:61`](apps/agent/src/lib/log-storage.test.ts#L61))
+2. Secrets redacted before storage (API keys, JWTs, private keys, connection strings) ([validated by `redact.test.ts:7`](apps/agent/src/lib/redact.test.ts#L7), [`redact.test.ts:51`](apps/agent/src/lib/redact.test.ts#L51))
 3. Users only see logs for repos they have GitHub access to
 4. 403 returned for unauthorized log access
 5. Logs encrypted at rest with CMEK

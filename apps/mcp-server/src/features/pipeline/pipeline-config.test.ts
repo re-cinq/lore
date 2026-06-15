@@ -21,10 +21,11 @@ describe("loadTaskTypes", () => {
     // Point directly at the repo's task-types.yaml
     const yamlPath = join(
       import.meta.dirname,
-      "..",
-      "..",
-      "..",
-      "..",
+      "..", // pipeline → features
+      "..", // features → src
+      "..", // src → mcp-server
+      "..", // mcp-server → apps
+      "..", // apps → repo root
       "scripts",
       "task-types.yaml",
     );
@@ -70,10 +71,11 @@ describe("getTaskTypeConfig", () => {
   beforeAll(() => {
     const yamlPath = join(
       import.meta.dirname,
-      "..",
-      "..",
-      "..",
-      "..",
+      "..", // pipeline → features
+      "..", // features → src
+      "..", // src → mcp-server
+      "..", // mcp-server → apps
+      "..", // apps → repo root
       "scripts",
       "task-types.yaml",
     );
@@ -124,10 +126,11 @@ describe("buildPrompt", () => {
   beforeAll(() => {
     const yamlPath = join(
       import.meta.dirname,
-      "..",
-      "..",
-      "..",
-      "..",
+      "..", // pipeline → features
+      "..", // features → src
+      "..", // src → mcp-server
+      "..", // mcp-server → apps
+      "..", // apps → repo root
       "scripts",
       "task-types.yaml",
     );
@@ -176,10 +179,11 @@ describe("getDefaultRepo", () => {
   beforeAll(() => {
     const yamlPath = join(
       import.meta.dirname,
-      "..",
-      "..",
-      "..",
-      "..",
+      "..", // pipeline → features
+      "..", // features → src
+      "..", // src → mcp-server
+      "..", // mcp-server → apps
+      "..", // apps → repo root
       "scripts",
       "task-types.yaml",
     );

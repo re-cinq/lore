@@ -64,7 +64,7 @@ agents across all repos.
    specs, and audit trail — all for that repo.
 
 **Acceptance Criteria:**
-- Home page shows repos, not agents. ([validated by `HomeView.test.tsx:37`](web-ui/src/app/HomeView.test.tsx#L37))
+- Home page shows repos, not agents. ([validated by `HomeView.test.tsx:37`](apps/web-ui/src/app/HomeView.test.tsx#L37))
 - Each repo shows: task count (by status), last activity, context
   freshness.
 - Repo detail page has tabs: Overview, Tasks, Context, Specs, Agents.
@@ -108,7 +108,7 @@ agents across all repos.
 4. Task is created, agent spawns.
 
 **Acceptance Criteria:**
-- Task creation is scoped to the current repo (no free-text input). ([validated by `RepoTaskCreateView.test.tsx:14`](web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L14))
+- Task creation is scoped to the current repo (no free-text input). ([validated by `RepoTaskCreateView.test.tsx:14`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L14))
 - Repo dropdown only shows repos where the GitHub App is installed.
 - Task appears in the repo's task list immediately.
 
@@ -123,8 +123,8 @@ agents across all repos.
 
 **Acceptance Criteria:**
 - Search works across all repos.
-- Results are attributed to their source repo. ([validated by `SearchView.test.tsx:87`](web-ui/src/app/search/SearchView.test.tsx#L87))
-- Can filter by repo. ([validated by `SearchView.test.tsx:22`](web-ui/src/app/search/SearchView.test.tsx#L22))
+- Results are attributed to their source repo. ([validated by `SearchView.test.tsx:87`](apps/web-ui/src/app/search/SearchView.test.tsx#L87))
+- Can filter by repo. ([validated by `SearchView.test.tsx:22`](apps/web-ui/src/app/search/SearchView.test.tsx#L22))
 
 ### Scenario 5: Repo Settings
 
@@ -166,7 +166,7 @@ The system MUST onboard new repos by creating a PR.
   template, workflows.
 - FR-2.4: Opens a PR with description explaining what each file does.
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
-  until merged). ([validated by `onboard.test.ts:11`](web-ui/src/lib/onboard.test.ts#L11))
+  until merged). ([validated by `onboard.test.ts:11`](apps/web-ui/src/lib/onboard.test.ts#L11))
 - FR-2.6: After merge, adds repo to the registry and triggers
   initial ingestion.
 
@@ -174,15 +174,15 @@ The system MUST onboard new repos by creating a PR.
 
 The system MUST reorganize the UI around repos.
 
-- FR-3.1: Home page (`/`) shows repo list with activity summary. ([validated by `HomeView.test.tsx:150`](web-ui/src/app/HomeView.test.tsx#L150))
+- FR-3.1: Home page (`/`) shows repo list with activity summary. ([validated by `HomeView.test.tsx:150`](apps/web-ui/src/app/HomeView.test.tsx#L150))
 - FR-3.2: Repo detail (`/repos/[owner]/[repo]`) has tabs:
   Overview, Tasks, Context, Specs, Agents, Settings.
 - FR-3.3: Overview tab shows: recent tasks, active agents, context
   freshness, latest PRs.
-- FR-3.4: Tasks tab shows pipeline tasks filtered to this repo. ([validated by `RepoTasksView.test.tsx:30`](web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L30))
-- FR-3.5: Context tab shows CLAUDE.md, ADRs, runbooks for this repo. ([validated by `RepoContextView.test.tsx:64`](web-ui/src/app/repos/[owner]/[repo]/context/RepoContextView.test.tsx#L64))
-- FR-3.6: Specs tab shows .specify/ specs for this repo. ([validated by `RepoSpecsView.test.tsx:18`](web-ui/src/app/repos/[owner]/[repo]/specs/RepoSpecsView.test.tsx#L18))
-- FR-3.7: Agents tab shows agent memories scoped to this repo. ([validated by `RepoAgentsView.test.tsx:36`](web-ui/src/app/repos/[owner]/[repo]/agents/RepoAgentsView.test.tsx#L36))
+- FR-3.4: Tasks tab shows pipeline tasks filtered to this repo. ([validated by `RepoTasksView.test.tsx:30`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L30))
+- FR-3.5: Context tab shows CLAUDE.md, ADRs, runbooks for this repo. ([validated by `RepoContextView.test.tsx:64`](apps/web-ui/src/app/repos/[owner]/[repo]/context/RepoContextView.test.tsx#L64))
+- FR-3.6: Specs tab shows .specify/ specs for this repo. ([validated by `RepoSpecsView.test.tsx:18`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/RepoSpecsView.test.tsx#L18))
+- FR-3.7: Agents tab shows agent memories scoped to this repo. ([validated by `RepoAgentsView.test.tsx:36`](apps/web-ui/src/app/repos/[owner]/[repo]/agents/RepoAgentsView.test.tsx#L36))
 - FR-3.8: Global search, audit, and shared pools remain as
   top-level nav items.
 
@@ -193,8 +193,8 @@ The system MUST have clean, consistent form styling.
 - FR-4.1: All text inputs, textareas, selects, and buttons use
   consistent styling from globals.css.
 - FR-4.2: Repo selector is a dropdown populated from the registry,
-  not free text. ([validated by `PipelineCreateView.test.tsx:23`](web-ui/src/app/pipeline/create/PipelineCreateView.test.tsx#L23))
-- FR-4.3: Task type selector shows descriptions, not just names. ([validated by `RepoTaskCreateView.test.tsx:22`](web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L22))
+  not free text. ([validated by `PipelineCreateView.test.tsx:23`](apps/web-ui/src/app/pipeline/create/PipelineCreateView.test.tsx#L23))
+- FR-4.3: Task type selector shows descriptions, not just names. ([validated by `RepoTaskCreateView.test.tsx:22`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L22))
 - FR-4.4: Forms have proper labels, validation, and error states.
 
 ### FR-5: Onboarding PR Content

@@ -20,7 +20,7 @@ unit of work without re-running a full readiness scan.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L317)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L317)).
 
 - **name**: `lore_complete_task`
 - **description** (verbatim): *"Mark a spec-task as completed and report any
@@ -36,7 +36,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
 
 1. `getPool()`. If null, return `"lore_complete_task requires PostgreSQL (LORE_DB_HOST not set)."`.
 2. Delegate to `completeTask(pool, task_id)`
-   ([handler](../../../mcp-server/src/features/pipeline/tasks.ts#L162)). It:
+   ([handler](../../../apps/mcp-server/src/features/pipeline/tasks.ts#L162)). It:
    1. `SELECT id, status, context_bundle, target_repo FROM pipeline.tasks WHERE id = $1`. If no row → `{ completed: false, unblocked: [] }`.
    2. If `status !== 'running'` → `{ completed: false, unblocked: [] }` (no write).
    3. `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`.
@@ -64,18 +64,18 @@ throws.
 
 ## Acceptance Criteria
 
-A non-existent task id yields `completed: false` with no unblocked entries. ([validated by `returns completed false when the task does not exist`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L184))
+A non-existent task id yields `completed: false` with no unblocked entries. ([validated by `returns completed false when the task does not exist`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L184))
 
-A task that is not in `running` state is not completed. ([validated by `returns completed false when the task is not running`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L192))
+A task that is not in `running` state is not completed. ([validated by `returns completed false when the task is not running`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L192))
 
 A running task is marked completed and reports no unblocked dependents when none
-qualify. ([validated by `marks a running task completed with no unblocked dependents`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L202))
+qualify. ([validated by `marks a running task completed with no unblocked dependents`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L202))
 
 Newly unblocked dependents are returned as `spec_task_id: description`
-descriptors. ([validated by `returns formatted descriptors for newly unblocked dependents`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L217))
+descriptors. ([validated by `returns formatted descriptors for newly unblocked dependents`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L217))
 
 When the completed task carries no `spec_slug`/`spec_task_id` the dependents
-query is skipped. ([validated by `skips the dependents query when the completed task lacks slug metadata`](../../../mcp-server/src/features/pipeline/tasks-db.test.ts#L239))
+query is skipped. ([validated by `skips the dependents query when the completed task lacks slug metadata`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L239))
 
 The no-pool guard and the message-framing (success/unblocked-list/not-running)
 run only inside the tool handler. *(untested: handler-only orchestration around

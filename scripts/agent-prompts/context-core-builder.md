@@ -89,4 +89,4 @@ promote or discard it.
 
 This agent runs via Cloud Scheduler at 02:00 UTC daily. It targets
 one namespace per run. The scheduler rotates through namespaces in
-the order defined in `terraform/variables.tf`.
+the order defined in `infra/terraform/variables.tf`.

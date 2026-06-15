@@ -23,8 +23,8 @@ graph stays the single source of truth and the UI never couples to storage.
 
 - **Method + path**: `GET /api/repos/:owner/:repo/trace/<kind>`
   (prefix `^/api/repos/[^/]+/[^/]+/trace/`).
-  Implemented by the [route registration](../../../mcp-server/src/api/routes/index.ts#L75)
-  dispatching to the [`handleTraceRoute` handler](../../../mcp-server/src/api/routes/trace.ts#L31).
+  Implemented by the [route registration](../../../apps/mcp-server/src/api/routes/index.ts#L75)
+  dispatching to the [`handleTraceRoute` handler](../../../apps/mcp-server/src/api/routes/trace.ts#L31).
   The handler re-validates with `TRACE_RE`
   (`^/api/repos/([^/]+)/([^/]+)/trace/(specs|spec-summaries|adrs|adr-summaries|document|source|graph|ring)(?:\?(.*))?$`).
 - **Auth scope**: `read` (the default — no `SCOPE_OVERRIDES` entry covers
@@ -97,9 +97,9 @@ The handler never touches `_pool` directly — all reads go through `project.tra
 
 ## Acceptance Criteria
 
-An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `returns 404 for an unknown trace kind`](../../../mcp-server/src/api/routes/trace.test.ts#L25))
+An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `returns 404 for an unknown trace kind`](../../../apps/mcp-server/src/api/routes/trace.test.ts#L25))
 
-A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `passes read-scope auth for a matched kind (no 401/403 gate hit)`](../../../mcp-server/src/api/routes/trace.test.ts#L46))
+A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `passes read-scope auth for a matched kind (no 401/403 gate hit)`](../../../apps/mcp-server/src/api/routes/trace.test.ts#L46))
 
 The `document`/`source`/`ring` `400 "path query param required"` gate is reached
 only after a successful `projectFor`, so it needs a live Project/Dgraph backend

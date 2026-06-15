@@ -24,8 +24,8 @@ spec-trace projection trigger to the agent with the raw report body.
 
 - **Method + path**: `POST /api/repos/:owner/:repo/test-report`
   (regex `^/api/repos/[^/]+/[^/]+/test-report(\?|$)`).
-  Implemented by the [route registration](../../../mcp-server/src/api/routes/index.ts#L73)
-  dispatching to the [`handleTestReport` handler](../../../mcp-server/src/api/routes/test-report.ts#L35).
+  Implemented by the [route registration](../../../apps/mcp-server/src/api/routes/index.ts#L73)
+  dispatching to the [`handleTestReport` handler](../../../apps/mcp-server/src/api/routes/test-report.ts#L35).
 - **Auth scope**: `write`. Matched by `SCOPE_OVERRIDES`
   (`/api/repos/[^/]+/[^/]+/test-report(\?|$|/)` → `write`).
 - **Rate bucket**: `default` (200/min).
@@ -91,18 +91,18 @@ The handler never touches `_pool` — deferred Dgraph projection seam.
 ## Acceptance Criteria
 
 A report with two tests (one spec-anchored) and two passing results yields the
-correct chunk/validated/coverage/edge counts with `violated = 0`. ([validated by `returns 200 with counts derived from tests and results`](../../../mcp-server/src/api/routes/test-report.test.ts#L17))
+correct chunk/validated/coverage/edge counts with `violated = 0`. ([validated by `returns 200 with counts derived from tests and results`](../../../apps/mcp-server/src/api/routes/test-report.test.ts#L17))
 
 Only a failing spec-anchored test increments `violated`; a failing
-non-anchored test does not. ([validated by `returns violated 1 when only the spec-anchored test fails`](../../../mcp-server/src/api/routes/test-report.test.ts#L51))
+non-anchored test does not. ([validated by `returns violated 1 when only the spec-anchored test fails`](../../../apps/mcp-server/src/api/routes/test-report.test.ts#L51))
 
 The spec-trace trigger fires with the raw report body when the agent env is
-configured. ([validated by `fires the spec-trace trigger with the report body when the agent env is configured`](../../../mcp-server/src/api/routes/test-report.test.ts#L75))
+configured. ([validated by `fires the spec-trace trigger with the report body when the agent env is configured`](../../../apps/mcp-server/src/api/routes/test-report.test.ts#L75))
 
-A missing `commit` is rejected with 400. ([validated by `returns 400 when commit is missing`](../../../mcp-server/src/api/routes/test-report.test.ts#L105))
+A missing `commit` is rejected with 400. ([validated by `returns 400 when commit is missing`](../../../apps/mcp-server/src/api/routes/test-report.test.ts#L105))
 
 The fan-out forwarder POSTs `{repo, kind, payload}` to `/api/trigger/spec-trace`
-with the bearer token. ([validated by `POSTs repo, kind, and payload to /api/trigger/spec-trace with the bearer token`](../../../mcp-server/src/api/routes/spec-trace-trigger.test.ts#L18))
+with the bearer token. ([validated by `POSTs repo, kind, and payload to /api/trigger/spec-trace with the bearer token`](../../../apps/mcp-server/src/api/routes/spec-trace-trigger.test.ts#L18))
 
 ## Out of Scope
 

@@ -20,7 +20,7 @@ without scripting the GitHub REST API.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L112)).
+Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L112)).
 
 - **name**: `lore_get_pr_status`
 - **description** (verbatim): *"Fetch live PR state from GitHub for a given repo
@@ -37,7 +37,7 @@ Registered via `server.tool` ([registration + handler](../../../mcp-server/src/m
 ## Behavior
 
 1. Dynamically import and call `fetchPrStatus(repo, pr_number)`
-   ([github fetch + status derivation](../../../mcp-server/src/platform/github-client.ts#L109)).
+   ([github fetch + status derivation](../../../apps/mcp-server/src/platform/github-client.ts#L109)).
 2. **Credential gate** — `fetchPrStatus` resolves `getGitHubToken()`; if null it
    returns `null` and the handler returns
    `"GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN."`

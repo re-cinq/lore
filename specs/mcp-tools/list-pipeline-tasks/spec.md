@@ -19,7 +19,7 @@ must fail loudly rather than silently returning everything.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L131)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L131)).
 
 - **name**: `lore_list_pipeline_tasks`
 - **description** (verbatim): *"List pipeline tasks with optional filtering by
@@ -44,8 +44,8 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
      `["pending","queued","running","pr-created","review","merged","failed","cancelled"]`;
      an invalid value returns `"invalid status: {status}. Valid values: {list}"`.
      Then call `listTasks(status, min(limit, 100))`
-     ([handler wrapper](../../../mcp-server/src/features/pipeline/pipeline.ts#L36)).
-2. **Shared CRUD** ([`listTasks`](../../../shared/src/pipeline-tasks.ts#L117)) — `SELECT id,
+     ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L36)).
+2. **Shared CRUD** ([`listTasks`](../../../libs/shared/src/pipeline-tasks.ts#L117)) — `SELECT id,
    description, task_type, status, target_repo, agent_id, pr_url, created_by,
    created_at, updated_at FROM pipeline.tasks [WHERE status = $1] ORDER BY
    created_at DESC LIMIT $N`, plus `SELECT count(*)::int AS total FROM
@@ -69,10 +69,10 @@ remote-error message, the `"invalid status: …"` message, the pretty-printed
 ## Acceptance Criteria
 
 With no filter, all tasks are returned alongside a total count.
-([validated by `returns all rows with a total count when no status filter is given`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L42))
+([validated by `returns all rows with a total count when no status filter is given`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L42))
 
 With a status filter, only matching rows and their total are returned.
-([validated by `returns the filtered rows and matching total when a status is given`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L53))
+([validated by `returns the filtered rows and matching total when a status is given`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L53))
 
 An invalid status string is rejected with the list of valid values.
 *(untested: the status allowlist check is inline in the handler closure and not separately exported.)*

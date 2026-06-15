@@ -23,8 +23,8 @@ an empty viewer rather than an error.
 
 - **Method + path**: `GET /api/trace/specs`
   (regex `^/api/trace/specs(\?|$)`).
-  Implemented by the [route registration](../../../mcp-server/src/api/routes/index.ts#L76)
-  dispatching to the [`handleGlobalTraceSpecs` handler](../../../mcp-server/src/api/routes/trace.ts#L8).
+  Implemented by the [route registration](../../../apps/mcp-server/src/api/routes/index.ts#L76)
+  dispatching to the [`handleGlobalTraceSpecs` handler](../../../apps/mcp-server/src/api/routes/trace.ts#L8).
 - **Auth scope**: `read` (the default — no `SCOPE_OVERRIDES` or `ROUTE_SCOPES`
   entry matches `/api/trace/specs`).
 - **Rate bucket**: `default` (200/min).
@@ -71,10 +71,10 @@ The handler ignores `_pool` — the cross-repo list lives in Dgraph.
 ## Acceptance Criteria
 
 With Dgraph unconfigured, the route fails soft to `200 { specs: [] }` — never a
-500. ([validated by `returns 200 with an empty specs list when Dgraph is not configured`](../../../mcp-server/src/api/routes/trace.test.ts#L69))
+500. ([validated by `returns 200 with an empty specs list when Dgraph is not configured`](../../../apps/mcp-server/src/api/routes/trace.test.ts#L69))
 
 A request without a bearer token is rejected with 401 before the handler runs.
-([validated by `returns 401 without a bearer token`](../../../mcp-server/src/api/routes/trace.test.ts#L80))
+([validated by `returns 401 without a bearer token`](../../../apps/mcp-server/src/api/routes/trace.test.ts#L80))
 
 The live `listAllSpecDocuments` success body and the `500` query-error branch
 need a live Dgraph backend. *(untested: both require `LORE_DGRAPH_HTTP` pointed

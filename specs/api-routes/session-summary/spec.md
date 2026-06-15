@@ -24,12 +24,12 @@ hook's payload shape and its skip/duplicate semantics.
 ## Interface
 
 Registered as `exact("/api/session-summary", "POST")`
-([registration](../../../mcp-server/src/api/routes/index.ts#L63)), dispatched by
+([registration](../../../apps/mcp-server/src/api/routes/index.ts#L63)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/session-summary`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/session-summary"] = "write"`
-  ([scope map](../../../mcp-server/src/api/routes/auth.ts#L46)). Bearer required;
+  ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L46)). Bearer required;
   `admin` satisfies, `read`-only does not.
 - **Rate bucket**: `default` (200/min).
 
@@ -118,35 +118,35 @@ Numbered control flow of `handleSessionSummary(req, res, pool)`:
 ## Acceptance Criteria
 
 A request without `session_log` returns 400. ([validated by `returns 400 when
-session_log is missing`](../../../mcp-server/src/api/routes/session-summary.test.ts#L31))
+session_log is missing`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L31))
 
 A token whose scopes lack `write` is rejected 403 before the handler runs.
-([validated by `returns 403 when the token lacks write scope`](../../../mcp-server/src/api/routes/session-summary.test.ts#L36))
+([validated by `returns 403 when the token lacks write scope`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L36))
 
 A string summary shorter than 10 chars is skipped with `{ status: "skipped",
 reason: "empty session" }`. ([validated by `skips when the string summary is too
-short`](../../../mcp-server/src/api/routes/session-summary.test.ts#L48))
+short`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L48))
 
 An object `session_log` with a `.summary` field uses that field. ([validated by
-`uses the object .summary field`](../../../mcp-server/src/api/routes/session-summary.test.ts#L53))
+`uses the object .summary field`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L53))
 
 An object without `.summary` falls back to `JSON.stringify`. ([validated by
-`falls back to JSON.stringify for objects without a summary`](../../../mcp-server/src/api/routes/session-summary.test.ts#L60))
+`falls back to JSON.stringify for objects without a summary`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L60))
 
-A null pool returns 503. ([validated by `returns 503 when pool is null`](../../../mcp-server/src/api/routes/session-summary.test.ts#L67))
+A null pool returns 503. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L67))
 
 An insert that conflicts yields `{ status: "duplicate" }`. ([validated by
-`returns duplicate when the insert conflicts`](../../../mcp-server/src/api/routes/session-summary.test.ts#L77))
+`returns duplicate when the insert conflicts`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L77))
 
 A thrown insert returns 500. ([validated by `returns 500 when the insert
-throws`](../../../mcp-server/src/api/routes/session-summary.test.ts#L84))
+throws`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L84))
 
 A rejecting fact extraction is swallowed and the response stays 200. ([validated
-by `swallows a failing session fact extraction`](../../../mcp-server/src/api/routes/session-summary.test.ts#L91))
+by `swallows a failing session fact extraction`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L91))
 
 With `ANTHROPIC_API_KEY` set, graph extraction runs and a rejection is swallowed.
 ([validated by `runs and swallows graph extraction when ANTHROPIC_API_KEY is
-set`](../../../mcp-server/src/api/routes/session-summary.test.ts#L100))
+set`](../../../apps/mcp-server/src/api/routes/session-summary.test.ts#L100))
 
 The fact/entity/edge content produced by extraction is exercised only against the
 live model. *(untested: fact + graph extraction are live-IO LLM calls; the route
@@ -159,5 +159,5 @@ seam mocks both and asserts only the trigger/skip/swallow contract.)*
 - Episode lifecycle (decay, consolidation).
 - Token issuance and the scope schema.
 
-Code: handler [`handleSessionSummary`](../../../mcp-server/src/api/routes/memory.ts#L89)
-(IMPLEMENTED_BY); route [registration](../../../mcp-server/src/api/routes/index.ts#L63).
+Code: handler [`handleSessionSummary`](../../../apps/mcp-server/src/api/routes/memory.ts#L89)
+(IMPLEMENTED_BY); route [registration](../../../apps/mcp-server/src/api/routes/index.ts#L63).

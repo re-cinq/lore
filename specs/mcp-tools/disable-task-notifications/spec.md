@@ -18,7 +18,7 @@ tears down the interval and removes the pending cache file.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/pipeline-tools.ts#L534)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L534)).
 
 - **name**: `lore_disable_task_notifications`
 - **description** (verbatim): *"Stop watching for pending pipeline tasks."*
@@ -32,7 +32,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/p
 ## Behavior
 
 1. Dynamically import `stopNotifier` from `runner.local` and call it
-   ([handler](../../../mcp-server/src/features/pipeline/runner.local.ts#L863)). It:
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L863)). It:
    1. If the module-level interval handle is set, `clearInterval` it and null the handle.
    2. Best-effort `fs.unlinkSync(~/.lore/pending-tasks.json)`; a missing file is swallowed.
 2. Return `"Task notifications stopped."`.

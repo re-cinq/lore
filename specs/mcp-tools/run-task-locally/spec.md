@@ -21,7 +21,7 @@ and PID — the session continues while the task runs and eventually opens a PR.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/local-runner-tools.local.ts#L7)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L7)).
 
 - **name**: `lore_run_task_locally`
 - **description** (verbatim): *"Run a task in the background on your local
@@ -48,10 +48,10 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/l
    set, `POST {apiUrl}/api/task` to register the task and adopt the returned
    `task_id`; any failure falls back to the generated UUID.
 4. Spawn via `spawnLocalTask({taskId, prompt, repo, taskType, model, repoRoot})`
-   ([spawn](../../../mcp-server/src/features/pipeline/runner.local.ts#L450)):
+   ([spawn](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L450)):
    1. `ensureDirs()` for `~/.lore/worktrees` and `~/.lore/task-logs`.
    2. `validateRepoMatch(repo, detectRepo())`
-      ([guard](../../../mcp-server/src/features/pipeline/runner.local.ts#L150)) —
+      ([guard](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L150)) —
       throws if the cwd is a checkout of a different repo than `target_repo`.
    3. Build branch `lore/<taskType>/<slug>-<shortId>`; refuse if the worktree dir
       already exists (idempotency).
@@ -86,22 +86,22 @@ wrong-repo warning, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `validateRepoMatch` passes when the cwd repo matches the task's target repo.
-([validated by `passes when cwd repo matches task repo`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L221))
+([validated by `passes when cwd repo matches task repo`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L221))
 
 `validateRepoMatch` throws when the cwd repo differs from the task's target repo.
-([validated by `throws when cwd repo differs from task repo`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L227))
+([validated by `throws when cwd repo differs from task repo`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L227))
 
 The repo-mismatch error names both repos and suggests a `cd`.
-([validated by `error message names both repos and suggests a cd`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L233))
+([validated by `error message names both repos and suggests a cd`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L233))
 
 `validateRepoMatch` passes when the cwd repo cannot be detected (null).
-([validated by `passes when cwd repo cannot be detected (null)`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L244))
+([validated by `passes when cwd repo cannot be detected (null)`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L244))
 
 The spawned branch follows the `lore/<type>/<slug>-<shortId>` format.
-([validated by `creates lore/<type>/<slug>-<shortId> format`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L195))
+([validated by `creates lore/<type>/<slug>-<shortId> format`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L195))
 
 A short prompt still produces a valid branch name.
-([validated by `handles very short prompts`](../../../mcp-server/src/features/pipeline/runner.local.test.ts#L209))
+([validated by `handles very short prompts`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L209))
 
 The end-to-end spawn (worktree creation, `claude` process, `monitorTask` →
 commit/push/PR) is exercised only by manual / integration runs. *(untested:

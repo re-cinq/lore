@@ -41,9 +41,9 @@ jobs:
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui
-            install: npm install --prefix web-ui
+            install: npm install --prefix apps/web-ui
             # Run with coverage so the vitest.config.ts thresholds gate CI.
-            test: npm run test:coverage --prefix web-ui
+            test: npm run test:coverage --prefix apps/web-ui
 
     steps:
       - uses: actions/checkout@v5

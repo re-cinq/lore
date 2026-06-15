@@ -20,7 +20,7 @@ pipeline task.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/repo-tools.ts#L34)).
+Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/repo-tools.ts#L34)).
 
 - **name**: `lore_onboard_repo`
 - **description** (verbatim): *"Onboard a GitHub repo: creates branch with
@@ -38,7 +38,7 @@ Registered via `server.tool` ([registration](../../../mcp-server/src/mcp/tools/r
 1. **Availability gate** — if `process.env.LORE_DB_HOST` is unset, return the
    literal text `"Repo onboarding requires PostgreSQL (LORE_DB_HOST not set)."`
 2. Call `onboardRepo(getPool()!, full_name)`
-   ([handler](../../../mcp-server/src/features/repo/repo-onboard.ts#L124)):
+   ([handler](../../../apps/mcp-server/src/features/repo/repo-onboard.ts#L124)):
    1. Split `full_name` on `/`. If either `owner` or `name` is empty, throw
       `Invalid repo full_name: "{fullName}". Expected "owner/repo" format.`
    2. Upsert into `lore.repos (owner, name, full_name)` with
@@ -72,11 +72,11 @@ case). **Never throws** — every path returns text.
 
 ## Acceptance Criteria
 
-The `/api/onboard` route returns 503 when the pool is null. ([validated by `returns 503 when pool is null`](../../../mcp-server/src/api/routes/onboard.test.ts#L21))
+The `/api/onboard` route returns 503 when the pool is null. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L21))
 
-The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `returns 400 when repo is missing or malformed`](../../../mcp-server/src/api/routes/onboard.test.ts#L27))
+The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `returns 400 when repo is missing or malformed`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L27))
 
-A well-formed repo returns the onboard result on 200. ([validated by `returns 200 with the onboard result`](../../../mcp-server/src/api/routes/onboard.test.ts#L34))
+A well-formed repo returns the onboard result on 200. ([validated by `returns 200 with the onboard result`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L34))
 
 The MCP-tool wrapper's own `LORE_DB_HOST` gate and JSON-envelope framing reuse
 the same `onboardRepo` handler the route covers. *(untested: the tool wrapper has
