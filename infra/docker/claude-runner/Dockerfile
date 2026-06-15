@@ -53,11 +53,16 @@ RUN npm run build --workspace=@re-cinq/lore-floor
 RUN npm prune --omit=dev --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-floor
 
 # ── Stage 2: validation CLI build ─────────────────────────────────────
+# Bundles the deterministic lint/typecheck CLI into a self-contained
+# /validation.js. The detector lives in @re-cinq/lore-shared now (ADR-025);
+# esbuild inlines it via the alias (it has no heavy deps), so the CLI stays a
+# single dependency-free file for the legacy claude --print path.
 FROM node:24-slim AS validation-builder
 WORKDIR /build
-COPY apps/mcp-server/src/features/repo/repo-validation.ts apps/mcp-server/src/features/repo/repo-validation-cli.ts ./src/
-COPY infra/docker/claude-runner/validation/package.json infra/docker/claude-runner/validation/tsconfig.json ./
-RUN npm install --ignore-scripts && npx tsc
+COPY libs/shared/src/repo-validation/repo-validation.ts ./src/repo-validation.ts
+COPY apps/mcp-server/src/features/repo/repo-validation-cli.ts ./src/repo-validation-cli.ts
+COPY infra/docker/claude-runner/validation/package.json ./
+RUN npm install --ignore-scripts && npm run build
 
 # ── Stage 3: runtime image ────────────────────────────────────────────
 FROM node:24-slim
@@ -67,9 +72,8 @@ RUN apt-get update && apt-get install -y git curl jq && rm -rf /var/lib/apt/list
     && apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
 RUN npm install -g @anthropic-ai/claude-code
 
-# Validation CLI (deterministic lint/typecheck stage).
-COPY --from=validation-builder /build/dist/repo-validation-cli.js /validation.js
-COPY --from=validation-builder /build/dist/repo-validation.js /repo-validation.js
+# Validation CLI (deterministic lint/typecheck stage) — self-contained bundle.
+COPY --from=validation-builder /build/dist/validation.js /validation.js
 
 # Agent supervisor + workflows + workspace deps. Layout chosen to match
 # the loretask-controller's entrypoint expectation
