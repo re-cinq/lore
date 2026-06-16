@@ -193,8 +193,14 @@ async function processTask(task: any): Promise<void> {
       if (settingsRows.length > 0) repoSettings = settingsRows[0].settings || {};
     } catch { /* non-fatal */ }
 
-    // Build prompt with optional per-repo suffix
-    let fullPrompt = buildPrompt(task.task_type, task.description);
+    // Resolve the agent definition (project → org → yaml) through the single
+    // project.agents port seam; fall back to the yaml loader if unavailable.
+    const agentDef = await project.agents.resolve(task.task_type).catch(() => null);
+
+    // Build prompt from the resolved definition, with optional per-repo suffix.
+    let fullPrompt = agentDef?.prompt
+      ? agentDef.prompt.replace("{description}", task.description)
+      : buildPrompt(task.task_type, task.description);
     const repoOverrides = repoSettings.task_overrides?.[task.task_type];
     if (repoOverrides?.system_prompt_suffix) {
       fullPrompt += `\n\n${repoOverrides.system_prompt_suffix}`;
@@ -214,9 +220,9 @@ async function processTask(task: any): Promise<void> {
       throw new Error("GitHub App not configured — cannot create PR");
     }
 
-    // Resolve model — per-repo override takes priority
+    // Resolve model — the resolved agent definition wins, then legacy overrides.
     const model =
-      repoOverrides?.model || getTaskTypeConfig(task.task_type)?.model || undefined;
+      agentDef?.model || repoOverrides?.model || getTaskTypeConfig(task.task_type)?.model || undefined;
 
     // Dark-factory dispatch (T058 follow-up): when the repo has dark
     // mode enabled AND the task type has a workflow definition, route
@@ -345,6 +351,7 @@ async function processTask(task: any): Promise<void> {
         darkFactoryWorkflow,
         darkFactoryBaseBranch,
         executionImage,
+        agentDef,
       );
     }
   } catch (err: any) {

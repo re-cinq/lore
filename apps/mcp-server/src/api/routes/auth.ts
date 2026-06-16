@@ -60,10 +60,22 @@ const ROUTE_SCOPES: Record<string, TokenScope> = {
 // that need stronger scope than their generic prefix would imply. Keep
 // these explicit so future `/api/repos/:o/:r/...` routes don't silently
 // inherit admin scope.
-const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope }> = [
+const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[] }> = [
   {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$|\/)/,
     scope: "admin",
+  },
+  // Agents: the runner reads the resolved def (GET → read); editing definitions
+  // is admin. Method-specific so a read-scoped task token can resolve agents.
+  {
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/agents(\/[^/?]+)?(\?|$)/,
+    scope: "read",
+    methods: ["GET"],
+  },
+  {
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/agents(\/[^/?]+)?(\?|$)/,
+    scope: "admin",
+    methods: ["POST", "PUT", "DELETE"],
   },
   {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/coverage(\?|$|\/)/,
@@ -83,9 +95,11 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope }> = [
   },
 ];
 
-export function getRequiredScope(url: string): TokenScope {
+export function getRequiredScope(url: string, method = "GET"): TokenScope {
   for (const override of SCOPE_OVERRIDES) {
-    if (override.re.test(url)) return override.scope;
+    if (override.re.test(url) && (!override.methods || override.methods.includes(method))) {
+      return override.scope;
+    }
   }
   for (const [prefix, scope] of Object.entries(ROUTE_SCOPES)) {
     if (url.startsWith(prefix)) return scope;

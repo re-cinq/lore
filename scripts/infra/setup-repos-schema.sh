@@ -26,6 +26,28 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     value      TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
+
+  -- Agent definitions (ADR — agents-as-data). project_id NULL = org default,
+  -- a project_id = a repo override. Reached only through project.agents.
+  -- Seeded + task_overrides-migrated by ui-helm/migrations/0015_agents_table.sql.
+  CREATE TABLE IF NOT EXISTS lore.agents (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name            TEXT NOT NULL,
+    model           TEXT,
+    timeout_minutes INTEGER,
+    prompt          TEXT,
+    image           TEXT,
+    project_id      UUID REFERENCES lore.repos(id) ON DELETE CASCADE,
+    execution_mode  TEXT NOT NULL DEFAULT 'claude-code',
+    review_required BOOLEAN NOT NULL DEFAULT false,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS agents_org_name
+    ON lore.agents (name) WHERE project_id IS NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS agents_proj_name
+    ON lore.agents (name, project_id) WHERE project_id IS NOT NULL;
+
   -- PR outcome stats (Feature 1)
   DO \$\$ BEGIN
     ALTER TABLE lore.repos ADD COLUMN outcome_stats JSONB DEFAULT '{}';

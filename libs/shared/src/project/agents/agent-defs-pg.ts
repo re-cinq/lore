@@ -7,10 +7,11 @@ import {
 } from "./agent-defs-port.js";
 
 /**
- * AgentDefsPort over lore.agents. resolve/list field-merge the repo's project
- * row over the org default (project_id null) via the pure resolveAgentConfig.
- * Writes target the repo's project row (org defaults are seeded/edited through
- * the org path). The pod never reaches this adapter — it uses AgentDefsHttp.
+ * AgentDefsPort over lore.agents. resolve/list field-merge three layers via the
+ * pure resolveAgentConfig: the repo's project row → the org default row → the
+ * task-types.yaml `base` (so org rows seed only the tunable scalars and leave
+ * prompt to inherit the yaml). Writes target the repo's project row. The pod
+ * never reaches this adapter — it uses AgentDefsHttp.
  */
 
 const COLS =
@@ -44,7 +45,11 @@ const split = (rows: AgentRow[]) => ({
 });
 
 export class PgAgentDefs implements AgentDefsPort {
-  constructor(private readonly pool: PgPool) {}
+  constructor(
+    private readonly pool: PgPool,
+    /** task-types.yaml fallback — the bottom precedence layer (prompt etc.). */
+    private readonly base: AgentDefsPort,
+  ) {}
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {
     const { rows } = await this.pool.query(
@@ -54,10 +59,11 @@ export class PgAgentDefs implements AgentDefsPort {
       [name, repo],
     );
     const { project, org } = split(rows as AgentRow[]);
+    const yamlDefault = await this.base.resolve(repo, name);
     return resolveAgentConfig(
       project ? toDef(project) : null,
       org ? toDef(org) : null,
-      null,
+      yamlDefault,
     );
   }
 
@@ -74,13 +80,16 @@ export class PgAgentDefs implements AgentDefsPort {
       list.push(r);
       byName.set(r.name, list);
     }
+    const baseDefs = await this.base.list(repo);
+    const names = new Set<string>([...baseDefs.map((d) => d.name), ...byName.keys()]);
     const out: AgentDefinition[] = [];
-    for (const group of byName.values()) {
+    for (const name of names) {
+      const group = byName.get(name) ?? [];
       const { project, org } = split(group);
       const resolved = resolveAgentConfig(
         project ? toDef(project) : null,
         org ? toDef(org) : null,
-        null,
+        baseDefs.find((d) => d.name === name) ?? null,
       );
       if (resolved) out.push(resolved);
     }

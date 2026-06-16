@@ -1,15 +1,36 @@
 import { describe, it, expect } from "vitest";
 import { PgAgentDefs } from "./agent-defs-pg.js";
+import type { AgentDefinition, AgentDefsPort } from "./agent-defs-port.js";
 import type { PgPool } from "../../memory-store.js";
 
 /**
  * PgAgentDefs reads/writes lore.agents through a fake PgPool (the house DB-
- * boundary stub) — proving SQL/binding + the project→org merge without a live
- * database. resolve fetches the org row and the repo's project row for a name
- * and field-merges them.
+ * boundary stub) — proving SQL/binding + the project→org→yaml merge without a
+ * live database. The yaml base supplies the bottom layer (prompt) so seeded org
+ * rows can leave it null.
  */
 
 type Row = Record<string, unknown>;
+
+const yamlBase: AgentDefsPort = {
+  resolve: async (_repo, name) =>
+    name === "general"
+      ? {
+          name: "general",
+          model: "claude-sonnet-4-6",
+          timeout_minutes: 30,
+          prompt: "YAML: {description}",
+          image: null,
+          execution_mode: "claude-code",
+          review_required: true,
+          project_id: null,
+        }
+      : null,
+  list: async () => [],
+  create: async () => { throw new Error("ro"); },
+  update: async () => { throw new Error("ro"); },
+  delete: async () => {},
+};
 
 function fakePool(
   respond: (text: string, params?: unknown[]) => Row[],
@@ -23,11 +44,12 @@ function fakePool(
   };
 }
 
+// A seeded org row carries the scalar knobs but leaves prompt NULL (inherits yaml).
 const orgRow: Row = {
   name: "general",
   model: "claude-sonnet-4-6",
   timeout_minutes: 30,
-  prompt: "Task: {description}",
+  prompt: null,
   image: null,
   execution_mode: "claude-code",
   review_required: true,
@@ -35,42 +57,42 @@ const orgRow: Row = {
 };
 
 describe("PgAgentDefs", () => {
-  it("resolves the org default when the repo has no project row", async () => {
-    const store = new PgAgentDefs(fakePool(() => [orgRow]));
+  it("resolves the org row and inherits the prompt from the yaml base", async () => {
+    const store = new PgAgentDefs(fakePool(() => [orgRow]), yamlBase);
 
     expect(await store.resolve("re-cinq/lore", "general")).toMatchObject({
       name: "general",
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-4-6", // from the seeded org row
+      prompt: "YAML: {description}", // inherited from the yaml base
       project_id: null,
     });
   });
 
-  it("merges a project row over the org default", async () => {
+  it("merges a project row over the org default and yaml base", async () => {
     const projectRow: Row = {
       ...orgRow,
       model: "claude-haiku-4-5-20251001",
       project_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     };
-    const store = new PgAgentDefs(fakePool(() => [orgRow, projectRow]));
+    const store = new PgAgentDefs(fakePool(() => [orgRow, projectRow]), yamlBase);
 
-    const resolved = await store.resolve("re-cinq/re-plan", "general");
-
-    expect(resolved).toMatchObject({
+    expect(await store.resolve("re-cinq/re-plan", "general")).toMatchObject({
       model: "claude-haiku-4-5-20251001", // project wins
-      timeout_minutes: 30, // inherited
+      timeout_minutes: 30, // inherited from org
+      prompt: "YAML: {description}", // inherited from yaml
       project_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     });
   });
 
-  it("returns null when no agent of that name exists", async () => {
-    const store = new PgAgentDefs(fakePool(() => []));
+  it("returns null when no agent of that name exists in db or yaml", async () => {
+    const store = new PgAgentDefs(fakePool(() => []), yamlBase);
 
     expect(await store.resolve("re-cinq/lore", "nope")).toBeNull();
   });
 
   it("binds the agent name and repo on resolve", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const store = new PgAgentDefs(fakePool(() => [orgRow], capture));
+    const store = new PgAgentDefs(fakePool(() => [orgRow], capture), yamlBase);
 
     await store.resolve("re-cinq/lore", "general");
 
@@ -84,7 +106,7 @@ describe("PgAgentDefs", () => {
       model: "claude-opus-4-8",
       project_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     };
-    const store = new PgAgentDefs(fakePool(() => [created], capture));
+    const store = new PgAgentDefs(fakePool(() => [created], capture), yamlBase);
 
     const def = await store.create("re-cinq/re-plan", {
       name: "general",
@@ -103,7 +125,7 @@ describe("PgAgentDefs", () => {
 
   it("deletes the repo's project row for a name, scoped to the repo", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const store = new PgAgentDefs(fakePool(() => [], capture));
+    const store = new PgAgentDefs(fakePool(() => [], capture), yamlBase);
 
     await store.delete("re-cinq/re-plan", "general");
 

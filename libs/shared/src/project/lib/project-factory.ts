@@ -64,7 +64,8 @@ export async function createProject(
   //   neither      → AgentDefsYaml (offline/bootstrap from task-types.yaml)
   if (env.LORE_DB_HOST) {
     const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
-    ports.set("agentDefs", new PgAgentDefs(pgPool));
+    const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
+    ports.set("agentDefs", new PgAgentDefs(pgPool, new AgentDefsYaml(undefined, env)));
   } else if (env.LORE_API_URL) {
     const { AgentDefsHttp } = await import("../agents/agent-defs-http.js");
     ports.set("agentDefs", new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN));
