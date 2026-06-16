@@ -25,6 +25,7 @@ import type { KnowledgePort } from "../knowledge/knowledge-port.js";
 import type { TestRunnerPort } from "../test-runner/test-runner-port.js";
 import type { TracePort } from "../trace/trace-port.js";
 import type { AgentRunnerPort } from "../agents/agent-runner-port.js";
+import type { AgentDefsPort } from "../agents/agent-defs-port.js";
 import type { GitPort } from "../workspace/git-port.js";
 import type { LeaseBackend } from "../leases/lease-backends.js";
 import type { AuditPort } from "../audit/audit-port.js";
@@ -86,7 +87,12 @@ export class Project {
   }
 
   get agents(): Agents {
-    return new Agents(this.fullName, this.port<AgentRunnerPort>("agents"), this.env);
+    return new Agents(
+      this.fullName,
+      this.port<AgentRunnerPort>("agents"),
+      this.port<AgentDefsPort>("agentDefs"),
+      this.env,
+    );
   }
 
   /** Branch-lease coordination (supervisor pod ownership). */

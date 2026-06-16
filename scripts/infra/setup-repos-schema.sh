@@ -26,6 +26,11 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
     value      TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
+
+  -- lore.agents (agents-as-data, ADR) is created by the lore-owned migration
+  -- ui-helm/migrations/0015_agents_table.sql, not here: it must be owned by the
+  -- 'lore' migration runner so it can build its partial indexes and grants.
+
   -- PR outcome stats (Feature 1)
   DO \$\$ BEGIN
     ALTER TABLE lore.repos ADD COLUMN outcome_stats JSONB DEFAULT '{}';

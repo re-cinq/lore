@@ -1,18 +1,11 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
-import { parseSettingsForm, parsePrivilegedChanges, type CurrentSettings } from '@/lib/settings-form';
-import { putPrivilegedSettings, isEmptyPatch, type PrivilegedSaveResult } from '@/lib/mcp-settings';
-import { resolveDarkFactorySettings, DEFAULT_EXECUTION_IMAGE } from '@/lib/dark-factory-resolve';
+import { parseSettingsForm } from '@/lib/settings-form';
 import SettingsView, { type RepoSettingsShape } from './SettingsView';
 import type { SaveState } from './SaveResultBanner';
 
 interface Repo { full_name: string }
-
-// Canonical task types (scripts/task-types.yaml) — one override row per type.
-const KNOWN_TASK_TYPES = [
-  'general', 'implementation', 'review', 'feature-request', 'gap-fill', 'runbook', 'onboard',
-];
 
 async function saveSettings(_prev: SaveState, formData: FormData): Promise<SaveState> {
   'use server';
@@ -20,6 +13,7 @@ async function saveSettings(_prev: SaveState, formData: FormData): Promise<SaveS
   const team = formData.get('team') as string;
 
   // General (non-privileged) → direct DB, shallow-merged into settings JSONB.
+  // Dark-factory (privileged) lives on the Dark Factory tab; agents on the Agents tab.
   const updates = parseSettingsForm(formData);
   const selectedRepos = updates.cross_repo_repos as string[];
   await query(
@@ -44,28 +38,8 @@ async function saveSettings(_prev: SaveState, formData: FormData): Promise<SaveS
     );
   }
 
-  // Privileged (dark_factory + task_overrides) → diff against the resolved
-  // current settings (so untouched defaults don't spuriously trip the two-key
-  // gate) and route changes through the gated mcp API.
-  const repoRow = await queryOne<{ settings: RepoSettingsShape }>(
-    `SELECT settings FROM lore.repos WHERE full_name = $1`, [fullName],
-  );
-  const cur = (repoRow?.settings ?? {}) as RepoSettingsShape;
-  const resolved = resolveDarkFactorySettings(cur.dark_factory ?? null);
-  const current: CurrentSettings = {
-    dark_factory: { ...resolved, execution: cur.dark_factory?.execution },
-    task_overrides: cur.task_overrides,
-  };
-  const patch = parsePrivilegedChanges(formData, current, KNOWN_TASK_TYPES);
-
-  let privileged: PrivilegedSaveResult | null = null;
-  if (!isEmptyPatch(patch)) {
-    const approvalPr = (formData.get('approval_pr') as string || '').trim() || undefined;
-    privileged = await putPrivilegedSettings(fullName, patch, approvalPr);
-  }
-
   revalidatePath(`/repos/${fullName}/settings`);
-  return { saved: true, privileged };
+  return { saved: true, privileged: null };
 }
 
 export default async function RepoSettings({ params }: { params: Promise<{ owner: string; repo: string }> }) {
@@ -75,8 +49,6 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
     `SELECT team, settings FROM lore.repos WHERE full_name = $1`, [fullName],
   );
   if (!repoData) return <div>Repo not found</div>;
-  const settings = repoData.settings ?? {};
-  const resolved = resolveDarkFactorySettings(settings.dark_factory ?? null);
 
   const allRepos = await query<Repo>(
     `SELECT full_name FROM lore.repos WHERE full_name != $1 ORDER BY full_name`, [fullName],
@@ -86,11 +58,8 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
     <SettingsView
       fullName={fullName}
       team={repoData.team ?? ''}
-      settings={settings}
-      resolved={resolved}
-      defaultExecutionImage={DEFAULT_EXECUTION_IMAGE}
+      settings={repoData.settings ?? {}}
       allRepos={allRepos}
-      knownTaskTypes={KNOWN_TASK_TYPES}
       saveAction={saveSettings}
     />
   );

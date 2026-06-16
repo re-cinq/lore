@@ -21,6 +21,7 @@ export default async function RepoLayout({
     { href: `${base}/adrs`, label: 'ADRs' },
     { href: `${base}/graph`, label: 'Graph' },
     { href: `${base}/agents`, label: 'Agents' },
+    { href: `${base}/dark-factory`, label: 'Dark Factory' },
     { href: `${base}/settings`, label: 'Settings' },
   ];
 

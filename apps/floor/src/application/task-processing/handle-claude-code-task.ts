@@ -7,6 +7,7 @@
 
 import { projectFor } from "../../application/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../data/config.js";
+import { agentPrompt } from "../../data/agent-invocation.js";
 
 // ── LoreTask CR handler ─────────────────────────────────────────────
 
@@ -27,10 +28,21 @@ export async function handleClaudeCodeTask(
   darkFactoryWorkflow?: string,
   darkFactoryBaseBranch?: string,
   image?: string,
+  agentDef?: { prompt?: string | null; timeout_minutes?: number | null } | null,
 ): Promise<void> {
-  const fullPrompt = buildPrompt(task.task_type, task.description);
+  // Prompt + timeout from the resolved agent definition (project.agents), with
+  // the yaml loader as the fallback. The runner can also re-fetch the prompt
+  // from the agents API via AgentDefsHttp once in the pod.
+  const fullPrompt = agentPrompt(
+    agentDef?.prompt,
+    task.description,
+    buildPrompt(task.task_type, task.description),
+  );
   const timeoutMinutes =
-    repoOverrides?.timeout_minutes || getTaskTypeConfig(task.task_type)?.timeout_minutes || 30;
+    agentDef?.timeout_minutes ||
+    repoOverrides?.timeout_minutes ||
+    getTaskTypeConfig(task.task_type)?.timeout_minutes ||
+    30;
 
   // Dark-factory mode (PR #309): the label drives `kubectl get loretasks -l
   // lore.re-cinq.com/dark-factory=true`; the spec.darkFactory block routes the
