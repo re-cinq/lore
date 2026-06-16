@@ -123,14 +123,32 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
 
+      - name: Recover wedged release
+        run: |
+          # An interrupted prior deploy (e.g. a GKE node scale-down landing
+          # mid-upgrade) can strand the release in a pending-* state. That state
+          # never self-heals and blocks the next upgrade with "another operation
+          # in progress". Clear the stranded revision record so the upgrade below
+          # can reconcile forward — the live workload is left untouched.
+          status=$(helm status lore-ui -n lore-ui -o json 2>/dev/null | jq -r '.info.status' || echo none)
+          echo "[lore] current release status: ${status}"
+          case "$status" in
+            pending-*)
+              echo "[lore] release wedged in ${status}; deleting stranded revision record."
+              kubectl delete secret -n lore-ui -l "owner=helm,name=lore-ui,status=${status}" ;;
+          esac
+
       - name: Helm upgrade
         run: |
           # --reset-then-reuse-values (helm 3.14+) preserves user --set
           # overrides while picking up new chart defaults from values.yaml.
+          # --cleanup-on-fail rolls back partial resources instead of leaving the
+          # release wedged when --wait times out.
           helm upgrade --install lore-ui ./infra/terraform/modules/gke-mcp/ui-helm \
             --namespace lore-ui \
             --set image.tag=${{ needs.build.outputs.image_tag }} \
             --reset-then-reuse-values \
+            --cleanup-on-fail \
             --wait --timeout 10m
 
       - name: Notify Slack
