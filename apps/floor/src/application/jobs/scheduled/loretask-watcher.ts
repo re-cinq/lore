@@ -12,6 +12,7 @@ import { projectFor } from "../../../application/project-boot.js";
 import { query } from "../../../data/db.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../../../adapters/episode-writer.js";
 import { tryAutoMergeForCompletedTask } from "../auto-merge-trigger.js";
+import { isTransientInfraFailure, MAX_INFRA_RETRIES } from "../infra-failure.js";
 import { buildReviewFixDescription, formatReviewFeedback } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../../../adapters/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
@@ -435,10 +436,43 @@ export async function watchLoreTasks(): Promise<void> {
 
     if (phase === "Failed" && lt.status?.failureReason) {
       // Update pipeline.tasks with failure
-      const rows = await query<{ status: string; issue_number: number | null; target_repo: string }>(
-        `SELECT status, issue_number, target_repo FROM pipeline.tasks WHERE id = $1`, [taskId],
+      const rows = await query<{ status: string; issue_number: number | null; target_repo: string; created_by: string; context_bundle: Record<string, unknown> | null }>(
+        `SELECT status, issue_number, target_repo, created_by, context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
       );
-      if (rows[0]?.status === "running") {
+      const reason = lt.status.failureReason;
+      const bundle = rows[0]?.context_bundle ?? {};
+      const infraRetries = Number(bundle.infra_retry_count ?? 0);
+
+      if (rows[0]?.status === "running" && isTransientInfraFailure(reason) && infraRetries < MAX_INFRA_RETRIES) {
+        // Transient infrastructure failure (e.g. BackoffLimitExceeded from a bad
+        // deploy) — re-queue a fresh attempt instead of a terminal lore-failed.
+        // Bounded so a genuinely broken pod can't loop forever. The new task
+        // keeps the same issue so retries don't spawn duplicate issues.
+        const logUrl = `gs://${process.env.LORE_LOG_BUCKET || "lore-task-logs"}/${lt.spec.targetRepo}/${taskId}/output.log`;
+        await query(
+          `UPDATE pipeline.tasks SET status = 'failed', failure_reason = $1, log_url = $2, updated_at = now() WHERE id = $3`,
+          [reason, logUrl, taskId],
+        );
+        await query(
+          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'failed', $2)`,
+          [taskId, JSON.stringify({ error: reason, transient_infra: true, infra_retry: infraRetries + 1 })],
+        );
+        await query(
+          `INSERT INTO pipeline.tasks (description, task_type, status, target_repo, created_by, context_bundle, issue_number)
+           VALUES ($1, $2, 'pending', $3, $4, $5, $6)`,
+          [
+            lt.spec.description,
+            lt.spec.taskType,
+            lt.spec.targetRepo,
+            rows[0].created_by,
+            JSON.stringify({ ...bundle, infra_retry_count: infraRetries + 1, retry_of: taskId }),
+            rows[0].issue_number,
+          ],
+        );
+        console.log(
+          `[loretask-watcher] Task ${taskId} transient infra failure (${reason}) — re-queued attempt ${infraRetries + 1}/${MAX_INFRA_RETRIES}`,
+        );
+      } else if (rows[0]?.status === "running") {
         await query(
           `UPDATE pipeline.tasks SET status = 'failed', failure_reason = $1, updated_at = now() WHERE id = $2`,
           [lt.status.failureReason, taskId],
