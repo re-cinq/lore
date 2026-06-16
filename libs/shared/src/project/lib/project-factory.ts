@@ -58,6 +58,21 @@ export async function createProject(
   const { AgentRunner } = await import("../agents/agent-runner.js");
   ports.set("agents", new AgentRunner(env, { k8s: providers.k8s, llm: providers.llm }));
 
+  // Agent DEFINITIONS port — three-way optional-port seam by environment:
+  //   DB present   → PgAgentDefs (floor, mcp-server on GKE)
+  //   API only     → AgentDefsHttp (Station pod / local stdio: fetch over egress)
+  //   neither      → AgentDefsYaml (offline/bootstrap from task-types.yaml)
+  if (env.LORE_DB_HOST) {
+    const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
+    ports.set("agentDefs", new PgAgentDefs(pgPool));
+  } else if (env.LORE_API_URL) {
+    const { AgentDefsHttp } = await import("../agents/agent-defs-http.js");
+    ports.set("agentDefs", new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN));
+  } else {
+    const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
+    ports.set("agentDefs", new AgentDefsYaml(undefined, env));
+  }
+
   const { PgAudit } = await import("../audit/audit-pg.js");
   ports.set("audit", new PgAudit(pgPool));
 

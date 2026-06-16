@@ -52,6 +52,12 @@ export type {
   AgentRunOpts,
 } from "./agents/agent-runner-port.js";
 export { Agents } from "./agents/agents.js";
+export type {
+  AgentDefinition,
+  AgentDefinitionInput,
+  AgentDefsPort,
+} from "./agents/agent-defs-port.js";
+export { resolveAgentConfig, KNOWN_MODELS } from "./agents/agent-defs-port.js";
 export type { LlmPort, LlmCompletion } from "./agents/llm-port.js";
 export type { K8sPort, LoreTaskSpec } from "./agents/k8s-port.js";
 export type { ProjectProviders } from "./lib/providers.js";
