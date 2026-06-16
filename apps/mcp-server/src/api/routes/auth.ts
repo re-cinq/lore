@@ -65,15 +65,15 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[]
     re: /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$|\/)/,
     scope: "admin",
   },
-  // Agents: the runner reads the resolved def (GET → read); editing definitions
-  // is admin. Method-specific so a read-scoped task token can resolve agents.
+  // Agent definitions: the runner reads the resolved def (GET → read); editing
+  // definitions is admin. Method-specific so a read-scoped task token can resolve.
   {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/agents(\/[^/?]+)?(\?|$)/,
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/,
     scope: "read",
     methods: ["GET"],
   },
   {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/agents(\/[^/?]+)?(\?|$)/,
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/,
     scope: "admin",
     methods: ["POST", "PUT", "DELETE"],
   },

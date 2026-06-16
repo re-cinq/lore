@@ -18,15 +18,14 @@ describe('AgentList', () => {
     expect(pills).toEqual(['org', 'project']);
   });
 
-  it('links each card to its edit page and exposes a New agent link', () => {
+  it('links each card to its edit page', () => {
     const { container } = render(<AgentList base={base} agents={[org]} />);
     const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
-    expect(hrefs).toContain(`${base}/agents/new`);
     expect(hrefs).toContain(`${base}/agents/general/edit`);
   });
 
-  it('shows an empty state when there are no agents', () => {
+  it('shows an empty state when there are no agent definitions', () => {
     const { getByText } = render(<AgentList base={base} agents={[]} />);
-    expect(getByText(/No agents resolved/)).toBeInTheDocument();
+    expect(getByText(/No agent definitions resolved/)).toBeInTheDocument();
   });
 });

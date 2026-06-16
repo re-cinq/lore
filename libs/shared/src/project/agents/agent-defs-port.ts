@@ -1,9 +1,10 @@
 /**
- * Agent DEFINITIONS port — the configuration side of project.agents (distinct
- * from the AgentRunnerPort execution side). An agent definition is the per-task-
- * type config (model, prompt, timeout, image) that lives in lore.agents. A row
- * with project_id = null is the organisation default; a row with a project_id is
- * that repo's override. Resolution merges project → org → task-types.yaml.
+ * Agent DEFINITIONS port — the configuration side, reached via project.agentDefs
+ * (distinct from the AgentRunnerPort execution side, project.agents.run()). An
+ * agent definition is the per-task-type config (model, prompt, timeout, image)
+ * that lives in lore.agent_definitions. A row with project_id = null is the
+ * organisation default; a row with a project_id is that repo's override.
+ * Resolution merges project → org → task-types.yaml.
  */
 
 export interface AgentDefinition {

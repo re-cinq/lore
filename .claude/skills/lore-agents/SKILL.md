@@ -1,13 +1,14 @@
 ---
 name: lore-agents
-description: View and edit this repo's Lore agents (model, timeout, prompt, image) — list resolved agents and create/update/delete per-repo overrides via the Lore agents API.
+description: View and edit this repo's Lore agent definitions (model, timeout, prompt, image) — list resolved definitions and create/update/delete per-repo overrides via the Lore agent-definitions API.
 ---
 
-You are helping a developer manage the **agents** for the repo they're in. An
-agent is the per-task-type config (model, timeout, prompt, image) that drives a
-Lore task. Each repo inherits organisation defaults (`project_id = NULL`) and may
-override any agent with its own row. All access goes through the Lore agents API
-(`/api/repos/:owner/:repo/agents`) — never the database directly.
+You are helping a developer manage the **agent definitions** for the repo they're
+in. An *agent definition* is the per-task-type config (model, timeout, prompt,
+image) an Agent runs from — config, not a run (ADR-024). Each repo inherits
+organisation defaults (`project_id = NULL`) and may override any definition with
+its own row. All access goes through the Lore agent-definitions API
+(`/api/repos/:owner/:repo/agent-definitions`) — never the database directly.
 
 ## Prerequisites
 
@@ -18,10 +19,10 @@ override any agent with its own row. All access goes through the Lore agents API
 
 ## Operations
 
-**List** the repo's resolved agents (org defaults overlaid with repo overrides):
+**List** the repo's resolved agent definitions (org defaults overlaid with repo overrides):
 ```
 curl -fsS -H "authorization: Bearer $LORE_API_URL_TOKEN" \
-  "$LORE_API_URL/api/repos/<owner>/<repo>/agents"
+  "$LORE_API_URL/api/repos/<owner>/<repo>/agent-definitions"
 ```
 Each entry has `name, model, timeout_minutes, prompt, image, execution_mode,
 review_required, project_id`. `project_id: null` means the value is inherited
@@ -30,27 +31,27 @@ review_required, project_id`. `project_id: null` means the value is inherited
 **Resolve one** agent (what a runner would fetch):
 ```
 curl -fsS -H "authorization: Bearer $TOKEN" \
-  "$LORE_API_URL/api/repos/<owner>/<repo>/agents/<name>"
+  "$LORE_API_URL/api/repos/<owner>/<repo>/agent-definitions/<name>"
 ```
 
 **Create** a new repo agent (admin token):
 ```
 curl -fsS -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
-  "$LORE_API_URL/api/repos/<owner>/<repo>/agents" \
+  "$LORE_API_URL/api/repos/<owner>/<repo>/agent-definitions" \
   -d '{"name":"my-agent","model":"claude-opus-4-8","timeout_minutes":45,"prompt":"Do {description}"}'
 ```
 
 **Update / override** an agent (upserts the repo's row; admin token):
 ```
 curl -fsS -X PUT -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
-  "$LORE_API_URL/api/repos/<owner>/<repo>/agents/<name>" \
+  "$LORE_API_URL/api/repos/<owner>/<repo>/agent-definitions/<name>" \
   -d '{"model":"claude-haiku-4-5-20251001"}'
 ```
 
 **Delete** the repo override (reverts to the org default; admin token):
 ```
 curl -fsS -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" \
-  "$LORE_API_URL/api/repos/<owner>/<repo>/agents/<name>"
+  "$LORE_API_URL/api/repos/<owner>/<repo>/agent-definitions/<name>"
 ```
 
 ## Rules

@@ -1,16 +1,54 @@
 /* Agent definition list — co-located with AgentList.tsx. Cards use the app's
    surface/border tokens so they match the other repo views. */
 
+/* Two stacked sections on the Agents tab: "Agent definitions" and "Sessions".
+   Header-band layout (accent bar + title + count + description) rather than a
+   filled panel — --bg-surface equals --bg-elevated in every theme, so a filled
+   card would blend with the inner definition cards. */
+.section {
+  margin-bottom: 32px;
+}
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* Title + count on the left; the section action (e.g. New definition) sits on
+   the right — same layout as the Tasks header (RepoTasksView .header). */
+.headingGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+
+.sectionDesc {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  margin: 0 0 16px;
+}
+
+/* Left-align the empty state on this page (the global .empty-state centers). */
+.emptyLeft {
+  text-align: left;
+  padding-left: 0;
+}
+
 .hint {
   color: var(--text-muted);
   font-size: var(--fs-sm);
   margin-bottom: 12px;
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 16px;
 }
 
 .list {

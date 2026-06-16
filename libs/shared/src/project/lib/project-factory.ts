@@ -56,7 +56,7 @@ export async function createProject(
   ports.set("trace", new DgraphTrace(dgraphClient));
 
   const { AgentRunner } = await import("../agents/agent-runner.js");
-  ports.set("agents", new AgentRunner(env, { k8s: providers.k8s, llm: providers.llm }));
+  ports.set("agentRunner", new AgentRunner(env, { k8s: providers.k8s, llm: providers.llm }));
 
   // Agent DEFINITIONS port — three-way optional-port seam by environment:
   //   DB present   → PgAgentDefs (floor, mcp-server on GKE)

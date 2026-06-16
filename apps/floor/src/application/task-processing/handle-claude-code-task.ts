@@ -30,9 +30,9 @@ export async function handleClaudeCodeTask(
   image?: string,
   agentDef?: { prompt?: string | null; timeout_minutes?: number | null } | null,
 ): Promise<void> {
-  // Prompt + timeout from the resolved agent definition (project.agents), with
+  // Prompt + timeout from the resolved agent definition (project.agentDefs), with
   // the yaml loader as the fallback. The runner can also re-fetch the prompt
-  // from the agents API via AgentDefsHttp once in the pod.
+  // from the agent-definitions API via AgentDefsHttp once in the pod.
   const fullPrompt = agentPrompt(
     agentDef?.prompt,
     task.description,

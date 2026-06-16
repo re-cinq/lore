@@ -317,6 +317,22 @@ pre {
   color: var(--text-muted);
 }
 
+/* Count pill — a small monospace tally shown next to a section heading. */
+.count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--info-bg);
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  line-height: 1.5;
+}
+
 /* Status pill — a filled rounded label whose color the caller sets via the
    --pill-color custom property (e.g. style={{ '--pill-color': 'var(--success)' }}). */
 .status-pill {

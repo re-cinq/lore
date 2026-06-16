@@ -25,7 +25,7 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   const c = cfg();
   if (!c) return [];
   try {
-    const res = await fetch(`${c.apiUrl}/api/repos/${repo}/agents`, {
+    const res = await fetch(`${c.apiUrl}/api/repos/${repo}/agent-definitions`, {
       headers: { authorization: `Bearer ${c.token}` },
       cache: "no-store",
     });
@@ -53,8 +53,8 @@ export async function saveAgent(
   if (approvalPr) headers["x-lore-approval-pr"] = approvalPr;
 
   const url = isUpdate
-    ? `${c.apiUrl}/api/repos/${repo}/agents/${encodeURIComponent(def.name)}`
-    : `${c.apiUrl}/api/repos/${repo}/agents`;
+    ? `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(def.name)}`
+    : `${c.apiUrl}/api/repos/${repo}/agent-definitions`;
 
   let res: Response;
   try {
@@ -84,7 +84,7 @@ export async function deleteAgent(repo: string, name: string): Promise<AgentSave
   if (!c) return { status: "unconfigured" };
   let res: Response;
   try {
-    res = await fetch(`${c.apiUrl}/api/repos/${repo}/agents/${encodeURIComponent(name)}`, {
+    res = await fetch(`${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(name)}`, {
       method: "DELETE",
       headers: { authorization: `Bearer ${c.token}` },
       cache: "no-store",
