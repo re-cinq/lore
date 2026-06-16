@@ -28,8 +28,16 @@ describe("migration 0015 — agents table", () => {
     expect(sql).toMatch(/ON CONFLICT \(name\) WHERE project_id IS NULL DO NOTHING/);
   });
 
-  it("backfills existing settings.task_overrides into per-project rows", () => {
-    expect(sql).toMatch(/jsonb_each\(COALESCE\(r\.settings->'task_overrides'/);
+  it("backfills existing settings.task_overrides into per-project rows (object-guarded)", () => {
+    expect(sql).toMatch(/jsonb_each\(/);
+    expect(sql).toMatch(/jsonb_typeof\(r\.settings->'task_overrides'\) = 'object'/);
     expect(sql).toMatch(/ON CONFLICT \(name, project_id\) WHERE project_id IS NOT NULL DO NOTHING/);
+  });
+
+  it("grants lore_ui read only when the role exists (cluster may not have it)", () => {
+    expect(sql).toMatch(/IF EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'lore_ui'\)/);
+    expect(sql).toMatch(/GRANT SELECT ON lore\.agents TO lore_ui/);
+    // The grant must be inside the guard, never an unconditional top-level statement.
+    expect(sql).not.toMatch(/\nGRANT SELECT ON lore\.agents TO lore_ui;/);
   });
 });

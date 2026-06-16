@@ -36,7 +36,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS agents_proj_name
   ON lore.agents (name, project_id) WHERE project_id IS NOT NULL;
 
 GRANT ALL ON lore.agents TO lore;
-GRANT SELECT ON lore.agents TO lore_ui;
+-- The web-ui reads agents through the API, not direct SQL, and not every cluster
+-- has a separate `lore_ui` role (some connect the web-ui as `lore`). Grant read
+-- only where the role exists so this migration never fails on a missing role.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lore_ui') THEN
+    GRANT SELECT ON lore.agents TO lore_ui;
+  END IF;
+END $$;
 
 -- Seed org defaults from the task-types.yaml scalars (prompt inherits yaml).
 INSERT INTO lore.agents (name, model, timeout_minutes, execution_mode, review_required)
@@ -53,19 +60,24 @@ VALUES
   ('ingest-tests',     NULL,                        20, 'graph-ingest', false)
 ON CONFLICT (name) WHERE project_id IS NULL DO NOTHING;
 
--- Migrate existing per-repo settings.task_overrides into project rows.
+-- Migrate existing per-repo settings.task_overrides into project rows. Defensive
+-- against malformed real data: only iterate object-typed task_overrides + object
+-- per-type values, and guard the int/bool casts (a bad value would abort the txn).
 INSERT INTO lore.agents
   (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)
 SELECT
   ov.key,
   ov.value->>'model',
-  NULLIF(ov.value->>'timeout_minutes', '')::int,
+  CASE WHEN ov.value->>'timeout_minutes' ~ '^[0-9]+$' THEN (ov.value->>'timeout_minutes')::int END,
   ov.value->>'prompt_template',
   ov.value#>>'{execution,image}',
   'claude-code',
-  COALESCE((ov.value->>'review_required')::boolean, false),
+  COALESCE((ov.value->>'review_required') = 'true', false),
   r.id
 FROM lore.repos r,
-     jsonb_each(COALESCE(r.settings->'task_overrides', '{}'::jsonb)) AS ov
-WHERE r.settings ? 'task_overrides'
+     jsonb_each(
+       CASE WHEN jsonb_typeof(r.settings->'task_overrides') = 'object'
+            THEN r.settings->'task_overrides' ELSE '{}'::jsonb END
+     ) AS ov
+WHERE jsonb_typeof(ov.value) = 'object'
 ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO NOTHING;
