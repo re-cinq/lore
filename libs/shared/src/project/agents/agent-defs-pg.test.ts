@@ -4,7 +4,7 @@ import type { AgentDefinition, AgentDefsPort } from "./agent-defs-port.js";
 import type { PgPool } from "../../memory-store.js";
 
 /**
- * PgAgentDefs reads/writes lore.agents through a fake PgPool (the house DB-
+ * PgAgentDefs reads/writes lore.agent_definitions through a fake PgPool (the house DB-
  * boundary stub) — proving SQL/binding + the project→org→yaml merge without a
  * live database. The yaml base supplies the bottom layer (prompt) so seeded org
  * rows can leave it null.
@@ -132,7 +132,7 @@ describe("PgAgentDefs", () => {
     });
 
     expect(def.model).toBe("claude-opus-4-8");
-    expect(capture[0].text).toMatch(/insert into lore\.agents/i);
+    expect(capture[0].text).toMatch(/insert into lore\.agent_definitions/i);
     expect(capture[0].params).toContain("re-cinq/re-plan");
   });
 
@@ -142,7 +142,7 @@ describe("PgAgentDefs", () => {
 
     await store.delete("re-cinq/re-plan", "general");
 
-    expect(capture[0].text).toMatch(/delete from lore\.agents/i);
+    expect(capture[0].text).toMatch(/delete from lore\.agent_definitions/i);
     expect(capture[0].params).toEqual(["general", "re-cinq/re-plan"]);
   });
 });

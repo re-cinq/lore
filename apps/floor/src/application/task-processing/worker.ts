@@ -195,8 +195,8 @@ async function processTask(task: any): Promise<void> {
     } catch { /* non-fatal */ }
 
     // Resolve the agent definition (project → org → yaml) through the single
-    // project.agents port seam; fall back to the yaml loader if unavailable.
-    const agentDef = await project.agents.resolve(task.task_type).catch(() => null);
+    // project.agentDefs port seam; fall back to the yaml loader if unavailable.
+    const agentDef = await project.agentDefs.resolve(task.task_type).catch(() => null);
 
     // Build prompt from the resolved definition, with optional per-repo suffix.
     let fullPrompt = agentPrompt(

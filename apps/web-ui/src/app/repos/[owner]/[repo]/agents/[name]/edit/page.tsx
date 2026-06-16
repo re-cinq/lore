@@ -21,7 +21,7 @@ export default async function EditAgent({
     'use server';
     const { name: parsedName, def, approvalPr } = parseAgentForm(formData);
     if (!parsedName) return { error: 'name required' };
-    // isUpdate=true → upserts the repo's project row (forks an org agent on first edit).
+    // isUpdate=true → upserts the repo's project row (forks an org definition on first edit).
     const r = await saveAgent(fullName, def, true, approvalPr);
     if (r.status === 'ok') redirect(`/repos/${fullName}/agents`);
     return saveResultToState(r);
@@ -32,11 +32,11 @@ export default async function EditAgent({
       <div className="breadcrumb">
         <Link href={`/repos/${fullName}/agents`}>Agents</Link> / <strong>{agentName}</strong>
       </div>
-      <h1>Edit agent: {agentName}</h1>
+      <h1>Edit agent definition: {agentName}</h1>
       {agent ? (
         <AgentForm repo={fullName} agent={agent} action={saveAction} isNew={false} defaultImage={DEFAULT_EXECUTION_IMAGE} />
       ) : (
-        <div className="empty-state"><p>Agent &quot;{agentName}&quot; not found.</p></div>
+        <div className="empty-state"><p>Agent definition &quot;{agentName}&quot; not found.</p></div>
       )}
     </div>
   );

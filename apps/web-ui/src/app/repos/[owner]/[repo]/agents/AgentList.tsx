@@ -4,25 +4,22 @@ import type { AgentDefinition } from '@/lib/agents-mirror';
 import styles from './agents.module.css';
 
 /**
- * Read-only list of a repo's resolved agents. An agent with no project row is
- * labelled `org` (the organisation default); once overridden it's `project`.
- * Editing/creating happens on dedicated pages (Edit / New agent links) so the
- * Agents tab stays selected with a breadcrumb.
+ * Read-only list of a repo's resolved agent definitions. A definition with no
+ * project row is labelled `org` (the organisation default); once overridden it's
+ * `project`. Editing/creating happens on dedicated pages (Edit / New links) so
+ * the Agents tab stays selected with a breadcrumb.
  */
 export default function AgentList({ base, agents }: { base: string; agents: AgentDefinition[] }) {
   return (
     <div>
       <p className={styles.hint}>
-        Per-repo agents. An <strong>org</strong> agent is the organisation default; editing one
-        creates a <strong>project</strong> agent for this repo, and later edits update that project agent.
+        Per-repo agent definitions. An <strong>org</strong> definition is the organisation default;
+        editing one creates a <strong>project</strong> definition for this repo, and later edits update
+        that project definition.
       </p>
 
-      <div className={styles.actions}>
-        <Link className="btn-secondary" href={`${base}/agents/new`}>+ New agent</Link>
-      </div>
-
       {agents.length === 0 ? (
-        <div className="empty-state"><p>No agents resolved for this repo.</p></div>
+        <div className={`empty-state ${styles.emptyLeft}`}><p>No agent definitions resolved for this repo.</p></div>
       ) : (
         <div className={styles.list}>
           {agents.map((a) => {

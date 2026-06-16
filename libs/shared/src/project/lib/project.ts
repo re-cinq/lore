@@ -9,6 +9,7 @@ import { KnowledgeView } from "../knowledge/knowledge.js";
 import { TestSuite } from "../test-runner/test-suite.js";
 import { TraceView } from "../trace/trace.js";
 import { Agents } from "../agents/agents.js";
+import { AgentDefs } from "../agents/agent-defs.js";
 import { Workspace } from "../workspace/workspace.js";
 import { Leases } from "../leases/leases.js";
 import { Audit } from "../audit/audit.js";
@@ -86,13 +87,14 @@ export class Project {
     return new TraceView(this.fullName, this.port<TracePort>("trace"));
   }
 
+  /** Execution: one ephemeral Agent run (trust-gated). See `agentDefs` for config. */
   get agents(): Agents {
-    return new Agents(
-      this.fullName,
-      this.port<AgentRunnerPort>("agents"),
-      this.port<AgentDefsPort>("agentDefs"),
-      this.env,
-    );
+    return new Agents(this.fullName, this.port<AgentRunnerPort>("agentRunner"), this.env);
+  }
+
+  /** Agent *definitions* — the stored config CRUD (model/timeout/prompt/image). */
+  get agentDefs(): AgentDefs {
+    return new AgentDefs(this.fullName, this.port<AgentDefsPort>("agentDefs"));
   }
 
   /** Branch-lease coordination (supervisor pod ownership). */

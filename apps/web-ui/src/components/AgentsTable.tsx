@@ -22,6 +22,10 @@ export interface AgentsTableProps {
   agents: AgentRow[];
   /** Intro line under the heading; lets each surface describe its scope. */
   intro?: string;
+  /** Heading text — "Agents" on the global page, "Sessions" on the repo tab. */
+  title?: string;
+  /** Drop the built-in heading/help/intro so a parent section owns the chrome. */
+  embedded?: boolean;
 }
 
 const KIND_LABEL: Record<AgentKind, string> = {
@@ -30,13 +34,14 @@ const KIND_LABEL: Record<AgentKind, string> = {
 };
 
 /**
- * Shared agents table for the global `/agents` page and the per-repo Agents tab.
- * Local MCP agents (the persistent developer agents that accumulate memories)
- * are shown by default; ephemeral task agents are audit-only and stay hidden
- * behind a toggle. Pure presentation — the container runs the query and tags
- * each row with its `kind` via `classifyAgent`.
+ * Shared sessions/agents table for the global `/agents` page and the per-repo
+ * Agents tab. Each row is a `session` — a developer's local MCP agent (stable
+ * `~/.lore/agent-id`, accumulates memories) shown by default, or an ephemeral
+ * per-task-run agent kept behind the audit toggle. Pure presentation — the
+ * container runs the query and tags each row with its `kind` via `classifyAgent`.
+ * `embedded` drops the built-in heading so a parent section owns the chrome.
  */
-export default function AgentsTable({ agents, intro }: AgentsTableProps) {
+export default function AgentsTable({ agents, intro, title = 'Agents', embedded = false }: AgentsTableProps) {
   const [showTaskAgents, setShowTaskAgents] = useState(false);
 
   const taskAgentCount = agents.filter((a) => a.kind === 'task').length;
@@ -46,31 +51,31 @@ export default function AgentsTable({ agents, intro }: AgentsTableProps) {
 
   return (
     <div>
-      <div className={styles.head}>
-        <h2 className={styles.heading}>Agents</h2>
-        <HelpPopover label="What agents are">
-          <p>Two kinds of agents show up here:</p>
-          <ul>
-            <li>
-              <strong>Local MCP</strong> agents are developers&apos; own agents — your
-              stable <code>~/.lore/agent-id</code>. They write <strong>memory</strong> and{' '}
-              <strong>facts</strong> over the MCP server but never claim pipeline tasks.
-            </li>
-            <li>
-              <strong>Task</strong> agents are ephemeral — one per pipeline task run. They
-              exist for auditing, so they&apos;re hidden until you ask for them.
-            </li>
-          </ul>
-          <p>
-            <strong>Cost</strong> sums tracked <code>llm_calls</code>; headless agent token
-            spend is not metered, so it is a lower bound.
-          </p>
-        </HelpPopover>
-      </div>
-      {intro && (
-        <p className={`meta ${styles.intro}`}>
-          {intro}
-        </p>
+      {!embedded && (
+        <>
+          <div className={styles.head}>
+            <h2 className={styles.heading}>{title}</h2>
+            <HelpPopover label="What agents are">
+              <p>Two kinds of session show up here:</p>
+              <ul>
+                <li>
+                  <strong>Local MCP</strong> agents are developers&apos; own agents — your
+                  stable <code>~/.lore/agent-id</code>. They write <strong>memory</strong> and{' '}
+                  <strong>facts</strong> over the MCP server but never claim pipeline tasks.
+                </li>
+                <li>
+                  <strong>Task</strong> agents are ephemeral — one per pipeline task run. They
+                  exist for auditing, so they&apos;re hidden until you ask for them.
+                </li>
+              </ul>
+              <p>
+                <strong>Cost</strong> sums tracked <code>llm_calls</code>; headless agent token
+                spend is not metered, so it is a lower bound.
+              </p>
+            </HelpPopover>
+          </div>
+          {intro && <p className={`meta ${styles.intro}`}>{intro}</p>}
+        </>
       )}
 
       {taskAgentCount > 0 && (

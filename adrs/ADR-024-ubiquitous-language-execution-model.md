@@ -3,7 +3,7 @@ adr_number: 24
 title: "Ubiquitous language for the execution model: Factory / Floor / AssemblyLine / Station / Agent"
 status: accepted
 date: 2026-06-15
-domains: [agent, pipeline, ux, governance]
+domains: [agent, pipeline, ux, governance, web-ui, infra]
 ---
 
 # ADR-024: Ubiquitous language for the execution model
@@ -37,11 +37,17 @@ commits the platform to the manufacturing metaphor; this names the rest of it.
 | **AssemblyLine** | a workflow of Stations with distinct responsibilities that hand off / wait on each other | per task |
 | **Station** | the unit that runs exactly one Agent (a K8s Job pod, or a local sandbox/worktree) | per task-run |
 | **Agent** | one ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
+| **Agent definition** | the stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default → `task-types.yaml`) | per task-type (× repo) |
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents.**
 
 - **"Agent" is reserved** for sense #1 (the Claude-plus-prompt run). It is never
   the pod, the coordinator, or the workflow.
+- An **Agent definition** is *config, not a run* — the recipe a Station
+  instantiates into an Agent; one definition, many Agents. It is never called
+  "an Agent". The runtime/operator identity (`agent_id` on tasks and memories) is
+  a **session** — also distinct from both. How definitions are stored and reached
+  is decided in [Agent definitions as data](#agent-definitions-as-data) below.
 - The deployment formerly called "Lore Agent" is the **Floor**. There may be
   more than one Floor per Factory (per team, per cluster/region, or per trust
   tier — e.g. a full-trust Floor vs a docs-only Floor); the schema-per-team
@@ -58,6 +64,7 @@ Current-code mapping:
 | AssemblyLine | the `workflow` YAML + supervisor graph (`@re-cinq/lore-runner`) |
 | Station | the claude-runner Job pod / the local runner sandbox |
 | Agent | the `claude --print` / `Llm` invocation |
+| Agent definition | the `lore.agent_definitions` table, reached via `project.agentDefs` |
 
 ## Alternatives rejected
 
@@ -87,3 +94,82 @@ Current-code mapping:
   retro-rewriting existing spec prose to the new terms rides with the code
   rename (it is link-safe but per-usage judgment, since "the agent" sometimes
   means the Agent and sometimes the Floor).
+
+## Agent definitions as data
+
+> Incorporates the decision originally drafted as ADR-026. It lives here because
+> it is a direct application of the vocabulary above: the thing being stored is an
+> **Agent definition**, deliberately *not* an Agent.
+
+### Context
+
+Per-task-type behaviour — model, timeout, prompt, container image — was hardcoded
+org-wide in `scripts/task-types.yaml` (baked into the claude-runner image at
+`/config/task-types.yaml`) and only thinly overridable per repo via a JSONB blob,
+`lore.repos.settings.task_overrides[type]`. The settings UI surfaced just
+model / timeout / a prompt *suffix*, buried in one scrolling form. Operators
+could not define or retune a repo's agent definitions without a source edit and a
+redeploy.
+
+We want agent definitions to be **first-class, per-repo data** an operator edits
+from the UI (and a developer edits from a skill), driving every Station — while
+keeping the offline/bootstrap fallback the runner pods rely on.
+
+### Decision
+
+Promote agent-definition config to a table, **`lore.agent_definitions`**, reached
+only through the Project facade port **`project.agentDefs`** (the config side;
+`project.agents.run()` stays the execution side).
+
+- **Schema.** `lore.agent_definitions(name, model, timeout_minutes, prompt, image,
+  project_id, execution_mode, review_required, …)`. A row with `project_id = NULL`
+  is the **organisation default**; a row with a `project_id` (→ `lore.repos.id`)
+  is that repo's override. Partial unique indexes enforce one org default per
+  name and one project override per `(name, repo)`. A definition is **pure config**:
+  no `workflow` or `trigger` column (see below).
+
+- **Resolution.** `resolveAgentConfig` field-merges three layers —
+  project row → org row → `task-types.yaml` base. The yaml stays the **prompt
+  base + offline fallback**, so seeded org rows carry only the tunable scalars
+  (model/timeout/mode/review) and leave `prompt` to inherit the yaml.
+
+- **One access path.** A new `AgentDefsPort` exposed as `project.agentDefs`
+  (sibling to the execution facade `project.agents.run()`), with a three-way
+  optional-port seam selected by environment: `PgAgentDefs` (DB present — floor,
+  mcp-server), **`AgentDefsHttp` (Station pod / local stdio — the runner fetches
+  its config over the API, same channel as context hydration)**, `AgentDefsYaml`
+  (offline/bootstrap). No consumer reads `lore.agent_definitions` directly.
+
+- **Runners fetch from the port.** The controller resolves only what k8s needs to
+  *build* the Station (`image`, `timeout` → `activeDeadlineSeconds`); the runner
+  fetches `model`/`prompt` (and any in-pod per-node config) from the API via
+  `AgentDefsHttp` at `/api/repos/:o/:r/agent-definitions`. The pod never reaches
+  Postgres.
+
+- **Authorization.** Writes are admin-scoped; the `image` field stays two-key
+  gated (CODEOWNERS `dark-factory-approval` PR, reusing `verifyApproval`), like
+  `dark_factory.execution.image` (ADR-025). `GET` is read-scoped so a runner's
+  task token can resolve definitions.
+
+- **Workflows stay in the repo, not the DB.** An Agent definition is many-to-many
+  with workflows, so the mapping lives only in the workflow YAML's `agent` nodes
+  (referenced by name). Workflows change rarely and want PR review, so they
+  belong in `.lore/workflows/*.yaml` (built-in `libs/runner` workflows as the
+  fallback). What *starts* a run (the ingress event) is a property of the
+  workflow (`on:`), not the definition — deferred to a follow-up (Phase 2) with
+  the dispatch registry.
+
+### Consequences (agent definitions)
+
+- The Agents settings tab + `/lore-agents` skill edit definitions live; no redeploy.
+- `task-types.yaml` is no longer the single source for the tunable scalars, but
+  remains the prompt base and the DB-down fallback.
+- Org-wide default edits now flow through the DB (audited in `pipeline.audit_log`)
+  rather than a reviewed source change; org-level editing UI is secondary.
+- The existing `task_overrides` JSONB is migrated into project rows (migration
+  0015) and left in place but no longer read.
+- The web UI's Agents tab shows two distinct things side by side — **Agent
+  definitions** (this config) and **Sessions** (`agent_id` activity) — so the page
+  never uses the bare word "Agents" to mean both.
+- Phase 2 (separate): the `.lore/workflows/` loader and the workflow `on:`
+  triggers + event-dispatch registry.
