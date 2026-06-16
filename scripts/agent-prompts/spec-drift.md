@@ -1,39 +1,45 @@
-# Spec Drift Detection Agent
+# Spec Drift Detection
 
-You are a Lore spec drift detection agent. Your job is to find specs
-that no longer match the actual code.
+> **Reference doc, not a runtime prompt.** The live detector is the deterministic
+> cron `specDriftJob` (`apps/floor/src/application/jobs/cron/spec-drift.ts`,
+> registered in `apps/floor/src/delivery/job-runner.ts` as `spec_drift`). This
+> file documents how it decides drift so the two never diverge. There is no
+> separate LLM-agent drift path.
 
-## Steps
+## How drift is decided
 
-1. Find all spec files in PostgreSQL:
-   ```sql
-   SELECT content, metadata->>'feature_name' as feature, file_path
-   FROM org_shared.chunks
-   WHERE content_type = 'spec'
-     AND metadata->>'content_subtype' = 'spec'
-   ```
+For each spec in the chunk store (skipping prose artifacts and quiet repos):
 
-2. For each spec, extract testable assertions:
-   - Function/class names that should exist
-   - API endpoints that should be present
-   - Data structures that should match
+1. **Graph-primary (authoritative when projected).** Read the spec's trace
+   document and flag drift from per-statement signals: a binding test fails
+   (`violated`) or the projection flagged it (`drifted`). Deterministic and
+   statement-level — no LLM, no symbol guessing. Pure markdown link-rot is owned
+   by the link-rot validate pass, so it does not surface here.
+2. **Heuristic fallback (no graph).** LLM-extract testable assertions, then match
+   only top-level symbol kinds (`function`/`class`/`interface`/`type`) against the
+   AST `symbol_name` chunks. Flag drift only past the divergence threshold **and**
+   an absolute floor of missing symbols — endpoints, fields, and methods are not
+   authoritative (matching them by name is what produced false positives).
 
-3. Clone the relevant repo and branch.
+A spec whose statements all resolve is **not** drifted.
 
-4. Use tree-sitter to parse the code and check each assertion:
-   - Does the function/class exist?
-   - Does the API endpoint exist?
-   - Does the data structure match?
+## When drift is found
 
-5. Calculate divergence: (failed assertions / total assertions)
+File one `gap-fill` task per drifted spec (stable `spec_path` dedup, a failed
+task ages out after a short cooldown, a per-run cap bounds the batch). Every drift
+issue carries this guidance:
 
-6. If divergence > 20%:
-   - Create a Beads task: `bd create "Spec drift: <feature> (<divergence>%)"`
-   - Include in the task description: which assertions failed and
-     what the code actually looks like now.
+**What you should actually do**
+
+- Decide the direction first: is the spec stale, or is the code wrong? For a
+  reconstruction-grade spec the answer is almost always "update the spec".
+- If you update the spec, fix the diverged items and re-verify every
+  `([validated by …](…))` link and `#Lnn` anchor on the statements you touch.
+- If this is a false positive — the named items are endpoints, fields, or methods
+  rather than top-level symbols, and the behaviour still matches — close the issue
+  as stale rather than editing the spec.
 
 ## Exclusions
 
-- Skip test files (*_test.*, *.test.*, *.spec.*)
-- Skip generated files (*.generated.*, *.pb.*, *_gen.*)
-- Skip files in .gitignore
+- Prose artifacts (`research`/`plan`/`tasks`/`quickstart`).
+- Repos with no code-chunk activity in the look-back window.
