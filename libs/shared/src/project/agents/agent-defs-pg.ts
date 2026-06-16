@@ -14,7 +14,12 @@ import {
  * never reaches this adapter — it uses AgentDefsHttp.
  */
 
-const COLS =
+// Qualified with the `a` alias: the resolve/list queries LEFT JOIN lore.repos,
+// which also has `name`/`id` columns, so unqualified selects are ambiguous.
+const JOIN_COLS =
+  "a.name, a.model, a.timeout_minutes, a.prompt, a.image, a.execution_mode, a.review_required, a.project_id";
+// Unqualified for INSERT ... RETURNING (single table, no alias in scope).
+const RET_COLS =
   "name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id";
 
 interface AgentRow {
@@ -53,7 +58,7 @@ export class PgAgentDefs implements AgentDefsPort {
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {
     const { rows } = await this.pool.query(
-      `SELECT ${COLS} FROM lore.agents a
+      `SELECT ${JOIN_COLS} FROM lore.agents a
          LEFT JOIN lore.repos r ON r.id = a.project_id
         WHERE a.name = $1 AND (a.project_id IS NULL OR r.full_name = $2)`,
       [name, repo],
@@ -69,7 +74,7 @@ export class PgAgentDefs implements AgentDefsPort {
 
   async list(repo: string): Promise<AgentDefinition[]> {
     const { rows } = await this.pool.query(
-      `SELECT ${COLS} FROM lore.agents a
+      `SELECT ${JOIN_COLS} FROM lore.agents a
          LEFT JOIN lore.repos r ON r.id = a.project_id
         WHERE a.project_id IS NULL OR r.full_name = $1`,
       [repo],
@@ -101,7 +106,7 @@ export class PgAgentDefs implements AgentDefsPort {
       `INSERT INTO lore.agents
          (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM lore.repos WHERE full_name = $8))
-       RETURNING ${COLS}`,
+       RETURNING ${RET_COLS}`,
       [
         def.name,
         def.model,
@@ -134,7 +139,7 @@ export class PgAgentDefs implements AgentDefsPort {
          execution_mode = EXCLUDED.execution_mode,
          review_required = EXCLUDED.review_required,
          updated_at = now()
-       RETURNING ${COLS}`,
+       RETURNING ${RET_COLS}`,
       [
         name,
         patch.model ?? null,

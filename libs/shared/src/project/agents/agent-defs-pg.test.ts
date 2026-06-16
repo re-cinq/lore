@@ -99,6 +99,19 @@ describe("PgAgentDefs", () => {
     expect(capture[0].params).toEqual(["general", "re-cinq/lore"]);
   });
 
+  it("qualifies selected columns so the lore.repos JOIN is not ambiguous", async () => {
+    // lore.repos also has a `name` column — an unqualified SELECT throws
+    // "column reference name is ambiguous" against a real database.
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgAgentDefs(fakePool(() => [orgRow], capture), yamlBase);
+
+    await store.list("re-cinq/lore");
+
+    expect(capture[0].text).toMatch(/LEFT JOIN lore\.repos/);
+    expect(capture[0].text).toContain("a.name");
+    expect(capture[0].text).not.toMatch(/SELECT\s+name\b/);
+  });
+
   it("creates a project row scoped to the repo and returns the definition", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const created: Row = {
