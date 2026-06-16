@@ -136,18 +136,29 @@ jobs:
       - name: Notify Slack
         if: always()
         env:
-          WEBHOOK: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          # Reuse the Lore Slack bot (one Slack identity). chat.postMessage takes
+          # a channel ID, so this can target any channel the bot is a member of.
+          TOKEN: ${{ secrets.LORE_SLACK_BOT_TOKEN }}
+          CHANNEL: ${{ vars.LORE_DEPLOY_SLACK_CHANNEL }}
           STATUS: ${{ job.status }}
           SHA: ${{ needs.build.outputs.image_tag }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          # No-op when the webhook secret isn't configured, so the deploy never
+          # No-op when the token/channel aren't configured, so the deploy never
           # fails just because notifications aren't wired up.
-          [ -n "$WEBHOOK" ] || { echo "[lore] SLACK_DEPLOY_WEBHOOK unset; skipping deploy notification."; exit 0; }
+          if [ -z "$TOKEN" ] || [ -z "$CHANNEL" ]; then
+            echo "[lore] LORE_SLACK_BOT_TOKEN or LORE_DEPLOY_SLACK_CHANNEL unset; skipping deploy notification."
+            exit 0
+          fi
           text="lore-ui deploy *${STATUS}* — \`${SHA}\` (<${RUN_URL}|run log>)"
-          curl -sf -X POST -H 'Content-type: application/json' \
-            --data "{\"text\":\"${text}\"}" "$WEBHOOK" \
-            || echo "[lore] Slack notification failed (non-fatal)."
+          payload=$(printf '{"channel":"%s","text":"%s"}' "$CHANNEL" "$text")
+          # chat.postMessage returns HTTP 200 even on logical failure, so assert ok:true.
+          resp=$(curl -sf -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$payload" || echo '{"ok":false,"error":"curl_failed"}')
+          echo "$resp" | grep -q '"ok":true' \
+            || echo "[lore] Slack notification failed (non-fatal): ${resp}"
 
   smoke:
     needs: [build, deploy]
