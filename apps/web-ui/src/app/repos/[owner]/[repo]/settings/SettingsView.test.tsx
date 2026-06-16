@@ -4,10 +4,12 @@ import { render, screen } from '@testing-library/react';
 import SettingsView, { type RepoSettingsShape } from './SettingsView';
 import { resolveDarkFactorySettings, DEFAULT_EXECUTION_IMAGE } from '@/lib/dark-factory-resolve';
 import { INITIAL_SAVE_STATE, type SaveState } from './SaveResultBanner';
+import type { AgentDefinition } from '@/lib/agents-mirror';
 
 const action = vi.fn(async (): Promise<SaveState> => INITIAL_SAVE_STATE);
+const agentAction = vi.fn(async () => ({}));
 
-function renderView(settings: RepoSettingsShape = {}) {
+function renderView(settings: RepoSettingsShape = {}, agents: AgentDefinition[] = []) {
   const resolved = resolveDarkFactorySettings(settings.dark_factory ?? null);
   return render(
     <SettingsView
@@ -17,8 +19,10 @@ function renderView(settings: RepoSettingsShape = {}) {
       resolved={resolved}
       defaultExecutionImage={DEFAULT_EXECUTION_IMAGE}
       allRepos={[{ full_name: 're-cinq/a' }, { full_name: 're-cinq/b' }]}
-      knownTaskTypes={['implementation', 'review']}
+      agents={agents}
       saveAction={action}
+      saveAgentAction={agentAction}
+      deleteAgentAction={agentAction}
     />,
   );
 }
@@ -69,16 +73,24 @@ describe('SettingsView', () => {
     expect((container.querySelector('input[name="df_execution_image"]') as HTMLInputElement).value).toBe('');
   });
 
-  it('renders one override fieldset per known task type, prefilled', () => {
-    const { container } = renderView({
-      task_overrides: { implementation: { model: 'claude-opus-4-8', timeout_minutes: 45, execution: { image: 'golang:1.23' } } },
-    });
-    const legends = Array.from(container.querySelectorAll('legend')).map((l) => l.textContent);
-    expect(legends).toEqual(['implementation', 'review']);
-    expect((container.querySelector('input[name="to_implementation_model"]') as HTMLInputElement).value).toBe('claude-opus-4-8');
-    expect((container.querySelector('input[name="to_implementation_timeout"]') as HTMLInputElement).value).toBe('45');
-    expect((container.querySelector('input[name="to_implementation_image"]') as HTMLInputElement).value).toBe('golang:1.23');
-    expect((container.querySelector('input[name="to_review_model"]') as HTMLInputElement).value).toBe('');
+  it('renders an agent card per resolved agent, prefilled, in the Agents tab', () => {
+    const { container } = renderView({}, [
+      {
+        name: 'implementation',
+        model: 'claude-opus-4-8',
+        timeout_minutes: 45,
+        prompt: 'Implement {description}',
+        image: 'golang:1.23',
+        execution_mode: 'claude-code',
+        review_required: true,
+        project_id: 'p1',
+      },
+    ]);
+    const sel = container.querySelector('select[name="model_select"]') as HTMLSelectElement;
+    expect(sel.value).toBe('claude-opus-4-8');
+    expect((container.querySelector('input[name="timeout_minutes"]') as HTMLInputElement).value).toBe('45');
+    expect((container.querySelector('input[name="image"]') as HTMLInputElement).value).toBe('golang:1.23');
+    expect((container.querySelector('input[name="name"]') as HTMLInputElement).value).toBe('implementation');
   });
 
   it('shows the empty-state message when there are no incidents', () => {

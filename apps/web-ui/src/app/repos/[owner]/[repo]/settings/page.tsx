@@ -4,15 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { parseSettingsForm, parsePrivilegedChanges, type CurrentSettings } from '@/lib/settings-form';
 import { putPrivilegedSettings, isEmptyPatch, type PrivilegedSaveResult } from '@/lib/mcp-settings';
 import { resolveDarkFactorySettings, DEFAULT_EXECUTION_IMAGE } from '@/lib/dark-factory-resolve';
+import { listAgents, saveAgent, deleteAgent } from '@/lib/agents-api';
 import SettingsView, { type RepoSettingsShape } from './SettingsView';
 import type { SaveState } from './SaveResultBanner';
+import type { AgentActionState } from './AgentCard';
 
 interface Repo { full_name: string }
-
-// Canonical task types (scripts/task-types.yaml) — one override row per type.
-const KNOWN_TASK_TYPES = [
-  'general', 'implementation', 'review', 'feature-request', 'gap-fill', 'runbook', 'onboard',
-];
 
 async function saveSettings(_prev: SaveState, formData: FormData): Promise<SaveState> {
   'use server';
@@ -54,9 +51,10 @@ async function saveSettings(_prev: SaveState, formData: FormData): Promise<SaveS
   const resolved = resolveDarkFactorySettings(cur.dark_factory ?? null);
   const current: CurrentSettings = {
     dark_factory: { ...resolved, execution: cur.dark_factory?.execution },
-    task_overrides: cur.task_overrides,
   };
-  const patch = parsePrivilegedChanges(formData, current, KNOWN_TASK_TYPES);
+  // Per-task-type overrides moved to the Agents tab (lore.agents); the privileged
+  // patch now carries only dark_factory fields.
+  const patch = parsePrivilegedChanges(formData, current, []);
 
   let privileged: PrivilegedSaveResult | null = null;
   if (!isEmptyPatch(patch)) {
@@ -66,6 +64,50 @@ async function saveSettings(_prev: SaveState, formData: FormData): Promise<SaveS
 
   revalidatePath(`/repos/${fullName}/settings`);
   return { saved: true, privileged };
+}
+
+async function saveAgentAction(_prev: AgentActionState, formData: FormData): Promise<AgentActionState> {
+  'use server';
+  const repo = (formData.get('repo') as string) || '';
+  const isNew = formData.get('is_new') === '1';
+  const name = (((isNew ? formData.get('name_input') : formData.get('name')) as string) || '').trim();
+  if (!name) return { error: 'name required' };
+
+  const modelSel = (formData.get('model_select') as string) || '';
+  const model =
+    modelSel === '__custom__'
+      ? ((formData.get('model_custom') as string) || '').trim() || null
+      : modelSel || null;
+  const timeoutRaw = ((formData.get('timeout_minutes') as string) || '').trim();
+  const def = {
+    name,
+    model,
+    timeout_minutes: timeoutRaw ? Number(timeoutRaw) : null,
+    prompt: ((formData.get('prompt') as string) || '').trim() || null,
+    image: ((formData.get('image') as string) || '').trim() || null,
+    execution_mode: (formData.get('execution_mode') as string) || 'claude-code',
+    review_required: formData.get('review_required') === '1',
+  };
+  const approvalPr = ((formData.get('approval_pr') as string) || '').trim() || undefined;
+
+  const r = await saveAgent(repo, def, !isNew, approvalPr);
+  revalidatePath(`/repos/${repo}/settings`);
+  if (r.status === 'ok') return { ok: true };
+  if (r.status === 'two_key_required') return { twoKey: true };
+  if (r.status === 'unconfigured') return { error: 'LORE_API_URL / LORE_ADMIN_TOKEN not set' };
+  if (r.status === 'codeowners_failed') return { error: r.detail || r.code };
+  return { error: r.message };
+}
+
+async function deleteAgentAction(_prev: AgentActionState, formData: FormData): Promise<AgentActionState> {
+  'use server';
+  const repo = (formData.get('repo') as string) || '';
+  const name = ((formData.get('name') as string) || '').trim();
+  const r = await deleteAgent(repo, name);
+  revalidatePath(`/repos/${repo}/settings`);
+  if (r.status === 'ok') return { ok: true };
+  if (r.status === 'unconfigured') return { error: 'LORE_API_URL / LORE_ADMIN_TOKEN not set' };
+  return { error: r.status === 'error' ? r.message : 'failed' };
 }
 
 export default async function RepoSettings({ params }: { params: Promise<{ owner: string; repo: string }> }) {
@@ -82,6 +124,8 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
     `SELECT full_name FROM lore.repos WHERE full_name != $1 ORDER BY full_name`, [fullName],
   );
 
+  const agents = await listAgents(fullName);
+
   return (
     <SettingsView
       fullName={fullName}
@@ -90,8 +134,10 @@ export default async function RepoSettings({ params }: { params: Promise<{ owner
       resolved={resolved}
       defaultExecutionImage={DEFAULT_EXECUTION_IMAGE}
       allRepos={allRepos}
-      knownTaskTypes={KNOWN_TASK_TYPES}
+      agents={agents}
       saveAction={saveSettings}
+      saveAgentAction={saveAgentAction}
+      deleteAgentAction={deleteAgentAction}
     />
   );
 }
