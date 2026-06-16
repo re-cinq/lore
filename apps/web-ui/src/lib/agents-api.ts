@@ -14,7 +14,10 @@ export type AgentSaveResult =
 
 function cfg(): { apiUrl: string; token: string } | null {
   const apiUrl = process.env.LORE_API_URL;
-  const token = process.env.LORE_ADMIN_TOKEN;
+  // Prefer the admin token; fall back to the legacy full-access ingest token,
+  // which is what local dev (and the web-ui→mcp proxy) configures. The mcp route
+  // enforces admin scope on writes — the legacy token satisfies it.
+  const token = process.env.LORE_ADMIN_TOKEN || process.env.LORE_INGEST_TOKEN;
   return apiUrl && token ? { apiUrl, token } : null;
 }
 

@@ -56,7 +56,7 @@ export LORE_DGRAPH_HTTP="${LORE_DGRAPH_HTTP:-http://localhost:8081}"
 #     the mcp-server accepts via its legacy full-access path. Without this the
 #     proxy routes return "LORE_API_URL/LORE_INGEST_TOKEN not configured".
 #     A fixed localhost-only token keeps the backend (here) and the Next.js
-#     web-ui (web-ui/.env.local) in sync without a generation/copy step; both
+#     web-ui (apps/web-ui/.env.local) in sync without a generation/copy step; both
 #     honour any pre-set value so you can override for a real backend.
 export LORE_API_URL="${LORE_API_URL:-http://localhost:3001}"
 export LORE_INGEST_TOKEN="${LORE_INGEST_TOKEN:-lore-local-dev-token}"
@@ -78,9 +78,9 @@ if [ -z "${GITHUB_OAUTH_CLIENT_ID:-}" ] || [ -z "${GITHUB_OAUTH_CLIENT_SECRET:-}
 fi
 
 # 3. web-ui deps live outside the workspace — install on first run.
-if [ ! -d "$ROOT/web-ui/node_modules" ]; then
+if [ ! -d "$ROOT/apps/web-ui/node_modules" ]; then
   log "Installing web-ui dependencies (first run)..."
-  npm --prefix web-ui install
+  npm --prefix apps/web-ui install
 fi
 
 # 4. Build once so 'node --watch dist/index.js' has something to run cold.
@@ -122,6 +122,6 @@ setsid npx concurrently -k \
   "MCP_TRANSPORT=http PORT=3001 npm run start:watch -w @re-cinq/lore-mcp" \
   "npm run dev -w @re-cinq/lore-floor" \
   "npm run start:watch -w @re-cinq/lore-floor" \
-  "npm --prefix web-ui run dev" &
+  "npm --prefix apps/web-ui run dev" &
 STACK_PGID=$!
 wait "$STACK_PGID"

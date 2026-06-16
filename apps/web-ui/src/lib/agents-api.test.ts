@@ -45,6 +45,19 @@ describe('listAgents', () => {
     expect(await listAgents('o/r')).toEqual([]);
   });
 
+  it('falls back to the legacy ingest token when no admin token is set (local dev)', async () => {
+    delete process.env.LORE_ADMIN_TOKEN;
+    process.env.LORE_INGEST_TOKEN = 'ingest-tok';
+    const spy = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ agents: [def] }) }));
+    global.fetch = spy as unknown as typeof fetch;
+
+    expect(await listAgents('o/r')).toEqual([def]);
+    const init = spy.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>).authorization).toBe('Bearer ingest-tok');
+
+    delete process.env.LORE_INGEST_TOKEN;
+  });
+
   it('returns [] on a non-ok response', async () => {
     mockFetch(500, {});
     expect(await listAgents('o/r')).toEqual([]);
