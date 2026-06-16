@@ -35,14 +35,20 @@ export class AgentDefsYaml implements AgentDefsPort {
   private load(): Map<string, AgentDefinition> {
     if (this.cache) return this.cache;
 
+    // Union of the candidate paths used by both existing loaders (mcp-server's
+    // pipeline-config and floor's config) so the base resolves regardless of the
+    // runtime cwd: <cwd>/scripts is the one the mcp-server (repo-root cwd) uses.
     const paths: string[] = [];
     if (this.configPath) paths.push(resolve(this.configPath));
     if (this.env.TASK_TYPES_PATH) paths.push(resolve(this.env.TASK_TYPES_PATH));
     paths.push(
-      resolve("./task-types.yaml"),
+      resolve("scripts/task-types.yaml"),
+      resolve("task-types.yaml"),
       resolve("../scripts/task-types.yaml"),
       "/config/task-types.yaml",
     );
+    if (this.env.CONTEXT_PATH) paths.push(resolve(this.env.CONTEXT_PATH, "scripts/task-types.yaml"));
+    if (this.env.HOME) paths.push(resolve(this.env.HOME, ".re-cinq/lore/scripts/task-types.yaml"));
 
     for (const p of paths) {
       try {
