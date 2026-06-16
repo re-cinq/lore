@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { saveAgent } from '@/lib/agents-api';
 import { parseAgentForm, saveResultToState, type AgentFormState } from '@/lib/agents-form';
+import { DEFAULT_EXECUTION_IMAGE } from '@/lib/dark-factory-resolve';
 import AgentForm from '../AgentForm';
 
 export default async function NewAgent({ params }: { params: Promise<{ owner: string; repo: string }> }) {
@@ -24,7 +25,7 @@ export default async function NewAgent({ params }: { params: Promise<{ owner: st
         <Link href={`/repos/${fullName}/agents`}>Agents</Link> / <strong>New agent</strong>
       </div>
       <h1>New agent</h1>
-      <AgentForm repo={fullName} agent={null} action={createAction} isNew />
+      <AgentForm repo={fullName} agent={null} action={createAction} isNew defaultImage={DEFAULT_EXECUTION_IMAGE} />
     </div>
   );
 }

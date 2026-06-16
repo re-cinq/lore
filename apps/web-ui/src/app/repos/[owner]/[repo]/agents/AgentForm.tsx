@@ -19,11 +19,15 @@ export default function AgentForm({
   agent,
   action,
   isNew,
+  defaultImage,
 }: {
   repo: string;
   agent: AgentDefinition | null;
   action: AgentFormAction;
   isNew: boolean;
+  /** The platform default runner image — shown as the image placeholder so the
+   *  inherited image is visible without prefilling it as a (gated) value. */
+  defaultImage?: string;
 }) {
   const [state, formAction] = useActionState(action, {});
   const startCustom = !!agent?.model && !KNOWN_IDS.includes(agent.model);
@@ -74,9 +78,10 @@ export default function AgentForm({
       <textarea name="prompt" rows={6} defaultValue={isNew ? '' : (agent?.prompt ?? '')} placeholder={agent?.prompt ?? '(inherit base prompt)'} />
 
       <label>Execution image (security-gated)</label>
-      <input name="image" defaultValue={agent?.image ?? ''} placeholder="(inherit default runner image)" />
+      <input name="image" defaultValue={agent?.image ?? ''} placeholder={agent?.image ?? defaultImage ?? '(inherit default runner image)'} />
       <span className={styles.formNote}>
-        Changing the image requires a CODEOWNERS-approved <code>dark-factory-approval</code> PR — reference it below.
+        Inherits the default runner image{defaultImage ? <> (<code>{defaultImage}</code>)</> : null} when blank.
+        Changing it requires a CODEOWNERS-approved <code>dark-factory-approval</code> PR — reference it below.
       </span>
 
       <label>Approval PR (only when changing the image)</label>

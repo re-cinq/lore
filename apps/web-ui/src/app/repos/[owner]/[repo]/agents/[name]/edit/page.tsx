@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { listAgents, saveAgent } from '@/lib/agents-api';
 import { parseAgentForm, saveResultToState, type AgentFormState } from '@/lib/agents-form';
+import { DEFAULT_EXECUTION_IMAGE } from '@/lib/dark-factory-resolve';
 import AgentForm from '../../AgentForm';
 
 export default async function EditAgent({
@@ -33,7 +34,7 @@ export default async function EditAgent({
       </div>
       <h1>Edit agent: {agentName}</h1>
       {agent ? (
-        <AgentForm repo={fullName} agent={agent} action={saveAction} isNew={false} />
+        <AgentForm repo={fullName} agent={agent} action={saveAction} isNew={false} defaultImage={DEFAULT_EXECUTION_IMAGE} />
       ) : (
         <div className="empty-state"><p>Agent &quot;{agentName}&quot; not found.</p></div>
       )}

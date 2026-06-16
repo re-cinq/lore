@@ -63,4 +63,13 @@ describe('AgentForm', () => {
     fireEvent.submit(container.querySelector('form')!);
     expect(await findByText('boom')).toBeInTheDocument();
   });
+
+  it('shows the default runner image as the image placeholder without prefilling it', () => {
+    const { container } = render(
+      <AgentForm repo="re-cinq/lore" agent={agent} action={noop} isNew={false} defaultImage="ghcr.io/re-cinq/lore-claude-runner:latest" />,
+    );
+    const img = container.querySelector('input[name="image"]') as HTMLInputElement;
+    expect(img.value).toBe(''); // not prefilled — avoids tripping the two-key gate on save
+    expect(img.placeholder).toBe('ghcr.io/re-cinq/lore-claude-runner:latest');
+  });
 });
