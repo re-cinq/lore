@@ -19,6 +19,7 @@ import type { PipelineTask } from "@re-cinq/lore-shared";
 import { linkifyMarkdown, createDgraphClient } from "@re-cinq/lore-shared";
 import { handleGraphIngest } from "../spec-trace/graph-ingest-handler.js";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
+import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 import { handleOnboard } from "./handle-onboard.js";
@@ -138,7 +139,7 @@ async function processTask(task: any): Promise<void> {
       const issueBody = linkifyMarkdown(copy.body, { repo: targetRepo, uiUrl: process.env.LORE_UI_URL });
       const issue = await project.issues.create(
         copy.title,
-        `${issueBody}\n\n---\n*Managed by [Lore](https://github.com/re-cinq/lore) · created by \`${task.created_by || "unknown"}\` · Lore-Task: ${task.id}*`,
+        composeIssueBody(issueBody, task, process.env.LORE_UI_URL),
         ["lore-managed", taskTypeLabel],
       );
       issueNumber = issue.number;

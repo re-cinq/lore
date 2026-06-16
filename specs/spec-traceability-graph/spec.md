@@ -9,6 +9,7 @@
 | Depends on     | [`memory-dgraph-migration`](../memory-dgraph-migration/spec.md) (shared Dgraph cluster, client, ACL, deploy, vectors); **[`project-test-interface`](../project-test-interface/spec.md)** — built **first**; supplies test discovery, coverage, and the pass/fail (`violated`) signal the graph consumes |
 | Builds on      | [`spec-test-coverage` v3](../spec-test-coverage/spec.md), [ADR-008 AST chunking](../../adrs/ADR-008-ast-chunking-via-tree-sitter.md) |
 | Sequencing     | `project-test-interface` ships before this graph; this spec **references** it for test/coverage inputs rather than re-describing them |
+| Hardened by    | [ADR-026](../../adrs/ADR-026-spec-drift-graph-primary-detection.md) — the weekly `spec_drift` cron consumes this graph's `violated`/`drifted` signal; dedup, bounded infra-retry, and actionable issue copy |
 
 ## Problem Statement
 
@@ -160,6 +161,37 @@ interface (manifest, `tests.list`/`tests.run`, coverage endpoints) is
 specified in [`project-test-interface`](../project-test-interface/spec.md),
 which ships first. Phasing in [`plan.md`](./plan.md).
 
+### Drift detection job — the weekly consumer (ADR-026)
+
+The projection sets the per-statement `violated`/`drifted` flags above; the
+weekly `spec_drift` cron
+([spec-drift.ts](../../apps/floor/src/application/jobs/cron/spec-drift.ts),
+registered in [job-runner.ts](../../apps/floor/src/delivery/job-runner.ts)) is the
+**consumer** that turns them into gap-fill tasks. It is the single detector of
+record; [ADR-026](../../adrs/ADR-026-spec-drift-graph-primary-detection.md) records
+the decision.
+
+- **Graph-primary.** When a spec is projected, drift is decided from its
+  `violated`/`drifted` statements — deterministic, statement-level
+  ([decideGraphDrift](../../apps/floor/src/application/jobs/cron/spec-drift-rules.ts)).
+  A spec whose statements all resolve is **not** drifted (the former
+  symbol-membership heuristic flagged clean specs like `GET /healthz` as fully
+  diverged because endpoints/fields/methods aren't top-level symbols).
+- **Heuristic fallback** (spec not projected / no graph): only top-level symbol
+  kinds are scored, gated on both a divergence ratio and an absolute miss floor.
+- **Hardening.** Dedup keys on the stable `context_bundle.spec_path`; a `failed`
+  task ages out on a short cooldown instead of suppressing drift forever; a
+  per-run cap bounds the batch; transient infra failures
+  (`BackoffLimitExceeded`/`CreateContainerConfigError`) re-queue a bounded number
+  of times ([infra-failure.ts](../../apps/floor/src/application/jobs/infra-failure.ts),
+  [loretask-watcher.ts](../../apps/floor/src/application/jobs/scheduled/loretask-watcher.ts))
+  rather than filing a terminal `lore-failed` issue.
+- **Actionable issue copy** ([issue-body.ts](../../apps/floor/src/application/task-processing/issue-body.ts)):
+  the drifted statements verbatim, a static remediation guidance block
+  ([drift-issue-guidance.ts](../../apps/floor/src/application/jobs/cron/drift-issue-guidance.ts)),
+  `created by spec-drift`, and a `Lore-Task` trailer that links to the deployed
+  task page.
+
 ## API
 
 ### Test & coverage inputs — see `project-test-interface`
@@ -259,6 +291,15 @@ invariant), so the projection is lossless by construction.
 11. The graph is a derived projection only — no DB linker tables are reintroduced; deleting the entire graph and re-running the units from markdown + chunks + coverage reproduces it exactly. ([validated by `delete + re-run the units reproduces the subgraph exactly`](libs/shared/src/spec-trace/__tests__/determinism.test.ts#L152))
 12. Drift surfaces via a `spec-drift`-labelled issue (reusing the broken-links report shape) and a per-statement badge on the spec-detail page; `violated` (from `project-test-interface`) surfaces as `spec-violated`. ([validated by `formats the drift finding into the report`](libs/shared/src/spec-trace/__tests__/format-drift-report.test.ts#L15), [validated by `adds the stmt-drifted badge class`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L56))
 13. The source is reconstructable from the graph **losslessly**: `projectSpecFile` stores the document as an ordered, verbatim `Block` stream (`segmentBlocks`: heading/paragraph/list-item/code/table/blank, paragraphs kept whole, code fences and tables and blank lines captured), and `recomputeSpecFile` reads those blocks (ordered by `Block.ordinal`) and `reassembleBlocks` reproduces the original byte-for-byte — `recompute === content`, so `sha256(recompute) == Spec.content_hash`. Re-projecting shorter content prunes the orphaned blocks so the round-trip tracks the current source. **The same path is document-agnostic**: `projectAdrFile` + `recomputeFile` reconstruct an ADR byte-exact too (keyed by `Block.file_path`); memories need no Block layer (`Memory.value`/`Episode` content is already stored verbatim). ([validated by `round-trips a single-paragraph source verbatim`](libs/shared/src/spec-blocks.test.ts#L5), [validated by `recomputes the exact source of a multi-kind document from its projected Blocks`](libs/shared/src/spec-trace/__tests__/project-spec-file.test.ts#L538), [validated by `recomputes the exact ADR source after projecting it through the graph`](libs/shared/src/spec-trace/__tests__/project-adr-file.test.ts#L69), [validated by `recomputes the shorter source after re-projecting a SHORTER ADR over a longer one`](libs/shared/src/spec-trace/__tests__/project-adr-file.test.ts#L109), [validated by `returns projected true then false on an unchanged re-projection (content_hash gate)`](libs/shared/src/spec-trace/__tests__/project-adr-file.test.ts#L96))
+
+### Drift detection job (ADR-026)
+
+14. The `spec_drift` cron decides drift graph-first: a spec whose statements all resolve is reported clean (the `GET /healthz` case), and a statement that is `violated` or `drifted` is flagged with its section and reason; a spec with no projected statements reports no graph data so the caller falls back to the heuristic. ([validated by `is clean when every statement is satisfied`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L107), [validated by `flags a violated statement with its section heading and reason`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L115), [validated by `flags a drifted statement`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L125), [validated by `reports no graph data when the document has no statements`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L101))
+15. The heuristic fallback only scores top-level symbol kinds and requires both a divergence ratio over threshold and an absolute floor of missing symbols; endpoints/fields are not scored. ([validated by `flags drift when at least 3 scorable symbols are missing past the threshold`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L135), [validated by `does not flag drift when fewer than 3 symbols are missing`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L141), [validated by `ignores endpoint and other kinds that are not top-level symbols`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L147))
+16. A `failed` drift task suppresses re-filing only within a short cooldown, then the spec resurfaces; an in-flight task suppresses a duplicate regardless of age. ([validated by `skips a recently failed task within the short failed cooldown`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L79), [validated by `allows refiling once a failed task is past the short failed cooldown`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L83), [validated by `skips when an open PR task already exists, regardless of age`](apps/floor/src/application/jobs/cron/spec-drift-rules.test.ts#L71))
+17. Every drift issue carries the static remediation guidance for a drift task and omits it for a non-drift task. ([validated by `appends the guidance and a linkified footer for a drift task`](apps/floor/src/application/task-processing/issue-body.test.ts#L30), [validated by `omits the guidance for a non-drift task but still writes the footer`](apps/floor/src/application/task-processing/issue-body.test.ts#L38), [validated by `leads with the What you should actually do heading`](apps/floor/src/application/jobs/cron/drift-issue-guidance.test.ts#L27))
+18. The issue footer links the `Lore-Task` trailer to the deployed task page when a UI url is set and stays a bare uuid otherwise; graph-detected drifted statements (with their validated-by links) are listed verbatim, and heuristic runs list their missing symbols instead. ([validated by `links to the deployed task page when a UI url is set`](apps/floor/src/application/task-processing/issue-body.test.ts#L5), [validated by `returns the bare uuid when no UI url is configured`](apps/floor/src/application/task-processing/issue-body.test.ts#L17), [validated by `lists graph-detected drifted statements verbatim when present`](apps/floor/src/application/task-processing/issue-body.test.ts#L44), [validated by `renders the validated-by link path for a graph-detected statement`](apps/floor/src/application/task-processing/issue-body.test.ts#L56), [validated by `lists heuristic missing symbols when no graph statements rode in the bundle`](apps/floor/src/application/task-processing/issue-body.test.ts#L74))
+19. Transient infra failures (`BackoffLimitExceeded`, `CreateContainerConfigError`) are classified for bounded re-queue; a validation failure is not. ([validated by `classifies BackoffLimitExceeded as transient infra`](apps/floor/src/application/jobs/infra-failure.test.ts#L5), [validated by `classifies CreateContainerConfigError as transient infra`](apps/floor/src/application/jobs/infra-failure.test.ts#L9), [validated by `does not classify a validation failure as transient infra`](apps/floor/src/application/jobs/infra-failure.test.ts#L13))
 
 ## Limitations & Open Questions
 
