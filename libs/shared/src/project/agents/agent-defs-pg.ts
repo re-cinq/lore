@@ -7,7 +7,7 @@ import {
 } from "./agent-defs-port.js";
 
 /**
- * AgentDefsPort over lore.agents. resolve/list field-merge three layers via the
+ * AgentDefsPort over lore.agent_definitions. resolve/list field-merge three layers via the
  * pure resolveAgentConfig: the repo's project row → the org default row → the
  * task-types.yaml `base` (so org rows seed only the tunable scalars and leave
  * prompt to inherit the yaml). Writes target the repo's project row. The pod
@@ -58,7 +58,7 @@ export class PgAgentDefs implements AgentDefsPort {
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {
     const { rows } = await this.pool.query(
-      `SELECT ${JOIN_COLS} FROM lore.agents a
+      `SELECT ${JOIN_COLS} FROM lore.agent_definitions a
          LEFT JOIN lore.repos r ON r.id = a.project_id
         WHERE a.name = $1 AND (a.project_id IS NULL OR r.full_name = $2)`,
       [name, repo],
@@ -74,7 +74,7 @@ export class PgAgentDefs implements AgentDefsPort {
 
   async list(repo: string): Promise<AgentDefinition[]> {
     const { rows } = await this.pool.query(
-      `SELECT ${JOIN_COLS} FROM lore.agents a
+      `SELECT ${JOIN_COLS} FROM lore.agent_definitions a
          LEFT JOIN lore.repos r ON r.id = a.project_id
         WHERE a.project_id IS NULL OR r.full_name = $1`,
       [repo],
@@ -103,7 +103,7 @@ export class PgAgentDefs implements AgentDefsPort {
 
   async create(repo: string, def: AgentDefinitionInput): Promise<AgentDefinition> {
     const { rows } = await this.pool.query(
-      `INSERT INTO lore.agents
+      `INSERT INTO lore.agent_definitions
          (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM lore.repos WHERE full_name = $8))
        RETURNING ${RET_COLS}`,
@@ -128,7 +128,7 @@ export class PgAgentDefs implements AgentDefsPort {
   ): Promise<AgentDefinition> {
     // Upsert the project row so editing an inherited org default forks a row.
     const { rows } = await this.pool.query(
-      `INSERT INTO lore.agents
+      `INSERT INTO lore.agent_definitions
          (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM lore.repos WHERE full_name = $8))
        ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO UPDATE SET
@@ -156,7 +156,7 @@ export class PgAgentDefs implements AgentDefsPort {
 
   async delete(repo: string, name: string): Promise<void> {
     await this.pool.query(
-      `DELETE FROM lore.agents
+      `DELETE FROM lore.agent_definitions
         WHERE name = $1
           AND project_id = (SELECT id FROM lore.repos WHERE full_name = $2)`,
       [name, repo],

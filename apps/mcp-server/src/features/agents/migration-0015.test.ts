@@ -11,11 +11,11 @@ const sql = readFileSync(
   "utf-8",
 );
 
-describe("migration 0015 — agents table", () => {
-  it("creates lore.agents with the org/project partial unique indexes", () => {
-    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS lore\.agents/);
-    expect(sql).toMatch(/agents_org_name[\s\S]*?WHERE project_id IS NULL/);
-    expect(sql).toMatch(/agents_proj_name[\s\S]*?WHERE project_id IS NOT NULL/);
+describe("migration 0015 — agent_definitions table", () => {
+  it("creates lore.agent_definitions with the org/project partial unique indexes", () => {
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS lore\.agent_definitions/);
+    expect(sql).toMatch(/agent_definitions_org_name[\s\S]*?WHERE project_id IS NULL/);
+    expect(sql).toMatch(/agent_definitions_proj_name[\s\S]*?WHERE project_id IS NOT NULL/);
   });
 
   it("seeds an org row for every task-types.yaml task type, idempotently", () => {
@@ -36,8 +36,8 @@ describe("migration 0015 — agents table", () => {
 
   it("grants lore_ui read only when the role exists (cluster may not have it)", () => {
     expect(sql).toMatch(/IF EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'lore_ui'\)/);
-    expect(sql).toMatch(/GRANT SELECT ON lore\.agents TO lore_ui/);
+    expect(sql).toMatch(/GRANT SELECT ON lore\.agent_definitions TO lore_ui/);
     // The grant must be inside the guard, never an unconditional top-level statement.
-    expect(sql).not.toMatch(/\nGRANT SELECT ON lore\.agents TO lore_ui;/);
+    expect(sql).not.toMatch(/\nGRANT SELECT ON lore\.agent_definitions TO lore_ui;/);
   });
 });

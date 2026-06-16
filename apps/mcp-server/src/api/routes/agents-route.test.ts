@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
 import { makeReq, makeRes, makePool, makeOctokit, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../../test-helpers/http-mock.js";
 
-// The agents route delegates to project.agents and reuses the dark-factory
-// two-key ceremony for the `image` field. parseAgentInput / imageFieldTouched
-// are the REAL schema (not mocked) — bodies must be valid.
+// The agent-definitions route delegates to project.agentDefs and reuses the
+// dark-factory two-key ceremony for the `image` field. parseAgentInput /
+// imageFieldTouched are the REAL schema (not mocked) — bodies must be valid.
 
 vi.mock("../../features/dark-factory/dark-factory-authz.js", () => {
   class TwoKeyError extends Error {
@@ -23,12 +23,12 @@ const fakeAgents = {
   update: vi.fn(),
   delete: vi.fn(),
 };
-vi.mock("../../platform/project-boot.js", () => ({ projectFor: vi.fn(async () => ({ agents: fakeAgents })) }));
+vi.mock("../../platform/project-boot.js", () => ({ projectFor: vi.fn(async () => ({ agentDefs: fakeAgents })) }));
 
 import { verifyApproval, TwoKeyError } from "../../features/dark-factory/dark-factory-authz.js";
 import { getOctokit } from "../../platform/github-client.js";
 
-const BASE = "/api/repos/o/r/agents";
+const BASE = "/api/repos/o/r/agent-definitions";
 const originalEnv = { ...process.env };
 
 const def = {
@@ -86,7 +86,7 @@ describe("routes — agents", () => {
       fakeAgents.resolve.mockResolvedValue(null);
       const { res } = await call(`${BASE}/nope`, "GET");
       expect(res.statusCode).toBe(404);
-      expect(res.json).toEqual({ error: "agent not found", name: "nope" });
+      expect(res.json).toEqual({ error: "agent definition not found", name: "nope" });
     });
   });
 

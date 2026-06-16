@@ -13,12 +13,18 @@ autonomous software **factory** (Dark Factory, ADR-016, is a *mode* of it).
 | **AssemblyLine** | A workflow of Stations with distinct responsibilities that hand off to / wait on each other. | per task |
 | **Station** | The unit that runs exactly one Agent — a Kubernetes Job pod (cluster) or a local sandbox/worktree (local runner). | per task-run |
 | **Agent** | A single ephemeral run of the Claude CLI/API + a prompt (context + task). | per Station |
+| **Agent definition** | The stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default → `task-types.yaml`). One definition; many Agents run from it. | per task-type (× repo) |
 
 ## Usage rules
 
 - **"Agent" is reserved** for the Claude-plus-prompt run. It is *never* the pod
   that hosts it (a **Station**), the coordinator that dispatches it (the
   **Floor**), or the workflow that sequences it (an **AssemblyLine**).
+- An **Agent definition** is *config, not a run* — the recipe a Station
+  instantiates into an Agent. Say "Agent definition" (or just "definition") for
+  the stored row; never call a definition "an Agent". A "session" is the
+  developer/operator identity an Agent runs under (the `agent_id` on tasks and
+  memories), distinct from both the definition and a single run.
 - **Factory** is the whole platform — never a single deployment.
 - A **Floor** may be one of several (per team / cluster / trust tier); write
   "the Floor" for the local/default one, "a Floor" when multiplicity matters.
@@ -31,3 +37,4 @@ autonomous software **factory** (Dark Factory, ADR-016, is a *mode* of it).
 | AssemblyLine | the `workflow` YAML + supervisor graph in `@re-cinq/lore-runner` |
 | Station | the `claude-runner` Job pod / the local runner sandbox |
 | Agent | the `claude --print` / `Llm` invocation |
+| Agent definition | the `lore.agent_definitions` table, reached via `project.agentDefs` (ADR-024) |

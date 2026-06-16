@@ -10,12 +10,12 @@ import { parseAgentInput, parseAgentPatch, imageFieldTouched } from "../../featu
 /**
  * Per-repo agent definitions API. GET resolves/lists (the RUNNER fetches the
  * resolved def here via AgentDefsHttp); POST/PUT/DELETE mutate the repo's
- * project rows through project.agents — no SQL in the route. The `image` field
+ * project rows through project.agentDefs — no SQL in the route. The `image` field
  * is two-key gated like dark_factory.execution.image (ADR-025). Scope (read for
  * GET, admin for writes) is enforced at the dispatcher.
  */
 
-const AGENTS_RE = /^\/api\/repos\/([^/]+)\/([^/]+)\/agents(?:\/([^/?]+))?(?:\?|$)/;
+const AGENT_DEFS_RE = /^\/api\/repos\/([^/]+)\/([^/]+)\/agent-definitions(?:\/([^/?]+))?(?:\?|$)/;
 
 export async function handleAgentsRoute(
   req: IncomingMessage,
@@ -26,7 +26,7 @@ export async function handleAgentsRoute(
     json(res, 503, { error: "database unavailable" });
     return;
   }
-  const m = req.url!.match(AGENTS_RE)!;
+  const m = req.url!.match(AGENT_DEFS_RE)!;
   const repo = `${decodeURIComponent(m[1])}/${decodeURIComponent(m[2])}`;
   const name = m[3] ? decodeURIComponent(m[3]) : undefined;
   const method = req.method || "";
@@ -35,16 +35,16 @@ export async function handleAgentsRoute(
     const project = await projectFor(repo);
 
     if (method === "GET" && name) {
-      const def = await project.agents.resolve(name);
+      const def = await project.agentDefs.resolve(name);
       if (!def) {
-        json(res, 404, { error: "agent not found", name });
+        json(res, 404, { error: "agent definition not found", name });
         return;
       }
       json(res, 200, def);
       return;
     }
     if (method === "GET") {
-      json(res, 200, { agents: await project.agents.list() });
+      json(res, 200, { agents: await project.agentDefs.list() });
       return;
     }
     if (method === "POST" || method === "PUT") {
@@ -52,7 +52,7 @@ export async function handleAgentsRoute(
       return;
     }
     if (method === "DELETE" && name) {
-      await project.agents.delete(name);
+      await project.agentDefs.delete(name);
       await audit(pool, repo, "agent_deleted", { name });
       json(res, 200, { ok: true, deleted: name });
       return;
@@ -109,7 +109,7 @@ async function handleWrite(
   }
 
   if (method === "POST") {
-    const def = await project.agents.create(create!);
+    const def = await project.agentDefs.create(create!);
     await audit(pool, repo, "agent_created", { name: def.name, ceremony });
     json(res, 200, { ok: true, agent: def, ceremony });
     return;
@@ -119,7 +119,7 @@ async function handleWrite(
     json(res, 400, { error: "agent name required in path for PUT" });
     return;
   }
-  const def = await project.agents.update(name, patch!);
+  const def = await project.agentDefs.update(name, patch!);
   await audit(pool, repo, "agent_updated", { name, ceremony });
   json(res, 200, { ok: true, agent: def, ceremony });
 }

@@ -73,7 +73,7 @@ const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
   { match: path((url) => url === "/api/tokens"), handle: handleTokens },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
-  { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/agents(\/[^/?]+)?(\?|$)/.test(url)), handle: handleAgentsRoute },
+  { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/.test(url)), handle: handleAgentsRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/coverage(\?|$)/, "POST"), handle: handleCoverageRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/test-report(\?|$)/, "POST"), handle: handleTestReport },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },

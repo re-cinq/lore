@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
+import Link from 'next/link';
 import { query } from '@/lib/db';
 import { classifyAgent } from '@/lib/agent-classify';
 import { listAgents } from '@/lib/agents-api';
 import AgentsTable, { type AgentRow } from '@/components/AgentsTable';
 import AgentList from './AgentList';
+import styles from './agents.module.css';
 
 interface RepoAgentQueryRow {
   agent_id: string;
@@ -62,13 +64,34 @@ export default async function RepoAgents({ params }: { params: Promise<{ owner: 
 
   return (
     <div>
-      <AgentList base={`/repos/${owner}/${repo}`} agents={agents} />
+      <section className={styles.section}>
+        <div className={styles.sectionHead}>
+          <div className={styles.headingGroup}>
+            <h2 className={styles.sectionTitle}>Agent definitions</h2>
+            <span className="count-pill">{agents.length}</span>
+          </div>
+          <Link href={`/repos/${owner}/${repo}/agents/new`}><button>+ New definition</button></Link>
+        </div>
+        <p className={styles.sectionDesc}>
+          The model, timeout, prompt and execution image each task type runs from — config, not a
+          run. Org defaults overlaid with this repo&apos;s overrides.
+        </p>
+        <AgentList base={`/repos/${owner}/${repo}`} agents={agents} />
+      </section>
 
-      <h3 style={{ marginTop: '2rem' }}>Activity</h3>
-      <AgentsTable
-        agents={activity}
-        intro="Agents active on this repo. Local MCP agents are shown by default; ephemeral task agents are hidden behind the toggle."
-      />
+      <section className={styles.section}>
+        <div className={styles.sectionHead}>
+          <div className={styles.headingGroup}>
+            <h2 className={styles.sectionTitle}>Sessions</h2>
+            <span className="count-pill">{activity.length}</span>
+          </div>
+        </div>
+        <p className={styles.sectionDesc}>
+          Developer Claude Code sessions and task runs that touched this repo, grouped by agent id.
+          Local sessions show by default; ephemeral task runs stay behind the audit toggle.
+        </p>
+        <AgentsTable embedded agents={activity} />
+      </section>
     </div>
   );
 }

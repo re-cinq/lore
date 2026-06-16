@@ -1,9 +1,9 @@
--- 0015_agents_table: first-class agent definitions (per ADR — agents-as-data).
+-- 0015_agents_table: first-class agent definitions (ADR-024, agent-defs-as-data).
 --
 -- Per-task-type config (model, timeout, prompt, image) was hardcoded in
 -- scripts/task-types.yaml and thinly overridable via lore.repos.settings.
 -- task_overrides (JSONB). This promotes it to a real table reached only through
--- project.agents: a row with project_id = NULL is the organisation default; a
+-- project.agentDefs: a row with project_id = NULL is the organisation default; a
 -- row with a project_id is that repo's override. Resolution merges
 -- project -> org -> task-types.yaml (the yaml stays the prompt base + offline
 -- fallback, so seeded org rows leave prompt NULL and inherit it).
@@ -15,7 +15,7 @@
 -- The `pipeline`/`lore` schemas are owned by `lore` (the migration runner), so
 -- this applies through the normal channel. Idempotent: safe to re-run.
 
-CREATE TABLE IF NOT EXISTS lore.agents (
+CREATE TABLE IF NOT EXISTS lore.agent_definitions (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name            TEXT NOT NULL,
   model           TEXT,
@@ -30,23 +30,23 @@ CREATE TABLE IF NOT EXISTS lore.agents (
 );
 
 -- One org default per name; one project override per (name, repo).
-CREATE UNIQUE INDEX IF NOT EXISTS agents_org_name
-  ON lore.agents (name) WHERE project_id IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS agents_proj_name
-  ON lore.agents (name, project_id) WHERE project_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS agent_definitions_org_name
+  ON lore.agent_definitions (name) WHERE project_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS agent_definitions_proj_name
+  ON lore.agent_definitions (name, project_id) WHERE project_id IS NOT NULL;
 
-GRANT ALL ON lore.agents TO lore;
+GRANT ALL ON lore.agent_definitions TO lore;
 -- The web-ui reads agents through the API, not direct SQL, and not every cluster
 -- has a separate `lore_ui` role (some connect the web-ui as `lore`). Grant read
 -- only where the role exists so this migration never fails on a missing role.
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lore_ui') THEN
-    GRANT SELECT ON lore.agents TO lore_ui;
+    GRANT SELECT ON lore.agent_definitions TO lore_ui;
   END IF;
 END $$;
 
 -- Seed org defaults from the task-types.yaml scalars (prompt inherits yaml).
-INSERT INTO lore.agents (name, model, timeout_minutes, execution_mode, review_required)
+INSERT INTO lore.agent_definitions (name, model, timeout_minutes, execution_mode, review_required)
 VALUES
   ('general',         'claude-sonnet-4-6',          30, 'claude-code',  true),
   ('runbook',         'claude-haiku-4-5-20251001',  20, 'claude-code',  true),
@@ -63,7 +63,7 @@ ON CONFLICT (name) WHERE project_id IS NULL DO NOTHING;
 -- Migrate existing per-repo settings.task_overrides into project rows. Defensive
 -- against malformed real data: only iterate object-typed task_overrides + object
 -- per-type values, and guard the int/bool casts (a bad value would abort the txn).
-INSERT INTO lore.agents
+INSERT INTO lore.agent_definitions
   (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)
 SELECT
   ov.key,

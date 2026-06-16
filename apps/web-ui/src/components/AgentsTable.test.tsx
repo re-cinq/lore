@@ -40,6 +40,19 @@ describe('AgentsTable rendering', () => {
     expect(container.querySelector('p.meta')).toBeNull();
   });
 
+  it('renders a custom heading title', () => {
+    render(<AgentsTable agents={[]} title="Sessions" />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Sessions' })).toBeInTheDocument();
+  });
+
+  it('drops the heading, help popover and intro when embedded but keeps the table', () => {
+    render(<AgentsTable agents={[]} embedded intro="ignored when embedded" />);
+    expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'What agents are' })).not.toBeInTheDocument();
+    expect(screen.queryByText('ignored when embedded')).not.toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
   it('renders the base column headers without a Why column when no reason is present', () => {
     render(<AgentsTable agents={[local()]} />);
     const table = screen.getByRole('table');

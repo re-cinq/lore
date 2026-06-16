@@ -22,9 +22,9 @@ export default async function NewAgent({ params }: { params: Promise<{ owner: st
   return (
     <div>
       <div className="breadcrumb">
-        <Link href={`/repos/${fullName}/agents`}>Agents</Link> / <strong>New agent</strong>
+        <Link href={`/repos/${fullName}/agents`}>Agents</Link> / <strong>New agent definition</strong>
       </div>
-      <h1>New agent</h1>
+      <h1>New agent definition</h1>
       <AgentForm repo={fullName} agent={null} action={createAction} isNew defaultImage={DEFAULT_EXECUTION_IMAGE} />
     </div>
   );

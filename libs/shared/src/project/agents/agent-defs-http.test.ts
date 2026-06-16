@@ -4,7 +4,7 @@ import { AgentDefsHttp } from "./agent-defs-http.js";
 import type { AgentDefinition } from "./agent-defs-port.js";
 
 /**
- * AgentDefsHttp fetches the agents API — driven against a REAL local HTTP server
+ * AgentDefsHttp fetches the agent-definitions API — driven against a REAL local HTTP server
  * (no fetch mock). resolve returns the parsed def, 404 → null, and writes throw.
  */
 
@@ -27,9 +27,9 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     seen.push(`${req.headers.authorization ?? "-"} ${req.url}`);
     res.setHeader("content-type", "application/json");
-    if (req.url === "/api/repos/re-cinq/re-plan/agents/general") {
+    if (req.url === "/api/repos/re-cinq/re-plan/agent-definitions/general") {
       res.end(JSON.stringify(general));
-    } else if (req.url === "/api/repos/re-cinq/re-plan/agents") {
+    } else if (req.url === "/api/repos/re-cinq/re-plan/agent-definitions") {
       res.end(JSON.stringify({ agents: [general] }));
     } else {
       res.statusCode = 404;
@@ -49,7 +49,7 @@ describe("AgentDefsHttp", () => {
     const store = new AgentDefsHttp(baseUrl, "tok-123");
 
     expect(await store.resolve("re-cinq/re-plan", "general")).toEqual(general);
-    expect(seen).toContain("Bearer tok-123 /api/repos/re-cinq/re-plan/agents/general");
+    expect(seen).toContain("Bearer tok-123 /api/repos/re-cinq/re-plan/agent-definitions/general");
   });
 
   it("returns null on a 404", async () => {
