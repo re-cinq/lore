@@ -4,7 +4,16 @@
 // mcp-server /trace/{graph,ring} endpoints — web-ui no longer queries Dgraph
 // directly. web-ui is not a workspace member, so these mirror the API JSON.
 
-export type SpecGraphNodeType = 'Feature' | 'Spec' | 'Section' | 'Statement' | 'TestChunk' | 'CodeChunk' | 'File' | 'ADR';
+export type SpecGraphNodeType =
+  | 'Feature'
+  | 'Spec'
+  | 'Section'
+  | 'Statement'
+  | 'AcceptanceCriterion'
+  | 'TestChunk'
+  | 'CodeChunk'
+  | 'File'
+  | 'ADR';
 
 export type SpecGraphNode = {
   id: string;

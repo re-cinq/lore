@@ -14,12 +14,30 @@ import { captureGraphState, applyGraphState, serializeGraphState, parseGraphStat
 import { nodeDegrees, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
 import { settleTicks, boundingRadius, connectedComponents, rimTargets, featureSeedPositions } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
+import { aggregateLeaves, shouldAggregate } from '@/lib/graph-aggregation';
+import { buildContainmentForest, bundleControlIds } from '@/lib/edge-bundling';
+import { invertPoint, applyPoint, findNodeAtPoint, type ZoomTransform } from '@/lib/graph-viewport';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
 const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
 
+// Below this zoom scale, single-owner leaves collapse into per-parent count
+// badges (semantic zoom); at or above it they expand back to individual dots.
+const LOD_THRESHOLD = 0.5;
+// curveBundle straightening: 1 = fully bundled to the hierarchy spine, 0 = straight.
+const BUNDLE_BETA = 0.85;
+const HIT_SLOP = 4; // forgiveness (px) around a canvas leaf's radius when clicking
+
+// The containment tree (Feature ⊃ Spec ⊃ Statement/AC) the bundler routes along.
+const CONTAINMENT_KINDS = new Set(['in_feature', 'in_spec', 'in_section', 'has_statement']);
+// Ownership edges that anchor an otherwise tree-less leaf under its first owning
+// Statement/AC, so cross-spec leaf edges have a hierarchy to bundle through.
+const OWNERSHIP_KINDS = new Set(['validated_by', 'implemented_by', 'decided_by']);
+// High-cardinality leaves rendered on the canvas layer (not the SVG skeleton).
+const LEAF_CANVAS_TYPES = new Set<SpecGraphNode['type']>(['TestChunk', 'CodeChunk', 'File']);
+
 type SimNode = SpecGraphNode & d3.SimulationNodeDatum;
-type SimLink = d3.SimulationLinkDatum<SimNode> & { kind: string };
+type SimLink = d3.SimulationLinkDatum<SimNode> & { kind: string; controlIds?: string[] };
 
 const TESTED_FILL = '#16a34a';
 const UNTESTED_FILL = '#dc2626';
@@ -103,17 +121,19 @@ const COLORS: Record<SpecGraphNode['type'], string> = {
   Spec: '#7c3aed',
   Section: '#0891b2',
   Statement: '#2563eb',
+  AcceptanceCriterion: '#4f46e5',
   TestChunk: '#16a34a',
   CodeChunk: '#ea580c',
   File: '#ea580c',
   ADR: '#d97706',
 };
-const RADIUS: Record<SpecGraphNode['type'], number> = { Feature: 20, Spec: 16, Section: 10, Statement: 8, TestChunk: 11, CodeChunk: 11, File: 12, ADR: 13 };
+const RADIUS: Record<SpecGraphNode['type'], number> = { Feature: 20, Spec: 16, Section: 10, Statement: 8, AcceptanceCriterion: 9, TestChunk: 11, CodeChunk: 11, File: 12, ADR: 13 };
 
 // The live projection can emit a type outside the declared union; default rather
 // than index to undefined (which would NaN a radius or blank a fill).
 const radiusOf = (type: SpecGraphNode['type']): number => RADIUS[type] ?? 11;
 const colorOf = (type: SpecGraphNode['type']): string => COLORS[type] ?? '#94a3b8';
+const isLeafCanvas = (type: SpecGraphNode['type']): boolean => LEAF_CANVAS_TYPES.has(type);
 
 // Only the structural nodes carry a persistent label; the numerous leaf
 // artefacts (File/TestChunk/CodeChunk) have long path labels that pile into
@@ -181,6 +201,7 @@ export default function SpecGraphD3({
   resetSignal?: number;
 }) {
   const ref = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [selected, setSelected] = useState<SpecGraphNode | null>(null);
   const [hover, setHover] = useState<{ text: string; x: number; y: number } | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -190,12 +211,26 @@ export default function SpecGraphD3({
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    const canvas = canvasRef.current;
+    if (!el || !canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     let width = el.clientWidth || 900;
     let height = el.clientHeight || 600;
     const svg = d3.select(el);
     svg.selectAll('*').remove();
     if (data.nodes.length === 0) return;
+
+    // Canvas draws with CSS-pixel coordinates; the backing store is scaled up by
+    // the device pixel ratio so edges/dots stay crisp on HiDPI screens.
+    const dpr = window.devicePixelRatio || 1;
+    const surfaceColor = getComputedStyle(el).getPropertyValue('--bg-surface').trim() || '#ffffff';
+    const textColor = getComputedStyle(el).getPropertyValue('--text').trim() || '#111111';
+    const sizeCanvas = () => {
+      canvas.width = Math.max(1, Math.round(width * dpr));
+      canvas.height = Math.max(1, Math.round(height * dpr));
+    };
+    sizeCanvas();
 
     const nodes: SimNode[] = data.nodes.map((n) => ({ ...n }));
     const links: SimLink[] = data.links.map((l) => ({ source: l.source, target: l.target, kind: l.kind }));
@@ -207,6 +242,23 @@ export default function SpecGraphD3({
     let adj = new Map<string, Set<string>>();
     let nodeById = new Map<string, SimNode>();
     let ringPinned = new Set<string>(); // statement ids pinned onto an outer ring
+
+    // Aggregation: collapse single-owner canvas leaves into per-parent badges.
+    // Computed once from the data (position-independent); applied only while the
+    // view is zoomed out past LOD_THRESHOLD.
+    const { hidden: aggHidden, badges: aggBadges } = aggregateLeaves(data.nodes, data.links, LEAF_CANVAS_TYPES);
+
+    // Bundling forest: containment tree plus a tree-home for each leaf under its
+    // first owning statement, so cross-spec leaf edges route through the hierarchy.
+    const forest = buildContainmentForest(data.links, CONTAINMENT_KINDS);
+    for (const l of data.links) {
+      if (OWNERSHIP_KINDS.has(l.kind) && !forest.has(l.target)) forest.set(l.target, l.source);
+    }
+    // Cross-cutting edges precompute their bundle spine once; containment edges
+    // stay straight (the skeleton) and are drawn clipped against the rings.
+    for (const l of links) {
+      if (!CONTAINMENT_KINDS.has(l.kind)) l.controlIds = bundleControlIds(forest, idOf(l.source as string | SimNode), idOf(l.target as string | SimNode));
+    }
 
     // Persist the layout to localStorage so a reload restores the previous topology
     // (node positions, pins, which specs were expanded). Best-effort — storage may
@@ -340,26 +392,163 @@ export default function SpecGraphD3({
       });
 
     const container = svg.append('g');
-    const linkG = container.append('g').attr('fill', 'none').attr('stroke', '#94a3b8');
-    const ringG = container.append('g'); // section/statement rings, between links and nodes
-    const nodeG = container.append('g');
+    const ringG = container.append('g'); // section/statement rings, under the nodes
+    const nodeG = container.append('g'); // structural nodes only (leaves live on canvas)
 
     // Open-ring discs (one per expanded spec), rebuilt each tick. Edge paths are
     // clipped against these via the unit-tested `visibleSegments`, so no edge is
     // ever drawn inside a ring — it attaches to the ring's edge instead.
     let ringDiscs: Disc[] = [];
 
+    // Current view transform (mirrored from d3.zoom) — drives both the SVG group
+    // and the canvas draw, and inverts pointer coords for canvas hit-testing.
+    let transform = d3.zoomIdentity;
+    // Focus + search visual state, shared by the SVG skeleton and the canvas draw.
+    let focusLevels: Map<string, number> | null = null;
+    let searchTerm = '';
+    const matchesSearch = (id: string) => {
+      const n = nodeById.get(id);
+      return n ? nodeMatchesQuery(n, searchTerm) : false;
+    };
+    const nodeOpacity = (id: string): number => {
+      if (searchTerm.trim()) return matchesSearch(id) ? 1 : FADED;
+      if (!focusLevels) return 1;
+      const lv = focusLevels.get(id);
+      return lv === undefined ? FADED : LEVEL_OPACITY[lv] ?? FADED;
+    };
+    const edgeOpacity = (sourceId: string, targetId: string): number => {
+      if (searchTerm.trim()) return matchesSearch(sourceId) && matchesSearch(targetId) ? 0.5 : FADED;
+      if (!focusLevels) return 0.5;
+      const ls = focusLevels.get(sourceId);
+      const lt = focusLevels.get(targetId);
+      if (ls === undefined || lt === undefined) return FADED;
+      return 0.6 * (LEVEL_OPACITY[Math.max(ls, lt)] ?? FADED);
+    };
+
+    // Leaf nodes currently drawn on the canvas (and thus eligible for click
+    // hit-testing) — excludes the single-owner leaves collapsed into badges.
+    const aggregating = () => shouldAggregate(transform.k, LOD_THRESHOLD);
+    const visibleLeaf = (n: SimNode) => isLeafCanvas(n.type) && !(aggregating() && aggHidden.has(n.id));
+
+    const bundleLine = d3.line<[number, number]>().curve(d3.curveBundle.beta(BUNDLE_BETA)).context(ctx);
+
+    function draw() {
+      const collapsing = aggregating();
+      ctx!.setTransform(1, 0, 0, 1, 0, 0);
+      ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
+
+      // World-space pass: edges then leaf dots, under the zoom transform.
+      ctx!.save();
+      ctx!.scale(dpr, dpr);
+      ctx!.translate(transform.x, transform.y);
+      ctx!.scale(transform.k, transform.k);
+
+      ctx!.lineWidth = 1.3 / transform.k;
+      for (const l of links) {
+        const s = l.source as SimNode;
+        const t = l.target as SimNode;
+        const sId = idOf(s);
+        const tId = idOf(t);
+        // Skip edges into a ring-represented statement or a collapsed leaf.
+        if (l.kind === 'in_spec' && ringPinned.has(tId)) continue;
+        if (collapsing && (aggHidden.has(sId) || aggHidden.has(tId))) continue;
+        const op = edgeOpacity(sId, tId);
+        if (op <= FADED) continue;
+        ctx!.globalAlpha = op;
+        ctx!.strokeStyle = '#94a3b8';
+        if (l.controlIds && l.controlIds.length > 2) {
+          const pts = l.controlIds.map((id) => nodeById.get(id)).filter((n): n is SimNode => !!n).map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
+          if (pts.length > 2) {
+            ctx!.beginPath();
+            bundleLine(pts);
+            ctx!.stroke();
+            continue;
+          }
+        }
+        // Straight edge, clipped so it never crosses an open ring's interior.
+        const pieces = visibleSegments({ x: s.x ?? 0, y: s.y ?? 0 }, { x: t.x ?? 0, y: t.y ?? 0 }, ringDiscs);
+        ctx!.beginPath();
+        for (const p of pieces) {
+          ctx!.moveTo(p.a.x, p.a.y);
+          ctx!.lineTo(p.b.x, p.b.y);
+        }
+        ctx!.stroke();
+      }
+
+      ctx!.lineWidth = 1.5 / transform.k;
+      for (const n of nodes) {
+        if (!isLeafCanvas(n.type)) continue;
+        if (collapsing && aggHidden.has(n.id)) continue;
+        const op = nodeOpacity(n.id);
+        if (op <= 0) continue;
+        ctx!.globalAlpha = op;
+        ctx!.fillStyle = colorOf(n.type);
+        ctx!.beginPath();
+        ctx!.arc(n.x ?? 0, n.y ?? 0, radiusOf(n.type), 0, Math.PI * 2);
+        ctx!.fill();
+        ctx!.strokeStyle = surfaceColor;
+        ctx!.stroke();
+      }
+      ctx!.restore();
+
+      // Screen-space pass: count badges over each collapsed parent, sized in CSS
+      // pixels (not world units) so they stay readable while zoomed out.
+      if (collapsing) {
+        ctx!.save();
+        ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx!.globalAlpha = 1;
+        ctx!.font = '600 10px sans-serif';
+        ctx!.textAlign = 'center';
+        ctx!.textBaseline = 'middle';
+        for (const badge of aggBadges) {
+          const parent = nodeById.get(badge.parentId);
+          if (!parent) continue;
+          const screen = applyPoint(transform as ZoomTransform, { x: parent.x ?? 0, y: parent.y ?? 0 });
+          const px = screen.x + radiusOf(parent.type) + 8;
+          const py = screen.y - radiusOf(parent.type);
+          ctx!.fillStyle = colorOf(badge.type);
+          ctx!.beginPath();
+          ctx!.arc(px, py, 8, 0, Math.PI * 2);
+          ctx!.fill();
+          ctx!.fillStyle = '#ffffff';
+          ctx!.fillText(String(badge.count), px, py + 0.5);
+        }
+        ctx!.restore();
+      }
+    }
+
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.05, 4])
-      .on('zoom', (event) => container.attr('transform', event.transform.toString()));
+      .on('zoom', (event) => {
+        transform = event.transform;
+        container.attr('transform', transform.toString());
+        draw();
+      });
     svg.call(zoom).on('dblclick.zoom', null).style('cursor', 'grab');
     // Start (and reset) at identity — d3.zoom stores its transform on the node, so
     // a re-run (e.g. the Reset button bumping resetSignal) must clear it explicitly.
     svg.call(zoom.transform, d3.zoomIdentity);
+    transform = d3.zoomIdentity;
     selectedIdRef.current = null;
     setSelected(null);
-    svg.on('click', () => {
+
+    const leafHitNodes = () => nodes.filter(visibleLeaf).map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0, r: radiusOf(n.type) }));
+
+    // The SVG covers the canvas, so canvas leaves can't receive DOM events — a
+    // background click instead inverts the pointer and hit-tests the leaf dots.
+    svg.on('click', (event: PointerEvent) => {
+      const [px, py] = d3.pointer(event, el);
+      const world = invertPoint(transform as ZoomTransform, { x: px, y: py });
+      const hitId = findNodeAtPoint(world, leafHitNodes(), HIT_SLOP);
+      const hit = hitId ? nodeById.get(hitId) : undefined;
+      if (hit) {
+        selectedIdRef.current = hit.id;
+        setSelected(hit);
+        highlight(hit.id);
+        centerOn(hit);
+        return;
+      }
       selectedIdRef.current = null;
       setSelected(null);
       clearHighlight();
@@ -381,56 +570,37 @@ export default function SpecGraphD3({
       }
     }
 
+    // Apply the current focus/search state to the SVG skeleton, then repaint the
+    // canvas (edges + leaves) which reads the same nodeOpacity/edgeOpacity.
+    function applyVisualState() {
+      nodeG.selectAll<SVGGElement, SimNode>('g').attr('opacity', (d) => nodeOpacity(d.id));
+      nodeG.selectAll<SVGCircleElement, SimNode>('circle').attr('stroke-width', (d) => (d.id === selectedIdRef.current ? 4 : 2));
+      draw();
+    }
+
     function highlight(startId: string) {
-      const level = bfsLevels(adj, startId, 3);
-      const op = (id: string | undefined) => {
-        if (id === undefined) return FADED;
-        const lv = level.get(id);
-        return lv === undefined ? FADED : LEVEL_OPACITY[lv] ?? FADED;
-      };
-      nodeG.selectAll<SVGGElement, SimNode>('g').attr('opacity', (d) => op(d.id));
-      nodeG.selectAll<SVGCircleElement, SimNode>('circle').attr('stroke-width', (d) => (d.id === startId ? 4 : 2));
-      linkG.selectAll<SVGPathElement, SimLink>('path').attr('stroke-opacity', (d) => {
-        const ls = level.get(idOf(d.source as string | SimNode));
-        const lt = level.get(idOf(d.target as string | SimNode));
-        if (ls === undefined || lt === undefined) return FADED;
-        return 0.6 * (LEVEL_OPACITY[Math.max(ls, lt)] ?? FADED);
-      });
+      focusLevels = bfsLevels(adj, startId, 3);
+      applyVisualState();
     }
 
     function clearHighlight() {
-      nodeG.selectAll<SVGGElement, SimNode>('g').attr('opacity', 1);
-      nodeG.selectAll<SVGCircleElement, SimNode>('circle').attr('stroke-width', 2);
-      linkG.selectAll<SVGPathElement, SimLink>('path').attr('stroke-opacity', 0.5);
+      focusLevels = null;
+      applyVisualState();
     }
 
-    // Live search filter: fade every node whose label/path doesn't match the
-    // query (and any edge touching a faded node). An empty query restores the
-    // current focus/selection state.
+    // Live search filter: an empty query falls back to the current focus state
+    // (selection highlight, or everything visible).
     function applyFilter(query: string) {
-      if (!query.trim()) {
-        if (selectedIdRef.current && adj.has(selectedIdRef.current)) highlight(selectedIdRef.current);
-        else clearHighlight();
-        return;
-      }
-      const match = (d: SimNode) => nodeMatchesQuery(d, query);
-      nodeG.selectAll<SVGGElement, SimNode>('g').attr('opacity', (d) => (match(d) ? 1 : FADED));
-      linkG.selectAll<SVGPathElement, SimLink>('path').attr('stroke-opacity', (d) => {
-        const s = nodeById.get(idOf(d.source as string | SimNode));
-        const t = nodeById.get(idOf(d.target as string | SimNode));
-        return s && t && match(s) && match(t) ? 0.5 : FADED;
-      });
+      searchTerm = query;
+      applyVisualState();
     }
 
-    // Hide the force-nodes/edges that the rings now represent: a pinned statement
-    // is drawn as an outer-ring arc, and its spec→statement edge is redundant.
+    // Hide the force-nodes that the rings now represent: a pinned statement is
+    // drawn as an outer-ring arc instead of a skeleton node.
     function applyRingState() {
       ringPinned = new Set<string>();
       for (const exp of expanded.values()) for (const s of exp.statements) ringPinned.add(s.uid);
       nodeG.selectAll<SVGGElement, SimNode>('g').style('display', (d) => (ringPinned.has(d.id) ? 'none' : ''));
-      linkG
-        .selectAll<SVGPathElement, SimLink>('path')
-        .style('display', (d) => (d.kind === 'in_spec' && ringPinned.has(idOf(d.target as string | SimNode)) ? 'none' : ''));
     }
 
     function renderRings() {
@@ -516,16 +686,9 @@ export default function SpecGraphD3({
       sim.nodes(nodes);
       linkForce.links(links);
 
-      linkG
-        .selectAll<SVGPathElement, SimLink>('path')
-        .data(links, (d) => `${idOf(d.source as string | SimNode)}~${idOf(d.target as string | SimNode)}~${d.kind}`)
-        .join('path')
-        .attr('stroke-width', 1.3)
-        .attr('stroke-opacity', 0.5);
-
       nodeG
         .selectAll<SVGGElement, SimNode>('g')
-        .data(nodes, (d) => d.id)
+        .data(nodes.filter((n) => !isLeafCanvas(n.type)), (d) => d.id)
         .join((enter) => {
           const g = enter
             .append('g')
@@ -605,6 +768,7 @@ export default function SpecGraphD3({
       }
       sim.alpha(0).restart();
       if (selectedIdRef.current && adj.has(selectedIdRef.current)) highlight(selectedIdRef.current);
+      else draw();
     }
 
     sim.on('tick', () => {
@@ -650,17 +814,12 @@ export default function SpecGraphD3({
         const spec = nodeById.get(specId);
         if (spec) ringDiscs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
       }
-      linkG.selectAll<SVGPathElement, SimLink>('path').attr('d', (d) => {
-        const s = d.source as SimNode;
-        const t = d.target as SimNode;
-        const pieces = visibleSegments({ x: s.x ?? 0, y: s.y ?? 0 }, { x: t.x ?? 0, y: t.y ?? 0 }, ringDiscs);
-        return pieces.map((p) => `M${p.a.x},${p.a.y}L${p.b.x},${p.b.y}`).join('');
-      });
       nodeG.selectAll<SVGGElement, SimNode>('g').attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
       ringG.selectAll<SVGGElement, [string, ExpandData]>('g.ring').attr('transform', (entry) => {
         const spec = nodeById.get(entry[0]);
         return `translate(${spec?.x ?? 0},${spec?.y ?? 0})`;
       });
+      draw();
     });
 
     update();
@@ -681,6 +840,8 @@ export default function SpecGraphD3({
       if (Math.abs(w - width) < 2 && Math.abs(h - height) < 2) return;
       width = w;
       height = h;
+      sizeCanvas();
+      draw();
       sim.alpha(0.3).restart();
     });
     resize.observe(el);
@@ -708,12 +869,23 @@ export default function SpecGraphD3({
         ))}
         <span style={{ marginLeft: 'auto' }}>click to focus · double-click a spec to expand · scroll to zoom · drag to pan</span>
       </div>
-      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+      <div
+        style={{
+          position: 'relative',
+          flex: 1,
+          minHeight: 0,
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          overflow: 'hidden',
+          background: 'var(--bg-surface)',
+        }}
+      >
+        <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
         <svg
           ref={ref}
           width="100%"
           height="100%"
-          style={{ display: 'block', width: '100%', height: '100%', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', background: 'var(--bg-surface)' }}
+          style={{ position: 'absolute', inset: 0, display: 'block', width: '100%', height: '100%', color: 'var(--text)', background: 'transparent' }}
         />
         {hover && (
           <div
