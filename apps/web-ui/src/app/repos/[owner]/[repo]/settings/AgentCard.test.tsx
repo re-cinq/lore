@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
 import AgentCard from './AgentCard';
 import type { AgentDefinition } from '@/lib/agents-mirror';
 
@@ -46,5 +46,44 @@ describe('AgentCard', () => {
     );
     expect(container.querySelector('input[name="name_input"]')).not.toBeNull();
     expect(container.textContent).not.toContain('Reset to org default');
+  });
+
+  it('shows "saved" after a successful save submit', async () => {
+    const save = vi.fn(async () => ({ ok: true }));
+    const { container, findByText } = render(
+      <AgentCard repo="o/r" agent={agent} saveAction={save} deleteAction={noop} />,
+    );
+    fireEvent.submit(container.querySelector('form')!);
+    expect(await findByText('saved')).toBeInTheDocument();
+    expect(save).toHaveBeenCalled();
+  });
+
+  it('surfaces the two-key warning when the save action reports it', async () => {
+    const save = vi.fn(async () => ({ twoKey: true }));
+    const { container, findByText } = render(
+      <AgentCard repo="o/r" agent={agent} saveAction={save} deleteAction={noop} />,
+    );
+    fireEvent.submit(container.querySelector('form')!);
+    expect(await findByText(/image change needs an approval PR/)).toBeInTheDocument();
+  });
+
+  it('surfaces an error message from the save action', async () => {
+    const save = vi.fn(async () => ({ error: 'boom' }));
+    const { container, findByText } = render(
+      <AgentCard repo="o/r" agent={agent} saveAction={save} deleteAction={noop} />,
+    );
+    fireEvent.submit(container.querySelector('form')!);
+    expect(await findByText('boom')).toBeInTheDocument();
+  });
+
+  it('invokes the delete action from the reset form on an override agent', async () => {
+    const del = vi.fn(async () => ({ ok: true }));
+    const { container } = render(
+      <AgentCard repo="o/r" agent={{ ...agent, project_id: 'p1' }} saveAction={noop} deleteAction={del} />,
+    );
+    const forms = container.querySelectorAll('form');
+    expect(forms.length).toBe(2); // save + reset
+    fireEvent.submit(forms[1]);
+    await waitFor(() => expect(del).toHaveBeenCalled());
   });
 });

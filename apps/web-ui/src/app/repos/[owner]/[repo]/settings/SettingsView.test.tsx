@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import SettingsView, { type RepoSettingsShape } from './SettingsView';
 import { resolveDarkFactorySettings, DEFAULT_EXECUTION_IMAGE } from '@/lib/dark-factory-resolve';
 import { INITIAL_SAVE_STATE, type SaveState } from './SaveResultBanner';
@@ -108,5 +108,25 @@ describe('SettingsView', () => {
   it('exposes the approval-PR input for gated changes', () => {
     const { container } = renderView();
     expect(container.querySelector('input[name="approval_pr"]')).toHaveAttribute('placeholder', 're-cinq/lore#123');
+  });
+
+  it('switches between tabs — hiding the settings form on the Agents tab', () => {
+    const { container } = renderView();
+    const form = container.querySelector('form') as HTMLFormElement;
+    const team = container.querySelector('input[name="team"]') as HTMLElement;
+    const dark = container.querySelector('select[name="df_enabled"]') as HTMLElement;
+
+    // General tab (default): form visible, General pane shown, Dark pane hidden.
+    expect(form.hidden).toBe(false);
+    expect(team.closest('div[hidden]')).toBeNull();
+    expect(dark.closest('div[hidden]')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Agents' }));
+    expect(form.hidden).toBe(true); // settings form hidden on the Agents tab
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dark Factory' }));
+    expect(form.hidden).toBe(false);
+    expect(dark.closest('div[hidden]')).toBeNull(); // Dark pane now shown
+    expect(team.closest('div[hidden]')).not.toBeNull(); // General pane now hidden
   });
 });
