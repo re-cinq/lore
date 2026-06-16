@@ -40,6 +40,9 @@ export default function RootLayout({
                   </Link>
                   <SidebarNav />
                   <UserMenu />
+                  <div className="meta sidebar-version" title="Deployed build (git SHA)">
+                    {process.env.LORE_UI_VERSION ?? 'dev'}
+                  </div>
                 </>
               }
             >

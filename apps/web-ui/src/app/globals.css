@@ -1049,3 +1049,6 @@ textarea:focus-visible,
 .md-popover p:last-child { margin-bottom: 0; }
 .md-popover pre { margin: 6px 0; padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
 .md-popover :not(pre) > code { font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--bg-hover); }
+
+/* Deployed build SHA at the foot of the sidebar — visibility into what's live. */
+.sidebar-version { margin-top: auto; padding: 8px 12px; font-size: 11px; opacity: 0.6; font-family: var(--font-mono, monospace); }

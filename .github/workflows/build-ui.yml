@@ -93,6 +93,8 @@ jobs:
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ steps.sha.outputs.short_sha }}
 
   deploy:
     needs: build
@@ -131,14 +133,46 @@ jobs:
             --reset-then-reuse-values \
             --wait --timeout 10m
 
+      - name: Notify Slack
+        if: always()
+        env:
+          WEBHOOK: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          STATUS: ${{ job.status }}
+          SHA: ${{ needs.build.outputs.image_tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # No-op when the webhook secret isn't configured, so the deploy never
+          # fails just because notifications aren't wired up.
+          [ -n "$WEBHOOK" ] || { echo "[lore] SLACK_DEPLOY_WEBHOOK unset; skipping deploy notification."; exit 0; }
+          text="lore-ui deploy *${STATUS}* — \`${SHA}\` (<${RUN_URL}|run log>)"
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"${text}\"}" "$WEBHOOK" \
+            || echo "[lore] Slack notification failed (non-fatal)."
+
   smoke:
-    needs: deploy
+    needs: [build, deploy]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Wait for rollout
-        run: sleep 30
+      - name: Verify the live UI is serving the built commit
+        env:
+          UI_URL: ${{ vars.LORE_UI_URL }}
+          EXPECTED: ${{ needs.build.outputs.image_tag }}
+        run: |
+          if [ -z "$UI_URL" ]; then
+            echo "[lore] LORE_UI_URL var unset; skipping version assertion."
+            exit 0
+          fi
+          # The public LB may briefly serve the old pod during rollover; poll.
+          for attempt in $(seq 1 12); do
+            live=$(curl -sf "${UI_URL%/}/api/version" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' || true)
+            echo "[lore] attempt ${attempt}: live=${live:-<none>} expected=${EXPECTED}"
+            [ "$live" = "$EXPECTED" ] && { echo "[lore] live UI serves ${EXPECTED}."; exit 0; }
+            sleep 15
+          done
+          echo "[lore] live UI never reported ${EXPECTED} (deploy lagging or failed)."
+          exit 1
       - name: Run smoke tests
         run: bash scripts/smoke-test.sh
         env:
