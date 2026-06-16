@@ -10,9 +10,17 @@ fail() { echo "  ✗ $1"; FAILURES=$((FAILURES + 1)); }
 
 echo "[smoke] Running post-deploy smoke tests against $API_URL"
 
-# 1. Health
+# 1. Health — retried: smoke runs right after a rolling deploy, so the LB can
+# briefly route to a pod that hasn't passed its readiness probe yet. A single
+# shot here false-failed otherwise-healthy deploys (the checks below pass a
+# moment later). Poll up to 5×/3s before declaring it down.
 echo "[smoke] Health..."
-HEALTH=$(curl -sf --max-time 5 "$API_URL/healthz" 2>/dev/null || echo "")
+HEALTH=""
+for _ in $(seq 1 5); do
+  HEALTH=$(curl -sf --max-time 5 "$API_URL/healthz" 2>/dev/null || echo "")
+  echo "$HEALTH" | jq -e '.status == "ok"' >/dev/null 2>&1 && break
+  sleep 3
+done
 if echo "$HEALTH" | jq -e '.status == "ok"' >/dev/null 2>&1; then
   pass "healthz"
 else
