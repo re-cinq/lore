@@ -20,6 +20,7 @@ import { handleGitHubWebhook, handleSlackWebhook, handleIncidentWebhook } from "
 import { handleTaskLogs, handleGetTaskLogs, handleGetJobRunLogs } from "./logs.js";
 import { handleTokens } from "./tokens.js";
 import { handleDarkFactorySettingsRoute } from "./dark-factory.js";
+import { handleAgentsRoute } from "./agents.js";
 import { handleCoverageRoute } from "./coverage.js";
 import { handleTestReport } from "./test-report.js";
 import { handleImpactRoute } from "./impact.js";
@@ -72,6 +73,7 @@ const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
   { match: path((url) => url === "/api/tokens"), handle: handleTokens },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
+  { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/agents(\/[^/?]+)?(\?|$)/.test(url)), handle: handleAgentsRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/coverage(\?|$)/, "POST"), handle: handleCoverageRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/test-report(\?|$)/, "POST"), handle: handleTestReport },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },
@@ -108,7 +110,7 @@ export async function handleApiRoute(
       json(res, 401, { error: "unauthorized" });
       return true;
     }
-    const scope = getRequiredScope(url);
+    const scope = getRequiredScope(url, method);
     const valid = await validateClientToken(pool, bearer, scope);
     if (!valid) {
       json(res, 403, { error: "insufficient scope" });

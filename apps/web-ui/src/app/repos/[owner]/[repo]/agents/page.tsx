@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 import { query } from '@/lib/db';
 import { classifyAgent } from '@/lib/agent-classify';
+import { listAgents } from '@/lib/agents-api';
 import AgentsTable, { type AgentRow } from '@/components/AgentsTable';
+import AgentList from './AgentList';
 
 interface RepoAgentQueryRow {
   agent_id: string;
@@ -18,9 +20,10 @@ export default async function RepoAgents({ params }: { params: Promise<{ owner: 
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
+  const agents = await listAgents(fullName);
+
   // Union task agents (pipeline tasks targeting this repo) with local MCP agents
   // (memories tagged with this repo) so a developer's own agent shows up here too.
-  // Memories written outside any repo (repo NULL) only appear on the global page.
   const rows = await query<RepoAgentQueryRow>(
     `WITH task_agents AS (
        SELECT t.agent_id,
@@ -55,12 +58,17 @@ export default async function RepoAgents({ params }: { params: Promise<{ owner: 
     [fullName]
   );
 
-  const agents: AgentRow[] = rows.map((r) => ({ ...r, kind: classifyAgent(r) }));
+  const activity: AgentRow[] = rows.map((r) => ({ ...r, kind: classifyAgent(r) }));
 
   return (
-    <AgentsTable
-      agents={agents}
-      intro="Agents active on this repo. Local MCP agents are shown by default; ephemeral task agents are hidden behind the toggle."
-    />
+    <div>
+      <AgentList base={`/repos/${owner}/${repo}`} agents={agents} />
+
+      <h3 style={{ marginTop: '2rem' }}>Activity</h3>
+      <AgentsTable
+        agents={activity}
+        intro="Agents active on this repo. Local MCP agents are shown by default; ephemeral task agents are hidden behind the toggle."
+      />
+    </div>
   );
 }

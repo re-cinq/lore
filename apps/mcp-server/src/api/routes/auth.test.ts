@@ -30,6 +30,17 @@ describe("getRequiredScope", () => {
     expect(getRequiredScope("/api/repos/o/r/ingest-graph")).toBe("admin");
   });
 
+  it("returns read for a GET on the agents route (runner resolve)", () => {
+    expect(getRequiredScope("/api/repos/o/r/agents/general", "GET")).toBe("read");
+    expect(getRequiredScope("/api/repos/o/r/agents", "GET")).toBe("read");
+  });
+
+  it("returns admin for agent writes", () => {
+    expect(getRequiredScope("/api/repos/o/r/agents", "POST")).toBe("admin");
+    expect(getRequiredScope("/api/repos/o/r/agents/general", "PUT")).toBe("admin");
+    expect(getRequiredScope("/api/repos/o/r/agents/general", "DELETE")).toBe("admin");
+  });
+
   it("returns read for an unmapped route", () => {
     expect(getRequiredScope("/api/unknown/path")).toBe("read");
   });
