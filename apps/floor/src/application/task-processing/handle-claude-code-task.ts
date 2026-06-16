@@ -7,6 +7,7 @@
 
 import { projectFor } from "../../application/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../data/config.js";
+import { agentPrompt } from "../../data/agent-invocation.js";
 
 // ── LoreTask CR handler ─────────────────────────────────────────────
 
@@ -32,9 +33,11 @@ export async function handleClaudeCodeTask(
   // Prompt + timeout from the resolved agent definition (project.agents), with
   // the yaml loader as the fallback. The runner can also re-fetch the prompt
   // from the agents API via AgentDefsHttp once in the pod.
-  const fullPrompt = agentDef?.prompt
-    ? agentDef.prompt.replace("{description}", task.description)
-    : buildPrompt(task.task_type, task.description);
+  const fullPrompt = agentPrompt(
+    agentDef?.prompt,
+    task.description,
+    buildPrompt(task.task_type, task.description),
+  );
   const timeoutMinutes =
     agentDef?.timeout_minutes ||
     repoOverrides?.timeout_minutes ||

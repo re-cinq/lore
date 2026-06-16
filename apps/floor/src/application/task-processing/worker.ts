@@ -9,6 +9,7 @@ import { query, getPool } from "../../data/db.js";
 import { generateArtifactCopy } from "../../adapters/artifact-copy.js";
 import { projectFor } from "../../application/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../data/config.js";
+import { agentPrompt } from "../../data/agent-invocation.js";
 import {
   classifyError,
   TaskFailure,
@@ -198,9 +199,11 @@ async function processTask(task: any): Promise<void> {
     const agentDef = await project.agents.resolve(task.task_type).catch(() => null);
 
     // Build prompt from the resolved definition, with optional per-repo suffix.
-    let fullPrompt = agentDef?.prompt
-      ? agentDef.prompt.replace("{description}", task.description)
-      : buildPrompt(task.task_type, task.description);
+    let fullPrompt = agentPrompt(
+      agentDef?.prompt,
+      task.description,
+      buildPrompt(task.task_type, task.description),
+    );
     const repoOverrides = repoSettings.task_overrides?.[task.task_type];
     if (repoOverrides?.system_prompt_suffix) {
       fullPrompt += `\n\n${repoOverrides.system_prompt_suffix}`;
