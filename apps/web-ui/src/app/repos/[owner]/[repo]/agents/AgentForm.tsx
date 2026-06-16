@@ -28,6 +28,7 @@ export default function AgentForm({
   const [state, formAction] = useActionState(action, {});
   const startCustom = !!agent?.model && !KNOWN_IDS.includes(agent.model);
   const [modelSel, setModelSel] = useState(startCustom ? '__custom__' : (agent?.model ?? ''));
+  const inherited = !isNew && (agent?.project_id == null || agent.project_id === '');
 
   return (
     <form action={formAction} className="task-form">
@@ -35,6 +36,14 @@ export default function AgentForm({
       <input type="hidden" name="is_new" value={isNew ? '1' : '0'} />
       <input type="hidden" name="execution_mode" value={agent?.execution_mode ?? 'claude-code'} />
       <input type="hidden" name="review_required" value={agent?.review_required ? '1' : '0'} />
+
+      {!isNew && (
+        <p className={styles.formNote}>
+          {inherited
+            ? 'These values are inherited from the organisation default. Saving creates a project agent for this repo; later edits update it.'
+            : 'This is a project agent for this repo, overriding the organisation default.'}
+        </p>
+      )}
 
       <label>Name</label>
       {isNew ? (

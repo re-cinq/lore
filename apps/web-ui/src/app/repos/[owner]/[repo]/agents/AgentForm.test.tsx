@@ -39,6 +39,24 @@ describe('AgentForm', () => {
     expect((container.querySelector('input[name="model_custom"]') as HTMLInputElement).value).toBe('my-model');
   });
 
+  it('notes that values are inherited from org when editing an org agent', () => {
+    const { getByText } = render(<AgentForm repo="re-cinq/lore" agent={agent} action={noop} isNew={false} />);
+    expect(getByText(/inherited from the organisation default/)).toBeInTheDocument();
+  });
+
+  it('notes a project override when editing an already-overridden agent', () => {
+    const { getByText } = render(
+      <AgentForm repo="re-cinq/lore" agent={{ ...agent, project_id: 'p1' }} action={noop} isNew={false} />,
+    );
+    expect(getByText(/project agent for this repo, overriding/)).toBeInTheDocument();
+  });
+
+  it('shows no inherited/override note on a new agent', () => {
+    const { queryByText } = render(<AgentForm repo="re-cinq/lore" agent={null} action={noop} isNew />);
+    expect(queryByText(/inherited from the organisation default/)).toBeNull();
+    expect(queryByText(/overriding the organisation default/)).toBeNull();
+  });
+
   it('surfaces an error returned by the action', async () => {
     const failing = vi.fn(async () => ({ error: 'boom' }));
     const { container, findByText } = render(<AgentForm repo="re-cinq/lore" agent={agent} action={failing} isNew={false} />);
