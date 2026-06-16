@@ -48,7 +48,7 @@ describe('listAgents', () => {
   it('falls back to the legacy ingest token when no admin token is set (local dev)', async () => {
     delete process.env.LORE_ADMIN_TOKEN;
     process.env.LORE_INGEST_TOKEN = 'ingest-tok';
-    const spy = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ agents: [def] }) }));
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ agents: [def] }) }));
     global.fetch = spy as unknown as typeof fetch;
 
     expect(await listAgents('o/r')).toEqual([def]);
@@ -81,7 +81,7 @@ describe('saveAgent', () => {
   });
 
   it('POSTs to the collection on create and returns ok', async () => {
-    const spy = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ agent: def }) }));
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ agent: def }) }));
     global.fetch = spy as unknown as typeof fetch;
     const r = await saveAgent('o/r', { name: 'general' }, false);
     expect(r).toEqual({ status: 'ok', agent: def });
@@ -90,7 +90,7 @@ describe('saveAgent', () => {
   });
 
   it('PUTs to the named resource on update with the approval header', async () => {
-    const spy = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ agent: def }) }));
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ agent: def }) }));
     global.fetch = spy as unknown as typeof fetch;
     await saveAgent('o/r', { name: 'general', image: 'golang:1.23' }, true, 'o/r#5');
     expect(spy.mock.calls[0][0]).toBe('https://lore-api.test/api/repos/o/r/agents/general');

@@ -21,8 +21,11 @@ skill — reached only through the `project.agents` port. See ADR-026.
 ## Scope
 
 In (this PR): the `lore.agents` table; resolution (project → org → yaml) via
-`project.agents`; the agents HTTP API; per-repo Agents tab (CRUD); the
-`/lore-agents` skill; floor + runner resolution through the port.
+`project.agents`; the agents HTTP API; the per-repo **Agents** nav tab (list with
+org/project labels + dedicated new/edit form pages with breadcrumbs); a separate
+**Dark Factory** nav tab (the gated autonomy settings, moved out of Settings, which
+now holds only general options); the `/lore-agents` skill; floor + runner
+resolution through the port.
 
 Out (Phase 2): the `.lore/workflows/` loader (repo > built-in) and the workflow
 `on:` triggers + event-dispatch registry. The agent carries neither a `workflow`
@@ -63,10 +66,10 @@ Partial unique indexes: one org default per `name`; one override per
   the resolved definition, falling back to the yaml template. ([validated by substitutes {description} into the resolved agent's prompt](../../apps/floor/src/data/agent-invocation.test.ts#L5)) ([validated by falls back to the yaml task-type template when the definition has no prompt](../../apps/floor/src/data/agent-invocation.test.ts#L11))
 - **FR12 — Migration seed + backfill.** Migration 0015 seeds an org row per task
   type (idempotently) and backfills existing `task_overrides` into project rows. ([validated by seeds an org row for every task-types.yaml task type, idempotently](../../apps/mcp-server/src/features/agents/migration-0015.test.ts#L21)) ([validated by backfills existing settings.task_overrides into per-project rows](../../apps/mcp-server/src/features/agents/migration-0015.test.ts#L31))
-- **FR13 — Agents tab.** The tab renders one editable card per resolved agent,
-  prefilled. ([validated by renders an agent card per resolved agent, prefilled, in the Agents tab](../../apps/web-ui/src/app/repos/[owner]/[repo]/settings/SettingsView.test.tsx#L76))
-- **FR14 — Card editing.** A card reveals a custom-model input on "Custom…" and
-  leaves an inherited prompt empty with the base as placeholder. ([validated by reveals the custom model input only when Custom… is selected](../../apps/web-ui/src/app/repos/[owner]/[repo]/settings/AgentCard.test.tsx#L20)) ([validated by leaves an inherited prompt empty with the base as placeholder](../../apps/web-ui/src/app/repos/[owner]/[repo]/settings/AgentCard.test.tsx#L28))
+- **FR13 — Agents list.** The `/agents` page lists resolved agents, labelling an inherited one `org` and an overridden one `project`, with edit + new links. ([validated by labels an inherited agent "org" and an overridden one "project"](../../apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L15)) ([validated by links each card to its edit page and exposes a New agent link](../../apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L21))
+- **FR14 — New/edit form.** Create/edit happen on dedicated pages: an editable name on create, locked on edit, model dropdown + custom escape hatch. ([validated by shows an editable name input in create mode](../../apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L14)) ([validated by reveals the custom model input only when Custom… is chosen](../../apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L27))
+- **FR15 — Form parsing.** The page server actions parse the form into an agent payload (custom model, inherited nulls) and map save results to UI state. ([validated by reads the hidden name on edit and the custom model field](../../apps/web-ui/src/lib/agents-form.test.ts#L20)) ([validated by maps two_key_required to a twoKey flag](../../apps/web-ui/src/lib/agents-form.test.ts#L45))
+- **FR16 — Dark Factory tab.** Dark-factory autonomy is its own repo tab, prefilled from resolved settings, with the approval-PR input for gated changes. ([validated by prefills the dark-factory fields from resolved defaults (opt-out posture)](../../apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/DarkFactoryView.test.tsx#L23)) ([validated by exposes the approval-PR input for gated changes](../../apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/DarkFactoryView.test.tsx#L44))
 
 ## Verification (manual / integration)
 
