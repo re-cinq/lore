@@ -38,18 +38,36 @@ export class LocalStationCredentials implements StationCredentials {
 
   async llm(): Promise<StationLlmCredential> {
     if (this.env.ANTHROPIC_API_KEY) return { apiKey: this.env.ANTHROPIC_API_KEY };
-    // Mount the host claude config into the runner user's HOME so the in-container
-    // `claude` CLI is authed. The claude-runner image runs as user `node`
-    // (HOME=/home/node), so the target must match — verified empirically; override
-    // with LORE_RUNNER_HOME if the image's user changes.
+
+    // Give the in-container `claude` CLI a WRITABLE copy of just the auth files so
+    // it can refresh an expired oauth token (a read-only mount made it hang with
+    // 0 network — refresh couldn't write). We copy only ~/.claude.json (60K) +
+    // ~/.claude/.credentials.json (the tokens) — NOT the 1.3G ~/.claude dir — into
+    // a stable per-user dir, refreshed each launch from the host (which the live
+    // session keeps current). The container mutates the COPY, never the host, so
+    // there's no race with your running claude session. The image runs as user
+    // `node` (HOME=/home/node); override with LORE_RUNNER_HOME.
     const runnerHome = this.env.LORE_RUNNER_HOME || "/home/node";
     const home = os.homedir();
-    const mounts = [
-      { host: path.join(home, ".claude.json"), container: `${runnerHome}/.claude.json` },
-      { host: path.join(home, ".claude"), container: `${runnerHome}/.claude` },
-    ]
-      .filter((m) => fs.existsSync(m.host))
-      .map((m) => ({ hostPath: m.host, containerPath: m.container }));
-    return mounts.length > 0 ? { mounts } : {};
+    const srcJson = path.join(home, ".claude.json");
+    const srcCreds = path.join(home, ".claude", ".credentials.json");
+    if (!fs.existsSync(srcJson) && !fs.existsSync(srcCreds)) return {};
+
+    const work = path.join(home, ".lore", "station-claude");
+    const dotClaude = path.join(work, "dot-claude");
+    fs.mkdirSync(dotClaude, { recursive: true });
+    const mounts: StationLlmCredential["mounts"] = [];
+    if (fs.existsSync(srcJson)) {
+      const dst = path.join(work, ".claude.json");
+      fs.copyFileSync(srcJson, dst);
+      mounts.push({ hostPath: dst, containerPath: `${runnerHome}/.claude.json`, readOnly: false });
+    }
+    if (fs.existsSync(srcCreds)) {
+      const dst = path.join(dotClaude, ".credentials.json");
+      fs.copyFileSync(srcCreds, dst);
+      fs.chmodSync(dst, 0o600);
+    }
+    mounts.push({ hostPath: dotClaude, containerPath: `${runnerHome}/.claude`, readOnly: false });
+    return { mounts };
   }
 }

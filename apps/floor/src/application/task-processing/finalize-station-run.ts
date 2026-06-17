@@ -43,6 +43,14 @@ export async function finalizeStationRun(opts: {
     // failure whose cause is only in the output) so the wizard shows WHY.
     const tail = stationLogTail(completion.output);
     const reason = `Station exited ${completion.exitCode}.${tail ? `\n\n${tail}` : ""}`;
+    // Keep the feature row consistent: a failed planning round must mark its
+    // iteration failed (not leave it 'running') + drop the feature to awaiting-input.
+    if (task.task_type === "feature-planning" && task.context_bundle?.feature_id && task.context_bundle?.iteration != null) {
+      await project.features
+        .setIterationResult(task.context_bundle.feature_id, task.context_bundle.iteration, null, "failed")
+        .catch(() => {});
+      await project.features.transitionStatus(task.context_bundle.feature_id, "awaiting-input").catch(() => {});
+    }
     await setStatus(task.id, "failed", { failure_reason: reason });
     await insertEvent(task.id, "running", "failed", {
       reason: `station exit ${completion.exitCode}`,
