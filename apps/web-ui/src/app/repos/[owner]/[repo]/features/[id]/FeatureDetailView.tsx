@@ -70,6 +70,13 @@ export default function FeatureDetailView({
         </div>
       </div>
 
+      {feature.original_prompt && (
+        <div className="spec-card" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Your prompt</h3>
+          <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{feature.original_prompt}</p>
+        </div>
+      )}
+
       {isPlanningActive(feature.status) ? (
         <PlanningWizard
           owner={owner}

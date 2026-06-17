@@ -1,19 +1,50 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import type { GapMockup } from '@/lib/feature-types';
 
-// LLM-generated mockup markup is UNTRUSTED. Render it in a fully sandboxed
-// iframe (empty sandbox = no scripts, opaque origin, no parent access) with a
-// strict CSP injected into srcDoc. NEVER via dangerouslySetInnerHTML / rehype-raw.
-// This is the security boundary (ADR-027 / specs/7-feature-planning § FR-3.3).
-const CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'";
+// LLM-generated mockup markup is UNTRUSTED. We render it inline (responsive,
+// theme-aware) but sanitize every SVG with DOMPurify (SVG profile) on the client
+// before it reaches the DOM — script/foreignObject/event-handlers/external refs
+// are stripped. This is the security boundary (ADR-027 §FR-3.3). sanitizeSvg()
+// also runs on the write path (defense in depth). NEVER inject m.markup without
+// running it through cleanSvg() first.
+const PURIFY_CONFIG = {
+  USE_PROFILES: { svg: true, svgFilters: true },
+  FORBID_TAGS: ['script', 'foreignObject'],
+  FORBID_ATTR: ['onload', 'onclick', 'onmouseover', 'onmouseenter', 'onfocus'],
+};
 
-function frameDoc(markup: string): string {
+function downloadName(title: string | undefined, index: number): string {
+  return `${(title || `mockup-${index + 1}`).replace(/[^\w.-]+/g, '-')}.svg`;
+}
+
+function MockupFigure({ mockup, index }: { mockup: GapMockup; index: number }) {
+  const host = useRef<HTMLDivElement>(null);
+
+  // Sanitize + inject after mount: keeps the raw markup off the server render (no
+  // hydration mismatch) and out of React's virtual DOM entirely.
+  useEffect(() => {
+    if (host.current) {
+      host.current.innerHTML = DOMPurify.sanitize(mockup.markup, PURIFY_CONFIG);
+    }
+  }, [mockup.markup]);
+
+  const href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(mockup.markup)}`;
   return (
-    '<!doctype html><html><head><meta charset="utf-8">' +
-    `<meta http-equiv="Content-Security-Policy" content="${CSP}">` +
-    '<style>html,body{margin:0;padding:8px;background:#fff}svg{max-width:100%;height:auto}</style>' +
-    `</head><body>${markup}</body></html>`
+    <figure style={{ margin: '0 0 12px' }}>
+      <figcaption
+        className="meta"
+        style={{ marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+      >
+        <span>{mockup.title || `Mockup ${index + 1}`}</span>
+        <a href={href} download={downloadName(mockup.title, index)} className="meta">
+          download ↓
+        </a>
+      </figcaption>
+      <div ref={host} className="mockup-svg" />
+    </figure>
   );
 }
 
@@ -21,16 +52,7 @@ export default function MockupSection({ mockups }: { mockups: GapMockup[] }) {
   return (
     <div>
       {mockups.map((m, i) => (
-        <figure key={i} style={{ margin: '0 0 12px' }}>
-          {m.title && <figcaption className="meta" style={{ marginBottom: 4 }}>{m.title}</figcaption>}
-          <iframe
-            sandbox=""
-            referrerPolicy="no-referrer"
-            srcDoc={frameDoc(m.markup)}
-            title={m.title || `mockup ${i + 1}`}
-            style={{ width: '100%', height: 320, border: '1px solid var(--border, #e5e7eb)', borderRadius: 6, background: '#fff' }}
-          />
-        </figure>
+        <MockupFigure key={i} mockup={m} index={i} />
       ))}
     </div>
   );

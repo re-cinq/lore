@@ -36,6 +36,13 @@ textarea {
   font-family: inherit;
 }
 
+/* Native <select> option popups inherit the control's (recessed) background on
+   some platforms, rendering options unreadably — pin them to a solid surface. */
+option {
+  background-color: var(--bg-surface);
+  color: var(--text);
+}
+
 /* Frosted-glass surface — translucent + blurred for elegant, opaque for retro
    (where --glass-blur is none and --glass-bg falls back to a solid surface). */
 .glass {
@@ -557,6 +564,71 @@ pre {
   font-size: var(--fs-base);
   font-family: var(--font-mono);
   color: var(--accent);
+}
+
+/* Form controls + lists inside spec cards (the feature-planning wizard, add-spec
+   form, …). The global reset zeroes list padding so markers escape the card, and
+   bare controls have no app styling — bring both in line with the theme. */
+.spec-card ul,
+.spec-card ol {
+  padding-left: 1.5em;
+  margin: 6px 0 10px;
+}
+.spec-card li {
+  margin: 3px 0;
+}
+.spec-card li::marker {
+  color: var(--text-muted);
+}
+
+.spec-card input,
+.spec-card select,
+.spec-card textarea {
+  width: 100%;
+  padding: 10px 14px;
+  /* recessed against the card's own --bg-surface so the field reads as editable */
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--fs-base);
+  font-family: inherit;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+.spec-card textarea {
+  resize: vertical;
+  min-height: 56px;
+}
+.spec-card select {
+  cursor: pointer;
+}
+.spec-card input::placeholder,
+.spec-card textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Inline mockup SVGs (DOMPurify-sanitized in MockupSection). White surface keeps
+   light-designed diagrams legible in dark mode; svg scales to the card width. */
+.mockup-svg {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  overflow: auto;
+}
+.mockup-svg svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.spec-card input:focus,
+.spec-card select:focus,
+.spec-card textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* Stat cards (graph/analytics summary tiles) — same surface as .spec-card */

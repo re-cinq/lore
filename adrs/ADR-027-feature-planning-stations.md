@@ -66,9 +66,16 @@ of truth in the graph.**
   id), and a draft with no spec yet is injected as a standalone node. The D3 view
   ([SpecGraphD3.tsx](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.tsx))
   colors Feature nodes by lifecycle status.
-- **Generated mockups are untrusted.** `GapResult.mockups` carry LLM-generated SVG;
-  it is sanitized server-side before persistence and rendered only inside a
-  sandboxed iframe — never through the unsanitized `rehype-raw` path used elsewhere.
+- **Generated mockups are untrusted.** `GapResult.mockups` carry LLM-generated SVG.
+  Two layers defend it: (1) `sanitizeSvg()` strips script/foreignObject/handlers/
+  external refs on every write path before persistence, and (2) the web UI
+  ([MockupSection.tsx](../apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/MockupSection.tsx))
+  re-sanitizes with **DOMPurify** (SVG profile) on the client and injects the result
+  via `innerHTML` after mount — never through the unsanitized `rehype-raw` path used
+  elsewhere. Mockups render **inline** (responsive, theme-aware, downloadable) rather
+  than in a sandboxed iframe; the iframe's origin isolation is traded for DOMPurify's
+  DOM-based sanitization. Residual risk (a DOMPurify bypass running in the page origin)
+  should be further bounded by a page-level CSP — recommended follow-up.
 
 ## Consequences
 

@@ -33,18 +33,20 @@ function SectionFeedback({
       sections: { ...feedback.sections, [sectionKey]: { ...current, ...patch } },
     });
   return (
-    <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-      <select
-        value={current.direction ?? 'keep'}
-        onChange={(e) => set({ direction: e.target.value as SectionDirection })}
-        aria-label={`${sectionKey} direction`}
-      >
-        <option value="keep">Keep</option>
-        <option value="refine">Refine</option>
-        <option value="redirect">Redirect</option>
-      </select>
-      <input
-        style={{ flex: 1 }}
+    <div style={{ marginTop: 10 }}>
+      <div style={{ marginBottom: 6 }}>
+        <select
+          value={current.direction ?? 'keep'}
+          onChange={(e) => set({ direction: e.target.value as SectionDirection })}
+          aria-label={`${sectionKey} direction`}
+        >
+          <option value="keep">Keep</option>
+          <option value="refine">Refine</option>
+          <option value="redirect">Redirect</option>
+        </select>
+      </div>
+      <textarea
+        style={{ minHeight: 250 }}
         placeholder="Comment / direction for this section"
         value={current.comment ?? ''}
         onChange={(e) => set({ comment: e.target.value })}
