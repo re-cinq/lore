@@ -16,7 +16,16 @@ import {
 } from "../../features/pipeline/tasks.js";
 import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
 import { resolveAgentId } from "../../platform/agent-id.js";
-import { ToolDeps } from "./deps.js";
+import { ToolDeps, withReadCache } from "./deps.js";
+import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
+
+function completeOnly(body: string): boolean {
+  try {
+    return (JSON.parse(body) as { complete?: boolean }).complete === true;
+  } catch {
+    return false;
+  }
+}
 
 export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
   const { getPool } = deps;
@@ -66,6 +75,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             ? "The GKE agent will pick this up within 30 seconds."
             : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
           const msg = `Task created: ${result.task_id}\nType: ${result.task_type || task_type}\nPriority: ${priority}\nRepo: ${resolvedRepo || 'default'}\n\n${pickupMsg}`;
+          invalidateCache(["lore_list_pipeline_tasks", "lore_list_pending_tasks", "lore_get_pipeline_status"]);
           return { content: [{ type: "text" as const, text: msg }] };
         }
 
@@ -76,6 +86,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           ? "The GKE agent will pick this up within 30 seconds."
           : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
         const msg = `Task created: ${result.task_id}\nType: ${resolvedType}\nPriority: ${priority}\nRepo: ${resolvedRepo || 'default'}\n\n${pickupMsg}`;
+        invalidateCache(["lore_list_pipeline_tasks", "lore_list_pending_tasks", "lore_get_pipeline_status"]);
         return { content: [{ type: "text" as const, text: msg }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error creating pipeline task: ${err.message}` }] };
@@ -358,13 +369,20 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         if (!process.env.LORE_DB_HOST) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
-          if (apiUrl && apiToken) {
-            const params = new URLSearchParams({ task_id, repo, offset: String(offset) });
-            const res = await fetch(`${apiUrl}/api/task-logs?${params}`, {
-              headers: { "Authorization": `Bearer ${apiToken}` },
-            });
-            if (res.ok) return { content: [{ type: "text" as const, text: JSON.stringify(await res.json()) }] };
+          if (!apiUrl || !apiToken) {
+            return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
           }
+          const params = new URLSearchParams({ task_id, repo, offset: String(offset) });
+          const proxied = await withReadCache(
+            { tool: "lore_get_task_logs", args: { task_id, repo, offset }, repo, ttlSeconds: 86400 },
+            async () => {
+              const res = await fetch(`${apiUrl}/api/task-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
+              if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
+              return { ok: false as const, reason: "unreachable" as const, detail: res.statusText };
+            },
+            { label: false, cacheIf: completeOnly },
+          );
+          if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
           return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
         }
 
@@ -401,13 +419,20 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         if (!process.env.LORE_DB_HOST) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
-          if (apiUrl && apiToken) {
-            const params = new URLSearchParams({ job_name, run_id });
-            const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, {
-              headers: { "Authorization": `Bearer ${apiToken}` },
-            });
-            if (res.ok) return { content: [{ type: "text" as const, text: JSON.stringify(await res.json()) }] };
+          if (!apiUrl || !apiToken) {
+            return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
           }
+          const params = new URLSearchParams({ job_name, run_id });
+          const proxied = await withReadCache(
+            { tool: "lore_get_job_logs", args: { job_name, run_id }, ttlSeconds: 86400 },
+            async () => {
+              const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
+              if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
+              return { ok: false as const, reason: "unreachable" as const, detail: res.statusText };
+            },
+            { label: false, cacheIf: completeOnly },
+          );
+          if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
           return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
         }
 
