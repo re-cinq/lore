@@ -66,6 +66,35 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   RUNNER_EXIT=$?
   echo "[runner] runner-cli exited with ${RUNNER_EXIT}"
 
+  # feature-planning produces a structured GapResult, not repo changes. POST it
+  # back to the features API (no branch push, no PR). The pod reads its own
+  # feature_id/iteration from the task's context_bundle. See ADR-027.
+  if [ "$RUNNER_EXIT" = "0" ] && [ "$TASK_TYPE" = "feature-planning" ]; then
+    LORE_API_URL="${LORE_API_URL:-}"
+    LORE_TOKEN="${LORE_INGEST_TOKEN:-}"
+    RESULT_FILE="${WORKDIR}/result.json"
+    if [ -f "$RESULT_FILE" ] && [ -n "$LORE_API_URL" ] && [ -n "$LORE_TOKEN" ]; then
+      TASK_JSON=$(curl -sf -H "Authorization: Bearer $LORE_TOKEN" \
+        "${LORE_API_URL}/api/task/${LORE_TASK_ID}" 2>/dev/null || echo '{}')
+      FID=$(echo "$TASK_JSON" | jq -r '.context_bundle.feature_id // empty')
+      ITER=$(echo "$TASK_JSON" | jq -r '.context_bundle.iteration // empty')
+      if [ -n "$FID" ] && [ -n "$ITER" ]; then
+        echo "[runner] Posting planning result for feature ${FID} iteration ${ITER}"
+        curl -sf -X POST -H "Authorization: Bearer $LORE_TOKEN" \
+          -H "Content-Type: application/json" --data-binary @"$RESULT_FILE" \
+          "${LORE_API_URL}/api/repos/${TARGET_REPO}/features/${FID}/iterations/${ITER}/result" \
+          && echo "[runner] planning result posted" \
+          || echo "[runner] WARN: planning result POST failed"
+      else
+        echo "[runner] WARN: no feature_id/iteration in task context_bundle"
+      fi
+    else
+      echo "[runner] WARN: result.json or API creds missing — nothing posted"
+    fi
+    echo "CHANGES=0"
+    exit 0
+  fi
+
   if [ "$RUNNER_EXIT" = "0" ]; then
     echo "[runner] Pushing dark-factory branch..."
     git push origin "${BRANCH_NAME}"

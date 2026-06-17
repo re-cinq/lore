@@ -19,6 +19,54 @@ export interface SpecGraphNode {
   line?: number;
   endLine?: number;
   detail?: string;
+  /** Persistent feature lifecycle status, when a Feature node is backed by a
+   *  lore.features row (ADR-027). Drives node coloring in the D3 graph. */
+  status?: string;
+  /** lore.features row id, when this Feature node is backed by one. */
+  featureId?: string;
+}
+
+/** Minimal persistent-feature shape the graph merge needs (mirrors the
+ *  features port row; kept local so spec-graph stays dependency-free). */
+export interface PersistentFeatureNode {
+  id: string;
+  title: string;
+  path: string;
+  status: string;
+}
+
+/**
+ * Make the persistent Feature node the source of truth in the spec graph
+ * (ADR-027). For each `lore.features` row: if a computed Feature node shares its
+ * `path`, enrich that node with the row's status/id/title (persistent wins);
+ * otherwise inject a standalone Feature node so a draft with no spec yet is still
+ * visible. Pure — returns a new SpecGraph.
+ */
+export function mergePersistentFeatures(
+  graph: SpecGraph,
+  features: PersistentFeatureNode[],
+): SpecGraph {
+  const byPath = new Map(features.map((f) => [f.path, f]));
+  const matched = new Set<string>();
+  const nodes = graph.nodes.map((node) => {
+    if (node.type !== "Feature" || !node.path) return node;
+    const feature = byPath.get(node.path);
+    if (!feature) return node;
+    matched.add(feature.path);
+    return { ...node, label: feature.title, status: feature.status, featureId: feature.id };
+  });
+  for (const feature of features) {
+    if (matched.has(feature.path)) continue;
+    nodes.push({
+      id: `feature:${feature.id}`,
+      type: "Feature",
+      label: feature.title,
+      path: feature.path,
+      status: feature.status,
+      featureId: feature.id,
+    });
+  }
+  return { nodes, links: graph.links };
 }
 export interface SpecGraphLink {
   source: string;

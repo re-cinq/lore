@@ -13,11 +13,14 @@ import type { PgPool } from "./memory-store.js";
 // Deterministic graph-ingest tasks are allowed at EVERY trust tier — they are
 // zero-LLM, produce no PR, and only read source + write the trace graph.
 const GRAPH_INGEST = ["ingest-specs", "ingest-adrs", "ingest-tests"];
+// Feature planning + finalize produce only analysis and a spec-doc PR (no code),
+// so they are allowed from the docs tier up (ADR-027 / specs/7-feature-planning).
+const FEATURE_PLANNING = ["feature-planning", "feature-finalize"];
 const TRUST_LEVELS: Record<string, string[]> = {
-  docs: ["gap-fill", "runbook", ...GRAPH_INGEST],
-  tests: ["gap-fill", "runbook", "review", ...GRAPH_INGEST],
-  implementation: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", ...GRAPH_INGEST],
-  full: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", "onboard", ...GRAPH_INGEST],
+  docs: ["gap-fill", "runbook", ...FEATURE_PLANNING, ...GRAPH_INGEST],
+  tests: ["gap-fill", "runbook", "review", ...FEATURE_PLANNING, ...GRAPH_INGEST],
+  implementation: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", ...FEATURE_PLANNING, ...GRAPH_INGEST],
+  full: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", "onboard", ...FEATURE_PLANNING, ...GRAPH_INGEST],
 };
 
 export interface CreateTaskInput {

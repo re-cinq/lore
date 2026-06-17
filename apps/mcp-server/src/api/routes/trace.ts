@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
-import { createDgraphClient, listAllSpecDocuments } from "@re-cinq/lore-shared";
+import { createDgraphClient, listAllSpecDocuments, mergePersistentFeatures } from "@re-cinq/lore-shared";
 import { projectFor } from "../../platform/project-boot.js";
 import { json } from "./http.js";
 
@@ -38,12 +38,25 @@ export async function handleTraceRoute(req: IncomingMessage, res: ServerResponse
   const filePath = new URLSearchParams(queryString ?? "").get("path") ?? "";
 
   try {
-    const trace = (await projectFor(`${owner}/${repo}`)).trace;
+    const project = await projectFor(`${owner}/${repo}`);
+    const trace = project.trace;
     if (kind === "specs") return json(res, 200, { specs: await trace.specs() });
     if (kind === "spec-summaries") return json(res, 200, { summaries: await trace.specSummaries() });
     if (kind === "adrs") return json(res, 200, { adrs: await trace.adrs() });
     if (kind === "adr-summaries") return json(res, 200, { summaries: await trace.adrSummaries() });
-    if (kind === "graph") return json(res, 200, await trace.graph());
+    if (kind === "graph") {
+      // Make persistent lore.features the source of truth for Feature nodes
+      // (ADR-027): enrich/replace the computed folder nodes, inject drafts.
+      const [graph, features] = await Promise.all([trace.graph(), project.features.list()]);
+      return json(
+        res,
+        200,
+        mergePersistentFeatures(
+          graph,
+          features.map((f) => ({ id: f.id, title: f.title, path: f.path, status: f.status })),
+        ),
+      );
+    }
     if (!filePath) return json(res, 400, { error: "path query param required" });
     if (kind === "document") return json(res, 200, await trace.document(filePath));
     if (kind === "ring") return json(res, 200, await trace.ring(filePath));

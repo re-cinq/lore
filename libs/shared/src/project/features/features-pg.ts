@@ -1,0 +1,164 @@
+import type { PgPool } from "../../memory-store.js";
+import type { GapResult } from "../../feature-planning/gap-result.js";
+import {
+  slugifyFeatureTitle,
+  type FeaturesPort,
+  type Feature,
+  type FeatureIteration,
+  type FeatureWithIterations,
+  type FeatureStatus,
+  type IterationStatus,
+  type FeaturePatch,
+  type CreateFeatureInput,
+} from "./features-port.js";
+
+/** Columns a {@link FeaturePatch} may set, in a fixed order for stable params. */
+const PATCH_COLUMNS: (keyof FeaturePatch)[] = [
+  "draft_spec_md",
+  "spec_path",
+  "spec_pr_url",
+  "spec_pr_number",
+  "issue_number",
+  "issue_url",
+];
+
+/**
+ * Postgres-backed {@link FeaturesPort} over `lore.features` +
+ * `lore.feature_iterations`. JSONB columns (`user_answers`, `gap_result`) are
+ * returned already-parsed by node-pg, so reads map straight to the value types.
+ */
+export class PgFeatures implements FeaturesPort {
+  constructor(private readonly pool: PgPool) {}
+
+  private async insertFeature(
+    repo: string,
+    input: CreateFeatureInput,
+    parentFeatureId: string | null,
+  ): Promise<Feature> {
+    const slug = slugifyFeatureTitle(input.title);
+    const { rows } = await this.pool.query(
+      `INSERT INTO lore.features
+         (repo, title, slug, path, original_prompt, status, parent_feature_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7)
+       RETURNING *`,
+      [
+        repo,
+        input.title,
+        slug,
+        `specs/${slug}`,
+        input.prompt,
+        parentFeatureId,
+        input.createdBy ?? "ui",
+      ],
+    );
+    return rows[0] as Feature;
+  }
+
+  create(repo: string, input: CreateFeatureInput): Promise<Feature> {
+    return this.insertFeature(repo, input, input.parentFeatureId ?? null);
+  }
+
+  createSplitChild(
+    repo: string,
+    parentId: string,
+    input: CreateFeatureInput,
+  ): Promise<Feature> {
+    return this.insertFeature(repo, input, parentId);
+  }
+
+  async get(repo: string, id: string): Promise<FeatureWithIterations | null> {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM lore.features WHERE id = $1 AND repo = $2`,
+      [id, repo],
+    );
+    const feature = rows[0] as Feature | undefined;
+    if (!feature) return null;
+    const { rows: iterations } = await this.pool.query(
+      `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 ORDER BY iteration ASC`,
+      [id],
+    );
+    return { ...feature, iterations: iterations as FeatureIteration[] };
+  }
+
+  async list(repo: string, status?: FeatureStatus): Promise<Feature[]> {
+    if (status) {
+      const { rows } = await this.pool.query(
+        `SELECT * FROM lore.features WHERE repo = $1 AND status = $2 ORDER BY updated_at DESC`,
+        [repo, status],
+      );
+      return rows as Feature[];
+    }
+    const { rows } = await this.pool.query(
+      `SELECT * FROM lore.features WHERE repo = $1 ORDER BY updated_at DESC`,
+      [repo],
+    );
+    return rows as Feature[];
+  }
+
+  async appendIteration(
+    repo: string,
+    id: string,
+    taskId: string | null,
+    userAnswers: unknown,
+  ): Promise<FeatureIteration> {
+    const { rows } = await this.pool.query(
+      `UPDATE lore.features
+          SET current_iteration = current_iteration + 1,
+              status = 'planning',
+              updated_at = now()
+        WHERE id = $1 AND repo = $2
+        RETURNING current_iteration`,
+      [id, repo],
+    );
+    const iteration = (rows[0] as { current_iteration: number }).current_iteration;
+    const { rows: inserted } = await this.pool.query(
+      `INSERT INTO lore.feature_iterations
+         (feature_id, iteration, task_id, status, user_answers)
+       VALUES ($1, $2, $3, 'running', $4)
+       RETURNING *`,
+      [id, iteration, taskId, userAnswers == null ? null : JSON.stringify(userAnswers)],
+    );
+    return inserted[0] as FeatureIteration;
+  }
+
+  async setIterationResult(
+    _repo: string,
+    id: string,
+    iteration: number,
+    gap: GapResult | null,
+    status: IterationStatus,
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE lore.feature_iterations
+          SET gap_result = $1, status = $2, updated_at = now()
+        WHERE feature_id = $3 AND iteration = $4`,
+      [gap == null ? null : JSON.stringify(gap), status, id, iteration],
+    );
+  }
+
+  async transitionStatus(
+    repo: string,
+    id: string,
+    status: FeatureStatus,
+    patch?: FeaturePatch,
+  ): Promise<Feature> {
+    const sets = ["status = $1"];
+    const params: unknown[] = [status];
+    for (const col of PATCH_COLUMNS) {
+      const value = patch?.[col];
+      if (value !== undefined) {
+        params.push(value);
+        sets.push(`${col} = $${params.length}`);
+      }
+    }
+    sets.push("updated_at = now()");
+    params.push(id, repo);
+    const { rows } = await this.pool.query(
+      `UPDATE lore.features SET ${sets.join(", ")}
+        WHERE id = $${params.length - 1} AND repo = $${params.length}
+        RETURNING *`,
+      params,
+    );
+    return rows[0] as Feature;
+  }
+}

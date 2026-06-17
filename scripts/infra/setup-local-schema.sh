@@ -106,10 +106,40 @@ done
 # locally so the migration runner — which connects as 'lore' below — can DDL
 # these schemas. Also hand any pre-existing schema_migrations to lore so a DB
 # previously seeded as postgres converges.
+#
+# Ownership reconcile: the setup-*.sh scripts run as 'postgres', so pipeline.*
+# and memory.* tables they create are postgres-owned — but migrations run as
+# 'lore', and ALTER TABLE needs ownership (GRANT ALL does not include it). On GKE
+# the lore-db-helm ownership-reconciler-job hands these to 'lore' on every
+# terraform apply; local dev has no such job, so a migration like
+# 0003 (ALTER pipeline.job_runs, created by setup-agent-schema.sh) would fail
+# with "must be owner". Reconcile here, idempotently, via the local socket as
+# postgres (not a network superuser) so the local chain matches the cluster.
 docker exec -i "$CONTAINER" psql -U postgres -d lore -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 GRANT CREATE ON DATABASE lore TO lore;
 GRANT CREATE, USAGE ON SCHEMA lore, payments, platform, mobile, data, org_shared TO lore;
+-- web-ui connects as lore_ui and reads lore.* tables (e.g. lore.features,
+-- lore.agent_definitions) granted by migrations; it needs schema USAGE too. In
+-- the cluster lore_ui already has it; mirror that locally.
+GRANT USAGE ON SCHEMA lore TO lore_ui;
 ALTER TABLE IF EXISTS lore.schema_migrations OWNER TO lore;
+
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT n.nspname, c.relname, c.relkind
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname IN ('lore', 'pipeline', 'memory') AND c.relkind IN ('r','S','v','m')
+  LOOP
+    IF    r.relkind = 'r' THEN EXECUTE format('ALTER TABLE %I.%I OWNER TO lore', r.nspname, r.relname);
+    ELSIF r.relkind = 'S' THEN EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO lore', r.nspname, r.relname);
+    ELSIF r.relkind = 'v' THEN EXECUTE format('ALTER VIEW %I.%I OWNER TO lore', r.nspname, r.relname);
+    ELSIF r.relkind = 'm' THEN EXECUTE format('ALTER MATERIALIZED VIEW %I.%I OWNER TO lore', r.nspname, r.relname);
+    END IF;
+  END LOOP;
+END $$;
 SQL
 
 # Incremental migrations. The GKE Helm hook (migrate-job.yaml) applies these on

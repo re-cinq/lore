@@ -80,6 +80,9 @@ export async function createProject(
   const { PgUsage } = await import("../usage/usage-pg.js");
   ports.set("usage", new PgUsage(pgPool));
 
+  const { PgFeatures } = await import("../features/features-pg.js");
+  ports.set("features", new PgFeatures(pgPool));
+
   // Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under
   // ~/.lore/leases for the local runner. Mirrors the agent's leaseBackendForEnv.
   const { DbLeaseBackend, FileLeaseBackend } = await import(

@@ -118,6 +118,12 @@ async function processTask(task: any): Promise<void> {
     return;
   }
 
+  // Feature-planning / feature-finalize run as Stations (Job pods) but skip the
+  // upfront Issue ladder: planning posts its result to the API (no PR, no Issue);
+  // finalize's user-story Issue is created by the watcher on PR. See ADR-027.
+  const isFeaturePlanningType =
+    task.task_type === "feature-planning" || task.task_type === "feature-finalize";
+
   // Create GitHub Issue on the target repo
   // Skip upfront issue for general tasks — the watcher creates the issue with the result
   let issueNumber: number | null = task.issue_number || null;
@@ -127,7 +133,7 @@ async function processTask(task: any): Promise<void> {
   // creation regardless.
   const { shouldCreateIssue } = await import("../../adapters/dark-factory.js");
   const issueGate = await shouldCreateIssue(task);
-  if (!issueNumber && task.task_type !== "general" && issueGate.create) {
+  if (!issueNumber && task.task_type !== "general" && !isFeaturePlanningType && issueGate.create) {
     try {
       const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
       const copy = await generateArtifactCopy({
@@ -323,8 +329,15 @@ async function processTask(task: any): Promise<void> {
       // branch in entrypoint.sh.
       const clusterEnabled =
         process.env.LORE_DARK_FACTORY_CLUSTER_ENABLED === "true";
+      // Feature-planning/finalize always run as Stations (workflow pod path),
+      // independent of the dark-factory cluster gate (ADR-027). Other types
+      // only take the workflow path when dark mode + cluster gate are both on.
       const darkFactoryWorkflow =
-        darkFactoryEnabled && clusterEnabled ? task.task_type : undefined;
+        isFeaturePlanningType
+          ? task.task_type
+          : darkFactoryEnabled && clusterEnabled
+            ? task.task_type
+            : undefined;
 
       // Look up the actual default branch when forwarding to a
       // dark-factory pod. Hardcoding "main" 422'd on repos still on

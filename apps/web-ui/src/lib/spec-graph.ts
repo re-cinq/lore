@@ -23,6 +23,10 @@ export type SpecGraphNode = {
   line?: number;
   endLine?: number;
   detail?: string;
+  // Persistent feature lifecycle status + row id, when a Feature node is backed
+  // by a lore.features row (ADR-027). Drives status coloring + click-through.
+  status?: string;
+  featureId?: string;
 };
 
 export type SpecGraphLink = {

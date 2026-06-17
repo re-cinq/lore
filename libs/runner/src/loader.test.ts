@@ -225,10 +225,16 @@ describe("loadWorkflowDir — bundled workflows", () => {
   // build copies them to dist/workflows/ — same relative position either way.
   const workflowsDir = path.resolve(here, "workflows");
 
-  it("loads gap-fill, general, and implementation without error", async () => {
+  it("loads all bundled workflows without error", async () => {
     const map = await loadWorkflowDir(workflowsDir);
     const names = Array.from(map.keys()).sort();
-    expect(names).toEqual(["gap-fill", "general", "implementation"]);
+    expect(names).toEqual([
+      "feature-finalize",
+      "feature-planning",
+      "gap-fill",
+      "general",
+      "implementation",
+    ]);
   });
 
   it("gap-fill is a linear flow with retrospective + done as exit pair", async () => {

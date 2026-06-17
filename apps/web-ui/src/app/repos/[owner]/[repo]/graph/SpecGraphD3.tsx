@@ -138,10 +138,28 @@ const COLORS: Record<SpecGraphNode['type'], string> = {
 };
 const RADIUS: Record<SpecGraphNode['type'], number> = { Feature: 20, Spec: 16, Section: 10, Statement: 8, AcceptanceCriterion: 9, TestChunk: 11, CodeChunk: 11, File: 12, ADR: 13 };
 
+// Persistent feature lifecycle status → node color (ADR-027). A Feature node
+// backed by a lore.features row is colored by its status instead of the flat
+// Feature pink, so drafts/in-flight/shipped features read at a glance.
+const FEATURE_STATUS_COLORS: Record<string, string> = {
+  draft: '#94a3b8',
+  planning: '#f59e0b',
+  'awaiting-input': '#f59e0b',
+  'spec-ready': '#2563eb',
+  'pr-open': '#8b5cf6',
+  implemented: '#16a34a',
+  split: '#d97706',
+};
+
 // The live projection can emit a type outside the declared union; default rather
 // than index to undefined (which would NaN a radius or blank a fill).
 const radiusOf = (type: SpecGraphNode['type']): number => RADIUS[type] ?? 11;
 const colorOf = (type: SpecGraphNode['type']): string => COLORS[type] ?? '#94a3b8';
+// Node fill: status-colored when a Feature carries a persistent lifecycle status.
+const nodeColor = (node: SpecGraphNode): string =>
+  node.type === 'Feature' && node.status
+    ? FEATURE_STATUS_COLORS[node.status] ?? colorOf(node.type)
+    : colorOf(node.type);
 const isLeafCanvas = (type: SpecGraphNode['type']): boolean => LEAF_CANVAS_TYPES.has(type);
 
 // Only the structural nodes carry a persistent label; the numerous leaf
@@ -797,7 +815,7 @@ export default function SpecGraphD3({
             );
           g.append('circle')
             .attr('r', (d) => radiusOf(d.type))
-            .attr('fill', (d) => colorOf(d.type))
+            .attr('fill', (d) => nodeColor(d))
             .style('stroke', 'var(--bg-surface)')
             .attr('stroke-width', 2);
           g.filter((d) => d.label !== '' && LABELED_TYPES.has(d.type))
