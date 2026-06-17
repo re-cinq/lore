@@ -1,7 +1,23 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { queryAllowMissing } from '@/lib/db';
 import type { FeatureRow, FeatureIterationRow } from '@/lib/feature-types';
+
+/** Last N lines of the local Docker Station's live log for a task (best effort;
+ *  only exists for the local docker backend — the cluster streams to GCS). */
+function liveStationLog(taskId: string, lines = 20): string | null {
+  try {
+    const file = path.join(os.homedir(), '.lore', 'station-logs', `${taskId}.log`);
+    const text = fs.readFileSync(file, 'utf8').trimEnd();
+    if (!text) return null;
+    return text.split('\n').slice(-lines).join('\n');
+  } catch {
+    return null;
+  }
+}
 
 // Client-poll endpoint for the planning wizard: returns the feature + its latest
 // iteration (status + gap_result) read direct-DB. The wizard polls this while a
@@ -35,5 +51,10 @@ export async function GET(
     );
     task = tasks[0] ?? null;
   }
-  return NextResponse.json({ feature, latestIteration, task });
+  // Live tail of the Station's claude output while the round runs (local docker).
+  const liveOutput =
+    latestIteration?.task_id && task?.status === 'running'
+      ? liveStationLog(latestIteration.task_id)
+      : null;
+  return NextResponse.json({ feature, latestIteration, task, liveOutput });
 }

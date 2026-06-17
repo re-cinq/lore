@@ -482,6 +482,30 @@ pre {
   to { transform: rotate(360deg); }
 }
 
+/* Feature-planning "analyzing" indicator (the smart-feature wizard). */
+.planning-dots {
+  display: inline-flex;
+  gap: 5px;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+.planning-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent, #2563eb);
+  animation: planning-bounce 1s ease-in-out infinite;
+}
+.planning-dots span:nth-child(2) { animation-delay: 0.15s; }
+.planning-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes planning-bounce {
+  0%, 80%, 100% { transform: scale(0.5); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planning-dots span { animation: none; opacity: 0.7; }
+}
+
 /* Load-more pager (context list) */
 
 .load-more {

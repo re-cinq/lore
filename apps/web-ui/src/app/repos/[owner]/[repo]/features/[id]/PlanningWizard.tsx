@@ -10,6 +10,7 @@ interface Poll {
   feature: FeatureRow;
   latestIteration: FeatureIterationRow | null;
   task?: { status: string; failure_reason: string | null } | null;
+  liveOutput?: string | null;
 }
 
 export default function PlanningWizard({
@@ -78,8 +79,29 @@ export default function PlanningWizard({
   if (running) {
     return (
       <div className="spec-card">
-        <p>Analyzing your feature against the project… (round {latest?.iteration ?? data.feature.current_iteration})</p>
+        <p style={{ display: 'flex', alignItems: 'center', margin: 0 }}>
+          Analyzing your feature against the project… (round {latest?.iteration ?? data.feature.current_iteration})
+          <span className="planning-dots" aria-hidden="true"><span /><span /><span /></span>
+        </p>
         <p className="meta">The planning agent is running. This refreshes automatically.</p>
+        {data.liveOutput && (
+          <pre
+            style={{
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              maxHeight: 220,
+              overflow: 'auto',
+              background: 'var(--bg-elevated, #f6f8fa)',
+              border: '1px solid var(--border, #e5e7eb)',
+              borderRadius: 6,
+              padding: 10,
+              fontSize: 12,
+              marginTop: 8,
+            }}
+          >
+            {data.liveOutput}
+          </pre>
+        )}
       </div>
     );
   }

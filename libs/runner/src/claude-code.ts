@@ -81,8 +81,11 @@ export async function runClaudeCode(params: {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
-    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    // Echo claude's stream to our stdout too, so it reaches the container log
+    // the Station tails live (the run is slow; surfacing claude's activity gives
+    // the wizard something to show beyond the supervisor's node markers).
+    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); process.stdout.write(chunk); });
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); process.stderr.write(chunk); });
 
     const timer = setTimeout(() => {
       proc.kill("SIGTERM");

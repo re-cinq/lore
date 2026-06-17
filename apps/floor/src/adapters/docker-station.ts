@@ -116,7 +116,7 @@ export class DockerStation implements StationBackend {
       mounts,
     });
 
-    const { exitCode, output } = await this.runDocker(args, childEnv);
+    const { exitCode, output } = await this.runDocker(args, childEnv, stationLogPath(spec.taskId));
     return {
       ref: name,
       launched: true,
@@ -135,7 +135,12 @@ export class DockerStation implements StationBackend {
   private runDocker(
     args: string[],
     env: NodeJS.ProcessEnv,
+    logFile: string,
   ): Promise<{ exitCode: number; output: string }> {
+    // Stream output to a per-task log file so the wizard can tail it live (the
+    // run is slow; the user wants to see what claude is doing). Truncate at start.
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    fs.writeFileSync(logFile, "");
     return new Promise((resolve, reject) => {
       const child = spawn("docker", args, { env });
       let output = "";
@@ -143,6 +148,11 @@ export class DockerStation implements StationBackend {
         const s = b.toString();
         output += s;
         process.stdout.write(`[docker-station] ${s}`);
+        try {
+          fs.appendFileSync(logFile, s);
+        } catch {
+          /* best effort — never fail the run on a log write */
+        }
       };
       child.stdout.on("data", onData);
       child.stderr.on("data", onData);
@@ -150,4 +160,9 @@ export class DockerStation implements StationBackend {
       child.on("close", (code) => resolve({ exitCode: code ?? 1, output }));
     });
   }
+}
+
+/** Per-task live-log path (host); the web-ui wizard tails this while a round runs. */
+export function stationLogPath(taskId: string): string {
+  return path.join(os.homedir(), ".lore", "station-logs", `${taskId}.log`);
 }
