@@ -53,6 +53,7 @@ import {
   type Workflow,
 } from "@re-cinq/lore-runner";
 import { buildPrompt, getTaskTypeConfig, loadTaskTypes } from "../data/config.js";
+import { PLANNING_INSTRUCTIONS } from "@re-cinq/lore-shared/feature-planning/planning-instructions.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../adapters/episode-writer.js";
 import { writeAuditLog } from "../adapters/audit.js";
 import { leaseBackendForEnv } from "../adapters/lease-backend.js";
@@ -145,7 +146,10 @@ async function main(): Promise<number> {
       resolvePrompt: (promptRef, description) => {
         const config = getTaskTypeConfig(promptRef);
         if (!config) return null;
-        return buildPrompt(promptRef, description);
+        const prompt = buildPrompt(promptRef, description);
+        // feature-planning's role + exact output schema are the single shared
+        // source of truth (planning-instructions.ts), not the task-type template.
+        return promptRef === "feature-planning" ? `${PLANNING_INSTRUCTIONS}\n\n${prompt}` : prompt;
       },
       // Account each Claude Code call to pipeline.llm_calls in cluster mode.
       runClaudeCode: (p) =>

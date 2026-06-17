@@ -105,24 +105,14 @@ task_types:
     model: claude-haiku-4-5-20251001
 
   feature-planning:
+    # The role + EXACT output schema come from the shared PLANNING_INSTRUCTIONS
+    # constant (libs/shared/feature-planning/planning-instructions.ts), prepended
+    # by the runner — one source of truth, also used by the in-process handler.
+    # This template only carries the round content + the container's result.json sink.
     prompt_template: |
-      You are a senior software architect analyzing a feature request against
-      this existing codebase, one refinement round in an interactive planning
-      session. The Context section contains the project's conventions plus the
-      full prior feature-planning timeline (earlier rounds' results and the
-      author's per-section comments/direction).
-
-      The feature request and the author's latest answers:
       {description}
 
-      Produce a gap-closing analysis as a STRICT JSON object (no prose, no
-      markdown fences) matching the GapResult contract: architecture
-      {summary, components[]}, user_flows[], mockups[] (each a self-contained
-      <svg> with no <script>/<foreignObject>/event handlers), questions[]
-      (kind text|choice; choice requires options[]), an optional
-      split_suggestion when the feature is too large, and draft_spec_markdown
-      (the accumulated spec.md candidate following repo conventions). Write the
-      JSON to result.json in the working directory.
+      Write the resulting JSON object to result.json in the working directory.
     target_repo: null
     timeout_minutes: 15
     review_required: false

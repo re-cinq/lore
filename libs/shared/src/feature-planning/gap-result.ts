@@ -30,6 +30,9 @@ export interface GapMockup {
   title: string;
   format: "svg";
   markup: string;
+  /** Which section this diagram illustrates, so the UI can embed it inline next
+   *  to the relevant text (e.g. "architecture" | "user_flows"). */
+  section?: string;
 }
 
 export type GapQuestionKind = "text" | "choice";
@@ -122,11 +125,14 @@ function parseMockup(raw: unknown, i: number): GapMockup {
     return { title: `Mockup ${i + 1}`, format: "svg", markup: raw };
   }
   const mo = asObject(raw, `mockups[${i}]`);
-  return {
+  const mockup: GapMockup = {
     title: firstString(mo.title, mo.name) || `Mockup ${i + 1}`,
     format: "svg",
     markup: firstString(mo.markup, mo.svg, mo.content),
   };
+  const section = firstString(mo.section);
+  if (section) mockup.section = section;
+  return mockup;
 }
 
 function parseQuestion(raw: unknown, i: number): GapQuestion {

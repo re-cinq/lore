@@ -64,6 +64,15 @@ function SectionCard({ title, children }: { title: string; children: React.React
   );
 }
 
+/** Mockups belong to user_flows when tagged so; everything else (architecture,
+ *  untagged, or an unknown section) falls back to architecture, the natural home
+ *  for system diagrams — so each diagram embeds inline next to its text. */
+function mockupsForSection(gap: GapResult, key: 'architecture' | 'user_flows') {
+  return (gap.mockups ?? []).filter(
+    (m) => (m.section === 'user_flows' ? 'user_flows' : 'architecture') === key,
+  );
+}
+
 export default function GapSections({
   gap,
   feedback,
@@ -75,6 +84,8 @@ export default function GapSections({
   onChange: (next: FeedbackState) => void;
   onCreateDraft: (title: string, prompt: string) => void;
 }) {
+  const archMockups = mockupsForSection(gap, 'architecture');
+  const flowMockups = mockupsForSection(gap, 'user_flows');
   return (
     <div>
       {gap.architecture && (
@@ -90,13 +101,14 @@ export default function GapSections({
               </li>
             ))}
           </ul>
+          {archMockups.length > 0 && <MockupSection mockups={archMockups} />}
           <SectionFeedback sectionKey="architecture" feedback={feedback} onChange={onChange} />
         </SectionCard>
       )}
 
-      {gap.user_flows && gap.user_flows.length > 0 && (
+      {((gap.user_flows && gap.user_flows.length > 0) || flowMockups.length > 0) && (
         <SectionCard title="User flows">
-          {gap.user_flows.map((flow, i) => (
+          {gap.user_flows?.map((flow, i) => (
             <div key={i} style={{ marginBottom: 8 }}>
               <strong>{flow.name}</strong>
               <ol>
@@ -106,14 +118,8 @@ export default function GapSections({
               </ol>
             </div>
           ))}
+          {flowMockups.length > 0 && <MockupSection mockups={flowMockups} />}
           <SectionFeedback sectionKey="user_flows" feedback={feedback} onChange={onChange} />
-        </SectionCard>
-      )}
-
-      {gap.mockups && gap.mockups.length > 0 && (
-        <SectionCard title="Mockups">
-          <MockupSection mockups={gap.mockups} />
-          <SectionFeedback sectionKey="mockups" feedback={feedback} onChange={onChange} />
         </SectionCard>
       )}
 

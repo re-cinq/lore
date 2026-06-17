@@ -7,6 +7,10 @@ import {
   isPlanningPhase,
   type GapResult,
 } from "@re-cinq/lore-shared/feature-planning/gap-result.js";
+import {
+  composePlanningPrompt,
+  type SectionAnswers,
+} from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
 import { projectFor } from "../../platform/project-boot.js";
 import { createTask } from "../../features/pipeline/pipeline.js";
 import { json, readJsonBody } from "./http.js";
@@ -99,17 +103,18 @@ export async function handleFeaturesRoute(
       const features = (await projectFor(`${owner}/${repo}`)).features;
       const feature = await features.get(id);
       if (!feature) return json(res, 404, { error: "feature not found" });
-      // Carry the whole-feature timeline into the round's prompt: the accumulated
-      // draft plus the author's feedback for this round (FR-2.3 / ADR-027).
-      const description = [
-        feature.original_prompt,
-        "",
-        "## Current draft spec (latest round)",
-        feature.draft_spec_md ?? "(none yet)",
-        "",
-        "## Author feedback for this round",
-        JSON.stringify(body.user_answers ?? {}, null, 2),
-      ].join("\n");
+
+      // Carry the whole-feature timeline into the round's prompt: the prior round's
+      // generated sections paired with the author's feedback (FR-2.3 / ADR-027).
+      const priorGap =
+        feature.iterations.find((it) => it.status === "ready" && it.gap_result)?.gap_result ?? null;
+      const description = composePlanningPrompt({
+        title: feature.title,
+        originalPrompt: feature.original_prompt,
+        priorGap,
+        answers: (body.user_answers ?? null) as SectionAnswers | null,
+      });
+
       // Allocate the iteration atomically FIRST, then spawn the pod with the row
       // the DB actually minted (not current_iteration+1 read off a stale
       // snapshot), then link the task. Two concurrent refines thus drive distinct

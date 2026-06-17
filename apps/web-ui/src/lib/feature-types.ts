@@ -62,6 +62,8 @@ export interface GapMockup {
   title?: string;
   format?: 'svg';
   markup: string;
+  /** Which section this diagram illustrates, so it embeds inline next to that text. */
+  section?: string;
 }
 export interface GapQuestion {
   id: string;

@@ -15,23 +15,10 @@ import {
   decideFeatureStatus,
   isPlanningPhase,
 } from "@re-cinq/lore-shared/feature-planning/gap-result.js";
+import { PLANNING_INSTRUCTIONS } from "@re-cinq/lore-shared/feature-planning/planning-instructions.js";
 import { projectFor } from "../../application/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
-
-const SYSTEM_PROMPT = `You are a senior software architect analyzing a feature request against an existing codebase — one round of an interactive planning session.
-
-Output ONLY a strict JSON object (no markdown, no code fences, no prose) with this shape:
-{
-  "architecture": { "summary": string, "components": [{ "name": string, "responsibility": string, "touchpoints": string[] }] },
-  "user_flows": [{ "name": string, "steps": string[] }],
-  "mockups": [{ "title": string, "format": "svg", "markup": "<svg ...>...</svg>" }],
-  "questions": [{ "id": string, "question": string, "why": string, "kind": "text" | "choice", "options"?: string[] }],
-  "split_suggestion"?: { "rationale": string, "proposed_features": [{ "title": string, "scope": string }] },
-  "draft_spec_markdown": string
-}
-
-Each mockup must be a single self-contained <svg> — no <script>, <foreignObject>, event handlers, or external references. Ask only the questions that materially change the design. Include split_suggestion only when the feature is too large for one focused spec. draft_spec_markdown is the accumulated spec.md candidate following the repo's conventions.`;
 
 /** Strip an optional ```json … ``` fence the model may wrap the JSON in. */
 function stripFence(text: string): string {
@@ -54,7 +41,7 @@ export async function handleFeaturePlanning(task: any, targetRepo: string): Prom
     const context = await fetchRepoContext(targetRepo);
     const result = await Llm.instance.complete({
       prompt: `${task.description}\n\n## Repository Context\n\n${JSON.stringify(context, null, 2)}`,
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: PLANNING_INSTRUCTIONS,
       model: "claude-sonnet-4-6",
       maxTokens: 8192,
       taskId: task.id,
