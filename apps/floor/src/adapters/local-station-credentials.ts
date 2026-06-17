@@ -37,7 +37,12 @@ export class LocalStationCredentials implements StationCredentials {
   }
 
   async llm(): Promise<StationLlmCredential> {
+    // Prefer the org API key (org billing, like the cluster). Never SILENTLY fall
+    // back to the developer's personal Claude subscription — that burns personal
+    // quota + hits personal rate limits. Personal oauth is opt-in only.
     if (this.env.ANTHROPIC_API_KEY) return { apiKey: this.env.ANTHROPIC_API_KEY };
+    const allowPersonal = /^(1|true|yes)$/i.test(this.env.LORE_STATION_ALLOW_PERSONAL_AUTH ?? "");
+    if (!allowPersonal) return {};
 
     // Give the in-container `claude` CLI a WRITABLE copy of just the auth files so
     // it can refresh an expired oauth token (a read-only mount made it hang with

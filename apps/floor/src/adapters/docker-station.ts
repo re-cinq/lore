@@ -94,7 +94,9 @@ export class DockerStation implements StationBackend {
       mounts.push(...llm.mounts);
     } else {
       throw new Error(
-        "Docker Station: no LLM credential — set ANTHROPIC_API_KEY or log in the claude CLI (~/.claude). See ADR-028 / .env.local.example.",
+        "Docker Station: no LLM credential. Set ANTHROPIC_API_KEY in .env.local for org billing " +
+          "(recommended — same as the cluster), or set LORE_STATION_ALLOW_PERSONAL_AUTH=1 to use your " +
+          "personal Claude subscription via ~/.claude (burns your personal quota). See ADR-028.",
       );
     }
 

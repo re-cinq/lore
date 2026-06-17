@@ -43,18 +43,30 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   # behavior as before. BASE_BRANCH defaults to the remote HEAD when unset.
   REPO_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git"
   FETCH_REF="${BASE_BRANCH:-HEAD}"
-  if [ -d /workspace/repo/.git ]; then
-    echo "[runner] Reusing cached repo at /workspace/repo (fetch)"
-    cd /workspace/repo
-    git remote set-url origin "$REPO_URL"
-    git fetch --depth=1 --prune origin "$FETCH_REF"
-    git clean -ffdx
-    git checkout -B "${BRANCH_NAME}" FETCH_HEAD
-  else
-    echo "[runner] Cloning ${TARGET_REPO} (no cache)"
+  mkdir -p /workspace/repo
+  fresh_clone() {
+    # Empty the dir (keep the mount point) so clone can't trip on leftover/partial
+    # content from a killed run, then shallow-clone.
+    find /workspace/repo -mindepth 1 -delete 2>/dev/null || true
     git clone --depth=1 "$REPO_URL" /workspace/repo
     cd /workspace/repo
     git checkout -b "${BRANCH_NAME}"
+  }
+  if [ -d /workspace/repo/.git ]; then
+    echo "[runner] Reusing cached repo at /workspace/repo (fetch)"
+    cd /workspace/repo
+    if git remote set-url origin "$REPO_URL" \
+       && git fetch --depth=1 --prune origin "$FETCH_REF" \
+       && git clean -ffdx \
+       && git checkout -B "${BRANCH_NAME}" FETCH_HEAD; then
+      echo "[runner] cache refreshed"
+    else
+      echo "[runner] cache fetch failed — re-cloning"
+      cd / && fresh_clone
+    fi
+  else
+    echo "[runner] Cloning ${TARGET_REPO}"
+    fresh_clone
   fi
 
   # --- Hand off to the supervisor CLI ---
