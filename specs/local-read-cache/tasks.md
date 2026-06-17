@@ -9,8 +9,8 @@ Spec: [spec.md](spec.md)
 
 ## Phase 1 — Cache core
 
-- [ ] T003 New `apps/mcp-server/src/platform/proxy-cache.ts`: key builder (sha256 of tool+canonical args+repo), TTL read (`readFresh`/`readAny`), `store`, `invalidate(tools, repo?)`, LRU + TTL eviction, `markFresh`/`markStale`, config/env loading (`LORE_CACHE_ENABLED`, `LORE_CACHE_DIR`, `max_entries`, `ttl_overrides`)
-- [ ] T004 [P] Tests `apps/mcp-server/src/platform/proxy-cache.test.ts`: TTL fresh/expired, LRU cap, stale-serve, invalidation, key stability across arg order, repo isolation, disabled-mode no-op
+- [x] T003 New `apps/mcp-server/src/platform/proxy-cache.ts`: key builder (sha256 of tool+canonical args+repo), TTL read (`readFresh`/`readAny`), `store`, `invalidate(tools, repo?)`, LRU + TTL eviction, `markFresh`/`markStale`, config/env loading (`LORE_CACHE_ENABLED`, `LORE_CACHE_DIR`, `max_entries`, `ttl_overrides`)
+- [x] T004 [P] Tests `apps/mcp-server/src/platform/proxy-cache.test.ts`: TTL fresh/expired, LRU cap, stale-serve, invalidation, key stability across arg order, repo isolation, disabled-mode no-op
 
 ## Phase 2 — Wire reads through the cache
 
