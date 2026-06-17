@@ -13,6 +13,28 @@ cd "$ROOT"
 log() { echo "[lore] $*"; }
 fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
+# Kill any stale Lore stack from a previous `npm start`. node --watch children
+# ignore plain SIGTERM and can survive a rough exit, then hold the service ports
+# (web-ui :3000, mcp-server :3001, agent :8080) so the next run dies with
+# EADDRINUSE. Free those ports here. Postgres :5432 / Dgraph :8081 are
+# docker-managed, so we leave them alone. Idempotent: a no-op when nothing runs.
+free_stale_ports() {
+  command -v lsof >/dev/null 2>&1 || { log "lsof not found — skipping stale-instance cleanup"; return 0; }
+  local port pids
+  for port in 3000 3001 8080; do
+    pids="$(lsof -ti "tcp:$port" -sTCP:LISTEN 2>/dev/null || true)"
+    [ -n "$pids" ] || continue
+    log "Port $port held by a stale instance (PID $(echo "$pids" | tr '\n' ' ')) — stopping it"
+    kill -TERM $pids 2>/dev/null || true
+    for _ in 1 2 3 4 5; do
+      pids="$(lsof -ti "tcp:$port" -sTCP:LISTEN 2>/dev/null || true)"
+      [ -n "$pids" ] || break
+      sleep 0.3
+    done
+    [ -n "$pids" ] && kill -KILL $pids 2>/dev/null || true
+  done
+}
+
 # Load local secrets/overrides (gitignored). Put GitHub OAuth creds here so they
 # don't have to be re-exported every session. See .env.local.example.
 if [ -f "$ROOT/.env.local" ]; then
@@ -112,6 +134,8 @@ cleanup() {
   exit 0
 }
 trap cleanup INT TERM EXIT
+
+free_stale_ports
 
 log "Starting all components..."
 setsid npx concurrently -k \
