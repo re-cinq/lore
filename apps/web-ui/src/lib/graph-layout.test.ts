@@ -8,6 +8,7 @@ import {
   featureSeedPositions,
   radialTree,
   separateSmallComponents,
+  countCrossings,
 } from "./graph-layout";
 
 describe("featureSeedPositions", () => {
@@ -187,5 +188,49 @@ describe("separateSmallComponents", () => {
         expect(Math.hypot(small.x - main.x, small.y - main.y)).toBeGreaterThanOrEqual(margin);
       }
     }
+  });
+});
+
+describe("countCrossings", () => {
+  const pos = new Map([
+    ["a", { x: 0, y: 0 }],
+    ["b", { x: 10, y: 10 }],
+    ["c", { x: 0, y: 10 }],
+    ["d", { x: 10, y: 0 }],
+  ]);
+
+  it("counts one crossing for an X", () => {
+    expect(countCrossings([{ source: "a", target: "b" }, { source: "c", target: "d" }], pos)).toBe(1);
+  });
+
+  it("counts zero for parallel non-crossing edges", () => {
+    const p = new Map([
+      ["a", { x: 0, y: 0 }],
+      ["b", { x: 10, y: 0 }],
+      ["c", { x: 0, y: 5 }],
+      ["d", { x: 10, y: 5 }],
+    ]);
+
+    expect(countCrossings([{ source: "a", target: "b" }, { source: "c", target: "d" }], p)).toBe(0);
+  });
+
+  it("ignores edges that share a node (they meet, not cross)", () => {
+    expect(countCrossings([{ source: "a", target: "b" }, { source: "a", target: "d" }], pos)).toBe(0);
+  });
+
+  it("sums crossings across several edges", () => {
+    // a-b and c-d cross; e-f sits apart and crosses neither.
+    const p = new Map([
+      ["a", { x: 0, y: 0 }],
+      ["b", { x: 10, y: 10 }],
+      ["c", { x: 0, y: 10 }],
+      ["d", { x: 10, y: 0 }],
+      ["e", { x: 100, y: 0 }],
+      ["f", { x: 110, y: 0 }],
+    ]);
+
+    expect(
+      countCrossings([{ source: "a", target: "b" }, { source: "c", target: "d" }, { source: "e", target: "f" }], p),
+    ).toBe(1);
   });
 });
