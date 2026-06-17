@@ -56,5 +56,11 @@ export async function GET(
     latestIteration?.task_id && task?.status === 'running'
       ? liveStationLog(latestIteration.task_id)
       : null;
-  return NextResponse.json({ feature, latestIteration, task, liveOutput });
+  // The most recent round that produced a result — so a failed refine doesn't
+  // hide the prior analysis the user was working with.
+  const ready = await queryAllowMissing<FeatureIterationRow>(
+    `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 AND gap_result IS NOT NULL ORDER BY iteration DESC LIMIT 1`,
+    [id],
+  );
+  return NextResponse.json({ feature, latestIteration, task, liveOutput, lastReady: ready[0] ?? null });
 }

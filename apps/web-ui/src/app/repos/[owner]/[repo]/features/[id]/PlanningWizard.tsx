@@ -11,6 +11,8 @@ interface Poll {
   latestIteration: FeatureIterationRow | null;
   task?: { status: string; failure_reason: string | null } | null;
   liveOutput?: string | null;
+  /** Most recent iteration that produced a result — shown even if the latest round failed. */
+  lastReady?: FeatureIterationRow | null;
 }
 
 export default function PlanningWizard({
@@ -106,47 +108,48 @@ export default function PlanningWizard({
     );
   }
 
-  if (failed) {
-    return (
-      <div className="spec-card">
-        <p style={{ color: '#dc2626', fontWeight: 600 }}>
-          Planning round {latest?.iteration ?? data.feature.current_iteration} failed.
+  // The analysis to show: the latest round's result, else the most recent round
+  // that produced one (so a failed refine doesn't hide your prior analysis).
+  const gap = latestReady ? latest?.gap_result : data.lastReady?.gap_result ?? null;
+
+  const failureBlock = (
+    <div className="spec-card" style={{ borderColor: '#dc2626' }}>
+      <p style={{ color: '#dc2626', fontWeight: 600, margin: 0 }}>
+        Planning round {latest?.iteration ?? data.feature.current_iteration} failed.
+      </p>
+      {!data.task?.failure_reason && (
+        <p className="meta">
+          The run finished without producing a result — usually the planning agent couldn't reach the
+          model. Set <code>ANTHROPIC_API_KEY</code> (org billing) and Retry, or check the agent logs.
         </p>
-        {!data.task?.failure_reason && (
-          <p className="meta">The run finished without producing a result. Retry, or check the agent logs.</p>
-        )}
-        {data.task?.failure_reason && (
-          <pre
-            style={{
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              maxHeight: 260,
-              overflow: 'auto',
-              background: 'var(--bg-elevated, #f6f8fa)',
-              border: '1px solid var(--border, #e5e7eb)',
-              borderRadius: 6,
-              padding: 10,
-              fontSize: 12,
-              margin: '8px 0',
-            }}
-          >
-            {data.task.failure_reason}
-          </pre>
-        )}
-        <button type="button" disabled={pending} onClick={submitRefine}>
-          {pending ? 'Retrying…' : 'Retry'}
-        </button>
-      </div>
-    );
-  }
+      )}
+      {data.task?.failure_reason && (
+        <pre
+          style={{
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 260, overflow: 'auto',
+            background: 'var(--bg-elevated, #f6f8fa)', border: '1px solid var(--border, #e5e7eb)',
+            borderRadius: 6, padding: 10, fontSize: 12, margin: '8px 0',
+          }}
+        >
+          {data.task.failure_reason}
+        </pre>
+      )}
+      <button type="button" disabled={pending} onClick={submitRefine}>
+        {pending ? 'Retrying…' : 'Retry'}
+      </button>
+    </div>
+  );
 
-  const gap = latest?.gap_result;
+  // No analysis ever produced: pure failure (if the latest failed) or an empty state.
   if (!gap) {
-    return <div className="spec-card"><p className="meta">No analysis yet.</p></div>;
+    return failed ? failureBlock : <div className="spec-card"><p className="meta">No analysis yet.</p></div>;
   }
 
+  // We have an analysis to work with. If the latest round failed, show the failure
+  // banner above the preserved sections so the user can fix + retry without losing it.
   return (
     <div>
+      {failed && <div style={{ marginBottom: 12 }}>{failureBlock}</div>}
       <GapSections gap={gap} feedback={feedback} onChange={setFeedback} onCreateDraft={onCreateDraft} />
       <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
         <button type="button" disabled={pending} onClick={submitRefine}>
