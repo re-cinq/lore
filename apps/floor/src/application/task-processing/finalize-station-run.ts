@@ -4,6 +4,20 @@ import { generateArtifactCopy } from "../../adapters/artifact-copy.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
 /**
+ * After a failed planning round, set the feature back to 'draft' ONLY when no
+ * round ever produced a result — otherwise leave the prior status (the earlier
+ * analysis still stands; the wizard shows it). Never badge a failed feature
+ * 'awaiting-input' — that implies a result is waiting for the user.
+ */
+export async function revertFeatureAfterFailure(project: Project, featureId: string): Promise<void> {
+  const feature = await project.features.get(featureId);
+  if (!feature) return;
+  if (!feature.iterations.some((i) => i.gap_result)) {
+    await project.features.transitionStatus(featureId, "draft").catch(() => {});
+  }
+}
+
+/**
  * The tail of a Station's captured output, for a failure message — last
  * non-empty lines, bounded. Pure. The cause of an exit (e.g. a git "Repository
  * not found" on 128) lives in the output, not the code, so surface it.
@@ -49,7 +63,7 @@ export async function finalizeStationRun(opts: {
       await project.features
         .setIterationResult(task.context_bundle.feature_id, task.context_bundle.iteration, null, "failed")
         .catch(() => {});
-      await project.features.transitionStatus(task.context_bundle.feature_id, "awaiting-input").catch(() => {});
+      await revertFeatureAfterFailure(project, task.context_bundle.feature_id);
     }
     await setStatus(task.id, "failed", { failure_reason: reason });
     await insertEvent(task.id, "running", "failed", {
@@ -79,7 +93,7 @@ export async function finalizeStationRun(opts: {
       (tail ? `\n\n${tail}` : "");
     if (featureId && iteration != null) {
       await project.features.setIterationResult(featureId, iteration, null, "failed").catch(() => {});
-      await project.features.transitionStatus(featureId, "awaiting-input").catch(() => {});
+      await revertFeatureAfterFailure(project, featureId);
     }
     await setStatus(task.id, "failed", { failure_reason: reason });
     await insertEvent(task.id, "running", "failed", { reason: "planning posted no result" });

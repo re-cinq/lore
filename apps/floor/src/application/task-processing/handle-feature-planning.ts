@@ -77,14 +77,14 @@ export async function handleFeaturePlanning(task: any, targetRepo: string): Prom
     await insertEvent(task.id, "running", "completed", { feature_id: featureId, iteration });
     console.log(`[agent] feature-planning round ${iteration} ready for feature ${featureId}`);
   } catch (err: any) {
-    // Surface the failure: mark the iteration failed and leave the feature in
-    // awaiting-input so the wizard shows the error + a Retry. Re-throw so the
-    // task is recorded as failed too. Guard the status move so a stale failure
-    // can't drag an already-finalized feature back into the wizard.
+    // Surface the failure: mark the iteration failed; re-throw so the task is
+    // recorded as failed too. Only drop the feature to 'draft' if no round ever
+    // produced a result (else keep the prior status). Guard the move so a stale
+    // failure can't drag an already-finalized feature back into the wizard.
     await features.setIterationResult(featureId, iteration, null, "failed").catch(() => {});
     const failedFeature = await features.get(featureId).catch(() => null);
-    if (failedFeature && isPlanningPhase(failedFeature.status)) {
-      await features.transitionStatus(featureId, "awaiting-input").catch(() => {});
+    if (failedFeature && isPlanningPhase(failedFeature.status) && !failedFeature.iterations.some((i) => i.gap_result)) {
+      await features.transitionStatus(featureId, "draft").catch(() => {});
     }
     await setStatus(task.id, "failed", { failure_reason: err.message });
     await insertEvent(task.id, "running", "failed", { reason: err.message });
