@@ -9,6 +9,7 @@ import {
   radialTree,
   separateSmallComponents,
   countCrossings,
+  featureRingRadius,
 } from "./graph-layout";
 
 describe("featureSeedPositions", () => {
@@ -188,6 +189,17 @@ describe("separateSmallComponents", () => {
         expect(Math.hypot(small.x - main.x, small.y - main.y)).toBeGreaterThanOrEqual(margin);
       }
     }
+  });
+});
+
+describe("featureRingRadius", () => {
+  it("grows the ring so many trees don't overlap", () => {
+    // 20 trees of radius 300 need a circle big enough to seat them ~2.2·r apart
+    expect(featureRingRadius(20, 300, 660)).toBeCloseTo((20 * 2.2 * 300) / (2 * Math.PI));
+  });
+
+  it("falls back to the minimum radius for a few small trees", () => {
+    expect(featureRingRadius(2, 100, 660)).toBe(660);
   });
 });
 
