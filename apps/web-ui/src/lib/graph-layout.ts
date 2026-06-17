@@ -184,3 +184,98 @@ export function containedVelocity(
   if (Math.abs(vy) < epsilon) vy = 0;
   return { vx, vy };
 }
+
+export interface RadialTreeOptions {
+  center: Point;
+  /** Radius added per hierarchy level — depth 0 (root) sits at the centre. */
+  ringGap: number;
+  /** Angular wedge the tree fills (defaults to a full circle). */
+  angleStart?: number;
+  angleEnd?: number;
+}
+
+/**
+ * Tidy radial-tree seed positions for one containment tree (e.g. a Feature and
+ * its specs/statements/leaves). Depth → radius (root at the centre); leaves are
+ * spread evenly around the wedge and each internal node sits at the mean angle of
+ * its children. Pure value-in/value-out — the D3 setup lays out one tree per
+ * feature with its own centre, then a forceX/forceY holds the shape during relax.
+ */
+export function radialTree(root: string, childrenOf: Map<string, string[]>, opts: RadialTreeOptions): Map<string, Point> {
+  const { center, ringGap } = opts;
+  const angleStart = opts.angleStart ?? 0;
+  const angleEnd = opts.angleEnd ?? Math.PI * 2;
+
+  const depth = new Map<string, number>();
+  const postOrder: string[] = [];
+  const leaves: string[] = [];
+  const visited = new Set<string>();
+  const visit = (id: string, d: number) => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    depth.set(id, d);
+    const children = (childrenOf.get(id) ?? []).filter((child) => !visited.has(child));
+    if (children.length === 0) leaves.push(id);
+    else for (const child of children) visit(child, d + 1);
+    postOrder.push(id);
+  };
+  visit(root, 0);
+
+  const span = angleEnd - angleStart;
+  const leafCount = Math.max(leaves.length, 1);
+  const angle = new Map<string, number>();
+  leaves.forEach((id, i) => angle.set(id, angleStart + (span * (i + 0.5)) / leafCount));
+  // Children precede parents in post-order, so a parent's children angles are set.
+  for (const id of postOrder) {
+    if (angle.has(id)) continue;
+    const children = childrenOf.get(id) ?? [];
+    const sum = children.reduce((acc, child) => acc + (angle.get(child) ?? 0), 0);
+    angle.set(id, children.length ? sum / children.length : angleStart);
+  }
+
+  const positions = new Map<string, Point>();
+  for (const [id, d] of depth) {
+    const a = angle.get(id) ?? angleStart;
+    const r = d * ringGap;
+    positions.set(id, { x: center.x + r * Math.cos(a), y: center.y + r * Math.sin(a) });
+  }
+  return positions;
+}
+
+export interface PlacedNode {
+  id: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * Keeps the small disconnected components strictly outside the main graph: finds
+ * the main graph's current radius (the farthest non-small node from `center`) and
+ * pushes any small node that has drifted inside out to `mainRadius + margin`,
+ * preserving its angle. Returns the new position only for the nodes that moved, so
+ * a small component always ends up at least `margin` away from every main node.
+ * Adapts to the relaxed extent, so it can be called every simulation tick.
+ */
+export function separateSmallComponents(
+  nodes: PlacedNode[],
+  smallIds: Set<string>,
+  center: Point,
+  margin: number,
+): Map<string, Point> {
+  let mainRadius = 0;
+  for (const node of nodes) {
+    if (smallIds.has(node.id)) continue;
+    mainRadius = Math.max(mainRadius, Math.hypot(node.x - center.x, node.y - center.y));
+  }
+  const barrier = mainRadius + margin;
+  const moved = new Map<string, Point>();
+  for (const node of nodes) {
+    if (!smallIds.has(node.id)) continue;
+    const dx = node.x - center.x;
+    const dy = node.y - center.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    if (dist >= barrier) continue;
+    moved.set(node.id, { x: center.x + (barrier * dx) / dist, y: center.y + (barrier * dy) / dist });
+  }
+  return moved;
+}
