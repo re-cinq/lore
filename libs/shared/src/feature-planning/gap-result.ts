@@ -87,38 +87,58 @@ function asArray(value: unknown, field: string): unknown[] {
   return value;
 }
 
+/** First string among the candidates, else "". Tolerates LLM field drift
+ *  (models emit `description`/`summary` where the schema wants `responsibility`). */
+function firstString(...values: unknown[]): string {
+  const hit = values.find((v) => typeof v === "string" && v.length > 0);
+  return typeof hit === "string" ? hit : "";
+}
+
+/** String entries of an array, or [] when absent/non-array. */
+function lenientStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === "string");
+}
+
 function parseArchitecture(raw: unknown): GapArchitecture {
   const o = asObject(raw, "architecture");
   return {
-    summary: asString(o.summary, "architecture.summary"),
+    summary: firstString(o.summary, o.description),
     components: asArray(o.components, "architecture.components").map((c, i) => {
       const co = asObject(c, `architecture.components[${i}]`);
       return {
         name: asString(co.name, `architecture.components[${i}].name`),
-        responsibility: asString(
-          co.responsibility,
-          `architecture.components[${i}].responsibility`,
-        ),
-        touchpoints: asStringArray(
-          co.touchpoints,
-          `architecture.components[${i}].touchpoints`,
-        ),
+        responsibility: firstString(co.responsibility, co.description, co.summary),
+        touchpoints: lenientStringArray(co.touchpoints),
       };
     }),
   };
 }
 
+/** A mockup as a `{title, format:"svg", markup}` object — tolerating a bare SVG
+ *  string (models often emit the markup directly) or a `svg`/`content` alias. */
+function parseMockup(raw: unknown, i: number): GapMockup {
+  if (typeof raw === "string") {
+    return { title: `Mockup ${i + 1}`, format: "svg", markup: raw };
+  }
+  const mo = asObject(raw, `mockups[${i}]`);
+  return {
+    title: firstString(mo.title, mo.name) || `Mockup ${i + 1}`,
+    format: "svg",
+    markup: firstString(mo.markup, mo.svg, mo.content),
+  };
+}
+
 function parseQuestion(raw: unknown, i: number): GapQuestion {
   const o = asObject(raw, `questions[${i}]`);
-  const kind = asString(o.kind, `questions[${i}].kind`);
-  if (kind !== "text" && kind !== "choice") {
-    fail(`questions[${i}].kind`, "must be 'text' or 'choice'");
-  }
+  // Tolerate field drift: `text`/`prompt` for the question, missing id/why, and a
+  // missing/garbled kind (default to free-text). A choice still needs options.
+  const kind: GapQuestionKind = o.kind === "choice" ? "choice" : "text";
   const question: GapQuestion = {
-    id: asString(o.id, `questions[${i}].id`),
-    question: asString(o.question, `questions[${i}].question`),
-    why: asString(o.why, `questions[${i}].why`),
-    kind: kind as GapQuestionKind,
+    id: firstString(o.id) || `q${i + 1}`,
+    question: firstString(o.question, o.text, o.prompt),
+    why: firstString(o.why, o.rationale),
+    kind,
   };
   if (kind === "choice") {
     const options = asStringArray(o.options, `questions[${i}].options`);
@@ -164,15 +184,7 @@ export function parseGapResult(raw: unknown): GapResult {
         steps: asStringArray(fo.steps, `user_flows[${i}].steps`),
       };
     }),
-    mockups: asArray(o.mockups, "mockups").map((m, i) => {
-      const mo = asObject(m, `mockups[${i}]`);
-      if (mo.format !== "svg") fail(`mockups[${i}].format`, "must be 'svg'");
-      return {
-        title: asString(mo.title, `mockups[${i}].title`),
-        format: "svg" as const,
-        markup: asString(mo.markup, `mockups[${i}].markup`),
-      };
-    }),
+    mockups: asArray(o.mockups, "mockups").map(parseMockup),
     questions: asArray(o.questions, "questions").map(parseQuestion),
     draft_spec_markdown: asString(o.draft_spec_markdown, "draft_spec_markdown"),
   };

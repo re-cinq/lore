@@ -51,6 +51,44 @@ describe("parseGapResult", () => {
   it("accepts an absent split_suggestion", () => {
     expect(parseGapResult(structuredClone(validResult)).split_suggestion).toBeUndefined();
   });
+
+  it("normalizes a component that uses description instead of responsibility", () => {
+    const drift = {
+      ...validResult,
+      architecture: {
+        summary: "uses description, omits touchpoints",
+        components: [{ name: "feature-planning task type", description: "new task type entry" }],
+      },
+    };
+    expect(parseGapResult(drift).architecture.components[0]).toEqual({
+      name: "feature-planning task type",
+      responsibility: "new task type entry",
+      touchpoints: [],
+    });
+  });
+
+  it("normalizes a mockup given as a bare svg string", () => {
+    const drift = { ...validResult, mockups: ['<svg viewBox="0 0 10 10"></svg>'] };
+    expect(parseGapResult(drift).mockups[0]).toEqual({
+      title: "Mockup 1",
+      format: "svg",
+      markup: '<svg viewBox="0 0 10 10"></svg>',
+    });
+  });
+
+  it("normalizes a question that uses text and omits id and why", () => {
+    const drift = {
+      ...validResult,
+      questions: [{ kind: "choice", options: ["a", "b"], text: "Which path?" }],
+    };
+    expect(parseGapResult(drift).questions[0]).toEqual({
+      id: "q1",
+      question: "Which path?",
+      why: "",
+      kind: "choice",
+      options: ["a", "b"],
+    });
+  });
 });
 
 describe("sanitizeSvg", () => {
