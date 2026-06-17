@@ -65,6 +65,16 @@ export async function handleClaudeCodeTask(
       : {}),
   });
 
+  // Synchronous Station backends (Docker, local) carry the run's completion back —
+  // there's no loretask-watcher locally, so finalize the run inline (open the PR /
+  // complete the task). Async backends (K8s) omit completion; the watcher resolves
+  // it later. See ADR-028.
+  if (result.completion) {
+    const { finalizeStationRun } = await import("./finalize-station-run.js");
+    await finalizeStationRun({ task, targetRepo, branch: branchName, completion: result.completion, project });
+    return;
+  }
+
   const crName = `loretask-${task.id.substring(0, 8)}`;
   console.log(
     result.started

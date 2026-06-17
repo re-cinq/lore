@@ -43,10 +43,15 @@ export default function PlanningWizard({
   }, [owner, repo, feature.id]);
 
   const latest = data.latestIteration;
-  // The task failing (even mid-crash, with the iteration stuck at 'running') is a
-  // failure the user must see — not an endless "analyzing".
-  const taskFailed = data.task?.status === 'failed';
-  const failed = latest?.status === 'failed' || taskFailed;
+  const task = data.task;
+  // A planning round is genuinely in flight only while its task is pending/queued/
+  // running. If the task has reached a terminal state but the iteration never
+  // produced a usable result (failed, or stuck 'running' with no gap_result), that
+  // is a failure the user must see + retry — never an endless "analyzing".
+  const taskActive = !task || task.status === 'pending' || task.status === 'queued' || task.status === 'running';
+  const latestReady = latest?.status === 'ready' && !!latest.gap_result;
+  const failed =
+    task?.status === 'failed' || latest?.status === 'failed' || (!latestReady && !taskActive);
   const running = (!latest || latest.status === 'running') && !failed;
 
   useEffect(() => {
@@ -85,10 +90,26 @@ export default function PlanningWizard({
         <p style={{ color: '#dc2626', fontWeight: 600 }}>
           Planning round {latest?.iteration ?? data.feature.current_iteration} failed.
         </p>
+        {!data.task?.failure_reason && (
+          <p className="meta">The run finished without producing a result. Retry, or check the agent logs.</p>
+        )}
         {data.task?.failure_reason && (
-          <p className="meta" style={{ whiteSpace: 'pre-wrap' }}>
-            Error: {data.task.failure_reason}
-          </p>
+          <pre
+            style={{
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              maxHeight: 260,
+              overflow: 'auto',
+              background: 'var(--bg-elevated, #f6f8fa)',
+              border: '1px solid var(--border, #e5e7eb)',
+              borderRadius: 6,
+              padding: 10,
+              fontSize: 12,
+              margin: '8px 0',
+            }}
+          >
+            {data.task.failure_reason}
+          </pre>
         )}
         <button type="button" disabled={pending} onClick={submitRefine}>
           {pending ? 'Retrying…' : 'Retry'}

@@ -68,6 +68,12 @@ export type {
   StationBackendKind,
 } from "./agents/station-port.js";
 export { selectStationBackend } from "./agents/station-port.js";
+export { stationPlainEnv } from "./agents/station-env.js";
+export type {
+  StationCredentials,
+  StationLlmCredential,
+  StationMount,
+} from "./agents/station-credentials.js";
 export type { ProjectProviders } from "./lib/providers.js";
 
 export type { GitPort, CloneOpts } from "./workspace/git-port.js";

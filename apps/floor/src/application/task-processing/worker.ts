@@ -16,7 +16,7 @@ import {
   resolveExecutionImage,
 } from "@re-cinq/lore-shared";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { linkifyMarkdown, createDgraphClient } from "@re-cinq/lore-shared";
+import { linkifyMarkdown, createDgraphClient, selectStationBackend } from "@re-cinq/lore-shared";
 import { handleGraphIngest } from "../spec-trace/graph-ingest-handler.js";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
 import { composeIssueBody } from "./issue-body.js";
@@ -120,16 +120,15 @@ async function processTask(task: any): Promise<void> {
     return;
   }
 
-  // Feature planning + finalize run IN-PROCESS, before the Issue / K8s ladder.
-  // Planning is a single LLM→JSON call (GapResult); finalize commits the draft
-  // spec + opens a PR via the Project facade. Both work on local dev (no cluster)
-  // — the K8s Station path failed locally with "Invalid URL". See ADR-027.
-  if (task.task_type === "feature-planning") {
-    await handleFeaturePlanning(task, targetRepo);
-    return;
-  }
-  if (task.task_type === "feature-finalize") {
-    await handleFeatureFinalize(task, targetRepo);
+  // Feature planning + finalize run through the Station (Docker locally, K8s on
+  // the cluster; ADR-028), forced below regardless of dark-factory. The explicit
+  // LORE_STATION_BACKEND=inprocess escape hatch keeps the lightweight in-process
+  // handlers for a dev without Docker/creds.
+  const isFeaturePlanningType =
+    task.task_type === "feature-planning" || task.task_type === "feature-finalize";
+  if (isFeaturePlanningType && selectStationBackend(process.env) === "inprocess") {
+    if (task.task_type === "feature-planning") await handleFeaturePlanning(task, targetRepo);
+    else await handleFeatureFinalize(task, targetRepo);
     return;
   }
 
@@ -142,7 +141,7 @@ async function processTask(task: any): Promise<void> {
   // creation regardless.
   const { shouldCreateIssue } = await import("../../adapters/dark-factory.js");
   const issueGate = await shouldCreateIssue(task);
-  if (!issueNumber && task.task_type !== "general" && issueGate.create) {
+  if (!issueNumber && task.task_type !== "general" && !isFeaturePlanningType && issueGate.create) {
     try {
       const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
       const copy = await generateArtifactCopy({
@@ -338,8 +337,12 @@ async function processTask(task: any): Promise<void> {
       // branch in entrypoint.sh.
       const clusterEnabled =
         process.env.LORE_DARK_FACTORY_CLUSTER_ENABLED === "true";
+      // feature-planning/finalize always run their workflow in the Station (ADR-028),
+      // regardless of the dark-factory cluster gate. Others need both gates on.
       const darkFactoryWorkflow =
-        darkFactoryEnabled && clusterEnabled ? task.task_type : undefined;
+        isFeaturePlanningType || (darkFactoryEnabled && clusterEnabled)
+          ? task.task_type
+          : undefined;
 
       // Look up the actual default branch when forwarding to a
       // dark-factory pod. Hardcoding "main" 422'd on repos still on

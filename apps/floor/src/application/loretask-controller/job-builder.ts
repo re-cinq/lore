@@ -1,5 +1,6 @@
 import type * as k8s from "@kubernetes/client-node";
 import { RELAY_SCRIPT } from "@re-cinq/lore-runner";
+import { stationPlainEnv } from "@re-cinq/lore-shared";
 
 /**
  * Builds the Kubernetes Job for a LoreTask (ADR-025, sidecar model).
@@ -50,19 +51,8 @@ function kernelEnv(
 ): k8s.V1EnvVar[] {
   const { spec } = input;
   const env: k8s.V1EnvVar[] = [
-    { name: "TARGET_REPO", value: spec.targetRepo },
-    { name: "BRANCH_NAME", value: spec.branch },
-    { name: "TASK_PROMPT", value: spec.prompt },
-    { name: "MODEL", value: spec.model || "claude-sonnet-4-6" },
-    { name: "TASK_TYPE", value: spec.taskType || "implementation" },
-    { name: "PR_NUMBER", value: String(spec.prNumber || "") },
-    {
-      name: "LORE_DARK_FACTORY_WORKFLOW",
-      value: spec.darkFactory?.workflowName ?? "",
-    },
-    { name: "BASE_BRANCH", value: spec.darkFactory?.baseBranch ?? "" },
-    { name: "LORE_TASK_ID", value: spec.taskId },
-    { name: "TASK_DESCRIPTION", value: spec.description ?? spec.prompt },
+    // Plain (non-secret) vars shared with the Docker backend so they can't drift.
+    ...stationPlainEnv(spec),
     {
       name: "ANTHROPIC_API_KEY",
       valueFrom: {
