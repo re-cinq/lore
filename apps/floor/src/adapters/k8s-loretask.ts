@@ -1,16 +1,23 @@
-import type { K8sPort, LoreTaskSpec } from "@re-cinq/lore-shared";
+import type { K8sPort, LoreTaskSpec, StationBackend, StationLaunchResult } from "@re-cinq/lore-shared";
 
 const GROUP = "lore.re-cinq.com";
 const VERSION = "v1alpha1";
 const PLURAL = "loretasks";
 
 /**
- * K8sPort impl for the agent — creates a LoreTask CR via @kubernetes/client-node
- * (lazily imported, as in worker.ts). Consolidates the three identical-shaped CR
- * bodies previously copy-pasted in worker.ts / spec-task-executor.ts /
- * loretask-watcher.ts; the 409-already-exists case maps to created:false.
+ * K8s Station backend (ADR-028) — creates a LoreTask CR via @kubernetes/client-node
+ * (lazily imported, as in worker.ts). Async backend: `launch` returns once the CR
+ * exists and OMITS `completion`; the loretask-watcher resolves completion from the
+ * CR status later. The 409-already-exists case maps to launched:false. Also
+ * satisfies the legacy K8sPort (`createLoreTask`), still used by callers that
+ * create CRs directly.
  */
-export class K8sLoreTaskClient implements K8sPort {
+export class K8sLoreTaskClient implements K8sPort, StationBackend {
+  async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
+    const { name, created } = await this.createLoreTask(spec);
+    return { ref: name, launched: created };
+  }
+
   async createLoreTask(
     spec: LoreTaskSpec,
     opts?: { namespace?: string },

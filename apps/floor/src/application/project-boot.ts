@@ -17,5 +17,7 @@ const NO_OP_DGRAPH = {
 
 export function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
-  return createProject(repo, getPool(), dgraph, process.env, { k8s: new K8sLoreTaskClient() });
+  // Station backend (ADR-028): K8s here; the Docker backend + selection by
+  // selectStationBackend are wired in below.
+  return createProject(repo, getPool(), dgraph, process.env, { station: new K8sLoreTaskClient() });
 }

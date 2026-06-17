@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { tmpdir } from "node:os";
 import { AgentRunner } from "./agent-runner.js";
-import type { K8sPort, LoreTaskSpec } from "./k8s-port.js";
+import type { LoreTaskSpec } from "./k8s-port.js";
+import type { StationBackend } from "./station-port.js";
 import type { LlmPort } from "./llm-port.js";
 
 /**
@@ -21,15 +22,15 @@ describe("AgentRunner", () => {
     });
   });
 
-  it("cluster mode creates a LoreTask CR via the injected K8sPort", async () => {
+  it("cluster mode launches a Station via the injected StationBackend", async () => {
     const created: LoreTaskSpec[] = [];
-    const k8s: K8sPort = {
-      createLoreTask: async (spec) => {
+    const station: StationBackend = {
+      launch: async (spec) => {
         created.push(spec);
-        return { name: `loretask-${spec.taskId}`, created: true };
+        return { ref: `loretask-${spec.taskId}`, launched: true };
       },
     };
-    const runner = new AgentRunner(process.env, { k8s });
+    const runner = new AgentRunner(process.env, { station });
 
     const result = await runner.run("re-cinq/lore", "task-2", {
       mode: "cluster",
@@ -52,15 +53,15 @@ describe("AgentRunner", () => {
     });
   });
 
-  it("cluster mode passes the execution image to the LoreTask CR", async () => {
+  it("cluster mode passes the execution image to the Station", async () => {
     const created: LoreTaskSpec[] = [];
-    const k8s: K8sPort = {
-      createLoreTask: async (spec) => {
+    const station: StationBackend = {
+      launch: async (spec) => {
         created.push(spec);
-        return { name: `loretask-${spec.taskId}`, created: true };
+        return { ref: `loretask-${spec.taskId}`, launched: true };
       },
     };
-    const runner = new AgentRunner(process.env, { k8s });
+    const runner = new AgentRunner(process.env, { station });
 
     await runner.run("re-cinq/lore", "task-img", {
       mode: "cluster",
@@ -88,11 +89,11 @@ describe("AgentRunner", () => {
     expect(prompts).toEqual(["hello"]);
   });
 
-  it("throws when cluster mode has no K8sPort provider", async () => {
+  it("throws when cluster mode has no StationBackend provider", async () => {
     const runner = new AgentRunner(process.env, {});
 
     await expect(runner.run("re-cinq/lore", "task-4", { mode: "cluster" })).rejects.toThrow(
-      'agents.run mode "cluster" needs a K8sPort provider',
+      'agents.run mode "cluster" needs a StationBackend provider',
     );
   });
 });

@@ -1,19 +1,20 @@
 import type { AgentRunnerPort, AgentRunResult, AgentRunOpts } from "./agent-runner-port.js";
 import type { LlmPort } from "./llm-port.js";
-import type { K8sPort } from "./k8s-port.js";
+import type { StationBackend } from "./station-port.js";
 import { runClaudeCli } from "./claude-cli.js";
 
 /**
  * Agent execution across all three modes, routing to injected providers:
  *  - local   → spawn `claude --print` (relocated spawn core, no provider needed)
- *  - cluster → create a LoreTask CR via the injected K8sPort
+ *  - cluster → launch a Station via the injected StationBackend (K8s or Docker,
+ *              chosen at the composition root by selectStationBackend; ADR-028)
  *  - direct  → call the injected LlmPort (Anthropic SDK lives in the runtime)
  * A mode whose provider is absent throws a clear error.
  */
 export class AgentRunner implements AgentRunnerPort {
   constructor(
     private readonly env: NodeJS.ProcessEnv = process.env,
-    private readonly providers: { k8s?: K8sPort; llm?: LlmPort } = {},
+    private readonly providers: { station?: StationBackend; llm?: LlmPort } = {},
   ) {}
 
   async run(repo: string, taskId: string, opts?: AgentRunOpts): Promise<AgentRunResult> {
@@ -26,9 +27,9 @@ export class AgentRunner implements AgentRunnerPort {
     }
 
     if (mode === "cluster") {
-      const k8s = this.providers.k8s;
-      if (!k8s) throw new Error('agents.run mode "cluster" needs a K8sPort provider');
-      const res = await k8s.createLoreTask({
+      const station = this.providers.station;
+      if (!station) throw new Error('agents.run mode "cluster" needs a StationBackend provider');
+      const res = await station.launch({
         taskId,
         taskType: opts?.taskType ?? "general",
         description: opts?.description ?? "",
@@ -43,7 +44,9 @@ export class AgentRunner implements AgentRunnerPort {
         darkFactory: opts?.darkFactory,
         image: opts?.image,
       });
-      return { taskId, mode, started: res.created };
+      // Sync backends (docker) carry completion back so the caller can finalize
+      // the run inline; async backends (k8s) omit it (the watcher resolves it).
+      return { taskId, mode, started: res.launched, completion: res.completion };
     }
 
     const llm = this.providers.llm;

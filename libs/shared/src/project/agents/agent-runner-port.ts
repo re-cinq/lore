@@ -11,6 +11,9 @@ export interface AgentRunResult {
   taskId: string;
   mode: AgentMode;
   started: boolean;
+  /** Set when a synchronous Station backend (docker) waited on the run; the
+   *  caller finalizes it inline. Omitted for async backends (k8s). */
+  completion?: import("./station-port.js").StationCompletion;
 }
 
 export interface AgentRunOpts {
