@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { store } from "../../platform/proxy-cache.js";
 
 // The handler captures `CONTEXT_PATH` from the environment at module load,
 // and with no pg pool configured `isDbAvailable()` is false, so lore_search_context
@@ -15,6 +16,7 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 
 const contextRoot = mkdtempSync(join(tmpdir(), "lore-search-context-"));
 let searchContext: ToolHandler;
+let assembleContext: ToolHandler;
 
 beforeAll(async () => {
   writeFileSync(
@@ -38,6 +40,7 @@ beforeAll(async () => {
   };
   registerContextTools(fakeServer as never, { getPool: () => null });
   searchContext = handlers["lore_search_context"];
+  assembleContext = handlers["lore_assemble_context"];
 });
 
 afterAll(() => {
@@ -92,5 +95,54 @@ describe("lore_search_context file-based fallback", () => {
       limit: 8,
     });
     expect(result.content[0].text).toMatch(/Error: search path not found at/);
+  });
+});
+
+describe("lore_assemble_context proxy path (read-through cache)", () => {
+  let cacheDir: string;
+  const policy = {
+    tool: "lore_assemble_context",
+    args: { query: "q", template: "default", repo: "owner/r" },
+    repo: "owner/r",
+    ttlSeconds: 0,
+  };
+
+  beforeEach(() => {
+    cacheDir = mkdtempSync(join(tmpdir(), "lore-assemble-cache-"));
+    process.env.LORE_CACHE_DIR = cacheDir;
+    process.env.LORE_API_URL = "https://lore.example";
+    process.env.LORE_INGEST_TOKEN = "test-token";
+    delete process.env.LORE_CACHE_ENABLED; // enable the cache (global setup disables it)
+    delete process.env.LORE_DB_HOST;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    rmSync(cacheDir, { recursive: true, force: true });
+    delete process.env.LORE_CACHE_DIR;
+    delete process.env.LORE_API_URL;
+    delete process.env.LORE_INGEST_TOKEN;
+    delete process.env.LORE_CACHE_ENABLED;
+  });
+
+  it("returns an empty-but-reachable context as-is instead of a stale cached copy", async () => {
+    store(policy, "OLD CONTEXT");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ text: "" }) })));
+    const result = await assembleContext({ query: "q", template: "default", repo: "owner/r" });
+    expect(result.content[0].text).toBe("");
+  });
+
+  it("does not serve a stale cached copy when the backend denies access (403)", async () => {
+    store(policy, "OLD CONTEXT");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 403, statusText: "Forbidden", json: async () => ({}) })));
+    const result = await assembleContext({ query: "q", template: "default", repo: "owner/r" });
+    expect(result.content[0].text).not.toContain("OLD CONTEXT");
+    expect(result.content[0].text).toContain("denied access");
+  });
+
+  it("returns the live result on a reachable hit", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ text: "FRESH CONTEXT" }) })));
+    const result = await assembleContext({ query: "q2", template: "default", repo: "owner/r" });
+    expect(result.content[0].text).toBe("FRESH CONTEXT");
   });
 });

@@ -8,7 +8,7 @@ import { isMemoryDbAvailable } from "../../features/memory/memory.js";
 import { assembleContext } from "../../features/context/context-assembly.js";
 import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
 import { traceRetrieval } from "../../platform/otel.js";
-import { ToolDeps, makeTrackLatency, proxyGetApi, withReadCache, unreachableError } from "./deps.js";
+import { ToolDeps, makeTrackLatency, proxyGetApi, withReadCache, unreachableError, deniedError } from "./deps.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -121,13 +121,15 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
                 const r = await proxyGetApi(`/api/context?${params.toString()}`);
                 if (!r.ok) return r;
                 const data = JSON.parse(r.body) as { text?: string };
-                return data.text
-                  ? { ok: true as const, body: data.text }
-                  : { ok: false as const, reason: "unreachable" as const, detail: "context response had no text" };
+                // A reachable backend that returns empty context is a real
+                // (empty) result, not an outage — return it as-is rather than
+                // forcing a stale, mislabeled "backend unreachable" serve.
+                return { ok: true as const, body: data.text ?? "" };
               },
             );
             if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
             if (proxied.reason === "unreachable") return unreachableError("lore_assemble_context", proxied.detail);
+            if (proxied.reason === "denied") return deniedError("lore_assemble_context", proxied.detail);
             return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
           }
           // Resolve cross_repo: explicit param wins, then check repo settings

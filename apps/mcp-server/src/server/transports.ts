@@ -4,8 +4,10 @@ import { dumpSessionLog } from "../platform/session-tracker.js";
 import { startHttpServer } from "./http-server.js";
 
 /**
- * Select the transport (stdio for local, Streamable-HTTP for GKE) based on
- * MCP_TRANSPORT and connect the server.
+ * Select how the process runs, based on MCP_TRANSPORT: stdio (local) serves
+ * the MCP protocol over a stdio transport; http (GKE) starts the REST /api/*
+ * backend that the local stdio adapter proxies to (no MCP-over-HTTP — the
+ * former /mcp endpoint was removed).
  */
 export async function startTransport(server: McpServer, getPool: () => any): Promise<void> {
   const mode = process.env.MCP_TRANSPORT || "stdio";

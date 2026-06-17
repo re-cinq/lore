@@ -16,7 +16,7 @@ import {
 } from "../../features/pipeline/tasks.js";
 import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
 import { resolveAgentId } from "../../platform/agent-id.js";
-import { ToolDeps, withReadCache } from "./deps.js";
+import { ToolDeps, withReadCache, unreachableError, deniedError } from "./deps.js";
 import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
 
 function completeOnly(body: string): boolean {
@@ -378,11 +378,15 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             async () => {
               const res = await fetch(`${apiUrl}/api/task-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
               if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
-              return { ok: false as const, reason: "unreachable" as const, detail: res.statusText };
+              const detail = `HTTP ${res.status} ${res.statusText}`;
+              if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
+              return { ok: false as const, reason: "unreachable" as const, detail };
             },
             { label: false, cacheIf: completeOnly },
           );
           if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+          if (proxied.reason === "denied") return deniedError("lore_get_task_logs", proxied.detail);
+          if (proxied.reason === "unreachable") return unreachableError("lore_get_task_logs", proxied.detail);
           return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
         }
 
@@ -428,11 +432,15 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             async () => {
               const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
               if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
-              return { ok: false as const, reason: "unreachable" as const, detail: res.statusText };
+              const detail = `HTTP ${res.status} ${res.statusText}`;
+              if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
+              return { ok: false as const, reason: "unreachable" as const, detail };
             },
             { label: false, cacheIf: completeOnly },
           );
           if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+          if (proxied.reason === "denied") return deniedError("lore_get_job_logs", proxied.detail);
+          if (proxied.reason === "unreachable") return unreachableError("lore_get_job_logs", proxied.detail);
           return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
         }
 

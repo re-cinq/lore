@@ -54,10 +54,15 @@ export function makeTrackLatency(getPool: () => any) {
 // failure — silently writing to a local file would lose org-wide
 // shared state, which is what bit us on 2026-04-29 when GKE Autopilot
 // was bouncing pods every few minutes).
+// `denied` (401/403) is kept distinct from `unreachable` on purpose: an
+// authoritative "you may not read this" must NOT trigger a stale-cache serve
+// (that would disclose data the caller has lost access to), whereas a true
+// outage may fall back to a stale copy. See withReadCache.
 export type ProxyResult =
   | { ok: true; body: string }
   | { ok: false; reason: "not_configured" }
-  | { ok: false; reason: "unreachable"; detail: string };
+  | { ok: false; reason: "unreachable"; detail: string }
+  | { ok: false; reason: "denied"; detail: string };
 
 export const PROXY_RETRY_DELAYS_MS = [200, 600, 1800]; // ~2.6s total budget before giving up
 
@@ -66,6 +71,12 @@ function isRetriableStatus(status: number): boolean {
   // codes you get from a load-balancer mid-Autopilot-eviction. 408
   // (request timeout) and 429 (throttle) are also retry-safe.
   return status === 408 || status === 429 || (status >= 500 && status < 600);
+}
+
+// 401 (unauthenticated) / 403 (unauthorized) are authoritative access denials,
+// not outages — never serve a stale cached copy past one.
+function isAuthDenial(status: number): boolean {
+  return status === 401 || status === 403;
 }
 
 export async function proxyToApi(endpoint: string, body: Record<string, any>): Promise<ProxyResult> {
@@ -86,8 +97,12 @@ export async function proxyToApi(endpoint: string, body: Record<string, any>): P
         return { ok: true, body: JSON.stringify(await res.json()) };
       }
       lastDetail = `HTTP ${res.status} ${res.statusText}`;
+      if (isAuthDenial(res.status)) {
+        console.error(`[lore-mcp] proxy ${endpoint} denied (${lastDetail})`);
+        return { ok: false, reason: "denied", detail: lastDetail };
+      }
       if (!isRetriableStatus(res.status)) {
-        // 4xx (auth, validation) — retrying won't help.
+        // 4xx (validation) — retrying won't help.
         console.error(`[lore-mcp] proxy ${endpoint} failed (${lastDetail}); not retrying`);
         return { ok: false, reason: "unreachable", detail: lastDetail };
       }
@@ -155,6 +170,10 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
         return { ok: true, body: JSON.stringify(await res.json()) };
       }
       lastDetail = `HTTP ${res.status} ${res.statusText}`;
+      if (isAuthDenial(res.status)) {
+        console.error(`[lore-mcp] proxy GET ${path} denied (${lastDetail})`);
+        return { ok: false, reason: "denied", detail: lastDetail };
+      }
       if (!isRetriableStatus(res.status)) {
         console.error(`[lore-mcp] proxy GET ${path} failed (${lastDetail}); not retrying`);
         return { ok: false, reason: "unreachable", detail: lastDetail };
@@ -182,6 +201,20 @@ export function unreachableError(op: string, detail: string): { content: [{ type
       text: `Lore API unreachable for ${op} after ${PROXY_RETRY_DELAYS_MS.length + 1} attempts: ${detail}. ` +
         `Refusing local-file fallback to prevent silent divergence from the org-wide DB. ` +
         `Check the GKE service (lore-mcp pods) and retry.`,
+    }],
+  };
+}
+
+// Format an MCP error for a proxy access denial (401/403). Surfaces the
+// denial instead of serving a stale cached copy or falling back to local
+// state — the backend has authoritatively refused this read.
+export function deniedError(op: string, detail: string): { content: [{ type: "text"; text: string }] } {
+  return {
+    content: [{
+      type: "text" as const,
+      text: `Lore API denied access for ${op}: ${detail}. ` +
+        `Your token may be revoked, expired, or lack the required scope. ` +
+        `Not serving a cached copy for a denied request. Re-authenticate and retry.`,
     }],
   };
 }

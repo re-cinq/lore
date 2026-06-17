@@ -33,6 +33,7 @@ import {
   proxyGetApi,
   withReadCache,
   unreachableError,
+  deniedError,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
 
@@ -84,6 +85,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           return { content: [{ type: "text" as const, text: proxied.body }] };
         }
         if (proxied.reason === "unreachable") return unreachableError("lore_write_memory", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_write_memory", proxied.detail);
         // File fallback only when LORE_API_URL is not configured (true offline mode)
         const result = await writeMemoryFile(key, value, agent_id, ttl);
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
@@ -115,6 +117,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         );
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
         if (proxied.reason === "unreachable") return unreachableError("lore_read_memory", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_read_memory", proxied.detail);
         const result = await readMemoryFile(key, agent_id, ver);
         if (!result) return { content: [{ type: "text" as const, text: `Memory "${key}" not found.` }] };
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -144,6 +147,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           return { content: [{ type: "text" as const, text: proxied.body }] };
         }
         if (proxied.reason === "unreachable") return unreachableError("lore_delete_memory", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_delete_memory", proxied.detail);
         const result = await deleteMemoryFile(key, agent_id);
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       } catch (err: any) {
@@ -173,6 +177,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         );
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
         if (proxied.reason === "unreachable") return unreachableError("lore_list_memories", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_list_memories", proxied.detail);
         const result = await listMemoriesFile(agent_id, limit, offset);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       } catch (err: any) {
@@ -207,6 +212,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         );
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
         if (proxied.reason === "unreachable") return unreachableError("lore_search_memory", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_search_memory", proxied.detail);
         const results = await searchMemoryFile(query, agent_id, limit);
         return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
       } catch (err: any) {
@@ -237,6 +243,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             return { content: [{ type: "text" as const, text: proxied.body }] };
           }
           if (proxied.reason === "unreachable") return unreachableError("lore_write_episode", proxied.detail);
+          if (proxied.reason === "denied") return deniedError("lore_write_episode", proxied.detail);
           return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL or LORE_API_URL. Neither is configured." }] };
         }
         const agent = resolveAgentId(agent_id);
@@ -319,6 +326,9 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             }
             if (proxied.reason === "unreachable") {
               return unreachableError("lore_query_graph", proxied.detail);
+            }
+            if (proxied.reason === "denied") {
+              return deniedError("lore_query_graph", proxied.detail);
             }
             return { content: [{ type: "text" as const, text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL." }] };
           }
