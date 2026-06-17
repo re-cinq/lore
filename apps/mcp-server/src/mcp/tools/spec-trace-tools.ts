@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
-import { ToolDeps, proxyGetApi } from "./deps.js";
+import { ToolDeps, proxyGetApi, withReadCache } from "./deps.js";
 import { runQueryTrace } from "../../features/spec-trace/query-trace.js";
 
 export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
@@ -46,9 +46,15 @@ export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
       repo: z.string().optional().describe("owner/repo. Defaults to the current repo."),
     },
     async ({ spec, statement, repo }) => {
+      const cachedGet = (path: string) =>
+        withReadCache(
+          { tool: "lore-query-trace", args: { path }, repo: repo || undefined, ttlSeconds: 600 },
+          () => proxyGetApi(path),
+          { label: false },
+        );
       const text = await runQueryTrace(
         { repo, spec, statement },
-        { proxyGet: proxyGetApi, detectRepo: detectCurrentRepo },
+        { proxyGet: cachedGet, detectRepo: detectCurrentRepo },
       );
       return { content: [{ type: "text" as const, text }] };
     }

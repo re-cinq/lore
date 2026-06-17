@@ -14,16 +14,16 @@ Spec: [spec.md](spec.md)
 
 ## Phase 2 — Wire reads through the cache
 
-- [ ] T005 Add `withReadCache(policy, doProxy)` helper in `apps/mcp-server/src/mcp/tools/deps.ts` (fresh hit short-circuits; on `ok` store; on `unreachable` serve labeled stale if present)
-- [ ] T006 `lore_assemble_context` (context-tools.ts) routes its local-mode fetch through `withReadCache`
-- [ ] T007 Memory reads (`search_memory`, `read_memory`, `list_memories`) + `query_graph` (memory-tools.ts) wrapped with `withReadCache`
-- [ ] T008 `lore-query-trace` (spec-trace-tools.ts) wrapped with `withReadCache`
-- [ ] T009 `lore_get_task_logs` / `lore_get_job_logs` (pipeline-tools.ts) cached only when `complete: true`
+- [x] T005 Add `withReadCache(policy, doProxy)` helper in `apps/mcp-server/src/mcp/tools/deps.ts` (fresh hit short-circuits; on `ok` store; on `unreachable` serve labeled stale if present)
+- [x] T006 `lore_assemble_context` (context-tools.ts) routes its local-mode fetch through `withReadCache`
+- [x] T007 Memory reads (`search_memory`, `read_memory`, `list_memories`) + `query_graph` (memory-tools.ts) wrapped with `withReadCache`
+- [x] T008 `lore-query-trace` (spec-trace-tools.ts) wrapped with `withReadCache`
+- [x] T009 `lore_get_task_logs` / `lore_get_job_logs` (pipeline-tools.ts) cached only when `complete: true`
 
 ## Phase 3 — Mutation invalidation
 
-- [ ] T010 `write_memory` / `delete_memory` invalidate repo-scoped memory reads + `assemble_context`; `write_episode` invalidates `search_memory` + `query_graph` + `assemble_context` (memory-tools.ts)
-- [ ] T011 `create_pipeline_task` invalidates cached task-list reads (pipeline-tools.ts); `ingest_files` invalidates `assemble_context` for the repo (repo-tools.ts)
+- [x] T010 `write_memory` / `delete_memory` invalidate repo-scoped memory reads + `assemble_context`; `write_episode` invalidates `search_memory` + `query_graph` + `assemble_context` (memory-tools.ts)
+- [x] T011 `create_pipeline_task` invalidates cached task-list reads (pipeline-tools.ts); `ingest_files` invalidates `assemble_context` for the repo (repo-tools.ts)
 
 ## Phase 4 — Docs
 
