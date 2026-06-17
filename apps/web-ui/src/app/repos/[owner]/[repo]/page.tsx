@@ -27,7 +27,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
   const contextCount = await queryOne<{count: number}>(
     `SELECT count(*)::int as count FROM ${schema}.chunks WHERE repo = $1`,
     [fullName]
-  );
+  ).catch(() => null);
 
   // Enrollment / integration signals (all fail-soft).
   const conventionRows = await query<{ file_path: string }>(

@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { SCHEMA_RE, ORG_SHARED_SCHEMA, pickSchema } from './repo-schema';
 
 const pool = new Pool({
   host: process.env.LORE_DB_HOST || 'localhost',
@@ -38,23 +39,36 @@ export async function queryAllowMissing<T = any>(text: string, params?: any[]): 
   }
 }
 
-const SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
+/**
+ * Schemas that actually have a `chunks` table, read from the catalog. This is
+ * the source of truth for "does this team's schema exist" — `lore.repos.team`
+ * is free-text and can name a schema that was never provisioned.
+ */
+export async function listChunkSchemas(): Promise<string[]> {
+  const { rows } = await pool.query(
+    `SELECT table_schema FROM information_schema.tables
+      WHERE table_name = 'chunks' AND table_schema ~ '^[a-z][a-z0-9_]{0,62}$'`
+  );
+  return rows.map((r: any) => r.table_schema as string).filter((s: string) => SCHEMA_RE.test(s));
+}
 
-/** Returns all schemas that contain a chunks table (team schemas + org_shared). */
+/** Returns all schemas to search for chunks (referenced, provisioned team schemas + org_shared). */
 export async function getChunkSchemas(): Promise<string[]> {
   const { rows } = await pool.query(
     `SELECT DISTINCT team FROM lore.repos WHERE team IS NOT NULL AND team ~ '^[a-z][a-z0-9_]{0,62}$'`
   );
-  const schemas = rows.map((r: any) => r.team as string).filter((s: string) => SCHEMA_RE.test(s));
-  if (!schemas.includes('org_shared')) schemas.push('org_shared');
+  const existing = new Set(await listChunkSchemas());
+  const schemas = rows
+    .map((r: any) => r.team as string)
+    .filter((s: string) => SCHEMA_RE.test(s) && existing.has(s));
+  if (!schemas.includes(ORG_SHARED_SCHEMA)) schemas.push(ORG_SHARED_SCHEMA);
   return schemas;
 }
 
-/** Resolve the chunk schema for a given repo (team schema or org_shared fallback). */
+/** Resolve the chunk schema for a given repo (provisioned team schema or org_shared fallback). */
 export async function getRepoSchema(fullName: string): Promise<string> {
   const row = await queryOne<{ team: string | null }>(`SELECT team FROM lore.repos WHERE full_name = $1`, [fullName]);
-  const team = row?.team ?? '';
-  return SCHEMA_RE.test(team) ? team : 'org_shared';
+  return pickSchema(row?.team, await listChunkSchemas());
 }
 
 /**
@@ -65,7 +79,7 @@ export async function getRepoSchemaAndTeam(fullName: string): Promise<{ schema: 
   const row = await queryOne<{ team: string | null }>(`SELECT team FROM lore.repos WHERE full_name = $1`, [fullName]);
   if (row === null) return null;
   const team = row.team ?? '';
-  const schema = SCHEMA_RE.test(team) ? team : 'org_shared';
+  const schema = pickSchema(team, await listChunkSchemas());
   return { schema, team };
 }
 
