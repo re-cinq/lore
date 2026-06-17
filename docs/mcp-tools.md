@@ -19,9 +19,10 @@ Two simple labels tell you where each tool does its work:
 
 And one label about speed and offline use:
 
-- ⚡ **Cached** — recent results are saved on your computer for a few minutes,
-  so repeat lookups are instant and still work briefly if the cloud is
-  unreachable. (Saving and changing things is never cached.)
+- ⚡ **Cached** — recent results are saved on your computer for a short while
+  (a few minutes for most reads; finished-job logs up to a day), so repeat
+  lookups are instant and still work if the cloud is briefly unreachable.
+  (Saving and changing things is never cached.)
 
 ---
 
