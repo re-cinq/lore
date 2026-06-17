@@ -185,7 +185,7 @@ export function parseGapResult(raw: unknown): GapResult {
 const SCRIPT_RE = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
 const FOREIGN_OBJECT_RE = /<foreignObject\b[^>]*>[\s\S]*?<\/foreignObject>/gi;
 const EVENT_HANDLER_RE = /\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
-const HREF_RE = /\s+(?:xlink:)?href\s*=\s*("[^"]*"|'[^']*')/gi;
+const HREF_RE = /\s+(?:xlink:)?href\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
 const SAFE_HREF_RE = /^(#|data:image\/)/i;
 
 /**
@@ -199,10 +199,27 @@ export function sanitizeSvg(markup: string): string {
     .replace(SCRIPT_RE, "")
     .replace(FOREIGN_OBJECT_RE, "")
     .replace(EVENT_HANDLER_RE, "")
-    .replace(HREF_RE, (match, quoted: string) => {
-      const value = quoted.slice(1, -1);
-      return SAFE_HREF_RE.test(value) ? match : "";
+    .replace(HREF_RE, (match, value: string) => {
+      const unquoted = value.replace(/^["']|["']$/g, "");
+      return SAFE_HREF_RE.test(unquoted) ? match : "";
     });
+}
+
+const PLANNING_PHASE_STATUSES: ReadonlySet<string> = new Set([
+  "draft",
+  "planning",
+  "awaiting-input",
+  "spec-ready",
+]);
+
+/**
+ * Whether a feature is still mid-planning. A round's GapResult may only advance
+ * the feature from one of these statuses — a stale/duplicate pod POST must not
+ * drag an already-finalized feature (pr-open/implemented/split) back into the
+ * wizard.
+ */
+export function isPlanningPhase(status: string): boolean {
+  return PLANNING_PHASE_STATUSES.has(status);
 }
 
 /**

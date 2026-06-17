@@ -3,6 +3,7 @@ import {
   parseGapResult,
   sanitizeSvg,
   decideFeatureStatus,
+  isPlanningPhase,
   type GapResult,
 } from "./gap-result.js";
 
@@ -71,6 +72,12 @@ describe("sanitizeSvg", () => {
     );
   });
 
+  it("strips an unquoted javascript: href", () => {
+    expect(sanitizeSvg("<svg><a href=javascript:evil()>x</a></svg>")).toBe(
+      "<svg><a>x</a></svg>",
+    );
+  });
+
   it("strips a foreignObject element", () => {
     expect(
       sanitizeSvg('<svg><foreignObject><div>x</div></foreignObject><rect/></svg>'),
@@ -104,5 +111,25 @@ describe("decideFeatureStatus", () => {
     expect(decideFeatureStatus({ ...validResult, questions: [] })).toBe(
       "spec-ready",
     );
+  });
+});
+
+describe("isPlanningPhase", () => {
+  it("returns true for the in-planning statuses", () => {
+    expect(["draft", "planning", "awaiting-input", "spec-ready"].map(isPlanningPhase)).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+  });
+
+  it("returns false once the feature has left planning", () => {
+    expect(["pr-open", "implemented", "split", "anything-else"].map(isPlanningPhase)).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
   });
 });

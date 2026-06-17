@@ -24,5 +24,16 @@ export async function GET(
     `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 ORDER BY iteration DESC LIMIT 1`,
     [id],
   );
-  return NextResponse.json({ feature, latestIteration: iterations[0] ?? null });
+  const latestIteration = iterations[0] ?? null;
+  // Surface the underlying task's status/failure so the wizard can show a failure
+  // + retry even when a hard crash left the iteration stuck at 'running'.
+  let task: { status: string; failure_reason: string | null } | null = null;
+  if (latestIteration?.task_id) {
+    const tasks = await queryAllowMissing<{ status: string; failure_reason: string | null }>(
+      `SELECT status, failure_reason FROM pipeline.tasks WHERE id = $1`,
+      [latestIteration.task_id],
+    );
+    task = tasks[0] ?? null;
+  }
+  return NextResponse.json({ feature, latestIteration, task });
 }

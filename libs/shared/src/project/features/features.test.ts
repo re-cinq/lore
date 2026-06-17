@@ -2,8 +2,13 @@ import { describe, it, expect } from "vitest";
 import { Features } from "./features.js";
 import type { FeaturesPort, Feature } from "./features-port.js";
 
-function recordingPort(): { port: FeaturesPort; calls: any[] } {
-  const calls: any[] = [];
+interface RecordedCall {
+  op: string;
+  args: unknown[];
+}
+
+function recordingPort(): { port: FeaturesPort; calls: RecordedCall[] } {
+  const calls: RecordedCall[] = [];
   const stub = (op: string) =>
     (...args: unknown[]) => {
       calls.push({ op, args });
@@ -14,6 +19,7 @@ function recordingPort(): { port: FeaturesPort; calls: any[] } {
     get: stub("get"),
     list: stub("list"),
     appendIteration: stub("appendIteration"),
+    attachIterationTask: stub("attachIterationTask"),
     setIterationResult: stub("setIterationResult"),
     transitionStatus: stub("transitionStatus"),
     createSplitChild: stub("createSplitChild"),
@@ -39,10 +45,19 @@ describe("Features facade", () => {
 
   it("stamps the bound repo on appendIteration", async () => {
     const { port, calls } = recordingPort();
-    await new Features("octo/repo", port).appendIteration("f1", "t1", { a: 1 });
+    await new Features("octo/repo", port).appendIteration("f1", { a: 1 });
     expect(calls[0]).toEqual({
       op: "appendIteration",
-      args: ["octo/repo", "f1", "t1", { a: 1 }],
+      args: ["octo/repo", "f1", { a: 1 }],
+    });
+  });
+
+  it("stamps the bound repo on attachIterationTask", async () => {
+    const { port, calls } = recordingPort();
+    await new Features("octo/repo", port).attachIterationTask("f1", 2, "t1");
+    expect(calls[0]).toEqual({
+      op: "attachIterationTask",
+      args: ["octo/repo", "f1", 2, "t1"],
     });
   });
 });

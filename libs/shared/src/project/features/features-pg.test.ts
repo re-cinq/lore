@@ -3,7 +3,7 @@ import { PgFeatures } from "./features-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
 /** Fake pool that records queries and returns queued result sets in order. */
-function fakePool(queued: any[][]): { pool: PgPool; calls: { text: string; params?: unknown[] }[] } {
+function fakePool(queued: Record<string, unknown>[][]): { pool: PgPool; calls: { text: string; params?: unknown[] }[] } {
   const calls: { text: string; params?: unknown[] }[] = [];
   let i = 0;
   const pool: PgPool = {
@@ -54,22 +54,36 @@ describe("PgFeatures.list", () => {
 });
 
 describe("PgFeatures.appendIteration", () => {
-  it("bumps the feature counter then inserts a running iteration", async () => {
+  it("bumps the feature counter then inserts a running iteration at the returned number", async () => {
     const { pool, calls } = fakePool([
       [{ current_iteration: 2 }], // UPDATE ... RETURNING current_iteration
       [{ id: "it1", iteration: 2 }], // INSERT iteration
     ]);
-    await new PgFeatures(pool).appendIteration("octo/repo", "f1", "task1", { free_form: "x" });
+    const row = await new PgFeatures(pool).appendIteration("octo/repo", "f1", { free_form: "x" });
     expect(calls[0].text).toContain("UPDATE lore.features");
     expect(calls[0].text).toContain("current_iteration = current_iteration + 1");
     expect(calls[0].text).toContain("status = 'planning'");
     expect(calls[1].text).toContain("INSERT INTO lore.feature_iterations");
-    expect(calls[1].params).toEqual(["f1", 2, "task1", JSON.stringify({ free_form: "x" })]);
+    // task_id is attached later (after task creation) so the pod's iteration
+    // matches the row the DB actually minted — no taskId at insert time.
+    expect(calls[1].params).toEqual(["f1", 2, JSON.stringify({ free_form: "x" })]);
+    expect(row).toEqual({ id: "it1", iteration: 2 });
+  });
+});
+
+describe("PgFeatures.attachIterationTask", () => {
+  it("sets task_id on the iteration, scoped to the owning repo", async () => {
+    const { pool, calls } = fakePool([[]]);
+    await new PgFeatures(pool).attachIterationTask("octo/repo", "f1", 2, "task1");
+    expect(calls[0].text).toContain("UPDATE lore.feature_iterations");
+    expect(calls[0].text).toContain("task_id = $1");
+    expect(calls[0].text).toContain("repo = $4");
+    expect(calls[0].params).toEqual(["task1", "f1", 2, "octo/repo"]);
   });
 });
 
 describe("PgFeatures.setIterationResult", () => {
-  it("updates the iteration row's gap_result and status", async () => {
+  it("updates the iteration row's gap_result and status, scoped to the owning repo", async () => {
     const { pool, calls } = fakePool([[]]);
     const gap = {
       architecture: { summary: "", components: [] },
@@ -80,7 +94,8 @@ describe("PgFeatures.setIterationResult", () => {
     };
     await new PgFeatures(pool).setIterationResult("octo/repo", "f1", 1, gap, "ready");
     expect(calls[0].text).toContain("UPDATE lore.feature_iterations");
-    expect(calls[0].params).toEqual([JSON.stringify(gap), "ready", "f1", 1]);
+    expect(calls[0].text).toContain("repo = $5");
+    expect(calls[0].params).toEqual([JSON.stringify(gap), "ready", "f1", 1, "octo/repo"]);
   });
 });
 

@@ -32,7 +32,7 @@ describe('feature-api', () => {
   it('falls back to LORE_INGEST_TOKEN when no admin token', async () => {
     delete process.env.LORE_ADMIN_TOKEN;
     process.env.LORE_INGEST_TOKEN = 'ingest-tok';
-    const spy = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ id: 'f1', task_id: 't1' }) }));
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, status: 201, json: async () => ({ id: 'f1', task_id: 't1' }) }));
     global.fetch = spy as unknown as typeof fetch;
     await createFeature('o/r', 'T', 'P');
     const headers = (spy.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
@@ -40,7 +40,7 @@ describe('feature-api', () => {
   });
 
   it('create posts to /features and returns ok with data', async () => {
-    const spy = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ id: 'f1', task_id: 't1' }) }));
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, status: 201, json: async () => ({ id: 'f1', task_id: 't1' }) }));
     global.fetch = spy as unknown as typeof fetch;
     const result = await createFeature('o/r', 'My feature', 'do it');
     expect(spy.mock.calls[0][0]).toBe('https://lore-api.test/api/repos/o/r/features');
@@ -49,7 +49,7 @@ describe('feature-api', () => {
   });
 
   it('refine posts user_answers to the iterations path', async () => {
-    const spy = vi.fn(async () => ({ ok: true, status: 202, json: async () => ({ task_id: 't2', iteration: 2 }) }));
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, status: 202, json: async () => ({ task_id: 't2', iteration: 2 }) }));
     global.fetch = spy as unknown as typeof fetch;
     await refineFeature('o/r', 'f1', { free_form: 'x' });
     expect(spy.mock.calls[0][0]).toBe('https://lore-api.test/api/repos/o/r/features/f1/iterations');
@@ -57,14 +57,14 @@ describe('feature-api', () => {
   });
 
   it('finalize posts to the finalize path', async () => {
-    const spy = vi.fn(async () => ({ ok: true, status: 202, json: async () => ({ task_id: 't3' }) }));
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, status: 202, json: async () => ({ task_id: 't3' }) }));
     global.fetch = spy as unknown as typeof fetch;
     await finalizeFeature('o/r', 'f1');
     expect(spy.mock.calls[0][0]).toBe('https://lore-api.test/api/repos/o/r/features/f1/finalize');
   });
 
   it('split posts title + prompt to the split path', async () => {
-    const spy = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ id: 'child' }) }));
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, status: 201, json: async () => ({ id: 'child' }) }));
     global.fetch = spy as unknown as typeof fetch;
     await splitFeature('o/r', 'parent', 'Part A', 'carve A');
     expect(spy.mock.calls[0][0]).toBe('https://lore-api.test/api/repos/o/r/features/parent/split');

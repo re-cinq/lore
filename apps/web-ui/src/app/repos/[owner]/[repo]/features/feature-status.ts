@@ -20,6 +20,13 @@ export function statusBadge(status: FeatureStatus): StatusBadge {
   return BADGES[status] ?? { label: status, color: '#94a3b8' };
 }
 
+// Single source for the lifecycle palette. The D3 graph (SpecGraphD3) colors
+// Feature nodes through this so node fills and status pills never drift apart.
+// Returns undefined for an unknown status so callers can fall back to a default.
+export function featureStatusColor(status: string): string | undefined {
+  return (BADGES as Record<string, StatusBadge>)[status]?.color;
+}
+
 // A feature is mid-planning (the wizard polls) until it is ready to finalize or
 // already shipped.
 export function isPlanningActive(status: FeatureStatus): boolean {

@@ -4,6 +4,7 @@ import {
   parseGapResult,
   sanitizeSvg,
   decideFeatureStatus,
+  isPlanningPhase,
   type GapResult,
 } from "@re-cinq/lore-shared/feature-planning/gap-result.js";
 import { projectFor } from "../../platform/project-boot.js";
@@ -25,9 +26,13 @@ const SPLIT_RE = /^\/api\/repos\/([^/]+)\/([^/]+)\/features\/([^/]+)\/split(?:\?
 const ONE_RE = /^\/api\/repos\/([^/]+)\/([^/]+)\/features\/([^/]+)(?:\?.*)?$/;
 const LIST_RE = /^\/api\/repos\/([^/]+)\/([^/]+)\/features(?:\?(.*))?$/;
 
-/** Kick a feature-planning Station for the next round of a feature. */
+/**
+ * Kick a feature-planning Station for the next round of a feature. `repoFullName`
+ * MUST be the `owner/repo` slug — it lands verbatim in `target_repo`, which the
+ * pod clones as `github.com/<target_repo>.git`; a bare repo name 404s the clone.
+ */
 async function kickPlanning(
-  repo: string,
+  repoFullName: string,
   featureId: string,
   iteration: number,
   description: string,
@@ -35,7 +40,7 @@ async function kickPlanning(
   const task = await createTask(
     description,
     "feature-planning",
-    repo,
+    repoFullName,
     "ui",
     { feature_id: featureId, iteration },
     "immediate",
@@ -57,7 +62,15 @@ export async function handleFeaturesRoute(
     if (m && method === "POST") {
       const [, owner, repo, id, nRaw] = m;
       const iteration = Number(nRaw);
+      if (!Number.isInteger(iteration) || iteration < 0) {
+        return json(res, 400, { error: "iteration must be a non-negative integer" });
+      }
       const features = (await projectFor(`${owner}/${repo}`)).features;
+      // Confirm the feature belongs to this repo before any write — feature.id is
+      // a global UUID, so without this a write-token holder could POST a forged
+      // result against another repo's feature.
+      const feature = await features.get(id);
+      if (!feature) return json(res, 404, { error: "feature not found" });
       let gap: GapResult;
       try {
         gap = parseGapResult(await readJsonBody(req));
@@ -67,9 +80,14 @@ export async function handleFeaturesRoute(
       }
       gap.mockups = gap.mockups.map((mk) => ({ ...mk, markup: sanitizeSvg(mk.markup) }));
       await features.setIterationResult(id, iteration, gap, "ready");
-      await features.transitionStatus(id, decideFeatureStatus(gap), {
-        draft_spec_md: gap.draft_spec_markdown,
-      });
+      // Only advance a feature that's still mid-planning. A slow/retried/duplicate
+      // pod POSTing a stale GapResult must not drag a finalized feature
+      // (pr-open/implemented/split) back into the wizard.
+      if (isPlanningPhase(feature.status)) {
+        await features.transitionStatus(id, decideFeatureStatus(gap), {
+          draft_spec_md: gap.draft_spec_markdown,
+        });
+      }
       return json(res, 200, { ok: true });
     }
 
@@ -81,7 +99,6 @@ export async function handleFeaturesRoute(
       const features = (await projectFor(`${owner}/${repo}`)).features;
       const feature = await features.get(id);
       if (!feature) return json(res, 404, { error: "feature not found" });
-      const iteration = feature.current_iteration + 1;
       // Carry the whole-feature timeline into the round's prompt: the accumulated
       // draft plus the author's feedback for this round (FR-2.3 / ADR-027).
       const description = [
@@ -93,8 +110,13 @@ export async function handleFeaturesRoute(
         "## Author feedback for this round",
         JSON.stringify(body.user_answers ?? {}, null, 2),
       ].join("\n");
-      const taskId = await kickPlanning(repo, id, iteration, description);
-      const row = await features.appendIteration(id, taskId, body.user_answers ?? null);
+      // Allocate the iteration atomically FIRST, then spawn the pod with the row
+      // the DB actually minted (not current_iteration+1 read off a stale
+      // snapshot), then link the task. Two concurrent refines thus drive distinct
+      // rows instead of both targeting the same guessed number.
+      const row = await features.appendIteration(id, body.user_answers ?? null);
+      const taskId = await kickPlanning(`${owner}/${repo}`, id, row.iteration, description);
+      await features.attachIterationTask(id, row.iteration, taskId);
       return json(res, 202, { task_id: taskId, iteration: row.iteration });
     }
 
@@ -108,7 +130,7 @@ export async function handleFeaturesRoute(
       const task = await createTask(
         `Finalize feature: ${feature.title}`,
         "feature-finalize",
-        repo,
+        `${owner}/${repo}`,
         "ui",
         { feature_id: id, slug: feature.slug },
         "immediate",
@@ -164,9 +186,9 @@ export async function handleFeaturesRoute(
           prompt: body.prompt,
           parentFeatureId: body.parent_feature_id,
         });
-        const iteration = feature.current_iteration + 1;
-        const taskId = await kickPlanning(repo, feature.id, iteration, body.prompt);
-        await features.appendIteration(feature.id, taskId, null);
+        const row = await features.appendIteration(feature.id, null);
+        const taskId = await kickPlanning(`${owner}/${repo}`, feature.id, row.iteration, body.prompt);
+        await features.attachIterationTask(feature.id, row.iteration, taskId);
         return json(res, 201, { id: feature.id, task_id: taskId });
       }
     }

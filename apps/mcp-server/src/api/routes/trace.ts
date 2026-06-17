@@ -47,7 +47,15 @@ export async function handleTraceRoute(req: IncomingMessage, res: ServerResponse
     if (kind === "graph") {
       // Make persistent lore.features the source of truth for Feature nodes
       // (ADR-027): enrich/replace the computed folder nodes, inject drafts.
-      const [graph, features] = await Promise.all([trace.graph(), project.features.list()]);
+      // Tolerate a not-yet-migrated lore.features (42P01) — the graph must still
+      // render its computed nodes in the window before migration 0017 lands.
+      const [graph, features] = await Promise.all([
+        trace.graph(),
+        project.features.list().catch((err) => {
+          if ((err as { code?: string }).code === "42P01") return [];
+          throw err;
+        }),
+      ]);
       return json(
         res,
         200,

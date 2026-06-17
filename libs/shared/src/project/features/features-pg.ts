@@ -98,7 +98,6 @@ export class PgFeatures implements FeaturesPort {
   async appendIteration(
     repo: string,
     id: string,
-    taskId: string | null,
     userAnswers: unknown,
   ): Promise<FeatureIteration> {
     const { rows } = await this.pool.query(
@@ -113,26 +112,45 @@ export class PgFeatures implements FeaturesPort {
     const iteration = (rows[0] as { current_iteration: number }).current_iteration;
     const { rows: inserted } = await this.pool.query(
       `INSERT INTO lore.feature_iterations
-         (feature_id, iteration, task_id, status, user_answers)
-       VALUES ($1, $2, $3, 'running', $4)
+         (feature_id, iteration, status, user_answers)
+       VALUES ($1, $2, 'running', $3)
        RETURNING *`,
-      [id, iteration, taskId, userAnswers == null ? null : JSON.stringify(userAnswers)],
+      [id, iteration, userAnswers == null ? null : JSON.stringify(userAnswers)],
     );
     return inserted[0] as FeatureIteration;
   }
 
+  async attachIterationTask(
+    repo: string,
+    id: string,
+    iteration: number,
+    taskId: string,
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE lore.feature_iterations fi
+          SET task_id = $1, updated_at = now()
+        WHERE fi.feature_id = $2 AND fi.iteration = $3
+          AND EXISTS (SELECT 1 FROM lore.features f WHERE f.id = fi.feature_id AND f.repo = $4)`,
+      [taskId, id, iteration, repo],
+    );
+  }
+
   async setIterationResult(
-    _repo: string,
+    repo: string,
     id: string,
     iteration: number,
     gap: GapResult | null,
     status: IterationStatus,
   ): Promise<void> {
+    // Scope the write to the owning repo (feature_iterations has no repo column;
+    // join through lore.features) so a write-token holder cannot overwrite
+    // another repo's iteration by forging a global feature UUID.
     await this.pool.query(
-      `UPDATE lore.feature_iterations
+      `UPDATE lore.feature_iterations fi
           SET gap_result = $1, status = $2, updated_at = now()
-        WHERE feature_id = $3 AND iteration = $4`,
-      [gap == null ? null : JSON.stringify(gap), status, id, iteration],
+        WHERE fi.feature_id = $3 AND fi.iteration = $4
+          AND EXISTS (SELECT 1 FROM lore.features f WHERE f.id = fi.feature_id AND f.repo = $5)`,
+      [gap == null ? null : JSON.stringify(gap), status, id, iteration, repo],
     );
   }
 

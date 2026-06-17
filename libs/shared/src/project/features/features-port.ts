@@ -81,15 +81,24 @@ export interface FeaturesPort {
   /** Features for a repo, newest-updated first, optionally filtered by status. */
   list(repo: string, status?: FeatureStatus): Promise<Feature[]>;
   /**
-   * Open a new planning round: insert a `running` iteration at
-   * current_iteration+1, bump the feature counter, and set status `planning`.
+   * Open a new planning round: bump the feature counter, set status `planning`,
+   * and insert a `running` iteration at the minted `current_iteration`. Returns
+   * the row so the caller spawns the pod with the iteration the DB actually
+   * minted (not a pre-read guess) — {@link attachIterationTask} links the task
+   * once it exists.
    */
   appendIteration(
     repo: string,
     id: string,
-    taskId: string | null,
     userAnswers: unknown,
   ): Promise<FeatureIteration>;
+  /** Link a spawned planning task to its iteration row (repo-scoped). */
+  attachIterationTask(
+    repo: string,
+    id: string,
+    iteration: number,
+    taskId: string,
+  ): Promise<void>;
   /** Persist a round's validated gap result and mark the iteration `ready`/`failed`. */
   setIterationResult(
     repo: string,

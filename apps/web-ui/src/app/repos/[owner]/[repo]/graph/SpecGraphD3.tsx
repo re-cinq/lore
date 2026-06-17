@@ -17,6 +17,7 @@ import { nodeMatchesQuery } from '@/lib/graph-search';
 import { aggregateLeaves, shouldAggregate } from '@/lib/graph-aggregation';
 import { buildContainmentForest, bundleControlIds } from '@/lib/edge-bundling';
 import { invertPoint, applyPoint, findNodeAtPoint, type ZoomTransform } from '@/lib/graph-viewport';
+import { featureStatusColor } from '../features/feature-status';
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
 const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
@@ -138,18 +139,10 @@ const COLORS: Record<SpecGraphNode['type'], string> = {
 };
 const RADIUS: Record<SpecGraphNode['type'], number> = { Feature: 20, Spec: 16, Section: 10, Statement: 8, AcceptanceCriterion: 9, TestChunk: 11, CodeChunk: 11, File: 12, ADR: 13 };
 
-// Persistent feature lifecycle status → node color (ADR-027). A Feature node
-// backed by a lore.features row is colored by its status instead of the flat
-// Feature pink, so drafts/in-flight/shipped features read at a glance.
-const FEATURE_STATUS_COLORS: Record<string, string> = {
-  draft: '#94a3b8',
-  planning: '#f59e0b',
-  'awaiting-input': '#f59e0b',
-  'spec-ready': '#2563eb',
-  'pr-open': '#8b5cf6',
-  implemented: '#16a34a',
-  split: '#d97706',
-};
+// Persistent feature lifecycle status → node color (ADR-027): a Feature node
+// backed by a lore.features row is colored by its status (via the single-source
+// palette in feature-status.ts) instead of the flat Feature pink, so
+// drafts/in-flight/shipped features read at a glance.
 
 // The live projection can emit a type outside the declared union; default rather
 // than index to undefined (which would NaN a radius or blank a fill).
@@ -158,7 +151,7 @@ const colorOf = (type: SpecGraphNode['type']): string => COLORS[type] ?? '#94a3b
 // Node fill: status-colored when a Feature carries a persistent lifecycle status.
 const nodeColor = (node: SpecGraphNode): string =>
   node.type === 'Feature' && node.status
-    ? FEATURE_STATUS_COLORS[node.status] ?? colorOf(node.type)
+    ? featureStatusColor(node.status) ?? colorOf(node.type)
     : colorOf(node.type);
 const isLeafCanvas = (type: SpecGraphNode['type']): boolean => LEAF_CANVAS_TYPES.has(type);
 

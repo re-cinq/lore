@@ -32,12 +32,12 @@ export class Features {
     return this.port.list(this.repo, status);
   }
 
-  appendIteration(
-    id: string,
-    taskId: string | null,
-    userAnswers: unknown,
-  ): Promise<FeatureIteration> {
-    return this.port.appendIteration(this.repo, id, taskId, userAnswers);
+  appendIteration(id: string, userAnswers: unknown): Promise<FeatureIteration> {
+    return this.port.appendIteration(this.repo, id, userAnswers);
+  }
+
+  attachIterationTask(id: string, iteration: number, taskId: string): Promise<void> {
+    return this.port.attachIterationTask(this.repo, id, iteration, taskId);
   }
 
   setIterationResult(

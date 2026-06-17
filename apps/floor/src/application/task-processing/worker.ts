@@ -22,6 +22,8 @@ import { slugify, setStatus, insertEvent } from "./task-helpers.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
+import { handleFeaturePlanning } from "./handle-feature-planning.js";
+import { handleFeatureFinalize } from "./handle-feature-finalize.js";
 import { handleOnboard } from "./handle-onboard.js";
 
 // Re-export the task handlers so existing import sites (e.g. the onboard
@@ -118,11 +120,18 @@ async function processTask(task: any): Promise<void> {
     return;
   }
 
-  // Feature-planning / feature-finalize run as Stations (Job pods) but skip the
-  // upfront Issue ladder: planning posts its result to the API (no PR, no Issue);
-  // finalize's user-story Issue is created by the watcher on PR. See ADR-027.
-  const isFeaturePlanningType =
-    task.task_type === "feature-planning" || task.task_type === "feature-finalize";
+  // Feature planning + finalize run IN-PROCESS, before the Issue / K8s ladder.
+  // Planning is a single LLM→JSON call (GapResult); finalize commits the draft
+  // spec + opens a PR via the Project facade. Both work on local dev (no cluster)
+  // — the K8s Station path failed locally with "Invalid URL". See ADR-027.
+  if (task.task_type === "feature-planning") {
+    await handleFeaturePlanning(task, targetRepo);
+    return;
+  }
+  if (task.task_type === "feature-finalize") {
+    await handleFeatureFinalize(task, targetRepo);
+    return;
+  }
 
   // Create GitHub Issue on the target repo
   // Skip upfront issue for general tasks — the watcher creates the issue with the result
@@ -133,7 +142,7 @@ async function processTask(task: any): Promise<void> {
   // creation regardless.
   const { shouldCreateIssue } = await import("../../adapters/dark-factory.js");
   const issueGate = await shouldCreateIssue(task);
-  if (!issueNumber && task.task_type !== "general" && !isFeaturePlanningType && issueGate.create) {
+  if (!issueNumber && task.task_type !== "general" && issueGate.create) {
     try {
       const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
       const copy = await generateArtifactCopy({
@@ -329,15 +338,8 @@ async function processTask(task: any): Promise<void> {
       // branch in entrypoint.sh.
       const clusterEnabled =
         process.env.LORE_DARK_FACTORY_CLUSTER_ENABLED === "true";
-      // Feature-planning/finalize always run as Stations (workflow pod path),
-      // independent of the dark-factory cluster gate (ADR-027). Other types
-      // only take the workflow path when dark mode + cluster gate are both on.
       const darkFactoryWorkflow =
-        isFeaturePlanningType
-          ? task.task_type
-          : darkFactoryEnabled && clusterEnabled
-            ? task.task_type
-            : undefined;
+        darkFactoryEnabled && clusterEnabled ? task.task_type : undefined;
 
       // Look up the actual default branch when forwarding to a
       // dark-factory pod. Hardcoding "main" 422'd on repos still on

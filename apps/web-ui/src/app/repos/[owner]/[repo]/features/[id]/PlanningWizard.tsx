@@ -9,6 +9,7 @@ const POLL_MS = 4000;
 interface Poll {
   feature: FeatureRow;
   latestIteration: FeatureIterationRow | null;
+  task?: { status: string; failure_reason: string | null } | null;
 }
 
 export default function PlanningWizard({
@@ -42,7 +43,11 @@ export default function PlanningWizard({
   }, [owner, repo, feature.id]);
 
   const latest = data.latestIteration;
-  const running = !latest || latest.status === 'running';
+  // The task failing (even mid-crash, with the iteration stuck at 'running') is a
+  // failure the user must see — not an endless "analyzing".
+  const taskFailed = data.task?.status === 'failed';
+  const failed = latest?.status === 'failed' || taskFailed;
+  const running = (!latest || latest.status === 'running') && !failed;
 
   useEffect(() => {
     if (!running) {
@@ -69,16 +74,25 @@ export default function PlanningWizard({
     return (
       <div className="spec-card">
         <p>Analyzing your feature against the project… (round {latest?.iteration ?? data.feature.current_iteration})</p>
-        <p className="meta">A planning Station is running. This refreshes automatically.</p>
+        <p className="meta">The planning agent is running. This refreshes automatically.</p>
       </div>
     );
   }
 
-  if (latest?.status === 'failed') {
+  if (failed) {
     return (
       <div className="spec-card">
-        <p style={{ color: '#dc2626' }}>Planning round {latest.iteration} failed.</p>
-        <button type="button" disabled={pending} onClick={submitRefine}>Try again</button>
+        <p style={{ color: '#dc2626', fontWeight: 600 }}>
+          Planning round {latest?.iteration ?? data.feature.current_iteration} failed.
+        </p>
+        {data.task?.failure_reason && (
+          <p className="meta" style={{ whiteSpace: 'pre-wrap' }}>
+            Error: {data.task.failure_reason}
+          </p>
+        )}
+        <button type="button" disabled={pending} onClick={submitRefine}>
+          {pending ? 'Retrying…' : 'Retry'}
+        </button>
       </div>
     );
   }
