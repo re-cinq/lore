@@ -11,7 +11,7 @@ export async function startTransport(server: McpServer, getPool: () => any): Pro
   const mode = process.env.MCP_TRANSPORT || "stdio";
 
   if (mode === "http") {
-    await startHttpServer(server, getPool);
+    await startHttpServer(getPool);
     return;
   }
 
