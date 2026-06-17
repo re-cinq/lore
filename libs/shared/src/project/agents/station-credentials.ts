@@ -10,8 +10,10 @@
 export interface StationMount {
   /** Absolute host path. */
   hostPath: string;
-  /** Absolute path inside the container (the runner's HOME is /home/runner). */
+  /** Absolute path inside the container (the runner's HOME is /home/node). */
   containerPath: string;
+  /** Mount read-only (default true). The repo cache mounts read-write. */
+  readOnly?: boolean;
 }
 
 export interface StationLlmCredential {

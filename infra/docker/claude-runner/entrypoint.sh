@@ -36,12 +36,26 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   git config --global user.name "Lore Floor"
   git config --global user.email "lore@re-cinq.com"
 
-  # --- Clone repo + branch ---
-  git clone --depth=1 \
-    "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" \
-    /workspace/repo
-  cd /workspace/repo
-  git checkout -b "${BRANCH_NAME}"
+  # --- Get the repo + branch (GitLab GIT_STRATEGY=fetch model) ---
+  # When /workspace/repo is a persistent cache mount (local Docker Station,
+  # ADR-028) reuse it: fetch deltas + clean/reset to a pristine tree instead of
+  # re-cloning. On K8s /workspace/repo is a fresh emptyDir, so this clones — same
+  # behavior as before. BASE_BRANCH defaults to the remote HEAD when unset.
+  REPO_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git"
+  FETCH_REF="${BASE_BRANCH:-HEAD}"
+  if [ -d /workspace/repo/.git ]; then
+    echo "[runner] Reusing cached repo at /workspace/repo (fetch)"
+    cd /workspace/repo
+    git remote set-url origin "$REPO_URL"
+    git fetch --depth=1 --prune origin "$FETCH_REF"
+    git clean -ffdx
+    git checkout -B "${BRANCH_NAME}" FETCH_HEAD
+  else
+    echo "[runner] Cloning ${TARGET_REPO} (no cache)"
+    git clone --depth=1 "$REPO_URL" /workspace/repo
+    cd /workspace/repo
+    git checkout -b "${BRANCH_NAME}"
+  fi
 
   # --- Hand off to the supervisor CLI ---
   # The supervisor walks the workflow graph; agent nodes spawn `claude`

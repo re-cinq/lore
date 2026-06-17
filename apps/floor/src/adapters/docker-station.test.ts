@@ -35,10 +35,19 @@ describe("buildDockerRunArgs", () => {
     const args = buildDockerRunArgs({
       ...base,
       secretEnvNames: ["GITHUB_TOKEN"],
-      mounts: [{ hostPath: "/home/dev/.claude.json", containerPath: "/home/runner/.claude.json" }],
+      mounts: [{ hostPath: "/home/dev/.claude.json", containerPath: "/home/node/.claude.json" }],
     });
     expect(args).toContain("-v");
-    expect(args).toContain("/home/dev/.claude.json:/home/runner/.claude.json:ro");
+    expect(args).toContain("/home/dev/.claude.json:/home/node/.claude.json:ro");
+  });
+
+  it("mounts the repo cache read-write (:rw) so fetch/checkout can write it", () => {
+    const args = buildDockerRunArgs({
+      ...base,
+      secretEnvNames: ["GITHUB_TOKEN"],
+      mounts: [{ hostPath: "/home/dev/.lore/station-repos/octo-repo", containerPath: "/workspace/repo", readOnly: false }],
+    });
+    expect(args).toContain("/home/dev/.lore/station-repos/octo-repo:/workspace/repo:rw");
   });
 });
 

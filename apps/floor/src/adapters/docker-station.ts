@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import * as os from "node:os";
+import * as path from "node:path";
+import * as fs from "node:fs";
 import {
   stationPlainEnv,
   type LoreTaskSpec,
@@ -42,7 +45,10 @@ export function buildDockerRunArgs(input: DockerRunInput): string[] {
   const args = ["run", "--rm", "--name", input.name, "--network", input.network];
   for (const [name, value] of Object.entries(input.env)) args.push("-e", `${name}=${value}`);
   for (const name of input.secretEnvNames) args.push("-e", name);
-  for (const m of input.mounts) args.push("-v", `${m.hostPath}:${m.containerPath}:ro`);
+  for (const m of input.mounts) {
+    const mode = m.readOnly === false ? "rw" : "ro";
+    args.push("-v", `${m.hostPath}:${m.containerPath}:${mode}`);
+  }
   args.push(input.image);
   return args;
 }
@@ -92,6 +98,13 @@ export class DockerStation implements StationBackend {
       );
     }
 
+    // Persistent repo cache (GitLab GIT_STRATEGY=fetch model): a per-repo host dir
+    // mounted RW at /workspace/repo. The entrypoint fetch-or-clones into it +
+    // clean/reset for a pristine tree, so rounds after the first skip the full
+    // clone. The Floor worker runs Stations serially, so a per-repo dir can't
+    // race. Pre-created here (same uid 1000 as the container's `node` user → writable).
+    mounts.push({ hostPath: this.repoCacheDir(spec.targetRepo), containerPath: "/workspace/repo", readOnly: false });
+
     const args = buildDockerRunArgs({
       image: this.env.LORE_RUNNER_IMAGE ?? DEFAULT_IMAGE,
       name,
@@ -107,6 +120,14 @@ export class DockerStation implements StationBackend {
       launched: true,
       completion: { exitCode, changedFiles: parseChanges(output), output },
     };
+  }
+
+  /** Per-repo persistent cache dir, pre-created so the container (uid 1000) can write it. */
+  private repoCacheDir(targetRepo: string): string {
+    const base = this.env.LORE_STATION_CACHE_DIR ?? path.join(os.homedir(), ".lore", "station-repos");
+    const dir = path.join(base, targetRepo.replace(/[^a-zA-Z0-9._-]+/g, "-"));
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
   }
 
   private runDocker(
