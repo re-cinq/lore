@@ -4,8 +4,8 @@ Spec: [spec.md](spec.md)
 
 ## Phase 0 — Remove dead `/mcp` (prerequisite cleanup)
 
-- [ ] T001 Remove the dormant, unauthenticated `/mcp` route + Streamable-HTTP transport from `apps/mcp-server/src/server/http-server.ts` (keep `/api/*`); drop the now-unused `server` arg through `transports.ts`
-- [ ] T002 [P] Update/trim any http-server test to assert `/mcp` is gone and `/api/*` still serves
+- [x] T001 Remove the dormant, unauthenticated `/mcp` route + Streamable-HTTP transport from `apps/mcp-server/src/server/http-server.ts` (keep `/api/*`); drop the now-unused `server` arg through `transports.ts`
+- [x] T002 [P] Update/trim any http-server test to assert `/mcp` is gone and `/api/*` still serves — N/A, no http-server test existed
 
 ## Phase 1 — Cache core
 
