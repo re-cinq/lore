@@ -12,7 +12,7 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
-import { settleTicks, boundingRadius, connectedComponents, rimTargets, featureSeedPositions } from '@/lib/graph-layout';
+import { settleTicks, boundingRadius, connectedComponents, rimTargets, radialTree, separateSmallComponents } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 import { aggregateLeaves, shouldAggregate } from '@/lib/graph-aggregation';
 import { buildContainmentForest, bundleControlIds } from '@/lib/edge-bundling';
@@ -35,6 +35,15 @@ const CONTAINMENT_KINDS = new Set(['in_feature', 'in_spec', 'in_section', 'has_s
 const OWNERSHIP_KINDS = new Set(['validated_by', 'implemented_by', 'decided_by']);
 // High-cardinality leaves rendered on the canvas layer (not the SVG skeleton).
 const LEAF_CANVAS_TYPES = new Set<SpecGraphNode['type']>(['TestChunk', 'CodeChunk', 'File']);
+
+// Radial-tree-per-feature layout: each Feature is a tree centre, its subtree
+// fans out one RING_GAP per hierarchy level. Feature centres are spread on a
+// circle of radius boundR·FEATURE_SPREAD around the viewport; small disconnected
+// components (< SMALL_COMPONENT_MAX nodes) ring the outside at boundR·RIM_FACTOR.
+const RING_GAP = 100; // radius added per hierarchy level — also widens sibling spacing (more circumference)
+const FEATURE_SPREAD = 0.6; // feature-tree centres sit on a circle of this × boundR around the viewport
+const RIM_MARGIN = 780; // gap between the main graph's outer edge and the small-component rim
+const SMALL_COMPONENT_MAX = 5; // components with fewer nodes are exiled to the rim around the main circle
 
 type SimNode = SpecGraphNode & d3.SimulationNodeDatum;
 type SimLink = d3.SimulationLinkDatum<SimNode> & { kind: string; controlIds?: string[] };
@@ -284,47 +293,60 @@ export default function SpecGraphD3({
       // unavailable/corrupt storage — start from a fresh force layout
     }
 
-    // Plain force-directed cloud: no node type or degree is mapped to a region.
-    // Fresh layouts seed a tight phyllotaxis spiral at the viewport centre so the
-    // charge/link/collide forces fan it out from a compact start (and the pre-warm
-    // settles before first paint). The whole layout is kept inside boundR.
+    // Radial-tree-per-feature layout. Invert the bundling `forest` (containment +
+    // leaf ownership) into children lists, lay out one radial tree per Feature
+    // around a viewport circle, and ring the leftover small components outside —
+    // so the hierarchy reads as separate circular trees, not one hairball. A
+    // forceX/forceY (below) holds each seeded position during relax.
     const boundR = boundingRadius(data.nodes.length, data.links.length);
-    // Small disconnected components each get their own spot on a far rim, spaced
-    // apart by angle, so they sit well outside the big central cloud with room
-    // between them instead of floating in the middle or clumping on one ring.
-    const smallComponents = connectedComponents(data.nodes.map((n) => n.id), data.links).filter((c) => c.length < 10);
-    const rim = rimTargets(smallComponents, { x: width / 2, y: height / 2 }, boundR * 1.25);
-    const isSmallComponent = (d: SimNode) => rim.has(d.id);
-    const targetOf = (d: SimNode) => rim.get(d.id) ?? { x: width / 2, y: height / 2 };
-    // Feature seed: spread the Features across the central area, bigger Features
-    // (more edges) further out so they end up more distanced from each other.
-    const featureSeed = featureSeedPositions(
-      data.nodes.filter((n) => n.type === 'Feature').map((n) => ({ id: n.id, size: degOf(n.id) })),
-      { x: width / 2, y: height / 2 },
-      boundR * 0.7,
-    );
+    const viewportCenter = { x: width / 2, y: height / 2 };
+    const childrenOf = new Map<string, string[]>();
+    for (const [child, parent] of forest) (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(child);
+
+    const featureIds = data.nodes.filter((n) => n.type === 'Feature').map((n) => n.id);
+    const featureSpread = boundR * FEATURE_SPREAD;
+    const seed = new Map<string, { x: number; y: number }>();
+    featureIds.forEach((id, i) => {
+      const center =
+        featureIds.length <= 1
+          ? viewportCenter
+          : {
+              x: viewportCenter.x + featureSpread * Math.cos((2 * Math.PI * i) / featureIds.length),
+              y: viewportCenter.y + featureSpread * Math.sin((2 * Math.PI * i) / featureIds.length),
+            };
+      for (const [nodeId, p] of radialTree(id, childrenOf, { center, ringGap: RING_GAP })) seed.set(nodeId, p);
+    });
+
+    // Anything no feature tree reached (e.g. a spec with no feature) is part of
+    // the main graph: seed it as a compact spiral near the centre. A LOCAL counter
+    // (not the node's array index) bounds the radius, so a straggler can never fling
+    // out past the rim — the bug that left small components sitting among them.
+    const components = connectedComponents(data.nodes.map((n) => n.id), data.links);
+    const smallComponents = components.filter((c) => c.length < SMALL_COMPONENT_MAX && !c.some((id) => seed.has(id)));
+    const smallIds = new Set(smallComponents.flat());
+    let strayIndex = 0;
+    for (const node of data.nodes) {
+      if (seed.has(node.id) || smallIds.has(node.id)) continue;
+      const r = 8 + strayIndex * 6;
+      const a = strayIndex * 2.399963229728653;
+      seed.set(node.id, { x: viewportCenter.x + r * Math.cos(a), y: viewportCenter.y + r * Math.sin(a) });
+      strayIndex += 1;
+    }
+
+    // Add the small components LAST, on a rim beyond the extent of every node
+    // already placed (feature trees + strays) — so they always ring the OUTSIDE
+    // of the whole main graph, not just the feature trees.
+    let mainExtent = 0;
+    for (const p of seed.values()) mainExtent = Math.max(mainExtent, Math.hypot(p.x - viewportCenter.x, p.y - viewportCenter.y));
+    for (const [id, p] of rimTargets(smallComponents, viewportCenter, mainExtent + RIM_MARGIN)) seed.set(id, p);
+
+    const seedOf = (d: SimNode) => seed.get(d.id) ?? viewportCenter;
     if (!restoredFromStorage) {
-      const cx = width / 2;
-      const cy = height / 2;
-      nodes.forEach((n, i) => {
-        const rimSpot = rim.get(n.id);
-        const featureSpot = featureSeed.get(n.id);
-        if (rimSpot) {
-          // small component → start at its rim spot (+ small spread)
-          n.x = rimSpot.x + ((i % 5) - 2) * 8;
-          n.y = rimSpot.y + ((i % 3) - 1) * 8;
-        } else if (featureSpot) {
-          n.x = featureSpot.x;
-          n.y = featureSpot.y;
-        } else {
-          // other big-component node → tight golden spiral near centre; the
-          // strong leaf↔hub links pull it onto its Feature during the pre-warm.
-          const r = 8 * Math.sqrt(i);
-          const a = i * 2.399963229728653;
-          n.x = cx + r * Math.cos(a);
-          n.y = cy + r * Math.sin(a);
-        }
-      });
+      for (const n of nodes) {
+        const p = seed.get(n.id) ?? viewportCenter;
+        n.x = p.x;
+        n.y = p.y;
+      }
     }
 
     const linkForce = d3
@@ -342,23 +364,25 @@ export default function SpecGraphD3({
       // forces settle instead of overshooting and shivering.
       .velocityDecay(0.7)
       .force('link', linkForce)
-      // Anti-crowding rule #2: degree-scaled repulsion — hubs shove their dense
-      // neighbourhoods apart.
+      // Degree-scaled repulsion, softened for the seeded radial layout: it only
+      // nudges neighbours apart, it doesn't arrange the graph — the seed +
+      // forceX/forceY do. distanceMin caps the close-range spike that otherwise
+      // erupts when a re-heat brings two nodes near-coincident.
       .force(
         'charge',
         d3
           .forceManyBody<SimNode>()
-          .strength((d) => crowdedCharge(d.type === 'Feature' ? -560 : d.type === 'Spec' ? -460 : -340, degOf(d)))
+          .strength((d) => crowdedCharge(d.type === 'Feature' ? -320 : d.type === 'Spec' ? -260 : -200, degOf(d)))
+          .distanceMin(12)
           // Localise repulsion to the bound's range so the central mass can't
           // fling peripheral nodes off to infinity.
           .distanceMax(boundR),
       )
-      // Placement pull: the big component toward the viewport centre (compact,
-      // no node mapped to a region — links/charge/collide arrange it); each small
-      // component toward its own far-rim spot, held firmly so they stay out and
-      // apart. Pulling toward a point (not a ring) also bounds them — no circle.
-      .force('x', d3.forceX<SimNode>((d) => targetOf(d).x).strength((d) => (isSmallComponent(d) ? 0.4 : 0.12)))
-      .force('y', d3.forceY<SimNode>((d) => targetOf(d).y).strength((d) => (isSmallComponent(d) ? 0.4 : 0.12)))
+      // Radial anchoring: forceX/forceY pull each node to its seeded position
+      // (tree-per-feature centre + rim), holding the circular shape while collide
+      // resolves overlaps. Symmetric — no axis is privileged.
+      .force('x', d3.forceX<SimNode>((d) => seedOf(d).x).strength(0.22))
+      .force('y', d3.forceY<SimNode>((d) => seedOf(d).y).strength(0.22))
       // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
       // their labels) reserve hard personal space and cannot pile up.
       .force('collide', d3.forceCollide<SimNode>((d) => crowdedCollideRadius(radiusOf(d.type), degOf(d))).strength(1))
@@ -387,6 +411,23 @@ export default function SpecGraphD3({
           n.x = safe.x;
           n.y = safe.y;
           n.vx = 0; // kill velocity so the integration step can't pull it back in
+          n.vy = 0;
+        }
+      })
+      // Hard separation: keep every small-component node strictly OUTSIDE the main
+      // graph. separateSmallComponents measures the main graph's CURRENT radius
+      // (it grows as the layout relaxes) and pushes any small node that has drifted
+      // inside back out beyond it — so a fixed seed margin can't be eaten by
+      // expansion. Dragged nodes (fx/fy set) are exempt. Unit-tested.
+      .force('separate', () => {
+        if (smallIds.size === 0) return;
+        const placed = nodes.filter((n) => n.fx == null && n.fy == null).map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 }));
+        for (const [id, p] of separateSmallComponents(placed, smallIds, viewportCenter, RIM_MARGIN)) {
+          const n = nodeById.get(id);
+          if (!n) continue;
+          n.x = p.x;
+          n.y = p.y;
+          n.vx = 0;
           n.vy = 0;
         }
       });
@@ -717,10 +758,12 @@ export default function SpecGraphD3({
             .call(
               d3
                 .drag<SVGGElement, SimNode>()
+                // Elastic drag: gently re-heat so link springs tug the dragged
+                // node's neighbours along, while the seed forces (forceX/forceY)
+                // pull everything back toward its home — springy, not explosive.
+                // The earlier eruption was the layered layout's strong forces +
+                // tight spacing; the radial seed + distanceMin keep this stable.
                 .on('start', (event, d) => {
-                  // Only barely re-heat the sim: enough for the dragged node's
-                  // immediate (strongly-linked) neighbours to follow, but not so
-                  // much that the whole frozen layout wakes up and far nodes drift.
                   if (!event.active) sim.alphaTarget(0.1).restart();
                   d.fx = d.x;
                   d.fy = d.y;
@@ -731,8 +774,7 @@ export default function SpecGraphD3({
                 })
                 .on('end', (event) => {
                   if (!event.active) sim.alphaTarget(0);
-                  // Leave fx/fy pinned at the drop point — a dragged node stays put
-                  // and never snaps back to its force-driven location.
+                  // Leave fx/fy pinned at the drop point — a dragged node stays put.
                   saveState();
                 }),
             );
@@ -771,7 +813,9 @@ export default function SpecGraphD3({
       else draw();
     }
 
-    sim.on('tick', () => {
+    // One frame: ring-spoke placement, SVG transforms, and the canvas draw.
+    // Driven by the simulation tick, and called directly during a manual drag.
+    function renderFrame() {
       // Pin each expanded spec's statements onto its outer ring (which tracks the
       // spec), and fan their related test/code/ADR nodes radially OUTWARD at the
       // same angle — so every edge is a short spoke outside the ring, never a chord
@@ -820,7 +864,8 @@ export default function SpecGraphD3({
         return `translate(${spec?.x ?? 0},${spec?.y ?? 0})`;
       });
       draw();
-    });
+    }
+    sim.on('tick', renderFrame);
 
     update();
 

@@ -6,6 +6,8 @@ import {
   connectedComponents,
   rimTargets,
   featureSeedPositions,
+  radialTree,
+  separateSmallComponents,
 } from "./graph-layout";
 
 describe("featureSeedPositions", () => {
@@ -128,5 +130,62 @@ describe("settleTicks", () => {
 
   it("caps the pre-warm at 400 ticks for a huge graph", () => {
     expect(settleTicks(5000)).toBe(400);
+  });
+});
+
+describe("radialTree", () => {
+  const opts = { center: { x: 0, y: 0 }, ringGap: 100 };
+
+  it("places the root at the centre", () => {
+    expect(radialTree("r", new Map(), opts).get("r")).toEqual({ x: 0, y: 0 });
+  });
+
+  it("spreads two leaf children to opposite sides one ring out", () => {
+    const pos = radialTree("r", new Map([["r", ["c1", "c2"]]]), opts);
+
+    expect(pos.get("c1")?.x).toBeCloseTo(0);
+    expect(pos.get("c1")?.y).toBeCloseTo(100);
+    expect(pos.get("c2")?.x).toBeCloseTo(0);
+    expect(pos.get("c2")?.y).toBeCloseTo(-100);
+  });
+
+  it("puts each child one ring further out than its parent", () => {
+    const pos = radialTree("r", new Map([["r", ["a"]], ["a", ["b"]]]), opts);
+
+    expect(Math.hypot(pos.get("a")?.x ?? 0, pos.get("a")?.y ?? 0)).toBeCloseTo(100);
+    expect(Math.hypot(pos.get("b")?.x ?? 0, pos.get("b")?.y ?? 0)).toBeCloseTo(200);
+  });
+
+  it("centres a parent at the mean angle of its children", () => {
+    const pos = radialTree("r", new Map([["r", ["mid"]], ["mid", ["l1", "l2"]]]), opts);
+
+    expect(pos.get("mid")?.x).toBeCloseTo(-100);
+    expect(pos.get("mid")?.y).toBeCloseTo(0);
+  });
+});
+
+describe("separateSmallComponents", () => {
+  it("pushes every small component at least the margin away from any existing node", () => {
+    const center = { x: 0, y: 0 };
+    const margin = 300;
+    const nodes = [
+      { id: "m1", x: 0, y: 0 },
+      { id: "m2", x: 50, y: 0 },
+      { id: "m3", x: 0, y: -40 },
+      { id: "s1", x: 5, y: 5 },
+      { id: "s2", x: -10, y: 0 },
+    ];
+    const smallIds = new Set(["s1", "s2"]);
+
+    const moved = separateSmallComponents(nodes, smallIds, center, margin);
+    const placed = nodes.map((n) => ({ ...n, ...(moved.get(n.id) ?? {}) }));
+    const mainNodes = placed.filter((n) => !smallIds.has(n.id));
+    const smallNodes = placed.filter((n) => smallIds.has(n.id));
+
+    for (const small of smallNodes) {
+      for (const main of mainNodes) {
+        expect(Math.hypot(small.x - main.x, small.y - main.y)).toBeGreaterThanOrEqual(margin);
+      }
+    }
   });
 });
