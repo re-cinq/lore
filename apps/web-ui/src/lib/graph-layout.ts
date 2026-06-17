@@ -256,6 +256,40 @@ export interface PlacedNode {
  * a small component always ends up at least `margin` away from every main node.
  * Adapts to the relaxed extent, so it can be called every simulation tick.
  */
+export interface CrossingEdge {
+  source: string;
+  target: string;
+}
+
+const orient = (a: Point, b: Point, c: Point): number => (c.y - a.y) * (b.x - a.x) - (b.y - a.y) * (c.x - a.x);
+
+/**
+ * Counts pairs of edges whose straight segments properly cross — a layout-quality
+ * metric (lower = clearer). Edges sharing a node are skipped (they meet at a
+ * shared endpoint, they don't cross). Endpoints are looked up in `pos`; edges
+ * with a missing endpoint are ignored. O(E²): intended for one-off measurement,
+ * not a per-tick call.
+ */
+export function countCrossings(edges: CrossingEdge[], pos: Map<string, Point>): number {
+  const segs = edges
+    .map((e) => ({ s: e.source, t: e.target, a: pos.get(e.source), b: pos.get(e.target) }))
+    .filter((x): x is { s: string; t: string; a: Point; b: Point } => !!x.a && !!x.b);
+  let crossings = 0;
+  for (let i = 0; i < segs.length; i += 1) {
+    for (let j = i + 1; j < segs.length; j += 1) {
+      const A = segs[i];
+      const B = segs[j];
+      if (A.s === B.s || A.s === B.t || A.t === B.s || A.t === B.t) continue;
+      const d1 = orient(B.a, B.b, A.a);
+      const d2 = orient(B.a, B.b, A.b);
+      const d3 = orient(A.a, A.b, B.a);
+      const d4 = orient(A.a, A.b, B.b);
+      if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) crossings += 1;
+    }
+  }
+  return crossings;
+}
+
 export function separateSmallComponents(
   nodes: PlacedNode[],
   smallIds: Set<string>,

@@ -12,7 +12,7 @@ import { visibleSegments } from '@/lib/segment-clip';
 import { resolveSpacing, type Anchor } from '@/lib/anchor-spacing';
 import { captureGraphState, applyGraphState, serializeGraphState, parseGraphState } from '@/lib/graph-persistence';
 import { nodeDegrees, crowdedCharge, crowdedCollideRadius } from '@/lib/graph-crowding';
-import { settleTicks, boundingRadius, connectedComponents, rimTargets, radialTree, separateSmallComponents } from '@/lib/graph-layout';
+import { settleTicks, boundingRadius, connectedComponents, rimTargets, radialTree, separateSmallComponents, countCrossings } from '@/lib/graph-layout';
 import { nodeMatchesQuery } from '@/lib/graph-search';
 import { aggregateLeaves, shouldAggregate } from '@/lib/graph-aggregation';
 import { buildContainmentForest, bundleControlIds } from '@/lib/edge-bundling';
@@ -213,6 +213,9 @@ export default function SpecGraphD3({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [selected, setSelected] = useState<SpecGraphNode | null>(null);
   const [hover, setHover] = useState<{ text: string; x: number; y: number } | null>(null);
+  // Edge-crossing count (layout-quality metric), recomputed when the layout
+  // settles. -1 = too many edges to count cheaply, null = not measured yet.
+  const [crossings, setCrossings] = useState<number | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   // Set inside the main effect so the search-only effect can re-run the live
   // filter without rebuilding the whole simulation.
@@ -723,6 +726,19 @@ export default function SpecGraphD3({
       saveState();
     }
 
+    // Layout-quality probe: count straight-segment edge crossings at the settled
+    // positions and surface it in the UI. O(E²), so skip very dense graphs.
+    const CROSSINGS_EDGE_CAP = 2500;
+    function measureCrossings() {
+      if (links.length > CROSSINGS_EDGE_CAP) {
+        setCrossings(-1);
+        return;
+      }
+      const pos = new Map(nodes.map((n) => [n.id, { x: n.x ?? 0, y: n.y ?? 0 }]));
+      const edges = links.map((l) => ({ source: idOf(l.source as string | SimNode), target: idOf(l.target as string | SimNode) }));
+      setCrossings(countCrossings(edges, pos));
+    }
+
     function update() {
       sim.nodes(nodes);
       linkForce.links(links);
@@ -811,6 +827,7 @@ export default function SpecGraphD3({
       sim.alpha(0).restart();
       if (selectedIdRef.current && adj.has(selectedIdRef.current)) highlight(selectedIdRef.current);
       else draw();
+      measureCrossings();
     }
 
     // One frame: ring-spoke placement, SVG transforms, and the canvas draw.
@@ -875,7 +892,10 @@ export default function SpecGraphD3({
       const spec = nodeById.get(id);
       if (spec) void toggleExpand(spec);
     }
-    sim.on('end', saveState);
+    sim.on('end', () => {
+      saveState();
+      measureCrossings();
+    });
 
     const resize = new ResizeObserver(() => {
       const w = el.clientWidth || width;
@@ -913,6 +933,11 @@ export default function SpecGraphD3({
           </span>
         ))}
         <span style={{ marginLeft: 'auto' }}>click to focus · double-click a spec to expand · scroll to zoom · drag to pan</span>
+        {crossings !== null && (
+          <span title="straight-segment edge crossings at the settled layout (lower is clearer)">
+            · {crossings < 0 ? 'crossings: n/a' : `${crossings} crossings`}
+          </span>
+        )}
       </div>
       <div
         style={{
