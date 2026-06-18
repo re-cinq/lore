@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { queryAllowMissing } from '@/lib/db';
 import { refineFeature, finalizeFeature, splitFeature, deleteFeature } from '@/lib/feature-api';
 import { listAgents } from '@/lib/agents-api';
+import { groupDecomposition, type DecompTaskRow } from '@/lib/decomposition-view';
 import type { FeatureRow, FeatureIterationRow, FeatureWithIterations, SectionAnswers } from '@/lib/feature-types';
 import FeatureDetailView from './FeatureDetailView';
 
@@ -33,6 +34,15 @@ export default async function FeatureDetail({
     [id],
   );
   const full: FeatureWithIterations = { ...feature, iterations };
+
+  // The story/task tree a merged spec decomposed into (ADR-029), if any.
+  const decompRows = await queryAllowMissing<DecompTaskRow>(
+    `SELECT description, status, context_bundle FROM pipeline.tasks
+      WHERE task_type = 'spec-task' AND target_repo = $2 AND context_bundle->>'feature_id' = $1
+      ORDER BY context_bundle->>'spec_task_id'`,
+    [id, fullName],
+  );
+  const decomposition = groupDecomposition(decompRows);
 
   // The planning round's time budget (the feature-planning agent's timeout), resolved
   // once for the wizard's elapsed/total timer. Defaults to 15 if unresolved.
@@ -68,6 +78,7 @@ export default async function FeatureDetail({
       repo={repo}
       feature={full}
       timeoutMinutes={planningTimeoutMinutes}
+      decomposition={decomposition}
       refine={refine}
       finalize={finalize}
       split={split}

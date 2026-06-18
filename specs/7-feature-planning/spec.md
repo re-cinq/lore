@@ -274,3 +274,32 @@ The system MUST self-heal planning rounds left stuck by a crash or restart.
 - FR-10.1: A reaper job reconciles mid-planning features every minute: a round still `running` whose Station container/pod is gone is marked failed and the feature is restored to its last good analysis (or `draft`). ([validated by decidePlanningRecovery orphans a round whose runtime is gone](../../libs/shared/src/project/features/planning-recovery.test.ts#L28))
 - FR-10.2: Orphan detection probes the actual runtime (`StationBackend.isActive` — `docker ps` locally, the LoreTask CR on the cluster), so a dead round is recovered immediately rather than only after a timeout window; an age window is a fallback for a wedged-but-listed container.
 - FR-10.3: A round that produced a `ready` result while the feature is still `planning` (a missed, non-atomic status transition) has its transition re-applied. ([validated by decidePlanningRecovery re-applies a missed transition](../../libs/shared/src/project/features/planning-recovery.test.ts#L50))
+
+### FR-11: Spec Decomposition (planning → implementation handoff)
+
+The system MUST turn a merged feature spec into an implementable story/task tree
+(ADR-029). Planning produces the spec; decomposition produces the work.
+
+- FR-11.1: When a feature's finalize PR merges, a `feature-decompose` task is kicked automatically — reusing the same merge detection that syncs `feature-request` spec-tasks — and is idempotent per `(repo, spec_slug)` so a re-merge or replay never duplicates stories or tasks. ([validated by decideDecomposeKick fires for a finalize task carrying a feature id](../../apps/floor/src/application/task-processing/handle-feature-decompose.test.ts#L5))
+- FR-11.2: The decomposition agent reads the merged `specs/<slug>/spec.md` and returns a schema-validated `DecompositionResult`: an ordered list of user stories, each with a summary, acceptance criteria, and its implementable tasks (id, description, dependencies, phase, parallelizable, file hint). An invalid result fails the task. ([validated by parseDecomposition accepts a valid stories payload](../../libs/shared/src/feature-planning/decomposition-result.test.ts#L19))
+- FR-11.3: Each user story becomes a GitHub Issue (`User story: <title>`, labeled `lore-managed`/`user-story`, body linking the spec + feature), unless the repo's dark-factory `create_issue` policy resolves to never — then tasks-only. ([validated by storyIssueBody renders summary, acceptance criteria, tasks, and the spec link](../../libs/shared/src/feature-planning/decomposition-plan.test.ts#L37))
+- FR-11.4: Each task becomes a `spec-task` pipeline row carrying its story Issue number and `feature_id`, compatible with the existing implementation pipeline + trust gate (no new runner). ([validated by specTaskRows links each task to its story issue and feature](../../libs/shared/src/feature-planning/decomposition-plan.test.ts#L16))
+- FR-11.5: The decomposition prompt and model resolve from the `feature-decompose` agent definition (editable org default, project override); the offline fallback is the shared `DECOMPOSITION_INSTRUCTIONS` constant. ([validated by agent-defs serves DECOMPOSITION_INSTRUCTIONS for feature-decompose](../../libs/shared/src/project/agents/agent-defs-yaml.test.ts#L102))
+- FR-11.6: Decomposition runs in-process in the coordinator (the LLM analysis plus the Issue/pipeline writes are coordinator-side; no repo mutation, no pod).
+- FR-11.7: The feature detail view surfaces the resulting stories and the status of their tasks. ([validated by groupDecomposition builds the story tree from spec-task rows](../../apps/web-ui/src/lib/decomposition-view.test.ts#L12))
+
+### Scenario 6: A merged spec decomposes into stories + tasks
+
+**Actor:** Developer / pipeline
+
+**Flow:**
+1. A finalized feature's spec PR is merged to `main`.
+2. The merge kicks `feature-decompose`; the agent reads the spec and returns a story/task tree.
+3. One Issue is opened per user story; one `spec-task` row is created per task, linked to its story and feature.
+4. The implementation pipeline picks up the tasks under the repo's trust gate.
+
+**Acceptance Criteria:**
+- Decomposition fires on spec-PR merge and is skipped when the feature already has spec-tasks. ([validated by decideDecomposeKick fires for a finalize task carrying a feature id](../../apps/floor/src/application/task-processing/handle-feature-decompose.test.ts#L5))
+- The agent's `DecompositionResult` validates against the shared schema; an invalid result fails the round. ([validated by parseDecomposition accepts a valid stories payload](../../libs/shared/src/feature-planning/decomposition-result.test.ts#L19))
+- A story Issue is created per story unless the dark-factory `create_issue` policy says never. ([validated by storyIssueBody renders the story Issue](../../libs/shared/src/feature-planning/decomposition-plan.test.ts#L37))
+- Each task is a `spec-task` row linked to its story Issue and feature, runnable by the existing pipeline. ([validated by specTaskRows links each task to its story issue and feature](../../libs/shared/src/feature-planning/decomposition-plan.test.ts#L16))
