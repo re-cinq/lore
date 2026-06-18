@@ -26,7 +26,7 @@ export async function handleGetTaskLogs(req: IncomingMessage, res: ServerRespons
     const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
     const file = bucket.file(`${repo}/${taskId}/output.log`);
     const [exists] = await file.exists();
-    if (!exists) { json(res, 200, { logs: "", next_offset: 0, complete: true }); return; }
+    if (!exists) { json(res, 200, { logs: "", next_offset: 0, complete: false }); return; }
     const [content] = await file.download();
     const full = content.toString("utf-8");
     const sliced = full.substring(offset);
@@ -46,7 +46,7 @@ export async function handleGetJobRunLogs(req: IncomingMessage, res: ServerRespo
     const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
     const file = bucket.file(`__job_runs__/${jobName}/${runId}/output.log`);
     const [exists] = await file.exists();
-    if (!exists) { json(res, 200, { logs: "", complete: true }); return; }
+    if (!exists) { json(res, 200, { logs: "", complete: false }); return; }
     const [content] = await file.download();
     json(res, 200, { logs: content.toString("utf-8"), complete: true });
   } catch (err: any) {

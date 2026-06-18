@@ -105,12 +105,42 @@ Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents.**
 
 > **"Agent" means only the Claude-CLI-plus-prompt run** — not the pod that hosts it (a **Station**) nor the coordinator that dispatches work (the **Floor**). The coordinator deployment was historically called "Lore Agent"; it is now the **Floor** (`apps/floor`, the `lore-floor` deployment).
 
+## How Lore connects to Claude Code (in plain terms)
+
+When you install Lore, Claude Code starts talking to a **small Lore program
+running on your laptop**. That program is the only piece that speaks Claude
+Code's language (a protocol called MCP). It doesn't hold any of the org's
+knowledge itself — instead it **forwards requests to the Lore cloud service**
+over the internet, where the shared database lives.
+
+Why the split?
+
+- The shared knowledge — conventions, memories, history — lives in **one place
+  in the cloud**, so every developer sees the same thing.
+- But some things can only happen on your laptop: knowing **which repository
+  you're in**, running **your project's tests**, or doing work on **your own
+  Claude subscription**. Those stay local.
+
+So the laptop program is a **translator and a doorway**: Claude Code → local
+Lore program → Lore cloud. The cloud service itself is a plain authenticated
+web API — it is deliberately *not* a second MCP server (see
+[docs/mcp-transport-options.md](docs/mcp-transport-options.md) for why).
+
+To keep this fast and resilient, the local program keeps a **short-lived cache**
+of recent lookups: repeat questions are answered instantly, and if the cloud is
+briefly unreachable you still get recent answers (clearly marked as cached).
+Saving or changing anything always goes straight to the cloud.
+
+For the full list of what Claude can do with Lore, in plain language, see the
+[Lore Tools guide](docs/mcp-tools.md).
+
 ## Documentation
 
 Pick the guide that matches what you're doing.
 
 ### Using Lore
 
+- [Lore Tools — Plain-Language Guide](docs/mcp-tools.md) — what each Lore tool does, and whether it runs in the cloud or on your machine
 - [Developer Guide](docs/using-lore/developer.md) — org context in Claude Code, the MCP tool catalog, the local task runner, and GitHub/Slack dispatch
 - [Product Manager Guide](docs/using-lore/product-manager.md) — turn a plain-language idea into a spec and a merged PR
 - [Platform Engineer Guide](docs/using-lore/platform-engineer.md) — onboard repos, tune settings, monitor the pipeline, analytics, and API security

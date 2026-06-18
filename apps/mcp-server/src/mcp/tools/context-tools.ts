@@ -8,7 +8,7 @@ import { isMemoryDbAvailable } from "../../features/memory/memory.js";
 import { assembleContext } from "../../features/context/context-assembly.js";
 import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
 import { traceRetrieval } from "../../platform/otel.js";
-import { ToolDeps, makeTrackLatency } from "./deps.js";
+import { ToolDeps, makeTrackLatency, proxyGetApi, withReadCache, unreachableError, deniedError } from "./deps.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -107,25 +107,29 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
         try {
           const dbPoolRef = getPool();
           if (!isMemoryDbAvailable()) {
-            // Proxy to GKE
+            // Local stdio mode: proxy to GKE through the read-through cache.
             const apiUrl = process.env.LORE_API_URL;
             const apiToken = process.env.LORE_INGEST_TOKEN;
-            if (apiUrl && apiToken) {
-              try {
-                const resolvedRepo = repo || detectCurrentRepo() || "";
-                const params = new URLSearchParams({ query, template, repo: resolvedRepo });
-                const res = await fetch(`${apiUrl}/api/context?${params}`, {
-                  headers: { "Authorization": `Bearer ${apiToken}` },
-                });
-                if (res.ok) {
-                  const data = await res.json() as any;
-                  if (data.text) {
-                    const meta = `<!-- context: proxied from GKE, template=${template} -->\n\n`;
-                    return { content: [{ type: "text" as const, text: meta + data.text }] };
-                  }
-                }
-              } catch { /* fall through */ }
+            if (!apiUrl || !apiToken) {
+              return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
             }
+            const resolvedRepo = repo || detectCurrentRepo() || "";
+            const params = new URLSearchParams({ query, template, repo: resolvedRepo });
+            const proxied = await withReadCache(
+              { tool: "lore_assemble_context", args: { query, template, repo: resolvedRepo }, repo: resolvedRepo || undefined, ttlSeconds: 600 },
+              async () => {
+                const r = await proxyGetApi(`/api/context?${params.toString()}`);
+                if (!r.ok) return r;
+                const data = JSON.parse(r.body) as { text?: string };
+                // A reachable backend that returns empty context is a real
+                // (empty) result, not an outage — return it as-is rather than
+                // forcing a stale, mislabeled "backend unreachable" serve.
+                return { ok: true as const, body: data.text ?? "" };
+              },
+            );
+            if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+            if (proxied.reason === "unreachable") return unreachableError("lore_assemble_context", proxied.detail);
+            if (proxied.reason === "denied") return deniedError("lore_assemble_context", proxied.detail);
             return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
           }
           // Resolve cross_repo: explicit param wins, then check repo settings

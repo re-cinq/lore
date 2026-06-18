@@ -53,11 +53,11 @@ describe("/api/task-logs", () => {
       await handleApiRoute(makeReq({ url: "/api/task-logs?task_id=t", headers: AUTH }), res, null);
       expect(res.statusCode).toBe(400);
     });
-    it("returns empty when the log file does not exist", async () => {
+    it("returns empty and incomplete when the log file does not exist", async () => {
       storage.file.exists.mockResolvedValue([false]);
       const res = makeRes();
       await handleApiRoute(makeReq({ url: "/api/task-logs?task_id=t&repo=o/r", headers: AUTH }), res, null);
-      expect(res.json).toEqual({ logs: "", next_offset: 0, complete: true });
+      expect(res.json).toEqual({ logs: "", next_offset: 0, complete: false });
     });
     it("returns a slice from offset when the file exists", async () => {
       storage.file.exists.mockResolvedValue([true]);
