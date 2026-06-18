@@ -42,6 +42,7 @@ export default function FeatureDetailView({
   owner,
   repo,
   feature,
+  timeoutMinutes,
   refine,
   finalize,
   split,
@@ -50,6 +51,7 @@ export default function FeatureDetailView({
   owner: string;
   repo: string;
   feature: FeatureWithIterations;
+  timeoutMinutes: number;
   refine: (userAnswers: unknown) => Promise<void>;
   finalize: () => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
@@ -88,6 +90,7 @@ export default function FeatureDetailView({
           owner={owner}
           repo={repo}
           feature={feature}
+          timeoutMinutes={timeoutMinutes}
           refine={refine}
           finalize={finalize}
           onCreateDraft={onCreateDraft}

@@ -6,6 +6,29 @@ import type { FeatureWithIterations, FeatureRow, FeatureIterationRow } from '@/l
 
 const POLL_MS = 4000;
 
+/** Elapsed / budget (m:ss / mm:00) from when the running round started, ticking every
+ *  second. Turns red once elapsed passes the round's timeout. */
+function ElapsedTimer({ since, timeoutMinutes }: { since: string | undefined; timeoutMinutes: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const start = since ? Date.parse(since) : NaN;
+  if (Number.isNaN(start)) return null;
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const secs = Math.max(0, Math.floor((now - start) / 1000));
+  const over = secs > timeoutMinutes * 60;
+  return (
+    <span
+      className="meta"
+      style={{ marginLeft: 8, fontVariantNumeric: 'tabular-nums', color: over ? '#dc2626' : undefined }}
+    >
+      · {fmt(secs)} / {timeoutMinutes}:00
+    </span>
+  );
+}
+
 interface Poll {
   feature: FeatureRow;
   latestIteration: FeatureIterationRow | null;
@@ -19,6 +42,7 @@ export default function PlanningWizard({
   owner,
   repo,
   feature,
+  timeoutMinutes,
   refine,
   finalize,
   onCreateDraft,
@@ -26,6 +50,7 @@ export default function PlanningWizard({
   owner: string;
   repo: string;
   feature: FeatureWithIterations;
+  timeoutMinutes: number;
   refine: (userAnswers: unknown) => Promise<void>;
   finalize: () => Promise<void>;
   onCreateDraft: (title: string, prompt: string) => void;
@@ -84,6 +109,7 @@ export default function PlanningWizard({
         <p style={{ display: 'flex', alignItems: 'center', margin: 0 }}>
           Analyzing your feature against the project… (round {latest?.iteration ?? data.feature.current_iteration})
           <span className="planning-dots" aria-hidden="true"><span /><span /><span /></span>
+          <ElapsedTimer since={latest?.created_at} timeoutMinutes={timeoutMinutes} />
         </p>
         <p className="meta">The planning agent is running. This refreshes automatically.</p>
         {data.liveOutput && (

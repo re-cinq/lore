@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { queryAllowMissing } from '@/lib/db';
 import { refineFeature, finalizeFeature, splitFeature, deleteFeature } from '@/lib/feature-api';
+import { listAgents } from '@/lib/agents-api';
 import type { FeatureRow, FeatureIterationRow, FeatureWithIterations } from '@/lib/feature-types';
 import FeatureDetailView from './FeatureDetailView';
 
@@ -33,6 +34,11 @@ export default async function FeatureDetail({
   );
   const full: FeatureWithIterations = { ...feature, iterations };
 
+  // The planning round's time budget (the feature-planning agent's timeout), resolved
+  // once for the wizard's elapsed/total timer. Defaults to 15 if unresolved.
+  const planningTimeoutMinutes =
+    (await listAgents(fullName)).find((a) => a.name === 'feature-planning')?.timeout_minutes ?? 15;
+
   async function refine(userAnswers: unknown) {
     'use server';
     await refineFeature(fullName, id, userAnswers);
@@ -61,6 +67,7 @@ export default async function FeatureDetail({
       owner={owner}
       repo={repo}
       feature={full}
+      timeoutMinutes={planningTimeoutMinutes}
       refine={refine}
       finalize={finalize}
       split={split}
