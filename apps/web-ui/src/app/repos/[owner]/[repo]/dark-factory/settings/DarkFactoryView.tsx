@@ -2,8 +2,8 @@
 import { useActionState } from 'react';
 import type { ResolvedDarkFactorySettings } from '@/lib/dark-factory-resolve';
 import HelpPopover from '@/components/HelpPopover';
-import SaveResultBanner, { INITIAL_SAVE_STATE, type SaveState } from '../settings/SaveResultBanner';
-import styles from '../settings/page.module.css';
+import SaveResultBanner, { INITIAL_SAVE_STATE, type SaveState } from '../../settings/SaveResultBanner';
+import styles from '../../settings/page.module.css';
 
 const NOTIFY_CHANNELS = ['escalation', 'watched', 'all'] as const;
 const TRUST_LEVELS = ['docs', 'tests', 'implementation', 'full'] as const;

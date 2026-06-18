@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import DarkFactoryView from './DarkFactoryView';
 import { resolveDarkFactorySettings, DEFAULT_EXECUTION_IMAGE } from '@/lib/dark-factory-resolve';
-import { INITIAL_SAVE_STATE, type SaveState } from '../settings/SaveResultBanner';
+import { INITIAL_SAVE_STATE, type SaveState } from '../../settings/SaveResultBanner';
 
 const action = vi.fn(async (): Promise<SaveState> => INITIAL_SAVE_STATE);
 
