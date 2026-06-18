@@ -61,6 +61,19 @@ export type {
 export { resolveAgentConfig, KNOWN_MODELS } from "./agents/agent-defs-port.js";
 export type { LlmPort, LlmCompletion } from "./agents/llm-port.js";
 export type { K8sPort, LoreTaskSpec } from "./agents/k8s-port.js";
+export type {
+  StationBackend,
+  StationLaunchResult,
+  StationCompletion,
+  StationBackendKind,
+} from "./agents/station-port.js";
+export { selectStationBackend, defaultStationName } from "./agents/station-port.js";
+export { stationPlainEnv } from "./agents/station-env.js";
+export type {
+  StationCredentials,
+  StationLlmCredential,
+  StationMount,
+} from "./agents/station-credentials.js";
 export type { ProjectProviders } from "./lib/providers.js";
 
 export type { GitPort, CloneOpts } from "./workspace/git-port.js";

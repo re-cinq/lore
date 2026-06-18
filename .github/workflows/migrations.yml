@@ -1,0 +1,51 @@
+name: DB Migrations
+
+# Guards against a migration that would fail the ui-helm pre-install/pre-upgrade
+# hook Job and wedge the UI deploy (helm upgrade --wait). Reproduces the COMPLETE
+# baseline (setup-local-schema.sh runs the real setup-*-schema.sh via a
+# kubectl->docker shim) and then applies every migration in filename order the
+# same way the hook does — as role `lore`, single transaction, tracked in
+# lore.schema_migrations — then re-applies the newest file to prove idempotency.
+# Zero baseline duplication: it uses the same scripts as local dev / the cluster.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/terraform/modules/gke-mcp/ui-helm/migrations/**'
+      - 'scripts/infra/setup-*.sh'
+      - '.github/workflows/migrations.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: migrations-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    env:
+      LORE_PG_CONTAINER: lore-postgres
+      MIGRATIONS_DIR: infra/terraform/modules/gke-mcp/ui-helm/migrations
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Start Postgres (pgvector) as a named docker container
+        run: |
+          docker run -d --name "$LORE_PG_CONTAINER" \
+            -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=lore \
+            pgvector/pgvector:pg16
+          for i in $(seq 1 60); do
+            docker exec "$LORE_PG_CONTAINER" pg_isready -U postgres -d lore >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: Apply full baseline + all migrations (real path, as role lore)
+        run: bash scripts/infra/setup-local-schema.sh
+
+      - name: Re-apply the newest migration (idempotency must hold)
+        run: |
+          set -eu
+          newest=$(ls "$MIGRATIONS_DIR"/*.sql | sort | tail -1)
+          echo "[migrate] re-applying $(basename "$newest") as role lore"
+          docker exec -i "$LORE_PG_CONTAINER" psql -U lore -d lore -v ON_ERROR_STOP=1 --single-transaction -f - < "$newest"
+          echo "[migrate] idempotent re-apply OK"

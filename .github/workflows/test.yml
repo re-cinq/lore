@@ -44,6 +44,12 @@ jobs:
             install: npm install --prefix apps/web-ui
             # Run with coverage so the vitest.config.ts thresholds gate CI.
             test: npm run test:coverage --prefix apps/web-ui
+          # Type-mirror drift guard. web-ui can't import @re-cinq/lore-shared, so it
+          # hand-mirrors the feature-planning types — this typecheck fails the moment
+          # the canonical shared types gain a key (or a status union changes) the
+          # mirror lacks. Reads both trees' source directly; no build needed.
+          - name: type-drift
+            test: npm run typecheck:drift
 
     steps:
       - uses: actions/checkout@v5

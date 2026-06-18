@@ -63,6 +63,11 @@ env:
   # a pilot repo has soaked at "true" via override — see
   # runbooks/dark-factory-rollback.md → "Cluster path enablement".
   LORE_DARK_FACTORY_CLUSTER_ENABLED: "false"
+  # Station execution backend (ADR-028). On the cluster we run Stations as K8s
+  # LoreTask Job pods. Explicit here, though the in-cluster default
+  # (KUBERNETES_SERVICE_HOST present → k8s) already resolves the same — local dev
+  # sets "docker". Never set this to "docker" on the cluster.
+  LORE_STATION_BACKEND: "k8s"
   # Bot login the auto-merge gate accepts as the "bot APPROVED" review.
   # Must match the GitHub App slug installed on the org (visible in
   # the App's settings page). If misconfigured, no PR will satisfy

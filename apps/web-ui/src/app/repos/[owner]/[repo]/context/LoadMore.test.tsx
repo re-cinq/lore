@@ -75,7 +75,12 @@ describe('LoadMore', () => {
     render(<LoadMore owner="o" repo="r" initialOffset={50} hasMore />);
 
     fireEvent.click(screen.getByRole('button', { name: /load more/i }));
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    // Wait for the first round to fully settle — the button returns from the
+    // disabled "Loading…" state back to an enabled "Load more" (loading=false,
+    // offset advanced) — before paging again. Waiting only on the fetch call
+    // count races the loading→idle re-render and intermittently clicks a button
+    // that is still labelled "Loading…".
+    expect(await screen.findByRole('button', { name: /load more/i })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: /load more/i }));
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
 

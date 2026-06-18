@@ -83,6 +83,19 @@ export LORE_DGRAPH_HTTP="${LORE_DGRAPH_HTTP:-http://localhost:8081}"
 export LORE_API_URL="${LORE_API_URL:-http://localhost:3001}"
 export LORE_INGEST_TOKEN="${LORE_INGEST_TOKEN:-lore-local-dev-token}"
 
+# Station execution backend (ADR-028): local dev has no Kubernetes, so Stations
+# run as plain `docker run` of the claude-runner image (no K8s). Build it once if
+# missing. The container reaches host services via --network host; it needs the
+# GitHub App creds + an LLM credential in .env.local (see .env.local.example).
+# Set LORE_STATION_BACKEND=inprocess to skip Docker for the lightweight planning path.
+export LORE_STATION_BACKEND="${LORE_STATION_BACKEND:-docker}"
+export LORE_RUNNER_IMAGE="${LORE_RUNNER_IMAGE:-lore-claude-runner:local}"
+if [ "$LORE_STATION_BACKEND" = "docker" ] && ! docker image inspect "$LORE_RUNNER_IMAGE" >/dev/null 2>&1; then
+  log "Building Station runner image $LORE_RUNNER_IMAGE (first run; multi-stage, takes a few min)..."
+  docker build -f "$ROOT/infra/docker/claude-runner/Dockerfile" -t "$LORE_RUNNER_IMAGE" "$ROOT" \
+    || log "WARNING: runner image build failed — feature/impl Stations will fail until '$LORE_RUNNER_IMAGE' exists (or set LORE_STATION_BACKEND=inprocess)."
+fi
+
 # 2b. web-ui auth (NextAuth). Needs a URL + secret locally. Generate the secret
 #     once and persist it (gitignored) so sessions survive restarts. GitHub OAuth
 #     creds must be supplied by the user (exported before 'npm start').

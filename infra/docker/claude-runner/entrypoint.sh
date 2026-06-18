@@ -36,12 +36,38 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   git config --global user.name "Lore Floor"
   git config --global user.email "lore@re-cinq.com"
 
-  # --- Clone repo + branch ---
-  git clone --depth=1 \
-    "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" \
-    /workspace/repo
-  cd /workspace/repo
-  git checkout -b "${BRANCH_NAME}"
+  # --- Get the repo + branch (GitLab GIT_STRATEGY=fetch model) ---
+  # When /workspace/repo is a persistent cache mount (local Docker Station,
+  # ADR-028) reuse it: fetch deltas + clean/reset to a pristine tree instead of
+  # re-cloning. On K8s /workspace/repo is a fresh emptyDir, so this clones — same
+  # behavior as before. BASE_BRANCH defaults to the remote HEAD when unset.
+  REPO_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git"
+  FETCH_REF="${BASE_BRANCH:-HEAD}"
+  mkdir -p /workspace/repo
+  fresh_clone() {
+    # Empty the dir (keep the mount point) so clone can't trip on leftover/partial
+    # content from a killed run, then shallow-clone.
+    find /workspace/repo -mindepth 1 -delete 2>/dev/null || true
+    git clone --depth=1 "$REPO_URL" /workspace/repo
+    cd /workspace/repo
+    git checkout -b "${BRANCH_NAME}"
+  }
+  if [ -d /workspace/repo/.git ]; then
+    echo "[runner] Reusing cached repo at /workspace/repo (fetch)"
+    cd /workspace/repo
+    if git remote set-url origin "$REPO_URL" \
+       && git fetch --depth=1 --prune origin "$FETCH_REF" \
+       && git clean -ffdx \
+       && git checkout -B "${BRANCH_NAME}" FETCH_HEAD; then
+      echo "[runner] cache refreshed"
+    else
+      echo "[runner] cache fetch failed — re-cloning"
+      cd / && fresh_clone
+    fi
+  else
+    echo "[runner] Cloning ${TARGET_REPO}"
+    fresh_clone
+  fi
 
   # --- Hand off to the supervisor CLI ---
   # The supervisor walks the workflow graph; agent nodes spawn `claude`
@@ -65,6 +91,41 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   node /app/dist/delivery/runner-cli.js
   RUNNER_EXIT=$?
   echo "[runner] runner-cli exited with ${RUNNER_EXIT}"
+
+  # feature-planning produces a structured GapResult, not repo changes. POST it
+  # back to the features API (no branch push, no PR). The pod reads its own
+  # feature_id/iteration from the task's context_bundle. See ADR-027.
+  # SALVAGE: a planning round's deliverable is result.json, not a clean exit — so
+  # POST it even when the supervisor timed out / exited non-zero, as long as the
+  # agent wrote it. We always exit 0 here; the API + finalizeStationRun decide
+  # success by whether a valid result actually landed (a missing/invalid result
+  # still surfaces as a failed round).
+  if [ "$TASK_TYPE" = "feature-planning" ]; then
+    [ "$RUNNER_EXIT" != "0" ] && echo "[runner] runner exited ${RUNNER_EXIT}; salvaging result.json if present"
+    LORE_API_URL="${LORE_API_URL:-}"
+    LORE_TOKEN="${LORE_INGEST_TOKEN:-}"
+    RESULT_FILE="${WORKDIR}/result.json"
+    if [ -f "$RESULT_FILE" ] && [ -n "$LORE_API_URL" ] && [ -n "$LORE_TOKEN" ]; then
+      TASK_JSON=$(curl -sf -H "Authorization: Bearer $LORE_TOKEN" \
+        "${LORE_API_URL}/api/task/${LORE_TASK_ID}" 2>/dev/null || echo '{}')
+      FID=$(echo "$TASK_JSON" | jq -r '.context_bundle.feature_id // empty')
+      ITER=$(echo "$TASK_JSON" | jq -r '.context_bundle.iteration // empty')
+      if [ -n "$FID" ] && [ -n "$ITER" ]; then
+        echo "[runner] Posting planning result for feature ${FID} iteration ${ITER}"
+        curl -sf -X POST -H "Authorization: Bearer $LORE_TOKEN" \
+          -H "Content-Type: application/json" --data-binary @"$RESULT_FILE" \
+          "${LORE_API_URL}/api/repos/${TARGET_REPO}/features/${FID}/iterations/${ITER}/result" \
+          && echo "[runner] planning result posted" \
+          || echo "[runner] WARN: planning result POST failed"
+      else
+        echo "[runner] WARN: no feature_id/iteration in task context_bundle"
+      fi
+    else
+      echo "[runner] WARN: result.json or API creds missing — nothing posted"
+    fi
+    echo "CHANGES=0"
+    exit 0
+  fi
 
   if [ "$RUNNER_EXIT" = "0" ]; then
     echo "[runner] Pushing dark-factory branch..."

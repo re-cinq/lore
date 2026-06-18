@@ -14,6 +14,7 @@ import { Workspace } from "../workspace/workspace.js";
 import { Leases } from "../leases/leases.js";
 import { Audit } from "../audit/audit.js";
 import { Usage } from "../usage/usage.js";
+import { Features } from "../features/features.js";
 import { assertCanClone } from "./trust.js";
 
 import type { GitHubPort } from "./github-port.js";
@@ -31,6 +32,7 @@ import type { GitPort } from "../workspace/git-port.js";
 import type { LeaseBackend } from "../leases/lease-backends.js";
 import type { AuditPort } from "../audit/audit-port.js";
 import type { UsagePort } from "../usage/usage-port.js";
+import type { FeaturesPort } from "../features/features-port.js";
 
 /**
  * The unified internal API. Built by createProject from a repo fullName
@@ -110,6 +112,11 @@ export class Project {
   /** LLM-call accounting (pipeline.llm_calls). */
   get usage(): Usage {
     return new Usage(this.port<UsagePort>("usage"));
+  }
+
+  /** Smart feature-planning lifecycle (lore.features + lore.feature_iterations). */
+  get features(): Features {
+    return new Features(this.fullName, this.port<FeaturesPort>("features"));
   }
 
   /** Clone the repo to a cache dir and return a Workspace for writes. Refuses on
