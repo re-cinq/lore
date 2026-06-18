@@ -5,10 +5,22 @@ import { useState, useTransition } from 'react';
 import StatusBadge from '../StatusBadge';
 import { isPlanningActive } from '../feature-status';
 import PlanningWizard from './PlanningWizard';
+import DecompositionView from './DecompositionView';
 import Markdown from '@/components/Markdown';
 import type { FeatureWithIterations, SectionAnswers } from '@/lib/feature-types';
+import type { DecompStoryGroup } from '@/lib/decomposition-view';
 
-function FinalizedView({ feature }: { feature: FeatureWithIterations }) {
+function FinalizedView({
+  owner,
+  repo,
+  feature,
+  decomposition,
+}: {
+  owner: string;
+  repo: string;
+  feature: FeatureWithIterations;
+  decomposition: { stories: DecompStoryGroup[]; total: number };
+}) {
   return (
     <div>
       <div className="spec-card" style={{ marginBottom: 12 }}>
@@ -29,6 +41,7 @@ function FinalizedView({ feature }: { feature: FeatureWithIterations }) {
           <p className="meta">Finalizing — opening the spec PR…</p>
         )}
       </div>
+      <DecompositionView owner={owner} repo={repo} stories={decomposition.stories} total={decomposition.total} />
       {feature.draft_spec_md && (
         <div className="spec-card">
           <Markdown markdown={feature.draft_spec_md} />
@@ -43,6 +56,7 @@ export default function FeatureDetailView({
   repo,
   feature,
   timeoutMinutes,
+  decomposition,
   refine,
   finalize,
   split,
@@ -52,6 +66,7 @@ export default function FeatureDetailView({
   repo: string;
   feature: FeatureWithIterations;
   timeoutMinutes: number;
+  decomposition: { stories: DecompStoryGroup[]; total: number };
   refine: (userAnswers: SectionAnswers) => Promise<void>;
   finalize: () => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
@@ -93,7 +108,7 @@ export default function FeatureDetailView({
           onCreateDraft={onCreateDraft}
         />
       ) : (
-        <FinalizedView feature={feature} />
+        <FinalizedView owner={owner} repo={repo} feature={feature} decomposition={decomposition} />
       )}
 
       <div className="spec-card danger-zone">

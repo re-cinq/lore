@@ -2,6 +2,7 @@ import { query } from "../../../data/db.js";
 import { projectFor } from "../../../application/project-boot.js";
 import { writeEpisodeWithCuration } from "../../../adapters/episode-writer.js";
 import { parseTasks, inferPhaseDependencies } from "@re-cinq/lore-shared";
+import { decideDecomposeKick } from "../../task-processing/handle-feature-decompose.js";
 
 /**
  * Fallback: when a feature-request task's PR merges and the webhook was missed,
@@ -127,8 +128,8 @@ export async function mergeCheckJob(): Promise<string> {
   }
 
   // Also check pipeline tasks with PRs that might have been merged
-  const tasks = await query<{ id: string; target_repo: string; target_branch: string | null; pr_url: string; pr_number: number; issue_number: number | null; task_type: string; description: string; created_at: string }>(
-    `SELECT id, target_repo, target_branch, pr_url, pr_number, issue_number, task_type, description, created_at
+  const tasks = await query<{ id: string; target_repo: string; target_branch: string | null; pr_url: string; pr_number: number; issue_number: number | null; task_type: string; description: string; created_at: string; context_bundle: { feature_id?: string; slug?: string } | null }>(
+    `SELECT id, target_repo, target_branch, pr_url, pr_number, issue_number, task_type, description, created_at, context_bundle
      FROM pipeline.tasks
      WHERE status IN ('pr-created', 'review')
        AND pr_number IS NOT NULL
@@ -236,6 +237,25 @@ export async function mergeCheckJob(): Promise<string> {
             await syncSpecTasksFromMerge(task);
           } catch (err: any) {
             console.error(`[job] merge-check: spec-task sync failed for ${task.id}: ${err.message}`);
+          }
+        }
+        // When a finalized feature's spec PR merges, decompose it into stories +
+        // spec-tasks (ADR-029). The decompose handler is idempotent on the slug.
+        const decompose = decideDecomposeKick(task);
+        if (decompose.kick) {
+          try {
+            await query(
+              `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by)
+               VALUES ($1, 'feature-decompose', $2, 'pending', $3, 'merge-check')`,
+              [
+                `Decompose feature: ${decompose.slug ?? decompose.featureId}`,
+                task.target_repo,
+                JSON.stringify({ feature_id: decompose.featureId, slug: decompose.slug }),
+              ],
+            );
+            console.log(`[job] merge-check: kicked feature-decompose for ${decompose.slug ?? decompose.featureId}`);
+          } catch (err: any) {
+            console.error(`[job] merge-check: could not kick decompose for ${task.id}: ${err.message}`);
           }
         }
         tasksMerged++;
