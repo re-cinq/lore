@@ -7,6 +7,7 @@ import {
   type AgentDefsPort,
 } from "./agent-defs-port.js";
 import { PLANNING_INSTRUCTIONS } from "../../feature-planning/planning-instructions.js";
+import { DECOMPOSITION_INSTRUCTIONS } from "../../feature-planning/decomposition-instructions.js";
 
 /**
  * Read-only AgentDefsPort over task-types.yaml — the offline/bootstrap fallback
@@ -75,6 +76,10 @@ export class AgentDefsYaml implements AgentDefsPort {
         // Override it so the code/offline layer matches the DB-seeded org default.
         const fp = map.get("feature-planning");
         if (fp) map.set("feature-planning", { ...fp, prompt: PLANNING_INSTRUCTIONS });
+        // Same for feature-decompose: its canonical prompt is DECOMPOSITION_INSTRUCTIONS,
+        // matching the DB-seeded org default (migration 0020).
+        const fd = map.get("feature-decompose");
+        if (fd) map.set("feature-decompose", { ...fd, prompt: DECOMPOSITION_INSTRUCTIONS });
         this.cache = map;
         return map;
       } catch {

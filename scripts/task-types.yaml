@@ -149,6 +149,17 @@ task_types:
     review_required: false
     model: claude-sonnet-4-6
 
+  feature-decompose:
+    # Runs in-process (ADR-029), never a Station. The role + EXACT output schema
+    # come from the shared DECOMPOSITION_INSTRUCTIONS constant (served as the org
+    # agent-definition prompt); this entry only carries model/timeout defaults.
+    prompt_template: |
+      {description}
+    target_repo: null
+    timeout_minutes: 15
+    review_required: false
+    model: claude-sonnet-4-6
+
   onboard:
     prompt_template: |
       You are onboarding a repository to the Lore platform. The repo

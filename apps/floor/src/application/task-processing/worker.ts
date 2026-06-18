@@ -24,6 +24,7 @@ import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 import { handleFeaturePlanning } from "./handle-feature-planning.js";
 import { handleFeatureFinalize } from "./handle-feature-finalize.js";
+import { handleFeatureDecompose } from "./handle-feature-decompose.js";
 import { handleOnboard } from "./handle-onboard.js";
 
 // Re-export the task handlers so existing import sites (e.g. the onboard
@@ -117,6 +118,14 @@ async function processTask(task: any): Promise<void> {
   // runIngestGraph runs in-process against the trace graph.
   if (getTaskTypeConfig(task.task_type)?.execution_mode === "graph-ingest") {
     await handleGraphIngest(task, targetRepo, agentId, { pool: getPool(), project, dgraph: createDgraphClient() });
+    return;
+  }
+
+  // Feature decomposition (ADR-029): a merged spec → user-story Issues + spec-tasks.
+  // Pure LLM analysis + coordinator-side Issue/pipeline writes → always in-process,
+  // never a Station (it mutates no repo files).
+  if (task.task_type === "feature-decompose") {
+    await handleFeatureDecompose(task, targetRepo);
     return;
   }
 

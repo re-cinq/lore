@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AgentDefsYaml } from "./agent-defs-yaml.js";
 import { PLANNING_INSTRUCTIONS } from "../../feature-planning/planning-instructions.js";
+import { DECOMPOSITION_INSTRUCTIONS } from "../../feature-planning/decomposition-instructions.js";
 
 /**
  * AgentDefsYaml maps task-types.yaml into org-level definitions and refuses
@@ -96,6 +97,25 @@ describe("AgentDefsYaml", () => {
     expect(def?.prompt).toBe(PLANNING_INSTRUCTIONS);
     expect(def?.model).toBe("claude-sonnet-4-6");
     expect(def?.timeout_minutes).toBe(15);
+  });
+
+  it("serves DECOMPOSITION_INSTRUCTIONS as the feature-decompose prompt, not the yaml wrapper", async () => {
+    const fp = join(dir, "fd.yaml");
+    writeFileSync(
+      fp,
+      [
+        "task_types:",
+        "  feature-decompose:",
+        "    prompt_template: |",
+        "      {description}",
+        "    timeout_minutes: 15",
+        "    model: claude-sonnet-4-6",
+        "",
+      ].join("\n"),
+    );
+    const def = await new AgentDefsYaml(fp).resolve("re-cinq/lore", "feature-decompose");
+    expect(def?.prompt).toBe(DECOMPOSITION_INSTRUCTIONS);
+    expect(def?.model).toBe("claude-sonnet-4-6");
   });
 
   it("refuses writes without a database", async () => {
