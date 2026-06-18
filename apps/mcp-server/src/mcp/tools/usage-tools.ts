@@ -8,9 +8,16 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_my_usage",
-    "Show your personal task and token usage. Breaks down by today, 7-day, and 30-day periods.",
+    `Reports the CALLING agent's own footprint: distinct pipeline-task count plus summed input/output token totals, broken into three windows (today, 7_day, 30_day). Returns a JSON object { agent_id, usage: { today, 7_day, 30_day } } where each window is { tasks, input_tokens, output_tokens }; tokens come from pipeline.llm_calls joined to that agent's pipeline.tasks.
+Use this for "how much have I personally run/spent lately". For an ORG-WIDE pulse across all agents (total throughput, success/fail rates, per-task-type breakdown) use lore_get_analytics instead — this tool is single-agent only and does NOT report success rates or per-type counts.
+Runs against the shared backend Postgres directly and requires LORE_DB_HOST to be set; it does not proxy over LORE_API_URL. Read-only, no mutations. If the DB pool is unavailable it returns the text "Usage tracking requires PostgreSQL (LORE_DB_HOST not set)." rather than throwing.`,
     {
-      agent_id: z.string().optional().describe("Override agent ID. Auto-detected if omitted."),
+      agent_id: z
+        .string()
+        .optional()
+        .describe(
+          "Resolved agent identifier whose usage to report, e.g. \"loredana@re-cinq.com\" or a UUID. When omitted, auto-detected via resolveAgentId (explicit param then LORE_AGENT_ID env then ~/.lore/agent-id file then a generated UUID). Pass this only to inspect a different agent than the caller's own."
+        ),
     },
     async ({ agent_id }) => {
       try {
@@ -51,9 +58,16 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_get_analytics",
-    "Returns org-level analytics: task throughput, success rates, and token usage.",
+    `Returns ORG-WIDE pipeline analytics for one fixed window: a JSON object { period, usage: { llm_calls, input_tokens, output_tokens }, tasks: { total, succeeded, failed }, by_type: [{ task_type, tasks }] }. "succeeded" counts tasks with status pr-created or merged; "failed" counts status failed; usage aggregates all pipeline.llm_calls in the window; by_type breaks task counts down per task_type, busiest first. Note: usage.* and tasks.* counts are numbers, but by_type[].tasks comes back as a numeric STRING (raw pg bigint, not coerced).
+Use this for a team-wide pulse (throughput, success rate, token spend, task-type mix) across ALL agents. For a SINGLE agent's own task/token footprint use lore_my_usage instead — this tool is not per-agent and does not filter by caller.
+Runs against the shared backend Postgres directly and requires LORE_DB_HOST to be set; it does not proxy over LORE_API_URL. Read-only, no mutations. If LORE_DB_HOST is unset it returns the text "Analytics requires PostgreSQL (LORE_DB_HOST not set)." rather than throwing.`,
     {
-      period: z.enum(["today", "week", "month", "all"]).default("month").describe("Time period for analytics."),
+      period: z
+        .enum(["today", "week", "month", "all"])
+        .default("month")
+        .describe(
+          "Window for the created_at filter. One of: \"today\" (since current_date), \"week\" (since the start of the ISO week), \"month\" (since the start of the calendar month), \"all\" (no time filter, every record). Defaults to \"month\" when omitted. Example: \"week\"."
+        ),
     },
     async ({ period }) => {
       try {
