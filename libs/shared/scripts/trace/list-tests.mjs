@@ -86,8 +86,8 @@ function resolveLines(descriptors) {
   return resolved;
 }
 
-const { descriptors, ambiguous } = bindDescriptorsToSpecLinks(resolveLines(PKGS.flatMap(listPkg)), readSpecSources(ROOT));
-if (ambiguous.length > 0) {
-  console.warn(`[trace] list: ${ambiguous.length} descriptor(s) matched multiple statements — left unanchored (needs multi-anchor).`);
-}
+const descriptors = bindDescriptorsToSpecLinks(resolveLines(PKGS.flatMap(listPkg)), readSpecSources(ROOT));
+const anchored = descriptors.filter((descriptor) => descriptor.spec !== undefined);
+const multi = anchored.filter((descriptor) => Array.isArray(descriptor.spec));
+console.warn(`[trace] list: ${anchored.length} descriptor(s) anchored to statements (${multi.length} multi-statement).`);
 process.stdout.write(JSON.stringify(descriptors));

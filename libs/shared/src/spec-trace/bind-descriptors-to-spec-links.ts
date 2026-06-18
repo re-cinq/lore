@@ -13,9 +13,10 @@
  * path turns them into `Statement.validated_by` + `violated` edges — making the
  * inline links a live pass/fail signal on every run. Zero LLM, zero graph I/O.
  *
- * `TestDescriptor.spec` is singular, so a descriptor whose span resolves to more
- * than one distinct statement is left unanchored and reported in `ambiguous`
- * rather than collapsed to one; multi-anchor is a deliberate follow-up.
+ * A descriptor whose span resolves to a single statement is stamped with that
+ * one anchor (a string); a span resolving to several distinct statements is
+ * stamped with all of them (a `string[]`), so one test validating several
+ * statements links them all (`parseSpecAnchors` reads either shape downstream).
  */
 
 import { linksForStatements } from "../spec-link-parser.js";
@@ -25,17 +26,6 @@ import type { TestDescriptor } from "../test-report.js";
 export interface SpecSource {
   path: string;
   content: string;
-}
-
-/** A descriptor whose span resolved to more than one statement anchor. */
-export interface AmbiguousBinding {
-  descriptorId: string;
-  anchors: string[];
-}
-
-export interface BindResult {
-  descriptors: TestDescriptor[];
-  ambiguous: AmbiguousBinding[];
 }
 
 interface LinkIndexEntry {
@@ -63,11 +53,10 @@ function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
   return entries;
 }
 
-export function bindDescriptorsToSpecLinks(descriptors: TestDescriptor[], specs: SpecSource[]): BindResult {
+export function bindDescriptorsToSpecLinks(descriptors: TestDescriptor[], specs: SpecSource[]): TestDescriptor[] {
   const index = buildLinkIndex(specs);
-  const ambiguous: AmbiguousBinding[] = [];
 
-  const bound = descriptors.map((descriptor) => {
+  return descriptors.map((descriptor) => {
     const { startLine, endLine, spec } = descriptor;
     if (spec !== undefined) return descriptor;
     if (startLine === undefined || endLine === undefined) return descriptor;
@@ -82,12 +71,6 @@ export function bindDescriptorsToSpecLinks(descriptors: TestDescriptor[], specs:
     ];
 
     if (anchors.length === 0) return descriptor;
-    if (anchors.length > 1) {
-      ambiguous.push({ descriptorId: descriptor.id, anchors });
-      return descriptor;
-    }
-    return { ...descriptor, spec: anchors[0] };
+    return { ...descriptor, spec: anchors.length === 1 ? anchors[0] : anchors };
   });
-
-  return { descriptors: bound, ambiguous };
 }
