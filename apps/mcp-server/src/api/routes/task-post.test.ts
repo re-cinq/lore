@@ -71,17 +71,22 @@ describe("POST /api/task", () => {
   it("creates a task with a known type", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "c1" } as any);
     await post({ description: "do it", task_type: "review" });
-    expect(createTask).toHaveBeenCalledWith("do it", "review", undefined, "remote-mcp", undefined, "normal");
+    expect(createTask).toHaveBeenCalledWith("do it", "review", undefined, "remote-mcp", undefined, "normal", undefined);
   });
   it("falls back to general for an unknown type", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "c2" } as any);
     await post({ description: "do it", task_type: "zzz", context: { a: 1 }, priority: "immediate" });
-    expect(createTask).toHaveBeenCalledWith("do it", "general", undefined, "remote-mcp", { a: 1 }, "immediate");
+    expect(createTask).toHaveBeenCalledWith("do it", "general", undefined, "remote-mcp", { a: 1 }, "immediate", undefined);
   });
   it("defaults to general when no task_type is provided", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "c3" } as any);
     await post({ description: "do it" });
-    expect(createTask).toHaveBeenCalledWith("do it", "general", undefined, "remote-mcp", undefined, "normal");
+    expect(createTask).toHaveBeenCalledWith("do it", "general", undefined, "remote-mcp", undefined, "normal", undefined);
+  });
+  it("threads group_id through to createTask when provided", async () => {
+    vi.mocked(createTask).mockResolvedValue({ task_id: "c4" } as any);
+    await post({ description: "do it", group_id: "g-1" });
+    expect(createTask).toHaveBeenCalledWith("do it", "general", undefined, "remote-mcp", undefined, "normal", "g-1");
   });
   it("returns 400 when description is blank", async () => {
     const res = await post({ description: "   " });
