@@ -43,6 +43,11 @@ export default defineConfig({
         'src/app/repos/[owner]/[repo]/graph/SpecGraphD3.tsx',
         'src/app/repos/[owner]/[repo]/graph/TestPreview.tsx',
         'src/app/repos/[owner]/[repo]/graph/IngestButtons.tsx',
+        // Feature-planning UI shells: the polling wizard, the sandboxed-iframe
+        // mockup renderer, and the schema-driven gap renderer are interactive /
+        // IO render shells like the graph components above. Their pure logic is
+        // covered in feature-status.ts + lib/feature-api.ts.
+        'src/app/repos/[owner]/[repo]/features/**/*.tsx',
         // Type shapes + constants mirroring the /trace API JSON (no logic).
         'src/lib/spec-graph.ts',
         // Test / type-only files.

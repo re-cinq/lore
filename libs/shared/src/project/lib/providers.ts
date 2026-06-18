@@ -1,5 +1,5 @@
 import type { LlmPort } from "../agents/llm-port.js";
-import type { K8sPort } from "../agents/k8s-port.js";
+import type { StationBackend } from "../agents/station-port.js";
 
 /**
  * Optional injected clients for capabilities beyond pg+dgraph. Each runtime's
@@ -11,5 +11,7 @@ import type { K8sPort } from "../agents/k8s-port.js";
  */
 export interface ProjectProviders {
   llm?: LlmPort;
-  k8s?: K8sPort;
+  /** The Station execution backend (K8s in cluster, Docker locally; ADR-028),
+   *  chosen at the runtime's composition root via selectStationBackend. */
+  station?: StationBackend;
 }

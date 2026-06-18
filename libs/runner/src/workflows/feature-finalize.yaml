@@ -1,0 +1,31 @@
+name: feature-finalize
+description: >
+  Write specs/<slug>/spec.md from the planned draft, commit, and push so the
+  watcher opens the spec PR (and the conditional user-story Issue). No code.
+version: 1
+entry: write
+exit: done
+
+nodes:
+  - id: write
+    type: agent
+    prompt_ref: feature-finalize
+    model: claude-sonnet-4-6
+    description: Write the agreed spec.md following repo conventions.
+
+  - id: push
+    type: agent
+    prompt_ref: push-only
+    description: Commit + open/update the PR branch.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: write
+    to: push
+    on: success
+  - from: push
+    to: done
+    on: always

@@ -51,14 +51,22 @@ export async function runClaudeCode(params: {
   model?: string;
   maxTokens?: number;
   taskId?: string;
+  /** Wall-clock budget (ms); falls back to LORE_CLAUDE_TIMEOUT_MS, then 15 min. */
+  timeoutMs?: number;
+  /** Cap on agentic turns; falls back to LORE_CLAUDE_MAX_TURNS (0/unset = uncapped). */
+  maxTurns?: number;
   /** Injected accounting sink; when absent, the call is not logged. */
   logUsage?: LogUsage;
 }): Promise<ClaudeCodeResult> {
   const workDir = params.workDir || "/tmp";
   const model = params.model || "claude-sonnet-4-6";
 
-  // 15 min timeout — implementation tasks need time for multi-file edits
-  const timeoutMs = 15 * 60_000;
+  // Wall-clock budget. Configurable so it can sit below an outer container/Job
+  // deadline, leaving headroom for the agent to flush result.json. Default 15 min.
+  const timeoutMs = params.timeoutMs ?? (Number(process.env.LORE_CLAUDE_TIMEOUT_MS) || 15 * 60_000);
+  // Optional cap on agentic turns — bounds runaway exploration so the agent
+  // converges on an answer within budget. Off by default.
+  const maxTurns = params.maxTurns ?? (Number(process.env.LORE_CLAUDE_MAX_TURNS) || 0);
 
   const args = [
     "--print",
@@ -66,6 +74,7 @@ export async function runClaudeCode(params: {
     "--verbose",
     "--output-format", "stream-json",
     "--model", model,
+    ...(maxTurns > 0 ? ["--max-turns", String(maxTurns)] : []),
     "--", params.prompt,
   ];
 
@@ -81,8 +90,11 @@ export async function runClaudeCode(params: {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
-    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    // Echo claude's stream to our stdout too, so it reaches the container log
+    // the Station tails live (the run is slow; surfacing claude's activity gives
+    // the wizard something to show beyond the supervisor's node markers).
+    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); process.stdout.write(chunk); });
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); process.stderr.write(chunk); });
 
     const timer = setTimeout(() => {
       proc.kill("SIGTERM");

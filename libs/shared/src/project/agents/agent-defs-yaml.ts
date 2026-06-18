@@ -6,6 +6,7 @@ import {
   type AgentDefinitionInput,
   type AgentDefsPort,
 } from "./agent-defs-port.js";
+import { PLANNING_INSTRUCTIONS } from "../../feature-planning/planning-instructions.js";
 
 /**
  * Read-only AgentDefsPort over task-types.yaml — the offline/bootstrap fallback
@@ -68,6 +69,12 @@ export class AgentDefsYaml implements AgentDefsPort {
             project_id: null,
           });
         }
+        // feature-planning's canonical prompt is the typed, parse-tested
+        // PLANNING_INSTRUCTIONS constant — not the task-types.yaml prompt_template
+        // (which carries only the container's {description}+result.json wrapper).
+        // Override it so the code/offline layer matches the DB-seeded org default.
+        const fp = map.get("feature-planning");
+        if (fp) map.set("feature-planning", { ...fp, prompt: PLANNING_INSTRUCTIONS });
         this.cache = map;
         return map;
       } catch {

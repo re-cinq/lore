@@ -56,7 +56,7 @@ export async function createProject(
   ports.set("trace", new DgraphTrace(dgraphClient));
 
   const { AgentRunner } = await import("../agents/agent-runner.js");
-  ports.set("agentRunner", new AgentRunner(env, { k8s: providers.k8s, llm: providers.llm }));
+  ports.set("agentRunner", new AgentRunner(env, { station: providers.station, llm: providers.llm }));
 
   // Agent DEFINITIONS port — three-way optional-port seam by environment:
   //   DB present   → PgAgentDefs (floor, mcp-server on GKE)
@@ -79,6 +79,9 @@ export async function createProject(
 
   const { PgUsage } = await import("../usage/usage-pg.js");
   ports.set("usage", new PgUsage(pgPool));
+
+  const { PgFeatures } = await import("../features/features-pg.js");
+  ports.set("features", new PgFeatures(pgPool));
 
   // Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under
   // ~/.lore/leases for the local runner. Mirrors the agent's leaseBackendForEnv.

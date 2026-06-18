@@ -53,6 +53,10 @@ import {
   type Workflow,
 } from "@re-cinq/lore-runner";
 import { buildPrompt, getTaskTypeConfig, loadTaskTypes } from "../data/config.js";
+import { PLANNING_INSTRUCTIONS } from "@re-cinq/lore-shared/feature-planning/planning-instructions.js";
+import { AgentDefsHttp } from "@re-cinq/lore-shared/project/agents/agent-defs-http.js";
+import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-yaml.js";
+import type { AgentDefinition } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../adapters/episode-writer.js";
 import { writeAuditLog } from "../adapters/audit.js";
 import { leaseBackendForEnv } from "../adapters/lease-backend.js";
@@ -80,6 +84,23 @@ class MissingEnvError extends Error {
     super(`runner-cli: missing required env var ${varName}`);
     this.name = "MissingEnvError";
   }
+}
+
+/**
+ * Resolve the agent definition (project → org → yaml/code) for this run. Prefers
+ * the API (so DB org/project rows win); falls back to the yaml/code layer offline.
+ * Lets the container's prompt/model/timeout come from lore.agent_definitions rather
+ * than hardcoded constants.
+ */
+async function resolveAgentDef(
+  taskType: string,
+  targetRepo: string,
+  taskTypesPath: string,
+): Promise<AgentDefinition | null> {
+  const port = process.env.LORE_API_URL
+    ? new AgentDefsHttp(process.env.LORE_API_URL, process.env.LORE_INGEST_TOKEN)
+    : new AgentDefsYaml(taskTypesPath, process.env);
+  return port.resolve(targetRepo, taskType).catch(() => null);
 }
 
 async function main(): Promise<number> {
@@ -140,16 +161,48 @@ async function main(): Promise<number> {
   }
 
   const dbEnabled = !!process.env.LORE_DB_HOST;
+
+  // feature-planning's prompt/model/timeout are a first-class agent definition
+  // (lore.agent_definitions: org default + per-project override), resolved by name.
+  // PLANNING_INSTRUCTIONS / the node model stay as the fallback when unresolved.
+  const agentDef =
+    taskType === "feature-planning"
+      ? await resolveAgentDef(taskType, targetRepo, taskTypesPath)
+      : null;
+  // Stop a touch before any outer Job/container deadline so result.json can flush.
+  const agentTimeoutMs = agentDef?.timeout_minutes
+    ? Math.max(60_000, (agentDef.timeout_minutes * 60 - 30) * 1000)
+    : undefined;
+  if (taskType === "feature-planning") {
+    console.log(
+      `[runner-cli] feature-planning agent def: ${
+        agentDef
+          ? `resolved (prompt_len=${agentDef.prompt?.length ?? 0}, model=${agentDef.model}, timeout=${agentDef.timeout_minutes}m)`
+          : "unresolved — using PLANNING_INSTRUCTIONS fallback"
+      }`,
+    );
+  }
+
   const agentHandler = createClaudeCodeAgentHandler(
     {
       resolvePrompt: (promptRef, description) => {
         const config = getTaskTypeConfig(promptRef);
         if (!config) return null;
-        return buildPrompt(promptRef, description);
+        const prompt = buildPrompt(promptRef, description);
+        // feature-planning's role + exact output schema come from the resolved agent
+        // definition (org/project), with PLANNING_INSTRUCTIONS as the fallback.
+        return promptRef === "feature-planning"
+          ? `${agentDef?.prompt ?? PLANNING_INSTRUCTIONS}\n\n${prompt}`
+          : prompt;
       },
       // Account each Claude Code call to pipeline.llm_calls in cluster mode.
       runClaudeCode: (p) =>
-        runClaudeCode({ ...p, logUsage: dbEnabled ? logLlmCall : undefined }),
+        runClaudeCode({
+          ...p,
+          ...(agentDef?.model ? { model: agentDef.model } : {}),
+          ...(agentTimeoutMs ? { timeoutMs: agentTimeoutMs } : {}),
+          logUsage: dbEnabled ? logLlmCall : undefined,
+        }),
     },
     { taskId, description: taskDescription, taskType },
   );

@@ -186,6 +186,32 @@ export async function watchLoreTasks(): Promise<void> {
     if (phase === "Succeeded" && !lt.status?.prUrl && lt.spec?.taskType !== "review") {
       // Skip PR creation for tasks that produced no changes (e.g. general/research tasks)
       if (lt.status?.changedFiles === 0) {
+        // feature-planning posts its GapResult straight to the features API (the
+        // result endpoint already transitioned the feature row). Close out the
+        // task with no Issue and no PR. See ADR-027.
+        if (lt.spec.taskType === "feature-planning") {
+          try {
+            await query(
+              `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`,
+              [taskId],
+            );
+            await query(
+              `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'completed', $2)`,
+              [taskId, JSON.stringify({ feature_planning: true })],
+            );
+            const current = await k8sApi.getNamespacedCustomObjectStatus({
+              group: GROUP, version: VERSION, namespace, plural: PLURAL, name: lt.metadata.name,
+            }) as any;
+            await k8sApi.replaceNamespacedCustomObjectStatus({
+              group: GROUP, version: VERSION, namespace, plural: PLURAL, name: lt.metadata.name,
+              body: { ...current, status: { ...current.status, prUrl: "feature-planning" } },
+            });
+          } catch (err: any) {
+            console.error(`[loretask-watcher] feature-planning completion failed for ${taskId}: ${err.message}`);
+          }
+          console.log(`[loretask-watcher] feature-planning task ${taskId} completed (result posted to API)`);
+          continue;
+        }
         try {
           let { issue_number, target_repo } = await getIssueNumber(taskId);
           if (!target_repo) target_repo = lt.spec.targetRepo;
@@ -320,6 +346,28 @@ export async function watchLoreTasks(): Promise<void> {
           group: GROUP, version: VERSION, namespace, plural: PLURAL, name: lt.metadata.name,
           body: { ...current, status: { ...current.status, prUrl: pr.url, prNumber: pr.number } },
         });
+
+        // feature-finalize: link the PR back to the feature row so the Features
+        // tab flips to pr-open and shows the PR + spec path (ADR-027).
+        if (lt.spec.taskType === "feature-finalize") {
+          try {
+            const rows = await query<{ context_bundle: any }>(
+              `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`,
+              [taskId],
+            );
+            const featureId = rows[0]?.context_bundle?.feature_id;
+            const slug = rows[0]?.context_bundle?.slug;
+            if (featureId) {
+              await prProject.features.transitionStatus(featureId, "pr-open", {
+                spec_pr_url: pr.url,
+                spec_pr_number: pr.number,
+                ...(slug ? { spec_path: `specs/${slug}/spec.md` } : {}),
+              });
+            }
+          } catch (err: any) {
+            console.warn(`[loretask-watcher] feature-finalize link failed for ${taskId}: ${err.message}`);
+          }
+        }
 
         console.log(`[loretask-watcher] Task ${taskId} → PR ${pr.url}`);
 

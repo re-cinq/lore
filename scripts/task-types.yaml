@@ -104,6 +104,51 @@ task_types:
     review_required: true
     model: claude-haiku-4-5-20251001
 
+  feature-planning:
+    # The role + EXACT output schema come from the shared PLANNING_INSTRUCTIONS
+    # constant (libs/shared/feature-planning/planning-instructions.ts), prepended
+    # by the runner — one source of truth, also used by the in-process handler.
+    # This template only carries the round content + the container's result.json sink.
+    prompt_template: |
+      {description}
+
+      DELIVER BEFORE YOU RUN OUT OF TIME. Your single deliverable is the file
+      result.json in the working directory. As SOON as you can produce a complete,
+      valid GapResult — within your first few steps — write it to result.json, then
+      keep refining the FILE in place if time allows. Do NOT explore the codebase
+      exhaustively or leave result.json for the end: a complete result written
+      early always beats a perfect one that never lands. If you are running low on
+      budget, stop and ensure result.json holds your best complete answer.
+
+      result.json MUST be syntactically valid JSON. Its string values
+      (draft_spec_markdown, every mockup's SVG markup) contain many double-quotes
+      and newlines — these MUST be escaped (\" and \n) inside the JSON strings.
+      After EVERY write to result.json, verify it by running:
+        jq empty result.json
+      If that prints any error, the file is invalid — fix the escaping and re-run
+      until `jq empty result.json` exits with no output. Do NOT finish the task
+      while `jq empty result.json` reports an error.
+    target_repo: null
+    timeout_minutes: 15
+    review_required: false
+    model: claude-sonnet-4-6
+
+  feature-finalize:
+    prompt_template: |
+      Finalize a planned feature into a committable specification. The Context
+      section contains the accumulated draft spec and the planning timeline.
+
+      Feature to finalize:
+      {description}
+
+      Write the agreed draft to specs/<slug>/spec.md (following this repo's
+      spec conventions and the metadata-table format), commit it, and stop.
+      Do not implement code. The watcher opens the PR.
+    target_repo: null
+    timeout_minutes: 15
+    review_required: false
+    model: claude-sonnet-4-6
+
   onboard:
     prompt_template: |
       You are onboarding a repository to the Lore platform. The repo

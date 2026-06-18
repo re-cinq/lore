@@ -1,0 +1,24 @@
+name: feature-planning
+description: >
+  One interactive planning round: analyze the feature request against the project
+  (with the prior feature timeline in context) and emit a structured GapResult.
+  No commit, no PR — the pod posts result.json back to the features API.
+version: 1
+entry: analyze
+exit: done
+
+nodes:
+  - id: analyze
+    type: agent
+    prompt_ref: feature-planning
+    model: claude-sonnet-4-6
+    description: Produce the GapResult JSON for this round (written to result.json).
+
+  - id: done
+    type: retrospective
+    description: Terminal marker (the executor halts on exit).
+
+edges:
+  - from: analyze
+    to: done
+    on: always
