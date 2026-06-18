@@ -1,6 +1,8 @@
 import { createServer } from "node:http";
 import { createDgraphClient, ingestSpecTrace } from "@re-cinq/lore-shared";
 import { query, isDbAvailable } from "../data/db.js";
+import { writeAuditLog } from "../adapters/audit.js";
+import { specTraceAuditEntry, specTraceLogLine } from "../adapters/spec-trace-audit.js";
 import { runReviewReactorForPR } from "../application/jobs/scheduled/review-reactor.js";
 import { validateSpecCoverageJob } from "../application/jobs/scheduled/spec-coverage-validate.js";
 import { tryAutoMergeForCompletedTask } from "../application/jobs/auto-merge-trigger.js";
@@ -121,10 +123,16 @@ export function startHealthServer(
           return;
         }
         // Fire-and-forget — return 202 immediately so the trigger sender
-        // doesn't block on the graph projection.
-        ingestSpecTrace(dgraph, repo, kind, payload).catch((err) =>
-          console.error(`[agent] trigger spec-trace failed for ${repo} (${kind}):`, err),
-        );
+        // doesn't block on the graph projection. On completion, surface the
+        // real graph effect (log line + audit row) instead of discarding it.
+        ingestSpecTrace(dgraph, repo, kind, payload)
+          .then(async (outcome) => {
+            console.log(specTraceLogLine(repo, outcome));
+            await writeAuditLog(specTraceAuditEntry(repo, outcome)).catch((err) =>
+              console.error(`[agent] spec-trace audit write failed for ${repo}:`, err),
+            );
+          })
+          .catch((err) => console.error(`[agent] trigger spec-trace failed for ${repo} (${kind}):`, err));
         res.writeHead(202, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ status: "accepted", repo, kind }));
       } catch (err: any) {

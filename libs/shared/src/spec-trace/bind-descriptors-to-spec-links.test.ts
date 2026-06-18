@@ -32,48 +32,45 @@ const specs = [{ path: SPEC_PATH, content: SPEC }];
 
 describe("bindDescriptorsToSpecLinks", () => {
   it("stamps the statement anchor on a descriptor whose span contains the linked line", () => {
-    const { descriptors } = bindDescriptorsToSpecLinks([descriptor({})], specs);
+    const [bound] = bindDescriptorsToSpecLinks([descriptor({})], specs);
 
-    expect(descriptors[0].spec).toBe(`${SPEC_PATH}#${greetOrdinal}`);
+    expect(bound.spec).toBe(`${SPEC_PATH}#${greetOrdinal}`);
   });
 
   it("returns a descriptor matching no link unchanged, with no anchor", () => {
-    const { descriptors } = bindDescriptorsToSpecLinks([descriptor({ startLine: 100, endLine: 110 })], specs);
+    const [bound] = bindDescriptorsToSpecLinks([descriptor({ startLine: 100, endLine: 110 })], specs);
 
-    expect(descriptors[0].spec).toBeUndefined();
+    expect(bound.spec).toBeUndefined();
   });
 
   it("leaves a descriptor that already carries a spec anchor untouched", () => {
-    const { descriptors } = bindDescriptorsToSpecLinks([descriptor({ spec: "specs/hand/spec.md#2" })], specs);
+    const [bound] = bindDescriptorsToSpecLinks([descriptor({ spec: "specs/hand/spec.md#2" })], specs);
 
-    expect(descriptors[0].spec).toBe("specs/hand/spec.md#2");
+    expect(bound.spec).toBe("specs/hand/spec.md#2");
   });
 
   it("returns a descriptor with no line span unchanged", () => {
-    const { descriptors } = bindDescriptorsToSpecLinks([descriptor({ startLine: undefined, endLine: undefined })], specs);
+    const [bound] = bindDescriptorsToSpecLinks([descriptor({ startLine: undefined, endLine: undefined })], specs);
 
-    expect(descriptors[0].spec).toBeUndefined();
+    expect(bound.spec).toBeUndefined();
   });
 
-  it("leaves a descriptor unanchored and reports it when its span resolves to two distinct statements", () => {
-    const { descriptors, ambiguous } = bindDescriptorsToSpecLinks([descriptor({ startLine: 5, endLine: 40 })], specs);
+  it("stamps an array of anchors when its span resolves to two distinct statements", () => {
+    const [bound] = bindDescriptorsToSpecLinks([descriptor({ startLine: 5, endLine: 40 })], specs);
 
-    expect(descriptors[0].spec).toBeUndefined();
-    expect(ambiguous).toEqual([
-      { descriptorId: "src/greet.test.ts::greets", anchors: [`${SPEC_PATH}#${greetOrdinal}`, `${SPEC_PATH}#${farewellOrdinal}`] },
-    ]);
+    expect(bound.spec).toEqual([`${SPEC_PATH}#${greetOrdinal}`, `${SPEC_PATH}#${farewellOrdinal}`]);
   });
 
   it("matches link paths and descriptor files after normalizing a leading ./", () => {
-    const { descriptors } = bindDescriptorsToSpecLinks([descriptor({ file: "./src/greet.test.ts" })], specs);
+    const [bound] = bindDescriptorsToSpecLinks([descriptor({ file: "./src/greet.test.ts" })], specs);
 
-    expect(descriptors[0].spec).toBe(`${SPEC_PATH}#${greetOrdinal}`);
+    expect(bound.spec).toBe(`${SPEC_PATH}#${greetOrdinal}`);
   });
 
   it("binds nothing from a link with no #Lline anchor", () => {
     const noLineSpec = `# X\n\n## Acceptance Criteria\n\nThe system greets.\n([validated by \`greets\`](src/greet.test.ts))\n`;
-    const { descriptors } = bindDescriptorsToSpecLinks([descriptor({})], [{ path: SPEC_PATH, content: noLineSpec }]);
+    const [bound] = bindDescriptorsToSpecLinks([descriptor({})], [{ path: SPEC_PATH, content: noLineSpec }]);
 
-    expect(descriptors[0].spec).toBeUndefined();
+    expect(bound.spec).toBeUndefined();
   });
 });

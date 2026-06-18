@@ -100,9 +100,14 @@ containment cannot be evaluated.
 ([validated by `returns a descriptor with no line span unchanged`](../../libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L52))
 
 When a descriptor's span contains links resolving to **more than one** distinct
-statement anchor, it is left unanchored (the singular `spec` field cannot carry
-both) and the ambiguity is reported, not silently collapsed.
-([validated by `leaves a descriptor unanchored and reports it when its span resolves to two distinct statements`](../../libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L58))
+statement, it is stamped with **all** of them as a `string[]`, so one test
+validating several statements links them all.
+([validated by `stamps an array of anchors when its span resolves to two distinct statements`](../../libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L58))
+
+A descriptor's `spec` — one anchor (string), several (`string[]`), or none — is
+parsed into a list of `{specPath, ordinal}`, dropping any entry that does not
+parse.
+([validated by `parses an array of anchors, dropping the unparseable ones`](../../libs/shared/src/spec-trace/spec-anchor.test.ts#L23))
 
 Link paths and descriptor files are compared after normalizing a leading `./`
 or `/`, so repo-root-relative and dot-relative forms match.
@@ -112,18 +117,16 @@ A link with no `#Lline` anchor seeds no `(path, line)` index entry and binds
 nothing.
 ([validated by `binds nothing from a link with no #Lline anchor`](../../libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L73))
 
-### Observability (follow-up — not in this change)
+### Observability
 
-`ingestTestReport`'s returned `{validatedBy, violated, coverageNodes,
-coversEdges}` is surfaced (logged + audit row) per ingest, replacing the
-fire-and-forget discard, so a run's real graph effect is observable.
+`ingestSpecTrace` returns the real `{validatedBy, violated, coverageNodes,
+coversEdges}`, and the agent's spec-trace trigger surfaces it as a one-line log
+plus a `spec_trace_ingest` audit row per ingest — replacing the fire-and-forget
+discard — so a run's real graph effect is observable.
+([validated by `builds a spec_trace_ingest audit entry carrying the real graph counts`](../../agent/src/lib/spec-trace-audit.test.ts#L15))
 
 ## Out of Scope
 
-- **Multi-statement anchors.** One test validating several statements needs
-  `spec: string[]` on `TestDescriptor` plus a multi-anchor grouping in
-  `ingestTestReport`; this feature handles the 1:1 case and reports the N:1
-  case rather than dropping signal silently.
 - The sentence-resolution path (`groupStatementsBySentence`) — unchanged; it
   remains the fallback for describe-chains that mirror statement prose.
 - The `drifted` signal (link points at moved code) — owned by the drift-check
