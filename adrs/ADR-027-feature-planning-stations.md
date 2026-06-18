@@ -40,6 +40,16 @@ of truth in the graph.**
   that sets the workflow env unconditionally for these two types — so they are full
   Stations rather than raw `claude --print`. Rationale: the planning agent must clone
   the repo and reason over it, and finalize must commit a file; both are pod work.
+  > **Update (2026-06-18):** finalize is no longer a Station — it runs **in-process**
+  > via [handle-feature-finalize.ts](../apps/floor/src/application/task-processing/handle-feature-finalize.ts),
+  > routed by [feature-task-route.ts](../apps/floor/src/application/task-processing/feature-task-route.ts).
+  > Finalize is a deterministic commit of the accumulated `draft_spec_md` to
+  > `specs/<feature.slug>/spec.md` + a PR (GitHub API, no clone). The Station path
+  > let the agent *guess* the slug (committing the wrong `specs/<guess>/spec.md`) and
+  > 404 on PR creation; in-process uses `feature.slug` and creates the branch via the
+  > API immediately before opening the PR, so neither can recur. Planning stays a
+  > Station (it genuinely clones + reasons). `feature-decompose` (ADR-029) is likewise
+  > in-process.
 - **The planning Station starts after clone + whole-timeline context.** The pod is
   passed `LORE_FEATURE_ID`/`LORE_FEATURE_ITERATION`; context hydration
   ([context.ts](../apps/mcp-server/src/api/routes/context.ts)) prepends the full

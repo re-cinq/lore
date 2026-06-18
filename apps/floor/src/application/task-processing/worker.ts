@@ -25,6 +25,7 @@ import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 import { handleFeaturePlanning } from "./handle-feature-planning.js";
 import { handleFeatureFinalize } from "./handle-feature-finalize.js";
 import { handleFeatureDecompose } from "./handle-feature-decompose.js";
+import { featureTaskRoute } from "./feature-task-route.js";
 import { handleOnboard } from "./handle-onboard.js";
 
 // Re-export the task handlers so existing import sites (e.g. the onboard
@@ -121,25 +122,27 @@ async function processTask(task: any): Promise<void> {
     return;
   }
 
-  // Feature decomposition (ADR-029): a merged spec → user-story Issues + spec-tasks.
-  // Pure LLM analysis + coordinator-side Issue/pipeline writes → always in-process,
-  // never a Station (it mutates no repo files).
-  if (task.task_type === "feature-decompose") {
-    await handleFeatureDecompose(task, targetRepo);
-    return;
+  // Feature lifecycle tasks. feature-decompose + feature-finalize are deterministic
+  // coordinator-side ops (read the spec / accumulated draft → write via the GitHub
+  // API; no clone, no agent), so they ALWAYS run in-process — finalize via a Station
+  // let the agent guess the slug and 404 on PR creation (ADR-029). feature-planning
+  // reasons over a repo clone, so it stays a Station unless the LORE_STATION_BACKEND=
+  // inprocess escape hatch is set (dev without Docker/creds).
+  switch (featureTaskRoute(task.task_type, selectStationBackend(process.env))) {
+    case "decompose":
+      await handleFeatureDecompose(task, targetRepo);
+      return;
+    case "finalize":
+      await handleFeatureFinalize(task, targetRepo);
+      return;
+    case "planning":
+      await handleFeaturePlanning(task, targetRepo);
+      return;
   }
 
-  // Feature planning + finalize run through the Station (Docker locally, K8s on
-  // the cluster; ADR-028), forced below regardless of dark-factory. The explicit
-  // LORE_STATION_BACKEND=inprocess escape hatch keeps the lightweight in-process
-  // handlers for a dev without Docker/creds.
-  const isFeaturePlanningType =
-    task.task_type === "feature-planning" || task.task_type === "feature-finalize";
-  if (isFeaturePlanningType && selectStationBackend(process.env) === "inprocess") {
-    if (task.task_type === "feature-planning") await handleFeaturePlanning(task, targetRepo);
-    else await handleFeatureFinalize(task, targetRepo);
-    return;
-  }
+  // feature-planning that didn't take the in-process path above runs as a Station
+  // (clone + reason over the repo). finalize/decompose already returned in-process.
+  const isFeaturePlanningType = task.task_type === "feature-planning";
 
   // Create GitHub Issue on the target repo
   // Skip upfront issue for general tasks — the watcher creates the issue with the result
@@ -346,7 +349,7 @@ async function processTask(task: any): Promise<void> {
       // branch in entrypoint.sh.
       const clusterEnabled =
         process.env.LORE_DARK_FACTORY_CLUSTER_ENABLED === "true";
-      // feature-planning/finalize always run their workflow in the Station (ADR-028),
+      // feature-planning always runs its workflow in the Station (ADR-028),
       // regardless of the dark-factory cluster gate. Others need both gates on.
       const darkFactoryWorkflow =
         isFeaturePlanningType || (darkFactoryEnabled && clusterEnabled)
