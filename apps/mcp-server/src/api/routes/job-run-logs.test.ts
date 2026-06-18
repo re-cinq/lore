@@ -31,11 +31,11 @@ describe("GET /api/job-run-logs", () => {
     await handleApiRoute(makeReq({ url: "/api/job-run-logs?job_name=j", headers: AUTH }), res, null);
     expect(res.statusCode).toBe(400);
   });
-  it("returns empty when the file does not exist", async () => {
+  it("returns empty and incomplete when the file does not exist", async () => {
     storage.file.exists.mockResolvedValue([false]);
     const res = makeRes();
     await handleApiRoute(makeReq({ url: "/api/job-run-logs?job_name=j&run_id=r", headers: AUTH }), res, null);
-    expect(res.json).toEqual({ logs: "", complete: true });
+    expect(res.json).toEqual({ logs: "", complete: false });
   });
   it("returns the file content when it exists", async () => {
     storage.file.exists.mockResolvedValue([true]);

@@ -31,8 +31,16 @@ import {
   proxyMemory,
   proxyToApi,
   proxyGetApi,
+  withReadCache,
   unreachableError,
+  deniedError,
 } from "./deps.js";
+import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
+
+// Reads whose results a memory/episode write can change. Over-invalidating is
+// safe — it only forces the next read to re-fetch.
+const MEMORY_DERIVED_READS = ["lore_search_memory", "lore_read_memory", "lore_list_memories", "lore_assemble_context"];
+const EPISODE_DERIVED_READS = ["lore_search_memory", "lore_query_graph", "lore_assemble_context"];
 
 export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
   const { getPool } = deps;
@@ -54,6 +62,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         const embedding = await getQueryEmbedding(value);
         if (isMemoryDbAvailable()) {
           const result = await writeMemory(key, value, agent_id, ttl, embedding || undefined, repo);
+          invalidateCache(MEMORY_DERIVED_READS);
           if (extract_facts) {
             import("../../features/memory/memory.js").then(({ getMemoryPool }) => {
               const p = getMemoryPool();
@@ -71,8 +80,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         }
         // Proxy to GKE if available
         const proxied = await proxyMemory("write", { key, value, agent_id: agent_id || resolveAgentId(), ttl, repo });
-        if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+        if (proxied.ok) {
+          invalidateCache(MEMORY_DERIVED_READS);
+          return { content: [{ type: "text" as const, text: proxied.body }] };
+        }
         if (proxied.reason === "unreachable") return unreachableError("lore_write_memory", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_write_memory", proxied.detail);
         // File fallback only when LORE_API_URL is not configured (true offline mode)
         const result = await writeMemoryFile(key, value, agent_id, ttl);
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
@@ -98,9 +111,13 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           if (!result) return { content: [{ type: "text" as const, text: `Memory "${key}" not found.` }] };
           return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
         }
-        const proxied = await proxyMemory("read", { key, agent_id: agent_id || resolveAgentId(), version });
+        const proxied = await withReadCache(
+          { tool: "lore_read_memory", args: { key, agent_id: agent_id || resolveAgentId(), version }, ttlSeconds: 300 },
+          () => proxyMemory("read", { key, agent_id: agent_id || resolveAgentId(), version }),
+        );
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
         if (proxied.reason === "unreachable") return unreachableError("lore_read_memory", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_read_memory", proxied.detail);
         const result = await readMemoryFile(key, agent_id, ver);
         if (!result) return { content: [{ type: "text" as const, text: `Memory "${key}" not found.` }] };
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -121,11 +138,16 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
       try {
         if (isMemoryDbAvailable()) {
           const result = await deleteMemory(key, agent_id);
+          invalidateCache(MEMORY_DERIVED_READS);
           return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
         }
         const proxied = await proxyMemory("delete", { key, agent_id: agent_id || resolveAgentId() });
-        if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+        if (proxied.ok) {
+          invalidateCache(MEMORY_DERIVED_READS);
+          return { content: [{ type: "text" as const, text: proxied.body }] };
+        }
         if (proxied.reason === "unreachable") return unreachableError("lore_delete_memory", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_delete_memory", proxied.detail);
         const result = await deleteMemoryFile(key, agent_id);
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       } catch (err: any) {
@@ -149,9 +171,13 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           const result = await listMemories(agent_id, limit, offset, repo);
           return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
         }
-        const proxied = await proxyMemory("list", { agent_id: agent_id || undefined, limit, repo });
+        const proxied = await withReadCache(
+          { tool: "lore_list_memories", args: { agent_id: agent_id || undefined, limit, repo }, repo: repo || undefined, ttlSeconds: 300 },
+          () => proxyMemory("list", { agent_id: agent_id || undefined, limit, repo }),
+        );
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
         if (proxied.reason === "unreachable") return unreachableError("lore_list_memories", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_list_memories", proxied.detail);
         const result = await listMemoriesFile(agent_id, limit, offset);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       } catch (err: any) {
@@ -180,9 +206,13 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           );
           return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
         }
-        const proxied = await proxyMemory("search", { query, agent_id: agent_id || undefined, pool_name: pool, limit });
+        const proxied = await withReadCache(
+          { tool: "lore_search_memory", args: { query, agent_id: agent_id || undefined, pool_name: pool, limit }, ttlSeconds: 300 },
+          () => proxyMemory("search", { query, agent_id: agent_id || undefined, pool_name: pool, limit }),
+        );
         if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
         if (proxied.reason === "unreachable") return unreachableError("lore_search_memory", proxied.detail);
+        if (proxied.reason === "denied") return deniedError("lore_search_memory", proxied.detail);
         const results = await searchMemoryFile(query, agent_id, limit);
         return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
       } catch (err: any) {
@@ -208,8 +238,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           const proxied = await proxyToApi("/api/episode", {
             content, source, ref, agent_id: agent_id || resolveAgentId(),
           });
-          if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+          if (proxied.ok) {
+            invalidateCache(EPISODE_DERIVED_READS);
+            return { content: [{ type: "text" as const, text: proxied.body }] };
+          }
           if (proxied.reason === "unreachable") return unreachableError("lore_write_episode", proxied.detail);
+          if (proxied.reason === "denied") return deniedError("lore_write_episode", proxied.detail);
           return { content: [{ type: "text" as const, text: "Episodes require PostgreSQL or LORE_API_URL. Neither is configured." }] };
         }
         const agent = resolveAgentId(agent_id);
@@ -232,6 +266,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         }
 
         const episodeId = rows[0].id;
+        invalidateCache(EPISODE_DERIVED_READS);
 
         // Trigger async fact extraction and graph update (don't block the response)
         extractFactsFromEpisode(episodeId, content, agent, dbPoolRef).catch((err) =>
@@ -282,12 +317,18 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             if (relation_type) params.set("relation_type", relation_type);
             if (repo) params.set("repo", repo);
             if (include_invalidated) params.set("include_invalidated", "true");
-            const proxied = await proxyGetApi(`/api/graph?${params.toString()}`);
+            const proxied = await withReadCache(
+              { tool: "lore_query_graph", args: { entity, relation_type, repo, include_invalidated }, repo: repo || undefined, ttlSeconds: 600 },
+              () => proxyGetApi(`/api/graph?${params.toString()}`),
+            );
             if (proxied.ok) {
               return { content: [{ type: "text" as const, text: proxied.body }] };
             }
             if (proxied.reason === "unreachable") {
               return unreachableError("lore_query_graph", proxied.detail);
+            }
+            if (proxied.reason === "denied") {
+              return deniedError("lore_query_graph", proxied.detail);
             }
             return { content: [{ type: "text" as const, text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL." }] };
           }

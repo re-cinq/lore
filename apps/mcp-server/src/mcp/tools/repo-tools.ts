@@ -6,6 +6,7 @@ import {
 } from "../../features/repo/repo-onboard.js";
 import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
 import { ToolDeps } from "./deps.js";
+import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
 
 export function registerRepoTools(server: McpServer, deps: ToolDeps) {
   const { getPool } = deps;
@@ -93,6 +94,7 @@ export function registerRepoTools(server: McpServer, deps: ToolDeps) {
         }
 
         const result = await res.json() as any;
+        invalidateCache(["lore_assemble_context"], resolvedRepo);
         return { content: [{ type: "text" as const, text: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.` }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
