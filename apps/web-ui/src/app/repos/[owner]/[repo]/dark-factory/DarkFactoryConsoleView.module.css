@@ -1,0 +1,71 @@
+.stateRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.active {
+  background: var(--success-bg, #1f6f43);
+  color: #fff;
+}
+
+.inactive {
+  background: var(--warn-bg, #8a6d1a);
+  color: #fff;
+}
+
+.disabled {
+  background: var(--muted-bg, #444);
+  color: #ccc;
+}
+
+.gates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.config {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+.config dt {
+  margin-bottom: 0.1rem;
+}
+
+.config dd {
+  margin: 0;
+  font-family: var(--mono, monospace);
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.feed {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.feed li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border, #2a2a2a);
+}
