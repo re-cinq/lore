@@ -31,6 +31,40 @@ describe('formatStationConversation', () => {
     expect(formatStationConversation(raw)).toBe('→ Write: /workspace/repo/result.json');
   });
 
+  it('joins array-form tool_result content blocks into one line', () => {
+    const raw = JSON.stringify({
+      type: 'user',
+      message: { content: [{ type: 'tool_result', content: [{ text: 'line A' }, { text: 'line B' }] }] },
+    });
+    expect(formatStationConversation(raw)).toBe('← line A line B');
+  });
+
+  it('still emits a result line when tool_result content is neither string nor array', () => {
+    const raw = JSON.stringify({
+      type: 'user',
+      message: { content: [{ type: 'tool_result', content: { ignored: true } }] },
+    });
+    expect(formatStationConversation(raw)).toMatch(/^←/);
+  });
+
+  it('falls back to a bare tool marker when there is no summarizable arg or name', () => {
+    const raw = JSON.stringify({
+      type: 'assistant',
+      message: { content: [{ type: 'tool_use', input: { unknown_key: 'x' } }] },
+    });
+    expect(formatStationConversation(raw)).toBe('→ tool');
+  });
+
+  it('ignores a non-conversation event that still carries content blocks', () => {
+    const raw = [
+      JSON.stringify({ type: 'result', message: { content: [{ type: 'text', text: 'noise' }] } }),
+      '[runner] kept',
+    ].join('\n');
+    const out = formatStationConversation(raw);
+    expect(out).toBe('[runner] kept');
+    expect(out).not.toContain('noise');
+  });
+
   it('returns only the last maxEvents lines and skips unparseable JSON', () => {
     const lines = Array.from({ length: 40 }, (_, i) => `[runner] line ${i}`);
     lines.push('{ not valid json');

@@ -47,6 +47,19 @@ describe('sectionsOf legacy normalization (web-ui mirror)', () => {
     expect(sectionsOf(minimal)[0]).toEqual({ title: 'Architecture', content: 'just a summary' });
   });
 
+  it('tolerates a componentless architecture and user_flows with no tagged mockup', () => {
+    // Old rows may omit architecture.components and carry no diagrams.
+    const g = {
+      architecture: { summary: 'sum' },
+      user_flows: [{ name: 'flow', steps: ['a'] }],
+      draft_spec_markdown: 'x',
+    } as unknown as GapResult;
+    const sections = sectionsOf(g);
+    expect(sections.map((s) => s.title)).toEqual(['Architecture', 'User flows']);
+    expect(sections[0].content).toBe('sum'); // components ?? [] → summary only, no bullets
+    expect(sections[1].mockups).toBeUndefined(); // no user_flows-tagged mockup → mockups omitted
+  });
+
   it('returns [] for undefined and for an unrecognized shape', () => {
     expect(sectionsOf(undefined)).toEqual([]);
     expect(sectionsOf({} as GapResult)).toEqual([]);

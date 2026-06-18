@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { statusBadge, isPlanningActive } from './feature-status';
+import { statusBadge, isPlanningActive, featureStatusColor } from './feature-status';
 
 describe('statusBadge', () => {
   it('maps pr-open to a labelled violet pill', () => {
@@ -8,6 +8,16 @@ describe('statusBadge', () => {
 
   it('maps implemented to a green pill', () => {
     expect(statusBadge('implemented').color).toBe('#16a34a');
+  });
+});
+
+describe('featureStatusColor', () => {
+  it('returns the palette color for a known lifecycle status', () => {
+    expect(featureStatusColor('pr-open')).toBe('#8b5cf6');
+  });
+
+  it('returns undefined for an unknown status so callers fall back', () => {
+    expect(featureStatusColor('nonsense')).toBeUndefined();
   });
 });
 
