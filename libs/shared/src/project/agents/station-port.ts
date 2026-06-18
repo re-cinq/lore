@@ -30,6 +30,25 @@ export interface StationLaunchResult {
 
 export interface StationBackend {
   launch(spec: LoreTaskSpec): Promise<StationLaunchResult>;
+  /**
+   * Is the Station for `taskId` still actually running? Probes the real runtime
+   * (Docker container / K8s LoreTask CR), never the DB. The feature-planning
+   * reaper uses this to tell a live round from one whose container/pod died
+   * (orphaned by a restart or crash). Conservative on the unknown: returns
+   * `true` when the probe can't be resolved (docker/kube unreachable), so the
+   * reaper falls back to its age window instead of killing a live round.
+   */
+  isActive(taskId: string): Promise<boolean>;
+}
+
+/**
+ * Deterministic Station ref (container name on docker / CR name on k8s) for a
+ * task that carries no explicit `spec.name` — `loretask-<first 8 of taskId>`.
+ * Both backends mint this same name at launch, so the reaper can re-derive it
+ * from the task id alone to probe whether the runtime is still up.
+ */
+export function defaultStationName(taskId: string): string {
+  return `loretask-${taskId.substring(0, 8)}`;
 }
 
 export type StationBackendKind = "k8s" | "docker" | "inprocess";

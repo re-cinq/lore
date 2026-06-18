@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { queryAllowMissing } from '@/lib/db';
 import { refineFeature, finalizeFeature, splitFeature, deleteFeature } from '@/lib/feature-api';
 import { listAgents } from '@/lib/agents-api';
-import type { FeatureRow, FeatureIterationRow, FeatureWithIterations } from '@/lib/feature-types';
+import type { FeatureRow, FeatureIterationRow, FeatureWithIterations, SectionAnswers } from '@/lib/feature-types';
 import FeatureDetailView from './FeatureDetailView';
 
 export default async function FeatureDetail({
@@ -39,7 +39,7 @@ export default async function FeatureDetail({
   const planningTimeoutMinutes =
     (await listAgents(fullName)).find((a) => a.name === 'feature-planning')?.timeout_minutes ?? 15;
 
-  async function refine(userAnswers: unknown) {
+  async function refine(userAnswers: SectionAnswers) {
     'use server';
     await refineFeature(fullName, id, userAnswers);
     revalidatePath(`/repos/${owner}/${repo}/features/${id}`);

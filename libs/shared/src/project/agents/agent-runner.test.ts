@@ -29,6 +29,7 @@ describe("AgentRunner", () => {
         created.push(spec);
         return { ref: `loretask-${spec.taskId}`, launched: true };
       },
+      isActive: async () => true,
     };
     const runner = new AgentRunner(process.env, { station });
 
@@ -60,6 +61,7 @@ describe("AgentRunner", () => {
         created.push(spec);
         return { ref: `loretask-${spec.taskId}`, launched: true };
       },
+      isActive: async () => true,
     };
     const runner = new AgentRunner(process.env, { station });
 

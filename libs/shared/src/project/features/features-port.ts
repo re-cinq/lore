@@ -124,6 +124,25 @@ export interface FeaturesPort {
   delete(repo: string, id: string): Promise<boolean>;
 }
 
+/** Whether a feature may be finalized — only from a settled planning state. A draft
+ *  with no analysis, or an already-shipped feature, must not kick a finalize task. */
+export function canFinalize(status: FeatureStatus): boolean {
+  return status === "awaiting-input" || status === "spec-ready";
+}
+
+/**
+ * The most recent ready round's gap result, or null. Iterations arrive oldest-first,
+ * so this scans from the end — the round-to-round context carry and the split source
+ * are always the LATEST analysis, not the first one produced.
+ */
+export function latestReadyGap(iterations: FeatureIteration[]): GapResult | null {
+  for (let i = iterations.length - 1; i >= 0; i--) {
+    const it = iterations[i];
+    if (it.status === "ready" && it.gap_result) return it.gap_result;
+  }
+  return null;
+}
+
 /** How long a `running` iteration may block a new round before it's presumed
  *  orphaned (its pod died) and a fresh round is allowed to supersede it. Covers the
  *  round timeout (≤15 min) plus container/finalize overhead. */
@@ -143,6 +162,50 @@ export function roundInFlight(
   return (
     iterations.find((it) => it.status === "running" && Date.parse(it.created_at) > nowMs - windowMs) ?? null
   );
+}
+
+/** How long a `running` iteration may linger before the reaper force-fails it
+ *  even when the runtime probe still reports it active (a wedged container that
+ *  never exits). Generously past the round timeout so a legitimately-slow round
+ *  is never killed; the primary orphan signal is the dead container/pod probe. */
+export const PLANNING_RECOVERY_STALE_MS = 30 * 60_000;
+
+/** What the feature-planning reaper should do for one mid-planning feature. */
+export type PlanningRecovery =
+  | { kind: "none" }
+  | { kind: "orphan"; iteration: number }
+  | { kind: "transition"; iteration: number };
+
+/**
+ * Decide how to reconcile a mid-planning feature whose latest round looks stuck.
+ * Pure — the reaper resolves `isActive` (the runtime probe of the latest running
+ * iteration's task) and persists the outcome.
+ *
+ * - latest `running` + (runtime gone OR older than `windowMs`) → `orphan`: the
+ *   round's container/pod died (e.g. a restart) but the row was never closed, so
+ *   the wizard "analyzes" forever. Mark it failed + revert the feature.
+ * - latest `ready` with a result while the feature is still `planning` → the
+ *   status transition was missed (non-atomic write); re-apply it (`transition`).
+ * - otherwise `none`. `isActive` is consulted only for the running case.
+ */
+export function decidePlanningRecovery(args: {
+  iterations: FeatureIteration[];
+  featureStatus: FeatureStatus;
+  isActive: boolean;
+  nowMs: number;
+  windowMs?: number;
+}): PlanningRecovery {
+  const { iterations, featureStatus, isActive, nowMs, windowMs = PLANNING_RECOVERY_STALE_MS } = args;
+  const latest = iterations[iterations.length - 1];
+  if (!latest) return { kind: "none" };
+  if (latest.status === "running") {
+    const stale = nowMs - Date.parse(latest.created_at) > windowMs;
+    return !isActive || stale ? { kind: "orphan", iteration: latest.iteration } : { kind: "none" };
+  }
+  if (latest.status === "ready" && latest.gap_result && featureStatus === "planning") {
+    return { kind: "transition", iteration: latest.iteration };
+  }
+  return { kind: "none" };
 }
 
 /** Slug a feature title into a `specs/<slug>` directory-safe identifier. */

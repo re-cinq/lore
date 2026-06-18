@@ -29,7 +29,7 @@ const NO_OP_DGRAPH = {
  * non-planning cluster tasks (impl/review), so it resolves to Docker here; the
  * worker handles the inprocess planning/finalize routing separately.
  */
-function stationBackend(): StationBackend {
+export function stationBackend(): StationBackend {
   return selectStationBackend(process.env) === "k8s"
     ? new K8sLoreTaskClient()
     : new DockerStation(new LocalStationCredentials(process.env), process.env);

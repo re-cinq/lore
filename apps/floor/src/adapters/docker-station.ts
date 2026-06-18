@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import {
   stationPlainEnv,
+  defaultStationName,
   type LoreTaskSpec,
   type StationBackend,
   type StationLaunchResult,
@@ -66,7 +67,7 @@ export class DockerStation implements StationBackend {
   ) {}
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
-    const name = spec.name ?? `loretask-${spec.taskId.substring(0, 8)}`;
+    const name = spec.name ?? defaultStationName(spec.taskId);
 
     const plain: Record<string, string> = Object.fromEntries(
       stationPlainEnv(spec).map((e) => [e.name, e.value]),
@@ -122,6 +123,20 @@ export class DockerStation implements StationBackend {
       launched: true,
       completion: { exitCode, changedFiles: parseChanges(output), output },
     };
+  }
+
+  /** True while the task's `--rm` container is still listed by `docker ps`
+   *  (exited containers self-remove, so a gone container reads as not-active).
+   *  Docker unreachable → `true` so the reaper never false-kills on a probe fault. */
+  isActive(taskId: string): Promise<boolean> {
+    const name = defaultStationName(taskId);
+    return new Promise((resolve) => {
+      const child = spawn("docker", ["ps", "--filter", `name=${name}`, "--format", "{{.ID}}"]);
+      let out = "";
+      child.stdout.on("data", (b: Buffer) => (out += b.toString()));
+      child.on("error", () => resolve(true));
+      child.on("close", () => resolve(out.trim().length > 0));
+    });
   }
 
   /** Per-repo persistent cache dir, pre-created so the container (uid 1000) can write it. */

@@ -13,6 +13,7 @@ import { loretaskWatcherJob } from "../application/jobs/scheduled/loretask-watch
 import { specTaskExecutorJob } from "../application/jobs/scheduled/spec-task-executor.js";
 import { staleTaskCheckJob } from "../application/jobs/scheduled/stale-task-check.js";
 import { reclaimOrphanedIngestJob } from "../application/jobs/scheduled/reclaim-orphaned-ingest.js";
+import { featurePlanningReaperJob } from "../application/jobs/scheduled/feature-planning-reaper.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
@@ -50,6 +51,9 @@ async function main(): Promise<void> {
   // Recurring orphan recovery: resets graph-ingest tasks stranded in `running`
   // by a mid-batch pod roll back to `pending` (idempotent re-run). Every 10 min.
   registerJob("reclaim_orphaned_ingest", "*/10 * * * *", reclaimOrphanedIngestJob);
+  // Heals planning rounds whose Station container/pod died mid-flight (the wizard
+  // would otherwise "analyze" forever) and re-applies any missed status transition.
+  registerJob("feature_planning_reaper", "*/1 * * * *", featurePlanningReaperJob);
 
   startScheduler();
   startWorker();

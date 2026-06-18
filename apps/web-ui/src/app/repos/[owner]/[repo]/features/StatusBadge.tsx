@@ -7,6 +7,8 @@ export default function StatusBadge({ status }: { status: FeatureStatus }) {
   const badge = statusBadge(status);
   return (
     <span
+      role="status"
+      aria-label={`Feature status: ${badge.label}`}
       style={{
         display: 'inline-block',
         padding: '2px 8px',

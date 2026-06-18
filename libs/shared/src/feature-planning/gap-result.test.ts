@@ -88,6 +88,36 @@ describe("parseGapResult", () => {
     expect(r.sections[1].mockups?.[0].title).toBe("flow"); // tagged user_flows → attaches there
     expect(r.sections[2].questions?.[0].question).toBe("Which repos?");
   });
+
+  it("throws when the root is null, an array, or a string", () => {
+    for (const bad of [null, [], "{}"]) {
+      expect(() => parseGapResult(bad)).toThrow(/root must be an object/);
+    }
+  });
+
+  it("returns an empty sections list for an explicit empty sections array", () => {
+    expect(parseGapResult({ sections: [], draft_spec_markdown: "x" })).toEqual({
+      sections: [],
+      draft_spec_markdown: "x",
+    });
+  });
+
+  it("throws when a choice question has an explicit empty options array", () => {
+    const bad = {
+      sections: [{ title: "Q", questions: [{ id: "q3", question: "Pick", why: "branch", kind: "choice", options: [] }] }],
+      draft_spec_markdown: "x",
+    };
+    expect(() => parseGapResult(bad)).toThrow(/options must be non-empty/);
+  });
+
+  it("throws when a split_suggestion omits proposed_features", () => {
+    const bad = {
+      sections: [{ title: "Overview", content: "x" }],
+      split_suggestion: { rationale: "too big" },
+      draft_spec_markdown: "x",
+    };
+    expect(() => parseGapResult(bad)).toThrow(/proposed_features must be an array/);
+  });
 });
 
 describe("sectionsOf", () => {

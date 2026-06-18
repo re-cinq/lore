@@ -5,6 +5,8 @@ import Markdown from '@/components/Markdown';
 import { sectionsOf } from '@/lib/feature-types';
 import type { GapResult, GapQuestion, SectionAnswers, SectionDirection } from '@/lib/feature-types';
 
+const FREE_FORM_MAX = 5000;
+
 export interface FeedbackState {
   sections: Record<string, { comment?: string; direction?: SectionDirection }>;
   questions: Record<string, string>;
@@ -71,17 +73,17 @@ function QuestionInput({
     onChange({ ...feedback, questions: { ...feedback.questions, [q.id]: value } });
   return (
     <div style={{ marginBottom: 10 }}>
-      <label style={{ display: 'block', fontWeight: 600 }}>{q.question}</label>
+      <label htmlFor={q.id} style={{ display: 'block', fontWeight: 600 }}>{q.question}</label>
       {q.why && <p className="meta" style={{ margin: '2px 0' }}>{q.why}</p>}
       {q.kind === 'choice' && q.options ? (
-        <select value={feedback.questions[q.id] ?? ''} onChange={(e) => set(e.target.value)}>
+        <select id={q.id} value={feedback.questions[q.id] ?? ''} onChange={(e) => set(e.target.value)}>
           <option value="">—</option>
           {q.options.map((o) => (
             <option key={o} value={o}>{o}</option>
           ))}
         </select>
       ) : (
-        <input style={{ width: '100%' }} value={feedback.questions[q.id] ?? ''} onChange={(e) => set(e.target.value)} />
+        <input id={q.id} style={{ width: '100%' }} value={feedback.questions[q.id] ?? ''} onChange={(e) => set(e.target.value)} />
       )}
     </div>
   );
@@ -124,7 +126,7 @@ export default function GapSections({
       {gap.split_suggestion && (
         <SectionCard title="This feature looks large — consider splitting">
           <p>{gap.split_suggestion.rationale}</p>
-          {gap.split_suggestion.proposed_features.map((p, i) => (
+          {(gap.split_suggestion.proposed_features ?? []).map((p, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <span><strong>{p.title}</strong> — <span className="meta">{p.scope}</span></span>
               <button type="button" onClick={() => onCreateDraft(p.title, p.scope)}>
@@ -139,10 +141,14 @@ export default function GapSections({
         <textarea
           style={{ width: '100%' }}
           rows={3}
+          maxLength={FREE_FORM_MAX}
           placeholder="Free-form direction for the next round"
           value={feedback.free_form}
           onChange={(e) => onChange({ ...feedback, free_form: e.target.value })}
         />
+        <p className="meta" style={{ margin: '2px 0 0', textAlign: 'right' }}>
+          {feedback.free_form.length}/{FREE_FORM_MAX}
+        </p>
       </SectionCard>
     </div>
   );

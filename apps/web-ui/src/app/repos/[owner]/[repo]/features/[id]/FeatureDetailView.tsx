@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import StatusBadge from '../StatusBadge';
 import { isPlanningActive } from '../feature-status';
 import PlanningWizard from './PlanningWizard';
 import Markdown from '@/components/Markdown';
-import type { FeatureWithIterations } from '@/lib/feature-types';
+import type { FeatureWithIterations, SectionAnswers } from '@/lib/feature-types';
 
 function FinalizedView({ feature }: { feature: FeatureWithIterations }) {
   return (
@@ -52,18 +52,15 @@ export default function FeatureDetailView({
   repo: string;
   feature: FeatureWithIterations;
   timeoutMinutes: number;
-  refine: (userAnswers: unknown) => Promise<void>;
+  refine: (userAnswers: SectionAnswers) => Promise<void>;
   finalize: () => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
   del: () => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const onCreateDraft = (title: string, prompt: string) =>
     startTransition(() => split(title, prompt));
-  const onDelete = () => {
-    if (!confirm(`Delete feature "${feature.title}"? This removes all its planning rounds and cannot be undone.`)) return;
-    startTransition(() => del());
-  };
   const base = `/repos/${owner}/${repo}`;
 
   return (
@@ -104,9 +101,21 @@ export default function FeatureDetailView({
         <p className="meta">
           Permanently delete this feature and all its planning rounds. This cannot be undone.
         </p>
-        <button type="button" className="danger" onClick={onDelete} disabled={pending}>
-          {pending ? 'Deleting…' : 'Delete feature'}
-        </button>
+        {confirmingDelete ? (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <span>Delete &ldquo;{feature.title}&rdquo; and all its rounds?</span>
+            <button type="button" className="danger" onClick={() => startTransition(() => del())} disabled={pending}>
+              {pending ? 'Deleting…' : 'Confirm delete'}
+            </button>
+            <button type="button" onClick={() => setConfirmingDelete(false)} disabled={pending}>
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="danger" onClick={() => setConfirmingDelete(true)} disabled={pending}>
+            Delete feature
+          </button>
+        )}
       </div>
     </div>
   );

@@ -16,15 +16,10 @@ import {
   isPlanningPhase,
 } from "@re-cinq/lore-shared/feature-planning/gap-result.js";
 import { PLANNING_INSTRUCTIONS } from "@re-cinq/lore-shared/feature-planning/planning-instructions.js";
+import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
 import { projectFor } from "../../application/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
-
-/** Strip an optional ```json … ``` fence the model may wrap the JSON in. */
-function stripFence(text: string): string {
-  const fenced = text.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  return (fenced ? fenced[1] : text).trim();
-}
 
 export async function handleFeaturePlanning(task: any, targetRepo: string): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
@@ -51,7 +46,7 @@ export async function handleFeaturePlanning(task: any, targetRepo: string): Prom
       taskId: task.id,
     });
 
-    const gap = sanitizeGapResult(parseGapResult(JSON.parse(stripFence(result.text))));
+    const gap = sanitizeGapResult(parseGapResult(parseModelJson(result.text)));
 
     await features.setIterationResult(featureId, iteration, gap, "ready");
     // Only advance a feature still mid-planning — a stale/duplicate round

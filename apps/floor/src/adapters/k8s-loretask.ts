@@ -1,3 +1,4 @@
+import { defaultStationName } from "@re-cinq/lore-shared";
 import type { K8sPort, LoreTaskSpec, StationBackend, StationLaunchResult } from "@re-cinq/lore-shared";
 
 const GROUP = "lore.re-cinq.com";
@@ -18,6 +19,33 @@ export class K8sLoreTaskClient implements K8sPort, StationBackend {
     return { ref: name, launched: created };
   }
 
+  /** True while the task's LoreTask CR exists and has not reached a terminal
+   *  phase. A 404 (CR garbage-collected) reads as not-active → orphaned; any
+   *  other API error returns `true` so the reaper falls back to its age window
+   *  rather than killing a round on a transient kube fault. */
+  async isActive(taskId: string): Promise<boolean> {
+    try {
+      const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
+      const kc = new KubeConfig();
+      kc.loadFromCluster();
+      const k8sApi = kc.makeApiClient(CustomObjectsApi);
+      const namespace = process.env.NAMESPACE ?? "lore-floor";
+      const res = (await k8sApi.getNamespacedCustomObject({
+        group: GROUP,
+        version: VERSION,
+        namespace,
+        plural: PLURAL,
+        name: defaultStationName(taskId),
+      })) as { body?: { status?: { phase?: string } }; status?: { phase?: string } };
+      const phase = res?.body?.status?.phase ?? res?.status?.phase;
+      return !(typeof phase === "string" && /succeeded|failed|completed/i.test(phase));
+    } catch (err) {
+      const e = err as { code?: number; response?: { statusCode?: number } };
+      if (e?.code === 404 || e?.response?.statusCode === 404) return false;
+      return true;
+    }
+  }
+
   async createLoreTask(
     spec: LoreTaskSpec,
     opts?: { namespace?: string },
@@ -28,7 +56,7 @@ export class K8sLoreTaskClient implements K8sPort, StationBackend {
     const k8sApi = kc.makeApiClient(CustomObjectsApi);
 
     const namespace = opts?.namespace ?? process.env.NAMESPACE ?? "lore-floor";
-    const name = spec.name ?? `loretask-${spec.taskId.substring(0, 8)}`;
+    const name = spec.name ?? defaultStationName(spec.taskId);
 
     const cr = {
       apiVersion: `${GROUP}/${VERSION}`,

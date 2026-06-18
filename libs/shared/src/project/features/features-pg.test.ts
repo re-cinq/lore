@@ -117,6 +117,22 @@ describe("PgFeatures.transitionStatus", () => {
   });
 });
 
+describe("PgFeatures.delete", () => {
+  it("deletes the feature scoped to its repo and returns true when a row is removed", async () => {
+    const { pool, calls } = fakePool([[{ id: "f1" }]]);
+    const deleted = await new PgFeatures(pool).delete("octo/repo", "f1");
+    expect(calls[0].text).toContain("DELETE FROM lore.features");
+    expect(calls[0].text).toContain("WHERE id = $1 AND repo = $2");
+    expect(calls[0].params).toEqual(["f1", "octo/repo"]);
+    expect(deleted).toBe(true);
+  });
+
+  it("returns false when no matching feature exists", async () => {
+    const { pool } = fakePool([[]]);
+    expect(await new PgFeatures(pool).delete("octo/repo", "missing")).toBe(false);
+  });
+});
+
 describe("PgFeatures.createSplitChild", () => {
   it("inserts a child with parent_feature_id set", async () => {
     const { pool, calls } = fakePool([[{ id: "child" }]]);

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createFeature, refineFeature, finalizeFeature, splitFeature } from './feature-api';
+import { createFeature, refineFeature, finalizeFeature, splitFeature, deleteFeature } from './feature-api';
 
 describe('feature-api', () => {
   const realFetch = global.fetch;
@@ -69,6 +69,17 @@ describe('feature-api', () => {
     await splitFeature('o/r', 'parent', 'Part A', 'carve A');
     expect(spy.mock.calls[0][0]).toBe('https://lore-api.test/api/repos/o/r/features/parent/split');
     expect(JSON.parse((spy.mock.calls[0][1] as RequestInit).body as string)).toEqual({ title: 'Part A', prompt: 'carve A' });
+  });
+
+  it('delete sends a DELETE with no body to the feature path', async () => {
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ ok: true }) }));
+    global.fetch = spy as unknown as typeof fetch;
+    const result = await deleteFeature('o/r', 'f1');
+    expect(spy.mock.calls[0][0]).toBe('https://lore-api.test/api/repos/o/r/features/f1');
+    const init = spy.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe('DELETE');
+    expect(init.body).toBeUndefined();
+    expect(result).toEqual({ status: 'ok', data: { ok: true } });
   });
 
   it('maps a non-ok response with an error body to an error result', async () => {

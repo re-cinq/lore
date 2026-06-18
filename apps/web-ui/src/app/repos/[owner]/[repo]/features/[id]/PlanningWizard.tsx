@@ -1,33 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import GapSections, { emptyFeedback, toUserAnswers, type FeedbackState } from './GapSections';
-import type { FeatureWithIterations, FeatureRow, FeatureIterationRow } from '@/lib/feature-types';
+import RunningCard from './RunningCard';
+import FailureBlock from './FailureBlock';
+import { isPlanningActive } from '../feature-status';
+import type { FeatureWithIterations, FeatureRow, FeatureIterationRow, SectionAnswers } from '@/lib/feature-types';
 
 const POLL_MS = 4000;
 
-/** Elapsed / budget (m:ss / mm:00) from when the running round started, ticking every
- *  second. Turns red once elapsed passes the round's timeout. */
-function ElapsedTimer({ since, timeoutMinutes }: { since: string | undefined; timeoutMinutes: number }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const start = since ? Date.parse(since) : NaN;
-  if (Number.isNaN(start)) return null;
-  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  const secs = Math.max(0, Math.floor((now - start) / 1000));
-  const over = secs > timeoutMinutes * 60;
-  return (
-    <span
-      className="meta"
-      style={{ marginLeft: 8, fontVariantNumeric: 'tabular-nums', color: over ? '#dc2626' : undefined }}
-    >
-      · {fmt(secs)} / {timeoutMinutes}:00
-    </span>
-  );
-}
+// A planning round is genuinely in flight only while its task is in one of these
+// non-terminal states; any other state means the round settled (ready or failed).
+const RUNNING_TASK_STATUSES = new Set(['pending', 'queued', 'running']);
 
 interface Poll {
   feature: FeatureRow;
@@ -51,35 +36,39 @@ export default function PlanningWizard({
   repo: string;
   feature: FeatureWithIterations;
   timeoutMinutes: number;
-  refine: (userAnswers: unknown) => Promise<void>;
+  refine: (userAnswers: SectionAnswers) => Promise<void>;
   finalize: () => Promise<void>;
   onCreateDraft: (title: string, prompt: string) => void;
 }) {
+  const router = useRouter();
   const [data, setData] = useState<Poll>({
     feature,
     latestIteration: feature.iterations[feature.iterations.length - 1] ?? null,
   });
   const [feedback, setFeedback] = useState<FeedbackState>(emptyFeedback());
   const [pending, startTransition] = useTransition();
+  const [finalizing, setFinalizing] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchLatest = useCallback(async () => {
+  const fetchLatest = useCallback(async (): Promise<Poll | null> => {
     const r = await fetch(`/api/repos/${owner}/${repo}/features/${feature.id}`, { cache: 'no-store' });
-    if (!r.ok) return;
-    const json = (await r.json()) as Poll;
-    setData(json);
+    if (!r.ok) return null;
+    try {
+      const json = (await r.json()) as Poll;
+      setData(json);
+      return json;
+    } catch {
+      return null;
+    }
   }, [owner, repo, feature.id]);
 
   const latest = data.latestIteration;
   const task = data.task;
-  // A planning round is genuinely in flight only while its task is pending/queued/
-  // running. If the task has reached a terminal state but the iteration never
-  // produced a usable result (failed, or stuck 'running' with no gap_result), that
-  // is a failure the user must see + retry — never an endless "analyzing".
-  const taskActive = !task || task.status === 'pending' || task.status === 'queued' || task.status === 'running';
+  // The round settled but produced nothing usable (failed, or stuck 'running' with no
+  // gap_result after the task ended) — the user must see it + retry, never an endless spinner.
+  const taskActive = !task || RUNNING_TASK_STATUSES.has(task.status);
   const latestReady = latest?.status === 'ready' && !!latest.gap_result;
-  const failed =
-    task?.status === 'failed' || latest?.status === 'failed' || (!latestReady && !taskActive);
+  const failed = task?.status === 'failed' || latest?.status === 'failed' || (!latestReady && !taskActive);
   const running = (!latest || latest.status === 'running') && !failed;
 
   useEffect(() => {
@@ -101,74 +90,61 @@ export default function PlanningWizard({
       await fetchLatest();
     });
 
-  const submitFinalize = () => startTransition(() => finalize());
+  const submitFinalize = () =>
+    startTransition(async () => {
+      setFinalizing(true);
+      await finalize();
+      await fetchLatest();
+    });
+
+  // After finalize, the feature-finalize task runs async (no intermediate status). Poll
+  // until the feature leaves the planning phase (→ pr-open), then refresh the server
+  // component so the parent swaps the wizard for the FinalizedView.
+  useEffect(() => {
+    if (!finalizing) return;
+    const tick = async () => {
+      const json = await fetchLatest();
+      if (json && !isPlanningActive(json.feature.status)) router.refresh();
+    };
+    const id = setInterval(tick, POLL_MS);
+    return () => clearInterval(id);
+  }, [finalizing, fetchLatest, router]);
+
+  const iteration = latest?.iteration ?? data.feature.current_iteration;
 
   if (running) {
     return (
-      <div className="spec-card">
-        <p style={{ display: 'flex', alignItems: 'center', margin: 0 }}>
-          Analyzing your feature against the project… (round {latest?.iteration ?? data.feature.current_iteration})
-          <span className="planning-dots" aria-hidden="true"><span /><span /><span /></span>
-          <ElapsedTimer since={latest?.created_at} timeoutMinutes={timeoutMinutes} />
-        </p>
-        <p className="meta">The planning agent is running. This refreshes automatically.</p>
-        {data.liveOutput && (
-          <pre
-            style={{
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              maxHeight: 220,
-              overflow: 'auto',
-              background: 'var(--bg-elevated, #f6f8fa)',
-              border: '1px solid var(--border, #e5e7eb)',
-              borderRadius: 6,
-              padding: 10,
-              fontSize: 12,
-              marginTop: 8,
-            }}
-          >
-            {data.liveOutput}
-          </pre>
-        )}
-      </div>
+      <RunningCard
+        iteration={iteration}
+        since={latest?.created_at}
+        timeoutMinutes={timeoutMinutes}
+        liveOutput={data.liveOutput}
+      />
     );
   }
 
-  // The analysis to show: the latest round's result, else the most recent round
-  // that produced one (so a failed refine doesn't hide your prior analysis).
+  // The analysis to show: the latest round's result, else the most recent round that
+  // produced one (so a failed refine doesn't hide your prior analysis).
   const gap = latestReady ? latest?.gap_result : data.lastReady?.gap_result ?? null;
 
   const failureBlock = (
-    <div className="spec-card" style={{ borderColor: '#dc2626' }}>
-      <p style={{ color: '#dc2626', fontWeight: 600, margin: 0 }}>
-        Planning round {latest?.iteration ?? data.feature.current_iteration} failed.
-      </p>
-      {!data.task?.failure_reason && (
-        <p className="meta">
-          The run finished without producing a result — usually the planning agent couldn't reach the
-          model. Set <code>ANTHROPIC_API_KEY</code> (org billing) and Retry, or check the agent logs.
-        </p>
-      )}
-      {data.task?.failure_reason && (
-        <pre
-          style={{
-            whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 260, overflow: 'auto',
-            background: 'var(--bg-elevated, #f6f8fa)', border: '1px solid var(--border, #e5e7eb)',
-            borderRadius: 6, padding: 10, fontSize: 12, margin: '8px 0',
-          }}
-        >
-          {data.task.failure_reason}
-        </pre>
-      )}
-      <button type="button" disabled={pending} onClick={submitRefine}>
-        {pending ? 'Retrying…' : 'Retry'}
-      </button>
-    </div>
+    <FailureBlock
+      iteration={iteration}
+      failureReason={data.task?.failure_reason}
+      pending={pending}
+      onRetry={submitRefine}
+    />
   );
 
   // No analysis ever produced: pure failure (if the latest failed) or an empty state.
   if (!gap) {
-    return failed ? failureBlock : <div className="spec-card"><p className="meta">No analysis yet.</p></div>;
+    return failed ? (
+      failureBlock
+    ) : (
+      <div className="spec-card">
+        <p className="meta">Planning hasn&apos;t produced an analysis yet — it will appear here once the first round finishes.</p>
+      </div>
+    );
   }
 
   // We have an analysis to work with. If the latest round failed, show the failure
@@ -177,12 +153,13 @@ export default function PlanningWizard({
     <div>
       {failed && <div style={{ marginBottom: 12 }}>{failureBlock}</div>}
       <GapSections gap={gap} feedback={feedback} onChange={setFeedback} onCreateDraft={onCreateDraft} />
+      {finalizing && <p className="meta" role="status">Finalizing — creating the spec PR…</p>}
       <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-        <button type="button" disabled={pending} onClick={submitRefine}>
+        <button type="button" disabled={pending || finalizing} onClick={submitRefine}>
           {pending ? 'Working…' : 'Refine again'}
         </button>
-        <button type="button" className="button" disabled={pending} onClick={submitFinalize}>
-          Proceed &amp; finalize
+        <button type="button" className="button" disabled={pending || finalizing} onClick={submitFinalize}>
+          {finalizing ? 'Finalizing…' : 'Proceed & finalize'}
         </button>
       </div>
     </div>
