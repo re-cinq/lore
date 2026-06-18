@@ -67,7 +67,7 @@ export type {
   StationCompletion,
   StationBackendKind,
 } from "./agents/station-port.js";
-export { selectStationBackend } from "./agents/station-port.js";
+export { selectStationBackend, defaultStationName } from "./agents/station-port.js";
 export { stationPlainEnv } from "./agents/station-env.js";
 export type {
   StationCredentials,
