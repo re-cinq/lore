@@ -981,6 +981,19 @@ button.btn-secondary:hover {
   border-color: var(--border-hover);
 }
 
+/* Danger zone — destructive-action card (feature delete). */
+.danger-zone {
+  margin-top: 24px;
+  border-color: var(--danger);
+}
+.danger-zone h3 {
+  margin-top: 0;
+  color: var(--danger);
+}
+.danger-zone p {
+  margin-top: 0;
+}
+
 /* Visible keyboard focus across interactive elements */
 a:focus-visible,
 button:focus-visible,

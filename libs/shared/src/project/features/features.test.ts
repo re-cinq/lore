@@ -23,6 +23,7 @@ function recordingPort(): { port: FeaturesPort; calls: RecordedCall[] } {
     setIterationResult: stub("setIterationResult"),
     transitionStatus: stub("transitionStatus"),
     createSplitChild: stub("createSplitChild"),
+    delete: stub("delete"),
   } as unknown as FeaturesPort;
   return { port, calls };
 }
@@ -59,5 +60,11 @@ describe("Features facade", () => {
       op: "attachIterationTask",
       args: ["octo/repo", "f1", 2, "t1"],
     });
+  });
+
+  it("stamps the bound repo on delete", async () => {
+    const { port, calls } = recordingPort();
+    await new Features("octo/repo", port).delete("f1");
+    expect(calls[0]).toEqual({ op: "delete", args: ["octo/repo", "f1"] });
   });
 });

@@ -45,6 +45,7 @@ export default function FeatureDetailView({
   refine,
   finalize,
   split,
+  del,
 }: {
   owner: string;
   repo: string;
@@ -52,10 +53,15 @@ export default function FeatureDetailView({
   refine: (userAnswers: unknown) => Promise<void>;
   finalize: () => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
+  del: () => Promise<void>;
 }) {
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
   const onCreateDraft = (title: string, prompt: string) =>
     startTransition(() => split(title, prompt));
+  const onDelete = () => {
+    if (!confirm(`Delete feature "${feature.title}"? This removes all its planning rounds and cannot be undone.`)) return;
+    startTransition(() => del());
+  };
   const base = `/repos/${owner}/${repo}`;
 
   return (
@@ -89,6 +95,16 @@ export default function FeatureDetailView({
       ) : (
         <FinalizedView feature={feature} />
       )}
+
+      <div className="spec-card danger-zone">
+        <h3>Danger zone</h3>
+        <p className="meta">
+          Permanently delete this feature and all its planning rounds. This cannot be undone.
+        </p>
+        <button type="button" className="danger" onClick={onDelete} disabled={pending}>
+          {pending ? 'Deleting…' : 'Delete feature'}
+        </button>
+      </div>
     </div>
   );
 }

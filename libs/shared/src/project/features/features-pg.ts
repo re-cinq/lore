@@ -179,4 +179,13 @@ export class PgFeatures implements FeaturesPort {
     );
     return rows[0] as Feature;
   }
+
+  async delete(repo: string, id: string): Promise<boolean> {
+    // feature_iterations cascade via ON DELETE CASCADE (migration 0017).
+    const { rows } = await this.pool.query(
+      `DELETE FROM lore.features WHERE id = $1 AND repo = $2 RETURNING id`,
+      [id, repo],
+    );
+    return rows.length > 0;
+  }
 }

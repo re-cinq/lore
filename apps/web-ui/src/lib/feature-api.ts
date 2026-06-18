@@ -8,15 +8,20 @@ export type FeatureApiResult<T = unknown> =
   | { status: 'unconfigured' }
   | { status: 'error'; message: string };
 
-async function post<T>(repo: string, path: string, body: unknown): Promise<FeatureApiResult<T>> {
+async function send<T>(
+  repo: string,
+  path: string,
+  method: string,
+  body?: unknown,
+): Promise<FeatureApiResult<T>> {
   const apiUrl = process.env.LORE_API_URL;
   const token = process.env.LORE_ADMIN_TOKEN ?? process.env.LORE_INGEST_TOKEN;
   if (!apiUrl || !token) return { status: 'unconfigured' };
   try {
     const res = await fetch(`${apiUrl}/api/repos/${repo}/features${path}`, {
-      method: 'POST',
+      method,
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       cache: 'no-store',
     });
     const data = await res.json().catch(() => ({}));
@@ -25,6 +30,10 @@ async function post<T>(repo: string, path: string, body: unknown): Promise<Featu
   } catch (err) {
     return { status: 'error', message: (err as Error).message };
   }
+}
+
+function post<T>(repo: string, path: string, body: unknown): Promise<FeatureApiResult<T>> {
+  return send<T>(repo, path, 'POST', body);
 }
 
 export function createFeature(repo: string, title: string, prompt: string) {
@@ -41,4 +50,8 @@ export function finalizeFeature(repo: string, id: string) {
 
 export function splitFeature(repo: string, parentId: string, title: string, prompt: string) {
   return post<{ id: string }>(repo, `/${parentId}/split`, { title, prompt });
+}
+
+export function deleteFeature(repo: string, id: string) {
+  return send<{ ok: true }>(repo, `/${id}`, 'DELETE');
 }

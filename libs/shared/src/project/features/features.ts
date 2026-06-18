@@ -60,4 +60,8 @@ export class Features {
   createSplitChild(parentId: string, input: CreateFeatureInput): Promise<Feature> {
     return this.port.createSplitChild(this.repo, parentId, input);
   }
+
+  delete(id: string): Promise<boolean> {
+    return this.port.delete(this.repo, id);
+  }
 }

@@ -120,6 +120,8 @@ export interface FeaturesPort {
     parentId: string,
     input: CreateFeatureInput,
   ): Promise<Feature>;
+  /** Delete a feature and its iterations (CASCADE). Returns false if not found. */
+  delete(repo: string, id: string): Promise<boolean>;
 }
 
 /** Slug a feature title into a `specs/<slug>` directory-safe identifier. */

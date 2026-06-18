@@ -35,7 +35,9 @@ export interface PlanningPromptInput {
 export function composePlanningPrompt(input: PlanningPromptInput): string {
   const blocks = [tag("Title", input.title), tag("UserPrompt", input.originalPrompt)];
   const draftSpec = currentDraftSpec(input.priorGap, input.answers);
+
   if (draftSpec) blocks.push(draftSpec);
+
   return blocks.join("\n\n");
 }
 

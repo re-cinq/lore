@@ -1,8 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { queryAllowMissing } from '@/lib/db';
-import { refineFeature, finalizeFeature, splitFeature } from '@/lib/feature-api';
+import { refineFeature, finalizeFeature, splitFeature, deleteFeature } from '@/lib/feature-api';
 import type { FeatureRow, FeatureIterationRow, FeatureWithIterations } from '@/lib/feature-types';
 import FeatureDetailView from './FeatureDetailView';
 
@@ -47,6 +48,13 @@ export default async function FeatureDetail({
     await splitFeature(fullName, id, title, prompt);
     revalidatePath(`/repos/${owner}/${repo}/features`);
   }
+  async function del() {
+    'use server';
+    const result = await deleteFeature(fullName, id);
+    if (result.status === 'error') throw new Error(result.message);
+    revalidatePath(`/repos/${owner}/${repo}/features`);
+    redirect(`/repos/${owner}/${repo}/features`);
+  }
 
   return (
     <FeatureDetailView
@@ -56,6 +64,7 @@ export default async function FeatureDetail({
       refine={refine}
       finalize={finalize}
       split={split}
+      del={del}
     />
   );
 }

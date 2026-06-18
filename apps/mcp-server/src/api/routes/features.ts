@@ -61,37 +61,49 @@ export async function handleFeaturesRoute(
   const method = req.method || "GET";
 
   try {
+    //TODO: priority HIGH We must have one function per route!!!!
+
     // POST .../features/:id/iterations/:n/result — the planning pod posts a GapResult.
     let m = url.match(RESULT_RE);
+
     if (m && method === "POST") {
       const [, owner, repo, id, nRaw] = m;
       const iteration = Number(nRaw);
+
       if (!Number.isInteger(iteration) || iteration < 0) {
         return json(res, 400, { error: "iteration must be a non-negative integer" });
       }
+
       const features = (await projectFor(`${owner}/${repo}`)).features;
       // Confirm the feature belongs to this repo before any write — feature.id is
       // a global UUID, so without this a write-token holder could POST a forged
       // result against another repo's feature.
+
       const feature = await features.get(id);
       if (!feature) return json(res, 404, { error: "feature not found" });
-      let gap: GapResult;
+
+      let planningResult: GapResult;
+
       try {
-        gap = parseGapResult(await readJsonBody(req));
+        planningResult = parseGapResult(await readJsonBody(req));
       } catch (err) {
         await features.setIterationResult(id, iteration, null, "failed");
         return json(res, 400, { error: err instanceof Error ? err.message : String(err) });
       }
-      gap.mockups = gap.mockups.map((mk) => ({ ...mk, markup: sanitizeSvg(mk.markup) }));
-      await features.setIterationResult(id, iteration, gap, "ready");
+
+      planningResult.mockups = planningResult.mockups.map((mk) => ({ ...mk, markup: sanitizeSvg(mk.markup) }));
+      await features.setIterationResult(id, iteration, planningResult, "ready");
+
       // Only advance a feature that's still mid-planning. A slow/retried/duplicate
       // pod POSTing a stale GapResult must not drag a finalized feature
       // (pr-open/implemented/split) back into the wizard.
+
       if (isPlanningPhase(feature.status)) {
-        await features.transitionStatus(id, decideFeatureStatus(gap), {
-          draft_spec_md: gap.draft_spec_markdown,
+        await features.transitionStatus(id, decideFeatureStatus(planningResult), {
+          draft_spec_md: planningResult.draft_spec_markdown,
         });
       }
+
       return json(res, 200, { ok: true });
     }
 
@@ -102,12 +114,16 @@ export async function handleFeaturesRoute(
       const body = (await readJsonBody(req)) as { user_answers?: unknown };
       const features = (await projectFor(`${owner}/${repo}`)).features;
       const feature = await features.get(id);
-      if (!feature) return json(res, 404, { error: "feature not found" });
+
+      if (!feature) {
+        return json(res, 404, { error: "feature not found" });
+      }
 
       // Carry the whole-feature timeline into the round's prompt: the prior round's
       // generated sections paired with the author's feedback (FR-2.3 / ADR-027).
       const priorGap =
         feature.iterations.find((it) => it.status === "ready" && it.gap_result)?.gap_result ?? null;
+
       const description = composePlanningPrompt({
         title: feature.title,
         originalPrompt: feature.original_prompt,
@@ -119,9 +135,11 @@ export async function handleFeaturesRoute(
       // the DB actually minted (not current_iteration+1 read off a stale
       // snapshot), then link the task. Two concurrent refines thus drive distinct
       // rows instead of both targeting the same guessed number.
+
       const row = await features.appendIteration(id, body.user_answers ?? null);
       const taskId = await kickPlanning(`${owner}/${repo}`, id, row.iteration, description);
       await features.attachIterationTask(id, row.iteration, taskId);
+
       return json(res, 202, { task_id: taskId, iteration: row.iteration });
     }
 
@@ -166,6 +184,14 @@ export async function handleFeaturesRoute(
       const feature = await (await projectFor(`${owner}/${repo}`)).features.get(id);
       if (!feature) return json(res, 404, { error: "feature not found" });
       return json(res, 200, feature);
+    }
+
+    // DELETE .../features/:id — remove the feature + its iterations (CASCADE).
+    if (m && method === "DELETE") {
+      const [, owner, repo, id] = m;
+      const deleted = await (await projectFor(`${owner}/${repo}`)).features.delete(id);
+      if (!deleted) return json(res, 404, { error: "feature not found" });
+      return json(res, 200, { ok: true });
     }
 
     // GET .../features — list; POST .../features — create draft + kick planning.

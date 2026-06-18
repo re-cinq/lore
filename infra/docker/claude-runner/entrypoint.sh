@@ -95,7 +95,13 @@ if [ -n "${LORE_DARK_FACTORY_WORKFLOW:-}" ]; then
   # feature-planning produces a structured GapResult, not repo changes. POST it
   # back to the features API (no branch push, no PR). The pod reads its own
   # feature_id/iteration from the task's context_bundle. See ADR-027.
-  if [ "$RUNNER_EXIT" = "0" ] && [ "$TASK_TYPE" = "feature-planning" ]; then
+  # SALVAGE: a planning round's deliverable is result.json, not a clean exit — so
+  # POST it even when the supervisor timed out / exited non-zero, as long as the
+  # agent wrote it. We always exit 0 here; the API + finalizeStationRun decide
+  # success by whether a valid result actually landed (a missing/invalid result
+  # still surfaces as a failed round).
+  if [ "$TASK_TYPE" = "feature-planning" ]; then
+    [ "$RUNNER_EXIT" != "0" ] && echo "[runner] runner exited ${RUNNER_EXIT}; salvaging result.json if present"
     LORE_API_URL="${LORE_API_URL:-}"
     LORE_TOKEN="${LORE_INGEST_TOKEN:-}"
     RESULT_FILE="${WORKDIR}/result.json"

@@ -4,16 +4,17 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { queryAllowMissing } from '@/lib/db';
+import { formatStationConversation } from '@/lib/station-conversation';
 import type { FeatureRow, FeatureIterationRow } from '@/lib/feature-types';
 
-/** Last N lines of the local Docker Station's live log for a task (best effort;
- *  only exists for the local docker backend — the cluster streams to GCS). */
-function liveStationLog(taskId: string, lines = 20): string | null {
+/** The local Docker Station's live log for a task, rendered as the model's
+ *  conversation transcript (runner markers + claude thinking/tools/text). Best
+ *  effort; only exists for the local docker backend — the cluster streams to GCS. */
+function liveStationLog(taskId: string): string | null {
   try {
     const file = path.join(os.homedir(), '.lore', 'station-logs', `${taskId}.log`);
-    const text = fs.readFileSync(file, 'utf8').trimEnd();
-    if (!text) return null;
-    return text.split('\n').slice(-lines).join('\n');
+    const raw = fs.readFileSync(file, 'utf8');
+    return formatStationConversation(raw) || null;
   } catch {
     return null;
   }
