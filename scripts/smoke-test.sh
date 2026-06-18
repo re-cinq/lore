@@ -46,12 +46,21 @@ TASK=$(curl -sf --max-time 10 -X POST \
 TASK_ID=$(echo "$TASK" | jq -r '.task_id // empty' 2>/dev/null)
 if [ -n "$TASK_ID" ]; then
   pass "create-task ($TASK_ID)"
-  # Cancel immediately
-  CANCEL=$(curl -sf --max-time 5 -X POST \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{\"task_id\":\"$TASK_ID\",\"action\":\"cancel\"}" \
-    "$API_URL/api/task" 2>/dev/null || echo "")
+  # Cancel immediately — retried like healthz above. The cancel curl has a tight
+  # --max-time 5, so a single transient (pg pool contention or a cold connection
+  # right after a rolling deploy) timed out and false-failed an otherwise-healthy
+  # deploy. Cancel is idempotent (UPDATE ... WHERE status NOT IN terminal), so
+  # re-issuing is safe. Poll up to 5×/3s for {ok:true}.
+  CANCEL=""
+  for _ in $(seq 1 5); do
+    CANCEL=$(curl -sf --max-time 5 -X POST \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"task_id\":\"$TASK_ID\",\"action\":\"cancel\"}" \
+      "$API_URL/api/task" 2>/dev/null || echo "")
+    echo "$CANCEL" | jq -e '.ok == true' >/dev/null 2>&1 && break
+    sleep 3
+  done
   if echo "$CANCEL" | jq -e '.ok == true' >/dev/null 2>&1; then
     pass "cancel-task"
   else
