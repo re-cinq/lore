@@ -441,6 +441,16 @@ overrides for any task type: `model`, `timeout_minutes`,
 `system_prompt_suffix`, `review_required`. Merged with global
 `task-types.yaml` at task creation time. Repo overrides win.
 
+**Agent definitions** (`lore.agent_definitions`): per-task-type config
+(`prompt`, `model`, `timeout_minutes`, `image`) resolved by name via
+`project.agentDefs.resolve(name)` — `project` row (per-repo override) →
+`project_id IS NULL` row (org default) → `task-types.yaml`/code. Edited in
+the `/agents` UI. `feature-planning` is a first-class agent here: its prompt
+is the `PLANNING_INSTRUCTIONS` constant (the offline/code fallback, served by
+`AgentDefsYaml`) and the org-default row's prompt is seeded from it by
+migration `0018`; both `runner-cli` and `handle-feature-planning` resolve it
+by name rather than hardcoding.
+
 **Progressive trust**: `settings.trust.level` controls which task
 types are allowed per repo: docs (gap-fill/runbook), tests (+review),
 implementation (+implementation/feature-request/general), full (all).

@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import {
   parseGapResult,
-  sanitizeSvg,
+  sanitizeGapResult,
   decideFeatureStatus,
   isPlanningPhase,
   type GapResult,
@@ -11,6 +11,7 @@ import {
   composePlanningPrompt,
   type SectionAnswers,
 } from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
+import { roundInFlight } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { projectFor } from "../../platform/project-boot.js";
 import { createTask } from "../../features/pipeline/pipeline.js";
 import { json, readJsonBody } from "./http.js";
@@ -85,13 +86,12 @@ export async function handleFeaturesRoute(
       let planningResult: GapResult;
 
       try {
-        planningResult = parseGapResult(await readJsonBody(req));
+        planningResult = sanitizeGapResult(parseGapResult(await readJsonBody(req)));
       } catch (err) {
         await features.setIterationResult(id, iteration, null, "failed");
         return json(res, 400, { error: err instanceof Error ? err.message : String(err) });
       }
 
-      planningResult.mockups = planningResult.mockups.map((mk) => ({ ...mk, markup: sanitizeSvg(mk.markup) }));
       await features.setIterationResult(id, iteration, planningResult, "ready");
 
       // Only advance a feature that's still mid-planning. A slow/retried/duplicate
@@ -117,6 +117,17 @@ export async function handleFeaturesRoute(
 
       if (!feature) {
         return json(res, 404, { error: "feature not found" });
+      }
+
+      // Reject a concurrent/duplicate round: only one planning round may run per
+      // feature at a time (a stale page or double-click must not spawn a 2nd pod).
+      // An orphaned `running` iteration past the window does not block (it's dead).
+      const inFlight = roundInFlight(feature.iterations, Date.now());
+      if (inFlight) {
+        return json(res, 409, {
+          error: `A planning round (round ${inFlight.iteration}) is already running for this feature — wait for it to finish before starting another.`,
+          iteration: inFlight.iteration,
+        });
       }
 
       // Carry the whole-feature timeline into the round's prompt: the prior round's

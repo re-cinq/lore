@@ -3,6 +3,7 @@ import { writeFileSync, rmSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AgentDefsYaml } from "./agent-defs-yaml.js";
+import { PLANNING_INSTRUCTIONS } from "../../feature-planning/planning-instructions.js";
 
 /**
  * AgentDefsYaml maps task-types.yaml into org-level definitions and refuses
@@ -74,6 +75,27 @@ describe("AgentDefsYaml", () => {
 
   it("returns null for an unknown agent name", async () => {
     expect(await new AgentDefsYaml(path).resolve("re-cinq/lore", "nope")).toBeNull();
+  });
+
+  it("serves PLANNING_INSTRUCTIONS as the feature-planning prompt, not the yaml wrapper", async () => {
+    const fp = join(dir, "fp.yaml");
+    writeFileSync(
+      fp,
+      [
+        "task_types:",
+        "  feature-planning:",
+        "    prompt_template: |",
+        "      {description}",
+        "      Write the resulting JSON object to result.json.",
+        "    timeout_minutes: 15",
+        "    model: claude-sonnet-4-6",
+        "",
+      ].join("\n"),
+    );
+    const def = await new AgentDefsYaml(fp).resolve("re-cinq/lore", "feature-planning");
+    expect(def?.prompt).toBe(PLANNING_INSTRUCTIONS);
+    expect(def?.model).toBe("claude-sonnet-4-6");
+    expect(def?.timeout_minutes).toBe(15);
   });
 
   it("refuses writes without a database", async () => {

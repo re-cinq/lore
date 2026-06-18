@@ -566,6 +566,13 @@ pre {
   color: var(--accent);
 }
 
+/* Overview section — the leading summary card, highlighted to stand out. */
+.spec-card.overview {
+  border-color: var(--accent);
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
+}
+
 /* Form controls + lists inside spec cards (the feature-planning wizard, add-spec
    form, …). The global reset zeroes list padding so markers escape the card, and
    bare controls have no app styling — bring both in line with the theme. */

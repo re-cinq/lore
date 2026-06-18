@@ -79,6 +79,14 @@ of truth in the graph.**
 
 ## Consequences
 
+- **feature-planning is a first-class agent definition.** Its prompt/model/timeout
+  resolve through `lore.agent_definitions` via `project.agentDefs.resolve("feature-planning")`
+  (project override → org default → yaml/code), like every other task type — not a
+  hardcoded constant. The org-default row is seeded by migration `0018` (prompt populated
+  from `PLANNING_INSTRUCTIONS`, idempotent + non-destructive so UI edits survive); the
+  constant remains the offline/bootstrap fallback (the `AgentDefsYaml` layer serves it).
+  Org admins edit the prompt org-wide in the `/agents` UI; per-repo overrides win.
+  `runner-cli` (container) and `handle-feature-planning` (in-process) both resolve by name.
 - A bad `0017` migration would wedge the UI deploy (`helm upgrade --wait`), so the
   migration is `lore`-schema, idempotent, single-transaction-safe, locally
   pre-flighted, and CI-guarded (spec FR-9).

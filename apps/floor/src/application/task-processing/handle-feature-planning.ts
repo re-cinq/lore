@@ -11,7 +11,7 @@
 import { Llm } from "@re-cinq/lore-shared";
 import {
   parseGapResult,
-  sanitizeSvg,
+  sanitizeGapResult,
   decideFeatureStatus,
   isPlanningPhase,
 } from "@re-cinq/lore-shared/feature-planning/gap-result.js";
@@ -33,7 +33,11 @@ export async function handleFeaturePlanning(task: any, targetRepo: string): Prom
     throw new Error("feature-planning task is missing feature_id/iteration in context_bundle");
   }
 
-  const features = (await projectFor(targetRepo)).features;
+  const project = await projectFor(targetRepo);
+  const features = project.features;
+  // Resolve the feature-planning agent definition (project → org → yaml/code) so
+  // the prompt + model come from lore.agent_definitions; fall back to the constant.
+  const agentDef = await project.agentDefs.resolve("feature-planning").catch(() => null);
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
 
@@ -41,14 +45,13 @@ export async function handleFeaturePlanning(task: any, targetRepo: string): Prom
     const context = await fetchRepoContext(targetRepo);
     const result = await Llm.instance.complete({
       prompt: `${task.description}\n\n## Repository Context\n\n${JSON.stringify(context, null, 2)}`,
-      systemPrompt: PLANNING_INSTRUCTIONS,
-      model: "claude-sonnet-4-6",
+      systemPrompt: agentDef?.prompt ?? PLANNING_INSTRUCTIONS,
+      model: agentDef?.model ?? "claude-sonnet-4-6",
       maxTokens: 8192,
       taskId: task.id,
     });
 
-    const gap = parseGapResult(JSON.parse(stripFence(result.text)));
-    gap.mockups = gap.mockups.map((m) => ({ ...m, markup: sanitizeSvg(m.markup) }));
+    const gap = sanitizeGapResult(parseGapResult(JSON.parse(stripFence(result.text))));
 
     await features.setIterationResult(featureId, iteration, gap, "ready");
     // Only advance a feature still mid-planning — a stale/duplicate round

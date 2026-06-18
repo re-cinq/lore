@@ -57,12 +57,12 @@ export interface SectionAnswers {
   free_form?: string;
 }
 
-// GapResult mirror — every section optional so GapSections can render-or-skip.
+// GapResult mirror — adaptive `sections` (first is the Overview); legacy fields kept
+// optional so old stored results still render via sectionsOf().
 export interface GapMockup {
   title?: string;
   format?: 'svg';
   markup: string;
-  /** Which section this diagram illustrates, so it embeds inline next to that text. */
   section?: string;
 }
 export interface GapQuestion {
@@ -72,11 +72,44 @@ export interface GapQuestion {
   kind?: 'text' | 'choice';
   options?: string[];
 }
+export interface GapSection {
+  title: string;
+  content?: string;
+  mockups?: GapMockup[];
+  questions?: GapQuestion[];
+}
 export interface GapResult {
+  sections?: GapSection[];
+  // legacy shape (pre-dynamic-sections) — normalized by sectionsOf for old results:
   architecture?: { summary: string; components: { name: string; responsibility: string; touchpoints: string[] }[] };
   user_flows?: { name: string; steps: string[] }[];
   mockups?: GapMockup[];
   questions?: GapQuestion[];
   split_suggestion?: { rationale: string; proposed_features: { title: string; scope: string }[] };
   draft_spec_markdown?: string;
+}
+
+/** A uniform sections list — new `sections` if present, else derived from the legacy
+ *  shape so old stored results still render. Mirrors shared's `sectionsOf`. */
+export function sectionsOf(gap: GapResult | null | undefined): GapSection[] {
+  if (!gap) return [];
+  if (gap.sections) return gap.sections;
+  const sections: GapSection[] = [];
+  const mockupsFor = (key: string) =>
+    (gap.mockups ?? []).filter((m) => (m.section ?? 'architecture') === key);
+  if (gap.architecture) {
+    const a = gap.architecture;
+    const lines = [a.summary, ...(a.components ?? []).map((c) => `- **${c.name}**: ${c.responsibility}`)];
+    const m = mockupsFor('architecture');
+    sections.push({ title: 'Architecture', content: lines.join('\n'), ...(m.length ? { mockups: m } : {}) });
+  }
+  if (gap.user_flows?.length) {
+    const content = gap.user_flows
+      .map((f) => [`**${f.name}**`, ...f.steps.map((s, i) => `${i + 1}. ${s}`)].join('\n'))
+      .join('\n\n');
+    const m = mockupsFor('user_flows');
+    sections.push({ title: 'User flows', content, ...(m.length ? { mockups: m } : {}) });
+  }
+  if (gap.questions?.length) sections.push({ title: 'Open questions', questions: gap.questions });
+  return sections;
 }

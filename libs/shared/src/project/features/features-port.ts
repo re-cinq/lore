@@ -124,6 +124,27 @@ export interface FeaturesPort {
   delete(repo: string, id: string): Promise<boolean>;
 }
 
+/** How long a `running` iteration may block a new round before it's presumed
+ *  orphaned (its pod died) and a fresh round is allowed to supersede it. Covers the
+ *  round timeout (≤15 min) plus container/finalize overhead. */
+export const ROUND_IN_FLIGHT_MS = 20 * 60_000;
+
+/**
+ * The in-flight planning round for a feature — a `running` iteration started within
+ * {@link ROUND_IN_FLIGHT_MS} — or null. Used to reject a concurrent/duplicate round
+ * for the same feature (a stale page or double-click must not spawn a second pod). A
+ * `running` iteration older than the window is treated as orphaned and does NOT block.
+ */
+export function roundInFlight(
+  iterations: FeatureIteration[],
+  nowMs: number,
+  windowMs: number = ROUND_IN_FLIGHT_MS,
+): FeatureIteration | null {
+  return (
+    iterations.find((it) => it.status === "running" && Date.parse(it.created_at) > nowMs - windowMs) ?? null
+  );
+}
+
 /** Slug a feature title into a `specs/<slug>` directory-safe identifier. */
 export function slugifyFeatureTitle(title: string): string {
   const slug = title

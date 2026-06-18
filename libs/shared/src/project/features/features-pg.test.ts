@@ -86,10 +86,7 @@ describe("PgFeatures.setIterationResult", () => {
   it("updates the iteration row's gap_result and status, scoped to the owning repo", async () => {
     const { pool, calls } = fakePool([[]]);
     const gap = {
-      architecture: { summary: "", components: [] },
-      user_flows: [],
-      mockups: [],
-      questions: [],
+      sections: [{ title: "Overview", content: "x" }],
       draft_spec_markdown: "# x",
     };
     await new PgFeatures(pool).setIterationResult("octo/repo", "f1", 1, gap, "ready");

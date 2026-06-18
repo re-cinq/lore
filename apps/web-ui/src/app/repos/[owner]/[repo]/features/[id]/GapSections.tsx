@@ -1,7 +1,9 @@
 'use client';
 
 import MockupSection from './MockupSection';
-import type { GapResult, SectionAnswers, SectionDirection } from '@/lib/feature-types';
+import Markdown from '@/components/Markdown';
+import { sectionsOf } from '@/lib/feature-types';
+import type { GapResult, GapQuestion, SectionAnswers, SectionDirection } from '@/lib/feature-types';
 
 export interface FeedbackState {
   sections: Record<string, { comment?: string; direction?: SectionDirection }>;
@@ -55,21 +57,42 @@ function SectionFeedback({
   );
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+/** One follow-up question for a section — short label, detail in `why`, answer input. */
+function QuestionInput({
+  q,
+  feedback,
+  onChange,
+}: {
+  q: GapQuestion;
+  feedback: FeedbackState;
+  onChange: (next: FeedbackState) => void;
+}) {
+  const set = (value: string) =>
+    onChange({ ...feedback, questions: { ...feedback.questions, [q.id]: value } });
   return (
-    <div className="spec-card" style={{ marginBottom: 12 }}>
-      <h3 style={{ marginTop: 0 }}>{title}</h3>
-      {children}
+    <div style={{ marginBottom: 10 }}>
+      <label style={{ display: 'block', fontWeight: 600 }}>{q.question}</label>
+      {q.why && <p className="meta" style={{ margin: '2px 0' }}>{q.why}</p>}
+      {q.kind === 'choice' && q.options ? (
+        <select value={feedback.questions[q.id] ?? ''} onChange={(e) => set(e.target.value)}>
+          <option value="">—</option>
+          {q.options.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+        </select>
+      ) : (
+        <input style={{ width: '100%' }} value={feedback.questions[q.id] ?? ''} onChange={(e) => set(e.target.value)} />
+      )}
     </div>
   );
 }
 
-/** Mockups belong to user_flows when tagged so; everything else (architecture,
- *  untagged, or an unknown section) falls back to architecture, the natural home
- *  for system diagrams — so each diagram embeds inline next to its text. */
-function mockupsForSection(gap: GapResult, key: 'architecture' | 'user_flows') {
-  return (gap.mockups ?? []).filter(
-    (m) => (m.section === 'user_flows' ? 'user_flows' : 'architecture') === key,
+function SectionCard({ title, highlight, children }: { title: string; highlight?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={highlight ? 'spec-card overview' : 'spec-card'} style={{ marginBottom: 12 }}>
+      <h3 style={{ marginTop: 0 }}>{title}</h3>
+      {children}
+    </div>
   );
 }
 
@@ -84,72 +107,19 @@ export default function GapSections({
   onChange: (next: FeedbackState) => void;
   onCreateDraft: (title: string, prompt: string) => void;
 }) {
-  const archMockups = mockupsForSection(gap, 'architecture');
-  const flowMockups = mockupsForSection(gap, 'user_flows');
+  const sections = sectionsOf(gap);
   return (
     <div>
-      {gap.architecture && (
-        <SectionCard title="Architecture">
-          <p>{gap.architecture.summary}</p>
-          <ul>
-            {gap.architecture.components.map((c, i) => (
-              <li key={i}>
-                <strong>{c.name}</strong> — {c.responsibility}
-                {c.touchpoints?.length > 0 && (
-                  <span className="meta"> ({c.touchpoints.join(', ')})</span>
-                )}
-              </li>
-            ))}
-          </ul>
-          {archMockups.length > 0 && <MockupSection mockups={archMockups} />}
-          <SectionFeedback sectionKey="architecture" feedback={feedback} onChange={onChange} />
-        </SectionCard>
-      )}
-
-      {((gap.user_flows && gap.user_flows.length > 0) || flowMockups.length > 0) && (
-        <SectionCard title="User flows">
-          {gap.user_flows?.map((flow, i) => (
-            <div key={i} style={{ marginBottom: 8 }}>
-              <strong>{flow.name}</strong>
-              <ol>
-                {flow.steps.map((s, j) => (
-                  <li key={j}>{s}</li>
-                ))}
-              </ol>
-            </div>
+      {sections.map((section, i) => (
+        <SectionCard key={`${section.title}-${i}`} title={section.title} highlight={i === 0}>
+          {section.content && <Markdown markdown={section.content} />}
+          {section.mockups && section.mockups.length > 0 && <MockupSection mockups={section.mockups} />}
+          {section.questions?.map((q) => (
+            <QuestionInput key={q.id} q={q} feedback={feedback} onChange={onChange} />
           ))}
-          {flowMockups.length > 0 && <MockupSection mockups={flowMockups} />}
-          <SectionFeedback sectionKey="user_flows" feedback={feedback} onChange={onChange} />
+          <SectionFeedback sectionKey={section.title} feedback={feedback} onChange={onChange} />
         </SectionCard>
-      )}
-
-      {gap.questions && gap.questions.length > 0 && (
-        <SectionCard title="Questions">
-          {gap.questions.map((q) => (
-            <div key={q.id} style={{ marginBottom: 10 }}>
-              <label style={{ display: 'block', fontWeight: 600 }}>{q.question}</label>
-              {q.why && <p className="meta" style={{ margin: '2px 0' }}>{q.why}</p>}
-              {q.kind === 'choice' && q.options ? (
-                <select
-                  value={feedback.questions[q.id] ?? ''}
-                  onChange={(e) => onChange({ ...feedback, questions: { ...feedback.questions, [q.id]: e.target.value } })}
-                >
-                  <option value="">—</option>
-                  {q.options.map((o) => (
-                    <option key={o} value={o}>{o}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  style={{ width: '100%' }}
-                  value={feedback.questions[q.id] ?? ''}
-                  onChange={(e) => onChange({ ...feedback, questions: { ...feedback.questions, [q.id]: e.target.value } })}
-                />
-              )}
-            </div>
-          ))}
-        </SectionCard>
-      )}
+      ))}
 
       {gap.split_suggestion && (
         <SectionCard title="This feature looks large — consider splitting">

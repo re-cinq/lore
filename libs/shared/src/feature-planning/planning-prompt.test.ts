@@ -3,20 +3,20 @@ import { composePlanningPrompt } from "./planning-prompt.js";
 import type { GapResult } from "./gap-result.js";
 
 const gap: GapResult = {
-  architecture: {
-    summary: "A planning Station.",
-    components: [
-      { name: "features port", responsibility: "persist lifecycle", touchpoints: ["lore.features"] },
-    ],
-  },
-  user_flows: [{ name: "create draft", steps: ["open tab", "submit"] }],
-  mockups: [{ title: "List view", format: "svg", markup: "<svg/>" }],
-  questions: [{ id: "q1", question: "Which repos?", why: "scope", kind: "text" }],
+  sections: [
+    { title: "Overview", content: "A planning Station." },
+    {
+      title: "Data model",
+      content: "Persist features + iterations.",
+      mockups: [{ title: "schema", format: "svg", markup: "<svg/>" }],
+      questions: [{ id: "q1", question: "Which repos?", why: "scope", kind: "text" }],
+    },
+  ],
   draft_spec_markdown: "# Spec",
 };
 
 describe("composePlanningPrompt", () => {
-  it("wraps title and user prompt in tags and omits the draft spec on round one", () => {
+  it("wraps title and user prompt and omits the draft spec on round one", () => {
     const out = composePlanningPrompt({
       title: "Dark mode",
       originalPrompt: "Add a toggle",
@@ -28,24 +28,27 @@ describe("composePlanningPrompt", () => {
     expect(out).not.toContain("<CurrentDraftSpec>");
   });
 
-  it("pairs each generated section with the author's comment and direction", () => {
+  it("renders each prior section with its generated content and the author's comment", () => {
     const out = composePlanningPrompt({
       title: "T",
       originalPrompt: "P",
       priorGap: gap,
       answers: {
-        sections: { architecture: { direction: "refine", comment: "use CSS vars" } },
+        sections: { "Data model": { direction: "refine", comment: "add a join table" } },
         questions: { q1: "all repos" },
         free_form: "ship it",
       },
     });
     expect(out).toContain("<CurrentDraftSpec>");
+    expect(out).toContain('<Section title="Overview">');
     expect(out).toContain("A planning Station.");
-    expect(out).toContain("- features port: persist lifecycle (touchpoints: lore.features)");
-    expect(out).toContain('<UserComment direction="refine">\nuse CSS vars\n</UserComment>');
+    expect(out).toContain('<Section title="Data model">');
+    expect(out).toContain("Diagrams: schema");
+    expect(out).toContain('<UserComment direction="refine">\nadd a join table\n</UserComment>');
+    expect(out).toContain("<OtherUserComments>\nship it\n</OtherUserComments>");
   });
 
-  it("resolves answered questions to their asked text", () => {
+  it("renders a section's question with its asked text and the author's answer", () => {
     const out = composePlanningPrompt({
       title: "T",
       originalPrompt: "P",
@@ -56,14 +59,13 @@ describe("composePlanningPrompt", () => {
     expect(out).toContain("<Answer>all repos</Answer>");
   });
 
-  it("marks unanswered questions and surfaces free-form as OtherUserComments", () => {
+  it("marks an unanswered question", () => {
     const out = composePlanningPrompt({
       title: "T",
       originalPrompt: "P",
       priorGap: gap,
-      answers: { sections: {}, questions: {}, free_form: "extra note" },
+      answers: { sections: {}, questions: {}, free_form: "" },
     });
     expect(out).toContain("<Answer>(unanswered)</Answer>");
-    expect(out).toContain("<OtherUserComments>\nextra note\n</OtherUserComments>");
   });
 });
