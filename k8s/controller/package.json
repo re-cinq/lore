@@ -1,0 +1,21 @@
+{
+  "name": "@re-cinq/lore-k8s-controller",
+  "version": "0.1.0",
+  "description": "Standalone controller for the Agent/Station/AgentDefinition CRDs (ADR-031). Watches Agent CRs and reconciles each into a Kubernetes Job stamped from its Station's pod template.",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

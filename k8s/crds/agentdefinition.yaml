@@ -1,0 +1,147 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agentdefinitions.lore.re-cinq.com
+spec:
+  group: lore.re-cinq.com
+  names:
+    kind: AgentDefinition
+    listKind: AgentDefinitionList
+    plural: agentdefinitions
+    singular: agentdefinition
+    shortNames:
+      - agentdef
+      - ad
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              description: The recipe an Agent runs from (ADR-030 / ADR-031). No image or compute — those are the Station's.
+              properties:
+                description:
+                  type: string
+                  description: Human summary for operators.
+                model:
+                  type: string
+                  description: Model id; also selects the tool adapter (claude-* → Claude). Null inherits.
+                prompt:
+                  type: string
+                  description: Task prompt TEMPLATE; may contain {placeholder} strings filled from an Agent's parameters.
+                allowed_tools:
+                  type: array
+                  description: Permission rules the tool may use without prompting, e.g. "Bash(npm run test:*)".
+                  items:
+                    type: string
+                disallowed_tools:
+                  type: array
+                  description: Scoped tool denials, e.g. "Bash(rm *)".
+                  items:
+                    type: string
+                permission_mode:
+                  type: string
+                  enum:
+                    - auto
+                    - bypass
+                  default: bypass
+                  description: Headless permission gate. bypass = grant all; auto = enforce the allow/deny lists.
+                max_turns:
+                  type: integer
+                  description: Cap on agentic turns; omit for uncapped.
+                resources:
+                  type: object
+                  description: Run-time resources the agent needs. Credentials are references, never literals.
+                  properties:
+                    env:
+                      type: array
+                      items:
+                        type: object
+                        required: [name, value]
+                        properties:
+                          name: { type: string }
+                          value: { type: string }
+                    secrets:
+                      type: array
+                      items:
+                        type: object
+                        required: [name, ref]
+                        properties:
+                          name: { type: string, description: "Env var the tool sees." }
+                          ref: { type: string, description: "Allowlisted secret-store key." }
+                    mcp_servers:
+                      type: array
+                      items:
+                        type: object
+                        required: [name, transport]
+                        properties:
+                          name: { type: string }
+                          transport: { type: string, enum: [stdio, http, sse] }
+                          command: { type: string }
+                          args:
+                            type: array
+                            items: { type: string }
+                          url: { type: string }
+                          headers_secret: { type: string }
+                    repos:
+                      type: array
+                      items:
+                        type: object
+                        required: [name, url]
+                        properties:
+                          name: { type: string }
+                          url: { type: string }
+                          ref: { type: string }
+                          path: { type: string }
+                          token_secret: { type: string }
+                output:
+                  type: object
+                  description: How the structured answer leaves the run (runner-owned fan-out).
+                  properties:
+                    format:
+                      type: string
+                      enum: [text, json, stream-json]
+                    schema:
+                      type: object
+                      description: Optional JSON Schema the result is validated against.
+                      x-kubernetes-preserve-unknown-fields: true
+                    select:
+                      type: array
+                      items:
+                        type: object
+                        required: [event]
+                        properties:
+                          event:
+                            type: string
+                            enum: [tool_call, message, tool_result, result, usage]
+                          tool: { type: string }
+                          role: { type: string, enum: [assistant, user] }
+                          contains: { type: string }
+                    sinks:
+                      type: array
+                      items:
+                        type: object
+                        required: [type]
+                        properties:
+                          type: { type: string, enum: [stdout, http, file] }
+                          url: { type: string }
+                          headers_secret: { type: string }
+                          path: { type: string }
+                tool_config:
+                  type: object
+                  description: Raw passthrough for tool-specific knobs not modelled (fallbackModel, effort, hooks, …).
+                  x-kubernetes-preserve-unknown-fields: true
+      additionalPrinterColumns:
+        - name: Model
+          type: string
+          jsonPath: .spec.model
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

@@ -1,0 +1,32 @@
+# Identity + permissions for ANOTHER in-cluster app to start runs by creating
+# Agent CRs (the launch-agent client, ADR-031). Scoped to the lore-agents
+# namespace and to Agents only — it can start/inspect runs, not touch Jobs/pods.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-launcher
+  namespace: lore-agents
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lore-agent-launcher
+  namespace: lore-agents
+rules:
+  - apiGroups: ["lore.re-cinq.com"]
+    resources: ["agents"]
+    verbs: ["create", "get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lore-agent-launcher
+  namespace: lore-agents
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lore-agent-launcher
+subjects:
+  - kind: ServiceAccount
+    name: agent-launcher
+    namespace: lore-agents

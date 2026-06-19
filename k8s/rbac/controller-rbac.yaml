@@ -1,0 +1,44 @@
+# The controller's identity and exactly the permissions it needs (ADR-031):
+# watch/patch Agents, read Stations + AgentDefinitions, manage Jobs, read pod logs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-controller
+  namespace: lore-agents
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lore-agent-controller
+rules:
+  - apiGroups: ["lore.re-cinq.com"]
+    resources: ["agents"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["lore.re-cinq.com"]
+    resources: ["agents/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["lore.re-cinq.com"]
+    resources: ["stations", "agentdefinitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lore-agent-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: lore-agent-controller
+subjects:
+  - kind: ServiceAccount
+    name: agent-controller
+    namespace: lore-agents

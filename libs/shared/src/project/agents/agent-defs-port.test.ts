@@ -68,4 +68,39 @@ describe("resolveAgentConfig", () => {
 
     expect(resolveAgentConfig(project, org, yamlGeneral)?.image).toBe("golang:1.23");
   });
+
+  it("inherits append_system_prompt from org when the project leaves it unset", () => {
+    const org: AgentDefinition = { ...yamlGeneral, append_system_prompt: "Add validated-by links." };
+    const project: AgentDefinition = { ...yamlGeneral, project_id: "33333333-3333-3333-3333-333333333333" };
+
+    expect(resolveAgentConfig(project, org, yamlGeneral)?.append_system_prompt).toBe("Add validated-by links.");
+  });
+
+  it("replaces the whole resources block from the highest layer that sets it", () => {
+    const org: AgentDefinition = { ...yamlGeneral, resources: { env: [{ name: "ORG", value: "1" }] } };
+    const project: AgentDefinition = {
+      ...yamlGeneral,
+      project_id: "44444444-4444-4444-4444-444444444444",
+      resources: { secrets: [{ name: "GITHUB_TOKEN", ref: "github-token" }] },
+    };
+
+    expect(resolveAgentConfig(project, org, yamlGeneral)?.resources).toEqual({
+      secrets: [{ name: "GITHUB_TOKEN", ref: "github-token" }],
+    });
+  });
+
+  it("resolves permission_mode and max_turns with project winning over org", () => {
+    const org: AgentDefinition = { ...yamlGeneral, permission_mode: "bypass", max_turns: 10 };
+    const project: AgentDefinition = {
+      ...yamlGeneral,
+      project_id: "55555555-5555-5555-5555-555555555555",
+      permission_mode: "auto",
+      max_turns: 40,
+    };
+
+    expect(resolveAgentConfig(project, org, yamlGeneral)).toMatchObject({
+      permission_mode: "auto",
+      max_turns: 40,
+    });
+  });
 });

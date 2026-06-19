@@ -1,0 +1,16 @@
+apiVersion: lore.re-cinq.com/v1alpha1
+kind: Agent
+metadata:
+  # Kubernetes appends a random suffix → a unique run name (the run id).
+  generateName: bug-fixer-run-
+  namespace: lore-agents
+  labels:
+    lore.re-cinq.com/ticket: ENG-417   # your own key — find later with findAgents({ labelSelector })
+spec:
+  stationRef: node-fixer               # references ONLY the Station; the recipe comes through it
+  targetRepo: re-cinq/lore
+  branch: fix/login-eng-417
+  parameters:                          # fill the recipe's {placeholders}
+    ticket: ENG-417
+    repo: re-cinq/lore
+    branch: fix/login-eng-417

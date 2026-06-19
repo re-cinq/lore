@@ -22,6 +22,16 @@ interface YamlTaskType {
   review_required?: boolean;
   model?: string;
   execution_mode?: string;
+  // Recipe fields (ADR-030) — optional; the yaml is the offline prompt-base.
+  description?: string;
+  append_system_prompt?: string;
+  allowed_tools?: string[];
+  disallowed_tools?: string[];
+  permission_mode?: "auto" | "bypass";
+  max_turns?: number;
+  resources?: AgentDefinition["resources"];
+  output?: AgentDefinition["output"];
+  tool_config?: Record<string, unknown>;
 }
 
 const READ_ONLY = "agent definitions are read-only without a database";
@@ -68,6 +78,15 @@ export class AgentDefsYaml implements AgentDefsPort {
             execution_mode: cfg.execution_mode ?? "claude-code",
             review_required: cfg.review_required ?? false,
             project_id: null,
+            description: cfg.description,
+            append_system_prompt: cfg.append_system_prompt,
+            allowed_tools: cfg.allowed_tools,
+            disallowed_tools: cfg.disallowed_tools,
+            permission_mode: cfg.permission_mode,
+            max_turns: cfg.max_turns,
+            resources: cfg.resources,
+            output: cfg.output,
+            tool_config: cfg.tool_config,
           });
         }
         // feature-planning's canonical prompt is the typed, parse-tested

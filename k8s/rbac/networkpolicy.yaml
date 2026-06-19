@@ -1,0 +1,23 @@
+# Firewall for a run's Job pod (matched by the label the controller stamps on it).
+# Egress limited to DNS + HTTPS — enough for GitHub / Anthropic / package registries.
+# (Add an internal-API rule here when the run needs to reach the Lore API.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lore-agent-job-egress
+  namespace: lore-agents
+spec:
+  podSelector:
+    matchLabels:
+      lore.re-cinq.com/component: job
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - ports:
+        - protocol: TCP
+          port: 443

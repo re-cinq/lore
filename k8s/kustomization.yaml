@@ -1,0 +1,15 @@
+# One-shot install of the standalone subsystem (ADR-031):
+#   kubectl apply -k k8s
+# Installs the namespace, the three CRDs, RBAC + NetworkPolicy, and the controller.
+# Lives at the k8s/ root so every referenced path sits below it (kustomize requires this).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deploy/namespace.yaml
+  - crds/agentdefinition.yaml
+  - crds/station.yaml
+  - crds/agent.yaml
+  - rbac/controller-rbac.yaml
+  - rbac/caller-rbac.yaml
+  - rbac/networkpolicy.yaml
+  - deploy/controller-deployment.yaml

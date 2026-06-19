@@ -1,0 +1,16 @@
+apiVersion: lore.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: bug-fixer
+  namespace: lore-agents
+spec:
+  model: claude-sonnet-4-6
+  # The prompt is a TEMPLATE — {placeholders} are filled per run from an Agent's parameters.
+  prompt: |
+    Fix the bug described in {ticket} on repo {repo}, branch {branch}. Open a PR when done.
+  permission_mode: auto
+  max_turns: 40
+  allowed_tools:
+    - "Bash(npm run test:*)"
+    - "Read(/src/**)"
+    - "Edit(/src/**)"

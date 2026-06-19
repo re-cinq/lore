@@ -1,0 +1,26 @@
+apiVersion: lore.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: node-fixer
+  namespace: lore-agents
+spec:
+  agentDefRef: bug-fixer          # which recipe runs here
+  deadlineMinutes: 30
+  successfulRunsHistoryLimit: 5    # keep the last 5 succeeded Agents
+  failedRunsHistoryLimit: 10
+  # A standard Kubernetes Pod template. The controller wires the recipe + rendered
+  # prompt into the container named "agent". For this first-version proof the agent
+  # container is a trivial image that just echoes what it was given and exits 0 —
+  # swap it for the real coding-agent runner later.
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - 'echo "[agent] model=$LORE_MODEL"; echo "[agent] prompt: $LORE_PROMPT"; echo CHANGES=0; sleep 3'
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits: { cpu: "250m", memory: "128Mi" }

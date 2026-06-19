@@ -14,13 +14,19 @@ import {
  * never reaches this adapter — it uses AgentDefsHttp.
  */
 
+// Recipe fields added in ADR-030. Order matches AGENT_INSERT_COLS / the param lists below.
+const RECIPE_COLS =
+  "description, api_version, append_system_prompt, allowed_tools, disallowed_tools, permission_mode, max_turns, resources, output, tool_config";
 // Qualified with the `a` alias: the resolve/list queries LEFT JOIN lore.repos,
 // which also has `name`/`id` columns, so unqualified selects are ambiguous.
 const JOIN_COLS =
-  "a.name, a.model, a.timeout_minutes, a.prompt, a.image, a.execution_mode, a.review_required, a.project_id";
+  `a.name, a.model, a.timeout_minutes, a.prompt, a.image, a.execution_mode, a.review_required, a.project_id, ${RECIPE_COLS
+    .split(", ")
+    .map((c) => `a.${c}`)
+    .join(", ")}`;
 // Unqualified for INSERT ... RETURNING (single table, no alias in scope).
 const RET_COLS =
-  "name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id";
+  `name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id, ${RECIPE_COLS}`;
 
 interface AgentRow {
   name: string;
@@ -31,7 +37,20 @@ interface AgentRow {
   execution_mode: string;
   review_required: boolean;
   project_id: string | null;
+  description: string | null;
+  api_version: string | null;
+  append_system_prompt: string | null;
+  allowed_tools: string[] | null;
+  disallowed_tools: string[] | null;
+  permission_mode: "auto" | "bypass" | null;
+  max_turns: number | null;
+  resources: AgentDefinition["resources"] | null;
+  output: AgentDefinition["output"] | null;
+  tool_config: Record<string, unknown> | null;
 }
+
+/** JSONB columns must be stringified — node-pg renders JS arrays as Postgres array literals. */
+const j = (v: unknown): string | null => (v == null ? null : JSON.stringify(v));
 
 const toDef = (r: AgentRow): AgentDefinition => ({
   name: r.name,
@@ -42,12 +61,63 @@ const toDef = (r: AgentRow): AgentDefinition => ({
   execution_mode: r.execution_mode,
   review_required: r.review_required,
   project_id: r.project_id,
+  description: r.description,
+  api_version: r.api_version,
+  append_system_prompt: r.append_system_prompt,
+  allowed_tools: r.allowed_tools,
+  disallowed_tools: r.disallowed_tools,
+  permission_mode: r.permission_mode,
+  max_turns: r.max_turns,
+  resources: r.resources,
+  output: r.output,
+  tool_config: r.tool_config,
 });
 
 const split = (rows: AgentRow[]) => ({
   project: rows.find((r) => r.project_id !== null) ?? null,
   org: rows.find((r) => r.project_id === null) ?? null,
 });
+
+// Shared INSERT shape for create + update (upsert). project_id resolves from the repo full_name.
+const INSERT_COLS = `name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id, ${RECIPE_COLS}`;
+const INSERT_VALS =
+  "$1, $2, $3, $4, $5, $6, $7, (SELECT id FROM lore.repos WHERE full_name = $8), $9, $10, $11, $12, $13, $14, $15, $16, $17, $18";
+const UPDATE_SET = [
+  "model",
+  "timeout_minutes",
+  "prompt",
+  "image",
+  "execution_mode",
+  "review_required",
+  ...RECIPE_COLS.split(", "),
+]
+  .map((c) => `${c} = EXCLUDED.${c}`)
+  .concat("updated_at = now()")
+  .join(",\n         ");
+
+const insertParams = (
+  d: Partial<AgentDefinitionInput> & { name: string },
+  repo: string,
+): unknown[] => [
+  d.name,
+  d.model ?? null,
+  d.timeout_minutes ?? null,
+  d.prompt ?? null,
+  d.image ?? null,
+  d.execution_mode ?? "claude-code",
+  d.review_required ?? false,
+  repo,
+  d.description ?? null,
+  d.api_version ?? null,
+  d.append_system_prompt ?? null,
+  j(d.allowed_tools),
+  j(d.disallowed_tools),
+  d.permission_mode ?? null,
+  d.max_turns ?? null,
+  j(d.resources),
+  j(d.output),
+  j(d.tool_config),
+];
 
 export class PgAgentDefs implements AgentDefsPort {
   constructor(
@@ -103,20 +173,10 @@ export class PgAgentDefs implements AgentDefsPort {
 
   async create(repo: string, def: AgentDefinitionInput): Promise<AgentDefinition> {
     const { rows } = await this.pool.query(
-      `INSERT INTO lore.agent_definitions
-         (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM lore.repos WHERE full_name = $8))
+      `INSERT INTO lore.agent_definitions (${INSERT_COLS})
+       VALUES (${INSERT_VALS})
        RETURNING ${RET_COLS}`,
-      [
-        def.name,
-        def.model,
-        def.timeout_minutes,
-        def.prompt,
-        def.image,
-        def.execution_mode,
-        def.review_required,
-        repo,
-      ],
+      insertParams(def, repo),
     );
     return toDef(rows[0] as AgentRow);
   }
@@ -128,28 +188,12 @@ export class PgAgentDefs implements AgentDefsPort {
   ): Promise<AgentDefinition> {
     // Upsert the project row so editing an inherited org default forks a row.
     const { rows } = await this.pool.query(
-      `INSERT INTO lore.agent_definitions
-         (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM lore.repos WHERE full_name = $8))
+      `INSERT INTO lore.agent_definitions (${INSERT_COLS})
+       VALUES (${INSERT_VALS})
        ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO UPDATE SET
-         model = EXCLUDED.model,
-         timeout_minutes = EXCLUDED.timeout_minutes,
-         prompt = EXCLUDED.prompt,
-         image = EXCLUDED.image,
-         execution_mode = EXCLUDED.execution_mode,
-         review_required = EXCLUDED.review_required,
-         updated_at = now()
+         ${UPDATE_SET}
        RETURNING ${RET_COLS}`,
-      [
-        name,
-        patch.model ?? null,
-        patch.timeout_minutes ?? null,
-        patch.prompt ?? null,
-        patch.image ?? null,
-        patch.execution_mode ?? "claude-code",
-        patch.review_required ?? false,
-        repo,
-      ],
+      insertParams({ ...patch, name }, repo),
     );
     return toDef(rows[0] as AgentRow);
   }

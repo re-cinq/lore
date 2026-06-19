@@ -1,0 +1,19 @@
+{
+  "name": "@re-cinq/lore-agent-client",
+  "version": "0.1.0",
+  "description": "One-call helpers for in-cluster apps to launch and track Agent CRs (ADR-031).",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.7.3"
+  }
+}

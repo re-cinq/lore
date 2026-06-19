@@ -1,0 +1,94 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agents.lore.re-cinq.com
+spec:
+  group: lore.re-cinq.com
+  names:
+    kind: Agent
+    listKind: AgentList
+    plural: agents
+    singular: agent
+    shortNames:
+      - agt
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - stationRef
+              description: One run. References a Station (recipe comes through it) + per-run parameters (ADR-031).
+              properties:
+                stationRef:
+                  type: string
+                  description: Name of the Station to run this Agent in.
+                taskId:
+                  type: string
+                  description: Optional external task id for correlation.
+                targetRepo:
+                  type: string
+                  description: "GitHub repo in owner/name format (optional)."
+                branch:
+                  type: string
+                  description: Git branch to work on (optional).
+                parameters:
+                  type: object
+                  description: >-
+                    Per-run values. Passed to the agent app as arguments and used to fill
+                    {placeholder} strings in the recipe's prompt.
+                  additionalProperties:
+                    type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Running
+                    - Succeeded
+                    - Failed
+                  description: Current phase of the run.
+                jobName:
+                  type: string
+                  description: Name of the Kubernetes Job created for this run.
+                startedAt:
+                  type: string
+                  format: date-time
+                completedAt:
+                  type: string
+                  format: date-time
+                exitCode:
+                  type: integer
+                output:
+                  type: string
+                  description: Summary output captured from the run.
+                prUrl:
+                  type: string
+                failureReason:
+                  type: string
+                  description: Human-readable reason if the run failed.
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Station
+          type: string
+          jsonPath: .spec.stationRef
+        - name: Repo
+          type: string
+          jsonPath: .spec.targetRepo
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
