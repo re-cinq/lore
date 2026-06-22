@@ -40,7 +40,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
 | `description` | string | yes | — | Primary natural-language instruction; max 10000 chars, non-empty. |
 | `task_type` | string | no | `"general"` | `feature-request` \| `onboard` \| `general` \| `runbook` \| `implementation` \| `gap-fill` \| `review`. Unknown → falls back to `general`. |
 | `target_repo` | string | no | — | `owner/repo`. Auto-detected from git remote when omitted. |
-| `priority` | string | no | `"normal"` | `normal` = backlog; `immediate` = GKE agent auto-executes within ~30s. |
+| `priority` | enum | no | `"normal"` | `normal` = backlog; `immediate` = GKE agent auto-executes within ~30s. |
 | `group_id` | string | no | — | Task-group UUID to link into a multi-repo feature rollup. |
 | `context` | object | no | — | Optional context for the agent: `spec_file`, `branch`, `seed_query`. |
 

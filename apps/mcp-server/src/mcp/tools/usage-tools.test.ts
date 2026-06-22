@@ -158,6 +158,25 @@ describe("lore_get_analytics", () => {
     expect(usageQuery?.text).toContain("created_at > current_date");
   });
 
+  it("filters the by_type query with WHERE TRUE (not t.TRUE) when period is all", async () => {
+    const queries: RecordedQuery[] = [];
+    const pool = {
+      query: async (text: string) => {
+        queries.push({ text });
+        if (/FROM pipeline\.llm_calls/.test(text)) return { rows: [{ calls: "0", input_tokens: "0", output_tokens: "0" }] };
+        if (/FILTER \(WHERE status = 'failed'\)/.test(text)) return { rows: [{ total: "0", succeeded: "0", failed: "0" }] };
+        return { rows: [] };
+      },
+    };
+    const analytics = registerWith(() => pool)["lore_get_analytics"];
+
+    await analytics({ period: "all" });
+
+    const byTypeQuery = queries.find((q) => /GROUP BY t\.task_type/.test(q.text));
+    expect(byTypeQuery?.text).toContain("WHERE TRUE GROUP BY");
+    expect(byTypeQuery?.text).not.toContain("t.TRUE");
+  });
+
   it("returns a PostgreSQL-required message when LORE_DB_HOST is unset", async () => {
     delete process.env.LORE_DB_HOST;
     const analytics = registerWith(() => null)["lore_get_analytics"];

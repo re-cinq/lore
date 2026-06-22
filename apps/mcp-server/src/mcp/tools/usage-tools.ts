@@ -80,7 +80,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
         const [usageResult, taskResult, byTypeResult] = await Promise.all([
           dbPoolRef.query(`SELECT count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`),
           dbPoolRef.query(`SELECT count(*) as total, count(*) FILTER (WHERE status IN ('pr-created', 'merged')) as succeeded, count(*) FILTER (WHERE status = 'failed') as failed FROM pipeline.tasks WHERE ${periodFilter}`),
-          dbPoolRef.query(`SELECT t.task_type, count(DISTINCT t.id) as tasks FROM pipeline.tasks t WHERE t.${periodFilter} GROUP BY t.task_type ORDER BY tasks DESC`),
+          dbPoolRef.query(`SELECT t.task_type, count(DISTINCT t.id) as tasks FROM pipeline.tasks t WHERE ${periodFilter} GROUP BY t.task_type ORDER BY tasks DESC`),
         ]);
 
         const analytics = {

@@ -36,7 +36,7 @@ WRITE side of spec-traceability: creates one ingestion pipeline task per request
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `repo` | string | no | — | Target repo as 'owner/repo'. Defaults to the repo detected from cwd git remote. |
-| `kinds` | string[] | no | — | Which kinds to ingest. Defaults to all three. |
+| `kinds` | `("specs"\|"adrs"\|"tests")[]` | no | — | Which kinds to ingest. Defaults to all three. |
 | `ref` | string | no | — | Branch name or commit SHA. Defaults to the repo's default branch. |
 | `force` | boolean | no | — | When true, re-processes all specs/adrs files even if content is unchanged. Has no effect on the tests kind. |
 

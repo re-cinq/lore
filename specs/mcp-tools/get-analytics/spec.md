@@ -31,7 +31,7 @@ Returns org-wide pipeline analytics for a time window: { period, usage: { llm_ca
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `period` | string | no | `"month"` | "today", "week", "month", or "all" (no time filter). |
+| `period` | enum | no | `"month"` | "today", "week", "month", or "all" (no time filter). |
 
 ## Behavior
 

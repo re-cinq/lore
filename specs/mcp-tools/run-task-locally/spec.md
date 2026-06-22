@@ -35,7 +35,7 @@ Starts a brand-new ad-hoc task as a detached background Claude Code process in a
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `description` | string | yes | — | Free-text instruction for the agent. Must reference the current repo; cross-repo references are refused with a wrong-repo warning. |
-| `task_type` | string | no | `"implementation"` | Kind of work: 'implementation' (code), 'general' (open-ended), 'runbook' (incident runbook), 'gap-fill' (missing docs). |
+| `task_type` | enum | no | `"implementation"` | Kind of work: 'implementation' (code), 'general' (open-ended), 'runbook' (incident runbook), 'gap-fill' (missing docs). |
 | `model` | string | no | — | Anthropic model id override for the spawned process (e.g. 'claude-opus-4-6'). |
 
 ## Behavior
