@@ -25,16 +25,18 @@ shared GKE server.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/spec-trace-tools.local.ts#L23)).
 
 - **name**: `lore_run_test`
-- **description** (verbatim): *"Run one test by its runner-native id via the
-  repo's test-command manifest; returns pass/fail + the covered code chunks.
-  Executes in your local sandbox; the shared cluster server refuses and tells you
-  to run in CI or locally."*
+- **description** (verbatim):
+
+```text
+Runs a single test by selector using the repo's .lore/test-commands.yml 'run' command; returns {passed: boolean, covered: [{file, startLine, endLine}]}. Use to execute ONE test and see what code it covers. Instead: to discover selectors first use lore_list_tests; to read built-graph coverage without executing use lore-query-trace; to rebuild the graph use lore_ingest_graph.
+Trusted-sandbox only — executes a shell command in your local checkout. The shared cluster server refuses and returns "Test commands run only in a trusted sandbox — run in CI or locally."
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `selector` | string | yes | — | Runner-native test id from `lore_list_tests` (e.g. pytest `path::Class::test`, vitest file+name, Go `TestX`). Substituted into the manifest's `run` command at the `{selector}` placeholder. |
+| `selector` | string | yes | — | Runner-native test id from lore_list_tests output; substituted into the manifest's run command at the {selector} placeholder. Format is runner-specific, e.g. 'tests/test_api.py::TestAuth::test_login' (pytest) or 'src/auth.test.ts > logs in' (vitest). |
 
 ## Behavior
 

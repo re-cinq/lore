@@ -25,22 +25,23 @@ LLM consumes directly.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/context-tools.ts#L94)).
 
 - **name**: `lore_assemble_context`
-- **description** (verbatim): *"Retrieve and assemble context from all sources
-  (repo, ADRs, memories, facts, episodes, graph) into a single structured block
-  optimized for LLM consumption. Replaces multiple get_context + lore_search_memory +
-  get_adrs calls. Uses configurable templates for task-type-specific context
-  ordering."*
+- **description** (verbatim):
+
+```text
+Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
+Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `query` | string | yes | — | Natural-language description of needed context. |
-| `template` | string | no | `"default"` | One of `default` \| `review` \| `implementation` \| `research`. Selects section ordering + budget profile. |
-| `max_tokens` | number | no | `8000` | Token budget; floor 2000. Research queries may raise to ~16000. |
-| `repo` | string | no | — | `owner/repo`. Auto-detected from the git remote when omitted. |
-| `agent_id` | string | no | — | Overrides the resolved agent id. |
-| `cross_repo` | boolean | no | `false` | Include context from linked repos. |
+| `query` | string | yes | — | Natural-language description of the context needed. Drives retrieval and ranking across all sources. |
+| `template` | string | no | `default` | Section-ordering profile. Recognized values: 'default' \| 'review' \| 'implementation' \| 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. |
+| `max_tokens` | number | no | `8000` | Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000. |
+| `repo` | string | no | — | 'owner/repo'. Auto-detected from the git remote when omitted. |
+| `agent_id` | string | no | — | Overrides the ambient agent id used to scope memories/facts. |
+| `cross_repo` | boolean | no | `false` | When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false. |
 
 The whole handler body is wrapped in `trackLatency('lore_assemble_context', …)` which
 records latency + success into `memory.audit_log` and an OTEL span.

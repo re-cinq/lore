@@ -23,14 +23,17 @@ unit of work without re-running a full readiness scan.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L317)).
 
 - **name**: `lore_complete_task`
-- **description** (verbatim): *"Mark a spec-task as completed and report any
-  newly unblocked tasks."*
+- **description** (verbatim):
+
+```text
+Marks a claimed ('running') spec-task as 'completed' and returns which dependents are now unblocked. (DB-only) Only 'running' tasks can be completed. Instead: lore_ready_tasks to pick the next item; lore_skip_task to dismiss a local notification; lore_cancel_task to cancel rather than complete.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `task_id` | string | yes | — | UUID of the pipeline task to complete. |
+| `task_id` | string | yes | — | Task id to complete. |
 
 ## Behavior
 

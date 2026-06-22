@@ -21,13 +21,15 @@ tears down the interval and removes the pending cache file.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L534)).
 
 - **name**: `lore_disable_task_notifications`
-- **description** (verbatim): *"Stop watching for pending pipeline tasks."*
+- **description** (verbatim):
+
+```text
+Stops the local pending-task notifier and removes the ~/.lore/pending-tasks.json cache. Undoes lore_enable_task_notifications. Idempotent.
+```
 
 ### Input schema (Zod)
 
-| Param | Type | Required | Default | Constraint / notes |
-|-------|------|----------|---------|--------------------|
-| _(none)_ | — | — | — | Empty object schema `{}`; no inputs. |
+This tool takes no parameters.
 
 ## Behavior
 

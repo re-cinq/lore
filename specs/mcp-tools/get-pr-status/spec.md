@@ -23,16 +23,18 @@ without scripting the GitHub REST API.
 Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L112)).
 
 - **name**: `lore_get_pr_status`
-- **description** (verbatim): *"Fetch live PR state from GitHub for a given repo
-  and PR number. Returns draft/open/checks-failing/changes-requested/approved/
-  merged/closed status plus check results and review details."*
+- **description** (verbatim):
+
+```text
+Fetches live PR state from GitHub and returns a derived computed_status (merged | closed | draft | checks-failing | changes-requested | approved | open) plus CI checks and reviews. Use this for the real-time PR/CI/review verdict. Instead: lore_get_pipeline_status for the Lore task's stored status and event timeline.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `repo` | string | yes | — | `owner/name`, e.g. `re-cinq/lore`. |
-| `pr_number` | number | yes | — | Pull request number. |
+| `repo` | string | yes | — | `owner/repo` format. |
+| `pr_number` | number | yes | — | PR number (integer from the PR URL, not a UUID). |
 
 ## Behavior
 

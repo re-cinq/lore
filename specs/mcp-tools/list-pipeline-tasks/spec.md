@@ -22,15 +22,18 @@ must fail loudly rather than silently returning everything.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L131)).
 
 - **name**: `lore_list_pipeline_tasks`
-- **description** (verbatim): *"List pipeline tasks with optional filtering by
-  status. Returns tasks ordered by creation time, newest first."*
+- **description** (verbatim):
+
+```text
+Lists pipeline tasks newest-first as JSON, optionally filtered by status. General browse view across all tasks and statuses. Instead: lore_list_pending_tasks for unclaimed work to grab locally; lore_ready_tasks for dependency-ready spec-tasks in one repo; lore_list_task_group for one feature's group; lore_list_local_tasks for tasks running on your machine.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `status` | string | no | — | Filter, e.g. `pending` \| `queued` \| `running` \| `pr-created` \| `review` \| `merged` \| `failed` \| `cancelled`. Omit for all. Validated in DB mode. |
-| `limit` | number | no | `20` | Clamped to `min(limit, 100)`. |
+| `status` | string | no | — | Filter by status: `pending` \| `queued` \| `running` \| `pr-created` \| `review` \| `merged` \| `failed` \| `cancelled`. Omit for all. |
+| `limit` | number | no | `20` | Max rows to return. |
 
 ## Behavior
 

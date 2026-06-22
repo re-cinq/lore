@@ -23,15 +23,18 @@ search while keeping its history intact.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L112)).
 
 - **name**: `lore_delete_memory`
-- **description** (verbatim): *"Soft-delete a memory (preserved in history but
-  excluded from search)."*
+- **description** (verbatim):
+
+```text
+Soft-deletes a memory by key (hides it from read/list/search; version history is retained) and returns {key, deleted: true}. Scope is agent_id, not repo. Use to retire a stale or mistaken memory. Instead: lore_cancel_local_task to stop a local background task; lore_cancel_task to cancel a pipeline task — those are unrelated.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `key` | string | yes | — | Memory key to delete. |
-| `agent_id` | string | no | — | Override the resolved agent ID. |
+| `key` | string | yes | — | Exact memory key to soft-delete. |
+| `agent_id` | string | no | — | — |
 
 ## Behavior
 

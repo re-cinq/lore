@@ -23,14 +23,17 @@ pending file written by the notifier.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L429)).
 
 - **name**: `lore_list_pending_tasks`
-- **description** (verbatim): *"Show pending pipeline tasks that can be claimed
-  and run locally. Shows tasks across all repos by default."*
+- **description** (verbatim):
+
+```text
+Shows unclaimed 'pending' backlog tasks grouped by repo — the 'what can I grab' view. Falls back to ~/.lore/pending-tasks.json (local notifier cache) when the API is unreachable; the local fallback ignores the repo filter. After choosing one, run it with lore_claim_and_run_locally. Instead: lore_list_pipeline_tasks for a general status-filterable listing; lore_ready_tasks for dependency-ready spec-tasks in one repo.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `repo` | string | no | — | Filter by `owner/repo`. Omit to show all repos. |
+| `repo` | string | no | — | `owner/repo` filter for the API view. Omit for all repos. |
 
 ## Behavior
 

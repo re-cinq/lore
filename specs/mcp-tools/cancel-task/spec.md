@@ -23,8 +23,11 @@ or misleading.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L163)).
 
 - **name**: `lore_cancel_task`
-- **description** (verbatim): *"Cancel a pipeline task. If the task has a running
-  agent, attempts to cancel it."*
+- **description** (verbatim):
+
+```text
+Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort stopping any running GKE agent. (DB-only) Instead: lore_cancel_local_task to stop a task running in a local worktree; lore_retry_task to re-run a failed task rather than stop a live one. Rejected for tasks already in merged/failed/cancelled state.
+```
 
 ### Input schema (Zod)
 

@@ -22,14 +22,17 @@ SQL by hand.
 Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L202)).
 
 - **name**: `lore_list_task_group`
-- **description** (verbatim): *"List all tasks in a task group. Task groups
-  coordinate multi-repo features."*
+- **description** (verbatim):
+
+```text
+Lists every task in one task_group_id with a completed/total rollup — the view for a single multi-repo feature's progress. (DB-only) Instead: lore_list_pipeline_tasks for an unscoped newest-first listing of all tasks.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `group_id` | string | yes | — | Task-group UUID. |
+| `group_id` | string | yes | — | Task-group UUID (the value passed as `group_id` to `lore_create_pipeline_task`). |
 
 ## Behavior
 

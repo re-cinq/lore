@@ -24,16 +24,18 @@ and removes it from the local pending list either way.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L115)).
 
 - **name**: `lore_claim_and_run_locally`
-- **description** (verbatim): *"Claim a pending pipeline task and run it locally
-  in the background. The task runs in a git worktree using your Claude Code
-  subscription (zero API cost)."*
+- **description** (verbatim):
+
+```text
+Claims an EXISTING pending pipeline task by id and runs it on your local machine (your Claude subscription), then removes it from the pending list. ingest-* types run in-process with no worktree; all others spawn a background Claude Code worktree task and return task id, branch, log file, and PID. Instead of this: to start a BRAND-NEW task from a description use lore_run_task_locally; to register a task for the GKE agent use lore_create_pipeline_task.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `task_id` | string | yes | — | Task ID to claim (from `lore_list_pending_tasks`). Matched by exact id or id prefix. |
-| `model` | string | no | — | Model override. |
+| `task_id` | string | yes | — | Id or unique id-prefix of the pending task (from lore_list_pending_tasks); must be in 'pending' status. |
+| `model` | string | no | — | Anthropic model id override for non-ingest tasks (e.g. 'claude-opus-4-6'). |
 
 ## Behavior
 

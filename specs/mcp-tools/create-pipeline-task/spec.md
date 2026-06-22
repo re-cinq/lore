@@ -27,23 +27,22 @@ the task will be picked up.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L25)).
 
 - **name**: `lore_create_pipeline_task`
-- **description** (verbatim): *"Create a pipeline task. By default tasks go to
-  the backlog (priority=normal) for developers to pick up locally. Set
-  priority=immediate to have the GKE agent auto-execute it. Available types:
-  feature-request (PM intent → spec + tasks), onboard (add repo to Lore),
-  general (open-ended), runbook (write ops runbook), implementation (code from
-  spec), gap-fill (draft missing docs), review (review a PR)."*
+- **description** (verbatim):
+
+```text
+Enqueues a new server-side pipeline task and returns its UUID and a pickup hint. priority=normal lands in the backlog; priority=immediate the GKE agent picks up within ~30s. This tool only enqueues — it never runs anything on your machine. Instead: lore_run_task_locally to start a new ad-hoc task in a local worktree NOW; lore_claim_and_run_locally to run an existing backlog task locally; lore_sync_tasks to materialize a tasks.md checklist as spec-tasks (not this tool).
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `description` | string | yes | — | Primary instruction. Rejected if empty/whitespace; shared CRUD rejects > 10000 chars. |
-| `task_type` | string | no | `"general"` | One of `feature-request` \| `onboard` \| `general` \| `runbook` \| `implementation` \| `gap-fill` \| `review`. Unknown → falls back to `general`. |
-| `target_repo` | string | no | — | `owner/repo`. Auto-detected from the git remote when omitted; then `getDefaultRepo(task_type)` in shared CRUD. |
-| `priority` | enum | no | `"normal"` | `normal` (backlog, claimed locally) \| `immediate` (GKE agent auto-executes). |
-| `group_id` | string | no | — | Task-group UUID for multi-repo coordination. |
-| `context` | object | no | — | `{ spec_file?: boolean, branch?: string, seed_query?: string }`. Passed through as the task's context bundle. |
+| `description` | string | yes | — | Primary natural-language instruction; max 10000 chars, non-empty. |
+| `task_type` | string | no | `"general"` | `feature-request` \| `onboard` \| `general` \| `runbook` \| `implementation` \| `gap-fill` \| `review`. Unknown → falls back to `general`. |
+| `target_repo` | string | no | — | `owner/repo`. Auto-detected from git remote when omitted. |
+| `priority` | string | no | `"normal"` | `normal` = backlog; `immediate` = GKE agent auto-executes within ~30s. |
+| `group_id` | string | no | — | Task-group UUID to link into a multi-repo feature rollup. |
+| `context` | object | no | — | Optional context for the agent: `spec_file`, `branch`, `seed_query`. |
 
 ## Behavior
 

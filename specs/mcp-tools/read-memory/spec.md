@@ -22,16 +22,19 @@ specific past version of a memory that has since changed.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L84)).
 
 - **name**: `lore_read_memory`
-- **description** (verbatim): *"Retrieve a specific memory by key. Supports
-  version history."*
+- **description** (verbatim):
+
+```text
+Fetches one memory by its exact key and returns the stored row as JSON (latest version by default, or full history/specific version on request). Use only when you already know the precise key. Instead: lore_search_memory when searching by meaning; lore_list_memories to enumerate keys.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `key` | string | yes | — | Memory key to read. |
+| `key` | string | yes | — | Exact memory key; no wildcards or fuzzy matching. |
 | `agent_id` | string | no | — | Override the resolved agent ID. |
-| `version` | string | no | — | `"all"` for full history, or a numeric version string. Omit for latest. |
+| `version` | string | no | — | "all" for full history newest-first, or a numeric string for one specific version. Omit for the latest non-deleted version. |
 
 ## Behavior
 

@@ -22,16 +22,19 @@ accumulates many memories. Expired and soft-deleted memories must not appear.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L136)).
 
 - **name**: `lore_list_memories`
-- **description** (verbatim): *"List memories for the current repo. Auto-detects
-  which repo you're in."*
+- **description** (verbatim):
+
+```text
+Lists memory keys for the current repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `agent_id` | string | no | — | Scope to an agent when no repo is detected. |
-| `limit` | number | no | `50` | Max results. |
-| `offset` | number | no | `0` | Pagination offset. |
+| `agent_id` | string | no | — | Agent scope when no repo is detected (ignored when repo is detected). |
+| `limit` | number | no | `50` | — |
+| `offset` | number | no | `0` | Rows to skip for pagination (DB path only; not forwarded over proxy). |
 
 ## Behavior
 

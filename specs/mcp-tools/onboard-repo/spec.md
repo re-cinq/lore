@@ -23,15 +23,17 @@ pipeline task.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/repo-tools.ts#L34)).
 
 - **name**: `lore_onboard_repo`
-- **description** (verbatim): *"Onboard a GitHub repo: creates branch with
-  CLAUDE.md, AGENTS.md and PR template, opens a PR, and registers the repo in
-  lore.repos."*
+- **description** (verbatim):
+
+```text
+Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status } (DB-only). Re-onboarding an existing repo refreshes onboarded_at. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `full_name` | string | yes | — | Repository in `"owner/repo"` format (e.g., `"re-cinq/lore"`). |
+| `full_name` | string | yes | — | "owner/repo" format; both segments must be non-empty. |
 
 ## Behavior
 
