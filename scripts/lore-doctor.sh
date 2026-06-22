@@ -24,8 +24,8 @@ echo ""
 
 # 1. MCP server entry point
 check "MCP server built" \
-  test -f "$LORE_DIR/mcp-server/dist/index.js" || \
-  echo "     Fix: cd $LORE_DIR/mcp-server && npm install && npm run build"
+  test -f "$LORE_DIR/apps/mcp-server/dist/index.js" || \
+  echo "     Fix: cd $LORE_DIR && npm install && npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-mcp"
 
 # 2. specify CLI (optional — warn but don't count as failure)
 if command -v specify >/dev/null 2>&1; then

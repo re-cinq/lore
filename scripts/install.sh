@@ -53,23 +53,15 @@ install_context() {
 # --- 2. Build MCP server -----------------------------------------------------
 build_mcp_server() {
   CURRENT_STEP="build MCP server"
-  # Build shared package first (MCP server depends on @re-cinq/lore-shared)
-  echo "[lore] Building shared package ..."
-  cd "$LORE_DIR/shared"
-  if [ ! -d node_modules ] || [ package.json -nt node_modules/.package-lock.json ] 2>/dev/null; then
-    npm install --silent 2>&1 || true
-  fi
-  npm run build 2>&1 || { echo "[lore] Error: shared package build failed."; return 1; }
-  cd - >/dev/null
-
-  echo "[lore] Building MCP server ..."
-  cd "$LORE_DIR/mcp-server"
-  # Only reinstall if node_modules is missing or package-lock changed
+  # Monorepo (npm workspaces): one install at the repo root wires up every
+  # workspace. @re-cinq/lore-mcp only needs @re-cinq/lore-shared built first.
+  cd "$LORE_DIR"
   if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ] 2>/dev/null; then
-    rm -rf node_modules
-    npm ci --silent 2>&1 || { echo "[lore] Error: npm ci failed. Try: cd $LORE_DIR/mcp-server && npm install"; return 1; }
+    echo "[lore] Installing workspace dependencies ..."
+    npm ci --silent 2>&1 || npm install --silent 2>&1 || { echo "[lore] Error: npm install failed. Try: cd $LORE_DIR && npm install"; return 1; }
   fi
-  npm run build 2>&1 || { echo "[lore] Error: build failed."; return 1; }
+  echo "[lore] Building shared + MCP server ..."
+  npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-mcp 2>&1 || { echo "[lore] Error: build failed."; return 1; }
   cd - >/dev/null
 }
 
@@ -133,7 +125,7 @@ merge_settings() {
     fi
 
     claude mcp add lore-context node \
-      "$LORE_DIR/mcp-server/dist/index.js" \
+      "$LORE_DIR/apps/mcp-server/dist/index.js" \
       "${MCP_ENV_ARGS[@]}" \
       2>/dev/null && echo "[lore] MCP server registered via claude CLI" || \
       echo "[lore] Warning: claude mcp add failed, falling back to settings.json"

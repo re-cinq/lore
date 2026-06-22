@@ -97,8 +97,7 @@ if [ "$LORE_STATION_BACKEND" = "docker" ] && ! docker image inspect "$LORE_RUNNE
 fi
 
 # 2b. web-ui auth (NextAuth). Needs a URL + secret locally. Generate the secret
-#     once and persist it (gitignored) so sessions survive restarts. GitHub OAuth
-#     creds must be supplied by the user (exported before 'npm start').
+#     once and persist it (gitignored) so sessions survive restarts.
 export NEXTAUTH_URL="http://localhost:3000"
 SECRET_FILE="$ROOT/.lore-nextauth-secret"
 if [ ! -s "$SECRET_FILE" ]; then
@@ -106,10 +105,15 @@ if [ ! -s "$SECRET_FILE" ]; then
 fi
 export NEXTAUTH_SECRET="$(cat "$SECRET_FILE")"
 
-if [ -z "${GITHUB_OAUTH_CLIENT_ID:-}" ] || [ -z "${GITHUB_OAUTH_CLIENT_SECRET:-}" ]; then
-  log "WARNING: GITHUB_OAUTH_CLIENT_ID / GITHUB_OAUTH_CLIENT_SECRET not set — web-ui login will fail."
-  log "         Create a GitHub OAuth app with callback http://localhost:3000/api/auth/callback/github,"
-  log "         then export both vars before running 'npm start'."
+# web-ui login uses GitHub OAuth (apps/web-ui/src/lib/auth-options.ts). The creds
+# live in apps/web-ui/.env.local, which `next dev` loads directly — so check there,
+# not just the shell env, to avoid a false alarm once they're set.
+if ! grep -qE '^GITHUB_OAUTH_CLIENT_ID=.+' "$ROOT/apps/web-ui/.env.local" 2>/dev/null \
+   && [ -z "${GITHUB_OAUTH_CLIENT_ID:-}" ]; then
+  log "GitHub OAuth not configured — web-ui login will fail until you set it up:"
+  log "  1. Create an OAuth app: https://github.com/settings/developers (New OAuth App)"
+  log "     Homepage http://localhost:3000  ·  Callback http://localhost:3000/api/auth/callback/github"
+  log "  2. Put GITHUB_OAUTH_CLIENT_ID / GITHUB_OAUTH_CLIENT_SECRET in apps/web-ui/.env.local, then restart."
 fi
 
 # 3. web-ui deps live outside the workspace — install on first run.
@@ -119,20 +123,22 @@ if [ ! -d "$ROOT/apps/web-ui/node_modules" ]; then
 fi
 
 # 4. Build once so 'node --watch dist/index.js' has something to run cold.
-log "Building shared, mcp-server, agent..."
-npm run build -w @re-cinq/lore-shared
-npm run build -w @re-cinq/lore-mcp
-npm run build -w @re-cinq/lore-floor
+#    Order matters: floor imports @re-cinq/lore-runner and mcp imports
+#    @re-cinq/lore-shared, so dependencies must be built first. The root
+#    `build` script encodes the canonical order (shared -> runner -> mcp -> floor).
+log "Building shared, runner, mcp-server, agent..."
+npm run build
 
 # 5. Run everything with live reload — one slot per process so -k kills all.
 #    Each TS service gets a tsc --watch (recompile) + node --watch (restart) pair.
 #    start:watch watches both ./dist and ../shared/dist, so a shared-package edit
 #    recompiles (shared tsc) and restarts the dependent services too.
 #
-#    Teardown: concurrently runs via setsid in its OWN process group, detached
-#    from the TTY. Ctrl-C reaches only this script, whose trap signals the whole
-#    group — node --watch children ignore plain SIGTERM, so we escalate to
-#    SIGKILL. This guarantees a clean stop with no orphaned watchers.
+#    Teardown: concurrently runs in its OWN process group, created via bash
+#    job-control (set -m) so it works on macOS too (which has no setsid). Ctrl-C
+#    reaches only this script, whose trap signals the whole group — node --watch
+#    children ignore plain SIGTERM, so we escalate to SIGKILL. This guarantees a
+#    clean stop with no orphaned watchers.
 STACK_PGID=""
 cleanup() {
   trap - INT TERM EXIT
@@ -151,7 +157,10 @@ trap cleanup INT TERM EXIT
 free_stale_ports
 
 log "Starting all components..."
-setsid npx concurrently -k \
+# set -m puts the backgrounded stack in its own process group (PGID == PID) on
+# both macOS and Linux — a portable stand-in for `setsid`.
+set -m
+npx concurrently -k \
   -n "shared,mcp-tsc,mcp,agent-tsc,agent,ui" \
   -c "blue,green,greenBright,magenta,magentaBright,cyan" \
   "npm run dev -w @re-cinq/lore-shared" \
@@ -161,4 +170,5 @@ setsid npx concurrently -k \
   "npm run start:watch -w @re-cinq/lore-floor" \
   "npm --prefix apps/web-ui run dev" &
 STACK_PGID=$!
+set +m
 wait "$STACK_PGID"
