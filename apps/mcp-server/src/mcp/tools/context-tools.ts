@@ -6,6 +6,7 @@ import { globSync } from "glob";
 import { hybridSearch, isDbAvailable } from "../../platform/db.js";
 import { isMemoryDbAvailable } from "../../features/memory/memory.js";
 import { assembleContext } from "../../features/context/context-assembly.js";
+import { resolveCrossRepo } from "../../features/context/cross-repo.js";
 import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
 import { traceRetrieval } from "../../platform/otel.js";
 import { ToolDeps, makeTrackLatency, proxyGetApi, withReadCache, unreachableError, deniedError } from "./deps.js";
@@ -116,9 +117,17 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
               return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
             }
             const resolvedRepo = repo || detectCurrentRepo() || "";
-            const params = new URLSearchParams({ query, template, repo: resolvedRepo });
+            // Forward the knobs the backend honors. cross_repo=false is the
+            // no-op default (the server resolves the settings fallback), so it
+            // is only sent when true. The same extras seed the cache key so a
+            // 16000-token request is never served an 8000-token cached body.
+            const extras: Record<string, string> = {};
+            if (max_tokens) extras.max_tokens = String(max_tokens);
+            if (cross_repo) extras.cross_repo = "true";
+            if (agent_id) extras.agent_id = agent_id;
+            const params = new URLSearchParams({ query, template, repo: resolvedRepo, ...extras });
             const proxied = await withReadCache(
-              { tool: "lore_assemble_context", args: { query, template, repo: resolvedRepo }, repo: resolvedRepo || undefined, ttlSeconds: 600 },
+              { tool: "lore_assemble_context", args: { query, template, repo: resolvedRepo, ...extras }, repo: resolvedRepo || undefined, ttlSeconds: 600 },
               async () => {
                 const r = await proxyGetApi(`/api/context?${params.toString()}`);
                 if (!r.ok) return r;
@@ -134,14 +143,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
             if (proxied.reason === "denied") return deniedError("lore_assemble_context", proxied.detail);
             return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
           }
-          // Resolve cross_repo: explicit param wins, then check repo settings
-          let enableCrossRepo = cross_repo;
-          if (!enableCrossRepo && repo && dbPoolRef) {
-            try {
-              const { rows } = await dbPoolRef.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
-              if (rows[0]?.settings?.cross_repo === true) enableCrossRepo = true;
-            } catch { /* non-fatal */ }
-          }
+          const enableCrossRepo = await resolveCrossRepo(dbPoolRef, repo, cross_repo);
           const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id, enableCrossRepo);
           if (!result.text || result.text.trim().length === 0) {
             return { content: [{ type: "text" as const, text: "No relevant context found for this query." }] };
