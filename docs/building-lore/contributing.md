@@ -30,6 +30,25 @@ Useful sub-commands:
 
 On first run, `scripts/infra/setup-local-schema.sh` bootstraps the `lore`/`lore_ui` roles, the pgvector extension, and all schemas by shimming `kubectl` → `docker exec` so the existing `setup-*.sh` scripts run unmodified against the container (no SQL duplication). It then applies the `ui-helm/migrations/*.sql` incremental migrations the same way the GKE Helm hook does — tracked in `lore.schema_migrations`, in filename order, one transaction per file, skipping already-applied ones — so migration-added tables exist locally even though local dev has no Helm hook. `npm start` runs this automatically once Postgres is ready.
 
+### Logging into the web UI
+
+The web UI (`:3000`) is gated by NextAuth with GitHub OAuth, so a one-time OAuth app is required before you can sign in:
+
+1. Create a GitHub OAuth app at https://github.com/settings/developers → **New OAuth App**:
+   - **Homepage URL:** `http://localhost:3000`
+   - **Authorization callback URL:** `http://localhost:3000/api/auth/callback/github`
+2. Register it, copy the **Client ID**, and **Generate a new client secret**.
+3. Put both in `apps/web-ui/.env.local` (gitignored, auto-loaded by `next dev`):
+
+   ```
+   GITHUB_OAUTH_CLIENT_ID=...
+   GITHUB_OAUTH_CLIENT_SECRET=...
+   ```
+
+4. Restart `npm start` so the web-ui reloads `.env.local`, then **Sign in with GitHub**.
+
+Optionally set `GITHUB_ALLOWED_ORG` in the same file to restrict login to one org's members (unset = any GitHub account). The callback URL must match exactly, or GitHub returns a `redirect_uri` error.
+
 ## Project structure
 
 ```
