@@ -28,4 +28,4 @@ COPY --from=builder /app/apps/mcp-server/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/mcp-server/dist ./dist
 COPY apps/mcp-server/templates ./templates
-ENTRYPOINT ["node", "dist/index.js"]
+ENTRYPOINT ["node", "dist/server-remote.js"]

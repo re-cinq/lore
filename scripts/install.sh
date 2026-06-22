@@ -125,7 +125,7 @@ merge_settings() {
     fi
 
     claude mcp add lore-context node \
-      "$LORE_DIR/apps/mcp-server/dist/index.js" \
+      "$LORE_DIR/apps/mcp-server/dist/server-local.js" \
       "${MCP_ENV_ARGS[@]}" \
       2>/dev/null && echo "[lore] MCP server registered via claude CLI" || \
       echo "[lore] Warning: claude mcp add failed, falling back to settings.json"

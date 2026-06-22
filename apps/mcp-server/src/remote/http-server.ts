@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { traceHttp } from "../platform/otel.js";
-import { handleApiRoute } from "../api/routes.js";
+import { handleApiRoute } from "./routes.js";
 
 const MAX_BODY_BYTES = 1_048_576; // 1MB
 

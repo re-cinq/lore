@@ -122,7 +122,7 @@ if [ ! -d "$ROOT/apps/web-ui/node_modules" ]; then
   npm --prefix apps/web-ui install
 fi
 
-# 4. Build once so 'node --watch dist/index.js' has something to run cold.
+# 4. Build once so 'node --watch dist/server-remote.js' has something to run cold.
 #    Order matters: floor imports @re-cinq/lore-runner and mcp imports
 #    @re-cinq/lore-shared, so dependencies must be built first. The root
 #    `build` script encodes the canonical order (shared -> runner -> mcp -> floor).
