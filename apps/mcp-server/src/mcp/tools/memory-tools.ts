@@ -48,13 +48,13 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_write_memory",
-    `Stores one curated, addressable key/value memory scoped to the auto-detected current repo (or, when no repo is detected, scoped to the agent_id instead of a repo) and returns the write result {key, version, agent_id, created_at}. Writes are versioned (a repeat key bumps version, never overwrites) and, when a repo is detected, shared org-wide with every developer in the same repo; with no repo detected the memory is agent-scoped (not repo-shared). Use this when you have a nugget you want to retrieve later by a key YOU choose — a decision, convention, correction, or session summary. For raw uncurated text you want passively stored with auto fact-extraction and no chosen key, use lore_write_episode instead. This is a WRITE: it embeds the value, invalidates memory-derived read caches (search/read/list/assemble), and runs against the local DB when LORE_DB_HOST is set, else proxies to /api/memory over LORE_API_URL (write scope), with a ~/.lore file fallback only when no API is configured.`,
+    `Stores one curated key/value memory (versioned, repo-scoped when a repo is detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.`,
     {
-      key: z.string().describe("Caller-chosen retrieval key, slash-namespaced by convention. Required. Example: 'auth-pattern' or 'session-summary/2026-03-30'."),
-      value: z.string().describe("The memory text to store; this exact string is the canonical stored value and is embedded for semantic search. Required. Example: 'Auth tokens are validated in middleware/auth.ts, never in route handlers.'"),
-      agent_id: z.string().optional().describe("Override the resolved agent ID for this write. Omit to use the ambient agent (LORE_AGENT_ID env / ~/.lore/agent-id). Example: 'agent-ci-bot'."),
-      ttl: z.number().optional().describe("Time-to-live in seconds; sets expires_at relative to now. Omit for a permanent memory (no expiry). Example: 86400 for one day."),
-      extract_facts: z.boolean().optional().describe("When true, fire async fact extraction from value (fire-and-forget, does not block the response). Omit/false to store the memory only. Example: true."),
+      key: z.string().describe("Caller-chosen retrieval key; slash-namespaced by convention, e.g. 'session-summary/2026-03-30'."),
+      value: z.string(),
+      agent_id: z.string().optional(),
+      ttl: z.number().optional().describe("Time-to-live in seconds. Omit for no expiry."),
+      extract_facts: z.boolean().optional().describe("When true, triggers async fact extraction from value (fire-and-forget)."),
     },
     async ({ key, value, agent_id, ttl, extract_facts }) => {
       try {
@@ -97,11 +97,11 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_read_memory",
-    `Fetches one memory by its EXACT key and returns the stored row as JSON (latest non-deleted version by default; the full version history or a single past version on request). Use this only when you already know the precise key. If you are searching by meaning or do not know the key, use lore_search_memory; to enumerate keys for the current repo, use lore_list_memories. Returns the matched row(s), or the text 'Memory "<key>" not found.' when the key has no live version. This is a read: it runs against the local DB when LORE_DB_HOST is set, else a short-TTL (~5min) cached proxy to /api/memory over LORE_API_URL (read scope), with a ~/.lore file fallback when no API is configured.`,
+    `Fetches one memory by its exact key and returns the stored row as JSON (latest version by default, or full history/specific version on request). Use only when you already know the precise key. Instead: lore_search_memory when searching by meaning; lore_list_memories to enumerate keys.`,
     {
-      key: z.string().describe("Exact memory key to read; no wildcards or fuzzy matching. Required. Example: 'auth-pattern'."),
-      agent_id: z.string().optional().describe("Override the resolved agent ID. Omit to use the ambient agent. Example: 'agent-ci-bot'."),
-      version: z.string().optional().describe('Which version to return: "all" for the full history newest-first, or a numeric version string for one specific version. Omit for the latest non-deleted version. Examples: "all", "3".'),
+      key: z.string().describe("Exact memory key; no wildcards or fuzzy matching."),
+      agent_id: z.string().optional(),
+      version: z.string().optional().describe('"all" for full history newest-first, or a numeric string for one specific version. Omit for the latest non-deleted version.'),
     },
     async ({ key, agent_id, version }) => {
       try {
@@ -129,10 +129,10 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_delete_memory",
-    `Soft-deletes a memory by key for the resolved agent and returns {key, deleted: true}. Soft-delete flips is_deleted on every version row of that agent+key so it stops appearing in lore_read_memory, lore_list_memories, and lore_search_memory, while version history (memory.memory_versions) is kept intact — this is not a hard purge and there is no restore here. Scope is agent_id, NOT repo. Use this to retire a stale or mistaken memory; to remove a background task running on your own machine use lore_cancel_local_task, and to cancel a server-side pipeline task use lore_cancel_task — those are unrelated. This is a WRITE: it invalidates memory-derived read caches, runs against the local DB when LORE_DB_HOST is set, else proxies to /api/memory over LORE_API_URL (write scope), with a ~/.lore file fallback when no API is configured.`,
+    `Soft-deletes a memory by key (hides it from read/list/search; version history is retained) and returns {key, deleted: true}. Scope is agent_id, not repo. Use to retire a stale or mistaken memory. Instead: lore_cancel_local_task to stop a local background task; lore_cancel_task to cancel a pipeline task — those are unrelated.`,
     {
-      key: z.string().describe("Exact memory key to soft-delete. Required. Example: 'session-summary/2026-03-30'."),
-      agent_id: z.string().optional().describe("Override the resolved agent ID; deletion is scoped to this agent and key. Omit to use the ambient agent. Example: 'agent-ci-bot'."),
+      key: z.string().describe("Exact memory key to soft-delete."),
+      agent_id: z.string().optional(),
     },
     async ({ key, agent_id }) => {
       try {
@@ -158,11 +158,11 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_list_memories",
-    `Lists memory keys for the auto-detected current repo, newest-first and paginated, returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Expired and soft-deleted memories are excluded. Scope precedence: the detected repo wins; with no repo it falls back to the given agent_id; with neither it lists org-wide. Use this to browse what memories exist by key without ranking. To find memories by meaning rather than enumerate them, use lore_search_memory; to fetch one specific memory's value, use lore_read_memory. This is a read: it runs against the local DB when LORE_DB_HOST is set, else a short-TTL (~5min) cached proxy to /api/memory over LORE_API_URL (read scope; offset is not forwarded over the proxy), with a ~/.lore file fallback when no API is configured.`,
+    `Lists memory keys for the current repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.`,
     {
-      agent_id: z.string().optional().describe("Agent to scope to when no repo is detected (ignored when a repo is detected, since repo scope wins). Omit for repo or org-wide scope. Example: 'agent-ci-bot'."),
-      limit: z.number().default(50).describe("Maximum number of memories to return. Defaults to 50 when omitted. Example: 100."),
-      offset: z.number().default(0).describe("Number of rows to skip for pagination (DB path only; not forwarded over the proxy). Defaults to 0 when omitted. Example: 50 for the second page of 50."),
+      agent_id: z.string().optional().describe("Agent scope when no repo is detected (ignored when repo is detected)."),
+      limit: z.number().default(50),
+      offset: z.number().default(0).describe("Rows to skip for pagination (DB path only; not forwarded over proxy)."),
     },
     async ({ agent_id, limit, offset }) => {
       try {
@@ -188,14 +188,14 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_search_memory",
-    `Semantic (vector + keyword) search across org-wide memories and extracted facts, returning a relevance-ranked JSON array of {key, value, score, agent_id, source, id?, confidence?} where source is memory|fact|episode|graph. Only currently-valid facts are returned unless include_invalidated is set. Use this to find past learnings, decisions, corrections, and facts from prior sessions — 'has this been solved or observed before' — when you do NOT have an exact key. For an exact-key lookup use lore_read_memory; to enumerate keys for the current repo use lore_list_memories; to retrieve raw repo document passages (conventions, ADRs, .md text) use lore_search_context; to traverse entity relationships use lore_query_graph; to get the single token-budgeted startup bundle (conventions + ADRs + memories + facts + graph) rather than a raw ranked list, use lore_assemble_context (the mandatory first call). This is a read with a retrieval-strengthening side effect (fire-and-forget bump of retrieval_count / half_life_days on returned items): it runs against the local DB when LORE_DB_HOST is set, else a short-TTL (~5min) cached proxy to /api/memory over LORE_API_URL (read scope; pool maps to pool_name, and include_invalidated / graph_augment are not forwarded), with a ~/.lore file fallback when no API is configured.`,
+    `Semantic (vector + keyword) search across org-wide memories and extracted facts; returns a relevance-ranked array of {key, value, score, agent_id, source, id?, confidence?} (source: memory|fact|episode|graph). Use to find past learnings, decisions, corrections, and facts when you do NOT have an exact key. Instead: lore_read_memory for exact-key lookup; lore_list_memories to enumerate keys; lore_search_context for raw repo document passages (conventions, ADRs, .md text); lore_query_graph to traverse entity relationships; lore_assemble_context for the token-budgeted startup bundle (the mandatory first call).`,
     {
-      query: z.string().describe("Natural-language search query; matched by embedding similarity and keyword ILIKE, not exact key. Required. Example: 'how do we handle auth token refresh'."),
-      agent_id: z.string().optional().describe("Scope results to one agent. Omit for cross-agent (org-wide) search. Example: 'agent-ci-bot'."),
-      pool: z.string().optional().describe("Restrict the search to a named shared pool; a non-existent pool name short-circuits to an empty result. Omit to search outside any pool. Example: 'platform-team'."),
-      limit: z.number().default(10).describe("Maximum number of fused results to return after rank fusion and diversification. Defaults to 10 when omitted. Example: 25."),
-      include_invalidated: z.boolean().default(false).describe("When true, also return facts that have been superseded by newer facts (historical queries). Defaults to false (currently-valid facts only). Example: true."),
-      graph_augment: z.boolean().default(false).describe("When true, enrich results with 1-hop knowledge-graph neighbors of entities detected in the matches. Defaults to false. Example: true."),
+      query: z.string(),
+      agent_id: z.string().optional().describe("Scope to one agent. Omit for org-wide search."),
+      pool: z.string().optional().describe("Restrict to a named shared pool; non-existent pool name returns empty."),
+      limit: z.number().default(10),
+      include_invalidated: z.boolean().default(false).describe("When true, also return superseded/historical facts."),
+      graph_augment: z.boolean().default(false).describe("When true, enrich results with 1-hop knowledge-graph neighbors."),
     },
     async ({ query, agent_id, pool, limit, include_invalidated, graph_augment }) => {
       try {
@@ -223,12 +223,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_write_episode",
-    `Ingests one raw, uncurated text blob (a conversation turn, code review, or observation) as a deduplicated episode and returns {status: "ok", episode_id, source, ref} — or {status: "duplicate", ...} when the same content was already ingested. Content is secret-redacted before storage, then facts (≤10) and knowledge-graph entities/edges are extracted ASYNCHRONOUSLY (the response does not wait for them). Use this for bulk/passive capture where you do NOT want to choose a key and do NOT need the text individually addressable. For a curated nugget you want to retrieve later by a specific key, use lore_write_memory instead. This is a WRITE: it invalidates episode-derived read caches (search/graph/assemble), runs against the local DB when LORE_DB_HOST is set, else proxies to /api/episode over LORE_API_URL (write scope); with neither configured it returns a 'requires PostgreSQL or LORE_API_URL' message rather than a file fallback.`,
+    `Ingests one raw uncurated text blob as a deduplicated episode; returns {status: "ok", episode_id, source, ref} or {status: "duplicate"} when already ingested. Content is secret-redacted; facts and graph entities/edges are extracted asynchronously. Use for bulk/passive capture where you do not want to choose a key and do not need the text individually addressable. Instead: lore_write_memory for a curated nugget you want to retrieve by a specific key. No file fallback — requires DB or API.`,
     {
-      content: z.string().min(1).max(50000).describe("Raw text to ingest verbatim (conversation, review, observation); deduplicated by content hash. Required, 1–50000 chars. Example: 'Reviewed PR #42 — the retry backoff was doubling on every 5xx, fixed to cap at 30s.'"),
-      source: z.string().default("manual").describe('Free-form source tag for provenance. Defaults to "manual" when omitted. Common values: "session", "pr-review", "ci", "manual".'),
-      ref: z.string().optional().describe('External reference; the leading owner/repo before any # is used as the graph repo scope. Omit if none. Example: "owner/repo#42".'),
-      agent_id: z.string().optional().describe("Override the resolved agent ID for this episode. Omit to use the ambient agent. Example: 'agent-ci-bot'."),
+      content: z.string().min(1).max(50000).describe("Raw text to ingest; deduplicated by content hash. 1–50000 chars."),
+      source: z.string().default("manual").describe('Provenance tag, e.g. "session", "pr-review", "ci".'),
+      ref: z.string().optional().describe('External reference, e.g. "owner/repo#42". The owner/repo prefix scopes graph entities.'),
+      agent_id: z.string().optional(),
     },
     async ({ content, source, ref, agent_id }) => {
       try {
@@ -299,12 +299,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_query_graph",
-    `Reads the live knowledge graph and returns a JSON array of typed relationship edges {entity, entity_type, relation, related_entity, related_type, direction (outgoing|incoming), valid_from} for one entity, or recent edges when no entity is given. Use this when you want STRUCTURED relationships — which service uses/owns/depends-on/replaced-by which — not prose. For learnings, decisions, and facts in prose form use lore_search_memory; for raw document passages use lore_search_context; for the token-budgeted startup bundle use lore_assemble_context. Returns matching edges, or 'No relationships found for "<entity>".' / 'Knowledge graph is empty...' when there are none. Read-only (no graph writes here; the graph is populated asynchronously by lore_write_episode). Runs against the local DB when LORE_DB_HOST is set, else a short-TTL (~10min) cached proxy to GET /api/graph over LORE_API_URL (read scope); with neither configured it returns a 'requires PostgreSQL or LORE_API_URL' message.`,
+    `Reads the live knowledge graph and returns typed relationship edges {entity, entity_type, relation, related_entity, related_type, direction, valid_from} for one entity, or recent edges when no entity given. Use when you want structured relationships (uses/owns/depends-on/replaced-by), not prose. Graph is populated asynchronously by lore_write_episode — no writes here. Instead: lore_search_memory for learnings and facts in prose form; lore_search_context for raw document passages; lore_assemble_context for the token-budgeted startup bundle.`,
     {
-      entity: z.string().optional().describe("Entity name to query; case-insensitive, matched against both edge endpoints. Omit to browse the most recent edges across the graph. Example: 'auth-service' or 'postgres'."),
-      relation_type: z.string().optional().describe('Restrict to one relation type. Omit for all relations. Known values: "uses", "owns", "depends-on", "replaced-by", "part-of", "implements".'),
-      repo: z.string().optional().describe("Scope edges to a specific repo; only edges whose repo equals this value match (repo-less/NULL edges are excluded when set). Omit for all repos. Example: 're-cinq/lore'."),
-      include_invalidated: z.boolean().default(false).describe("When true, also include historical (temporally-invalidated) edges. Defaults to false (currently-valid edges only). Example: true."),
+      entity: z.string().optional().describe("Entity name (case-insensitive); matched against both edge endpoints. Omit to browse recent edges."),
+      relation_type: z.string().optional().describe('Filter to one relation type, e.g. "uses", "owns", "depends-on", "replaced-by", "part-of", "implements".'),
+      repo: z.string().optional().describe('Scope to a specific repo, e.g. "re-cinq/lore". Repo-less edges excluded when set.'),
+      include_invalidated: z.boolean().default(false).describe("When true, also include historically-invalidated edges."),
     },
     async ({ entity, relation_type, repo, include_invalidated }) => {
       return trackLatency('lore_query_graph', async () => {
@@ -346,9 +346,9 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_agent_stats",
-    `Returns one agent's combined health and learning statistics as JSON: agent_id, memory_count, last_active, snapshot_count, total_memories, total_facts, active_facts, invalidated_facts, total_searches, shared_pools_created, and recent_episodes {total_count, latest: [{id, source, ref, created_at, content_preview, fact_count}]}. Use this to gauge how much an agent has learned and how active it is (diagnosing a quiet or runaway agent). This is read-only memory telemetry, distinct from lore_my_usage, which reports per-developer LLM token spend. REQUIRES a direct database connection (LORE_DB_HOST): unlike the other memory tools it does NOT proxy to LORE_API_URL — with no DB it returns 'Agent stats requires PostgreSQL (LORE_DB_HOST not set).'`,
+    `Returns an agent's combined health and learning statistics as JSON (memory_count, total_facts, active_facts, invalidated_facts, total_searches, recent_episodes, etc.). Use to gauge how much an agent has learned and how active it is. (DB-only — does not proxy.) Instead: lore_my_usage for per-developer LLM token spend.`,
     {
-      agent_id: z.string().optional().describe("Override the resolved agent ID to inspect a specific agent. Omit to report on the ambient agent (LORE_AGENT_ID env / ~/.lore/agent-id). Example: 'agent-ci-bot'."),
+      agent_id: z.string().optional().describe("Agent to inspect. Omit for the ambient agent."),
     },
     async ({ agent_id }) => {
       try {

@@ -22,13 +22,12 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_search_context",
-    `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns the raw matching passages as source-scored snippets, not a synthesized bundle. When a database is reachable this runs hybrid vector+BM25 retrieval (fused by Reciprocal Rank Fusion over the team or org_shared chunk schema); with no DB it degrades to a deterministic case-insensitive substring scan of local .md files, so it works before any ingest has run. Runs against the shared-DB backend directly and never proxies to LORE_API_URL; read-only, no mutations.
-Use this when you want chunk-level evidence or the exact wording of a convention/ADR and you know it lives in ingested docs. For ONE token-budgeted starting bundle (conventions + ADRs + memories + facts + graph ordered by template) call lore_assemble_context instead — that is the mandatory first call. For past learnings, decisions, corrections, and extracted facts from prior sessions call lore_search_memory. For entity relationships (X uses/owns/depends-on Y) call lore_query_graph.
-Returns a single text block: each hit formatted as "**Score:** <rrf>" (DB path) or "**Source:** <relative-path>" (file path) followed by the passage, joined by "---"; or a no-results message.`,
+    `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval when a DB is available; falls back to case-insensitive substring scan of local .md files otherwise.
+Use this when you want chunk-level evidence or the exact wording of a convention/ADR. For a ONE token-budgeted bundle combining all sources (conventions, ADRs, memories, facts, graph) call lore_assemble_context — that is the mandatory first call. For past learnings, decisions, and extracted facts from prior sessions call lore_search_memory. For entity relationships call lore_query_graph.`,
     {
-      query: z.string().describe("Natural-language search query, e.g. 'how are pipeline tasks authenticated'. Required."),
-      team: z.string().optional().describe("Scope. On the DB path: a Postgres team schema name (e.g. 'platform'); an empty/no-result team transparently retries against 'org_shared'. On the file-fallback path: a teams/<name> subdirectory under CONTEXT_PATH; an unknown subtree returns a 'search path not found' error. Omit to search the org-wide org_shared corpus; when omitted the repo is auto-detected from the git remote for advisory stderr logging only (it does not scope the search)."),
-      limit: z.number().default(8).describe("Maximum number of passages to return, e.g. 5. Defaults to 8 when omitted."),
+      query: z.string().describe("Natural-language search query."),
+      team: z.string().optional().describe("Team schema name to scope the search (e.g. 'platform'). Omit to search org_shared; unknown teams fall back to org_shared on the DB path or return an error on the file path."),
+      limit: z.number().default(8).describe("Maximum passages to return."),
     },
     async ({ query, team, limit }) => {
       // Auto-detect repo from git remote when no team is specified.
@@ -95,16 +94,15 @@ Returns a single text block: each hit formatted as "**Score:** <rrf>" (DB path) 
 
   server.tool(
     "lore_assemble_context",
-    `Assembles ONE token-budgeted, template-ordered context block for a task by retrieving from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, and graph relationships) and emitting a single provenance-tagged text block an LLM consumes directly. This is the mandatory first call when starting a task; prefer it over hand-stitching the narrower retrieval tools. When LORE_DB_HOST is set it reads the local Postgres directly; otherwise it proxies GET /api/context to the shared cloud backend (LORE_API_URL + LORE_INGEST_TOKEN) through a 600s read-through cache. The max_tokens, agent_id, and cross_repo arguments and the settings.cross_repo fallback take effect only on the direct-DB path; on the proxy (local/no-DB) path only query, template, and repo are forwarded and the rest are ignored. Read-only, no mutations; records a latency row via trackLatency.
-Use lore_search_context instead when you want raw matching passages/exact wording from ingested docs rather than a synthesized bundle. Use lore_search_memory for past learnings, decisions, and extracted facts across prior sessions. Use lore_query_graph for structured entity relationships. Those three are the building blocks this tool already combines.
-On the direct-DB path the block is prefixed with an HTML comment carrying template/sections/tokens metadata, and returns "No relevant context found for this query." when every source is empty. On the proxy path the API text is returned as-is (no template/sections/tokens comment), optionally prefixed with a "<!-- lore-cache: HIT/STALE -->" marker; a reachable-but-empty backend yields an empty block. Never throws.`,
+    `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
+Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
     {
-      query: z.string().describe("Natural-language description of the context needed, e.g. 'implement auth middleware' or 'review PR #42'. Drives retrieval and ranking across all sources. Required."),
-      template: z.string().default("default").describe("Section-ordering/budget profile; recognized values are 'default' | 'review' | 'implementation' | 'research'. Not validated — an unrecognized value silently falls back to the 'default' template. Picks which sources are prioritized. Note: the per-template default budget (e.g. research's 16000) is NOT applied automatically — max_tokens always defaults to 8000, so pass max_tokens explicitly to raise it. Defaults to 'default'."),
-      max_tokens: z.number().default(8000).describe("Token budget for the assembled block; floor 2000, raise to ~16000 for research-heavy queries, e.g. 12000. Content over budget is truncated and the section marked truncated. Direct-DB path only; ignored when proxying to LORE_API_URL. Defaults to 8000 when omitted."),
-      repo: z.string().optional().describe("Target repo as 'owner/repo', e.g. 're-cinq/lore'. Auto-detected from the git remote when omitted."),
-      agent_id: z.string().optional().describe("Overrides the resolved agent id used to scope memories/facts, e.g. 'agent-7f3a'. Omit to use the ambient agent id (env, ~/.lore/agent-id, or auto-generated). Direct-DB path only; ignored when proxying to LORE_API_URL."),
-      cross_repo: z.boolean().default(false).describe("When true, also pull context from linked repos in the org, e.g. true. Defaults to false; if false but the repo's settings.cross_repo is true, cross-repo is still enabled. Direct-DB path only; ignored when proxying to LORE_API_URL."),
+      query: z.string().describe("Natural-language description of the context needed. Drives retrieval and ranking across all sources."),
+      template: z.string().default("default").describe("Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries."),
+      max_tokens: z.number().default(8000).describe("Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000."),
+      repo: z.string().optional().describe("'owner/repo'. Auto-detected from the git remote when omitted."),
+      agent_id: z.string().optional().describe("Overrides the ambient agent id used to scope memories/facts."),
+      cross_repo: z.boolean().default(false).describe("When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false."),
     },
     async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
       return trackLatency('lore_assemble_context', async () => {

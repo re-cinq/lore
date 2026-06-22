@@ -13,9 +13,7 @@ export function registerRepoTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_list_repos",
-    `Lists every repo onboarded into Lore. Returns a JSON array of rows from lore.repos (id, owner, name, full_name, team, onboarded_at, last_ingested_at, onboarding_pr_url, onboarding_pr_merged, settings) each annotated with an integer task_count (pipeline tasks targeting that repo), ordered newest-onboarded first.
-Use this to inspect the Lore deployment's repo registry and per-repo pipeline activity. To ADD a new repo use lore_onboard_repo instead; this tool only reads. To list pipeline TASKS rather than repos, use lore_list_pipeline_tasks.
-Runs against the shared backend Postgres directly and requires LORE_DB_HOST to be set; it does not proxy over LORE_API_URL and is unavailable in local stdio mode without a DB. Read-only, no writes, not cached. Takes no parameters. Returns guidance text when the DB is unset or when no repos are onboarded yet.`,
+    `Lists every repo onboarded into Lore, returning a JSON array with per-repo metadata and pipeline task count (DB-only). Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,
     {},
     async () => {
       try {
@@ -35,11 +33,9 @@ Runs against the shared backend Postgres directly and requires LORE_DB_HOST to b
 
   server.tool(
     "lore_onboard_repo",
-    `Onboards a GitHub repo into Lore from a single owner/repo argument. Upserts the registry row in lore.repos (re-onboarding just refreshes onboarded_at) and spawns an 'onboard' pipeline task; returns JSON { repo_id, task_id, status: 'onboarding-agent-spawned' }. The actual branch + CLAUDE.md/AGENTS.md/PR-template files and the onboarding PR are authored later by the spawned agent task, NOT synchronously by this call.
-Use this once to register a brand-new repo with Lore. To merely LIST already-onboarded repos use lore_list_repos instead; to push specific files into an already-onboarded repo's context store use lore_ingest_files.
-Mutates: writes an upsert to lore.repos and inserts a task into pipeline.tasks. Runs against the shared backend Postgres directly and requires LORE_DB_HOST; it does not proxy over LORE_API_URL. Never throws — returns guidance text when the DB is unset or the name is malformed.`,
+    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status } (DB-only). Re-onboarding an existing repo refreshes onboarded_at. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
     {
-      full_name: z.string().describe('Target GitHub repository in "owner/repo" format; both segments must be non-empty or the call returns a malformed-name error. Required, no default. Example: "re-cinq/lore".'),
+      full_name: z.string().describe('"owner/repo" format; both segments must be non-empty.'),
     },
     async ({ full_name }) => {
       try {
@@ -56,12 +52,10 @@ Mutates: writes an upsert to lore.repos and inserts a task into pipeline.tasks. 
 
   server.tool(
     "lore_ingest_files",
-    `Fetches specific repo files from GitHub, embeds them, and writes them into Lore's context store on demand so they become searchable immediately via lore_search_context (without waiting for nightly ingestion). Returns a text summary "Ingested N files into Lore for <repo>. M errors."
-Use this right after merging an important file (a new ADR, an updated CLAUDE.md) to make it searchable now. This is NOT for onboarding a repo (use lore_onboard_repo) and NOT for reading/searching content (use lore_search_context or lore_assemble_context).
-Mutates the context store (the GKE /api/ingest route owns chunking + Vertex embedding + chunk inserts) and invalidates the lore_assemble_context read cache for the repo. Runs locally in stdio mode and PROXIES the embed work to the shared backend over LORE_API_URL — it requires both LORE_API_URL and LORE_INGEST_TOKEN (run install.sh to configure) and does not touch Postgres in this process. The commit ingested is the local HEAD only when the resolved repo matches the cwd repo; otherwise GitHub's default branch is used. Never throws — returns guidance text on missing repo/config or a failed proxy call.`,
+    `Fetches specific repo files from GitHub, embeds them, and writes them into Lore's context store immediately so they are searchable without waiting for nightly ingestion. Returns "Ingested N files into Lore for <repo>. M errors." Use after merging a new ADR or updated CLAUDE.md to make it searchable now. Instead: to onboard a new repo use lore_onboard_repo; to search existing content use lore_search_context or lore_assemble_context.`,
     {
-      files: z.array(z.string()).describe('Repo-relative file paths to ingest, each resolved against the repo\'s commit/default branch. Required, no default. Example: ["CLAUDE.md", "adrs/ADR-001.md", "src/auth.ts"].'),
-      repo: z.string().optional().describe('Target repository in "owner/repo" format. Optional; when omitted it is auto-detected from the current directory\'s git remote, and the call fails with a detect-repo message if detection returns nothing. Example: "re-cinq/my-service".'),
+      files: z.array(z.string()).describe("Repo-relative file paths to ingest."),
+      repo: z.string().optional().describe('"owner/repo" format. Auto-detected from cwd git remote when omitted.'),
     },
     async ({ files, repo }) => {
       try {
