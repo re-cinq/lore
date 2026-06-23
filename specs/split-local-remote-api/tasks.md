@@ -12,22 +12,30 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 1 — Extract the light shared core (`libs/server-core`)
 
-- [ ] T003 Scaffold `libs/server-core` (package `@re-cinq/lore-server-core` per
-  OQ-3): `package.json` (light deps only — `zod`, `yaml`, MCP SDK types if
-  needed), `tsconfig.json`, add to root `workspaces`.
-- [ ] T004 Identify the light shared surface: trace every `features/*` and
-  `platform/*` module the `mcp/tools/*` files import (proxy path) and confirm
-  none require `pg`/`octokit`/`GCS`/`tree-sitter` at module load. Produce the
-  move-list.
-- [ ] T005 Where a feature module fuses proxy + DB code (e.g.
-  `features/pipeline/pipeline.ts`, `features/memory/memory.ts`), split it:
-  light proxy/file path → `libs/server-core`; DB implementation stays for
-  `apps/lore-api`. Keep a thin re-export so the remote side compiles unchanged.
-- [ ] T006 Move `repo/repo-detect`, `memory/memory-file`, the proxy HTTP client,
-  template loading, and shared zod schemas/types into `libs/server-core`;
-  repoint importers. `apps/mcp-server` still builds (single app, pre-split).
-- [ ] T007 Verify `libs/server-core` has zero heavy deps: `npm ls` in the lib
-  shows no `pg`/`octokit`/`GCS`/`tree-sitter`/OTel-gRPC.
+> Re-scoped after recon — see `research.md`. The codebase already separates
+> logic from heavy value-deps via pool injection + type-only `pg`, so this is a
+> **carve + two targeted splits**, not a fused-module teardown.
+
+- [x] T004 Recon: map the real local↔remote dependency line (value/dynamic
+  imports of `pg`/`octokit`/`GCS`/`tree-sitter`/OTel-SDK). → `research.md`.
+- [ ] T003 Scaffold `libs/server-core` (package `@re-cinq/lore-server-core`):
+  `package.json` (light deps only — `zod`, `yaml`, `@opentelemetry/api`,
+  `@re-cinq/lore-shared`), `tsconfig.json`, add to root `workspaces`.
+- [ ] T005a Split `platform/otel.ts`: light helpers (`traceTool`,
+  `traceRetrieval`, `traceHttp`, `traceTaskCreated`, …, on `@opentelemetry/api`)
+  → server-core; heavy `initOtel`/`shutdownOtel` (NodeSDK + exporters) stays for
+  `apps/lore-api` boot.
+- [ ] T005b Proxy the GCS log-reads in `mcp/tools/pipeline-tools.ts`: replace the
+  two `await import("@google-cloud/storage")` blocks with a proxy call to
+  `GET /api/task-logs` / `GET /api/job-run-logs` on `LORE_API_URL`.
+- [ ] T006 Move the pool-injected light logic + light helpers into
+  `libs/server-core` (per research move-list: `repo-detect`, `memory/*`,
+  `context-assembly`, `cross-repo`, `query-trace`, `pipeline-config`/`tasks`/
+  `pipeline`, `agent-id`, `proxy-cache`, `session-tracker`, `anthropic-client`,
+  `db.ts` search fns, light otel). Repoint importers. `apps/mcp-server` still
+  builds as one app (pre-split).
+- [ ] T007 Verify `libs/server-core` has zero heavy value deps: `npm ls` shows no
+  `pg`/`octokit`/`@google-cloud/storage`/`tree-sitter`/OTel-gRPC.
 
 ## Phase 2 — Stand up the remote app (`apps/lore-api`)
 
