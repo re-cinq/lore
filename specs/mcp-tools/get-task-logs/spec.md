@@ -22,15 +22,18 @@ whether the task has finished so a poller can stop.
 Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L344)).
 
 - **name**: `lore_get_task_logs`
-- **description** (verbatim): *"Fetch execution logs for a pipeline task. Returns
-  the latest output from the task's log file."*
+- **description** (verbatim):
+
+```text
+Fetches raw execution output for one pipeline task (by UUID), returning {logs, next_offset, complete}. Pass next_offset back as offset to poll incrementally. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `task_id` | string | yes | — | UUID of the pipeline task. |
-| `offset` | number | no | `0` | Byte offset for incremental reads (polling). |
+| `offset` | number | no | `0` | Byte offset to start reading from; pass previous `next_offset` to poll incrementally. |
 
 ## Behavior
 

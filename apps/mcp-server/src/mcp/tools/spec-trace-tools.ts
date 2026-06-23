@@ -9,12 +9,12 @@ export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_ingest_graph",
-    "Create spec-traceability graph ingestion tasks — one per kind (specs, adrs, tests). Each is a pipeline task (id + description, visible in the UI) the agent runner picks up (specs/adrs) or you run locally with lore_run_task_locally. Idempotent: re-running with no changes is a no-op (only changed files re-project) unless force=true.",
+    `WRITE side of spec-traceability: creates one ingestion pipeline task per requested kind (specs, adrs, tests) and returns the created task ids under a single group id. Idempotent — in-flight tasks for a kind are skipped. Instead: to READ spec coverage from the built graph use lore-query-trace; to enumerate or run tests locally use lore_list_tests / lore_run_test.`,
     {
-      repo: z.string().optional().describe("owner/repo. Defaults to the current repo."),
-      kinds: z.array(z.enum(["specs", "adrs", "tests"])).optional().describe("Which kinds to ingest. Default: all three."),
-      ref: z.string().optional().describe("Branch (or commit) to ingest at. Default: the repo's default branch."),
-      force: z.boolean().optional().describe("Re-project every file even when its content is unchanged (bypass the content-hash gate). Use after a parser/segmenter change."),
+      repo: z.string().optional().describe("Target repo as 'owner/repo'. Defaults to the repo detected from cwd git remote."),
+      kinds: z.array(z.enum(["specs", "adrs", "tests"])).optional().describe("Which kinds to ingest. Defaults to all three."),
+      ref: z.string().optional().describe("Branch name or commit SHA. Defaults to the repo's default branch."),
+      force: z.boolean().optional().describe("When true, re-processes all specs/adrs files even if content is unchanged. Has no effect on the tests kind."),
     },
     async ({ repo, kinds, ref, force }) => {
       try {
@@ -39,11 +39,11 @@ export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore-query-trace",
-    "Query the spec-traceability graph for a spec: which statements are validated/implemented/decided by what, and which are drifted or violated. Reads the main-branch graph via the Lore API.",
+    `READ side of spec-traceability: returns per-statement coverage for a spec — which tests validate each statement and which are drifted or violated. Read-only; executes and builds nothing. Instead: to rebuild the graph use lore_ingest_graph; to enumerate or run tests locally use lore_list_tests / lore_run_test.`,
     {
-      spec: z.string().describe("Spec file path, e.g. 'specs/auth/spec.md'."),
-      statement: z.string().optional().describe("Focus one statement: its ordinal (e.g. '3') or a text substring. Omit for a coverage + needs-attention summary."),
-      repo: z.string().optional().describe("owner/repo. Defaults to the current repo."),
+      spec: z.string().describe("Spec file path relative to the repo root, e.g. 'specs/auth/spec.md'."),
+      statement: z.string().optional().describe("1-based ordinal (e.g. '3') or unique text substring to narrow to a single statement. Omit for whole-spec summary."),
+      repo: z.string().optional().describe("Target repo as 'owner/repo'. Defaults to the repo detected from cwd git remote."),
     },
     async ({ spec, statement, repo }) => {
       const cachedGet = (path: string) =>

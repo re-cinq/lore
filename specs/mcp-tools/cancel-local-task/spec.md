@@ -21,14 +21,17 @@ failed, and removes the worktree.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L91)).
 
 - **name**: `lore_cancel_local_task`
-- **description** (verbatim): *"Cancel a running local background task and clean
-  up its worktree."*
+- **description** (verbatim):
+
+```text
+Stops a locally-running background worktree task: kills the process, removes the worktree, and marks it cancelled. Instead of this: to cancel a server-side GKE pipeline task use lore_cancel_task.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `task_id` | string | yes | — | Task ID to cancel. |
+| `task_id` | string | yes | — | — |
 
 ## Behavior
 

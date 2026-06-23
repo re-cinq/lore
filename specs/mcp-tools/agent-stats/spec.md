@@ -22,15 +22,17 @@ quiet or runaway agent means hand-writing SQL across several `memory.*` tables.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L291)).
 
 - **name**: `lore_agent_stats`
-- **description** (verbatim): *"Returns comprehensive agent statistics: memory
-  count, last activity, snapshot count, total memories, active/invalidated
-  facts, searches, shared pools, and recent episodes."*
+- **description** (verbatim):
+
+```text
+Returns an agent's combined health and learning statistics as JSON (memory_count, total_facts, active_facts, invalidated_facts, total_searches, recent_episodes, etc.). Use to gauge how much an agent has learned and how active it is. (DB-only — does not proxy.) Instead: lore_my_usage for per-developer LLM token spend.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `agent_id` | string | no | — | Override the resolved agent ID. |
+| `agent_id` | string | no | — | Agent to inspect. Omit for the ambient agent. |
 
 ## Behavior
 

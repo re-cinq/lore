@@ -6,6 +6,7 @@ import { globSync } from "glob";
 import { hybridSearch, isDbAvailable } from "../../platform/db.js";
 import { isMemoryDbAvailable } from "../../features/memory/memory.js";
 import { assembleContext } from "../../features/context/context-assembly.js";
+import { resolveCrossRepo } from "../../features/context/cross-repo.js";
 import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
 import { traceRetrieval } from "../../platform/otel.js";
 import { ToolDeps, makeTrackLatency, proxyGetApi, withReadCache, unreachableError, deniedError } from "./deps.js";
@@ -22,11 +23,12 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_search_context",
-    "Naive case-insensitive text search across all .md files in the context repository.",
+    `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval when a DB is available; falls back to case-insensitive substring scan of local .md files otherwise.
+Use this when you want chunk-level evidence or the exact wording of a convention/ADR. For a ONE token-budgeted bundle combining all sources (conventions, ADRs, memories, facts, graph) call lore_assemble_context — that is the mandatory first call. For past learnings, decisions, and extracted facts from prior sessions call lore_search_memory. For entity relationships call lore_query_graph.`,
     {
-      query: z.string().describe("Search query in natural language."),
-      team: z.string().optional().describe("Scope search to a specific team. If omitted, searches org-wide."),
-      limit: z.number().default(8).describe("Maximum results to return."),
+      query: z.string().describe("Natural-language search query."),
+      team: z.string().optional().describe("Team schema name to scope the search (e.g. 'platform'). Omit to search org_shared; unknown teams fall back to org_shared on the DB path or return an error on the file path."),
+      limit: z.number().default(8).describe("Maximum passages to return."),
     },
     async ({ query, team, limit }) => {
       // Auto-detect repo from git remote when no team is specified.
@@ -93,14 +95,15 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_assemble_context",
-    "Retrieve and assemble context from all sources (repo, ADRs, memories, facts, episodes, graph) into a single structured block optimized for LLM consumption. Replaces multiple get_context + lore_search_memory + get_adrs calls. Uses configurable templates for task-type-specific context ordering.",
+    `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
+Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
     {
-      query: z.string().describe("What context is needed (e.g. 'implement auth middleware', 'review PR #42')."),
-      template: z.string().default("default").describe('Template name: "default", "review", "implementation", "research".'),
-      max_tokens: z.number().default(8000).describe("Maximum token budget for assembled context (min 2000). Raise up to ~16000 for research-heavy queries."),
-      repo: z.string().optional().describe("Target repo (e.g. 'owner/repo'). Auto-detected if omitted."),
-      agent_id: z.string().optional().describe("Override agent ID."),
-      cross_repo: z.boolean().default(false).describe("Include context from other repos in the org."),
+      query: z.string().describe("Natural-language description of the context needed. Drives retrieval and ranking across all sources."),
+      template: z.string().default("default").describe("Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries."),
+      max_tokens: z.number().default(8000).describe("Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000."),
+      repo: z.string().optional().describe("'owner/repo'. Auto-detected from the git remote when omitted."),
+      agent_id: z.string().optional().describe("Overrides the ambient agent id used to scope memories/facts."),
+      cross_repo: z.boolean().default(false).describe("When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false."),
     },
     async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
       return trackLatency('lore_assemble_context', async () => {
@@ -114,9 +117,17 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
               return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
             }
             const resolvedRepo = repo || detectCurrentRepo() || "";
-            const params = new URLSearchParams({ query, template, repo: resolvedRepo });
+            // Forward the knobs the backend honors. cross_repo=false is the
+            // no-op default (the server resolves the settings fallback), so it
+            // is only sent when true. The same extras seed the cache key so a
+            // 16000-token request is never served an 8000-token cached body.
+            const extras: Record<string, string> = {};
+            if (max_tokens) extras.max_tokens = String(max_tokens);
+            if (cross_repo) extras.cross_repo = "true";
+            if (agent_id) extras.agent_id = agent_id;
+            const params = new URLSearchParams({ query, template, repo: resolvedRepo, ...extras });
             const proxied = await withReadCache(
-              { tool: "lore_assemble_context", args: { query, template, repo: resolvedRepo }, repo: resolvedRepo || undefined, ttlSeconds: 600 },
+              { tool: "lore_assemble_context", args: { query, template, repo: resolvedRepo, ...extras }, repo: resolvedRepo || undefined, ttlSeconds: 600 },
               async () => {
                 const r = await proxyGetApi(`/api/context?${params.toString()}`);
                 if (!r.ok) return r;
@@ -132,14 +143,7 @@ export function registerContextTools(server: McpServer, deps: ToolDeps) {
             if (proxied.reason === "denied") return deniedError("lore_assemble_context", proxied.detail);
             return { content: [{ type: "text" as const, text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured." }] };
           }
-          // Resolve cross_repo: explicit param wins, then check repo settings
-          let enableCrossRepo = cross_repo;
-          if (!enableCrossRepo && repo && dbPoolRef) {
-            try {
-              const { rows } = await dbPoolRef.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
-              if (rows[0]?.settings?.cross_repo === true) enableCrossRepo = true;
-            } catch { /* non-fatal */ }
-          }
+          const enableCrossRepo = await resolveCrossRepo(dbPoolRef, repo, cross_repo);
           const result = await assembleContext(dbPoolRef, query, template, max_tokens, repo, agent_id, enableCrossRepo);
           if (!result.text || result.text.trim().length === 0) {
             return { content: [{ type: "text" as const, text: "No relevant context found for this query." }] };

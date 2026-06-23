@@ -25,16 +25,19 @@ updates in place instead of duplicating.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L231)).
 
 - **name**: `lore_sync_tasks`
-- **description** (verbatim): *"Parse a tasks.md file and sync spec-tasks into
-  the pipeline. Handles dependencies and parallelization markers."*
+- **description** (verbatim):
+
+```text
+Parses a speckit tasks.md and idempotently upserts each checklist item as a spec-task row; returns a 'Synced N tasks (M new)' summary. Run once per spec before any claiming — this is the start of spec-driven multi-agent work. This tool does NOT claim, run, or evaluate readiness. (DB-only) After syncing: lore_ready_tasks to find workable items; lore_claim_task to lock one; lore_complete_task to finish it.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `tasks_markdown` | string | yes | — | Full markdown text of `tasks.md`. |
-| `repo` | string | no | — | `owner/repo`. Auto-detected from the git remote when omitted. |
-| `spec_slug` | string | yes | — | Feature slug (e.g. `auth-refactor`); groups tasks within the repo. |
+| `tasks_markdown` | string | yes | — | Full markdown text of the tasks.md document (not a path). Parsed for phases, [P] parallel markers, [DEPENDS ON: …] deps, and file-path suffixes. |
+| `repo` | string | no | — | `owner/repo`. Auto-detected from git remote when omitted. |
+| `spec_slug` | string | yes | — | Feature slug grouping these spec-tasks within the repo. |
 
 ## Behavior
 

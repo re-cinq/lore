@@ -24,17 +24,19 @@ and PID — the session continues while the task runs and eventually opens a PR.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L7)).
 
 - **name**: `lore_run_task_locally`
-- **description** (verbatim): *"Run a task in the background on your local
-  machine using Claude Code in a git worktree. Returns immediately — your session
-  continues normally while the task runs."*
+- **description** (verbatim):
+
+```text
+Starts a brand-new ad-hoc task as a detached background Claude Code process in a local git worktree; returns immediately with task id, branch, worktree path, log file, and PID. Runs on your local machine (your Claude subscription). Instead of this: to run an EXISTING pending pipeline task by id use lore_claim_and_run_locally; to register a task for the GKE agent use lore_create_pipeline_task.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `description` | string | yes | — | What to implement or do. |
-| `task_type` | enum | no | `"implementation"` | One of `implementation` \| `general` \| `runbook` \| `gap-fill`. |
-| `model` | string | no | — | Model override (default `claude-sonnet-4-6`). |
+| `description` | string | yes | — | Free-text instruction for the agent. Must reference the current repo; cross-repo references are refused with a wrong-repo warning. |
+| `task_type` | enum | no | `"implementation"` | Kind of work: 'implementation' (code), 'general' (open-ended), 'runbook' (incident runbook), 'gap-fill' (missing docs). |
+| `model` | string | no | — | Anthropic model id override for the spawned process (e.g. 'claude-opus-4-6'). |
 
 ## Behavior
 

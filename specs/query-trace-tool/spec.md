@@ -9,6 +9,25 @@
 | Consumes       | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — the `/trace/document` read route |
 | Sibling        | [`graph-context-assembly`](../graph-context-assembly/spec.md) — shares the `violated > drifted > untested` signal ordering |
 
+## Interface
+
+Registered via `server.tool` ([registration](../../apps/mcp-server/src/mcp/tools/spec-trace-tools.ts#L40)).
+
+- **name**: `lore-query-trace`
+- **description** (verbatim):
+
+```text
+READ side of spec-traceability: returns per-statement coverage for a spec — which tests validate each statement and which are drifted or violated. Read-only; executes and builds nothing. Instead: to rebuild the graph use lore_ingest_graph; to enumerate or run tests locally use lore_list_tests / lore_run_test.
+```
+
+### Input schema
+
+| Param | Required | Default | Notes |
+|-------|----------|---------|-------|
+| `spec` | yes | — | Spec file path relative to the repo root, e.g. `specs/auth/spec.md`. |
+| `statement` | no | — | 1-based ordinal (e.g. `'3'`) or unique text substring to narrow to a single statement. Omit for whole-spec summary. |
+| `repo` | no | — | Target repo as `'owner/repo'`. Defaults to the repo detected from cwd git remote. |
+
 ## Problem Statement
 
 The `lore-query-trace` MCP tool was registered as a stub that ignores its input

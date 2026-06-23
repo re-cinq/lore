@@ -23,20 +23,22 @@ only currently-valid facts by default while still allowing historical lookups.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L162)).
 
 - **name**: `lore_search_memory`
-- **description** (verbatim): *"Semantic search across all org memories and
-  facts. Returns results ranked by similarity. Facts include temporal validity
-  — only currently valid facts are returned by default."*
+- **description** (verbatim):
+
+```text
+Semantic (vector + keyword) search across org-wide memories and extracted facts; returns a relevance-ranked array of {key, value, score, agent_id, source, id?, confidence?} (source: memory|fact|episode|graph). Use to find past learnings, decisions, corrections, and facts when you do NOT have an exact key. Instead: lore_read_memory for exact-key lookup; lore_list_memories to enumerate keys; lore_search_context for raw repo document passages (conventions, ADRs, .md text); lore_query_graph to traverse entity relationships; lore_assemble_context for the token-budgeted startup bundle (the mandatory first call).
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `query` | string | yes | — | Natural language search query. |
-| `agent_id` | string | no | — | Scope to an agent. Omit for cross-agent search. |
-| `pool` | string | no | — | Search within a named shared pool. |
-| `limit` | number | no | `10` | Max fused results. |
-| `include_invalidated` | boolean | no | `false` | Include facts superseded by newer facts (historical queries). |
-| `graph_augment` | boolean | no | `false` | Enrich results with 1-hop graph neighbors of detected entities. |
+| `query` | string | yes | — | — |
+| `agent_id` | string | no | — | Scope to one agent. Omit for org-wide search. |
+| `pool` | string | no | — | Restrict to a named shared pool; non-existent pool name returns empty. |
+| `limit` | number | no | `10` | — |
+| `include_invalidated` | boolean | no | `false` | When true, also return superseded/historical facts. |
+| `graph_augment` | boolean | no | `false` | When true, enrich results with 1-hop knowledge-graph neighbors. |
 
 ## Behavior
 

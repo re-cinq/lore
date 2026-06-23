@@ -22,8 +22,11 @@ hand is error-prone. Retrying must be refused for tasks that did not fail
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L182)).
 
 - **name**: `lore_retry_task`
-- **description** (verbatim): *"Retry a failed pipeline task. Creates a new task
-  with the same parameters and links it to the original."*
+- **description** (verbatim):
+
+```text
+Re-runs a failed or escalated task by cloning it into a new pipeline task linked via retry_of. Only tasks in 'failed' or 'needs-human-help' state are retryable. (DB-only) Instead: lore_cancel_task to stop an unwanted live task rather than re-run it.
+```
 
 ### Input schema (Zod)
 

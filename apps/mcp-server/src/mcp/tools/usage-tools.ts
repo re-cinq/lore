@@ -8,9 +8,14 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_my_usage",
-    "Show your personal task and token usage. Breaks down by today, 7-day, and 30-day periods.",
+    `Reports the calling agent's own task count and input/output token totals across three windows (today, 7_day, 30_day); returns { agent_id, usage: { today, 7_day, 30_day } } (DB-only). Instead: for org-wide throughput, success rates, and per-type breakdown use lore_get_analytics — this tool is single-agent only and does not report success rates or per-type counts.`,
     {
-      agent_id: z.string().optional().describe("Override agent ID. Auto-detected if omitted."),
+      agent_id: z
+        .string()
+        .optional()
+        .describe(
+          "Agent identifier (email or UUID). Auto-detected from caller when omitted. Pass only to inspect a different agent."
+        ),
     },
     async ({ agent_id }) => {
       try {
@@ -51,9 +56,12 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_get_analytics",
-    "Returns org-level analytics: task throughput, success rates, and token usage.",
+    `Returns org-wide pipeline analytics for a time window: { period, usage: { llm_calls, input_tokens, output_tokens }, tasks: { total, succeeded, failed }, by_type } (DB-only). Note: by_type[].tasks is a numeric string (raw pg bigint). Instead: for a single agent's own footprint use lore_my_usage — this tool is not per-agent and does not filter by caller.`,
     {
-      period: z.enum(["today", "week", "month", "all"]).default("month").describe("Time period for analytics."),
+      period: z
+        .enum(["today", "week", "month", "all"])
+        .default("month")
+        .describe('"today", "week", "month", or "all" (no time filter).'),
     },
     async ({ period }) => {
       try {
@@ -72,7 +80,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
         const [usageResult, taskResult, byTypeResult] = await Promise.all([
           dbPoolRef.query(`SELECT count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`),
           dbPoolRef.query(`SELECT count(*) as total, count(*) FILTER (WHERE status IN ('pr-created', 'merged')) as succeeded, count(*) FILTER (WHERE status = 'failed') as failed FROM pipeline.tasks WHERE ${periodFilter}`),
-          dbPoolRef.query(`SELECT t.task_type, count(DISTINCT t.id) as tasks FROM pipeline.tasks t WHERE t.${periodFilter} GROUP BY t.task_type ORDER BY tasks DESC`),
+          dbPoolRef.query(`SELECT t.task_type, count(DISTINCT t.id) as tasks FROM pipeline.tasks t WHERE ${periodFilter} GROUP BY t.task_type ORDER BY tasks DESC`),
         ]);
 
         const analytics = {

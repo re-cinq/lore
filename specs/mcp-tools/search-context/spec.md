@@ -24,16 +24,20 @@ any ingest has run.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/context-tools.ts#L23)).
 
 - **name**: `lore_search_context`
-- **description** (verbatim): *"Naive case-insensitive text search across all .md
-  files in the context repository."*
+- **description** (verbatim):
+
+```text
+Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval when a DB is available; falls back to case-insensitive substring scan of local .md files otherwise.
+Use this when you want chunk-level evidence or the exact wording of a convention/ADR. For a ONE token-budgeted bundle combining all sources (conventions, ADRs, memories, facts, graph) call lore_assemble_context — that is the mandatory first call. For past learnings, decisions, and extracted facts from prior sessions call lore_search_memory. For entity relationships call lore_query_graph.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Notes |
 |-------|------|----------|---------|-------|
 | `query` | string | yes | — | Natural-language search query. |
-| `team` | string | no | — | Scope to a team schema/subtree. Omitted ⇒ org-wide. |
-| `limit` | number | no | `8` | Max results returned. |
+| `team` | string | no | — | Team schema name to scope the search (e.g. 'platform'). Omit to search org_shared; unknown teams fall back to org_shared on the DB path or return an error on the file path. |
+| `limit` | number | no | `8` | Maximum passages to return. |
 
 ## Behavior
 

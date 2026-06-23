@@ -25,19 +25,21 @@ file.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L40)).
 
 - **name**: `lore_write_memory`
-- **description** (verbatim): *"Store a memory scoped to the current repo.
-  Shared with every developer working in the same repo. Use for decisions,
-  conventions, corrections, and session summaries."*
+- **description** (verbatim):
+
+```text
+Stores one curated key/value memory (versioned, repo-scoped when a repo is detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `key` | string | yes | — | Memory key (e.g. `auth-pattern`, `session-summary/2026-03-30`). |
+| `key` | string | yes | — | Caller-chosen retrieval key; slash-namespaced by convention, e.g. 'session-summary/2026-03-30'. |
 | `value` | string | yes | — | Memory value (text). Embedded for semantic search. |
 | `agent_id` | string | no | — | Override the resolved agent ID. |
-| `ttl` | number | no | — | Time-to-live in seconds. Omit for permanent. Sets `expires_at`. |
-| `extract_facts` | boolean | no | — | When true, fire async fact extraction from `value`. |
+| `ttl` | number | no | — | Time-to-live in seconds. Omit for no expiry. |
+| `extract_facts` | boolean | no | — | When true, triggers async fact extraction from value (fire-and-forget). |
 
 ## Behavior
 

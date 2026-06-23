@@ -25,19 +25,20 @@ when nothing changed is a no-op (only changed files re-project).
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/spec-trace-tools.ts#L10)).
 
 - **name**: `lore_ingest_graph`
-- **description** (verbatim): *"Create spec-traceability graph ingestion tasks —
-  one per kind (specs, adrs, tests). Each is a pipeline task (id + description,
-  visible in the UI) the agent runner picks up (specs/adrs) or you run locally
-  with lore_run_task_locally. Idempotent: re-running with no changes is a no-op (only
-  changed files re-project)."*
+- **description** (verbatim):
+
+```text
+WRITE side of spec-traceability: creates one ingestion pipeline task per requested kind (specs, adrs, tests) and returns the created task ids under a single group id. Idempotent — in-flight tasks for a kind are skipped. Instead: to READ spec coverage from the built graph use lore-query-trace; to enumerate or run tests locally use lore_list_tests / lore_run_test.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `repo` | string | no | — | `owner/repo`. Defaults to the current repo (`detectCurrentRepo()`). |
-| `kinds` | `("specs"\|"adrs"\|"tests")[]` | no | all three | Which kinds to ingest. |
-| `ref` | string | no | repo default branch | Branch (or commit) to ingest at. Passed through as `branch`. |
+| `repo` | string | no | — | Target repo as 'owner/repo'. Defaults to the repo detected from cwd git remote. |
+| `kinds` | `("specs"\|"adrs"\|"tests")[]` | no | — | Which kinds to ingest. Defaults to all three. |
+| `ref` | string | no | — | Branch name or commit SHA. Defaults to the repo's default branch. |
+| `force` | boolean | no | — | When true, re-processes all specs/adrs files even if content is unchanged. Has no effect on the tests kind. |
 
 ## Behavior
 

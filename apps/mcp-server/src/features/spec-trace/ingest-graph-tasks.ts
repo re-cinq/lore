@@ -53,7 +53,7 @@ export async function createIngestGraphTasks(
       taskGroupId: groupId,
       contextBundle: { kind, branch: opts.branch, commit: opts.commit, glob: opts.glob, force: opts.force },
     });
-    created.push({ id: task.id, kind });
+    created.push({ id: task.task_id, kind });
   }
 
   return { groupId, created, skipped };

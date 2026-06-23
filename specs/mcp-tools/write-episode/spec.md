@@ -24,19 +24,20 @@ asynchronously, without leaking secrets into the org-wide store.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L193)).
 
 - **name**: `lore_write_episode`
-- **description** (verbatim): *"Ingest raw, unstructured text (conversation
-  turn, code review, observation). The system stores it as an episode and
-  automatically extracts searchable facts. Use this for passive knowledge
-  capture — no need to curate what's important."*
+- **description** (verbatim):
+
+```text
+Ingests one raw uncurated text blob as a deduplicated episode; returns {status: "ok", episode_id, source, ref} or {status: "duplicate"} when already ingested. Content is secret-redacted; facts and graph entities/edges are extracted asynchronously. Use for bulk/passive capture where you do not want to choose a key and do not need the text individually addressable. Instead: lore_write_memory for a curated nugget you want to retrieve by a specific key. No file fallback — requires DB or API.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `content` | string | yes | — | Raw text. `min(1).max(50000)`. |
-| `source` | string | no | `"manual"` | Source tag: `session`, `pr-review`, `ci`, `manual`. |
-| `ref` | string | no | — | External reference, e.g. `owner/repo#42`. |
-| `agent_id` | string | no | — | Override the resolved agent ID. |
+| `content` | string | yes | — | Raw text to ingest; deduplicated by content hash. 1–50000 chars. |
+| `source` | string | no | `"manual"` | Provenance tag, e.g. "session", "pr-review", "ci". |
+| `ref` | string | no | — | External reference, e.g. "owner/repo#42". The owner/repo prefix scopes graph entities. |
+| `agent_id` | string | no | — | — |
 
 ## Behavior
 

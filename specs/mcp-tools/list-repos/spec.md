@@ -22,8 +22,11 @@ opening the web UI or querying Postgres by hand. `lore_list_repos` returns the f
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/repo-tools.ts#L14)).
 
 - **name**: `lore_list_repos`
-- **description** (verbatim): *"Returns all onboarded repos from lore.repos with
-  pipeline task counts."*
+- **description** (verbatim):
+
+```text
+Lists every repo onboarded into Lore, returning a JSON array with per-repo metadata and pipeline task count (DB-only). Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.
+```
 
 ### Input schema (Zod)
 

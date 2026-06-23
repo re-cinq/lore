@@ -20,7 +20,9 @@ The three core tools — `lore_assemble_context`, `lore_search_context`,
 `lore_search_memory` — plus 30+ others spanning memory, the task pipeline,
 repo onboarding, spec-trace, and usage. Context is assembled from PostgreSQL +
 pgvector (hybrid vector + BM25 search via Reciprocal Rank Fusion) using the YAML
-templates in [`templates/`](./templates).
+templates in [`templates/`](./templates). For the full per-tool reference —
+parameters, returns, and disambiguation — see
+[`docs/mcp-tools-reference.md`](../../docs/mcp-tools-reference.md).
 
 Task **CRUD** lives here; task **processing** is the Floor's job
 (`@re-cinq/lore-floor`). All `/api/*` routes enforce bearer-token auth before

@@ -23,16 +23,18 @@ the repo + commit locally and proxies the embed work to the GKE ingest API.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/repo-tools.ts#L53)).
 
 - **name**: `lore_ingest_files`
-- **description** (verbatim): *"Manually ingest files from a repo into Lore's
-  context store. Use this to make specific files searchable via lore_search_context.
-  The files are fetched from GitHub and embedded."*
+- **description** (verbatim):
+
+```text
+Fetches specific repo files from GitHub, embeds them, and writes them into Lore's context store immediately so they are searchable without waiting for nightly ingestion. Returns "Ingested N files into Lore for <repo>. M errors." Use after merging a new ADR or updated CLAUDE.md to make it searchable now. Instead: to onboard a new repo use lore_onboard_repo; to search existing content use lore_search_context or lore_assemble_context.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `files` | string[] | yes | — | File paths to ingest (e.g., `["CLAUDE.md", "adrs/ADR-001.md", "src/auth.ts"]`). |
-| `repo` | string | no | — | `owner/repo`. Auto-detected from the git remote when omitted. |
+| `files` | string[] | yes | — | Repo-relative file paths to ingest. |
+| `repo` | string | no | — | "owner/repo" format. Auto-detected from cwd git remote when omitted. |
 
 ## Behavior
 
