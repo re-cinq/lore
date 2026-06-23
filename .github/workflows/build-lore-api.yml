@@ -1,37 +1,39 @@
-name: Build and push Lore MCP server
+name: Build and push Lore API
 
 on:
   push:
     branches: [main]
     paths:
-      - 'apps/mcp-server/**'
-      # The compiled `shared` package is bundled into the image — a shared-only
-      # change must rebuild + redeploy, or the cluster runs stale shared code
-      # while main is green (rediscovered 2026-06-11: AC-traceability fix lived
-      # in shared/ only, so mcp/agent never rebuilt and prod stayed broken).
+      - 'apps/lore-api/**'
+      # The compiled `shared` + `server-core` packages are bundled into the
+      # image — a lib-only change must rebuild + redeploy, or the cluster runs
+      # stale lib code while main is green (rediscovered 2026-06-11: AC-traceability
+      # fix lived in shared/ only, so the server never rebuilt and prod stayed broken).
       - 'libs/shared/**'
+      - 'libs/server-core/**'
       # Chart or workflow changes need a redeploy too — without this,
       # a chart-only PR merges to main and nothing redeploys, leaving
       # the cluster on old code forever (rediscovered 2026-04-29).
       - 'infra/terraform/modules/gke-mcp/mcp-helm/**'
-      - '.github/workflows/build-mcp.yml'
+      - '.github/workflows/build-lore-api.yml'
   pull_request:
     paths:
-      - 'apps/mcp-server/**'
+      - 'apps/lore-api/**'
       - 'libs/shared/**'
+      - 'libs/server-core/**'
       - 'infra/terraform/modules/gke-mcp/mcp-helm/**'
-      - '.github/workflows/build-mcp.yml'
+      - '.github/workflows/build-lore-api.yml'
   workflow_dispatch:
 
 # Cancel in-progress runs when a new commit lands on the same ref —
 # but never cancel the deploy on main, that always runs to completion.
 concurrency:
-  group: build-mcp-${{ github.ref }}
+  group: build-lore-api-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: re-cinq/lore-mcp
+  IMAGE_NAME: re-cinq/lore-api
 
 jobs:
   build:
@@ -69,7 +71,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: apps/mcp-server/Dockerfile
+          file: apps/lore-api/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

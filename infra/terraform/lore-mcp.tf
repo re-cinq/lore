@@ -13,11 +13,7 @@ resource "helm_release" "lore_mcp" {
     value = "latest"
   }
 
-  # MCP server config (plain values)
-  set {
-    name  = "env.MCP_TRANSPORT"
-    value = "http"
-  }
+  # Lore API config (plain values)
   set {
     name  = "env.PORT"
     value = "3000"

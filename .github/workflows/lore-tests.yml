@@ -45,6 +45,7 @@ jobs:
       - name: Build trace tooling
         run: |
           npm run build -w @re-cinq/lore-shared
+          npm run build -w @re-cinq/lore-server-core
           npm run build -w @re-cinq/lore-mcp
 
       - name: Collect coverage and POST test-report
