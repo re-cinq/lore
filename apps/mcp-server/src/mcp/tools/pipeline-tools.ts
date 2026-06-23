@@ -16,7 +16,7 @@ import {
 } from "@re-cinq/lore-server-core/features/pipeline/tasks.js";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
-import { ToolDeps, withReadCache, unreachableError, deniedError } from "./deps.js";
+import { ToolDeps, withReadCache, unreachableError, deniedError, proxyGetApi } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
 function completeOnly(body: string): boolean {
@@ -128,10 +128,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ repo, pr_number }) => {
       try {
-        const { fetchPrStatus } = await import("../../platform/github-client.js");
-        const result = await fetchPrStatus(repo, pr_number);
-        if (!result) return { content: [{ type: "text" as const, text: "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN." }] };
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+        const params = new URLSearchParams({ repo, pr_number: String(pr_number) });
+        const proxied = await proxyGetApi(`/api/pr-status?${params}`);
+        if (proxied.ok) return { content: [{ type: "text" as const, text: JSON.stringify(JSON.parse(proxied.body), null, 2) }] };
+        if (proxied.reason === "not_configured") return { content: [{ type: "text" as const, text: "PR status requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure." }] };
+        if (proxied.reason === "denied") return deniedError("lore_get_pr_status", proxied.detail);
+        return unreachableError("lore_get_pr_status", proxied.detail);
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
       }

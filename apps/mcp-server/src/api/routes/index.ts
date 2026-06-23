@@ -18,6 +18,7 @@ import { handleTaskTimeline, handleTaskByPr } from "./task-timeline.js";
 import { handleMemory, handleEpisode, handleSessionSummary } from "./memory.js";
 import { handleSlackWebhook, handleIncidentWebhook } from "./webhooks.js";
 import { handleTaskLogs, handleGetTaskLogs, handleGetJobRunLogs } from "./logs.js";
+import { handlePrStatus } from "./pr-status.js";
 import { handleTokens } from "./tokens.js";
 import { handleDarkFactorySettingsRoute } from "./dark-factory.js";
 import { handleAgentsRoute } from "./agents.js";
@@ -71,6 +72,7 @@ const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/task-logs", "POST"), handle: (req, res) => handleTaskLogs(req, res) },
   { match: prefix("/api/task-logs", "GET"), handle: (req, res) => handleGetTaskLogs(req, res) },
   { match: prefix("/api/job-run-logs", "GET"), handle: (req, res) => handleGetJobRunLogs(req, res) },
+  { match: prefix("/api/pr-status", "GET"), handle: handlePrStatus },
   { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
   { match: path((url) => url === "/api/tokens"), handle: handleTokens },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
