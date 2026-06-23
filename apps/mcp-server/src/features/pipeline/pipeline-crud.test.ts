@@ -5,7 +5,7 @@ import {
   getPipelineTask as getTask,
   listPipelineTasks as listTasks,
 } from "@re-cinq/lore-shared";
-import { makePool } from "../../test-helpers/http-mock.js";
+import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 /**
  * Drives the shared pipeline CRUD — the exact functions the lore_cancel_task,

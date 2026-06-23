@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { makePool } from "../../test-helpers/http-mock.js";
+import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import {
   syncTasksToDb,
   getReadyTasks,
