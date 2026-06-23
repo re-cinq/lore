@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
 import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../../test-helpers/http-mock.js";
 
-vi.mock("../../features/memory/graph.js", () => ({
+vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({
   queryLiveGraph: vi.fn(),
   extractAndUpdateGraph: vi.fn(),
 }));
 
-import { queryLiveGraph } from "../../features/memory/graph.js";
+import { queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 
 const originalEnv = { ...process.env };
 

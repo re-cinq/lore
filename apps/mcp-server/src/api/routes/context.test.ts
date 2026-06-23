@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
 import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../../test-helpers/http-mock.js";
 
-vi.mock("../../features/context/context-assembly.js", () => ({ assembleContext: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/context/context-assembly.js", () => ({ assembleContext: vi.fn() }));
 
-import { assembleContext } from "../../features/context/context-assembly.js";
+import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 
 const originalEnv = { ...process.env };
 

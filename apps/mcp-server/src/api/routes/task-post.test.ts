@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
 import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../../test-helpers/http-mock.js";
 
-vi.mock("../../features/pipeline/pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
-vi.mock("../../features/pipeline/pipeline-config.js", () => ({ getTaskTypes: vi.fn(() => ["review", "general", "implementation"]) }));
+vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline-config.js", () => ({ getTaskTypes: vi.fn(() => ["review", "general", "implementation"]) }));
 
-import { createTask, retryTask } from "../../features/pipeline/pipeline.js";
+import { createTask, retryTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 
 const originalEnv = { ...process.env };
 

@@ -11,7 +11,7 @@ import {
 
 // handleHealthz is the only dispatch-reachable handler here that touches a
 // collaborator module; everything else short-circuits on pool/secret guards.
-vi.mock("../../platform/db.js", () => ({
+vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
   getHealthStatus: vi.fn().mockResolvedValue({ connected: true }),
   isDbAvailable: vi.fn(),
   getQueryEmbedding: vi.fn(),

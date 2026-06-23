@@ -5,7 +5,7 @@ import {
   getReadyTasks,
   claimTask,
   completeTask,
-} from "./tasks.js";
+} from "@re-cinq/lore-server-core/features/pipeline/tasks.js";
 import type { ParsedTask } from "@re-cinq/lore-shared";
 
 function parsed(overrides: Partial<ParsedTask>): ParsedTask {

@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { dumpSessionLog } from "../platform/session-tracker.js";
+import { dumpSessionLog } from "@re-cinq/lore-server-core/platform/session-tracker.js";
 import { startHttpServer } from "./http-server.js";
 
 /**

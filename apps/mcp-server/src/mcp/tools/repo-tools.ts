@@ -4,9 +4,9 @@ import {
   getOnboardedReposWithCounts,
   onboardRepo,
 } from "../../features/repo/repo-onboard.js";
-import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
+import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { ToolDeps } from "./deps.js";
-import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
+import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
 export function registerRepoTools(server: McpServer, deps: ToolDeps) {
   const { getPool } = deps;

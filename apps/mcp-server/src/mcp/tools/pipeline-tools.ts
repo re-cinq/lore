@@ -5,19 +5,19 @@ import {
   getTask,
   listTasks,
   cancelTask,
-} from "../../features/pipeline/pipeline.js";
-import { getTaskTypes } from "../../features/pipeline/pipeline-config.js";
+} from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
+import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import {
   parseTasks,
   syncTasksToDb,
   getReadyTasks,
   claimTask,
   completeTask,
-} from "../../features/pipeline/tasks.js";
-import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
-import { resolveAgentId } from "../../platform/agent-id.js";
+} from "@re-cinq/lore-server-core/features/pipeline/tasks.js";
+import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
+import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
 import { ToolDeps, withReadCache, unreachableError, deniedError } from "./deps.js";
-import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
+import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
 function completeOnly(body: string): boolean {
   try {
@@ -200,7 +200,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         if (!process.env.LORE_DB_HOST) {
           return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
         }
-        const { retryTask } = await import("../../features/pipeline/pipeline.js");
+        const { retryTask } = await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
         const result = await retryTask(task_id);
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       } catch (err: any) {

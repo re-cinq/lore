@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { TraceDocument } from "@re-cinq/lore-shared";
 import { formatTraceQuery, runQueryTrace } from "./query-trace.js";
-import type { ProxyResult } from "../../mcp/tools/deps.js";
+import type { ProxyResult } from "../../proxy.js";
 
 function doc(overrides: Partial<TraceDocument> = {}): TraceDocument {
   return {

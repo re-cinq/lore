@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
 import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../../test-helpers/http-mock.js";
 
-vi.mock("../../features/memory/facts.js", () => ({ extractFactsFromEpisode: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("../../features/memory/graph.js", () => ({ extractAndUpdateGraph: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/memory/facts.js", () => ({ extractFactsFromEpisode: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({ extractAndUpdateGraph: vi.fn() }));
 
-import { extractFactsFromEpisode } from "../../features/memory/facts.js";
-import { extractAndUpdateGraph } from "../../features/memory/graph.js";
+import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
+import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;

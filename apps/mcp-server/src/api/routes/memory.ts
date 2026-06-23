@@ -2,12 +2,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
 import { redactSecrets as sanitizeContent } from "@re-cinq/lore-shared";
-import { getQueryEmbedding } from "../../platform/db.js";
-import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "../../features/memory/memory.js";
-import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "../../features/memory/memory-file.js";
-import { searchMemories } from "../../features/memory/memory-search.js";
-import { extractFactsFromEpisode } from "../../features/memory/facts.js";
-import { extractAndUpdateGraph } from "../../features/memory/graph.js";
+import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
+import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "@re-cinq/lore-server-core/features/memory/memory.js";
+import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
+import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
+import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
+import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 import { json, readBody } from "./http.js";
 import { makeGraphLlmCall } from "./helpers.js";
 

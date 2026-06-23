@@ -1,12 +1,11 @@
-import { initOtel } from "./platform/otel.js";
-import { join } from "node:path";
+import { initOtel } from "./platform/otel-init.js";
 import pg from "pg";
-import { setPool } from "./platform/db.js";
-import { setMemoryPool } from "./features/memory/memory.js";
-import { setPipelinePool } from "./features/pipeline/pipeline.js";
+import { setPool } from "@re-cinq/lore-server-core/platform/db.js";
+import { setMemoryPool } from "@re-cinq/lore-server-core/features/memory/memory.js";
+import { setPipelinePool } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { loadTaskTypes } from "./features/pipeline/pipeline-config.js";
-import { loadTemplates } from "./features/context/context-assembly.js";
+import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
+import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { buildMcpServer } from "./server/build-mcp-server.js";
 import { startTransport } from "./server/transports.js";
 
@@ -44,7 +43,7 @@ async function main() {
   // lives in @re-cinq/lore-shared, so the mcp templates dir is passed explicitly
   // (the shared default would resolve into the shared package tree).
   loadTaskTypes();
-  loadTemplates(join(import.meta.dirname, "..", "templates"));
+  loadDefaultTemplates();
   if (process.env.LORE_DB_HOST) {
     console.error('[lore] Pipeline task CRUD ready (processing handled by the Floor)');
   }

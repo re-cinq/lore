@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@re-cinq/lore-shared": "*",
+    "@re-cinq/lore-server-core": "*",
     "@kubernetes/client-node": "^1.4.0",
     "@re-cinq/agent-contracts": "^0.3.0",
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": "^0.20.0",

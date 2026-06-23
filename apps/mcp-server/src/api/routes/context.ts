@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { createDgraphClient } from "@re-cinq/lore-shared";
-import { assembleContext } from "../../features/context/context-assembly.js";
-import { resolveCrossRepo } from "../../features/context/cross-repo.js";
+import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
+import { resolveCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
 import { json } from "./http.js";
 
 export async function handleContext(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {

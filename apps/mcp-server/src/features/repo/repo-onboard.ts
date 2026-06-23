@@ -137,7 +137,7 @@ export async function onboardRepo(pool: any, fullName: string): Promise<OnboardR
   );
 
   // Create a pipeline task for the onboarding agent
-  const { createTask } = await import('../pipeline/pipeline.js');
+  const { createTask } = await import('@re-cinq/lore-server-core/features/pipeline/pipeline.js');
   const result = await createTask(
     fullName,       // description is the repo name
     'onboard',
@@ -279,7 +279,7 @@ export async function checkOnboardingPRs(pool: any): Promise<void> {
           [repo.id]
         );
         // Trigger initial ingestion via pipeline
-        const { createTask } = await import('../pipeline/pipeline.js');
+        const { createTask } = await import('@re-cinq/lore-server-core/features/pipeline/pipeline.js');
         await createTask(
           `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
           'general',

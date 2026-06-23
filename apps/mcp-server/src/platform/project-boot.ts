@@ -1,5 +1,5 @@
 import { createProject, createDgraphClient, type Project } from "@re-cinq/lore-shared";
-import { getPool } from "./db.js";
+import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 
 /**
  * Per-repo Project composition root for mcp-server. The memory backend defaults

@@ -7,7 +7,7 @@
  */
 
 import { getOctokit, isAppConfigured as isConfigured } from '../../platform/github-client.js';
-import { getQueryEmbedding } from '../../platform/db.js';
+import { getQueryEmbedding } from '@re-cinq/lore-server-core/platform/db.js';
 import { chunkFile, classifyFile, buildIngestedChunkMetadata } from '@re-cinq/lore-shared';
 
 export interface IngestResult {

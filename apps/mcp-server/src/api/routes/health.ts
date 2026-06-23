@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
-import { getHealthStatus } from "../../platform/db.js";
+import { getHealthStatus } from "@re-cinq/lore-server-core/platform/db.js";
 import { json } from "./http.js";
 import { validateClientToken } from "./auth.js";
 

@@ -2,27 +2,27 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
 import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../../test-helpers/http-mock.js";
 
-vi.mock("../../platform/db.js", () => ({ getHealthStatus: vi.fn(), isDbAvailable: vi.fn(), getQueryEmbedding: vi.fn() }));
-vi.mock("../../features/memory/memory.js", () => ({
+vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({ getHealthStatus: vi.fn(), isDbAvailable: vi.fn(), getQueryEmbedding: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/memory/memory.js", () => ({
   isMemoryDbAvailable: vi.fn(),
   writeMemory: vi.fn(),
   readMemory: vi.fn(),
   deleteMemory: vi.fn(),
   listMemories: vi.fn(),
 }));
-vi.mock("../../features/memory/memory-file.js", () => ({
+vi.mock("@re-cinq/lore-server-core/features/memory/memory-file.js", () => ({
   writeMemoryFile: vi.fn(),
   readMemoryFile: vi.fn(),
   deleteMemoryFile: vi.fn(),
   listMemoriesFile: vi.fn(),
   searchMemoryFile: vi.fn(),
 }));
-vi.mock("../../features/memory/memory-search.js", () => ({ searchMemories: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/memory/memory-search.js", () => ({ searchMemories: vi.fn() }));
 
-import { getQueryEmbedding } from "../../platform/db.js";
-import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "../../features/memory/memory.js";
-import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "../../features/memory/memory-file.js";
-import { searchMemories } from "../../features/memory/memory-search.js";
+import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
+import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "@re-cinq/lore-server-core/features/memory/memory.js";
+import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
+import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
 
 const originalEnv = { ...process.env };
 

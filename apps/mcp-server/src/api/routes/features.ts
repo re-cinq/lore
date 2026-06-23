@@ -19,7 +19,7 @@ import {
   latestReadyGap,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { projectFor } from "../../platform/project-boot.js";
-import { createTask } from "../../features/pipeline/pipeline.js";
+import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { json, readJsonBody } from "./http.js";
 
 /**

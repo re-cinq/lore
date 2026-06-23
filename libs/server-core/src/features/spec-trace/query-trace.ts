@@ -8,7 +8,7 @@
  */
 
 import type { TraceDocument, TraceStatement, TraceLinkRef } from "@re-cinq/lore-shared";
-import type { ProxyResult } from "../../mcp/tools/deps.js";
+import type { ProxyResult } from "../../proxy.js";
 
 /** Signal priority for the summary — the collisions worth surfacing first. */
 function signalRank(s: TraceStatement): number {

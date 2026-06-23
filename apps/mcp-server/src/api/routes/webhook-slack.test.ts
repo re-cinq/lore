@@ -3,9 +3,9 @@ import { createHmac } from "node:crypto";
 import { handleApiRoute } from "../routes.js";
 import { makeReq, makeRes, makePool, useRateLimitSafeClock } from "../../test-helpers/http-mock.js";
 
-vi.mock("../../features/pipeline/pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
 
-import { createTask, retryTask } from "../../features/pipeline/pipeline.js";
+import { createTask, retryTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 
 const SLACK_SECRET = "slack-secret";
 const originalEnv = { ...process.env };

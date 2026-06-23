@@ -47,9 +47,27 @@ Phase 1 work is:
    `GET /api/task-logs`, `GET /api/job-run-logs` (`api/routes/logs.ts`) — so the
    local tool proxies to `LORE_API_URL` instead of hitting GCS directly. Removes
    `@google-cloud/storage` from the local tree.
-4. **Two entrypoints.** Local `index.ts`: build MCP server, connect stdio, no
+4. **Proxy the onboard tool.** `repo-tools.ts` imports `onboardRepo` /
+   `getOnboardedReposWithCounts` from `features/repo/repo-onboard.ts`, which
+   value-imports `platform/github-client.ts` (octokit). Both are called with
+   `getPool()!` — they already require a DB pool the local adapter never has, so
+   in local mode they must proxy to the existing `POST /api/onboard` (the same
+   pattern `repo-tools` already uses for `/api/ingest`). Removes `octokit` from
+   the local tree. (`repo-onboard` + `github-client` are remote-only → lore-api.)
+5. **Relocate `ProxyResult`.** `query-trace.ts` does `import type { ProxyResult }
+   from mcp/tools/deps.js` — type-only (erased), but a backwards package edge.
+   Move `ProxyResult` into server-core's proxy module; `deps.ts` re-imports it.
+6. **Two entrypoints.** Local `index.ts`: build MCP server, connect stdio, no
    pool, no pg. Remote `index.ts`: `initOtel`, build pg pool + inject, load
    config/templates, `startHttpServer`.
+
+### The three local→heavy entanglements (all resolved above)
+
+| local tool | reaches heavy via | fix |
+|---|---|---|
+| context/memory/deps | `otel.ts` → `@opentelemetry/sdk-node` | split otel (helpers light) |
+| `pipeline-tools` | dynamic `@google-cloud/storage` | proxy `/api/task-logs`,`/api/job-run-logs` |
+| `repo-tools` | `repo-onboard` → `github-client` (octokit) | proxy `/api/onboard` |
 
 ## Heavy modules that move to `apps/lore-api` (remote-only)
 

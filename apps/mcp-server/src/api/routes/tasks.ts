@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
-import { createTask, getTask, listTasks } from "../../features/pipeline/pipeline.js";
-import { getTaskTypes } from "../../features/pipeline/pipeline-config.js";
+import { createTask, getTask, listTasks } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
+import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { json, readBody } from "./http.js";
 
 export async function handleGetTask(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -35,7 +35,7 @@ export async function handleTaskPost(req: IncomingMessage, res: ServerResponse, 
 
     // Retry action
     if (parsed.action === "retry" && parsed.task_id) {
-      const { retryTask } = await import('../../features/pipeline/pipeline.js');
+      const { retryTask } = await import('@re-cinq/lore-server-core/features/pipeline/pipeline.js');
       const retryResult = await retryTask(parsed.task_id);
       json(res, 200, retryResult);
       return;

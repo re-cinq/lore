@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { handleApiRoute } from "../routes.js";
 import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "../../test-helpers/http-mock.js";
 
-vi.mock("../../platform/db.js", () => ({ getHealthStatus: vi.fn(), isDbAvailable: vi.fn(), getQueryEmbedding: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({ getHealthStatus: vi.fn(), isDbAvailable: vi.fn(), getQueryEmbedding: vi.fn() }));
 
-import { getHealthStatus } from "../../platform/db.js";
+import { getHealthStatus } from "@re-cinq/lore-server-core/platform/db.js";
 
 const originalEnv = { ...process.env };
 

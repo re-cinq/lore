@@ -1,51 +1,16 @@
 /**
- * OpenTelemetry setup for the Lore MCP server.
- *
- * Exports traces and metrics to Cloud Monitoring when running on GKE.
- * No-ops gracefully when OTEL is not configured (Phase 0 local mode).
- *
- * Import this module FIRST in index.ts — before any other imports.
+ * Light OpenTelemetry helpers — trace/metric emitters built on the
+ * `@opentelemetry/api` surface only. These are no-ops until an SDK is
+ * registered globally (the heavy `initOtel` lives in the remote app's boot,
+ * in its `otel-init.ts`). Both the local MCP adapter and the remote API import
+ * these helpers; neither pulls the heavy `@opentelemetry/sdk-node`.
  */
 
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { trace, metrics, Span } from "@opentelemetry/api";
-
-let sdk: NodeSDK | null = null;
-
-export async function initOtel(): Promise<void> {
-  // Only initialize when running in HTTP mode (GKE)
-  if (process.env.MCP_TRANSPORT !== "http") return;
-
-  try {
-    // Dynamic imports — these packages may not be installed in Phase 0
-    const { TraceExporter } = await import(
-      "@google-cloud/opentelemetry-cloud-trace-exporter"
-    );
-    const { MetricExporter } = await import(
-      "@google-cloud/opentelemetry-cloud-monitoring-exporter"
-    );
-    const { PeriodicExportingMetricReader } = await import(
-      "@opentelemetry/sdk-metrics"
-    );
-
-    sdk = new NodeSDK({
-      traceExporter: new TraceExporter(),
-      metricReader: new PeriodicExportingMetricReader({
-        exporter: new MetricExporter(),
-        exportIntervalMillis: 60_000,
-      }),
-      serviceName: "lore-mcp",
-    });
-    sdk.start();
-    console.log("[otel] Tracing and metrics initialized → Cloud Monitoring");
-  } catch (err) {
-    console.log("[otel] Cloud exporters not available, tracing disabled");
-  }
-}
+import { trace, metrics } from "@opentelemetry/api";
 
 const GAP_THRESHOLD = 0.72;
-const tracer = trace.getTracer("lore-mcp");
-const meter = metrics.getMeter("lore-mcp");
+const tracer = trace.getTracer("lore");
+const meter = metrics.getMeter("lore");
 const retrievalHistogram = meter.createHistogram("lore.retrieval.score", {
   description: "Top retrieval score per search call",
 });
@@ -138,8 +103,4 @@ export function traceRetrieval(params: {
   if (params.topScore < GAP_THRESHOLD) {
     gapCounter.add(1, { namespace: params.namespace });
   }
-}
-
-export async function shutdownOtel(): Promise<void> {
-  if (sdk) await sdk.shutdown();
 }

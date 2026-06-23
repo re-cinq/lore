@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
-import { queryLiveGraph } from "../../features/memory/graph.js";
+import { queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 import { json } from "./http.js";
 
 /**

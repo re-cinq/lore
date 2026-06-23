@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 vi.mock("../../platform/project-boot.js", () => ({ projectFor: vi.fn() }));
-vi.mock("../../features/pipeline/pipeline.js", () => ({ createTask: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({ createTask: vi.fn() }));
 
 import { handleFeaturesRoute, matchFeaturesRoute } from "./features.js";
 import { projectFor } from "../../platform/project-boot.js";
-import { createTask } from "../../features/pipeline/pipeline.js";
+import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { makeReq, makeRes } from "../../test-helpers/http-mock.js";
 
 const base = "/api/repos/octo/repo/features";
