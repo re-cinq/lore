@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { ingestFiles } from "../../features/spec-trace/ingest.js";
-import { onboardRepo } from "../../features/repo/repo-onboard.js";
+import { onboardRepo, getOnboardedReposWithCounts } from "../../features/repo/repo-onboard.js";
 import { json, readBody } from "./http.js";
 import { triggerAgentSpecCoverageValidate } from "./helpers.js";
 
@@ -33,6 +33,17 @@ export async function handleIngest(req: IncomingMessage, res: ServerResponse, po
     }
   } catch (err: any) {
     console.error("[ingest] API error:", err.message);
+    json(res, 500, { error: err.message });
+  }
+}
+
+export async function handleListRepos(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
+  if (!pool) { json(res, 503, { error: "database not available" }); return; }
+  try {
+    const repos = await getOnboardedReposWithCounts(pool);
+    json(res, 200, repos);
+  } catch (err: any) {
+    console.error("[repos] API error:", err.message);
     json(res, 500, { error: err.message });
   }
 }

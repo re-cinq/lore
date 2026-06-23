@@ -365,45 +365,28 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         if (!task) return { content: [{ type: "text" as const, text: `Task not found: ${task_id}` }] };
         const repo = task.target_repo;
 
-        // Try local proxy first (GCS via API)
-        if (!process.env.LORE_DB_HOST) {
-          const apiUrl = process.env.LORE_API_URL;
-          const apiToken = process.env.LORE_INGEST_TOKEN;
-          if (!apiUrl || !apiToken) {
-            return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
-          }
-          const params = new URLSearchParams({ task_id, repo, offset: String(offset) });
-          const proxied = await withReadCache(
-            { tool: "lore_get_task_logs", args: { task_id, repo, offset }, repo, ttlSeconds: 86400 },
-            async () => {
-              const res = await fetch(`${apiUrl}/api/task-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
-              if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
-              const detail = `HTTP ${res.status} ${res.statusText}`;
-              if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
-              return { ok: false as const, reason: "unreachable" as const, detail };
-            },
-            { label: false, cacheIf: completeOnly },
-          );
-          if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-          if (proxied.reason === "denied") return deniedError("lore_get_task_logs", proxied.detail);
-          if (proxied.reason === "unreachable") return unreachableError("lore_get_task_logs", proxied.detail);
+        // Proxy log reads to the remote API (logs live server-side in GCS).
+        const apiUrl = process.env.LORE_API_URL;
+        const apiToken = process.env.LORE_INGEST_TOKEN;
+        if (!apiUrl || !apiToken) {
           return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
         }
-
-        // Direct GCS read (GKE mode)
-        try {
-          const { Storage } = await import("@google-cloud/storage");
-          const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
-          const file = bucket.file(`${repo}/${task_id}/output.log`);
-          const [exists] = await file.exists();
-          if (!exists) return { content: [{ type: "text" as const, text: JSON.stringify({ logs: "", next_offset: 0, complete: task.status !== 'running' }) }] };
-          const [content] = await file.download();
-          const full = content.toString("utf-8");
-          const sliced = full.substring(offset);
-          return { content: [{ type: "text" as const, text: JSON.stringify({ logs: sliced, next_offset: full.length, complete: task.status !== 'running' }) }] };
-        } catch (err: any) {
-          return { content: [{ type: "text" as const, text: `Error reading logs: ${err.message}` }] };
-        }
+        const params = new URLSearchParams({ task_id, repo, offset: String(offset) });
+        const proxied = await withReadCache(
+          { tool: "lore_get_task_logs", args: { task_id, repo, offset }, repo, ttlSeconds: 86400 },
+          async () => {
+            const res = await fetch(`${apiUrl}/api/task-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
+            if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
+            const detail = `HTTP ${res.status} ${res.statusText}`;
+            if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
+            return { ok: false as const, reason: "unreachable" as const, detail };
+          },
+          { label: false, cacheIf: completeOnly },
+        );
+        if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+        if (proxied.reason === "denied") return deniedError("lore_get_task_logs", proxied.detail);
+        if (proxied.reason === "unreachable") return unreachableError("lore_get_task_logs", proxied.detail);
+        return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
       }
@@ -419,39 +402,28 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ job_name, run_id }) => {
       try {
-        // Local-stdio mode → proxy to API
-        if (!process.env.LORE_DB_HOST) {
-          const apiUrl = process.env.LORE_API_URL;
-          const apiToken = process.env.LORE_INGEST_TOKEN;
-          if (!apiUrl || !apiToken) {
-            return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
-          }
-          const params = new URLSearchParams({ job_name, run_id });
-          const proxied = await withReadCache(
-            { tool: "lore_get_job_logs", args: { job_name, run_id }, ttlSeconds: 86400 },
-            async () => {
-              const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
-              if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
-              const detail = `HTTP ${res.status} ${res.statusText}`;
-              if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
-              return { ok: false as const, reason: "unreachable" as const, detail };
-            },
-            { label: false, cacheIf: completeOnly },
-          );
-          if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-          if (proxied.reason === "denied") return deniedError("lore_get_job_logs", proxied.detail);
-          if (proxied.reason === "unreachable") return unreachableError("lore_get_job_logs", proxied.detail);
+        // Proxy log reads to the remote API (logs live server-side in GCS).
+        const apiUrl = process.env.LORE_API_URL;
+        const apiToken = process.env.LORE_INGEST_TOKEN;
+        if (!apiUrl || !apiToken) {
           return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
         }
-
-        // Direct GCS read (GKE mode)
-        const { Storage } = await import("@google-cloud/storage");
-        const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
-        const file = bucket.file(`__job_runs__/${job_name}/${run_id}/output.log`);
-        const [exists] = await file.exists();
-        if (!exists) return { content: [{ type: "text" as const, text: JSON.stringify({ logs: "", complete: true }) }] };
-        const [content] = await file.download();
-        return { content: [{ type: "text" as const, text: JSON.stringify({ logs: content.toString("utf-8"), complete: true }) }] };
+        const params = new URLSearchParams({ job_name, run_id });
+        const proxied = await withReadCache(
+          { tool: "lore_get_job_logs", args: { job_name, run_id }, ttlSeconds: 86400 },
+          async () => {
+            const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
+            if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
+            const detail = `HTTP ${res.status} ${res.statusText}`;
+            if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
+            return { ok: false as const, reason: "unreachable" as const, detail };
+          },
+          { label: false, cacheIf: completeOnly },
+        );
+        if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+        if (proxied.reason === "denied") return deniedError("lore_get_job_logs", proxied.detail);
+        if (proxied.reason === "unreachable") return unreachableError("lore_get_job_logs", proxied.detail);
+        return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
       }

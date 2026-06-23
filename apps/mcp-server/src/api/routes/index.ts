@@ -10,7 +10,7 @@ import type { Pool } from "pg";
 import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
 import { handleHealthz, handleRepoStatus } from "./health.js";
-import { handleIngest, handleOnboard } from "./ingest.js";
+import { handleIngest, handleOnboard, handleListRepos } from "./ingest.js";
 import { handleContext } from "./context.js";
 import { handleGraph } from "./graph.js";
 import { handleGetTask, handleListTasks, handleTaskPost } from "./tasks.js";
@@ -56,6 +56,7 @@ const API_ROUTES: ApiRoute[] = [
   { match: prefix("/api/repo-status", "GET"), handle: handleRepoStatus },
   { match: exact("/api/ingest", "POST"), handle: handleIngest },
   { match: exact("/api/onboard", "POST"), handle: handleOnboard },
+  { match: exact("/api/repos", "GET"), handle: handleListRepos },
   { match: prefix("/api/context", "GET"), handle: handleContext },
   { match: prefix("/api/graph", "GET"), handle: handleGraph },
   { match: prefix("/api/task/", "GET"), handle: (req, res) => handleGetTask(req, res) },
