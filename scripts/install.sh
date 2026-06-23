@@ -54,14 +54,15 @@ install_context() {
 build_mcp_server() {
   CURRENT_STEP="build MCP server"
   # Monorepo (npm workspaces): one install at the repo root wires up every
-  # workspace. @re-cinq/lore-mcp only needs @re-cinq/lore-shared built first.
+  # workspace. @re-cinq/lore-mcp (the local stdio adapter) needs
+  # @re-cinq/lore-shared + @re-cinq/lore-server-core built first.
   cd "$LORE_DIR"
   if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ] 2>/dev/null; then
     echo "[lore] Installing workspace dependencies ..."
     npm ci --silent 2>&1 || npm install --silent 2>&1 || { echo "[lore] Error: npm install failed. Try: cd $LORE_DIR && npm install"; return 1; }
   fi
-  echo "[lore] Building shared + MCP server ..."
-  npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-mcp 2>&1 || { echo "[lore] Error: build failed."; return 1; }
+  echo "[lore] Building shared + server-core + MCP adapter ..."
+  npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-server-core -w @re-cinq/lore-mcp 2>&1 || { echo "[lore] Error: build failed."; return 1; }
   cd - >/dev/null
 }
 

@@ -6,11 +6,19 @@ PR history, and task state.
 
 ## Architecture
 
-**MCP server** (`mcp-server/src/index.ts` + `routes.ts`): TypeScript,
-serves context to Claude Code via MCP protocol. Dual transport: stdio
-for local (Phase 0), Streamable HTTP for GKE (Phase 1). Three core tools:
-`lore_assemble_context`, `lore_search_context`, `lore_search_memory`. Pipeline
-delegation, local task runner, and 30+ tools total.
+**Two deployables sharing a light core** (ADR-030):
+- **`apps/mcp-server`** (`src/index.ts`) — the local stdio MCP adapter. Speaks
+  the MCP protocol to Claude Code and proxies every data operation to the remote
+  Lore API (`LORE_API_URL`). Lean install: no pg/octokit/GCS/OTel-SDK. Three core
+  tools: `lore_assemble_context`, `lore_search_context`, `lore_search_memory`,
+  plus pipeline delegation, the local task runner, and 30+ tools total.
+- **`apps/lore-api`** (`src/index.ts` + `server/http-server.ts`) — the remote
+  HTTPS REST backend (`/api/*`) on GKE. Routes are organized one folder per
+  endpoint under `src/api/routes/`; the DB/GitHub/GCS/tree-sitter work lives here.
+  No MCP — it is a plain REST API.
+- **`libs/server-core`** (`@re-cinq/lore-server-core`) — the light business logic
+  both apps import (memory, context assembly, repo-detect, pipeline CRUD, the API
+  proxy client, the `@opentelemetry/api` trace/metric helpers, YAML templates).
 
 **Vector store**: PostgreSQL + pgvector via CloudNativePG on GKE.
 Schema-per-team isolation. HNSW indexes for vector search, GIN for

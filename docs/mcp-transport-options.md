@@ -1,5 +1,12 @@
 # MCP Transport Options — Decision Brief
 
+> **OBSOLETE (2026-06-23, ADR-030).** The `MCP_TRANSPORT` switch this brief
+> discusses no longer exists. The remote surface was split into its own plain
+> HTTPS REST app (`apps/lore-api`) and the local stdio MCP adapter
+> (`apps/mcp-server`) into a separate deployable; neither carries a transport
+> mode. Kept for historical context only. See
+> [ADR-030](../adrs/ADR-030-split-local-remote-api.md).
+
 **Status:** Undecided — options only. No code committed.
 **Date:** 2026-06-17
 **Context:** Triggered by "can we make the remote MCP an HTTP server?" The
