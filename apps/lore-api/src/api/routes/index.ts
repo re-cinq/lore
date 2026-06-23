@@ -9,25 +9,37 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
-import { handleHealthz, handleRepoStatus } from "./health.js";
-import { handleIngest, handleOnboard, handleListRepos } from "./ingest.js";
-import { handleContext } from "./context.js";
-import { handleGraph } from "./graph.js";
-import { handleGetTask, handleListTasks, handleTaskPost } from "./tasks.js";
-import { handleTaskTimeline, handleTaskByPr } from "./task-timeline.js";
-import { handleMemory, handleEpisode, handleSessionSummary } from "./memory.js";
-import { handleSlackWebhook, handleIncidentWebhook } from "./webhooks.js";
-import { handleTaskLogs, handleGetTaskLogs, handleGetJobRunLogs } from "./logs.js";
-import { handlePrStatus } from "./pr-status.js";
-import { handleTokens } from "./tokens.js";
-import { handleDarkFactorySettingsRoute } from "./dark-factory.js";
-import { handleAgentsRoute } from "./agents.js";
-import { handleCoverageRoute } from "./coverage.js";
-import { handleTestReport } from "./test-report.js";
-import { handleImpactRoute } from "./impact.js";
-import { handleIngestGraphRoute } from "./ingest-graph.js";
-import { handleTraceRoute, handleGlobalTraceSpecs } from "./trace.js";
-import { handleFeaturesRoute } from "./features.js";
+import { handleHealthz } from "./healthz/healthz.js";
+import { handleRepoStatus } from "./repo-status/repo-status.js";
+import { handleIngest } from "./ingest/ingest.js";
+import { handleOnboard } from "./onboard/onboard.js";
+import { handleListRepos } from "./repos/repos.js";
+import { handleContext } from "./context/context.js";
+import { handleGraph } from "./graph/graph.js";
+import { handleGetTask } from "./get-task/get-task.js";
+import { handleListTasks } from "./list-tasks/list-tasks.js";
+import { handleTaskPost } from "./task-post/task-post.js";
+import { handleTaskTimeline } from "./task-timeline/task-timeline.js";
+import { handleTaskByPr } from "./task-by-pr/task-by-pr.js";
+import { handleMemory } from "./memory/memory.js";
+import { handleEpisode } from "./episode/episode.js";
+import { handleSessionSummary } from "./session-summary/session-summary.js";
+import { handleGitHubWebhook } from "./webhook-github/webhook-github.js";
+import { handleSlackWebhook } from "./webhook-slack/webhook-slack.js";
+import { handleIncidentWebhook } from "./webhook-incident/webhook-incident.js";
+import { handleTaskLogs, handleGetTaskLogs } from "./task-logs/task-logs.js";
+import { handleGetJobRunLogs } from "./job-run-logs/job-run-logs.js";
+import { handlePrStatus } from "./pr-status/pr-status.js";
+import { handleTokens } from "./tokens/tokens.js";
+import { handleDarkFactorySettingsRoute } from "./dark-factory/dark-factory.js";
+import { handleAgentsRoute } from "./agent-definitions/agents.js";
+import { handleCoverageRoute } from "./coverage/coverage.js";
+import { handleTestReport } from "./test-report/test-report.js";
+import { handleImpactRoute } from "./impact/impact.js";
+import { handleIngestGraphRoute } from "./ingest-graph/ingest-graph.js";
+import { handleTraceRoute } from "./trace/trace.js";
+import { handleGlobalTraceSpecs } from "./trace-specs/trace-specs.js";
+import { handleFeaturesRoute } from "./features/features.js";
 
 type RouteHandler = (
   req: IncomingMessage,
@@ -68,6 +80,7 @@ const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/memory", "POST"), handle: handleMemory },
   { match: exact("/api/episode", "POST"), handle: handleEpisode },
   { match: exact("/api/session-summary", "POST"), handle: handleSessionSummary },
+  { match: exact("/api/webhook/github", "POST"), handle: handleGitHubWebhook },
   { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
   { match: exact("/api/task-logs", "POST"), handle: (req, res) => handleTaskLogs(req, res) },
   { match: prefix("/api/task-logs", "GET"), handle: (req, res) => handleGetTaskLogs(req, res) },
