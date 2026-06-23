@@ -22,6 +22,7 @@ venv/
 # Environment
 .env
 .env.*
+!.env.local.example
 
 # OS
 .DS_Store

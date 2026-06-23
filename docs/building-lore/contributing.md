@@ -49,6 +49,74 @@ The web UI (`:3000`) is gated by NextAuth with GitHub OAuth, so a one-time OAuth
 
 Optionally set `GITHUB_ALLOWED_ORG` in the same file to restrict login to one org's members (unset = any GitHub account). The callback URL must match exactly, or GitHub returns a `redirect_uri` error.
 
+### Agent credentials (the Floor)
+
+Pipeline tasks — onboarding, implementation, review — run in the **Floor** (`:8080`), which creates branches and PRs through **GitHub App auth only** (`apps/floor/src/adapters/github.ts`) and generates files via an LLM. Without these credentials every such task fails immediately with `GitHub App not configured — cannot create PR`.
+
+They live in the **root** `.env.local` (gitignored, sourced by `dev-local.sh` on `npm start`) — a different file from the web-UI's `apps/web-ui/.env.local` above.
+
+**re:cinq members — do this, skip the rest.** The deployed Lore App already exists, so you create nothing in GitHub. Lore's secrets live in a dedicated GCP project's Secret Manager — **ask your infra / platform team for the project id** and for `roles/secretmanager.secretAccessor` on it if you don't already have access.
+
+1. **Create your local file** from the template:
+
+   ```bash
+   cp .env.local.example .env.local
+   ```
+
+2. **Set the project, then check you can read the secrets** (and that you're authenticated):
+
+   ```bash
+   export PROJECT=<lore-gcp-project>   # ask your infra / platform team for the id
+   gcloud secrets versions access latest --secret=lore-github-app-id --project="$PROJECT"
+   ```
+
+   A value prints → you're set. An error → see the list at the end of this section.
+
+3. **Fetch each value and paste it** into the matching line in `.env.local`. Print one secret at a time:
+
+   ```bash
+   gcloud secrets versions access latest --secret=<secret-name> --project="$PROJECT"
+   ```
+
+   | Secret name | Paste into |
+   |---|---|
+   | `lore-github-app-id` | `GITHUB_APP_ID=` |
+   | `lore-github-app-installation-id` | `GITHUB_APP_INSTALLATION_ID=` |
+   | `lore-anthropic-api-key` | `ANTHROPIC_API_KEY=` |
+
+4. **For the private key**, copy it to your clipboard so the PEM's line breaks survive, then paste it **between the quotes** of `GITHUB_APP_PRIVATE_KEY="..."`:
+
+   ```bash
+   gcloud secrets versions access latest --secret=lore-github-app-private-key --project="$PROJECT" | pbcopy
+   ```
+
+   The Floor consumes the key raw — keep the real line breaks. If what you paste shows a literal `\n` instead of line breaks, replace each `\n` with an actual newline.
+
+5. **Restart `npm start`** so the Floor reloads the values.
+
+If a fetch fails:
+
+- **`CONSUMER_INVALID`** — your gcloud *default* project is a different (stale) one. Always pass `--project="$PROJECT"` (or run `gcloud config set project "$PROJECT"`).
+- **`PERMISSION_DENIED`** — you lack `roles/secretmanager.secretAccessor` on the project. Ask your infra / platform team to grant it (or, if you're an admin): `gcloud projects add-iam-policy-binding "$PROJECT" --member="user:you@re-cinq.com" --role="roles/secretmanager.secretAccessor"`.
+- **`NOT_FOUND`** — the secret names differ in your deployment; list them: `gcloud secrets list --project="$PROJECT" --filter="name:lore"`.
+- **Don't know the project id, or which secrets exist?** Ask your infra / platform team — they own the Lore deployment.
+
+<details>
+<summary><b>Setting up a fresh org instead?</b> Create your own GitHub App and fill these by hand.</summary>
+
+Copy the template (`cp .env.local.example .env.local`) and populate:
+
+| Variable | What it is | Where to get it |
+|----------|-----------|-----------------|
+| `GITHUB_APP_ID` | The GitHub App's numeric ID | App settings → General → "App ID" |
+| `GITHUB_APP_INSTALLATION_ID` | The installation's ID | The number in `…/settings/installations/<ID>` |
+| `GITHUB_APP_PRIVATE_KEY` | The App private key (PEM) | App settings → "Generate a private key" → paste the `.pem` with **real line breaks**, wrapped in double quotes (the Floor consumes it raw — no `\n` un-escaping) |
+| `ANTHROPIC_API_KEY` | Claude API key for file generation | https://console.anthropic.com → API Keys |
+
+The GitHub App needs Repository, Issues, and Pull requests read/write (see [INSTALL.md](../INSTALL.md)).
+
+</details>
+
 ## Project structure
 
 ```
