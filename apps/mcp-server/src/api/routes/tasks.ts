@@ -83,14 +83,14 @@ export async function handleTaskPost(req: IncomingMessage, res: ServerResponse, 
     }
 
     // Create action (default)
-    const { description, task_type, target_repo, priority, context } = parsed;
+    const { description, task_type, target_repo, priority, group_id, context } = parsed;
     if (!description?.trim()) {
       json(res, 400, { error: "description is required" });
       return;
     }
     const validTypes = getTaskTypes();
     const resolvedType = validTypes.includes(task_type || "") ? task_type : "general";
-    const result = await createTask(description, resolvedType, target_repo, "remote-mcp", context || undefined, priority || "normal");
+    const result = await createTask(description, resolvedType, target_repo, "remote-mcp", context || undefined, priority || "normal", group_id || undefined);
     json(res, 200, result);
   } catch (err: any) {
     console.error("[api/task] error:", err.message);

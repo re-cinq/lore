@@ -26,18 +26,20 @@ Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/to
 OTEL span).
 
 - **name**: `lore_query_graph`
-- **description** (verbatim): *"Query the live knowledge graph for entities and
-  their relationships. Returns entities connected by typed edges (uses, owns,
-  depends-on, etc.) with temporal validity."*
+- **description** (verbatim):
+
+```text
+Reads the live knowledge graph and returns typed relationship edges {entity, entity_type, relation, related_entity, related_type, direction, valid_from} for one entity, or recent edges when no entity given. Use when you want structured relationships (uses/owns/depends-on/replaced-by), not prose. Graph is populated asynchronously by lore_write_episode — no writes here. Instead: lore_search_memory for learnings and facts in prose form; lore_search_context for raw document passages; lore_assemble_context for the token-budgeted startup bundle.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `entity` | string | no | — | Entity name to query (e.g. `auth-service`). Omit to browse recent edges. |
-| `relation_type` | string | no | — | Filter by relation: `uses`, `owns`, `depends-on`, `replaced-by`, `part-of`, `implements`. |
-| `repo` | string | no | — | Scope to a specific repo. |
-| `include_invalidated` | boolean | no | `false` | Include invalidated (historical) edges. |
+| `entity` | string | no | — | Entity name (case-insensitive); matched against both edge endpoints. Omit to browse recent edges. |
+| `relation_type` | string | no | — | Filter to one relation type, e.g. "uses", "owns", "depends-on", "replaced-by", "part-of", "implements". |
+| `repo` | string | no | — | Scope to a specific repo, e.g. "re-cinq/lore". Repo-less edges excluded when set. |
+| `include_invalidated` | boolean | no | `false` | When true, also include historically-invalidated edges. |
 
 ## Behavior
 

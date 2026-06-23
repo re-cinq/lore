@@ -25,10 +25,12 @@ machine, CI, or a claude-runner pod — never on the shared GKE server.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/spec-trace-tools.local.ts#L7)).
 
 - **name**: `lore_list_tests`
-- **description** (verbatim): *"Enumerate the repo's tests via its declared
-  test-command manifest (.lore/test-commands.yml), feeding the spec-traceability
-  graph. Runs the project's own list command in your local sandbox; the shared
-  cluster server refuses and tells you to run in CI or locally."*
+- **description** (verbatim):
+
+```text
+Runs the repo's .lore/test-commands.yml 'list' command and returns a JSON array of test descriptors {id, name, file, startLine?, endLine?, suite?, spec?}; 'id' is the selector to pass to lore_run_test. Use to discover available tests before running one. Instead: to run a test and see coverage use lore_run_test; to read built-graph coverage without executing use lore-query-trace; to rebuild the graph use lore_ingest_graph.
+Trusted-sandbox only — executes a shell command in your local checkout. The shared cluster server refuses and returns "Test commands run only in a trusted sandbox — run in CI or locally."
+```
 
 ### Input schema (Zod)
 

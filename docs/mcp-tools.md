@@ -8,6 +8,9 @@ language: what each one is for, and where the work happens.
 New to Lore? Start with the [README](../README.md). Engineers wanting the wiring
 details can read the source under `apps/mcp-server/src/mcp/tools/`.
 
+Want the per-tool reference — parameters, returns, and disambiguation between
+similar tools? See [mcp-tools-reference.md](./mcp-tools-reference.md).
+
 ## How to read this page
 
 Two simple labels tell you where each tool does its work:
@@ -79,6 +82,8 @@ These use your local checkout and (optionally) your own Claude subscription.
 |---|---|---|
 | `lore_run_task_locally` | Runs a job on your machine instead of the cloud. | 💻 Your computer |
 | `lore_claim_and_run_locally` | Picks up a waiting job and runs it locally. | 💻 Your computer |
+| `lore_enable_task_notifications` / `lore_disable_task_notifications` | Start or stop a local poller that surfaces new pending jobs in your statusline, so you can grab one to run locally. | 💻 Your computer |
+| `lore_skip_task` | Dismiss a pending-job notification locally (the cloud job is unaffected). | 💻 Your computer |
 | `lore_list_local_tasks` / `lore_cancel_local_task` | See or stop your local jobs. | 💻 Your computer |
 | `lore_configure_local_runner` | Settings for the local runner. | 💻 Your computer |
 | `lore_list_tests` / `lore_run_test` | Lists and runs your project's own tests. | 💻 Your computer |

@@ -23,8 +23,11 @@ pending cache.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L486)).
 
 - **name**: `lore_skip_task`
-- **description** (verbatim): *"Dismiss a pending task notification. GKE will
-  pick it up instead."*
+- **description** (verbatim):
+
+```text
+Removes one task from the local ~/.lore/pending-tasks.json notification cache so it stops appearing in the statusline. Local only — does NOT change server state (task stays 'pending'). Instead: lore_cancel_task to cancel server-side; lore_complete_task to mark a claimed spec-task done.
+```
 
 ### Input schema (Zod)
 

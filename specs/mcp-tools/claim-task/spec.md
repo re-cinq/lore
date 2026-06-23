@@ -22,15 +22,18 @@ one caller wins; everyone else is told the task is already taken.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L292)).
 
 - **name**: `lore_claim_task`
-- **description** (verbatim): *"Atomically claim a spec-task so no other agent
-  works on it."*
+- **description** (verbatim):
+
+```text
+Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one agent owns it. (DB-only) Use right before starting a task surfaced by lore_ready_tasks. Instead: lore_complete_task to mark it done afterward; lore_skip_task to dismiss a local notification without a server claim.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `task_id` | string | yes | — | UUID of the pipeline task to claim. |
-| `agent_id` | string | no | — | Agent id; resolved via `resolveAgentId()` when omitted. |
+| `task_id` | string | yes | — | Task id to claim. |
+| `agent_id` | string | no | — | Claiming agent identifier. Auto-resolved when omitted. |
 
 ## Behavior
 

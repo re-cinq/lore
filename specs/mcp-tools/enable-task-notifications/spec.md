@@ -23,16 +23,18 @@ mechanism that never claims or mutates tasks.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L503)).
 
 - **name**: `lore_enable_task_notifications`
-- **description** (verbatim): *"Start watching for pending pipeline tasks on
-  repos you work with. Shows new tasks in the statusline so you can decide to run
-  them locally or let GKE handle them."*
+- **description** (verbatim):
+
+```text
+Starts a local background poller that watches repos for new 'pending' pipeline tasks and writes matches to ~/.lore/pending-tasks.json for the statusline. Idempotent — returns 'already active' if running. To stop it: lore_disable_task_notifications. To run a surfaced task: lore_claim_and_run_locally. To dismiss one: lore_skip_task.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `repos` | string[] | no | — | Repos to watch (`['re-cinq/lore']`). Defaults to the current repo via `detectRepo()`. |
-| `task_types` | string[] | no | — | Task types to watch. Defaults to `["implementation","general","runbook","gap-fill"]`. |
+| `repos` | string[] | no | — | Repos to watch as `owner/repo`. Defaults to current git remote. |
+| `task_types` | string[] | no | — | Task types to surface. Defaults to implementation, general, runbook, gap-fill. |
 
 ## Behavior
 

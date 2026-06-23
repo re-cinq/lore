@@ -5,11 +5,11 @@ import { ToolDeps } from "./deps.js";
 export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
   server.tool(
     "lore_run_task_locally",
-    "Run a task in the background on your local machine using Claude Code in a git worktree. Returns immediately — your session continues normally while the task runs.",
+    `Starts a brand-new ad-hoc task as a detached background Claude Code process in a local git worktree; returns immediately with task id, branch, worktree path, log file, and PID. Runs on your local machine (your Claude subscription). Instead of this: to run an EXISTING pending pipeline task by id use lore_claim_and_run_locally; to register a task for the GKE agent use lore_create_pipeline_task.`,
     {
-      description: z.string().describe("What to implement or do"),
-      task_type: z.enum(["implementation", "general", "runbook", "gap-fill"]).default("implementation"),
-      model: z.string().optional().describe("Model override (default: claude-sonnet-4-6)"),
+      description: z.string().describe("Free-text instruction for the agent. Must reference the current repo; cross-repo references are refused with a wrong-repo warning."),
+      task_type: z.enum(["implementation", "general", "runbook", "gap-fill"]).default("implementation").describe("Kind of work: 'implementation' (code), 'general' (open-ended), 'runbook' (incident runbook), 'gap-fill' (missing docs)."),
+      model: z.string().optional().describe("Anthropic model id override for the spawned process (e.g. 'claude-opus-4-6')."),
     },
     async (args) => {
       try {
@@ -68,7 +68,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
 
   server.tool(
     "lore_list_local_tasks",
-    "List all local background tasks (running, completed, failed).",
+    `Lists all background tasks tracked on your local machine (running, completed, failed) with status, repo, branch, PR URL, and error. Instead of this: for server-side pipeline tasks use lore_list_pipeline_tasks; for unclaimed server tasks use lore_list_pending_tasks; for dependency-satisfied spec tasks use lore_ready_tasks; for multi-repo group rollup use lore_list_task_group.`,
     {},
     async () => {
       try {
@@ -89,9 +89,9 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
 
   server.tool(
     "lore_cancel_local_task",
-    "Cancel a running local background task and clean up its worktree.",
+    `Stops a locally-running background worktree task: kills the process, removes the worktree, and marks it cancelled. Instead of this: to cancel a server-side GKE pipeline task use lore_cancel_task.`,
     {
-      task_id: z.string().describe("Task ID to cancel"),
+      task_id: z.string(),
     },
     async (args) => {
       try {
@@ -113,10 +113,10 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
 
   server.tool(
     "lore_claim_and_run_locally",
-    "Claim a pending pipeline task and run it locally in the background. The task runs in a git worktree using your Claude Code subscription (zero API cost).",
+    `Claims an EXISTING pending pipeline task by id and runs it on your local machine (your Claude subscription), then removes it from the pending list. ingest-* types run in-process with no worktree; all others spawn a background Claude Code worktree task and return task id, branch, log file, and PID. Instead of this: to start a BRAND-NEW task from a description use lore_run_task_locally; to register a task for the GKE agent use lore_create_pipeline_task.`,
     {
-      task_id: z.string().describe("Task ID to claim (from lore_list_pending_tasks)"),
-      model: z.string().optional().describe("Model override"),
+      task_id: z.string().describe("Id or unique id-prefix of the pending task (from lore_list_pending_tasks); must be in 'pending' status."),
+      model: z.string().optional().describe("Anthropic model id override for non-ingest tasks (e.g. 'claude-opus-4-6')."),
     },
     async (args) => {
       try {
@@ -207,12 +207,12 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
 
   server.tool(
     "lore_configure_local_runner",
-    "View or update local task runner settings. Controls which repos and task types the runner watches, concurrency limits, and default model.",
+    `Views or updates the local runner config on your machine; returns current config as JSON when called with no arguments, or writes provided fields and returns 'Config updated:' + JSON. Controls which repos/task-types the local notifier watches and local concurrency/model limits. To run work locally use lore_run_task_locally (new task) or lore_claim_and_run_locally (existing task).`,
     {
-      max_concurrent: z.number().optional().describe("Max concurrent local tasks (default: 2)"),
-      repos: z.array(z.string()).optional().describe("Repos to watch (e.g. ['re-cinq/lore'])"),
-      task_types: z.array(z.string()).optional().describe("Task types to run locally"),
-      model: z.string().optional().describe("Default model for local tasks"),
+      max_concurrent: z.number().optional().describe("Max simultaneous local background tasks (positive integer)."),
+      repos: z.array(z.string()).optional().describe("owner/repo slugs the local notifier watches (e.g. ['re-cinq/lore']). Replaces the whole list."),
+      task_types: z.array(z.string()).optional().describe("Task-type names eligible to run locally. Replaces the whole list."),
+      model: z.string().optional().describe("Default model id for local tasks (e.g. 'claude-sonnet-4-6')."),
     },
     async (args) => {
       try {

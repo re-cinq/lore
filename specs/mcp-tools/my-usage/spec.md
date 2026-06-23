@@ -23,14 +23,17 @@ periods.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/usage-tools.ts#L10)).
 
 - **name**: `lore_my_usage`
-- **description** (verbatim): *"Show your personal task and token usage. Breaks
-  down by today, 7-day, and 30-day periods."*
+- **description** (verbatim):
+
+```text
+Reports the calling agent's own task count and input/output token totals across three windows (today, 7_day, 30_day); returns { agent_id, usage: { today, 7_day, 30_day } } (DB-only). Instead: for org-wide throughput, success rates, and per-type breakdown use lore_get_analytics — this tool is single-agent only and does not report success rates or per-type counts.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `agent_id` | string | no | — | Override agent ID. Auto-detected via `resolveAgentId` if omitted. |
+| `agent_id` | string | no | — | Agent identifier (email or UUID). Auto-detected from caller when omitted. Pass only to inspect a different agent. |
 
 ## Behavior
 

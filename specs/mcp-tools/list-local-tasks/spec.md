@@ -22,8 +22,11 @@ one-line summary per task.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L70)).
 
 - **name**: `lore_list_local_tasks`
-- **description** (verbatim): *"List all local background tasks (running,
-  completed, failed)."*
+- **description** (verbatim):
+
+```text
+Lists all background tasks tracked on your local machine (running, completed, failed) with status, repo, branch, PR URL, and error. Instead of this: for server-side pipeline tasks use lore_list_pipeline_tasks; for unclaimed server tasks use lore_list_pending_tasks; for dependency-satisfied spec tasks use lore_ready_tasks; for multi-repo group rollup use lore_list_task_group.
+```
 
 ### Input schema (Zod)
 

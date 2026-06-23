@@ -23,8 +23,11 @@ error.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
 
 - **name**: `lore_get_pipeline_status`
-- **description** (verbatim): *"Retrieve the current status of a pipeline task,
-  including its full event timeline."*
+- **description** (verbatim):
+
+```text
+Returns one pipeline task's full record (status + ordered event timeline) as JSON, by UUID. Instead: lore_list_pipeline_tasks for a multi-task listing; lore_get_pr_status for the live GitHub PR/CI verdict; lore_get_task_logs for raw log bytes; lore_list_task_group for a group rollup.
+```
 
 ### Input schema (Zod)
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { maybeAutoIngestGraph } from "./ingest-graph-tasks.js";
+import { createIngestGraphTasks, maybeAutoIngestGraph } from "./ingest-graph-tasks.js";
 
 /**
  * maybeAutoIngestGraph gates the post-ingest fan-out on the repo's
@@ -39,5 +39,13 @@ describe("maybeAutoIngestGraph", () => {
     const f = fakePool(null);
     await maybeAutoIngestGraph(f.pool as never, "o/r");
     expect(f.insertedTypes).toEqual([]);
+  });
+});
+
+describe("createIngestGraphTasks", () => {
+  it("sets created[].id to the created task's task_id", async () => {
+    const f = fakePool({});
+    const result = await createIngestGraphTasks(f.pool as never, "o/r", { kinds: ["specs"] });
+    expect(result.created).toEqual([{ id: "task-id", kind: "specs" }]);
   });
 });

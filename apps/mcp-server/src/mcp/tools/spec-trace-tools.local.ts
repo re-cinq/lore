@@ -5,7 +5,8 @@ import { ToolDeps } from "./deps.js";
 export function registerSpecTraceLocalTools(server: McpServer, _deps: ToolDeps) {
   server.tool(
     "lore_list_tests",
-    "Enumerate the repo's tests via its declared test-command manifest (.lore/test-commands.yml), feeding the spec-traceability graph. Runs the project's own list command in your local sandbox; the shared cluster server refuses and tells you to run in CI or locally.",
+    `Runs the repo's .lore/test-commands.yml 'list' command and returns a JSON array of test descriptors {id, name, file, startLine?, endLine?, suite?, spec?}; 'id' is the selector to pass to lore_run_test. Use to discover available tests before running one. Instead: to run a test and see coverage use lore_run_test; to read built-graph coverage without executing use lore-query-trace; to rebuild the graph use lore_ingest_graph.
+Trusted-sandbox only — executes a shell command in your local checkout. The shared cluster server refuses and returns "Test commands run only in a trusted sandbox — run in CI or locally."`,
     {},
     async () => {
       try {
@@ -22,9 +23,10 @@ export function registerSpecTraceLocalTools(server: McpServer, _deps: ToolDeps) 
 
   server.tool(
     "lore_run_test",
-    "Run one test by its runner-native id via the repo's test-command manifest; returns pass/fail + the covered code chunks. Executes in your local sandbox; the shared cluster server refuses and tells you to run in CI or locally.",
+    `Runs a single test by selector using the repo's .lore/test-commands.yml 'run' command; returns {passed: boolean, covered: [{file, startLine, endLine}]}. Use to execute ONE test and see what code it covers. Instead: to discover selectors first use lore_list_tests; to read built-graph coverage without executing use lore-query-trace; to rebuild the graph use lore_ingest_graph.
+Trusted-sandbox only — executes a shell command in your local checkout. The shared cluster server refuses and returns "Test commands run only in a trusted sandbox — run in CI or locally."`,
     {
-      selector: z.string().describe("Runner-native test id from lore_list_tests (e.g. pytest path::Class::test, vitest file+name, Go TestX)."),
+      selector: z.string().describe("Runner-native test id from lore_list_tests output; substituted into the manifest's run command at the {selector} placeholder. Format is runner-specific, e.g. 'tests/test_api.py::TestAuth::test_login' (pytest) or 'src/auth.test.ts > logs in' (vitest)."),
     },
     async ({ selector }) => {
       try {

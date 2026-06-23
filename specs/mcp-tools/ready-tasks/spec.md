@@ -23,14 +23,17 @@ picks the next workable item without scanning the whole backlog.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L262)).
 
 - **name**: `lore_ready_tasks`
-- **description** (verbatim): *"List spec-tasks that are ready to work on (all
-  dependencies satisfied)."*
+- **description** (verbatim):
+
+```text
+Lists spec-tasks that are 'pending' AND whose every dependency has completed — the items you can start right now. (DB-only) Spec-tasks must first be materialized with lore_sync_tasks; after picking one, lock it with lore_claim_task. Instead: lore_list_pipeline_tasks for a general status-filtered listing; lore_list_pending_tasks for unclaimed tasks across repos to run locally.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `repo` | string | no | — | `owner/repo`. Auto-detected from the git remote when omitted. |
+| `repo` | string | no | — | `owner/repo`. Auto-detected from git remote when omitted. |
 
 ## Behavior
 

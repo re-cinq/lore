@@ -32,18 +32,18 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_create_pipeline_task",
-    "Create a pipeline task. By default tasks go to the backlog (priority=normal) for developers to pick up locally. Set priority=immediate to have the GKE agent auto-execute it. Available types: feature-request (PM intent → spec + tasks), onboard (add repo to Lore), general (open-ended), runbook (write ops runbook), implementation (code from spec), gap-fill (draft missing docs), review (review a PR).",
+    "Enqueues a new server-side pipeline task and returns its UUID and a pickup hint. priority=normal lands in the backlog; priority=immediate the GKE agent picks up within ~30s. This tool only enqueues — it never runs anything on your machine. Instead: lore_run_task_locally to start a new ad-hoc task in a local worktree NOW; lore_claim_and_run_locally to run an existing backlog task locally; lore_sync_tasks to materialize a tasks.md checklist as spec-tasks (not this tool).",
     {
-      description: z.string().describe("What should the agent do? Be specific — this is the primary instruction. For feature-request: describe the feature in plain language. For onboard: just the repo name."),
-      task_type: z.string().default("general").describe('Task type: "feature-request", "onboard", "general", "runbook", "implementation", "gap-fill", "review".'),
-      target_repo: z.string().optional().describe('Target GitHub repository in "owner/repo" format. Auto-detected from git remote if omitted.'),
-      priority: z.enum(["normal", "immediate"]).default("normal").describe('Task priority. "normal" = backlog (developers pick up locally). "immediate" = GKE agent auto-executes.'),
-      group_id: z.string().optional().describe("Task group UUID for multi-repo task coordination. Tasks in the same group are tracked together."),
+      description: z.string().describe("Primary natural-language instruction; be specific. Max 10000 chars; non-empty."),
+      task_type: z.string().default("general").describe("feature-request | onboard | general | runbook | implementation | gap-fill | review. Unknown values fall back to 'general'."),
+      target_repo: z.string().optional().describe("'owner/repo'. Auto-detected from git remote when omitted."),
+      priority: z.enum(["normal", "immediate"]).default("normal").describe("'normal' = backlog; 'immediate' = GKE agent auto-executes within ~30s."),
+      group_id: z.string().optional().describe("Task-group UUID to link this task into a multi-repo feature rollup (see lore_list_task_group)."),
       context: z.object({
         spec_file: z.boolean().optional(),
         branch: z.string().optional(),
         seed_query: z.string().optional(),
-      }).optional().describe("Additional context to pass to the agent."),
+      }).optional().describe("Optional context for the agent: spec_file, branch, seed_query."),
     },
     async ({ description: desc, task_type, target_repo, priority, group_id, context }) => {
       try {
@@ -64,7 +64,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           const res = await fetch(`${apiUrl}/api/task`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ description: desc, task_type, target_repo: resolvedRepo, priority, context }),
+            body: JSON.stringify({ description: desc, task_type, target_repo: resolvedRepo, priority, group_id, context }),
           });
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: res.statusText }));
@@ -96,9 +96,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_get_pipeline_status",
-    "Retrieve the current status of a pipeline task, including its full event timeline.",
+    "Returns one pipeline task's full record (status + ordered event timeline) as JSON, by UUID. Instead: lore_list_pipeline_tasks for a multi-task listing; lore_get_pr_status for the live GitHub PR/CI verdict; lore_get_task_logs for raw log bytes; lore_list_task_group for a group rollup.",
     {
-      task_id: z.string().describe("UUID of the pipeline task."),
+      task_id: z.string(),
     },
     async ({ task_id }) => {
       try {
@@ -121,10 +121,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_get_pr_status",
-    "Fetch live PR state from GitHub for a given repo and PR number. Returns draft/open/checks-failing/changes-requested/approved/merged/closed status plus check results and review details.",
+    "Fetches live PR state from GitHub and returns a derived computed_status (merged | closed | draft | checks-failing | changes-requested | approved | open) plus CI checks and reviews. Use this for the real-time PR/CI/review verdict. Instead: lore_get_pipeline_status for the Lore task's stored status and event timeline.",
     {
-      repo: z.string().describe('Repository in owner/name format, e.g. "re-cinq/lore".'),
-      pr_number: z.number().describe("Pull request number."),
+      repo: z.string().describe("'owner/repo'"),
+      pr_number: z.number().describe("PR number (integer from the PR URL, not a UUID)."),
     },
     async ({ repo, pr_number }) => {
       try {
@@ -140,10 +140,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_list_pipeline_tasks",
-    "List pipeline tasks with optional filtering by status. Returns tasks ordered by creation time, newest first.",
+    "Lists pipeline tasks newest-first as JSON, optionally filtered by status. General browse view across all tasks and statuses. Instead: lore_list_pending_tasks for unclaimed work to grab locally; lore_ready_tasks for dependency-ready spec-tasks in one repo; lore_list_task_group for one feature's group; lore_list_local_tasks for tasks running on your machine.",
     {
-      status: z.string().optional().describe('Filter by status (e.g., "pending", "running", "pr-created", "failed"). Omit to return all tasks.'),
-      limit: z.number().default(20).describe("Maximum number of tasks to return. Default 20, max 100."),
+      status: z.string().optional().describe("Filter by status: pending | queued | running | pr-created | review | merged | failed | cancelled. Omit for all."),
+      limit: z.number().default(20),
     },
     async ({ status, limit }) => {
       try {
@@ -172,9 +172,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_cancel_task",
-    "Cancel a pipeline task. If the task has a running agent, attempts to cancel it.",
+    "Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort stopping any running GKE agent. (DB-only) Instead: lore_cancel_local_task to stop a task running in a local worktree; lore_retry_task to re-run a failed task rather than stop a live one. Rejected for tasks already in merged/failed/cancelled state.",
     {
-      task_id: z.string().describe("UUID of the pipeline task to cancel."),
+      task_id: z.string(),
     },
     async ({ task_id }) => {
       try {
@@ -191,9 +191,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_retry_task",
-    "Retry a failed pipeline task. Creates a new task with the same parameters and links it to the original.",
+    "Re-runs a failed or escalated task by cloning it into a new pipeline task linked via retry_of. Only tasks in 'failed' or 'needs-human-help' state are retryable. (DB-only) Instead: lore_cancel_task to stop an unwanted live task rather than re-run it.",
     {
-      task_id: z.string().describe("UUID of the failed task to retry."),
+      task_id: z.string(),
     },
     async ({ task_id }) => {
       try {
@@ -211,9 +211,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_list_task_group",
-    "List all tasks in a task group. Task groups coordinate multi-repo features.",
+    "Lists every task in one task_group_id with a completed/total rollup — the view for a single multi-repo feature's progress. (DB-only) Instead: lore_list_pipeline_tasks for an unscoped newest-first listing of all tasks.",
     {
-      group_id: z.string().describe("Task group UUID."),
+      group_id: z.string().describe("Task-group UUID (the value passed as group_id to lore_create_pipeline_task)."),
     },
     async ({ group_id }) => {
       try {
@@ -240,11 +240,11 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_sync_tasks",
-    "Parse a tasks.md file and sync spec-tasks into the pipeline. Handles dependencies and parallelization markers.",
+    "Parses a speckit tasks.md and idempotently upserts each checklist item as a spec-task row; returns a 'Synced N tasks (M new)' summary. Run once per spec before any claiming — this is the start of spec-driven multi-agent work. This tool does NOT claim, run, or evaluate readiness. (DB-only) After syncing: lore_ready_tasks to find workable items; lore_claim_task to lock one; lore_complete_task to finish it.",
     {
-      tasks_markdown: z.string().describe("Contents of tasks.md (the full markdown text)."),
-      repo: z.string().optional().describe('Target repo in "owner/repo" format. Auto-detected if omitted.'),
-      spec_slug: z.string().describe("Feature slug (e.g. 'auth-refactor'). Used to group tasks."),
+      tasks_markdown: z.string().describe("Full markdown text of the tasks.md document (not a path). Parsed for phases, [P] parallel markers, [DEPENDS ON: …] deps, and file-path suffixes."),
+      repo: z.string().optional().describe("'owner/repo'. Auto-detected from git remote when omitted."),
+      spec_slug: z.string().describe("Feature slug grouping these spec-tasks within the repo."),
     },
     async ({ tasks_markdown, repo, spec_slug }) => {
       try {
@@ -271,9 +271,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_ready_tasks",
-    "List spec-tasks that are ready to work on (all dependencies satisfied).",
+    "Lists spec-tasks that are 'pending' AND whose every dependency has completed — the items you can start right now. (DB-only) Spec-tasks must first be materialized with lore_sync_tasks; after picking one, lock it with lore_claim_task. Instead: lore_list_pipeline_tasks for a general status-filtered listing; lore_list_pending_tasks for unclaimed tasks across repos to run locally.",
     {
-      repo: z.string().optional().describe('Target repo in "owner/repo" format. Auto-detected if omitted.'),
+      repo: z.string().optional().describe("'owner/repo'. Auto-detected from git remote when omitted."),
     },
     async ({ repo }) => {
       try {
@@ -301,10 +301,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_claim_task",
-    "Atomically claim a spec-task so no other agent works on it.",
+    "Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one agent owns it. (DB-only) Use right before starting a task surfaced by lore_ready_tasks. Instead: lore_complete_task to mark it done afterward; lore_skip_task to dismiss a local notification without a server claim.",
     {
-      task_id: z.string().describe("UUID of the pipeline task to claim."),
-      agent_id: z.string().optional().describe("Agent ID. Auto-resolved if omitted."),
+      task_id: z.string(),
+      agent_id: z.string().optional().describe("Claiming agent identifier. Auto-resolved when omitted."),
     },
     async ({ task_id, agent_id }) => {
       try {
@@ -326,9 +326,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_complete_task",
-    "Mark a spec-task as completed and report any newly unblocked tasks.",
+    "Marks a claimed ('running') spec-task as 'completed' and returns which dependents are now unblocked. (DB-only) Only 'running' tasks can be completed. Instead: lore_ready_tasks to pick the next item; lore_skip_task to dismiss a local notification; lore_cancel_task to cancel rather than complete.",
     {
-      task_id: z.string().describe("UUID of the pipeline task to complete."),
+      task_id: z.string(),
     },
     async ({ task_id }) => {
       try {
@@ -353,10 +353,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_get_task_logs",
-    "Fetch execution logs for a pipeline task. Returns the latest output from the task's log file.",
+    "Fetches raw execution output for one pipeline task (by UUID), returning {logs, next_offset, complete}. Pass next_offset back as offset to poll incrementally. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.",
     {
-      task_id: z.string().describe("UUID of the pipeline task."),
-      offset: z.number().default(0).describe("Byte offset for incremental reads (for polling)."),
+      task_id: z.string(),
+      offset: z.number().default(0).describe("Byte offset to start reading from; pass previous next_offset to poll incrementally."),
     },
     async ({ task_id, offset }) => {
       try {
@@ -412,10 +412,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_get_job_logs",
-    "Fetch full stdout/stderr of a scheduled batch-job run (K8s CronJob pod). The log_path is recorded in pipeline.job_runs by the agent's job-runner.",
+    "Fetches the full stdout/stderr of one scheduled CronJob run (keyed by job_name + run_id), returning {logs, complete:true}. Use for scheduled jobs like context_reindex or spec_test_linker. Instead: lore_get_task_logs for a user-created pipeline task's logs (by UUID).",
     {
-      job_name: z.string().describe("Job name (e.g. context_reindex, spec_test_linker)."),
-      run_id: z.string().describe("UUID of the run, from pipeline.job_runs.id."),
+      job_name: z.string().describe("Scheduled job name, e.g. 'context_reindex' or 'spec_test_linker'."),
+      run_id: z.string().describe("Run UUID from pipeline.job_runs."),
     },
     async ({ job_name, run_id }) => {
       try {
@@ -460,9 +460,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_list_pending_tasks",
-    "Show pending pipeline tasks that can be claimed and run locally. Shows tasks across all repos by default.",
+    "Shows unclaimed 'pending' backlog tasks grouped by repo — the 'what can I grab' view. Falls back to ~/.lore/pending-tasks.json (local notifier cache) when the API is unreachable; the local fallback ignores the repo filter. After choosing one, run it with lore_claim_and_run_locally. Instead: lore_list_pipeline_tasks for a general status-filterable listing; lore_ready_tasks for dependency-ready spec-tasks in one repo.",
     {
-      repo: z.string().optional().describe('Filter by repo in "owner/repo" format. Omit to show all repos.'),
+      repo: z.string().optional().describe("'owner/repo' filter for the API view. Omit for all repos."),
     },
     async ({ repo: filterRepo }) => {
       try {
@@ -517,9 +517,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_skip_task",
-    "Dismiss a pending task notification. GKE will pick it up instead.",
+    "Removes one task from the local ~/.lore/pending-tasks.json notification cache so it stops appearing in the statusline. Local only — does NOT change server state (task stays 'pending'). Instead: lore_cancel_task to cancel server-side; lore_complete_task to mark a claimed spec-task done.",
     {
-      task_id: z.string().describe("Task ID to skip"),
+      task_id: z.string(),
     },
     async (args) => {
       try {
@@ -534,10 +534,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_enable_task_notifications",
-    "Start watching for pending pipeline tasks on repos you work with. Shows new tasks in the statusline so you can decide to run them locally or let GKE handle them.",
+    "Starts a local background poller that watches repos for new 'pending' pipeline tasks and writes matches to ~/.lore/pending-tasks.json for the statusline. Idempotent — returns 'already active' if running. To stop it: lore_disable_task_notifications. To run a surfaced task: lore_claim_and_run_locally. To dismiss one: lore_skip_task.",
     {
-      repos: z.array(z.string()).optional().describe("Repos to watch (e.g. ['re-cinq/lore']). Defaults to current repo."),
-      task_types: z.array(z.string()).optional().describe("Task types to watch. Defaults to implementation, general, runbook, gap-fill."),
+      repos: z.array(z.string()).optional().describe("Repos to watch as 'owner/repo'. Defaults to current git remote."),
+      task_types: z.array(z.string()).optional().describe("Task types to surface. Defaults to implementation, general, runbook, gap-fill."),
     },
     async (args) => {
       try {
@@ -565,7 +565,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_disable_task_notifications",
-    "Stop watching for pending pipeline tasks.",
+    "Stops the local pending-task notifier and removes the ~/.lore/pending-tasks.json cache. Undoes lore_enable_task_notifications. Idempotent.",
     {},
     async () => {
       try {

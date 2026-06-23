@@ -21,14 +21,17 @@ web UI. `lore_get_analytics` returns those aggregates for one of four fixed peri
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/usage-tools.ts#L53)).
 
 - **name**: `lore_get_analytics`
-- **description** (verbatim): *"Returns org-level analytics: task throughput,
-  success rates, and token usage."*
+- **description** (verbatim):
+
+```text
+Returns org-wide pipeline analytics for a time window: { period, usage: { llm_calls, input_tokens, output_tokens }, tasks: { total, succeeded, failed }, by_type } (DB-only). Note: by_type[].tasks is a numeric string (raw pg bigint). Instead: for a single agent's own footprint use lore_my_usage — this tool is not per-agent and does not filter by caller.
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `period` | enum | no | `"month"` | One of `today` \| `week` \| `month` \| `all`. Selects the `created_at` filter. |
+| `period` | enum | no | `"month"` | "today", "week", "month", or "all" (no time filter). |
 
 ## Behavior
 

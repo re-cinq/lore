@@ -48,13 +48,13 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_write_memory",
-    "Store a memory scoped to the current repo. Shared with every developer working in the same repo. Use for decisions, conventions, corrections, and session summaries.",
+    `Stores one curated key/value memory (versioned, repo-scoped when a repo is detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.`,
     {
-      key: z.string().describe("Memory key (e.g. 'auth-pattern', 'session-summary/2026-03-30')"),
-      value: z.string().describe("Memory value (text)"),
-      agent_id: z.string().optional().describe("Override agent ID."),
-      ttl: z.number().optional().describe("Time-to-live in seconds. Omit for permanent."),
-      extract_facts: z.boolean().optional().describe("Extract individual facts from value (async)."),
+      key: z.string().describe("Caller-chosen retrieval key; slash-namespaced by convention, e.g. 'session-summary/2026-03-30'."),
+      value: z.string(),
+      agent_id: z.string().optional(),
+      ttl: z.number().optional().describe("Time-to-live in seconds. Omit for no expiry."),
+      extract_facts: z.boolean().optional().describe("When true, triggers async fact extraction from value (fire-and-forget)."),
     },
     async ({ key, value, agent_id, ttl, extract_facts }) => {
       try {
@@ -97,11 +97,11 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_read_memory",
-    "Retrieve a specific memory by key. Supports version history.",
+    `Fetches one memory by its exact key and returns the stored row as JSON (latest version by default, or full history/specific version on request). Use only when you already know the precise key. Instead: lore_search_memory when searching by meaning; lore_list_memories to enumerate keys.`,
     {
-      key: z.string().describe("Memory key to read."),
+      key: z.string().describe("Exact memory key; no wildcards or fuzzy matching."),
       agent_id: z.string().optional(),
-      version: z.string().optional().describe('"all" for full history, or specific version number.'),
+      version: z.string().optional().describe('"all" for full history newest-first, or a numeric string for one specific version. Omit for the latest non-deleted version.'),
     },
     async ({ key, agent_id, version }) => {
       try {
@@ -129,9 +129,9 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_delete_memory",
-    "Soft-delete a memory (preserved in history but excluded from search).",
+    `Soft-deletes a memory by key (hides it from read/list/search; version history is retained) and returns {key, deleted: true}. Scope is agent_id, not repo. Use to retire a stale or mistaken memory. Instead: lore_cancel_local_task to stop a local background task; lore_cancel_task to cancel a pipeline task — those are unrelated.`,
     {
-      key: z.string().describe("Memory key to delete."),
+      key: z.string().describe("Exact memory key to soft-delete."),
       agent_id: z.string().optional(),
     },
     async ({ key, agent_id }) => {
@@ -158,11 +158,11 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_list_memories",
-    "List memories for the current repo. Auto-detects which repo you're in.",
+    `Lists memory keys for the current repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.`,
     {
-      agent_id: z.string().optional(),
-      limit: z.number().default(50).describe("Max results."),
-      offset: z.number().default(0).describe("Pagination offset."),
+      agent_id: z.string().optional().describe("Agent scope when no repo is detected (ignored when repo is detected)."),
+      limit: z.number().default(50),
+      offset: z.number().default(0).describe("Rows to skip for pagination (DB path only; not forwarded over proxy)."),
     },
     async ({ agent_id, limit, offset }) => {
       try {
@@ -188,14 +188,14 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_search_memory",
-    "Semantic search across all org memories and facts. Returns results ranked by similarity. Facts include temporal validity — only currently valid facts are returned by default.",
+    `Semantic (vector + keyword) search across org-wide memories and extracted facts; returns a relevance-ranked array of {key, value, score, agent_id, source, id?, confidence?} (source: memory|fact|episode|graph). Use to find past learnings, decisions, corrections, and facts when you do NOT have an exact key. Instead: lore_read_memory for exact-key lookup; lore_list_memories to enumerate keys; lore_search_context for raw repo document passages (conventions, ADRs, .md text); lore_query_graph to traverse entity relationships; lore_assemble_context for the token-budgeted startup bundle (the mandatory first call).`,
     {
-      query: z.string().describe("Natural language search query."),
-      agent_id: z.string().optional().describe("Scope to agent. Omit for cross-agent search."),
-      pool: z.string().optional().describe("Search within a shared pool."),
+      query: z.string(),
+      agent_id: z.string().optional().describe("Scope to one agent. Omit for org-wide search."),
+      pool: z.string().optional().describe("Restrict to a named shared pool; non-existent pool name returns empty."),
       limit: z.number().default(10),
-      include_invalidated: z.boolean().default(false).describe("Include facts that have been superseded by newer facts. Useful for historical queries."),
-      graph_augment: z.boolean().default(false).describe("Enrich results with 1-hop knowledge graph neighbors of detected entities."),
+      include_invalidated: z.boolean().default(false).describe("When true, also return superseded/historical facts."),
+      graph_augment: z.boolean().default(false).describe("When true, enrich results with 1-hop knowledge-graph neighbors."),
     },
     async ({ query, agent_id, pool, limit, include_invalidated, graph_augment }) => {
       try {
@@ -223,12 +223,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_write_episode",
-    "Ingest raw, unstructured text (conversation turn, code review, observation). The system stores it as an episode and automatically extracts searchable facts. Use this for passive knowledge capture — no need to curate what's important.",
+    `Ingests one raw uncurated text blob as a deduplicated episode; returns {status: "ok", episode_id, source, ref} or {status: "duplicate"} when already ingested. Content is secret-redacted; facts and graph entities/edges are extracted asynchronously. Use for bulk/passive capture where you do not want to choose a key and do not need the text individually addressable. Instead: lore_write_memory for a curated nugget you want to retrieve by a specific key. No file fallback — requires DB or API.`,
     {
-      content: z.string().min(1).max(50000).describe("Raw text to ingest (conversation, review, observation)."),
-      source: z.string().default("manual").describe('Source tag: "session", "pr-review", "ci", "manual".'),
-      ref: z.string().optional().describe('External reference (e.g. "owner/repo#42").'),
-      agent_id: z.string().optional().describe("Override agent ID."),
+      content: z.string().min(1).max(50000).describe("Raw text to ingest; deduplicated by content hash. 1–50000 chars."),
+      source: z.string().default("manual").describe('Provenance tag, e.g. "session", "pr-review", "ci".'),
+      ref: z.string().optional().describe('External reference, e.g. "owner/repo#42". The owner/repo prefix scopes graph entities.'),
+      agent_id: z.string().optional(),
     },
     async ({ content, source, ref, agent_id }) => {
       try {
@@ -299,12 +299,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_query_graph",
-    "Query the live knowledge graph for entities and their relationships. Returns entities connected by typed edges (uses, owns, depends-on, etc.) with temporal validity.",
+    `Reads the live knowledge graph and returns typed relationship edges {entity, entity_type, relation, related_entity, related_type, direction, valid_from} for one entity, or recent edges when no entity given. Use when you want structured relationships (uses/owns/depends-on/replaced-by), not prose. Graph is populated asynchronously by lore_write_episode — no writes here. Instead: lore_search_memory for learnings and facts in prose form; lore_search_context for raw document passages; lore_assemble_context for the token-budgeted startup bundle.`,
     {
-      entity: z.string().optional().describe("Entity name to query (e.g. 'auth-service', 'postgres'). Omit to browse recent edges."),
-      relation_type: z.string().optional().describe('Filter by relation type: "uses", "owns", "depends-on", "replaced-by", "part-of", "implements".'),
-      repo: z.string().optional().describe("Scope to a specific repo."),
-      include_invalidated: z.boolean().default(false).describe("Include invalidated (historical) relationships."),
+      entity: z.string().optional().describe("Entity name (case-insensitive); matched against both edge endpoints. Omit to browse recent edges."),
+      relation_type: z.string().optional().describe('Filter to one relation type, e.g. "uses", "owns", "depends-on", "replaced-by", "part-of", "implements".'),
+      repo: z.string().optional().describe('Scope to a specific repo, e.g. "re-cinq/lore". Repo-less edges excluded when set.'),
+      include_invalidated: z.boolean().default(false).describe("When true, also include historically-invalidated edges."),
     },
     async ({ entity, relation_type, repo, include_invalidated }) => {
       return trackLatency('lore_query_graph', async () => {
@@ -346,9 +346,9 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_agent_stats",
-    "Returns comprehensive agent statistics: memory count, last activity, snapshot count, total memories, active/invalidated facts, searches, shared pools, and recent episodes.",
+    `Returns an agent's combined health and learning statistics as JSON (memory_count, total_facts, active_facts, invalidated_facts, total_searches, recent_episodes, etc.). Use to gauge how much an agent has learned and how active it is. (DB-only — does not proxy.) Instead: lore_my_usage for per-developer LLM token spend.`,
     {
-      agent_id: z.string().optional().describe("Override agent ID."),
+      agent_id: z.string().optional().describe("Agent to inspect. Omit for the ambient agent."),
     },
     async ({ agent_id }) => {
       try {

@@ -13,7 +13,7 @@ export function registerRepoTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_list_repos",
-    "Returns all onboarded repos from lore.repos with pipeline task counts.",
+    `Lists every repo onboarded into Lore, returning a JSON array with per-repo metadata and pipeline task count (DB-only). Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,
     {},
     async () => {
       try {
@@ -33,9 +33,9 @@ export function registerRepoTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_onboard_repo",
-    "Onboard a GitHub repo: creates branch with CLAUDE.md, AGENTS.md and PR template, opens a PR, and registers the repo in lore.repos.",
+    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status } (DB-only). Re-onboarding an existing repo refreshes onboarded_at. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
     {
-      full_name: z.string().describe('Repository in "owner/repo" format (e.g., "re-cinq/lore").'),
+      full_name: z.string().describe('"owner/repo" format; both segments must be non-empty.'),
     },
     async ({ full_name }) => {
       try {
@@ -52,10 +52,10 @@ export function registerRepoTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_ingest_files",
-    "Manually ingest files from a repo into Lore's context store. Use this to make specific files searchable via lore_search_context. The files are fetched from GitHub and embedded.",
+    `Fetches specific repo files from GitHub, embeds them, and writes them into Lore's context store immediately so they are searchable without waiting for nightly ingestion. Returns "Ingested N files into Lore for <repo>. M errors." Use after merging a new ADR or updated CLAUDE.md to make it searchable now. Instead: to onboard a new repo use lore_onboard_repo; to search existing content use lore_search_context or lore_assemble_context.`,
     {
-      files: z.array(z.string()).describe('File paths to ingest (e.g., ["CLAUDE.md", "adrs/ADR-001.md", "src/auth.ts"])'),
-      repo: z.string().optional().describe('Repository in "owner/repo" format. Auto-detected from git remote if omitted.'),
+      files: z.array(z.string()).describe("Repo-relative file paths to ingest."),
+      repo: z.string().optional().describe('"owner/repo" format. Auto-detected from cwd git remote when omitted.'),
     },
     async ({ files, repo }) => {
       try {

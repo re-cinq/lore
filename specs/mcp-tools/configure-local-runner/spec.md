@@ -22,18 +22,20 @@ provided fields, and persists.
 Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L208)).
 
 - **name**: `lore_configure_local_runner`
-- **description** (verbatim): *"View or update local task runner settings.
-  Controls which repos and task types the runner watches, concurrency limits, and
-  default model."*
+- **description** (verbatim):
+
+```text
+Views or updates the local runner config on your machine; returns current config as JSON when called with no arguments, or writes provided fields and returns 'Config updated:' + JSON. Controls which repos/task-types the local notifier watches and local concurrency/model limits. To run work locally use lore_run_task_locally (new task) or lore_claim_and_run_locally (existing task).
+```
 
 ### Input schema (Zod)
 
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
-| `max_concurrent` | number | no | — | Max concurrent local tasks (default 2). |
-| `repos` | string[] | no | — | Repos to watch (e.g. `['re-cinq/lore']`). |
-| `task_types` | string[] | no | — | Task types to run locally. |
-| `model` | string | no | — | Default model for local tasks. |
+| `max_concurrent` | number | no | — | Max simultaneous local background tasks (positive integer). |
+| `repos` | string[] | no | — | owner/repo slugs the local notifier watches (e.g. ['re-cinq/lore']). Replaces the whole list. |
+| `task_types` | string[] | no | — | Task-type names eligible to run locally. Replaces the whole list. |
+| `model` | string | no | — | Default model id for local tasks (e.g. 'claude-sonnet-4-6'). |
 
 ## Behavior
 
