@@ -1,15 +1,37 @@
 ## Why
-<!-- What problem does this solve? What would break without this change? -->
 
-## Approach
-<!-- How does this solve it? Key implementation decisions. -->
+<!-- What problem does this solve? Link the issue, spec, or feature request. Explain the motivation, not just the mechanics. -->
 
-## Alternatives rejected
-<!-- What else did you consider and why did you not choose it? -->
-<!-- This section is required. "N/A" is not an acceptable answer. -->
+## What Changed
 
-## ADR references
-<!-- Links to any ADRs this implements, supersedes, or references. -->
+<!-- The concrete changes, as bullets. What a reviewer should look at first. -->
 
-## Spec
-<!-- Link to .specify/spec.md if this is a spec-driven feature. -->
+-
+-
+
+## Alternatives Considered
+
+<!-- Approaches you rejected and why. If there were none worth weighing, say so explicitly. -->
+
+## ADRs & Architecture
+
+<!-- Link any ADRs this PR introduces, implements, or supersedes (adrs/ADR-NNN-*.md).
+     Link the spec if one exists (specs/<feature>/spec.md). Note any new cross-component
+     contracts, schema migrations (ui-helm/migrations/NNNN_*.sql), or new env vars. -->
+
+- ADR(s):
+- Spec:
+
+## Testing
+
+<!-- How you verified this. Commands run, cases covered, manual steps, and anything a
+     reviewer needs to reproduce. Note what is intentionally not covered. -->
+
+## Checklist
+
+- [ ] Lint passes (`npm run lint` / `yarn eslint`, max-warnings 0)
+- [ ] Types pass (`npm run typecheck` / `yarn tsc`, strict mode, no `any`)
+- [ ] Tests added or updated, and the suite passes
+- [ ] No secrets, keys, tokens, or credentials committed (env vars / K8s Secrets only)
+- [ ] Docs updated where behavior changed (CLAUDE.md, README, runbooks, specs)
+- [ ] PR body includes the `Lore-Task: <uuid>` trailer when this branch is Lore-managed
