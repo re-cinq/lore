@@ -1,34 +1,35 @@
 ## Why
 
-<!-- The problem or motivation. Link the spec, ADR, or issue this addresses. -->
+<!-- What problem does this change solve? Link to the spec, issue, or task that motivated it. -->
 
 ## What Changed
 
-<!-- The concrete changes, in plain bullets. What a reviewer should look at first. -->
-
--
--
+<!-- A concise description of the implementation. What was added, removed, or modified? -->
 
 ## Alternatives Considered
 
-<!-- Approaches you weighed and rejected, and why this one won. -->
+<!-- What other approaches did you evaluate? Why did you choose this one? -->
 
 ## ADRs & Architecture
 
-<!-- ADRs introduced or affected (adrs/ADR-NNN-*.md), and any architectural impact:
-     new services, schema changes, API contracts, cross-repo coupling. -->
+<!-- Reference any ADRs this touches or creates. If this change warrants a new ADR, link the draft. -->
+
+- ADR(s) affected:
+- New ADR needed: yes / no
 
 ## Testing
 
-<!-- How this was verified: tests added/updated, manual steps, evidence. -->
+<!-- How was this tested? Include commands, edge cases covered, and anything explicitly not tested. -->
 
--
+```bash
 
-## Checklist
+```
 
-- [ ] Lint passes (`npm run lint` / `yarn eslint`, max-warnings 0)
-- [ ] Types pass (`tsc` / typecheck clean, no new `any`)
-- [ ] Tests added or updated and passing
-- [ ] No secrets, keys, tokens, or credentials in code or config (env vars only)
-- [ ] Relevant ADRs / specs / CLAUDE.md updated
-- [ ] `Lore-Task: <uuid>` trailer present (Lore-managed branches only)
+---
+
+- [ ] Lint passes (`npm run lint` or equivalent in the changed workspace)
+- [ ] Types check (`npm run typecheck` or `tsc --noEmit`)
+- [ ] Tests pass and new behaviour is covered
+- [ ] No secrets, credentials, or tokens committed
+- [ ] Dark-factory commits carry `Lore-Stage` / `Lore-Iteration` / `Lore-Task` trailers (if on a Lore-managed branch)
+- [ ] PR body includes `Lore-Task: <uuid>` footer (if task-backed)
