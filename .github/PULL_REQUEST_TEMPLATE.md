@@ -1,15 +1,34 @@
 ## Why
-<!-- What problem does this solve? What would break without this change? -->
 
-## Approach
-<!-- How does this solve it? Key implementation decisions. -->
+<!-- The problem or motivation. Link the spec, ADR, or issue this addresses. -->
 
-## Alternatives rejected
-<!-- What else did you consider and why did you not choose it? -->
-<!-- This section is required. "N/A" is not an acceptable answer. -->
+## What Changed
 
-## ADR references
-<!-- Links to any ADRs this implements, supersedes, or references. -->
+<!-- The concrete changes, in plain bullets. What a reviewer should look at first. -->
 
-## Spec
-<!-- Link to .specify/spec.md if this is a spec-driven feature. -->
+-
+-
+
+## Alternatives Considered
+
+<!-- Approaches you weighed and rejected, and why this one won. -->
+
+## ADRs & Architecture
+
+<!-- ADRs introduced or affected (adrs/ADR-NNN-*.md), and any architectural impact:
+     new services, schema changes, API contracts, cross-repo coupling. -->
+
+## Testing
+
+<!-- How this was verified: tests added/updated, manual steps, evidence. -->
+
+-
+
+## Checklist
+
+- [ ] Lint passes (`npm run lint` / `yarn eslint`, max-warnings 0)
+- [ ] Types pass (`tsc` / typecheck clean, no new `any`)
+- [ ] Tests added or updated and passing
+- [ ] No secrets, keys, tokens, or credentials in code or config (env vars only)
+- [ ] Relevant ADRs / specs / CLAUDE.md updated
+- [ ] `Lore-Task: <uuid>` trailer present (Lore-managed branches only)
