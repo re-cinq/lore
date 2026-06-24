@@ -1,10 +1,14 @@
 ## Why
 
-<!-- What problem does this change solve? Link to the spec, issue, or task that motivated it. -->
+<!-- What problem does this PR solve? What was broken or missing? Be specific about the user or system impact. -->
 
 ## What Changed
 
-<!-- A concise description of the implementation. What was added, removed, or modified? -->
+<!-- Bullet list of concrete changes — files, functions, behaviors. Not "I updated things" but "X now does Y instead of Z." -->
+
+-
+-
+-
 
 ## Alternatives Considered
 
@@ -12,24 +16,25 @@
 
 ## ADRs & Architecture
 
-<!-- Reference any ADRs this touches or creates. If this change warrants a new ADR, link the draft. -->
+<!-- Reference any ADRs this touches, introduces, or supersedes. Link to specs in specs/ if relevant. -->
 
-- ADR(s) affected:
-- New ADR needed: yes / no
+- ADR: <!-- e.g. adrs/ADR-0XX-title.md -->
+- Spec: <!-- e.g. specs/feature-name/spec.md -->
 
 ## Testing
 
-<!-- How was this tested? Include commands, edge cases covered, and anything explicitly not tested. -->
+<!-- How was this verified? Unit tests? Integration? Manual steps? -->
 
-```bash
-
-```
+- [ ] Tests added or updated
+- [ ] Manually verified against expected behavior
 
 ---
 
-- [ ] Lint passes (`npm run lint` or equivalent in the changed workspace)
-- [ ] Types check (`npm run typecheck` or `tsc --noEmit`)
-- [ ] Tests pass and new behaviour is covered
-- [ ] No secrets, credentials, or tokens committed
-- [ ] Dark-factory commits carry `Lore-Stage` / `Lore-Iteration` / `Lore-Task` trailers (if on a Lore-managed branch)
-- [ ] PR body includes `Lore-Task: <uuid>` footer (if task-backed)
+## Checklist
+
+- [ ] Lint passes (`npm run lint` or equivalent)
+- [ ] Types check (`npm run typecheck` or equivalent)
+- [ ] Tests pass
+- [ ] No secrets, tokens, or credentials committed
+- [ ] No `console.log` left in production paths
+- [ ] Commit trailers present if this is a Lore-managed branch (`Lore-Stage`, `Lore-Iteration`, `Lore-Task`)
