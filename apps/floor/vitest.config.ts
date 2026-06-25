@@ -20,6 +20,7 @@ export default defineConfig({
         "src/adapters/agent-events.ts",
         "src/adapters/execution-backend.ts",
         "src/adapters/per-task-token.ts",
+        "src/application/floor-graph.ts",
         "src/application/jobs/scheduled/agent-watcher-logic.ts",
       ],
       thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
