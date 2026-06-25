@@ -127,6 +127,8 @@ export function createProductionHandlers(opts: {
   validate?: NodeHandler;
   gate?: NodeHandler;
   retrospective?: NodeHandler;
+  /** Wired by the Floor-side driver for workflows with a `github_action` node (D3). */
+  github_action?: NodeHandler;
   episodeDeps: ProductionHandlersDeps;
 }): NodeHandlers {
   return {
@@ -139,5 +141,6 @@ export function createProductionHandlers(opts: {
     retrospective:
       opts.retrospective ??
       createProductionRetrospectiveHandler(opts.episodeDeps),
+    ...(opts.github_action ? { github_action: opts.github_action } : {}),
   };
 }
