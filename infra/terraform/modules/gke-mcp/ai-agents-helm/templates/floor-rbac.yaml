@@ -1,0 +1,42 @@
+# Cross-namespace authz for the Lore Floor (ServiceAccount in {{ .Values.floor.namespace }}):
+#   1. create/get/watch Agents here (bound to the agent-launcher Role), and
+#   2. update ONLY the single agent-secrets Secret — to PATCH short-lived per-task
+#      GitHub tokens in/out (re-cinq/lore#685). resourceNames scopes it to that one Secret.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lore-floor-agent-launcher
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: agent-launcher
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.floor.serviceAccount }}
+    namespace: {{ .Values.floor.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-secret-writer
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["{{ .Values.agentSecretsName }}"]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lore-floor-agent-secret-writer
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: agent-secret-writer
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.floor.serviceAccount }}
+    namespace: {{ .Values.floor.namespace }}
