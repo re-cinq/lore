@@ -22,8 +22,9 @@ export interface AgentNodeStatus {
 export interface AgentNodeDeps {
   /** Dispatch the Agent CR for this node (builds the spec from node + ctx). */
   launch: (node: WorkflowNode, ctx: NodeContext) => Promise<void>;
-  /** Current Agent status for the task, or null if not found yet. */
-  poll: (taskId: string) => Promise<AgentNodeStatus | null>;
+  /** Current status of THIS node's Agent, or null if not found yet. Keyed by node id
+   *  because the Floor-side graph dispatches a separate Agent CR per agent-node (#686). */
+  poll: (taskId: string, nodeId: string) => Promise<AgentNodeStatus | null>;
   /** Refresh the branch lease so a long run doesn't lapse mid-node. */
   heartbeat: (branchName: string, nodeId: string) => Promise<void>;
   sleep: (ms: number) => Promise<void>;
@@ -71,7 +72,7 @@ export function createAgentNodeHandler(deps: AgentNodeDeps): NodeHandler {
     await deps.launch(node, ctx);
     for (let poll = 0; poll < maxPolls; poll++) {
       await deps.heartbeat(ctx.branchName, node.id);
-      const status = await deps.poll(ctx.taskId);
+      const status = await deps.poll(ctx.taskId, node.id);
       if (status && isTerminalPhase(status.phase)) {
         return agentNodeOutcome(status);
       }

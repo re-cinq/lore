@@ -46,11 +46,11 @@ describe("agentNodeOutcome", () => {
 
 // Records every port call; replays a queued sequence of poll results.
 function fakeDeps(pollQueue: Array<AgentNodeStatus | null>, over: Partial<AgentNodeDeps> = {}) {
-  const calls = { launch: 0, heartbeat: [] as string[], sleep: 0 };
+  const calls = { launch: 0, heartbeat: [] as string[], sleep: 0, poll: [] as string[] };
   const queue = [...pollQueue];
   const deps: AgentNodeDeps = {
     launch: async () => { calls.launch++; },
-    poll: async () => (queue.length ? queue.shift()! : null),
+    poll: async (_taskId, nodeId) => { calls.poll.push(nodeId); return queue.length ? queue.shift()! : null; },
     heartbeat: async (_b, nodeId) => { calls.heartbeat.push(nodeId); },
     sleep: async () => { calls.sleep++; },
     ...over,
@@ -64,6 +64,7 @@ describe("createAgentNodeHandler", () => {
     expect(await createAgentNodeHandler(deps)(node, ctx)).toEqual({ outcome: "success" });
     expect(calls.launch).toBe(1);
     expect(calls.heartbeat).toEqual(["implement", "implement"]);
+    expect(calls.poll).toEqual(["implement", "implement"]); // polls THIS node's Agent
     expect(calls.sleep).toBe(1);
   });
 
