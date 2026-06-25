@@ -10,6 +10,7 @@
 
 import { isTerminal, type Agent } from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec, StationBackend, StationLaunchResult } from "@re-cinq/lore-shared";
+import { needsToken } from "./per-task-token.js";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
@@ -35,10 +36,20 @@ export interface ContextSource {
   assemble(spec: LoreTaskSpec): Promise<string | undefined>;
 }
 
+/** Provisions a per-task GitHub token (ADR-031 D6, #697): mints it, PATCHes it into
+ *  the shared `agent-secrets` Secret, and materialises the per-task triple (an
+ *  AgentDefinition cloned from the catalog with the repo + token_secret, and a Station
+ *  referencing it). Returns the per-task Station name the Agent should run on, or
+ *  undefined to fall back to the catalog Station. The mint/PATCH/apply IO lives in
+ *  KubeTokenProvisioner; the clone transforms it uses are pure (per-task-token.ts). */
+export interface TokenProvisioner {
+  provision(spec: LoreTaskSpec): Promise<string | undefined>;
+}
+
 /** Map a LoreTaskSpec to an `Agent` CR body. The recipe (model/prompt/tools) lives
  *  on the Station the task type resolves to; per-run carries only parameters —
  *  including the assembled `context` the recipe's `{context}` placeholder fills (D5). */
-export function specToAgent(spec: LoreTaskSpec, context?: string): Agent {
+export function specToAgent(spec: LoreTaskSpec, context?: string, stationRef?: string): Agent {
   const parameters: Record<string, string> = {
     description: spec.description,
     prompt: spec.prompt,
@@ -56,8 +67,9 @@ export function specToAgent(spec: LoreTaskSpec, context?: string): Agent {
       },
     },
     spec: {
-      // One Station per task type (the catalog, #685); the run references it by name.
-      stationRef: spec.taskType,
+      // The catalog Station for the task type (#699), unless a per-task Station was
+      // materialised for the token provisioning (#697) and passed as the override.
+      stationRef: stationRef ?? spec.taskType,
       taskId: spec.taskId,
       targetRepo: spec.targetRepo,
       branch: spec.branch,
@@ -70,11 +82,14 @@ export class AgentBackend implements StationBackend {
   constructor(
     private readonly api: AgentApi,
     private readonly context?: ContextSource,
+    private readonly tokens?: TokenProvisioner,
   ) {}
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
     const context = await this.context?.assemble(spec);
-    const { name, created } = await this.api.create(specToAgent(spec, context));
+    const stationRef =
+      this.tokens && needsToken(spec) ? await this.tokens.provision(spec) : undefined;
+    const { name, created } = await this.api.create(specToAgent(spec, context, stationRef));
     return { ref: name, launched: created };
   }
 

@@ -13,6 +13,13 @@ import { AgentBackend } from "../adapters/agent-backend.js";
 import { KubeAgentApi } from "../adapters/kube-agent-api.js";
 import { HttpContextSource } from "../adapters/http-context-source.js";
 import { decideExecutionBackend } from "../adapters/execution-backend.js";
+import {
+  KubeTokenProvisioner,
+  GithubTokenMinter,
+  KubeSecretKeyWriter,
+  KubeCatalogApi,
+} from "../adapters/kube-token-provisioner.js";
+import { GitHubPlatform } from "../adapters/github.js";
 
 /**
  * Per-repo Project composition root for the agent. Builds from the agent's
@@ -47,7 +54,15 @@ export function stationBackend(): StationBackend {
     repoBackend: clusterEnabled ? "agent-cr" : "loretask",
   });
   return backend === "agent-cr"
-    ? new AgentBackend(new KubeAgentApi(), new HttpContextSource())
+    ? new AgentBackend(
+        new KubeAgentApi(),
+        new HttpContextSource(),
+        new KubeTokenProvisioner(
+          new GithubTokenMinter(new GitHubPlatform()),
+          new KubeSecretKeyWriter(),
+          new KubeCatalogApi(),
+        ),
+      )
     : new K8sLoreTaskClient();
 }
 
