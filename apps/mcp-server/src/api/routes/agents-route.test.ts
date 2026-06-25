@@ -141,7 +141,7 @@ describe("routes — agents", () => {
     it("deletes an agent by name", async () => {
       fakeAgents.delete.mockResolvedValue(undefined);
       const { res } = await call(`${BASE}/general`, "DELETE");
-      expect(res.json).toEqual({ ok: true, deleted: "general" });
+      expect(res.json).toEqual({ ok: true, deleted: "general", crd_deleted: false });
       expect(fakeAgents.delete).toHaveBeenCalledWith("general");
     });
   });

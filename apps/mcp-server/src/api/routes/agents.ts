@@ -1,11 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
-import type { Project } from "@re-cinq/lore-shared";
+import type { Project, AgentDefinition } from "@re-cinq/lore-shared";
 import { projectFor } from "../../platform/project-boot.js";
 import { verifyApproval, TwoKeyError } from "../../features/dark-factory/dark-factory-authz.js";
 import { getOctokit } from "../../platform/github-client.js";
 import { json, readJsonBody } from "./http.js";
 import { parseAgentInput, parseAgentPatch, imageFieldTouched } from "../../features/agents/agents-schema.js";
+import { agentDefToCrds } from "../../features/agents/agent-crd.js";
+import { applyAgentCrds, deleteAgentCrds } from "../../features/agents/agent-crd-k8s.js";
 
 /**
  * Per-repo agent definitions API. GET resolves/lists (the RUNNER fetches the
@@ -53,8 +55,9 @@ export async function handleAgentsRoute(
     }
     if (method === "DELETE" && name) {
       await project.agentDefs.delete(name);
-      await audit(pool, repo, "agent_deleted", { name });
-      json(res, 200, { ok: true, deleted: name });
+      const crd_deleted = await deleteCatalogCrd(name);
+      await audit(pool, repo, "agent_deleted", { name, crd_deleted });
+      json(res, 200, { ok: true, deleted: name, crd_deleted });
       return;
     }
     json(res, 405, { error: "method not allowed" });
@@ -110,8 +113,9 @@ async function handleWrite(
 
   if (method === "POST") {
     const def = await project.agentDefs.create(create!);
-    await audit(pool, repo, "agent_created", { name: def.name, ceremony });
-    json(res, 200, { ok: true, agent: def, ceremony });
+    const crd_applied = await applyCatalogCrd(def);
+    await audit(pool, repo, "agent_created", { name: def.name, ceremony, crd_applied });
+    json(res, 200, { ok: true, agent: def, ceremony, crd_applied });
     return;
   }
 
@@ -120,8 +124,37 @@ async function handleWrite(
     return;
   }
   const def = await project.agentDefs.update(name, patch!);
-  await audit(pool, repo, "agent_updated", { name, ceremony });
-  json(res, 200, { ok: true, agent: def, ceremony });
+  const crd_applied = await applyCatalogCrd(def);
+  await audit(pool, repo, "agent_updated", { name, ceremony, crd_applied });
+  json(res, 200, { ok: true, agent: def, ceremony, crd_applied });
+}
+
+/**
+ * Make the resolved recipe the source of truth by materialising its AgentDefinition +
+ * Station CRDs (D2). Best-effort + reported: the Postgres write already succeeded (it
+ * still serves the legacy resolve path), so a k8s hiccup surfaces as crd_applied:false
+ * rather than failing the edit. Full Postgres retirement follows at cutover (#688).
+ */
+async function applyCatalogCrd(def: AgentDefinition): Promise<boolean> {
+  if (!process.env.KUBERNETES_SERVICE_HOST) return false; // not in-cluster (local dev / tests)
+  try {
+    await applyAgentCrds(agentDefToCrds(def, { eventsUrl: process.env.LORE_AGENT_EVENTS_URL }));
+    return true;
+  } catch (err) {
+    console.error(`[agents] CRD apply failed for ${def.name}:`, err);
+    return false;
+  }
+}
+
+async function deleteCatalogCrd(name: string): Promise<boolean> {
+  if (!process.env.KUBERNETES_SERVICE_HOST) return false;
+  try {
+    await deleteAgentCrds(name);
+    return true;
+  } catch (err) {
+    console.error(`[agents] CRD delete failed for ${name}:`, err);
+    return false;
+  }
 }
 
 /**
