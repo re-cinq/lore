@@ -10,6 +10,7 @@ import type {
   IssueComment,
   PullCommit,
   PullStats,
+  CiConclusion,
 } from "../pulls/pull-requests-port.js";
 
 /**
@@ -358,6 +359,29 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       merged_at: data.merged_at,
       created_at: data.created_at,
     };
+  }
+
+  async changedFileCount(repo: string, base: string, head: string): Promise<number> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.repos.compareCommitsWithBasehead({
+      owner,
+      repo: name,
+      basehead: `${base}...${head}`,
+    });
+    return data.files?.length ?? 0;
+  }
+
+  async ciConclusion(repo: string, ref: string): Promise<CiConclusion> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.checks.listForRef({ owner, repo: name, ref });
+    const runs = data.check_runs ?? [];
+    if (runs.length === 0) return "none";
+    if (runs.some((r) => r.status !== "completed")) return "pending";
+    const failed = new Set(["failure", "cancelled", "timed_out", "action_required", "stale"]);
+    if (runs.some((r) => r.conclusion != null && failed.has(r.conclusion))) return "failure";
+    return "success";
   }
 
   // ── repo config (consumed by the settings adapter) ──────────────────

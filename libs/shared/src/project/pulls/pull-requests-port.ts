@@ -7,6 +7,10 @@
 export type PRReviewEvent = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
 export type MergeMethod = "squash" | "merge" | "rebase";
 
+/** Aggregate GitHub Actions conclusion for a ref: the deterministic gate (ADR-031 D3).
+ *  `none` = no checks configured. */
+export type CiConclusion = "success" | "failure" | "pending" | "none";
+
 export interface PullRef {
   repo: string;
   number: number;
@@ -72,4 +76,9 @@ export interface PullRequestsPort {
   isMerged(repo: string, number: number): Promise<boolean>;
   isClosed(repo: string, number: number): Promise<boolean>;
   getStats(repo: string, number: number): Promise<PullStats>;
+  /** Number of files that differ between two refs (compare-commits). The agent-watcher
+   *  uses this for the no-changes vs PR decision — `Agent.status` carries no changedFiles. */
+  changedFileCount(repo: string, base: string, head: string): Promise<number>;
+  /** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (D3). */
+  ciConclusion(repo: string, ref: string): Promise<CiConclusion>;
 }
