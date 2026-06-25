@@ -1,0 +1,21 @@
+name: Helm render
+
+# Cluster-free validation of the ai-agents Helm chart: render it and assert the
+# expected resources are present. Runs on changes to the chart or the check script.
+
+on:
+  pull_request:
+    paths:
+      - 'infra/terraform/modules/gke-mcp/ai-agents-helm/**'
+      - 'scripts/check-ai-agents-render.sh'
+      - '.github/workflows/helm-render.yml'
+  workflow_dispatch:
+
+jobs:
+  ai-agents-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Render + assert resources
+        run: ./scripts/check-ai-agents-render.sh

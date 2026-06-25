@@ -1,0 +1,194 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agentdefinitions.agents.re-cinq.com
+spec:
+  group: agents.re-cinq.com
+  scope: Namespaced
+  names:
+    plural: agentdefinitions
+    singular: agentdefinition
+    kind: AgentDefinition
+    shortNames:
+      - agentdef
+      - ad
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Model
+          type: string
+          jsonPath: .spec.model
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: "The reusable recipe for a coding agent task."
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              properties:
+                description:
+                  type: string
+                  description: "Human summary for operators."
+                model:
+                  type: string
+                  description: "Model id (e.g. claude-sonnet-4-6). If omitted, the runtime default is used."
+                prompt:
+                  type: string
+                  description: "Task template; {placeholder} tokens are filled from an Agent's parameters."
+                allowed_tools:
+                  type: array
+                  items:
+                    type: string
+                disallowed_tools:
+                  type: array
+                  items:
+                    type: string
+                permission_mode:
+                  type: string
+                  default: bypass
+                  enum:
+                    - auto
+                    - bypass
+                max_turns:
+                  type: integer
+                  minimum: 1
+                resources:
+                  type: object
+                  properties:
+                    env:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - value
+                        properties:
+                          name:
+                            type: string
+                          value:
+                            type: string
+                    secrets:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - ref
+                        properties:
+                          name:
+                            type: string
+                            description: "Environment variable name to expose the secret as."
+                          ref:
+                            type: string
+                            description: "Allowlisted secret-store key."
+                    mcp_servers:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - transport
+                        properties:
+                          name:
+                            type: string
+                          transport:
+                            type: string
+                            enum:
+                              - stdio
+                              - http
+                              - sse
+                          command:
+                            type: string
+                          args:
+                            type: array
+                            items:
+                              type: string
+                          url:
+                            type: string
+                          headers_secret:
+                            type: string
+                    repos:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - url
+                        properties:
+                          name:
+                            type: string
+                          url:
+                            type: string
+                          ref:
+                            type: string
+                          path:
+                            type: string
+                          token_secret:
+                            type: string
+                output:
+                  type: object
+                  properties:
+                    format:
+                      type: string
+                      enum:
+                        - text
+                        - json
+                        - stream-json
+                    schema:
+                      type: object
+                      description: "JSON Schema validating the result."
+                      x-kubernetes-preserve-unknown-fields: true
+                    select:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - event
+                        properties:
+                          event:
+                            type: string
+                            enum:
+                              - tool_call
+                              - message
+                              - tool_result
+                              - result
+                              - usage
+                          tool:
+                            type: string
+                          role:
+                            type: string
+                            enum:
+                              - assistant
+                              - user
+                          contains:
+                            type: string
+                    sinks:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - type
+                        properties:
+                          type:
+                            type: string
+                            enum:
+                              - stdout
+                              - http
+                              - file
+                          url:
+                            type: string
+                          headers_secret:
+                            type: string
+                          path:
+                            type: string
+                tool_config:
+                  type: object
+                  description: "Raw passthrough for tool-specific knobs."
+                  x-kubernetes-preserve-unknown-fields: true
