@@ -39,6 +39,8 @@ export interface NodeHandlers {
   validate: NodeHandler;
   gate: NodeHandler;
   retrospective: NodeHandler;
+  /** Optional — only workflows with a `github_action` node need it (D3). */
+  github_action?: NodeHandler;
 }
 
 export interface IterationMaxExceededInfo {
@@ -149,6 +151,11 @@ export async function executeGraph(
     await leaseBackend.refresh(branchName, holder, undefined, currentId);
 
     const handler = handlers[node.type];
+    if (!handler) {
+      throw new Error(
+        `Workflow ${workflow.name}: no handler registered for node type "${node.type}" (node "${currentId}")`,
+      );
+    }
     const result = await handler(node, {
       taskId: opts.taskId,
       branchName,

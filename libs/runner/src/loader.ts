@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { parse as parseYaml } from "yaml";
 
-const NodeType = z.enum(["agent", "validate", "gate", "retrospective"]);
+const NodeType = z.enum(["agent", "validate", "gate", "retrospective", "github_action"]);
 const EdgeCondition = z.enum([
   "success",
   "changes_requested",

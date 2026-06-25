@@ -59,6 +59,13 @@ export {
 } from "./agent-node-handler.js";
 
 export {
+  createGithubActionHandler,
+  ciOutcome,
+  type CiConclusion,
+  type GithubActionDeps,
+} from "./github-action-handler.js";
+
+export {
   runClaudeCode,
   isClaudeCodeAvailable,
   type ClaudeCodeResult,
