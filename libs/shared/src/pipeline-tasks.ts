@@ -13,6 +13,17 @@ import type { PgPool } from "./memory-store.js";
 // Deterministic graph-ingest tasks are allowed at EVERY trust tier — they are
 // zero-LLM, produce no PR, and only read source + write the trace graph.
 const GRAPH_INGEST = ["ingest-specs", "ingest-adrs", "ingest-tests"];
+
+/**
+ * Whether a task type is a deterministic graph-ingest task (zero-LLM, no Issue,
+ * no PR). This is the drift-proof identity used by the worker's dispatch guard:
+ * the YAML `execution_mode: graph-ingest` flag can silently vanish under a stale
+ * `/config/task-types.yaml` mount, so the worker must not rely on config alone to
+ * keep these tasks off the LLM ladder (which would mint stray GitHub Issues).
+ */
+export function isGraphIngestTaskType(taskType: string): boolean {
+  return GRAPH_INGEST.includes(taskType);
+}
 // Feature planning + finalize produce only analysis and a spec-doc PR (no code),
 // so they are allowed from the docs tier up (ADR-027 / specs/7-feature-planning).
 const FEATURE_PLANNING = ["feature-planning", "feature-finalize"];

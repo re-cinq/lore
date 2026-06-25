@@ -16,7 +16,7 @@ import {
   resolveExecutionImage,
 } from "@re-cinq/lore-shared";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { linkifyMarkdown, createDgraphClient, selectStationBackend } from "@re-cinq/lore-shared";
+import { linkifyMarkdown, createDgraphClient, selectStationBackend, isGraphIngestTaskType } from "@re-cinq/lore-shared";
 import { handleGraphIngest } from "../spec-trace/graph-ingest-handler.js";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
 import { composeIssueBody } from "./issue-body.js";
@@ -115,8 +115,13 @@ async function processTask(task: any): Promise<void> {
 
   // Deterministic graph-ingest tasks: zero-LLM, no Issue, no PR. Dispatch before
   // the LLM ladder (Issue creation / approval / Claude Code). The shared
-  // runIngestGraph runs in-process against the trace graph.
-  if (getTaskTypeConfig(task.task_type)?.execution_mode === "graph-ingest") {
+  // runIngestGraph runs in-process against the trace graph. The drift-proof
+  // `isGraphIngestTaskType` is OR'd in so a stale/missing `/config/task-types.yaml`
+  // (execution_mode goes undefined) can't drop these onto the LLM issue path.
+  if (
+    getTaskTypeConfig(task.task_type)?.execution_mode === "graph-ingest" ||
+    isGraphIngestTaskType(task.task_type)
+  ) {
     await handleGraphIngest(task, targetRepo, agentId, { pool: getPool(), project, dgraph: createDgraphClient() });
     return;
   }
