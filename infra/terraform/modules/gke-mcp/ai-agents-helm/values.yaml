@@ -1,3 +1,8 @@
+# Seed the initial AgentDefinition/Station catalog from scripts/task-types.yaml
+# (templates/catalog.yaml). Operators set this false after first install so they
+# stop re-seeding — the web UI owns the recipes thereafter (re-cinq/lore#698).
+seedCatalog: true
+
 controller:
   replicas: 2
   image:

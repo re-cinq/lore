@@ -16,6 +16,7 @@ export default defineConfig({
       // excluded, as loretask-watcher is; its extracted pure logic is gated here.
       include: [
         "src/adapters/agent-backend.ts",
+        "src/adapters/agent-catalog.ts",
         "src/adapters/execution-backend.ts",
         "src/application/jobs/scheduled/agent-watcher-logic.ts",
       ],
