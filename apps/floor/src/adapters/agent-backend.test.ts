@@ -7,6 +7,7 @@ import {
   agentName,
   TASK_ID_LABEL,
   type AgentApi,
+  type ContextSource,
 } from "./agent-backend.js";
 
 const baseSpec: LoreTaskSpec = {
@@ -37,6 +38,34 @@ class FakeAgentApi implements AgentApi {
     return this.listResult;
   }
 }
+
+const ctx = (value: string | undefined): ContextSource => ({ assemble: async () => value });
+
+describe("context hydration (D5)", () => {
+  it("specToAgent adds the context parameter when provided", () => {
+    expect(specToAgent(baseSpec, "conventions + ADRs").spec?.parameters?.context).toBe(
+      "conventions + ADRs",
+    );
+  });
+  it("specToAgent omits context when not provided", () => {
+    expect(specToAgent(baseSpec).spec?.parameters).not.toHaveProperty("context");
+  });
+  it("launch injects the assembled context into the Agent parameters", async () => {
+    const api = new FakeAgentApi();
+    await new AgentBackend(api, ctx("assembled")).launch(baseSpec);
+    expect(api.created[0].spec?.parameters?.context).toBe("assembled");
+  });
+  it("launch omits context when the source returns undefined", async () => {
+    const api = new FakeAgentApi();
+    await new AgentBackend(api, ctx(undefined)).launch(baseSpec);
+    expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
+  });
+  it("launch works with no context source (legacy)", async () => {
+    const api = new FakeAgentApi();
+    await new AgentBackend(api).launch(baseSpec);
+    expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
+  });
+});
 
 describe("specToAgent", () => {
   it("maps a task to an Agent CR: stationRef=taskType, task-id label, parameters", () => {
