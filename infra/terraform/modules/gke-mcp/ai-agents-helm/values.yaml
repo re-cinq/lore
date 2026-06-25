@@ -1,0 +1,34 @@
+controller:
+  replicas: 2
+  image:
+    repository: ghcr.io/re-cinq/ai-agent-controller
+    # Pin by digest (never a floating tag). TODO: bump to the v0.3.0 digest once
+    # re-cinq/ai-agent-subsystem#82 merges and v0.3.0 is tagged + published. This
+    # is the current v0.2.0 controller digest in the subsystem's deploy/kustomization.yaml.
+    digest: "sha256:0735907bf18c018782687ffbce85e8f95ef46c6db3be837d75e632d2c886644e"
+  # The image whose init container injects the agent runtime + supervisor into each
+  # run pod. Pinned by digest; bump alongside the controller at v0.3.0.
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:f0b5b6030a9edbbb204f9020c7a60a6f25a199f445b1559797bf72fa60cf7dd3"
+  # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
+  maxOutputBytes: "262144"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+# The cross-namespace caller allowed to create/get/watch Agents and to update the
+# single agent-secrets Secret (the Lore Floor). Its ServiceAccount lives in another
+# namespace; we bind it to the in-namespace agent-launcher + secret-writer Roles.
+floor:
+  serviceAccount: lore-floor
+  namespace: lore-floor
+
+# The single ESO-managed Secret the run pods mount allowlisted keys from. The Floor
+# PATCHes short-lived per-task GitHub tokens into it (see re-cinq/lore#685).
+agentSecretsName: agent-secrets

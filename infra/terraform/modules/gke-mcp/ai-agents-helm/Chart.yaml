@@ -1,0 +1,5 @@
+apiVersion: v2
+name: ai-agents
+description: ai-agent-subsystem on GKE — CRDs, controller, RBAC, and run-pod NetworkPolicy (ADR-031)
+version: 0.1.0
+appVersion: "0.3.0"
