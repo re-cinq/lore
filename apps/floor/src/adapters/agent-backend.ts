@@ -28,14 +28,23 @@ export function agentName(taskId: string): string {
   return `agent-${taskId.substring(0, 8)}`;
 }
 
+/** Assembles the Lore context injected into a run's parameters at dispatch (ADR-031
+ *  D5), so the agent starts warm instead of spending turn 1 fetching it. The live
+ *  implementation calls the context-assembly API; tests use a fake. */
+export interface ContextSource {
+  assemble(spec: LoreTaskSpec): Promise<string | undefined>;
+}
+
 /** Map a LoreTaskSpec to an `Agent` CR body. The recipe (model/prompt/tools) lives
- *  on the Station the task type resolves to; per-run carries only parameters. */
-export function specToAgent(spec: LoreTaskSpec): Agent {
+ *  on the Station the task type resolves to; per-run carries only parameters —
+ *  including the assembled `context` the recipe's `{context}` placeholder fills (D5). */
+export function specToAgent(spec: LoreTaskSpec, context?: string): Agent {
   const parameters: Record<string, string> = {
     description: spec.description,
     prompt: spec.prompt,
   };
   if (spec.prNumber !== undefined) parameters.pr_number = String(spec.prNumber);
+  if (context) parameters.context = context;
 
   return {
     metadata: {
@@ -58,10 +67,14 @@ export function specToAgent(spec: LoreTaskSpec): Agent {
 }
 
 export class AgentBackend implements StationBackend {
-  constructor(private readonly api: AgentApi) {}
+  constructor(
+    private readonly api: AgentApi,
+    private readonly context?: ContextSource,
+  ) {}
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
-    const { name, created } = await this.api.create(specToAgent(spec));
+    const context = await this.context?.assemble(spec);
+    const { name, created } = await this.api.create(specToAgent(spec, context));
     return { ref: name, launched: created };
   }
 

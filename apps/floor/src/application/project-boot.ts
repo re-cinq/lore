@@ -11,6 +11,7 @@ import { DockerStation } from "../adapters/docker-station.js";
 import { LocalStationCredentials } from "../adapters/local-station-credentials.js";
 import { AgentBackend } from "../adapters/agent-backend.js";
 import { KubeAgentApi } from "../adapters/kube-agent-api.js";
+import { HttpContextSource } from "../adapters/http-context-source.js";
 import { decideExecutionBackend } from "../adapters/execution-backend.js";
 
 /**
@@ -46,7 +47,7 @@ export function stationBackend(): StationBackend {
     repoBackend: clusterEnabled ? "agent-cr" : "loretask",
   });
   return backend === "agent-cr"
-    ? new AgentBackend(new KubeAgentApi())
+    ? new AgentBackend(new KubeAgentApi(), new HttpContextSource())
     : new K8sLoreTaskClient();
 }
 
