@@ -28,6 +28,13 @@ import {
   parseReviewResult,
   decideCiGate,
 } from "./agent-watcher-logic.js";
+import {
+  KubeTokenProvisioner,
+  GithubTokenMinter,
+  KubeSecretKeyWriter,
+  KubeCatalogApi,
+} from "../../../adapters/kube-token-provisioner.js";
+import { GitHubPlatform } from "../../../adapters/github.js";
 
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";
@@ -35,6 +42,18 @@ const PLURAL = "agents";
 
 function agentsNamespace(): string {
   return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
+}
+
+/** Best-effort removal of a terminal task's per-task token key + AgentDefinition/Station
+ *  triple (#697). Idempotent (404s ignored); co-located with Agent-CR deletion. */
+function cleanupPerTaskToken(taskId: string): Promise<void> {
+  return new KubeTokenProvisioner(
+    new GithubTokenMinter(new GitHubPlatform()),
+    new KubeSecretKeyWriter(),
+    new KubeCatalogApi(),
+  )
+    .cleanup(taskId)
+    .catch(() => {});
 }
 
 // ── Slack batching (copied from loretask-watcher; CR-agnostic) ──────────
@@ -332,6 +351,7 @@ export async function watchAgents(): Promise<void> {
           try {
             await k8sApi.deleteNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL, name });
           } catch { /* already gone */ }
+          await cleanupPerTaskToken(taskId);
           console.log(`[agent-watcher] Marked ${taskId} needs-human-help (${reason})`);
         }
       }
@@ -439,6 +459,7 @@ export async function watchAgents(): Promise<void> {
       if (completedAt && Date.now() - completedAt.getTime() > 60 * 60 * 1000) {
         try {
           await k8sApi.deleteNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL, name });
+          await cleanupPerTaskToken(taskId);
           console.log(`[agent-watcher] Cleaned up Agent ${name}`);
         } catch { /* best effort */ }
       }
