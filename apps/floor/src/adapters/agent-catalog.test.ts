@@ -25,6 +25,12 @@ describe("buildAgentDefinition", () => {
         prompt: "Implement the spec.\n\nSpec: {description}\n\n{context}",
         permission_mode: "bypass",
         max_turns: 40,
+        output: {
+          sinks: [
+            { type: "stdout" },
+            { type: "http", url: "__AGENT_EVENTS_URL__", headers_secret: "agent-events-auth" },
+          ],
+        },
       },
     });
   });
@@ -68,6 +74,10 @@ describe("catalogChartYaml", () => {
     expect(out).toContain("{{- if .Values.seedCatalog }}");
     expect(out).toContain("{{- end }}");
     expect(out).toContain("helm.sh/resource-policy: keep");
+  });
+  it("templates the agent-events sink URL with the helm value (no sentinel leaks)", () => {
+    expect(out).toContain("url: {{ .Values.agentEventsUrl }}");
+    expect(out).not.toContain("__AGENT_EVENTS_URL__");
   });
   it("renders both kinds for the task type", () => {
     expect(out).toContain("kind: AgentDefinition");

@@ -23,6 +23,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -69,6 +75,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -126,6 +138,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -172,6 +190,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -224,6 +248,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -275,6 +305,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -349,6 +385,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -399,6 +441,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -441,6 +489,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -567,6 +621,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -608,6 +668,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -649,6 +715,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -690,6 +762,12 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
