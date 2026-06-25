@@ -10,6 +10,7 @@ import { approvalCheckJob } from "../application/jobs/scheduled/approval-check.j
 import { mergeCheckJob } from "../application/jobs/scheduled/merge-check.js";
 import { reviewReactorJob } from "../application/jobs/scheduled/review-reactor.js";
 import { loretaskWatcherJob } from "../application/jobs/scheduled/loretask-watcher.js";
+import { agentWatcherJob } from "../application/jobs/scheduled/agent-watcher.js";
 import { specTaskExecutorJob } from "../application/jobs/scheduled/spec-task-executor.js";
 import { staleTaskCheckJob } from "../application/jobs/scheduled/stale-task-check.js";
 import { reclaimOrphanedIngestJob } from "../application/jobs/scheduled/reclaim-orphaned-ingest.js";
@@ -46,6 +47,8 @@ async function main(): Promise<void> {
   // (roughly 09-19 CET/CEST); the job itself gates on business hours.
   registerJob("review_reactor", "7 7-17 * * 1-5", reviewReactorJob);
   registerJob("loretask_watcher", "*/1 * * * *", loretaskWatcherJob);
+  // ADR-031 cutover: polls Agent CRs, runs alongside loretask_watcher (disjoint groups).
+  registerJob("agent_watcher", "*/1 * * * *", agentWatcherJob);
   registerJob("spec_task_executor", "*/1 * * * *", specTaskExecutorJob);
   registerJob("stale_task_check", "17 * * * *", staleTaskCheckJob);    // hourly at :17
   // Recurring orphan recovery: resets graph-ingest tasks stranded in `running`
