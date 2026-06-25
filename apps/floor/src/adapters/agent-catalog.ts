@@ -17,6 +17,8 @@ const API_VERSION = "agents.re-cinq.com/v1alpha1";
 // glibc base; the subsystem's init container injects the claude runtime + supervisor.
 const BASE_IMAGE = "node:22-bookworm";
 const SEED_LABELS = { "app.kubernetes.io/managed-by": "lore-catalog-seed" };
+// Placeholder for the per-cluster sink URL; catalogChartYaml swaps it for the helm value.
+const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 
 export function buildAgentDefinition(taskType: string, cfg: TaskTypeConfig): AgentDefinition {
   return {
@@ -30,6 +32,15 @@ export function buildAgentDefinition(taskType: string, cfg: TaskTypeConfig): Age
       prompt: `${cfg.prompt_template.trimEnd()}\n\n{context}`,
       permission_mode: "bypass",
       max_turns: 40,
+      // D8 (#687): stream NDJSON run output to the Floor's /api/agent-events sink for
+      // cost accounting. URL is per-cluster (.Values.agentEventsUrl); headers_secret
+      // carries the Authorization header from agent-secrets.
+      output: {
+        sinks: [
+          { type: "stdout" },
+          { type: "http", url: EVENTS_URL_SENTINEL, headers_secret: "agent-events-auth" },
+        ],
+      },
     },
   };
 }
@@ -86,5 +97,6 @@ export function catalogChartYaml(taskTypes: Record<string, TaskTypeConfig>): str
       metadata: { ...cr.metadata, annotations: { "helm.sh/resource-policy": "keep" } },
     }),
   );
-  return `${header}{{- if .Values.seedCatalog }}\n---\n${docs.join("---\n")}{{- end }}\n`;
+  const body = `${header}{{- if .Values.seedCatalog }}\n---\n${docs.join("---\n")}{{- end }}\n`;
+  return body.replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}");
 }

@@ -6,6 +6,7 @@ import { specTraceAuditEntry, specTraceLogLine } from "../adapters/spec-trace-au
 import { runReviewReactorForPR } from "../application/jobs/scheduled/review-reactor.js";
 import { validateSpecCoverageJob } from "../application/jobs/scheduled/spec-coverage-validate.js";
 import { tryAutoMergeForCompletedTask } from "../application/jobs/auto-merge-trigger.js";
+import { parseAgentEvents } from "../adapters/agent-events.js";
 
 const startTime = Date.now();
 
@@ -51,6 +52,41 @@ export function startHealthServer(
         );
         res.writeHead(202, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ status: "accepted", repo, pr_number }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // Agent telemetry sink (ADR-031 D8): the ai-agent-subsystem POSTs its run output as
+    // NDJSON here. We map the terminal `result` line of each run to a pipeline.llm_calls
+    // row for cost accounting. A row whose task_id isn't in pipeline.tasks (FK) is
+    // skipped, not failed, so one bad line never drops the batch.
+    if (req.method === "POST" && req.url === "/api/agent-events") {
+      if (!authInternal(req)) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "unauthorized" }));
+        return;
+      }
+      try {
+        const rows = parseAgentEvents(await readBody(req));
+        let recorded = 0;
+        for (const row of rows) {
+          try {
+            await query(
+              `INSERT INTO pipeline.llm_calls
+                 (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
+               VALUES ($1, 'agent', $2, $3, $4, $5, $6)`,
+              [row.taskId, row.model, row.inputTokens, row.outputTokens, row.costUsd, row.durationMs],
+            );
+            recorded++;
+          } catch (err: any) {
+            console.warn(`[agent] llm_calls insert skipped for ${row.taskId}: ${err.message}`);
+          }
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok", events: rows.length, recorded }));
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: err.message }));

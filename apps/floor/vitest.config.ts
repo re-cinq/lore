@@ -17,6 +17,7 @@ export default defineConfig({
       include: [
         "src/adapters/agent-backend.ts",
         "src/adapters/agent-catalog.ts",
+        "src/adapters/agent-events.ts",
         "src/adapters/execution-backend.ts",
         "src/adapters/per-task-token.ts",
         "src/application/jobs/scheduled/agent-watcher-logic.ts",
