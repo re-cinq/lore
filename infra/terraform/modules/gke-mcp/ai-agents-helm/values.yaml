@@ -3,6 +3,11 @@
 # stop re-seeding — the web UI owns the recipes thereafter (re-cinq/lore#698).
 seedCatalog: true
 
+# Where seeded agents stream their NDJSON run output for cost accounting (D8, #687):
+# the Floor's in-cluster /api/agent-events endpoint. The recipes carry an
+# `agent-events-auth` headers_secret for the Authorization header.
+agentEventsUrl: http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events
+
 controller:
   replicas: 2
   image:
