@@ -68,6 +68,8 @@ describe("Workspace", () => {
       isMerged: async () => false,
       isClosed: async () => false,
       getStats: async () => ({ files_changed: 0, additions: 0, deletions: 0, comments: 0, merged_at: null, created_at: "" }),
+      changedFileCount: async () => 0,
+      ciConclusion: async () => "none" as const,
     });
 
     const pr = await ws.openPr("feat", "Add feature", "body");

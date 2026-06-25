@@ -8,6 +8,7 @@ import type {
   IssueComment,
   PullCommit,
   PullStats,
+  CiConclusion,
 } from "./pull-requests-port.js";
 
 /**
@@ -78,5 +79,13 @@ export class PullRequests {
 
   getStats(number: number): Promise<PullStats> {
     return this.pulls.getStats(this.repo, number);
+  }
+
+  changedFileCount(base: string, head: string): Promise<number> {
+    return this.pulls.changedFileCount(this.repo, base, head);
+  }
+
+  ciConclusion(ref: string): Promise<CiConclusion> {
+    return this.pulls.ciConclusion(this.repo, ref);
   }
 }

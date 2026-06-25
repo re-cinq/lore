@@ -12,7 +12,13 @@ export default defineConfig({
       // adapter (kube-agent-api.ts) and composition roots are excluded — the pure
       // mapping + decision logic is what's enforced. Other floor files aren't gated
       // yet (legacy code is not retroactively boiled to 100%).
-      include: ["src/adapters/agent-backend.ts", "src/adapters/execution-backend.ts"],
+      // The agent-watcher orchestration shell (agent-watcher.ts) is IO-bound and
+      // excluded, as loretask-watcher is; its extracted pure logic is gated here.
+      include: [
+        "src/adapters/agent-backend.ts",
+        "src/adapters/execution-backend.ts",
+        "src/application/jobs/scheduled/agent-watcher-logic.ts",
+      ],
       thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
     },
   },
