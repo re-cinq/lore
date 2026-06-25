@@ -51,6 +51,14 @@ export {
 } from "./claude-code-handler.js";
 
 export {
+  createAgentNodeHandler,
+  agentNodeOutcome,
+  parseReviewVerdict,
+  type AgentNodeStatus,
+  type AgentNodeDeps,
+} from "./agent-node-handler.js";
+
+export {
   runClaudeCode,
   isClaudeCodeAvailable,
   type ClaudeCodeResult,

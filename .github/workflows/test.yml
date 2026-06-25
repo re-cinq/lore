@@ -27,7 +27,7 @@ jobs:
           # so shared must be built before its suite runs.
           - name: runner
             build: npm run build -w @re-cinq/lore-shared
-            test: npm test -w @re-cinq/lore-runner
+            test: npm run test:coverage -w @re-cinq/lore-runner
           # mcp-server and agent import the compiled @re-cinq/lore-shared,
           # so shared must be built before their suites run.
           - name: mcp-server
