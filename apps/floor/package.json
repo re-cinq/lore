@@ -10,6 +10,7 @@
     "start:watch": "node --watch-path=./dist --watch-path=../../libs/shared/dist dist/delivery/index.js",
     "dev": "tsc --watch",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "job": "node dist/delivery/job-runner.js",
     "jobs:all": "for j in context_reindex eval_runner context_core_builder importance_decay consolidation autoresearch gap_detection spec_drift spec_test_linker memory_ttl; do echo \"[jobs:all] === $j ===\"; node dist/delivery/job-runner.js $j || exit 1; done"
@@ -20,6 +21,7 @@
     "@kubernetes/client-node": "^1.4.0",
     "@octokit/auth-app": "^7.1.0",
     "@opentelemetry/api": "^1.9.0",
+    "@re-cinq/agent-contracts": "^0.3.0",
     "@re-cinq/lore-shared": "*",
     "cron-parser": "^4.9.0",
     "libsodium-wrappers": "^0.8.2",

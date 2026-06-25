@@ -9,6 +9,9 @@ import { getPool } from "../data/db.js";
 import { K8sLoreTaskClient } from "../adapters/k8s-loretask.js";
 import { DockerStation } from "../adapters/docker-station.js";
 import { LocalStationCredentials } from "../adapters/local-station-credentials.js";
+import { AgentBackend } from "../adapters/agent-backend.js";
+import { KubeAgentApi } from "../adapters/kube-agent-api.js";
+import { decideExecutionBackend } from "../adapters/execution-backend.js";
 
 /**
  * Per-repo Project composition root for the agent. Builds from the agent's
@@ -30,9 +33,21 @@ const NO_OP_DGRAPH = {
  * worker handles the inprocess planning/finalize routing separately.
  */
 export function stationBackend(): StationBackend {
-  return selectStationBackend(process.env) === "k8s"
-    ? new K8sLoreTaskClient()
-    : new DockerStation(new LocalStationCredentials(process.env), process.env);
+  if (selectStationBackend(process.env) !== "k8s") {
+    return new DockerStation(new LocalStationCredentials(process.env), process.env);
+  }
+  // ADR-031 cutover: on the cluster, route to the ai-agent-subsystem `Agent` path
+  // when the cluster gate is on. The per-repo gate + graded rollout are threaded at
+  // dispatch by the cutover (#688); at this scope the cluster gate is the only
+  // signal, so it doubles as the repo opt-in.
+  const clusterEnabled = process.env.LORE_AGENT_CR_BACKEND_ENABLED === "true";
+  const backend = decideExecutionBackend({
+    clusterEnabled,
+    repoBackend: clusterEnabled ? "agent-cr" : "loretask",
+  });
+  return backend === "agent-cr"
+    ? new AgentBackend(new KubeAgentApi())
+    : new K8sLoreTaskClient();
 }
 
 export function projectFor(repo: string): Promise<Project> {
