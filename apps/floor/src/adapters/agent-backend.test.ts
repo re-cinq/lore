@@ -8,6 +8,7 @@ import {
   TASK_ID_LABEL,
   type AgentApi,
   type ContextSource,
+  type TokenProvisioner,
 } from "./agent-backend.js";
 
 const baseSpec: LoreTaskSpec = {
@@ -114,6 +115,40 @@ describe("AgentBackend.launch", () => {
       ref: "agent-abcdef12",
       launched: false,
     });
+  });
+});
+
+describe("AgentBackend.launch — per-task token (#697)", () => {
+  // Records the spec it was asked to provision; replays a configured Station ref.
+  class FakeProvisioner implements TokenProvisioner {
+    readonly seen: LoreTaskSpec[] = [];
+    constructor(private readonly stationRef: string | undefined) {}
+    async provision(spec: LoreTaskSpec) {
+      this.seen.push(spec);
+      return this.stationRef;
+    }
+  }
+
+  it("runs the Agent on the per-task Station the provisioner returns", async () => {
+    const api = new FakeAgentApi();
+    const provisioner = new FakeProvisioner("pt-abcdef12");
+    await new AgentBackend(api, undefined, provisioner).launch(baseSpec);
+    expect(provisioner.seen).toEqual([baseSpec]);
+    expect(api.created[0].spec?.stationRef).toBe("pt-abcdef12");
+  });
+
+  it("falls back to the catalog Station when the provisioner returns undefined", async () => {
+    const api = new FakeAgentApi();
+    await new AgentBackend(api, undefined, new FakeProvisioner(undefined)).launch(baseSpec);
+    expect(api.created[0].spec?.stationRef).toBe("implementation");
+  });
+
+  it("skips provisioning for a task that targets no repo", async () => {
+    const api = new FakeAgentApi();
+    const provisioner = new FakeProvisioner("pt-abcdef12");
+    await new AgentBackend(api, undefined, provisioner).launch({ ...baseSpec, targetRepo: "" });
+    expect(provisioner.seen).toEqual([]);
+    expect(api.created[0].spec?.stationRef).toBe("implementation");
   });
 });
 
