@@ -1,0 +1,717 @@
+# Code generated from scripts/task-types.yaml by gen-catalog. DO NOT EDIT.
+# Seeded catalog (ADR-031, re-cinq/lore#698). Guarded by .Values.seedCatalog so
+# operators stop re-seeding after first install; the web UI owns these thereafter.
+{{- if .Values.seedCatalog }}
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: general
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore general task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    You are editing files in a git repository. Complete the following
+    task. Read relevant files first, then make changes using your tools.
+
+    Task: {description}
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: general
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: general
+  deadlineMinutes: 30
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: runbook
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore runbook task recipe (seeded).
+  model: claude-haiku-4-5-20251001
+  prompt: |-
+    You are editing files in a git repository. Write a runbook for the
+    following incident type. Read existing runbooks in the repo for
+    format conventions. Create the file and commit.
+
+    Task: {description}
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: runbook
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: runbook
+  deadlineMinutes: 20
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: implementation
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore implementation task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    You are editing files in a git repository. Your job is to implement
+    the specification below by reading and editing the actual source files.
+
+    RULES:
+    - Use your Read tool to read files before editing
+    - Use your Edit or Write tool to modify files — do NOT just describe changes
+    - Work through files one at a time
+    - Start immediately with the first file edit
+    - When you write a test that validates a specific spec statement or
+      acceptance criterion, stamp its spec anchor (the
+      "specs/<path>#<ordinal>" the test validates) so the repo's tests.list
+      surfaces it as the descriptor's `spec` field and the spec→test
+      (VALIDATED_BY) link is established automatically — see
+      `.lore/test-commands.yml` for how this repo exposes test descriptors
+
+    Spec: {description}
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: implementation
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: implementation
+  deadlineMinutes: 90
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: gap-fill
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore gap-fill task recipe (seeded).
+  model: claude-haiku-4-5-20251001
+  prompt: |-
+    You are editing files in a git repository. Draft missing context
+    for the following knowledge gap. Write it as a CLAUDE.md addition,
+    ADR, or runbook as appropriate. Read existing files for format.
+
+    Gap: {description}
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: gap-fill
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: gap-fill
+  deadlineMinutes: 15
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: review
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore review task recipe (seeded).
+  model: claude-haiku-4-5-20251001
+  prompt: |-
+    Review PR #{pr_number} on this branch. Check the code against:
+    1. The spec in specs/ directory
+    2. Conventions in CLAUDE.md and ADRs in adrs/
+    3. Code quality, type safety, security
+
+    Post specific review comments on the PR using gh pr review.
+    Then output exactly one of:
+    - REVIEW_RESULT:APPROVED
+    - REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>
+
+    PR: {description}
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: review
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: review
+  deadlineMinutes: 10
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: feature-request
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore feature-request task recipe (seeded).
+  model: claude-haiku-4-5-20251001
+  prompt: |-
+    A product manager has described a feature they want built. Your job
+    is to translate their intent into a proper engineering specification
+    that follows this repo's conventions.
+
+    The PM's intent (plain language):
+    {description}
+
+    You will be given the repo's context (CLAUDE.md, existing specs,
+    ADRs, data model) so you can match the style and conventions.
+    Generate artifacts that engineers can immediately act on.
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: feature-request
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: feature-request
+  deadlineMinutes: 30
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: feature-planning
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore feature-planning task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: >-
+    {description}
+
+
+    DELIVER BEFORE YOU RUN OUT OF TIME. Your single deliverable is the file
+
+    result.json in the working directory. As SOON as you can produce a complete,
+
+    valid GapResult — within your first few steps — write it to result.json,
+    then
+
+    keep refining the FILE in place if time allows. Do NOT explore the codebase
+
+    exhaustively or leave result.json for the end: a complete result written
+
+    early always beats a perfect one that never lands. If you are running low on
+
+    budget, stop and ensure result.json holds your best complete answer.
+
+
+    result.json MUST be syntactically valid JSON. Its string values
+
+    (draft_spec_markdown, every mockup's SVG markup) contain many double-quotes
+
+    and newlines — these MUST be escaped (\" and \n) inside the JSON strings.
+
+    After EVERY write to result.json, verify it by running:
+      jq empty result.json
+    If that prints any error, the file is invalid — fix the escaping and re-run
+
+    until `jq empty result.json` exits with no output. Do NOT finish the task
+
+    while `jq empty result.json` reports an error.
+
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: feature-planning
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: feature-planning
+  deadlineMinutes: 15
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: feature-finalize
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore feature-finalize task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    Finalize a planned feature into a committable specification. The Context
+    section contains the accumulated draft spec and the planning timeline.
+
+    Feature to finalize:
+    {description}
+
+    Write the agreed draft to specs/<slug>/spec.md (following this repo's
+    spec conventions and the metadata-table format), commit it, and stop.
+    Do not implement code. The watcher opens the PR.
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: feature-finalize
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: feature-finalize
+  deadlineMinutes: 15
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: feature-decompose
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore feature-decompose task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    {description}
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: feature-decompose
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: feature-decompose
+  deadlineMinutes: 15
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: onboard
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore onboard task recipe (seeded).
+  model: claude-haiku-4-5-20251001
+  prompt: >-
+    You are onboarding a repository to the Lore platform. The repo
+
+    content has been pre-fetched and is provided in the Context section
+
+    below. DO NOT use git, shell commands, or any tools. Just analyze
+
+    the provided content and output a JSON object.
+
+
+    Repository: {description}
+
+
+    The Context section contains:
+
+    - repoContext.tree: top-level directory listing
+
+    - repoContext.files: key config files (README, package.json, etc.)
+
+    - repoContext.samples: sample source files (first 200 lines)
+
+
+    Analyze this content and generate onboarding files:
+
+
+    1. Generate a CLAUDE.md that accurately describes THIS repo:
+       - Architecture: how services communicate, what databases are used,
+         what the entry points are (based on actual code, not guesses)
+       - Code conventions: error handling patterns, logging format, auth
+         approach, testing patterns (inferred from the actual code)
+       - Key services: what each main module/service owns, key constraints
+
+    3. Generate initial ADRs for decisions you can infer:
+       - What language/framework was chosen (and why it makes sense)
+       - What database is used
+       - What deployment approach is used (Docker, K8s, serverless)
+       - Use MADR format with YAML frontmatter (adr_number, title,
+         status: accepted, date, domains)
+       - Put in adrs/ directory. Number starting from 001.
+
+    4. Generate an initial spec describing the existing system:
+       - What the system does (from README + code inspection)
+       - Key components and their responsibilities
+       - Put in .specify/spec.md
+
+    5. Include standard Lore files:
+       - AGENTS.md: task tracking, context loading, workflow commands
+       - .github/PULL_REQUEST_TEMPLATE.md: Why, Alternatives, ADRs, Spec
+       - .github/workflows/pr-description-check.yml: CI for PR quality
+       - .github/workflows/spec-agent.yml: spec PR triggers agent
+       - .github/workflows/lore-ingest.yml: push triggers ingestion
+       - .github/workflows/lore-tests.yml: per-toolchain test runner that runs the .lore/test-commands.yml commands on push/PR and POSTs results to /api/repos/:owner/:repo/test-report (only when the repo declares a .lore/test-commands.yml manifest; one job per detected toolchain, subdir-scoped for monorepos)
+
+    6. Output format — JSON object with ALL files:
+       {
+         "files": {
+           "CLAUDE.md": "# ...",
+           "AGENTS.md": "# ...",
+           "adrs/ADR-001-language-choice.md": "---\nadr_number: 1\n...",
+           "adrs/ADR-002-database.md": "---\nadr_number: 2\n...",
+           ".specify/spec.md": "# Feature Specification: ...",
+           ".github/PULL_REQUEST_TEMPLATE.md": "## Why\n...",
+           ".github/workflows/pr-description-check.yml": "name: ...",
+           ".github/workflows/spec-agent.yml": "name: ...",
+           ".github/workflows/lore-ingest.yml": "name: ..."
+         }
+       }
+
+    CRITICAL RULES:
+
+    - Your ENTIRE output must be a single valid JSON object. Nothing else.
+
+    - Do NOT use git, bash, shell commands, or any tools.
+
+    - Do NOT write any text before or after the JSON.
+
+    - Be specific. Write what you actually find, not generic placeholders.
+
+    - If a file already exists in repoContext.files (e.g. CLAUDE.md), skip it.
+
+    - ADRs should document real decisions visible in the code.
+
+    - The spec should describe the system as it exists today.
+
+    - Keep CLAUDE.md under 2 pages. Keep ADRs concise.
+
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: onboard
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: onboard
+  deadlineMinutes: 15
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: ingest-specs
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore ingest-specs task recipe (seeded).
+  prompt: |-
+    
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: ingest-specs
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: ingest-specs
+  deadlineMinutes: 10
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: ingest-adrs
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore ingest-adrs task recipe (seeded).
+  prompt: |-
+    
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: ingest-adrs
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: ingest-adrs
+  deadlineMinutes: 10
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: ingest-tests
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore ingest-tests task recipe (seeded).
+  prompt: |-
+    
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: ingest-tests
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: ingest-tests
+  deadlineMinutes: 20
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+{{- end }}
