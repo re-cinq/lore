@@ -3,6 +3,7 @@ import TaskLogs from './TaskLogs';
 import Timeline from './Timeline';
 import FailurePanel from './FailurePanel';
 import Linkified from '@/components/Linkified';
+import { isCancellable } from '@/lib/task-status';
 import styles from './TaskDetailView.module.css';
 
 export interface TaskDetailTask {
@@ -87,7 +88,7 @@ export default function TaskDetailView({
               </button>
             </form>
           )}
-          {!['merged', 'failed', 'cancelled'].includes(task.status) && (
+          {isCancellable(task.status) && (
             <form action={`/api/assembly-lines/${task.id}/cancel`} method="POST">
               <button type="submit" className={styles.cancelBtn}>
                 Cancel Task

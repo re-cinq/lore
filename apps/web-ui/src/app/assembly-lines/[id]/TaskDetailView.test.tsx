@@ -111,6 +111,11 @@ describe('TaskDetailView', () => {
     expect(screen.queryByRole('button', { name: 'Cancel Task' })).not.toBeInTheDocument();
   });
 
+  it('hides the Cancel Task form for completed tasks', () => {
+    renderView({ task: task({ status: 'completed' }) });
+    expect(screen.queryByRole('button', { name: 'Cancel Task' })).not.toBeInTheDocument();
+  });
+
   it('renders the agent row only when an agent is assigned', () => {
     renderView({ task: task({ agent_id: 'agent-42' }) });
     expect(screen.getByText('Agent:')).toBeInTheDocument();
