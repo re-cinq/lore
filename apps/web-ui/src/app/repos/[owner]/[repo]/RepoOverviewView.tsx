@@ -99,7 +99,7 @@ export default function RepoOverviewView({
           <tbody>
             {recentTasks.map((t) => (
               <tr key={t.id}>
-                <td><Link href={`/pipeline/${t.id}`}>{t.description.substring(0, 60)}...</Link></td>
+                <td><Link href={`/assembly-lines/${t.id}`}>{t.description.substring(0, 60)}...</Link></td>
                 <td><span className={`op-badge op-${t.status}`}>{t.status}</span></td>
                 <td>{t.pr_url ? <a href={t.pr_url} target="_blank">PR</a> : '—'}</td>
                 <td className="meta">{new Date(t.created_at).toLocaleString()}</td>

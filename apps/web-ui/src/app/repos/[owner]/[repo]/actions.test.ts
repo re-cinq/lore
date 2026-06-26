@@ -20,7 +20,7 @@ describe('reonboard', () => {
     await reonboard('re-cinq/x');
 
     expect(createOnboardTask).toHaveBeenCalledWith('re-cinq/x');
-    expect(redirect).toHaveBeenCalledWith('/pipeline/task-9');
+    expect(redirect).toHaveBeenCalledWith('/assembly-lines/task-9');
   });
 
   it('redirects back to the repo page when no task is created', async () => {

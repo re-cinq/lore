@@ -40,7 +40,7 @@ export default function PRStatusCard({ taskId, prUrl }: { taskId: string; prUrl:
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/pipeline/${taskId}/pr-status`)
+    fetch(`/api/assembly-lines/${taskId}/pr-status`)
       .then(r => r.json())
       .then(data => {
         if (data.error) setError(data.error);

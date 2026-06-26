@@ -33,7 +33,7 @@ function hrefFor(match: string, group: "file" | "issue" | "uuid", ctx: RefContex
     return `https://github.com/${ctx.repo}/blob/${ctx.branch || "main"}/${path}`;
   }
   if (group === "issue") return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
-  return ctx.uiUrl ? `${ctx.uiUrl.replace(/\/$/, "")}/pipeline/${match}` : undefined;
+  return ctx.uiUrl ? `${ctx.uiUrl.replace(/\/$/, "")}/assembly-lines/${match}` : undefined;
 }
 
 function scanPlain(text: string, ctx: RefContext): Segment[] {

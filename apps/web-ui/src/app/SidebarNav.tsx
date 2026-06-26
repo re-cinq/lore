@@ -7,7 +7,7 @@ import styles from './SidebarNav.module.css';
 
 const links = [
   { href: '/', label: 'Repos' },
-  { href: '/pipeline', label: 'Pipeline' },
+  { href: '/assembly-lines', label: 'Assembly Lines' },
   { href: '/analytics', label: 'Analytics' },
   { href: '/spend', label: 'Spend' },
   { href: '/search', label: 'Search' },

@@ -11,5 +11,5 @@ import { redirect } from 'next/navigation';
  */
 export async function reonboard(fullName: string): Promise<void> {
   const id = await createOnboardTask(fullName);
-  redirect(id ? `/pipeline/${id}` : `/repos/${fullName}`);
+  redirect(id ? `/assembly-lines/${id}` : `/repos/${fullName}`);
 }

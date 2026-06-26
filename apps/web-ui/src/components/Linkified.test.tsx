@@ -24,7 +24,7 @@ describe('Linkified', () => {
   it('renders a task uuid as an internal pipeline link that opens in place', () => {
     render(<Linkified text={`task ${uuid}`} repo={repo} />);
     const link = screen.getByRole('link', { name: uuid });
-    expect(link).toHaveAttribute('href', `/pipeline/${uuid}`);
+    expect(link).toHaveAttribute('href', `/assembly-lines/${uuid}`);
     expect(link).not.toHaveAttribute('target');
   });
 

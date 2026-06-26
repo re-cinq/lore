@@ -51,7 +51,7 @@ export default function RepoTasksView({ owner, repo, tasks }: RepoTasksViewProps
         <tbody>
           {tasks.map((t) => (
             <tr key={t.id}>
-              <td><Link href={`/pipeline/${t.id}`}>{truncate(t.description, 50)}</Link></td>
+              <td><Link href={`/assembly-lines/${t.id}`}>{truncate(t.description, 50)}</Link></td>
               <td><span className="badge">{t.task_type}</span></td>
               <td><span className={`op-badge op-${t.status}`}>{t.status}</span></td>
               <td className="meta">{displayCreatedBy(t.created_by)}</td>

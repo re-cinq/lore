@@ -106,7 +106,7 @@ describe('Timeline', () => {
     render(<Timeline taskId="task-42" initialStatus="done" />);
     await flush();
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/pipeline/task-42/timeline');
+    expect(fetchMock).toHaveBeenCalledWith('/api/assembly-lines/task-42/timeline');
   });
 
   it('renders the empty commits message when no commits and branch not deleted', async () => {

@@ -1,7 +1,7 @@
 // Parse references (source file paths, issue numbers, task UUIDs) out of plain
 // text so the dashboard can render them as links. Behaviour mirrors
 // shared/src/references.ts — duplicated here because web-ui does not depend on
-// the shared package. UUIDs link to the internal /pipeline page; files and
+// the shared package. UUIDs link to the internal /assembly-lines page; files and
 // issues link to GitHub.
 
 export interface RefContext {
@@ -25,7 +25,7 @@ function hrefFor(match: string, group: 'file' | 'issue' | 'uuid', ctx: RefContex
     return `https://github.com/${ctx.repo}/blob/${ctx.branch || 'main'}/${match.replace(/^\.\//, '')}`;
   }
   if (group === 'issue') return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
-  return `/pipeline/${match}`;
+  return `/assembly-lines/${match}`;
 }
 
 export function parseReferences(text: string, ctx: RefContext): Segment[] {

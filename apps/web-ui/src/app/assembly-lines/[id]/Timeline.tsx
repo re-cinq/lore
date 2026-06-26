@@ -71,7 +71,7 @@ export default function Timeline({
 
   const fetchTimeline = useCallback(async () => {
     try {
-      const r = await fetch(`/api/pipeline/${taskId}/timeline`);
+      const r = await fetch(`/api/assembly-lines/${taskId}/timeline`);
       if (!r.ok) {
         setError(`HTTP ${r.status}`);
         setLoading(false);

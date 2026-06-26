@@ -1,19 +1,19 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import PipelineCreateView from './PipelineCreateView';
+import AssemblyLineCreateView from './AssemblyLineCreateView';
 
 const action = vi.fn();
 
-describe('PipelineCreateView', () => {
+describe('AssemblyLineCreateView', () => {
   it('renders the heading and the Create Task submit button', () => {
-    render(<PipelineCreateView onboardedRepos={[]} createTaskAction={action} />);
+    render(<AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />);
     expect(screen.getByRole('heading', { level: 1, name: 'Create Task' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create Task' })).toBeInTheDocument();
   });
 
   it('renders all four task-type options', () => {
-    render(<PipelineCreateView onboardedRepos={[]} createTaskAction={action} />);
+    render(<AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />);
     expect(screen.getByRole('option', { name: 'General' })).toHaveValue('general');
     expect(screen.getByRole('option', { name: 'Runbook' })).toHaveValue('runbook');
     expect(screen.getByRole('option', { name: 'Implementation' })).toHaveValue('implementation');
@@ -22,7 +22,7 @@ describe('PipelineCreateView', () => {
 
   it('renders a target_repo dropdown option per onboarded repo when repos exist', () => {
     const { container } = render(
-      <PipelineCreateView
+      <AssemblyLineCreateView
         onboardedRepos={[{ full_name: 're-cinq/lore' }, { full_name: 're-cinq/other' }]}
         createTaskAction={action}
       />,
@@ -36,7 +36,7 @@ describe('PipelineCreateView', () => {
 
   it('falls back to a free-text target_repo input defaulting to re-cinq/lore when no repos exist', () => {
     const { container } = render(
-      <PipelineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     expect(container.querySelector('select[name="target_repo"]')).not.toBeInTheDocument();
     expect(container.querySelector('input[name="target_repo"]')).toHaveValue('re-cinq/lore');
@@ -44,7 +44,7 @@ describe('PipelineCreateView', () => {
 
   it('renders the immediate-priority checkbox carrying value immediate', () => {
     const { container } = render(
-      <PipelineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     const checkbox = container.querySelector('input[name="priority"]');
     expect(checkbox).toHaveAttribute('type', 'checkbox');
@@ -57,7 +57,7 @@ describe('PipelineCreateView', () => {
 
   it('renders the required description textarea', () => {
     const { container } = render(
-      <PipelineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     const textarea = container.querySelector('textarea[name="description"]');
     expect(textarea).toBeRequired();
@@ -66,7 +66,7 @@ describe('PipelineCreateView', () => {
 
   it('wires the form to the injected createTaskAction', () => {
     const { container } = render(
-      <PipelineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     expect(container.querySelector('form.task-form')).toBeInTheDocument();
   });
