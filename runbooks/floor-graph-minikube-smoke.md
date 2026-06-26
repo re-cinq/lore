@@ -129,7 +129,7 @@ minikube stop
 
 ## Notes
 
-- This is the manual gate before flipping the rollout in prod. The graded cutover +
+- This is the manual gate before flipping the rollout in prod. The cutover +
   LoreTask teardown is `#688` (`runbooks/dark-factory-rollback.md` covers the revert).
 - If an `Agent` never produces a Job, check the controller logs and that
   `agentdefinitions`/`stations` for the task type exist (`kubectl -n ai-agents get

@@ -70,13 +70,12 @@ recipes reference (`agent-events-auth`) into `agent-secrets`, and allow egress
 
 ## 5. Pilot flip (reversible)
 
-Turn the **cluster gate** on for the Floor, opt **one** repo in, keep the ramp at 0% first
-to confirm nothing routes, then a small slice:
+Turn the **cluster gate** on for the Floor, then opt **one** pilot repo in. Routing is a
+binary per-repo decision — both gates on → every task on that repo runs `agent-cr`:
 
 ```bash
 # Cluster gate — set on the Floor deployment (floor-helm values / its terraform), then apply:
 #   env LORE_AGENT_CR_BACKEND_ENABLED = "true"   (use --set-string; avoid YAML bool coercion)
-#   env LORE_AGENT_CR_BACKEND_PERCENT = "0"  → then "10"
 # Per-repo opt-in (settings UI, or SQL):
 psql "$LORE_DB_URL" -c "
   UPDATE lore.repos
@@ -84,7 +83,7 @@ psql "$LORE_DB_URL" -c "
    WHERE full_name = '<pilot-org/repo>';"
 ```
 
-Both gates must be on for `agent-cr`; the `%` (a stable hash of the task id) then ramps it.
+Both gates must be on for `agent-cr`; either off keeps the repo on legacy LoreTask.
 
 ## 6. Verify the round-trip on GKE
 
@@ -104,8 +103,8 @@ Checklist mirrors `floor-graph-minikube-smoke.md` §Verification.
 
 ## 7. Ramp
 
-Raise `LORE_AGENT_CR_BACKEND_PERCENT` (10 → 25 → 50 → 100) across deploys, watching the
-auto-merge / failure / cost metrics between steps. Opt more repos in as confidence grows.
+Opt more repos in (the same `dark_factory.execution.backend = "agent-cr"` flip) as
+confidence grows, watching the auto-merge / failure / cost metrics between additions.
 
 ## 8. Teardown — **irreversible**, after a soak
 
