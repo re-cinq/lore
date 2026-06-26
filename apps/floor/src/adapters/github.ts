@@ -394,4 +394,20 @@ export class GitHubPlatform implements CodePlatform {
     const auth = (await ok.auth({ type: "installation" })) as { token: string };
     return auth.token;
   }
+
+  // ── CI conclusion (the github_action graph node's gate, #686) ──
+
+  /** Aggregate check-runs conclusion for a ref. Mirrors lib/platform-github so the
+   *  Floor-side graph driver can gate without building a Project. */
+  async ciConclusion(repo: string, ref: string): Promise<"success" | "failure" | "pending" | "none"> {
+    const ok = await octokit();
+    const [owner, name] = repo.split("/");
+    const { data } = await ok.rest.checks.listForRef({ owner, repo: name, ref });
+    const runs = data.check_runs ?? [];
+    if (runs.length === 0) return "none";
+    if (runs.some((r) => r.status !== "completed")) return "pending";
+    const failed = new Set(["failure", "cancelled", "timed_out", "action_required", "stale"]);
+    if (runs.some((r) => r.conclusion != null && failed.has(r.conclusion))) return "failure";
+    return "success";
+  }
 }

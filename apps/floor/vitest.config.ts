@@ -21,6 +21,7 @@ export default defineConfig({
         "src/adapters/execution-backend.ts",
         "src/adapters/per-task-token.ts",
         "src/adapters/routing-station-backend.ts",
+        "src/application/agent-cr-station-backend.ts",
         "src/application/floor-graph.ts",
         "src/application/graph-station-backend.ts",
         "src/application/jobs/scheduled/agent-watcher-logic.ts",
