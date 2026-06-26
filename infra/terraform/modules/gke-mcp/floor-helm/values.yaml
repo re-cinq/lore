@@ -69,14 +69,12 @@ env:
   # sets "docker". Never set this to "docker" on the cluster.
   LORE_STATION_BACKEND: "k8s"
   # ai-agent-subsystem cutover gate (ADR-031, #688; runbook floor-graph-gke-cutover.md §5).
-  # When "true", the Floor routes a repo's tasks through the agent-cr backend (Agent CRs on
-  # the ai-agents controller) IF that repo also opts in via
-  # settings.dark_factory.execution.backend = "agent-cr". PERCENT (stable task-id hash, 0-100)
-  # throttles the slice: "0" = armed but routes nothing (verify per runbook §6), then ramp
-  # 10 → 25 → 50 → 100. Quoted strings to avoid YAML bool coercion. Flip ENABLED back to
-  # "false" to revert every task to LoreTask on the next dispatch.
+  # Binary on/off: when "true", the Floor routes a repo's tasks through the agent-cr backend
+  # (Agent CRs on the ai-agents controller) IF that repo also opts in via
+  # settings.dark_factory.execution.backend = "agent-cr". Both gates on → agent-cr, otherwise
+  # legacy LoreTask. Quoted string to avoid YAML bool coercion. Flip ENABLED back to "false"
+  # to revert every task to LoreTask on the next dispatch.
   LORE_AGENT_CR_BACKEND_ENABLED: "true"
-  LORE_AGENT_CR_BACKEND_PERCENT: "0"
   # Bot login the auto-merge gate accepts as the "bot APPROVED" review.
   # Must match the GitHub App slug installed on the org (visible in
   # the App's settings page). If misconfigured, no PR will satisfy

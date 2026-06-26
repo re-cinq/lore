@@ -52,10 +52,10 @@ export function stationBackend(
   if (selectStationBackend(process.env) !== "k8s") {
     return new DockerStation(new LocalStationCredentials(process.env), process.env);
   }
-  // ADR-031 cutover (#688): route per task between the ai-agent-subsystem `Agent` path
-  // and legacy LoreTask, honoring the per-repo opt-in (`repoBackend`) + the graded-rollout
-  // percentage. Both gates must be on for agent-cr; the routing backend re-decides at
-  // isActive too, so the reaper probes the same backend the task launched on.
+  // ADR-031 cutover (#688): route between the ai-agent-subsystem `Agent` path and legacy
+  // LoreTask, honoring the per-repo opt-in (`repoBackend`). Both gates must be on for
+  // agent-cr; the routing backend re-decides at isActive too, so the reaper probes the
+  // same backend the task launched on.
   const agentBackend = new AgentBackend(
     new KubeAgentApi(),
     new HttpContextSource(),
@@ -74,7 +74,7 @@ export function stationBackend(
   );
   return new RoutingStationBackend(
     { "agent-cr": agentCr, loretask: new K8sLoreTaskClient() },
-    (taskId) => executionBackendForTask({ repoBackend, taskId, env: process.env }),
+    () => executionBackendForTask({ repoBackend, env: process.env }),
   );
 }
 

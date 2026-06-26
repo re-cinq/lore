@@ -26,16 +26,15 @@ const spec = (taskId: string): LoreTaskSpec => ({
 });
 
 describe("RoutingStationBackend", () => {
-  it("launches on the backend the route picks per task", async () => {
+  it("launches on the backend the route picks", async () => {
     const agentCr = new FakeBackend("a");
     const loretask = new FakeBackend("l");
-    const router = new RoutingStationBackend(
-      { "agent-cr": agentCr, loretask },
-      (id) => (id === "use-agent" ? "agent-cr" : "loretask"),
-    );
 
-    expect(await router.launch(spec("use-agent"))).toEqual({ ref: "a", launched: true });
-    expect(await router.launch(spec("other"))).toEqual({ ref: "l", launched: true });
+    const toAgent = new RoutingStationBackend({ "agent-cr": agentCr, loretask }, () => "agent-cr");
+    const toLoretask = new RoutingStationBackend({ "agent-cr": agentCr, loretask }, () => "loretask");
+
+    expect(await toAgent.launch(spec("use-agent"))).toEqual({ ref: "a", launched: true });
+    expect(await toLoretask.launch(spec("other"))).toEqual({ ref: "l", launched: true });
     expect(agentCr.launched).toEqual(["use-agent"]);
     expect(loretask.launched).toEqual(["other"]);
   });
