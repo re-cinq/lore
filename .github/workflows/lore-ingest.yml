@@ -2,7 +2,7 @@
 # Lore's own ingest workflow — a deliberate superset of the canonical
 # template (extra paths, hard-fail on unset URL). The version marker above
 # is what the dashboard reads to mark this repo's ingest workflow aligned.
-name: Incremental context ingest
+name: Lore Context Ingest
 
 on:
   push:
