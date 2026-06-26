@@ -138,7 +138,7 @@ re-cinq/lore/
 └── .github/
     ├── workflows/
     │   ├── pr-description-check.yml
-    │   ├── ingest-context.yml
+    │   ├── lore-ingest.yml
     │   ├── context-evals.yml
     │   └── gap-detection.yml
     └── PULL_REQUEST_TEMPLATE.md
