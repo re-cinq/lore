@@ -70,7 +70,7 @@ gcloud auth for local dev.
 - `agent/src/lib/audit.ts` — `writeAuditLog()` writer for the new `pipeline.audit_log` table
 - `agent/src/lib/pr-body.ts` — `prFooter()` composes the standard `Lore-Task: <uuid>` (+ optional `Refs #N`) PR-body footer used by every Lore-authored PR
 - `shared/src/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `lastStageOnBranch()` exported via `@re-cinq/lore-shared`. Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
-- `web-ui/src/app/pipeline/[id]/Timeline.tsx` — client component, vertical stage-commit timeline with node-type icons, outcome badges, lease indicator. Polls `/api/pipeline/:id/timeline` every 10s while task is in flight
+- `web-ui/src/app/assembly-lines/[id]/Timeline.tsx` — client component, vertical stage-commit timeline with node-type icons, outcome badges, lease indicator. Polls `/api/assembly-lines/:id/timeline` every 10s while task is in flight
 - `mcp-server/src/github-client.ts` — consolidated GitHub auth (App + token fallback)
 - `docker/claude-runner/Dockerfile` — multi-stage build (agent-builder → validation-builder → runtime). Bakes `/app/dist/{supervisor,workflows}`, `/app/node_modules` (workspace deps with `--omit=dev` prune), `/app/shared/` (workspace symlink target — required at this exact path), and `/config/task-types.yaml` into the image. Build context = repo root.
 - `terraform/modules/gke-mcp/agent-helm/values.yaml` — `LORE_DARK_FACTORY_CLUSTER_ENABLED` env var (default `"false"`). Cluster-side dark-factory gate: when `"true"`, the worker forwards `darkFactoryWorkflow` to the LoreTask CR; when `"false"`, dark-mode repos still get the legacy `claude --print` path even with `dark_factory.enabled = true`. Use `--set-string` (not `--set`) when overriding to avoid YAML bool coercion.
@@ -93,8 +93,8 @@ gcloud auth for local dev.
 - `web-ui/src/app/specs/page.tsx` — global cross-repo spec browser; queries all schemas via `queryAllChunks`, filters `content_type = 'spec'`, shows 50 most-recent with per-repo filter buttons; not in the sidebar nav (only reachable via repo pages or direct URL)
 - `web-ui/src/app/specs/[...path]/page.tsx` — spec detail view; `[...path]` catch-all reconstructs the file path; breadcrumb label reads "Context" (differs from list page label "Specifications"); shows all chunks matching that `file_path` across all schemas
 - `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` — per-repo spec view; scoped to one team schema; includes a server action form (`addSpec`) that inserts spec chunks directly into `{schema}.chunks` with `content_type = 'spec'`; shows 30 most-recent
-- `web-ui/src/app/pipeline/[id]/TaskLogs.tsx` — live Job log viewer (polls every 5s)
-- `web-ui/src/app/pipeline/[id]/PRStatusCard.tsx` — live PR status card
+- `web-ui/src/app/assembly-lines/[id]/TaskLogs.tsx` — live Job log viewer (polls every 5s)
+- `web-ui/src/app/assembly-lines/[id]/PRStatusCard.tsx` — live PR status card
 - `agent/src/jobs/loretask-watcher.ts` — polls LoreTasks, creates PRs, triggers auto-review
 - `agent/src/jobs/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
 - `agent/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons

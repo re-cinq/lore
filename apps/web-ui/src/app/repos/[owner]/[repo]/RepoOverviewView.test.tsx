@@ -112,7 +112,7 @@ describe('RepoOverviewView', () => {
     expect(completed).toHaveClass('op-badge', 'op-completed');
     expect(screen.getByRole('link', { name: 'Implement the widget...' })).toHaveAttribute(
       'href',
-      '/pipeline/1',
+      '/assembly-lines/1',
     );
     expect(screen.getByRole('link', { name: 'PR' })).toHaveAttribute(
       'href',

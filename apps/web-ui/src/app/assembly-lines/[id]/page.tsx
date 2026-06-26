@@ -48,7 +48,7 @@ async function submitFeedback(formData: FormData) {
     [taskId],
   );
 
-  redirect(`/pipeline/${taskId}`);
+  redirect(`/assembly-lines/${taskId}`);
 }
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {

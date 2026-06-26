@@ -3,7 +3,7 @@ import { query } from '@/lib/db';
 import { getSession } from '@/lib/session';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import PipelineCreateView from './PipelineCreateView';
+import AssemblyLineCreateView from './AssemblyLineCreateView';
 
 async function createTask(formData: FormData) {
   'use server';
@@ -26,8 +26,8 @@ async function createTask(formData: FormData) {
     `INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`,
     [result[0].id]
   );
-  revalidatePath('/pipeline');
-  redirect('/pipeline');
+  revalidatePath('/assembly-lines');
+  redirect('/assembly-lines');
 }
 
 export default async function CreateTaskPage() {
@@ -36,5 +36,5 @@ export default async function CreateTaskPage() {
     `SELECT full_name FROM lore.repos ORDER BY full_name`
   );
 
-  return <PipelineCreateView onboardedRepos={onboardedRepos} createTaskAction={createTask} />;
+  return <AssemblyLineCreateView onboardedRepos={onboardedRepos} createTaskAction={createTask} />;
 }

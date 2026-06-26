@@ -15,7 +15,7 @@ export default function PRStatusBadge({ taskId }: { taskId: string }) {
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/pipeline/${taskId}/pr-status`)
+    fetch(`/api/assembly-lines/${taskId}/pr-status`)
       .then(r => r.json())
       .then(data => { if (data.computed_status) setStatus(data.computed_status); })
       .catch(() => {/* silent */});
