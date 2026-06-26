@@ -59,6 +59,18 @@ describe("parseDarkFactorySettings", () => {
       parseDarkFactorySettings({ execution: { image: "" } }),
     ).toThrow();
   });
+
+  it("accepts an execution backend opt-in", () => {
+    expect(
+      parseDarkFactorySettings({ execution: { backend: "agent-cr" } }),
+    ).toEqual({ execution: { backend: "agent-cr" } });
+  });
+
+  it("rejects an unknown execution backend", () => {
+    expect(() =>
+      parseDarkFactorySettings({ execution: { backend: "skynet" } }),
+    ).toThrow();
+  });
 });
 
 describe("resolveSettings", () => {

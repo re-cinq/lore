@@ -97,6 +97,26 @@ describe('parsePrivilegedChanges', () => {
       .toEqual({ dark_factory: { execution: { image: 'golang:1.23' } } });
   });
 
+  it('emits dark_factory.execution.backend when the opt-in changes', () => {
+    const current = { dark_factory: { execution: { backend: 'loretask' } } };
+    const fd = form({ df_execution_backend: 'agent-cr' });
+    expect(parsePrivilegedChanges(fd, current, TYPES))
+      .toEqual({ dark_factory: { execution: { backend: 'agent-cr' } } });
+  });
+
+  it('does NOT emit execution.backend when unchanged', () => {
+    const current = { dark_factory: { execution: { backend: 'agent-cr' } } };
+    const fd = form({ df_execution_backend: 'agent-cr' });
+    expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({});
+  });
+
+  it('emits image and backend together when both change', () => {
+    const current = { dark_factory: { execution: { image: 'golang:1.22', backend: 'loretask' } } };
+    const fd = form({ df_execution_image: 'golang:1.23', df_execution_backend: 'agent-cr' });
+    expect(parsePrivilegedChanges(fd, current, TYPES))
+      .toEqual({ dark_factory: { execution: { image: 'golang:1.23', backend: 'agent-cr' } } });
+  });
+
   it('emits changed auto_merge sub-fields nested under auto_merge', () => {
     const current = { dark_factory: { auto_merge: { min_trust: 'docs', require_green_ci: true } } };
     const fd = form({ df_am_min_trust: 'full', df_am_green_ci: 'no' });

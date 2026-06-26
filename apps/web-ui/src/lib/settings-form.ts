@@ -46,7 +46,7 @@ export interface CurrentSettings {
     create_issue?: string;
     review?: string;
     notify?: string[];
-    execution?: { image?: string };
+    execution?: { image?: string; backend?: string };
     auto_merge?: {
       paths?: string[];
       min_trust?: string;
@@ -95,10 +95,12 @@ export function parsePrivilegedChanges(
     if (!sameArray(notify, df.notify ?? [])) dfChanges.notify = notify;
   }
 
+  const execChanges: Record<string, unknown> = {};
   const image = text(formData, 'df_execution_image');
-  if (image && image !== (df.execution?.image ?? '')) {
-    dfChanges.execution = { image };
-  }
+  if (image && image !== (df.execution?.image ?? '')) execChanges.image = image;
+  const backend = text(formData, 'df_execution_backend');
+  if (backend && backend !== (df.execution?.backend ?? '')) execChanges.backend = backend;
+  if (Object.keys(execChanges).length > 0) dfChanges.execution = execChanges;
 
   const amChanges: Record<string, unknown> = {};
   if (formData.has('df_am_paths')) {
