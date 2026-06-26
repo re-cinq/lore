@@ -1,8 +1,9 @@
 ---
 adr_number: "011"
 title: LoreTask CRD for ephemeral Claude Code execution
-status: accepted
+status: superseded
 date: 2026-04-01
+superseded_by: "031"
 domains:
   - architecture
   - agents
@@ -11,9 +12,16 @@ domains:
 
 # LoreTask CRD for ephemeral Claude Code execution
 
+> **Superseded by [ADR-031](./ADR-031-agent-station-crds.md).** The `LoreTask` CRD +
+> `claude-runner` Job model described here is retired: task execution moved to the
+> ai-agent-subsystem's `Agent` custom resources — the workflow graph runs Floor-side and
+> dispatches one `Agent` per node (see `specs/floor-on-ai-subsystem/`). This ADR is kept as
+> the historical record of the problem (CI-deploy kills, no parallelism, no isolation) that
+> the CRD-per-task model solved, which the subsystem still honors.
+
 ## Status
 
-Accepted
+Superseded by [ADR-031](./ADR-031-agent-station-crds.md)
 
 ## Context
 

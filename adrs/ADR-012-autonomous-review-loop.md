@@ -8,6 +8,11 @@ domains: [agent, pipeline, review]
 
 # ADR-012: Autonomous Review Loop via LoreTask CRD
 
+> **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** The review-loop
+> decision stands, but it no longer runs on `LoreTask` CRs: the review is a `github_action`
+> + agent node in the Floor-side workflow graph (the `review` Agent posts the verdict; the
+> graph follows the `changes_requested` edge). The substrate is the ai-agent-subsystem.
+
 ## Context
 
 Implementation tasks create PRs via the LoreTask CRD (ADR-011), but

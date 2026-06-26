@@ -1,5 +1,12 @@
 # Feature Specification: Task-to-Agent Pipeline
 
+> **Execution substrate moved (ADR-031, `specs/floor-on-ai-subsystem/`).** This spec
+> describes the pipeline as it shipped on the `LoreTask` CRD + `claude-runner` Job model.
+> That mechanism is retired: tasks now execute on the ai-agent-subsystem's `Agent` CRs
+> (Floor-side workflow graph, per-node Agent dispatch), routed by the graded cutover. The
+> pipeline's _intent_ — task -> agent -> PR — is unchanged; read this in the past tense for
+> the `LoreTask`-specific mechanics.
+
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
 | Feature        | Task-to-Agent Pipeline                      |

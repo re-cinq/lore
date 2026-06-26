@@ -8,6 +8,11 @@ domains: [agent, pipeline, infra, security]
 
 # ADR-025: Bring-Your-Own execution container
 
+> **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** The BYO-image knob
+> survives, but it no longer rides on the `LoreTask` CR's `image` field: a per-repo recipe
+> sets it on the catalog `Station`'s pod template (the `image` two-key gate is preserved on
+> the `/agent-definitions` endpoint). The substrate is the ai-agent-subsystem.
+
 ## Context
 
 Every cluster pipeline task runs in a single image Lore builds —

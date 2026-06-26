@@ -1,5 +1,10 @@
 # Feature Specification: Autonomous Review Loop
 
+> **Execution substrate moved (ADR-031, `specs/floor-on-ai-subsystem/`).** The review-loop
+> behavior is unchanged, but it now runs as `github_action` + agent nodes in the Floor-side
+> workflow graph rather than chained `LoreTask` CRs — read the `LoreTask`-specific mechanics
+> here in the past tense.
+
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Autonomous Review Loop                   |

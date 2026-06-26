@@ -1,5 +1,10 @@
 # Feature Specification: Dark Factory Mode
 
+> **Execution substrate moved (ADR-031, `specs/floor-on-ai-subsystem/`).** Dark Factory's
+> policy (issue suppression, auto-merge, branch-as-state, audit) is unchanged, but the
+> tasks it governs now run on the ai-agent-subsystem's `Agent` CRs, not `LoreTask` CRs —
+> read the `LoreTask`-specific mechanics here in the past tense.
+
 | Field    | Value                          |
 |----------|--------------------------------|
 | Feature  | Dark Factory Mode              |
