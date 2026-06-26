@@ -57,9 +57,9 @@ function AssemblyLineRow({ run, showCost }: { run: AssemblyLine; showCost: boole
       </td>
 
       <td>
-        <Link href={`/assembly-lines/${run.lead.id}`} className={styles.runId}>#{run.lead.id.substring(0, 8)}</Link>
         <Link href={`/assembly-lines/${run.lead.id}`} className={styles.runTitle}>{run.lead.description}</Link>
         <div className={styles.metaRow}>
+          <Link href={`/assembly-lines/${run.lead.id}`} className={styles.runId}>#{run.lead.id.substring(0, 8)}</Link>
           {run.targetRepo && <Link href={`/repos/${run.targetRepo}`} className={styles.metaBadge}>{run.targetRepo}</Link>}
           {run.lead.target_branch && <span className={styles.metaBadge}>{run.lead.target_branch}</span>}
           {run.prUrl && (
