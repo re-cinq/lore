@@ -8,6 +8,11 @@ domains: [web-ui, agent, pipeline]
 
 # ADR-027: Smart feature planning via Stations
 
+> **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** "Stations" survive as
+> a first-class concept — they are now the ai-agent-subsystem `Station` CRs, not the
+> `LoreTask` backend. Feature planning/finalize still run in-process for the lightweight
+> path; the cluster path is the new substrate.
+
 ## Context
 
 Spec authoring is the most context-dependent step in the Lore pipeline and the
