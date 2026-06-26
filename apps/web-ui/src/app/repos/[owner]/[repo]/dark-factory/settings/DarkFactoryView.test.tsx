@@ -7,12 +7,17 @@ import { INITIAL_SAVE_STATE, type SaveState } from '../../settings/SaveResultBan
 
 const action = vi.fn(async (): Promise<SaveState> => INITIAL_SAVE_STATE);
 
-function renderView(rawImage?: string, df: Parameters<typeof resolveDarkFactorySettings>[0] = null) {
+function renderView(
+  rawImage?: string,
+  df: Parameters<typeof resolveDarkFactorySettings>[0] = null,
+  rawBackend?: string,
+) {
   return render(
     <DarkFactoryView
       fullName="re-cinq/lore"
       resolved={resolveDarkFactorySettings(df)}
       rawImage={rawImage}
+      rawBackend={rawBackend}
       defaultExecutionImage={DEFAULT_EXECUTION_IMAGE}
       saveAction={action}
     />,
@@ -39,6 +44,16 @@ describe('DarkFactoryView', () => {
   it('leaves the execution image empty (placeholder only) when unset', () => {
     const { container } = renderView();
     expect((container.querySelector('input[name="df_execution_image"]') as HTMLInputElement).value).toBe('');
+  });
+
+  it('prefills the execution backend select from raw settings', () => {
+    const { container } = renderView(undefined, null, 'agent-cr');
+    expect(container.querySelector('select[name="df_execution_backend"]')).toHaveValue('agent-cr');
+  });
+
+  it('defaults the execution backend to loretask when unset', () => {
+    const { container } = renderView();
+    expect(container.querySelector('select[name="df_execution_backend"]')).toHaveValue('loretask');
   });
 
   it('exposes the approval-PR input for gated changes', () => {

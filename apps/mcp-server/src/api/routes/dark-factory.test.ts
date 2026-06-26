@@ -166,6 +166,15 @@ describe("routes — dark-factory settings", () => {
       expect(res.json.applied.auto_merge).toEqual({ min_trust: "full" });
     });
 
+    it("deep-merges execution so a backend opt-in keeps the existing image", async () => {
+      const pool = makePool();
+      clientQueries(pool, {
+        "FOR UPDATE": { rows: [{ settings: { dark_factory: { execution: { image: "golang:1.23" } } } }] },
+      });
+      const { res } = await put({ execution: { backend: "agent-cr" } }, {}, pool);
+      expect(res.json.applied.execution).toEqual({ image: "golang:1.23", backend: "agent-cr" });
+    });
+
     it("returns 403 when a two-key field lacks the approval header", async () => {
       vi.mocked(twoKeyFieldsTouched).mockReturnValue(["enabled"]);
       const { res } = await put({ enabled: true });
