@@ -25,7 +25,7 @@ import SidebarNav from './SidebarNav';
 // The ten primary links plus the trailing "+ Add Repo" entry, in render order.
 const PRIMARY_LINKS = [
   { href: '/', label: 'Repos' },
-  { href: '/pipeline', label: 'Pipeline' },
+  { href: '/assembly-lines', label: 'Assembly Lines' },
   { href: '/analytics', label: 'Analytics' },
   { href: '/spend', label: 'Spend' },
   { href: '/search', label: 'Search' },
@@ -100,7 +100,7 @@ describe('SidebarNav active-link highlighting', () => {
 
   it('does not light up "Repos" when on a deeper route (root matches exact path only)', () => {
     // rootHref branch: href === '/' must match the path exactly, never as a prefix.
-    pathname.mockReturnValue('/pipeline');
+    pathname.mockReturnValue('/assembly-lines');
     render(<SidebarNav />);
     const repos = linkByLabel('Repos');
     expect(repos.className).not.toContain('active');
@@ -124,10 +124,10 @@ describe('SidebarNav active-link highlighting', () => {
 
   it('marks a primary link active on a sub-route via the "/" boundary (startsWith branch)', () => {
     // isNavActive non-root branch: pathname.startsWith(`${href}/`).
-    pathname.mockReturnValue('/pipeline/abc-123');
+    pathname.mockReturnValue('/assembly-lines/abc-123');
     render(<SidebarNav />);
 
-    const pipeline = linkByLabel('Pipeline');
+    const pipeline = linkByLabel('Assembly Lines');
     expect(pipeline.className).toContain('active');
     expect(pipeline).toHaveAttribute('aria-current', 'page');
 
@@ -220,10 +220,10 @@ describe('SidebarNav interactions', () => {
   it('keeps every link clickable (href targets stay intact after a click)', () => {
     pathname.mockReturnValue('/');
     render(<SidebarNav />);
-    const pipeline = linkByLabel('Pipeline');
+    const pipeline = linkByLabel('Assembly Lines');
     // Clicking does not mutate the rendered anchor target; SidebarNav is stateless
     // and relies on the router (mocked away) for navigation.
     fireEvent.click(pipeline);
-    expect(pipeline).toHaveAttribute('href', '/pipeline');
+    expect(pipeline).toHaveAttribute('href', '/assembly-lines');
   });
 });

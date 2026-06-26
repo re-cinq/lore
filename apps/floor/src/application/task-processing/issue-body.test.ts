@@ -4,13 +4,13 @@ import { loreTaskRef, composeIssueBody } from "./issue-body.js";
 describe("loreTaskRef", () => {
   it("links to the deployed task page when a UI url is set", () => {
     expect(loreTaskRef("abc-123", "https://lore.example.com")).toBe(
-      "[abc-123](https://lore.example.com/pipeline/abc-123)",
+      "[abc-123](https://lore.example.com/assembly-lines/abc-123)",
     );
   });
 
   it("trims a trailing slash on the UI url", () => {
     expect(loreTaskRef("abc-123", "https://lore.example.com/")).toBe(
-      "[abc-123](https://lore.example.com/pipeline/abc-123)",
+      "[abc-123](https://lore.example.com/assembly-lines/abc-123)",
     );
   });
 
@@ -32,7 +32,7 @@ describe("composeIssueBody", () => {
     expect(body).toMatch(/LLM summary\./);
     expect(body).toMatch(/What you should actually do/);
     expect(body).toMatch(/created by `spec-drift`/);
-    expect(body).toMatch(/Lore-Task: \[t1\]\(https:\/\/lore\.example\.com\/pipeline\/t1\)/);
+    expect(body).toMatch(/Lore-Task: \[t1\]\(https:\/\/lore\.example\.com\/assembly-lines\/t1\)/);
   });
 
   it("omits the guidance for a non-drift task but still writes the footer", () => {

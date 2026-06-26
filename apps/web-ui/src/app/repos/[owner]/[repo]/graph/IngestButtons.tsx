@@ -32,7 +32,7 @@ export default function IngestButtons({ owner, repo }: { owner: string; repo: st
       }
       const made = data.created?.map((c) => c.kind).join(', ') || 'none (all already in flight)';
       const skip = data.skipped?.length ? ` · skipped in-flight: ${data.skipped.join(', ')}` : '';
-      setStatus(`Created: ${made}${skip}. Track them on the Tasks / Pipeline tab.`);
+      setStatus(`Created: ${made}${skip}. Track them on the Assembly Lines tab.`);
     } catch (err) {
       setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {

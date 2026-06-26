@@ -40,8 +40,8 @@ describe('RepoTasksView', () => {
     );
 
     const descLink = screen.getByRole('link', { name: 'Implement the widget' });
-    expect(descLink).toHaveAttribute('href', '/pipeline/task-1');
-    expect(screen.getByRole('link', { name: 'Review the PR' })).toHaveAttribute('href', '/pipeline/task-2');
+    expect(descLink).toHaveAttribute('href', '/assembly-lines/task-1');
+    expect(screen.getByRole('link', { name: 'Review the PR' })).toHaveAttribute('href', '/assembly-lines/task-2');
 
     expect(screen.getByText('implementation')).toHaveClass('badge');
     const status = screen.getByText('running');

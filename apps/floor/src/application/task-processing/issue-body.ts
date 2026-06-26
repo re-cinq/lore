@@ -35,7 +35,7 @@ interface MissingSymbolView {
 /** Render the Lore-Task trailer as a link to the deployed task page, or bare. */
 export function loreTaskRef(taskId: string, uiUrl?: string): string {
   if (!uiUrl) return taskId;
-  return `[${taskId}](${uiUrl.replace(/\/+$/, "")}/pipeline/${taskId})`;
+  return `[${taskId}](${uiUrl.replace(/\/+$/, "")}/assembly-lines/${taskId})`;
 }
 
 function renderStatement(s: DriftStatementView): string {

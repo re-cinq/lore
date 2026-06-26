@@ -217,7 +217,7 @@ system is performing.
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
-  duplicate work. ([validated by `PipelineListView.test.tsx:149`](apps/web-ui/src/app/pipeline/PipelineListView.test.tsx#L149))
+  duplicate work. ([validated by `AssemblyLineListView.test.tsx:67`](apps/web-ui/src/app/assembly-lines/AssemblyLineListView.test.tsx#L67))
 - Watcher posts the PR link and any Slack notifications on completion.
 
 ### Scenario 8: Automated Gap Detection (Phase 2)
@@ -689,7 +689,7 @@ non-terminal states and resolve them without manual intervention.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:21`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L21), [`GraphView.test.tsx:31`](apps/web-ui/src/app/graph/GraphView.test.tsx#L31), [`AnalyticsView.test.tsx:57`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L57), [`TaskLogs.test.tsx:43`](apps/web-ui/src/app/pipeline/[id]/TaskLogs.test.tsx#L43), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
+- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:21`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L21), [`GraphView.test.tsx:31`](apps/web-ui/src/app/graph/GraphView.test.tsx#L31), [`AnalyticsView.test.tsx:57`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L57), [`TaskLogs.test.tsx:43`](apps/web-ui/src/app/assembly-lines/[id]/TaskLogs.test.tsx#L43), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).

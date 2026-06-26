@@ -92,7 +92,7 @@ describe('TaskDetailView', () => {
   it('renders the Run Now form only for pending normal-priority tasks', () => {
     const { container } = renderView({ task: task({ status: 'pending', priority: 'normal' }) });
     expect(screen.getByRole('button', { name: 'Run Now' })).toBeInTheDocument();
-    expect(container.querySelector('form[action="/api/pipeline/task-1/run-now"]')).toBeTruthy();
+    expect(container.querySelector('form[action="/api/assembly-lines/task-1/run-now"]')).toBeTruthy();
   });
 
   it('hides the Run Now form for immediate-priority pending tasks', () => {
@@ -103,7 +103,7 @@ describe('TaskDetailView', () => {
   it('renders the Cancel Task form for non-terminal tasks', () => {
     const { container } = renderView({ task: task({ status: 'running' }) });
     expect(screen.getByRole('button', { name: 'Cancel Task' })).toBeInTheDocument();
-    expect(container.querySelector('form[action="/api/pipeline/task-1/cancel"]')).toBeTruthy();
+    expect(container.querySelector('form[action="/api/assembly-lines/task-1/cancel"]')).toBeTruthy();
   });
 
   it('hides the Cancel Task form for merged tasks', () => {

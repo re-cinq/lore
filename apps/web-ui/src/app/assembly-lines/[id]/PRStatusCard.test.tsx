@@ -97,7 +97,7 @@ describe('PRStatusCard', () => {
   it('requests pr-status for the given task id', async () => {
     const fetchMock = stubFetchJson(details());
     await renderSettled({ taskId: 'abc-123', prUrl: 'https://gh/pr/1' });
-    expect(fetchMock).toHaveBeenCalledWith('/api/pipeline/abc-123/pr-status');
+    expect(fetchMock).toHaveBeenCalledWith('/api/assembly-lines/abc-123/pr-status');
   });
 
   it('renders the computed status pill and a PR link after a resolved fetch', async () => {
@@ -300,7 +300,7 @@ describe('PRStatusCard', () => {
   it('refetches when the task id prop changes', async () => {
     const fetchMock = stubFetchJson(details());
     const { rerender } = await renderSettled({ taskId: 'first', prUrl: 'https://gh/pr/1' });
-    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/pipeline/first/pr-status');
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/assembly-lines/first/pr-status');
 
     await act(async () => {
       rerender(<PRStatusCard taskId="second" prUrl="https://gh/pr/1" />);
@@ -308,6 +308,6 @@ describe('PRStatusCard', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/pipeline/second/pr-status');
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/assembly-lines/second/pr-status');
   });
 });

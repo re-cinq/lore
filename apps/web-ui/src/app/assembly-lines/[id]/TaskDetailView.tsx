@@ -81,14 +81,14 @@ export default function TaskDetailView({
         <p className="meta">Created: {new Date(task.created_at).toLocaleString()} · Updated: {new Date(task.updated_at).toLocaleString()}</p>
         <div className={styles.actions}>
           {task.status === 'pending' && (task.priority || 'normal') === 'normal' && (
-            <form action={`/api/pipeline/${task.id}/run-now`} method="POST">
+            <form action={`/api/assembly-lines/${task.id}/run-now`} method="POST">
               <button type="submit" className={styles.runNowBtn}>
                 Run Now
               </button>
             </form>
           )}
           {!['merged', 'failed', 'cancelled'].includes(task.status) && (
-            <form action={`/api/pipeline/${task.id}/cancel`} method="POST">
+            <form action={`/api/assembly-lines/${task.id}/cancel`} method="POST">
               <button type="submit" className={styles.cancelBtn}>
                 Cancel Task
               </button>
