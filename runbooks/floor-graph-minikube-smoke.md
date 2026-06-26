@@ -23,8 +23,9 @@ resource* (CR) is just a typed YAML object the cluster stores; the subsystem's
   in-laptop cluster can see it without a registry):
 
   ```bash
-  # in re-cinq/ai-agent-subsystem
-  docker build -t ghcr.io/re-cinq/ai-agent-controller:smoke .
+  # in re-cinq/ai-agent-subsystem (no root Dockerfile — point -f at the controller recipe;
+  # context is the repo root, since the build does `COPY . .` + `dub build :controller`)
+  docker build -f deploy/Dockerfile.controller -t ghcr.io/re-cinq/ai-agent-controller:smoke .
   minikube image load ghcr.io/re-cinq/ai-agent-controller:smoke
   ```
 
@@ -39,13 +40,25 @@ catalog (`#699`), and the per-recipe telemetry sink (`#687`).
 cd infra/terraform/modules/gke-mcp
 helm install ai-agents ./ai-agents-helm \
   --namespace ai-agents --create-namespace \
-  --set-string controller.image.repository=ghcr.io/re-cinq/ai-agent-controller \
-  --set-string controller.image.tag=smoke \
+  --set-string agentEventsUrl=http://host.minikube.internal:8080/api/agent-events \
   --set seedCatalog=true
+
+# The chart pins the controller by DIGEST (templates/controller.yaml renders
+# `repository@digest` — there is NO image.tag path), so a `--set controller.image.tag`
+# is silently ignored and the pod ImagePullBackOffs on the unreachable prod digest.
+# Repoint the running Deployment at the locally-loaded :smoke tag (imagePullPolicy is
+# IfNotPresent, so kubelet uses the `minikube image load`ed image, no registry pull):
+kubectl -n ai-agents set image deployment/agent-controller \
+  controller=ghcr.io/re-cinq/ai-agent-controller:smoke
+kubectl -n ai-agents rollout status deployment/agent-controller
 
 kubectl -n ai-agents get pods                       # controller Running
 kubectl -n ai-agents get agentdefinitions,stations  # the seeded catalog (one per task type)
 ```
+
+`agentEventsUrl` is baked into the seeded recipes at install time (templates/catalog.yaml),
+so it must be overridden here, not exported later — the default points at the in-cluster
+prod DNS name (`lore-floor.lore-floor.svc`) that doesn't exist on minikube.
 
 ## 2. Provide the run secrets
 
@@ -68,7 +81,7 @@ read, `ciConclusion` → `project.pulls`, lease → `DbLeaseBackend`.
 export KUBECONFIG="$HOME/.kube/config"          # minikube context active
 export LORE_AGENTS_NAMESPACE=ai-agents
 export LORE_AGENT_CR_BACKEND_ENABLED=true        # cluster gate (ADR-031 two-gate)
-export LORE_AGENT_EVENTS_URL=http://host.minikube.internal:8080/api/agent-events
+export LORE_AGENT_INTERNAL_TOKEN=smoke-token      # Bearer the /api/agent-events sink requires
 npm start                                        # or: npm run -w @re-cinq/lore-floor start
 ```
 
@@ -98,6 +111,12 @@ git -C <clone-of-test-repo> log --format='%s%n%b' origin/<task-branch> | grep Lo
       branch, one per executed node.
 - [ ] **CI gate** — a `github_action` node blocked until the branch's CI concluded.
 - [ ] **Telemetry** — `pipeline.llm_calls` gained rows for the run (`#687` sink).
+      **Known gap (expect 0 rows today):** run pods POST NDJSON to `/api/agent-events`
+      with no `Authorization` header — the subsystem parses each recipe's
+      `headers_secret: agent-events-auth` but never applies it to the outgoing request
+      (no header wiring in `agentcore/output`), so the Floor's `authInternal` 401s every
+      event. This clears once the subsystem implements `headers_secret` → `Authorization`
+      (the v0.3.0 path the chart's digest TODO tracks).
 - [ ] **Lease** — `pipeline.task_leases` is empty after completion (released cleanly).
 
 ## Teardown
@@ -115,3 +134,23 @@ minikube stop
 - If an `Agent` never produces a Job, check the controller logs and that
   `agentdefinitions`/`stations` for the task type exist (`kubectl -n ai-agents get
   stations`). A missing catalog entry is the usual cause.
+- **Empty catalog (`No resources found`) despite a Running controller?** The catalog is
+  plain CRs gated by `{{ if .Values.seedCatalog }}` — they only get created by an actual
+  `helm install/upgrade`. If the controller + CRDs were bootstrapped outside Helm (`helm
+  list -A` shows no release), the seed block never rendered. A full `helm install` now
+  collides with the existing `agent-controller` Deployment, so seed just the catalog:
+
+  ```bash
+  helm template ai-agents ./ai-agents-helm --namespace ai-agents --set seedCatalog=true \
+    --set-string agentEventsUrl=http://host.minikube.internal:8080/api/agent-events \
+    --show-only templates/catalog.yaml | kubectl -n ai-agents apply -f -
+  ```
+- Only the **controller** image is built/loaded above. The run-pod **agentImage**
+  (`controller.agentImage` in values.yaml) stays pinned to its prod digest, pulled from
+  ghcr — so that package must be public or a `ghcr-pull-secret` must exist in the
+  `ai-agents` namespace, else run pods `ImagePullBackOff`. To smoke-test *agent-side*
+  changes (e.g. the events-sink auth above), build + `minikube image load` the agent
+  image too and add `--set-string controller.agentImage=ghcr.io/re-cinq/ai-agent:smoke`.
+- Long-term fix for the digest-only `kubectl set image` dance: give the chart a
+  `controller.image.tag` fallback used when `digest` is empty (keeps prod digest-pinned,
+  unblocks local smoke builds).
