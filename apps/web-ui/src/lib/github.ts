@@ -105,8 +105,12 @@ export async function checkRepoFiles(
 
 /**
  * Fetch the decoded UTF-8 content of a file on the repo's default branch.
- * Returns null when the file is absent (404), the App isn't configured, or
- * on any transient error. Fail-soft, like {@link checkRepoFiles}.
+ * Returns null only when the file is genuinely absent (404) or the App
+ * isn't configured. Transient/permission failures (rate limits, 403, 5xx)
+ * are rethrown so callers can fail soft rather than mistake a hiccup for an
+ * absent file — mirrors {@link checkRepoFiles} (404 = absent, other =
+ * unknown). Returning null for, say, a secondary rate limit would falsely
+ * flag every repo's lore-ingest workflow as missing.
  */
 export async function getRepoFileContent(repo: string, path: string): Promise<string | null> {
   if (!isGitHubConfigured()) return null;
@@ -116,8 +120,9 @@ export async function getRepoFileContent(repo: string, path: string): Promise<st
     const { data } = await ok.rest.repos.getContent({ owner, repo: name, path });
     if (Array.isArray(data) || data.type !== 'file' || typeof data.content !== 'string') return null;
     return Buffer.from(data.content, 'base64').toString('utf-8');
-  } catch {
-    return null;
+  } catch (e) {
+    if ((e as { status?: number }).status === 404) return null;
+    throw e;
   }
 }
 

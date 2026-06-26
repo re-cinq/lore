@@ -147,6 +147,16 @@ describe('getRepoFileContent', () => {
     expect(await getRepoFileContent('re-cinq/app', 'missing.yml')).toBeNull();
   });
 
+  it('rethrows a 403 rate-limit so callers fail soft instead of reading it as absent', async () => {
+    rest.repos.getContent.mockRejectedValue(httpError(403));
+    await expect(getRepoFileContent('re-cinq/app', 'present.yml')).rejects.toThrow('HTTP 403');
+  });
+
+  it('rethrows a 500 instead of returning null', async () => {
+    rest.repos.getContent.mockRejectedValue(httpError(500));
+    await expect(getRepoFileContent('re-cinq/app', 'present.yml')).rejects.toThrow('HTTP 500');
+  });
+
   it('returns null when the path is a directory', async () => {
     rest.repos.getContent.mockResolvedValue({ data: [{ type: 'file' }] });
     expect(await getRepoFileContent('re-cinq/app', 'dir')).toBeNull();
