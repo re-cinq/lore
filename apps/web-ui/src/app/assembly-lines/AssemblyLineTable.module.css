@@ -43,18 +43,19 @@
 
 /* Assembly-line cell */
 
-.runId {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: var(--fs-sm);
-}
 .runTitle {
   display: block;
-  max-width: 42ch;
+  max-width: 48ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin: 2px 0;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.runId {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 .metaRow {
   display: flex;
