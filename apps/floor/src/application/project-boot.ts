@@ -5,6 +5,7 @@ import {
   type Project,
   type StationBackend,
 } from "@re-cinq/lore-shared";
+import { loadBuiltinWorkflows } from "@re-cinq/lore-runner";
 import { getPool } from "../data/db.js";
 import { K8sLoreTaskClient } from "../adapters/k8s-loretask.js";
 import { DockerStation } from "../adapters/docker-station.js";
@@ -21,6 +22,9 @@ import {
   KubeCatalogApi,
 } from "../adapters/kube-token-provisioner.js";
 import { GitHubPlatform } from "../adapters/github.js";
+import { GraphStationBackend } from "./graph-station-backend.js";
+import { AgentCrStationBackend } from "./agent-cr-station-backend.js";
+import { floorGraphRuntime } from "./floor-graph-run.js";
 
 /**
  * Per-repo Project composition root for the agent. Builds from the agent's
@@ -41,7 +45,10 @@ const NO_OP_DGRAPH = {
  * non-planning cluster tasks (impl/review), so it resolves to Docker here; the
  * worker handles the inprocess planning/finalize routing separately.
  */
-export function stationBackend(repoBackend?: string): StationBackend {
+export function stationBackend(
+  repoBackend?: string,
+  workflows: ReadonlySet<string> = new Set(),
+): StationBackend {
   if (selectStationBackend(process.env) !== "k8s") {
     return new DockerStation(new LocalStationCredentials(process.env), process.env);
   }
@@ -49,7 +56,7 @@ export function stationBackend(repoBackend?: string): StationBackend {
   // and legacy LoreTask, honoring the per-repo opt-in (`repoBackend`) + the graded-rollout
   // percentage. Both gates must be on for agent-cr; the routing backend re-decides at
   // isActive too, so the reaper probes the same backend the task launched on.
-  const agentCr = new AgentBackend(
+  const agentBackend = new AgentBackend(
     new KubeAgentApi(),
     new HttpContextSource(),
     new KubeTokenProvisioner(
@@ -58,10 +65,23 @@ export function stationBackend(repoBackend?: string): StationBackend {
       new KubeCatalogApi(),
     ),
   );
+  // Within agent-cr: run the Floor-side workflow graph for task types that have one
+  // (#686), else a single Agent. Both share the AgentBackend for CR dispatch.
+  const agentCr = new AgentCrStationBackend(
+    new GraphStationBackend(floorGraphRuntime(agentBackend)),
+    agentBackend,
+    workflows,
+  );
   return new RoutingStationBackend(
     { "agent-cr": agentCr, loretask: new K8sLoreTaskClient() },
     (taskId) => executionBackendForTask({ repoBackend, taskId, env: process.env }),
   );
+}
+
+/** The builtin workflow names (task types with a graph), loaded + cached once. */
+let workflowNamesCache: Promise<ReadonlySet<string>> | undefined;
+function workflowNames(): Promise<ReadonlySet<string>> {
+  return (workflowNamesCache ??= loadBuiltinWorkflows().then((m) => new Set(m.keys())));
 }
 
 /** The repo's `dark_factory.execution.backend` opt-in for the cutover router (#688). */
@@ -79,6 +99,6 @@ export async function loadRepoBackend(repo: string): Promise<string | undefined>
 
 export async function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
-  const station = stationBackend(await loadRepoBackend(repo));
+  const station = stationBackend(await loadRepoBackend(repo), await workflowNames());
   return createProject(repo, getPool(), dgraph, process.env, { station });
 }

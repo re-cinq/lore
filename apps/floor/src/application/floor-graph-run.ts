@@ -19,12 +19,17 @@ import {
   type AgentNodeStatus,
   type CiConclusion,
 } from "@re-cinq/lore-runner";
-import type { LeaseBackend, LoreTaskSpec } from "@re-cinq/lore-shared";
+import type { LeaseBackend, LoreTaskSpec, StationBackend } from "@re-cinq/lore-shared";
 import {
   buildFloorGraphHandlers,
   type FloorGraphTask,
   type FloorGraphPorts,
 } from "./floor-graph.js";
+import { KubeAgentApi } from "../adapters/kube-agent-api.js";
+import { GitHubPlatform } from "../adapters/github.js";
+import { buildPrompt } from "../data/config.js";
+import { writeEpisode, writeEpisodeWithCuration } from "../adapters/episode-writer.js";
+import { leaseBackendForEnv } from "../adapters/lease-backend.js";
 
 const execFile = promisify(execFileCb);
 
@@ -77,8 +82,8 @@ export interface FloorGraphRuntime {
   resolvePrompt: (promptRef: string, description: string) => string;
   leaseBackend: LeaseBackend;
   episodeDeps: FloorGraphPorts["episodeDeps"];
-  /** GitHub token-bearing clone URL for the task's repo. */
-  cloneUrl: (repo: string) => string;
+  /** GitHub token-bearing clone URL for the task's repo (the token is minted per call). */
+  cloneUrl: (repo: string) => Promise<string>;
 }
 
 /** Clone the task's branch into a fresh temp working tree for the stage-commit state. */
@@ -100,7 +105,7 @@ export async function runFloorGraphForTask(
     throw new Error(`No workflow for task type "${task.taskType}"`);
   }
   const holder = os.hostname();
-  const gitDir = await checkoutBranch(task.targetRepo, task.branch, rt.cloneUrl(task.targetRepo));
+  const gitDir = await checkoutBranch(task.targetRepo, task.branch, await rt.cloneUrl(task.targetRepo));
   try {
     const ports: FloorGraphPorts = {
       dispatchAgent: async (spec) => {
@@ -121,4 +126,22 @@ export async function runFloorGraphForTask(
   } finally {
     await fs.rm(gitDir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/** Assemble the real ports for a Floor-side graph run: dispatch via the agent-cr backend,
+ *  per-node Agent-status reads, GitHub CI, prompt resolution, the DB lease, episode
+ *  writers, and a token-bearing clone URL. IO shell — verified by the minikube smoke. */
+export function floorGraphRuntime(dispatcher: StationBackend): FloorGraphRuntime {
+  const kubeApi = new KubeAgentApi();
+  const gh = new GitHubPlatform();
+  return {
+    dispatcher: { launch: (spec) => dispatcher.launch(spec) },
+    status: { read: (name) => kubeApi.getStatus(name) },
+    ciConclusion: (repo, ref) => gh.ciConclusion(repo, ref),
+    resolvePrompt: (promptRef, description) => buildPrompt(promptRef, description),
+    leaseBackend: leaseBackendForEnv(),
+    episodeDeps: { writeEpisode, writeEpisodeWithCuration, curate: true },
+    cloneUrl: async (repo) =>
+      `https://x-access-token:${await gh.getInstallationToken()}@github.com/${repo}.git`,
+  };
 }

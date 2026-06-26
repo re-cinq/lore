@@ -4,6 +4,7 @@
 // ai-agents namespace (agents.re-cinq.com); a 409 maps to created:false.
 
 import { GROUP, VERSION, type Agent } from "@re-cinq/agent-contracts";
+import type { AgentNodeStatus } from "@re-cinq/lore-runner";
 import type { AgentApi } from "./agent-backend.js";
 
 const PLURAL = "agents";
@@ -35,6 +36,28 @@ export class KubeAgentApi implements AgentApi {
         e?.response?.statusCode === 409 ||
         String(e?.message).includes("already exists");
       if (is409) return { name, created: false };
+      throw err;
+    }
+  }
+
+  /** The status of one Agent CR by name (the per-node Agent, `<id8>-<nodeId>`), as the
+   *  graph handler's poll expects. Null when the CR doesn't exist yet (404). */
+  async getStatus(name: string): Promise<AgentNodeStatus | null> {
+    const api = await this.customObjects();
+    try {
+      const obj = (await api.getNamespacedCustomObject({
+        group: GROUP,
+        version: VERSION,
+        namespace: this.namespace(),
+        plural: PLURAL,
+        name,
+      })) as Agent;
+      const status = obj.status;
+      if (!status) return null;
+      return { phase: status.phase, output: status.output, failureReason: status.failureReason };
+    } catch (err) {
+      const e = err as { code?: number; response?: { statusCode?: number } };
+      if (e?.code === 404 || e?.response?.statusCode === 404) return null;
       throw err;
     }
   }
