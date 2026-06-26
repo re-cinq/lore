@@ -12,7 +12,8 @@ import { LocalStationCredentials } from "../adapters/local-station-credentials.j
 import { AgentBackend } from "../adapters/agent-backend.js";
 import { KubeAgentApi } from "../adapters/kube-agent-api.js";
 import { HttpContextSource } from "../adapters/http-context-source.js";
-import { decideExecutionBackend } from "../adapters/execution-backend.js";
+import { executionBackendForTask, repoBackendFromSettings } from "../adapters/execution-backend.js";
+import { RoutingStationBackend } from "../adapters/routing-station-backend.js";
 import {
   KubeTokenProvisioner,
   GithubTokenMinter,
@@ -40,33 +41,44 @@ const NO_OP_DGRAPH = {
  * non-planning cluster tasks (impl/review), so it resolves to Docker here; the
  * worker handles the inprocess planning/finalize routing separately.
  */
-export function stationBackend(): StationBackend {
+export function stationBackend(repoBackend?: string): StationBackend {
   if (selectStationBackend(process.env) !== "k8s") {
     return new DockerStation(new LocalStationCredentials(process.env), process.env);
   }
-  // ADR-031 cutover: on the cluster, route to the ai-agent-subsystem `Agent` path
-  // when the cluster gate is on. The per-repo gate + graded rollout are threaded at
-  // dispatch by the cutover (#688); at this scope the cluster gate is the only
-  // signal, so it doubles as the repo opt-in.
-  const clusterEnabled = process.env.LORE_AGENT_CR_BACKEND_ENABLED === "true";
-  const backend = decideExecutionBackend({
-    clusterEnabled,
-    repoBackend: clusterEnabled ? "agent-cr" : "loretask",
-  });
-  return backend === "agent-cr"
-    ? new AgentBackend(
-        new KubeAgentApi(),
-        new HttpContextSource(),
-        new KubeTokenProvisioner(
-          new GithubTokenMinter(new GitHubPlatform()),
-          new KubeSecretKeyWriter(),
-          new KubeCatalogApi(),
-        ),
-      )
-    : new K8sLoreTaskClient();
+  // ADR-031 cutover (#688): route per task between the ai-agent-subsystem `Agent` path
+  // and legacy LoreTask, honoring the per-repo opt-in (`repoBackend`) + the graded-rollout
+  // percentage. Both gates must be on for agent-cr; the routing backend re-decides at
+  // isActive too, so the reaper probes the same backend the task launched on.
+  const agentCr = new AgentBackend(
+    new KubeAgentApi(),
+    new HttpContextSource(),
+    new KubeTokenProvisioner(
+      new GithubTokenMinter(new GitHubPlatform()),
+      new KubeSecretKeyWriter(),
+      new KubeCatalogApi(),
+    ),
+  );
+  return new RoutingStationBackend(
+    { "agent-cr": agentCr, loretask: new K8sLoreTaskClient() },
+    (taskId) => executionBackendForTask({ repoBackend, taskId, env: process.env }),
+  );
 }
 
-export function projectFor(repo: string): Promise<Project> {
+/** The repo's `dark_factory.execution.backend` opt-in for the cutover router (#688). */
+export async function loadRepoBackend(repo: string): Promise<string | undefined> {
+  try {
+    const { rows } = await getPool().query<{ settings: unknown }>(
+      `SELECT settings FROM lore.repos WHERE full_name = $1`,
+      [repo],
+    );
+    return repoBackendFromSettings(rows[0]?.settings);
+  } catch {
+    return undefined;
+  }
+}
+
+export async function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
-  return createProject(repo, getPool(), dgraph, process.env, { station: stationBackend() });
+  const station = stationBackend(await loadRepoBackend(repo));
+  return createProject(repo, getPool(), dgraph, process.env, { station });
 }
