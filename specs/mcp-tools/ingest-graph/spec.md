@@ -14,11 +14,15 @@
 
 The spec-traceability graph (Spec → Section → Statement → TestChunk, plus
 Coverage edges) is built by projecting a repo's specs, ADRs, and test reports.
-That projection is a per-kind job that walks source files and writes graph nodes.
-`lore_ingest_graph` fans out one pipeline task per requested kind so the agent runner
-(specs/adrs) or a local `lore_run_task_locally` (tests) can pick them up — without the
-caller hand-creating three tasks and a group id. It is idempotent: re-running
-when nothing changed is a no-op (only changed files re-project).
+**Specs and ADRs are projected automatically by CI** — the repo's `lore-ingest.yml`
+fans out one job per kind that fires the spec-trace projection trigger (see
+[ADR-023](../../../adrs/ADR-023-test-run-trace-binding.md)); they are no longer
+pipeline tasks. The one ingest that still needs a task is **tests**: it runs the
+project's test suite (via the `.lore/test-commands.yml` interface), so it executes
+only in a trusted sandbox (local dev / CI / a runner pod). `lore_ingest_graph`
+creates that `ingest-tests` task so a `lore_run_task_locally` (or the cluster
+runner) can pick it up. It is idempotent: an in-flight `ingest-tests` task is
+skipped.
 
 ## Interface
 
@@ -28,7 +32,7 @@ Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/to
 - **description** (verbatim):
 
 ```text
-WRITE side of spec-traceability: creates one ingestion pipeline task per requested kind (specs, adrs, tests) and returns the created task ids under a single group id. Idempotent — in-flight tasks for a kind are skipped. Instead: to READ spec coverage from the built graph use lore-query-trace; to enumerate or run tests locally use lore_list_tests / lore_run_test.
+WRITE side of spec-traceability for the TEST suite: creates an ingest-tests pipeline task (run it locally / in CI to project test→spec coverage into the graph). Specs and ADRs project automatically via CI (lore-ingest.yml fans out per-kind jobs that fire the projection trigger), not this tool. Idempotent — an in-flight ingest-tests task is skipped. Instead: to READ spec coverage from the built graph use lore-query-trace; to enumerate or run tests locally use lore_list_tests / lore_run_test.
 ```
 
 ### Input schema (Zod)
@@ -36,9 +40,7 @@ WRITE side of spec-traceability: creates one ingestion pipeline task per request
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `repo` | string | no | — | Target repo as 'owner/repo'. Defaults to the repo detected from cwd git remote. |
-| `kinds` | `("specs"\|"adrs"\|"tests")[]` | no | — | Which kinds to ingest. Defaults to all three. |
 | `ref` | string | no | — | Branch name or commit SHA. Defaults to the repo's default branch. |
-| `force` | boolean | no | — | When true, re-processes all specs/adrs files even if content is unchanged. Has no effect on the tests kind. |
 
 ## Behavior
 
@@ -48,20 +50,19 @@ WRITE side of spec-traceability: creates one ingestion pipeline task per request
 2. **Availability gate** — `dbPoolRef = getPool()`. If null, return the literal
    text `"Database not available — cannot create ingestion tasks."`
 3. Dynamic-import and call `createIngestGraphTasks(dbPoolRef, targetRepo,
-   { kinds, branch: ref, createdBy: "lore_ingest_graph" })`
-   ([handler](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.ts#L23)):
-   1. `kinds` defaults to `["specs", "adrs", "tests"]` when omitted or empty.
-   2. Generate one `groupId = randomUUID()`.
-   3. For each kind, `taskType = "ingest-{kind}"`. **Dedupe** — `SELECT id FROM
-      pipeline.tasks WHERE target_repo = $1 AND task_type = $2 AND status IN
+   { kinds: ["tests"], branch: ref, createdBy: "lore_ingest_graph" })`
+   ([handler](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.ts#L25)):
+   1. Generate one `groupId = randomUUID()`.
+   2. `taskType = "ingest-tests"`. **Dedupe** — `SELECT id FROM pipeline.tasks
+      WHERE target_repo = $1 AND task_type = $2 AND status IN
       ('pending','queued','running','running-local') LIMIT 1`. If a row exists,
-      push the kind to `skipped` and continue (so re-runs never stack duplicate
+      push `tests` to `skipped` and continue (so re-runs never stack duplicate
       in-flight tasks).
-   4. Otherwise `createPipelineTask(pool, { taskType, description: "Ingest {kind}
+   3. Otherwise `createPipelineTask(pool, { taskType, description: "Ingest tests
       → graph for {repo}", targetRepo, createdBy, taskGroupId: groupId,
-      contextBundle: { kind, branch, commit, glob } })` and push `{ id, kind }` to
+      contextBundle: { kind: "tests", branch } })` and push `{ id, kind }` to
       `created`.
-   5. Return `{ groupId, created, skipped }`.
+   4. Return `{ groupId, created, skipped }`.
 4. **Success envelope** — build a bulleted list of `  • {kind}: {id}` lines and a
    `Skipped (already in flight): {kinds…}` note when any were skipped, then return
    `Created {N} ingestion task(s) for {repo} (group {groupId}):\n{lines}{skippedNote}\n\nRun one locally with: lore_run_task_locally <task_id>`.
@@ -81,30 +82,28 @@ text.
 - `detectCurrentRepo()` (repo resolution).
 - `getPool()` (pg pool; null-checked).
 - `createIngestGraphTasks` → `createPipelineTask` (from `@re-cinq/lore-shared`):
-  one dedupe `SELECT` per kind, then **inserts** one `pipeline.tasks` row per
-  non-skipped kind (each also recording a `pending` task event). `ingest-*` task
-  types are allowed at every trust tier (zero-LLM, no PR).
+  one dedupe `SELECT`, then **inserts** one `pipeline.tasks` row for the
+  `ingest-tests` task (also recording a `pending` task event). `ingest-tests` is
+  allowed at every trust tier (zero-LLM, no PR).
 - No graph nodes are written by this tool — that happens later when the runner
-  executes each `ingest-{kind}` task.
+  executes the `ingest-tests` task.
 
 ## Acceptance Criteria
 
-The auto fan-out (which delegates to `createIngestGraphTasks`) creates
-`ingest-specs` + `ingest-adrs` tasks when the repo opted in. ([validated by `creates specs+adrs tasks when auto_ingest_graph is enabled`](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L26))
+`createIngestGraphTasks` returns the created task's id under `created[].kind`. ([validated by `sets created[].id to the created task's task_id`](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L27))
 
-It creates no tasks when the `auto_ingest_graph` setting is off. ([validated by `does nothing when the setting is off`](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L32))
+The REST `/ingest-graph` endpoint that CI calls fires the spec-trace trigger for the `specs` kind and creates no task. ([validated by `fires the spec-trace trigger for the specs kind and creates no task`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L32))
 
-It creates no tasks when repo settings are absent. ([validated by `does nothing when settings are absent`](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L38))
+The same endpoint keeps the pipeline-task path for the `tests` kind and fires no doc trigger. ([validated by `keeps the task path for the tests kind and fires no doc trigger`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L52))
 
-The tool wrapper's repo/db guards and the per-kind in-flight dedupe branch are
-exercised only against a live DB. *(untested: the dedupe `SELECT` + insert and the
-success-string assembly have no pure seam in the wrapper; the `createIngestGraphTasks`
-fan-out shape is covered transitively via the `maybeAutoIngestGraph` tests above.)*
+The tool wrapper's repo/db guards and the in-flight dedupe branch are exercised
+only against a live DB. *(untested: the dedupe `SELECT` + insert and the
+success-string assembly have no pure seam in the wrapper.)*
 
 ## Out of Scope
 
-- The actual per-kind graph projection (Spec/Section/Statement/TestChunk/Coverage
-  node writes) — owned by the `ingest-{kind}` task runners and the
+- **Spec/ADR projection** — now CI-driven via the spec-trace trigger (ADR-023);
+  not this tool. The per-kind graph projection (Spec/Section/Statement/TestChunk/
+  Coverage node writes) is owned by `runIngestGraph` and the
   `spec-traceability-graph` projection layer.
 - Reading the graph — `query_trace` (specified separately).
-- The auto post-onboard / post-ingest gate (`maybeAutoIngestGraph` settings flag).

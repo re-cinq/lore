@@ -6,7 +6,7 @@
  * row, so a run's true `validated_by`/`violated`/coverage counts are observable.
  */
 
-import type { SpecTraceOutcome } from "@re-cinq/lore-shared";
+import type { SpecTraceOutcome, IngestGraphSummary } from "@re-cinq/lore-shared";
 import type { AuditLogEntry } from "../data/repositories/index.js";
 
 export function specTraceAuditEntry(repo: string, outcome: SpecTraceOutcome): AuditLogEntry {
@@ -29,5 +29,26 @@ export function specTraceLogLine(repo: string, outcome: SpecTraceOutcome): strin
     `[agent] spec-trace ${outcome.kind} ${repo}: ` +
     `validated_by=${outcome.validatedBy} violated=${outcome.violated} ` +
     `coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`
+  );
+}
+
+export function graphIngestAuditEntry(repo: string, summary: IngestGraphSummary): AuditLogEntry {
+  return {
+    event_type: "spec_trace_ingest",
+    repo,
+    payload: {
+      kind: summary.kind,
+      projected: summary.projected,
+      skipped: summary.skipped,
+      failed: summary.failed,
+      status: summary.status,
+    },
+  };
+}
+
+export function graphIngestLogLine(repo: string, summary: IngestGraphSummary): string {
+  return (
+    `[agent] spec-trace ${summary.kind} ${repo}: ` +
+    `projected=${summary.projected} skipped=${summary.skipped} failed=${summary.failed} status=${summary.status}`
   );
 }

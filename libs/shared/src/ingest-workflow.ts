@@ -12,9 +12,9 @@
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
-export const LORE_INGEST_WORKFLOW_VERSION = 2;
+export const LORE_INGEST_WORKFLOW_VERSION = 3;
 
-export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 2
+export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 3
 name: Lore Context Ingest
 
 on:
@@ -60,6 +60,25 @@ jobs:
             }" \\
             "\${LORE_INGEST_URL}/api/ingest" \\
             || echo "::warning::Could not reach Lore ingest endpoint"
+
+  graph:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [specs, adrs]
+    steps:
+      - name: Project \${{ matrix.kind }} into the graph
+        env:
+          LORE_INGEST_TOKEN: \${{ secrets.LORE_INGEST_TOKEN }}
+          LORE_INGEST_URL: \${{ vars.LORE_INGEST_URL }}
+        run: |
+          curl -sf -X POST \\
+            -H "Authorization: Bearer \${LORE_INGEST_TOKEN}" \\
+            -H "Content-Type: application/json" \\
+            -d "{\\"kinds\\":[\\"\${{ matrix.kind }}\\"],\\"commit\\":\\"\${{ github.sha }}\\"}" \\
+            "\${LORE_INGEST_URL}/api/repos/\${{ github.repository }}/ingest-graph" \\
+            || echo "::warning::Could not reach Lore ingest-graph endpoint for \${{ matrix.kind }}"
 `;
 
 export type IngestWorkflowStatus = "missing" | "stale" | "aligned";

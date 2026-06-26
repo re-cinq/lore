@@ -22,8 +22,8 @@ export default function AdrListView({
   if (adrs.length === 0) {
     return (
       <p style={{ color: 'var(--text-muted)' }}>
-        No ADRs in the graph yet. Build the graph from the <strong>Graph</strong> tab and run the <code>ingest-adrs</code>{' '}
-        task, then refresh.
+        No ADRs in the graph yet. ADRs are projected automatically by CI on every push to <code>main</code> — push an
+        <code>adrs/</code> change (or re-run the <strong>lore-ingest</strong> workflow), then refresh.
       </p>
     );
   }

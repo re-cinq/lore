@@ -1,8 +1,9 @@
 import { createServer } from "node:http";
-import { createDgraphClient, ingestSpecTrace } from "@re-cinq/lore-shared";
+import { createDgraphClient } from "@re-cinq/lore-shared";
 import { query, isDbAvailable } from "../data/db.js";
 import { writeAuditLog } from "../adapters/audit.js";
-import { specTraceAuditEntry, specTraceLogLine } from "../adapters/spec-trace-audit.js";
+import { dispatchSpecTrace } from "../application/spec-trace/spec-trace-dispatch.js";
+import { projectFor } from "../application/project-boot.js";
 import { runReviewReactorForPR } from "../application/jobs/scheduled/review-reactor.js";
 import { validateSpecCoverageJob } from "../application/jobs/scheduled/spec-coverage-validate.js";
 import { tryAutoMergeForCompletedTask } from "../application/jobs/auto-merge-trigger.js";
@@ -161,10 +162,12 @@ export function startHealthServer(
         // Fire-and-forget — return 202 immediately so the trigger sender
         // doesn't block on the graph projection. On completion, surface the
         // real graph effect (log line + audit row) instead of discarding it.
-        ingestSpecTrace(dgraph, repo, kind, payload)
-          .then(async (outcome) => {
-            console.log(specTraceLogLine(repo, outcome));
-            await writeAuditLog(specTraceAuditEntry(repo, outcome)).catch((err) =>
+        // The dispatcher routes docs (specs/adrs) to the repo-read projection
+        // and test-report/coverage to the payload path.
+        dispatchSpecTrace(repo, kind, payload, { dgraph, projectFor })
+          .then(async ({ logLine, audit }) => {
+            console.log(logLine);
+            await writeAuditLog(audit).catch((err) =>
               console.error(`[agent] spec-trace audit write failed for ${repo}:`, err),
             );
           })

@@ -11,8 +11,11 @@ import type { PgPool } from "./memory-store.js";
 /** Trust level → allowed task types. The createTask gate reads
  *  lore.repos.settings.trust.level. Relocated from mcp's pipeline.ts. */
 // Deterministic graph-ingest tasks are allowed at EVERY trust tier — they are
-// zero-LLM, produce no PR, and only read source + write the trace graph.
-const GRAPH_INGEST = ["ingest-specs", "ingest-adrs", "ingest-tests"];
+// zero-LLM, produce no PR, and only read source + write the trace graph. Only
+// `ingest-tests` remains a task: it runs the project's suite, so it needs a
+// runner / CI sandbox. specs/adrs project via the CI-driven spec-trace trigger
+// (no task) — see ADR-023.
+const GRAPH_INGEST = ["ingest-tests"];
 
 /**
  * Whether a task type is a deterministic graph-ingest task (zero-LLM, no Issue,

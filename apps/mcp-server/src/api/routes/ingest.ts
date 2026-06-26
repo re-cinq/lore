@@ -4,7 +4,6 @@ import { ingestFiles } from "../../features/spec-trace/ingest.js";
 import { onboardRepo } from "../../features/repo/repo-onboard.js";
 import { json, readBody } from "./http.js";
 import { triggerAgentSpecCoverageValidate } from "./helpers.js";
-import { maybeAutoIngestGraph } from "../../features/spec-trace/ingest-graph-tasks.js";
 
 export async function handleIngest(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
   if (!pool) { json(res, 503, { error: "database not available" }); return; }
@@ -28,9 +27,9 @@ export async function handleIngest(req: IncomingMessage, res: ServerResponse, po
       : false;
     if (landed) {
       void triggerAgentSpecCoverageValidate(repo);
-      // Auto fan-out the spec-traceability graph re-projection, but only for
-      // repos that opted in (settings.auto_ingest_graph). Fire-and-forget.
-      void maybeAutoIngestGraph(pool, repo);
+      // Spec/ADR graph (re-)projection is no longer fanned out from here — it is
+      // driven by the repo's `lore-ingest.yml` CI workflow (per-kind jobs POST
+      // to /api/repos/:o/:r/ingest-graph), which fires the spec-trace trigger.
     }
   } catch (err: any) {
     console.error("[ingest] API error:", err.message);

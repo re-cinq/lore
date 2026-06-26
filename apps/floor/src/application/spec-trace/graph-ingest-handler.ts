@@ -26,9 +26,26 @@ interface GraphIngestTask {
   context_bundle?: { kind?: IngestKind; branch?: string; commit?: string; glob?: string; force?: boolean } | null;
 }
 
-interface RepoReader {
+export interface RepoReader {
   tree(ref?: string): Promise<string[]>;
   read(path: string, ref?: string): Promise<string | null>;
+}
+
+/**
+ * The runtime-agnostic projection core: reads the repo's files via the injected
+ * reader and projects `kind` into the graph. Shared by the task path
+ * ({@link handleGraphIngest}) and the trigger path (spec-trace-dispatch) so both
+ * wire `runIngestGraph` the same way.
+ */
+export async function projectRepoGraph(
+  params: { kind: IngestKind; repo: string; ref?: string; glob?: string; force?: boolean },
+  deps: { repo: RepoReader; dgraph: DgraphClientPort | null },
+): Promise<IngestGraphSummary> {
+  return runIngestGraph(params, {
+    dgraph: deps.dgraph,
+    listTree: (r) => deps.repo.tree(r),
+    readFile: async (path, r) => (await deps.repo.read(path, r)) ?? "",
+  });
 }
 
 export interface GraphIngestDeps {
@@ -55,14 +72,10 @@ export async function handleGraphIngest(
   await recordTaskEvent(pool, task.id, "queued", "running");
 
   try {
-    const summary = await runIngestGraph(
+    // No buildTestReport on the cluster → an ingest-tests task self-skips.
+    const summary = await projectRepoGraph(
       { kind, repo: targetRepo, ref, glob: cb.glob, force: cb.force },
-      {
-        dgraph,
-        listTree: (r) => project.repo.tree(r),
-        readFile: async (path, r) => (await project.repo.read(path, r)) ?? "",
-        // No buildTestReport on the cluster → an ingest-tests task self-skips.
-      },
+      { repo: project.repo, dgraph },
     );
     const status = summary.status === "failed" ? "failed" : "completed";
     await pool.query(

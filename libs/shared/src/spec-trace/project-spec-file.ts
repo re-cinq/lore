@@ -312,8 +312,11 @@ async function projectStatement(
   });
 
   // DECIDED_BY: a statement that cites an ADR ("per ADR-016") links to that ADR
-  // node by number — the "why". Best-effort: only ADRs already projected resolve
-  // (run ingest-adrs before ingest-specs to populate them).
+  // node by number — the "why". Best-effort: only ADRs already projected resolve.
+  // specs and adrs project as independent (parallel) CI jobs, so when a spec and
+  // the ADR it cites land in the same push the edge may attach on a later run
+  // (the next time that spec changes, or a force re-projection); in steady state
+  // the ADR is already in the graph from a prior push and resolves immediately.
   const adrRefs = parseAdrRefs(segment.text);
   if (adrRefs.length > 0) {
     const adrUids = await resolveAdrUids(dgraph, repo, adrRefs);
