@@ -32,3 +32,34 @@ export function decideExecutionBackend(args: {
   }
   return "agent-cr";
 }
+
+/**
+ * The cutover routing decision for one task (#688): reads the cluster gate +
+ * graded-rollout percentage from the env and the per-repo backend setting, then defers
+ * to {@link decideExecutionBackend}. `LORE_AGENT_CR_BACKEND_PERCENT` is honored only when
+ * it parses to a finite number; an unset/garbage value routes every eligible task.
+ */
+export function executionBackendForTask(args: {
+  repoBackend?: string;
+  taskId: string;
+  env: NodeJS.ProcessEnv;
+}): ExecutionBackend {
+  const raw = args.env.LORE_AGENT_CR_BACKEND_PERCENT;
+  const parsed = Number(raw);
+  const percent = raw !== undefined && Number.isFinite(parsed) ? parsed : undefined;
+  return decideExecutionBackend({
+    repoBackend: args.repoBackend,
+    clusterEnabled: args.env.LORE_AGENT_CR_BACKEND_ENABLED === "true",
+    ...(percent !== undefined ? { percent } : {}),
+    taskId: args.taskId,
+  });
+}
+
+/** The per-repo opt-in: `settings.dark_factory.execution.backend` from the repo's raw
+ *  settings JSON. Undefined (not set / malformed) keeps the repo on the legacy path. */
+export function repoBackendFromSettings(settings: unknown): string | undefined {
+  if (typeof settings !== "object" || settings === null) return undefined;
+  const execution = (settings as { dark_factory?: { execution?: { backend?: unknown } } })
+    .dark_factory?.execution;
+  return typeof execution?.backend === "string" ? execution.backend : undefined;
+}
