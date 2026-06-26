@@ -77,4 +77,18 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json).toMatchObject({ tasks: { created: [{ id: "t1", kind: "tests" }] } });
   });
+
+  it("returns 503 without firing a doc trigger when a mixed request hits a pool-less server", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as typeof fetch;
+    const res = makeRes();
+    await handleApiRoute(
+      makeReq({ url: "/api/repos/o/r/ingest-graph", method: "POST", headers: AUTH, body: { kinds: ["specs", "tests"] } }),
+      res,
+      null,
+    );
+    expect(res.statusCode).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(createIngestGraphTasks).not.toHaveBeenCalled();
+  });
 });

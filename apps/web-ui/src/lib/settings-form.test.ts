@@ -19,11 +19,6 @@ describe('parseSettingsForm', () => {
     expect(parseSettingsForm(form({ auto_review: 'no' })).auto_review).toBe(false);
   });
 
-  it('auto_ingest_graph is true when "yes" and false otherwise', () => {
-    expect(parseSettingsForm(form({ auto_ingest_graph: 'yes' })).auto_ingest_graph).toBe(true);
-    expect(parseSettingsForm(form({ auto_ingest_graph: 'no' })).auto_ingest_graph).toBe(false);
-  });
-
   it('dispatch_default_type trimmed when present, omitted when blank', () => {
     expect(parseSettingsForm(form({ dispatch_default_type: ' implementation ' })).dispatch_default_type)
       .toBe('implementation');

@@ -37,24 +37,24 @@ export async function handleIngestGraphRoute(
   const docKinds = requested.filter((k) => DOC_KINDS.has(k));
   const taskKinds = requested.filter((k) => !DOC_KINDS.has(k));
 
+  // Decide the pool requirement up front: tests need a live pool, docs don't. A
+  // mixed request must never fire a doc trigger and *then* 503 on the task half
+  // (a partial side effect the caller would read as a clean failure).
+  if (taskKinds.length > 0 && !pool) {
+    json(res, 503, { error: "database unavailable" });
+    return;
+  }
+
   // Docs → fire-and-forget projection trigger, one per kind.
   for (const kind of docKinds) {
     void triggerAgentSpecTrace(repo, kind, { commit: body.commit, force: body.force });
   }
 
-  // Non-doc kinds (tests) still create a pipeline task — they need a live pool.
-  let tasks = null;
-  if (taskKinds.length > 0) {
-    if (!pool) {
-      json(res, 503, { error: "database unavailable" });
-      return;
-    }
-    tasks = await createIngestGraphTasks(pool, repo, {
-      kinds: taskKinds,
-      force: body.force,
-      createdBy: "api",
-    });
-  }
+  // Non-doc kinds (tests) create a pipeline task — pool is non-null past the guard.
+  const tasks =
+    taskKinds.length > 0
+      ? await createIngestGraphTasks(pool!, repo, { kinds: taskKinds, force: body.force, createdBy: "api" })
+      : null;
 
   json(res, 200, { triggered: docKinds, tasks });
 }
