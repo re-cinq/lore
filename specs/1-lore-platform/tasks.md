@@ -200,7 +200,7 @@ results from PostgreSQL via hybrid vector + keyword search in < 200ms.
 - [x] T041 [US6] Upgrade MCP server get_context and get_adrs to query PostgreSQL instead of local files in mcp-server/src/index.ts
 - [x] T042 [US6] Add get_file_pr_history tool to MCP server: queries chunks WHERE content_type=pull_request AND file_path in metadata.files_changed in mcp-server/src/index.ts
 - [x] T043 [US6] Implement degraded-mode fallback: catch PostgreSQL connection errors, fall back to local files, display one-time warning in mcp-server/src/index.ts
-- [x] T044 [P] [US6] Write incremental ingest GitHub Action: on push to main, submit changed files for ingestion in .github/workflows/ingest-context.yml
+- [x] T044 [P] [US6] Write incremental ingest GitHub Action: on push to main, submit changed files for ingestion in .github/workflows/lore-ingest.yml
 - [x] T045 [US6] Deploy scheduled jobs in lore-agent: nightly reindex (2am), weekly gap detection (Mon 9am), weekly spec drift (Mon 10am) — replaced 5 standalone CronJobs with single lore-agent scheduler (ADR-007)
 - [x] T046 [P] [US6] Write PromptFoo eval suite with 5-10 test cases for payments team in evals/payments/promptfooconfig.yaml
 - [x] T047 [P] [US6] Write PromptFoo eval suite with 5-10 test cases for platform team in evals/platform/promptfooconfig.yaml
