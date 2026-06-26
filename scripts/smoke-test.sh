@@ -36,30 +36,13 @@ else
   fail "repo-status: $REPO_STATUS"
 fi
 
-# 3. Create + cancel task
-echo "[smoke] Task lifecycle..."
-TASK=$(curl -sf --max-time 10 -X POST \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"description":"[smoke-test] automated verification — safe to ignore","task_type":"general","target_repo":"re-cinq/lore","created_by":"smoke-test"}' \
-  "$API_URL/api/task" 2>/dev/null || echo "")
-TASK_ID=$(echo "$TASK" | jq -r '.task_id // empty' 2>/dev/null)
-if [ -n "$TASK_ID" ]; then
-  pass "create-task ($TASK_ID)"
-  # Cancel immediately
-  CANCEL=$(curl -sf --max-time 5 -X POST \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{\"task_id\":\"$TASK_ID\",\"action\":\"cancel\"}" \
-    "$API_URL/api/task" 2>/dev/null || echo "")
-  if echo "$CANCEL" | jq -e '.ok == true' >/dev/null 2>&1; then
-    pass "cancel-task"
-  else
-    fail "cancel-task: $CANCEL"
-  fi
-else
-  fail "create-task: $TASK"
-fi
+# NOTE: no task create/cancel check here on purpose. A post-deploy smoke test is
+# a GitHub Actions concern — its verdict belongs on the CI check, not in Lore's
+# task table. POSTing to /api/task left a permanent cancelled row per deploy
+# (cancel is a soft status change, not a delete) that surfaced as a phantom
+# "Failed" assembly-line run and briefly enqueued a real, dispatchable task on
+# prod. healthz + repo-status already prove the service + DB are live. If write-
+# path coverage is ever wanted, use a non-persisting probe (invalid body → 400).
 
 # Summary
 echo ""
