@@ -10,7 +10,6 @@ export interface RepoSettingsShape {
   dispatch_label?: string;
   dispatch_default_type?: string;
   auto_review?: boolean;
-  auto_ingest_graph?: boolean;
   trust?: { level?: string };
   cross_repo_repos?: string[];
 }
@@ -76,12 +75,6 @@ export default function SettingsView({ fullName, team, settings, allRepos, saveA
 
         <label>Auto-review PRs</label>
         <select name="auto_review" defaultValue={settings.auto_review ? 'yes' : 'no'}>
-          <option value="no">No</option>
-          <option value="yes">Yes</option>
-        </select>
-
-        <label>Auto-ingest knowledge graph</label>
-        <select name="auto_ingest_graph" defaultValue={settings.auto_ingest_graph ? 'yes' : 'no'}>
           <option value="no">No</option>
           <option value="yes">Yes</option>
         </select>

@@ -25,14 +25,12 @@ describe('SettingsView (general only)', () => {
       dispatch_default_type: 'general',
       slack_channel_id: 'C123',
       auto_review: true,
-      auto_ingest_graph: true,
       trust: { level: 'full' },
     });
     expect((container.querySelector('input[name="team"]') as HTMLInputElement).value).toBe('platform');
     expect((container.querySelector('input[name="task_types"]') as HTMLInputElement).value).toBe('general, review');
     expect((container.querySelector('input[name="dispatch_default_type"]') as HTMLInputElement).value).toBe('general');
     expect(container.querySelector('select[name="auto_review"]')).toHaveValue('yes');
-    expect(container.querySelector('select[name="auto_ingest_graph"]')).toHaveValue('yes');
     expect(container.querySelector('select[name="trust_level"]')).toHaveValue('full');
   });
 

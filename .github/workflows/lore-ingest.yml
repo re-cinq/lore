@@ -1,4 +1,4 @@
-# lore-ingest-version: 2
+# lore-ingest-version: 3
 # Lore's own ingest workflow — a deliberate superset of the canonical
 # template (extra paths, hard-fail on unset URL). The version marker above
 # is what the dashboard reads to mark this repo's ingest workflow aligned.
@@ -55,3 +55,29 @@ jobs:
             }" \
             "${LORE_API_URL}/api/ingest" \
             || echo "::warning::Lore ingest endpoint returned an error (transient — not blocking merge)"
+
+  # Spec/ADR → spec-traceability graph projection. Each kind is its own job
+  # (parallel via the matrix) so specs and ADRs project independently; the
+  # endpoint fires a fire-and-forget trigger (no pipeline task). Soft-fail.
+  graph:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [specs, adrs]
+    steps:
+      - name: Project ${{ matrix.kind }} into the graph
+        env:
+          LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
+          LORE_API_URL: ${{ vars.LORE_API_URL }}
+        run: |
+          if [ -z "${LORE_API_URL}" ]; then
+            echo "::error::LORE_API_URL repository variable is not set — ${{ matrix.kind }} was NOT projected"
+            exit 1
+          fi
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"kinds\": [\"${{ matrix.kind }}\"], \"commit\": \"${{ github.sha }}\"}" \
+            "${LORE_API_URL}/api/repos/${{ github.repository }}/ingest-graph" \
+            || echo "::warning::Lore ingest-graph endpoint returned an error for ${{ matrix.kind }} (transient — not blocking merge)"

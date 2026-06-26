@@ -43,13 +43,11 @@ export default function IngestButtons({ owner, repo }: { owner: string; repo: st
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button style={{ ...BTN, fontWeight: 600 }} disabled={busy} onClick={() => ingest()}>
-          Build graph (all)
-        </button>
-        <button style={BTN} disabled={busy} onClick={() => ingest(['specs'])}>Ingest specs</button>
-        <button style={BTN} disabled={busy} onClick={() => ingest(['adrs'])}>Ingest ADRs</button>
         <button style={BTN} disabled={busy} onClick={() => ingest(['tests'])}>Ingest tests</button>
       </div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
+        Specs &amp; ADRs are projected automatically by CI on every push to <code>main</code>.
+      </p>
       {status && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{status}</p>}
     </div>
   );

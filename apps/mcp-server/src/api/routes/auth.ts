@@ -91,7 +91,7 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[]
   },
   {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$|\/)/,
-    scope: "admin",
+    scope: "write",
   },
   // Feature planning: list/get are read; create/refine/finalize/split and the
   // pod result POST are write. Method-specific so a read token can poll.

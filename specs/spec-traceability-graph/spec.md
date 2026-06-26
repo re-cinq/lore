@@ -132,16 +132,18 @@ $ npm run trace:drift          # report statements whose linked/covered code cha
 ## Architecture
 
 ```
-┌─────────────  ingest (mcp-server /api/ingest, reindex cron)  ─────────────┐
-│  chunkFile() → chunks + metadata.content_hash = sha256(chunk.content)      │
-│  post-ingest trigger ─────────────────────────────────────────────┐       │
-└────────────────────────────────────────────────────────────────────┼──────┘
-                                                                       ▼
-┌──────────  agent/src/jobs/scheduled/spec-trace.ts (dispatcher)  ──────────┐
-│  reindex change set → fan out small background units (per changed file):  │
-│    • changed spec.md   → projectSpecFile()   (segment → Statement nodes)  │
-│    • changed code/test → driftCheckFile()    (hash compare → flag stmts)  │
-│    • coverage report   → ingestCoverageReport() (COVERS edges)            │
+┌──────────────  CI kickoff (GitHub Actions, per repo — ADR-023)  ──────────┐
+│  lore-ingest.yml  → per-kind matrix [specs, adrs]                          │
+│                     POST /api/repos/:o/:r/ingest-graph  {kinds:[<kind>]}   │
+│  lore-tests.yml   → POST /api/repos/:o/:r/{test-report,coverage}          │
+│  (content embedding still POSTs /api/ingest → chunks + content_hash)       │
+│  each endpoint fires triggerAgentSpecTrace ──────────────────────┐        │
+└───────────────────────────────────────────────────────────────────┼───────┘
+                                                                      ▼
+┌──────  /api/trigger/spec-trace → dispatchSpecTrace (coordinator)  ─────────┐
+│  by kind family — server-side, inside the cluster (Dgraph is internal):    │
+│    • specs / adrs (repo-read) → runIngestGraph(projectSpecFile/AdrFile)    │
+│    • test-report / coverage   → ingestSpecTrace (validated_by / COVERS)    │
 │  generation provenance → parse inline link + // lore:validates + trailer  │
 └───────────────────────────────────┬───────────────────────────────────────┘
                                      ▼  DQL (shared dgraph-client)
@@ -270,7 +272,7 @@ invariant), so the projection is lossless by construction.
 | `shared/src/spec-trace/drift-check-file.ts` | NEW: per-changed-file unit (hash compare → reverse-traverse → flag) |
 | `shared/src/spec-trace/provenance.ts` | NEW: parse inline link + `// lore:validates` annotation + `Lore-Validates:` trailer |
 | `agent/src/jobs/scheduled/spec-trace.ts` | NEW: thin dispatcher fanning out units per changed file |
-| `agent/src/health.ts` | Trigger `spec-trace` post-ingest (alongside `spec-coverage-validate`) |
+| `apps/floor/src/delivery/health.ts` | Host `/api/trigger/spec-trace` → `dispatchSpecTrace` (specs/adrs read-and-project, test-report/coverage payload). Kickoff is **CI-driven** (ADR-023): `lore-ingest.yml`/`lore-tests.yml` POST the mcp-server endpoints, which fire the trigger — not a post-ingest fan-out |
 | `scripts/trace/{project-file,ingest-coverage,drift}.ts` | NEW: local CLIs (`trace:project` / `trace:ingest-coverage` / `trace:drift`) |
 | `agent/src/lib/escalation.ts` / issue machinery | Add `spec-drift` label alongside `spec-link-rot` |
 | `web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx` | Drift/evidence badges per statement (graph-sourced) |

@@ -6,7 +6,6 @@ export function parseSettingsForm(formData: FormData) {
     task_types: (formData.get('task_types') as string || '')
       .split(',').map(s => s.trim()).filter(Boolean),
     auto_review: formData.get('auto_review') === 'yes',
-    auto_ingest_graph: formData.get('auto_ingest_graph') === 'yes',
     cross_repo: selectedRepos.length > 0,
     cross_repo_repos: selectedRepos,
     slack_channel_id: (formData.get('slack_channel_id') as string || '').trim() || undefined,

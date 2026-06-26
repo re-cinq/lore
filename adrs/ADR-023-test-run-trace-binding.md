@@ -85,6 +85,46 @@ ingest created 12 edges or 1200.
   declaration scan (`resolveTestLines`); a test whose leaf name does not match a
   declaration stays line-blind and unbound (graceful — no false anchor).
 
+## Amendment (2026-06-26): specs/ADRs join the same trigger lane, CI-driven
+
+This ADR made the agent's `/api/trigger/spec-trace` handler observable for the
+**payload-carried** kinds (`test-report`, `coverage`). Spec/ADR projection into
+the graph used a *different*, heavier path: an auto fan-out
+(`maybeAutoIngestGraph`) created `ingest-specs` / `ingest-adrs` **pipeline tasks**
+on every ingest, which the coordinator dispatched to `runIngestGraph`. Those
+deterministic, PR-less runs surfaced as junk rows on the Assembly Lines view and
+had no compute justification (projecting markdown is just parsing).
+
+**Decision:** spec/ADR projection now flows through the *same*
+`/api/trigger/spec-trace` lane as test-report/coverage, and the `ingest-specs` /
+`ingest-adrs` pipeline task type is removed.
+
+- The lane handler dispatches by kind family: **payload-carried** kinds
+  (`test-report`, `coverage`) keep going to `ingestSpecTrace`; **repo-read** kinds
+  (`specs`, `adrs`) build the GitHub-backed repo reader (`projectFor`) and run the
+  same `runIngestGraph` core via `projectRepoGraph` — reading the repo at the
+  posted commit and writing Dgraph inside the cluster. (`apps/floor/.../spec-trace-dispatch.ts`.)
+- The **kickoff is CI-owned**, mirroring `lore-tests.yml`: `lore-ingest.yml` fans
+  out one job *per kind* (`strategy.matrix.kind: [specs, adrs]`, `fail-fast: false`)
+  that POSTs `{kinds:[<kind>], commit}` to `/api/repos/:o/:r/ingest-graph`, which
+  fires the trigger. Each kind is its own parallel CI run. The server-side auto
+  fan-out from `/api/ingest` is deleted; the endpoint scope drops `admin`→`write`
+  (no task creation).
+- `ingest-tests` **stays** a graph-ingest task — it runs the project's suite, so it
+  needs a runner / CI sandbox (it also feeds the test-report path above).
+- Observability (point 3) extends to the repo-read family: each run emits a
+  `graphIngestLogLine` + a `spec_trace_ingest` audit row carrying
+  `projected`/`skipped`/`failed`/`status`.
+- **Ordering caveat:** specs and adrs project as independent parallel jobs, so a
+  statement's best-effort `DECIDED_BY` edge to an ADR cited in the *same push* may
+  attach on a later run (next spec change or a `force` re-projection); in steady
+  state the ADR is already in the graph and resolves immediately.
+
+Trade-off: a doc projection no longer has a `pipeline.tasks` row (status history,
+auto-retry). For an idempotent, content-hash-gated markdown parse that re-runs on
+the next ingest, the log line + audit row suffice — the same trade the
+test-report lane already accepts.
+
 ## Alternatives Considered
 
 - **Server-side derivation at ingest.** Let the agent load spec links and stamp

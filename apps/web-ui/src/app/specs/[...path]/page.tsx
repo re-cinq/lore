@@ -27,7 +27,7 @@ export default async function SpecDetailPage({ params }: { params: Promise<{ pat
       </div>
       {docs.length === 0 ? (
         <div className="empty-state">
-          <p>No graph data for &quot;{filePath}&quot;. Build the repo&apos;s graph and run the ingest-specs task.</p>
+          <p>No graph data for &quot;{filePath}&quot;. Specs are projected automatically by CI on push to <code>main</code>.</p>
         </div>
       ) : (
         docs.map(({ repo, source, statements }) => (

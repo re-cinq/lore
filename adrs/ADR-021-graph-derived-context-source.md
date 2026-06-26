@@ -56,7 +56,10 @@ Requirements and test-linked acceptance criteria live in
 - **Bounded by coverage:** the source is only as good as `implemented_by` /
   `validated_by` edge density, which is sparse today (the `IMPLEMENTED_BY`
   projection is still maturing). Until those edges fill in, the source returns
-  empty for most repos — additive, never harmful.
+  empty for most repos — additive, never harmful. The `Statement`/`ADR` nodes this
+  source reads are populated by the spec/ADR projection, which is now CI-driven via
+  the spec-trace trigger (per [ADR-023](ADR-023-test-run-trace-binding.md)), not a
+  pipeline task.
 - **Accepted:** assembly gains one Dgraph read (skippable via the null-port seam);
   the ADR-020 `ts_rank` chunk sources remain the breadth — this adds depth.
 

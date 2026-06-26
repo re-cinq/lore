@@ -66,9 +66,10 @@ JSON body:
      at `${LORE_AGENT_URL}/api/trigger/spec-coverage-validate` with
      `Authorization: Bearer ${LORE_AGENT_INTERNAL_TOKEN}`. No-op (warn) when
      either env var is unset.
-   - `void maybeAutoIngestGraph(pool, repo)` — re-projects the spec-traceability
-     graph, gated on the repo's `settings.auto_ingest_graph` opt-in.
-   Both run after the 200 has already been written.
+   This runs after the 200 has already been written. **Spec/ADR graph
+   re-projection is no longer fired here** — it is CI-driven via the repo's
+   `lore-ingest.yml` (per-kind jobs POST to `/api/repos/:o/:r/ingest-graph`,
+   which fires the spec-trace trigger; see [ADR-023](../../../adrs/ADR-023-test-run-trace-binding.md)).
 9. **Catch** — log `[ingest] API error: <message>` and write 500
    `{ error: err.message }`.
 
@@ -86,36 +87,33 @@ JSON body:
   writes `{team_schema}.chunks` (and `org_shared.chunks`).
 - `triggerAgentSpecCoverageValidate` (`routes/helpers.ts`) — fan-out HTTP POST to
   the agent service.
-- `maybeAutoIngestGraph` (`features/spec-trace/ingest-graph-tasks.ts`) — creates
-  `ingest-<kind>` pipeline tasks in `pipeline.tasks` when opted in.
 - Env: `LORE_AGENT_URL`, `LORE_AGENT_INTERNAL_TOKEN` (fan-out only); auth env
   `LORE_INGEST_TOKEN`, `pipeline.api_tokens` (dispatcher).
 
 ## Acceptance Criteria
 
-A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L25))
+A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L23))
 
-A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L31))
+A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L29))
 
-A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L56))
+A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L54))
 
-A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and fires the spec-coverage trigger when a file lands`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L38))
+A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and fires the spec-coverage trigger when a file lands`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L36))
 
-A landed batch also fires the graph auto-ingest fan-out with the pool and repo. ([validated by `fires the graph auto-ingest fan-out when a file lands`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L64))
+A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and fires the trigger`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L62))
 
-A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and fires the trigger`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L79))
+An all-skipped batch fires no trigger. ([validated by `does not fire the trigger when nothing landed`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L79))
 
-An all-skipped batch fires neither the graph fan-out nor the trigger. ([validated by `does not fire the graph fan-out when nothing landed`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L96)) ([validated by `does not fire the trigger when nothing landed`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L111))
+A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L95))
 
-A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L127))
+A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L111))
 
-A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L143))
-
-The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L53)) ([implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L9))
+The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L57)) ([implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L8))
 
 ## Out of Scope
 
 - The chunking/embedding/persistence engine internals (`ingestFiles`).
-- The spec-traceability graph projection (`maybeAutoIngestGraph` downstream task).
+- The spec-traceability graph projection — CI-driven via `/api/repos/:o/:r/ingest-graph`
+  and the spec-trace trigger (ADR-023), not this route.
 - The agent-side spec-coverage-validate pass.
 - Bearer-token validation mechanics (owned by `auth.ts`).

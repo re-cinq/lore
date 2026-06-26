@@ -9,14 +9,12 @@ export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_ingest_graph",
-    `WRITE side of spec-traceability: creates one ingestion pipeline task per requested kind (specs, adrs, tests) and returns the created task ids under a single group id. Idempotent — in-flight tasks for a kind are skipped. Instead: to READ spec coverage from the built graph use lore-query-trace; to enumerate or run tests locally use lore_list_tests / lore_run_test.`,
+    `WRITE side of spec-traceability for the TEST suite: creates an ingest-tests pipeline task (run it locally / in CI to project test→spec coverage into the graph). Specs and ADRs project automatically via CI (lore-ingest.yml fans out per-kind jobs that fire the projection trigger), not this tool. Idempotent — an in-flight ingest-tests task is skipped. Instead: to READ spec coverage from the built graph use lore-query-trace; to enumerate or run tests locally use lore_list_tests / lore_run_test.`,
     {
       repo: z.string().optional().describe("Target repo as 'owner/repo'. Defaults to the repo detected from cwd git remote."),
-      kinds: z.array(z.enum(["specs", "adrs", "tests"])).optional().describe("Which kinds to ingest. Defaults to all three."),
       ref: z.string().optional().describe("Branch name or commit SHA. Defaults to the repo's default branch."),
-      force: z.boolean().optional().describe("When true, re-processes all specs/adrs files even if content is unchanged. Has no effect on the tests kind."),
     },
-    async ({ repo, kinds, ref, force }) => {
+    async ({ repo, ref }) => {
       try {
         const targetRepo = repo || detectCurrentRepo();
         if (!targetRepo) {
@@ -27,7 +25,7 @@ export function registerSpecTraceTools(server: McpServer, deps: ToolDeps) {
           return { content: [{ type: "text" as const, text: "Database not available — cannot create ingestion tasks." }] };
         }
         const { createIngestGraphTasks } = await import("../../features/spec-trace/ingest-graph-tasks.js");
-        const result = await createIngestGraphTasks(dbPoolRef, targetRepo, { kinds, branch: ref, createdBy: "lore_ingest_graph", force });
+        const result = await createIngestGraphTasks(dbPoolRef, targetRepo, { kinds: ["tests"], branch: ref, createdBy: "lore_ingest_graph" });
         const lines = result.created.map((t) => `  • ${t.kind}: ${t.id}`).join("\n");
         const skippedNote = result.skipped.length ? `\nSkipped (already in flight): ${result.skipped.join(", ")}` : "";
         return { content: [{ type: "text" as const, text: `Created ${result.created.length} ingestion task(s) for ${targetRepo} (group ${result.groupId}):\n${lines}${skippedNote}\n\nRun one locally with: lore_run_task_locally <task_id>` }] };

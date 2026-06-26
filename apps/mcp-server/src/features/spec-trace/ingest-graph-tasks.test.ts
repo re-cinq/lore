@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { createIngestGraphTasks, maybeAutoIngestGraph } from "./ingest-graph-tasks.js";
+import { createIngestGraphTasks } from "./ingest-graph-tasks.js";
 
 /**
- * maybeAutoIngestGraph gates the post-ingest fan-out on the repo's
- * settings.auto_ingest_graph flag. Exercised with a fake pool that records the
- * ingest-* task types inserted (no live DB).
+ * createIngestGraphTasks fans out one ingest-<kind> pipeline task per requested
+ * kind. Exercised with a fake pool that records the inserted task types (no live
+ * DB). Docs (specs/adrs) no longer flow as tasks — they project via the CI-driven
+ * spec-trace trigger — so this path is exercised for the `tests` kind.
  */
 function fakePool(settings: unknown) {
   const insertedTypes: string[] = [];
@@ -22,30 +23,10 @@ function fakePool(settings: unknown) {
   return { pool, insertedTypes };
 }
 
-describe("maybeAutoIngestGraph", () => {
-  it("creates specs+adrs tasks when auto_ingest_graph is enabled", async () => {
-    const f = fakePool({ auto_ingest_graph: true });
-    await maybeAutoIngestGraph(f.pool as never, "o/r");
-    expect(f.insertedTypes).toEqual(["ingest-specs", "ingest-adrs"]);
-  });
-
-  it("does nothing when the setting is off", async () => {
-    const f = fakePool({ auto_ingest_graph: false });
-    await maybeAutoIngestGraph(f.pool as never, "o/r");
-    expect(f.insertedTypes).toEqual([]);
-  });
-
-  it("does nothing when settings are absent", async () => {
-    const f = fakePool(null);
-    await maybeAutoIngestGraph(f.pool as never, "o/r");
-    expect(f.insertedTypes).toEqual([]);
-  });
-});
-
 describe("createIngestGraphTasks", () => {
   it("sets created[].id to the created task's task_id", async () => {
     const f = fakePool({});
-    const result = await createIngestGraphTasks(f.pool as never, "o/r", { kinds: ["specs"] });
-    expect(result.created).toEqual([{ id: "task-id", kind: "specs" }]);
+    const result = await createIngestGraphTasks(f.pool as never, "o/r", { kinds: ["tests"] });
+    expect(result.created).toEqual([{ id: "task-id", kind: "tests" }]);
   });
 });

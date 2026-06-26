@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 export default function GlobalSpecsView({ specs }: { specs: Array<{ repo: string; filePath: string }> }) {
   if (specs.length === 0) {
-    return <p style={{ color: 'var(--text-muted)' }}>No specs in the graph yet. Build a repo&apos;s graph and run the ingest-specs task.</p>;
+    return <p style={{ color: 'var(--text-muted)' }}>No specs in the graph yet. Specs are projected automatically by CI on push to <code>main</code>.</p>;
   }
 
   const byRepo = new Map<string, string[]>();

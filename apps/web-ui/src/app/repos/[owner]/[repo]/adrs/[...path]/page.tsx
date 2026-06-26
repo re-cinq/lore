@@ -26,7 +26,7 @@ export default async function RepoAdrDetail({
         <SpecDocument repo={fullName} content={source} statements={[]} />
       ) : (
         <p style={{ color: 'var(--text-muted)' }}>
-          No graph data for <code>{filePath}</code>. Build the graph and run the <code>ingest-adrs</code> task, then refresh.
+          No graph data for <code>{filePath}</code>. ADRs are projected automatically by CI on push to <code>main</code>; refresh after the next ingest.
         </p>
       )}
     </div>
