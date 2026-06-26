@@ -33,7 +33,7 @@ flowchart TB
 
     subgraph github["GitHub"]
         GH["Repos · PRs · Issues"]
-        GHA["Actions:<br/>ingest-context.yml"]
+        GHA["Actions:<br/>lore-ingest.yml"]
     end
 
     SLACK["Slack /lore"]
