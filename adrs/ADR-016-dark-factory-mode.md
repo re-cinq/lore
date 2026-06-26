@@ -9,6 +9,11 @@ supersedes: ADR-009
 
 # ADR-016: Dark Factory mode
 
+> **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** Dark Factory mode is
+> unchanged, but the tasks it governs now execute on the ai-agent-subsystem's `Agent` CRs
+> (per-repo + percentage cutover via `RoutingStationBackend`), not `LoreTask` CRs. The
+> branch-as-state trailers, auto-merge, and audit log carry over verbatim.
+
 ## Context
 
 Lore today defaults to maximum chatter. Every pipeline task produces
