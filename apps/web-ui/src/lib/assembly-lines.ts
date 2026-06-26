@@ -22,6 +22,8 @@ export interface AssemblyLineTaskRow {
   created_by: string;
   created_at: string;
   updated_at: string;
+  /** Per-task LLM cost; only populated by the repo-scoped view's cost column. */
+  cost_usd?: number;
 }
 
 export type AssemblyLineStatus =
