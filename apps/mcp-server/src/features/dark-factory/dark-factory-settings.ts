@@ -39,13 +39,19 @@ const ExecutionSchema = z.object({
   image: z.string().min(1).max(256).optional(),
 });
 
+// Repo-level execution also carries the cutover backend opt-in (ADR-031, #688):
+// which controller runs this repo's tasks. Per-task-type overrides keep image only.
+const RepoExecutionSchema = ExecutionSchema.extend({
+  backend: z.enum(["agent-cr", "loretask"]).optional(),
+});
+
 export const DarkFactorySettingsSchema = z.object({
   enabled: z.boolean().optional(),
   create_issue: z.enum(["never", "on_gate", "always"]).optional(),
   auto_merge: AutoMergeSchema.optional(),
   review: z.enum(["trust_based", "always", "never"]).optional(),
   notify: z.array(NotifyChannel).optional(),
-  execution: ExecutionSchema.optional(),
+  execution: RepoExecutionSchema.optional(),
 });
 
 /**

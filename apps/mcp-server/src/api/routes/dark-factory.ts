@@ -157,6 +157,9 @@ async function handlePutDarkFactorySettings(
     if (patch.auto_merge) {
       next.auto_merge = { ...(prev.auto_merge ?? {}), ...patch.auto_merge };
     }
+    if (patch.execution) {
+      next.execution = { ...(prev.execution ?? {}), ...patch.execution };
+    }
     settings.dark_factory = next;
 
     // Per-task-type overrides: deep-merge each touched type (and its nested
