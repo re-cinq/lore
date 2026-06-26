@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { serverError } from '@/lib/api-error';
+import { isCancellable } from '@/lib/task-status';
 
 interface Task {
   id: string;
@@ -18,7 +19,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    if (['merged', 'failed', 'cancelled'].includes(task.status)) {
+    if (!isCancellable(task.status)) {
       return NextResponse.json({ error: `Cannot cancel task in ${task.status} state` }, { status: 400 });
     }
 
