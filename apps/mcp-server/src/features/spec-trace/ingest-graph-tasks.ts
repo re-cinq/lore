@@ -10,7 +10,9 @@
 import { randomUUID } from "node:crypto";
 import { createPipelineTask, type PgPool } from "@re-cinq/lore-shared";
 
-const DEFAULT_KINDS = ["specs", "adrs", "tests"];
+// Only `tests` remains a graph-ingest task; specs/adrs project via the
+// CI-driven spec-trace trigger (no task). See ADR-023.
+const DEFAULT_KINDS = ["tests"];
 
 export interface IngestGraphTaskOpts {
   kinds?: string[];
@@ -57,29 +59,4 @@ export async function createIngestGraphTasks(
   }
 
   return { groupId, created, skipped };
-}
-
-/**
- * Auto fan-out: create graph-ingest tasks after an ingest, but only when the
- * repo opted in via `settings.auto_ingest_graph` (default off). Defaults to
- * specs+adrs — `tests` runs the test suite and is local/CI-only, so it stays
- * opt-in. Non-fatal: must never break the ingest path.
- */
-export async function maybeAutoIngestGraph(
-  pool: PgPool,
-  repo: string,
-  opts: { kinds?: string[]; glob?: string } = {},
-): Promise<void> {
-  try {
-    const { rows } = await pool.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
-    const settings = (rows[0]?.settings ?? {}) as { auto_ingest_graph?: boolean };
-    if (!settings.auto_ingest_graph) return;
-    await createIngestGraphTasks(pool, repo, {
-      kinds: opts.kinds ?? ["specs", "adrs"],
-      glob: opts.glob,
-      createdBy: "auto-ingest",
-    });
-  } catch {
-    // Auto fan-out is best-effort and must not break ingestion.
-  }
 }

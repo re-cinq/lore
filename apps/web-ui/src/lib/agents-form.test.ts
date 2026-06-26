@@ -31,7 +31,7 @@ describe('parseAgentForm', () => {
   });
 
   it('carries the approval PR and preserves execution_mode/review_required', () => {
-    const p = parseAgentForm(fd({ is_new: '0', name: 'ingest-specs', execution_mode: 'graph-ingest', review_required: '1', image: 'golang:1.23', approval_pr: 'o/r#5' }));
+    const p = parseAgentForm(fd({ is_new: '0', name: 'ingest-tests', execution_mode: 'graph-ingest', review_required: '1', image: 'golang:1.23', approval_pr: 'o/r#5' }));
     expect(p.def.execution_mode).toBe('graph-ingest');
     expect(p.def.review_required).toBe(true);
     expect(p.approvalPr).toBe('o/r#5');

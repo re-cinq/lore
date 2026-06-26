@@ -18,8 +18,8 @@ export default function SpecListView({
   if (specs.length === 0) {
     return (
       <p style={{ color: 'var(--text-muted)' }}>
-        No specs in the graph yet. Build the graph from the <strong>Graph</strong> tab and run the <code>ingest-specs</code>{' '}
-        task, then refresh.
+        No specs in the graph yet. Specs are projected automatically by CI on every push to <code>main</code> — push a
+        <code>specs/</code> change (or re-run the <strong>lore-ingest</strong> workflow), then refresh.
       </p>
     );
   }

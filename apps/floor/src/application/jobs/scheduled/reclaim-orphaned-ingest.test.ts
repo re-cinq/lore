@@ -9,18 +9,18 @@ import { selectOrphanedIngestTasks } from "./reclaim-orphaned-ingest.js";
  * here — they go to the 6h human-escalation path so a genuinely broken task
  * doesn't re-run-loop.
  */
-const GRAPH_TYPES = new Set(["ingest-specs", "ingest-adrs", "ingest-tests"]);
+const GRAPH_TYPES = new Set(["ingest-tests"]);
 
 describe("selectOrphanedIngestTasks", () => {
   it("selects a graph-ingest task idle past the threshold", () => {
     expect(
-      selectOrphanedIngestTasks([{ id: "t1", task_type: "ingest-specs", idle_minutes: 20 }], GRAPH_TYPES, 15),
+      selectOrphanedIngestTasks([{ id: "t1", task_type: "ingest-tests", idle_minutes: 20 }], GRAPH_TYPES, 15),
     ).toEqual(["t1"]);
   });
 
   it("ignores a graph-ingest task still within the threshold (legitimately running)", () => {
     expect(
-      selectOrphanedIngestTasks([{ id: "t1", task_type: "ingest-specs", idle_minutes: 3 }], GRAPH_TYPES, 15),
+      selectOrphanedIngestTasks([{ id: "t1", task_type: "ingest-tests", idle_minutes: 3 }], GRAPH_TYPES, 15),
     ).toEqual([]);
   });
 

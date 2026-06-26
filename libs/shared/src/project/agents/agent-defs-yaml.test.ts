@@ -27,7 +27,7 @@ beforeAll(() => {
       "    timeout_minutes: 30",
       "    review_required: true",
       "    model: claude-sonnet-4-6",
-      "  ingest-specs:",
+      "  ingest-tests:",
       '    prompt_template: ""',
       "    timeout_minutes: 10",
       "    review_required: false",
@@ -58,7 +58,7 @@ describe("AgentDefsYaml", () => {
   it("maps a zero-LLM ingest type with no model and graph-ingest mode", async () => {
     const store = new AgentDefsYaml(path);
 
-    expect(await store.resolve("re-cinq/lore", "ingest-specs")).toMatchObject({
+    expect(await store.resolve("re-cinq/lore", "ingest-tests")).toMatchObject({
       model: null,
       prompt: null,
       execution_mode: "graph-ingest",
@@ -70,7 +70,7 @@ describe("AgentDefsYaml", () => {
 
     expect((await store.list("re-cinq/lore")).map((a) => a.name)).toEqual([
       "general",
-      "ingest-specs",
+      "ingest-tests",
     ]);
   });
 

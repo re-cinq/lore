@@ -26,8 +26,8 @@ describe("getRequiredScope", () => {
     expect(getRequiredScope("/api/repos/o/r/settings/dark-factory?x=1")).toBe("admin");
   });
 
-  it("returns admin for the ingest-graph route", () => {
-    expect(getRequiredScope("/api/repos/o/r/ingest-graph")).toBe("admin");
+  it("returns write for the ingest-graph route (no longer creates tasks for docs)", () => {
+    expect(getRequiredScope("/api/repos/o/r/ingest-graph")).toBe("write");
   });
 
   it("returns read for a GET on the agent-definitions route (runner resolve)", () => {
