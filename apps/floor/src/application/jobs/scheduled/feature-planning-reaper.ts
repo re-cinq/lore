@@ -20,7 +20,7 @@
  */
 
 import { query } from "../../../data/db.js";
-import { projectFor, stationBackend } from "../../../application/project-boot.js";
+import { projectFor, stationBackend, loadRepoBackend } from "../../../application/project-boot.js";
 import {
   decidePlanningRecovery,
   latestReadyGap,
@@ -45,7 +45,6 @@ export async function featurePlanningReaperJob(): Promise<string> {
   );
   if (rows.length === 0) return "No stuck planning features";
 
-  const station = stationBackend();
   const now = Date.now();
   let orphaned = 0;
   let transitioned = 0;
@@ -56,6 +55,8 @@ export async function featurePlanningReaperJob(): Promise<string> {
       const feature = await project.features.get(row.id);
       if (!feature) continue;
 
+      // Per-repo router (#688) so isActive probes the backend this repo's round ran on.
+      const station = stationBackend(await loadRepoBackend(row.repo));
       const latest = feature.iterations[feature.iterations.length - 1];
       const isActive =
         latest?.status === "running" && latest.task_id ? await station.isActive(latest.task_id) : true;
