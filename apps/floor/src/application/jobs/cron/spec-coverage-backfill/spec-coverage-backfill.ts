@@ -35,10 +35,10 @@ import {
   type Judgment,
   type MatchKind,
 } from "@re-cinq/lore-shared";
-import { query } from "../../../data/db.js";
+import { query } from "../../../../data/db.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { projectFor } from "../../../application/project-boot.js";
-import { isAssertionSource } from "./spec-drift-rules.js";
+import { projectFor } from "../../../../application/project-boot.js";
+import { isAssertionSource } from "../spec-drift/spec-drift-rules.js";
 
 // ── Pure helper: which statements need backfill? ───────────────────
 

@@ -1,4 +1,4 @@
-import { query } from "../../../data/db.js";
+import { query } from "../../../../data/db.js";
 
 export async function ttlCleanupJob(): Promise<string> {
   const result = await query<{ count: string }>(

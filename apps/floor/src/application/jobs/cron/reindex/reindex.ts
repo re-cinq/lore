@@ -1,5 +1,5 @@
-import { query, getPool } from "../../../data/db.js";
-import { projectFor } from "../../../application/project-boot.js";
+import { query, getPool } from "../../../../data/db.js";
+import { projectFor } from "../../../../application/project-boot.js";
 import { chunkFile, classifyFile, buildIngestedChunkMetadata } from "@re-cinq/lore-shared";
 
 interface OnboardedRepo {

@@ -6,7 +6,7 @@
  * (which compresses the body and strips trailers).
  */
 
-import { isDriftTask, DRIFT_ISSUE_GUIDANCE, type DriftTaskLike } from "../jobs/cron/drift-issue-guidance.js";
+import { isDriftTask, DRIFT_ISSUE_GUIDANCE, type DriftTaskLike } from "../jobs/cron/spec-drift/drift-issue-guidance.js";
 
 export interface IssueComposeTask extends DriftTaskLike {
   id: string;
