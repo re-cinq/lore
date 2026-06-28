@@ -35,12 +35,6 @@ env:
   # here for the commit-walk + trailer parsing. Stays inside the cluster
   # rather than hairpinning through the public ingress.
   LORE_API_URL: http://lore-mcp.mcp-servers.svc.cluster.local:3000
-  # Platform dark-factory cluster gate — mirror of the agent deployment's flag
-  # (agent-helm/values.yaml). The Dark Factory console reads it to show honest
-  # EFFECTIVE activation: a repo is only running dark-mode when BOTH this and
-  # the repo's dark_factory.enabled are true. Keep in lockstep with the agent's
-  # value. Override with --set-string (not --set) to avoid YAML bool coercion.
-  LORE_DARK_FACTORY_CLUSTER_ENABLED: "false"
 
 # Schema migrations applied as a pre-install/pre-upgrade hook Job before the UI
 # rolls out. SQL lives in migrations/*.sql; tracked in lore.schema_migrations.

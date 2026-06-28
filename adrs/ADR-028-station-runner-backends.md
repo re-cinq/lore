@@ -9,10 +9,11 @@ domains: [agent, pipeline, infra]
 # ADR-028: Station runner backends
 
 > **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** The `StationBackend`
-> port this ADR introduced still holds — but the **LoreTask** backend described below is
-> being retired. The ai-agent-subsystem adds new implementations under the same port
-> (`AgentBackend`, `GraphStationBackend`) selected per task by `RoutingStationBackend`
-> (the graded cutover). The port abstraction is what made that swap a drop-in.
+> port this ADR introduced still holds — but the **LoreTask** and **Docker** backends
+> described below have been **removed**. The ai-agent-subsystem (`AgentBackend` +
+> `GraphStationBackend`) is now the sole implementation; the `RoutingStationBackend`
+> cutover router and the per-repo backend opt-in are gone. The port abstraction is what
+> made that swap a drop-in.
 
 ## Context
 

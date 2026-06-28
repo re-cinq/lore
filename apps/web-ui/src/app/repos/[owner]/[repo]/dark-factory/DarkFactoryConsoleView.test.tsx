@@ -8,7 +8,6 @@ import { resolveDarkFactorySettings } from '@/lib/dark-factory-resolve';
 const model = (over: Partial<Parameters<typeof deriveDarkFactoryConsole>[0]> = {}) =>
   deriveDarkFactoryConsole({
     resolved: resolveDarkFactorySettings({ enabled: true }),
-    clusterGateEnabled: true,
     trustLevel: 'implementation',
     tasks: [],
     decisions: [],
@@ -16,15 +15,14 @@ const model = (over: Partial<Parameters<typeof deriveDarkFactoryConsole>[0]> = {
   });
 
 describe('DarkFactoryConsoleView', () => {
-  it('shows the Active badge when the repo is enabled and the cluster gate is on', () => {
+  it('shows the Active badge when the repo is enabled', () => {
     render(<DarkFactoryConsoleView owner="re-cinq" repo="lore" model={model()} />);
     expect(screen.getByText(/^active$/i)).toBeTruthy();
   });
 
-  it('surfaces the cluster-gate reason when enabled but the cluster gate is off', () => {
-    render(<DarkFactoryConsoleView owner="re-cinq" repo="lore" model={model({ clusterGateEnabled: false })} />);
-    expect(screen.getByText(/^inactive$/i)).toBeTruthy();
-    expect(screen.getByText(/cluster gate/i)).toBeTruthy();
+  it('shows the Disabled badge when the repo is not enabled', () => {
+    render(<DarkFactoryConsoleView owner="re-cinq" repo="lore" model={model({ resolved: resolveDarkFactorySettings({ enabled: false }) })} />);
+    expect(screen.getByText(/^disabled$/i)).toBeTruthy();
   });
 
   it('renders work items and the decision feed', () => {

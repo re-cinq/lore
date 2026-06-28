@@ -12,7 +12,6 @@ export interface DarkFactoryViewProps {
   fullName: string;
   resolved: ResolvedDarkFactorySettings;
   rawImage?: string;
-  rawBackend?: string;
   defaultExecutionImage: string;
   saveAction: (prev: SaveState, formData: FormData) => Promise<SaveState>;
 }
@@ -21,7 +20,6 @@ export default function DarkFactoryView({
   fullName,
   resolved,
   rawImage,
-  rawBackend,
   defaultExecutionImage,
   saveAction,
 }: DarkFactoryViewProps) {
@@ -95,12 +93,6 @@ export default function DarkFactoryView({
 
         <label>Execution image (BYO toolchain)</label>
         <input name="df_execution_image" defaultValue={rawImage ?? ''} placeholder={defaultExecutionImage} />
-
-        <label>Execution backend (cutover opt-in)</label>
-        <select name="df_execution_backend" defaultValue={rawBackend ?? 'loretask'}>
-          <option value="loretask">LoreTask (legacy)</option>
-          <option value="agent-cr">ai-agent-subsystem (agent-cr)</option>
-        </select>
 
         <h3 className={styles.section}>Approval PR (for gated changes)</h3>
         <span className={`meta ${styles.hint}`}>
