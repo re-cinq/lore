@@ -26,29 +26,38 @@ single Claude-CLI/API-plus-prompt run.
 
 ## Layout
 
-The source is layered (delivery → application → adapters → data → ports):
+The source is sliced **vertically by domain** — each top-level folder under
+`src/` owns its port + implementation + orchestration + colocated tests (the
+`libs/shared/src/project/<domain>/` pattern). Two folders are special: `kernel/`
+is the shared substrate every domain may import and that imports nothing above
+it; `delivery/` is the entry-point tier (the `dist/delivery/*` deploy contract)
+that nothing else imports. The invariant is enforced by
+[`src/domain-boundaries.test.ts`](./src/domain-boundaries.test.ts).
 
 ```
 src/
-  delivery/          entrypoints
-    index.ts             main service: in-process scheduler + worker + health (:8080)
-    job-runner.ts        batch CronJob pod entry — `node dist/delivery/job-runner.js <jobName>`
-    loretask-controller-main.ts   LoreTask CR controller entry
-    runner-cli.ts        Job-pod CLI entry for the Dark Factory workflow supervisor
-    health.ts            health/status HTTP server
-  application/        orchestration & business logic
-    orchestrator.ts      task orchestration
-    task-processing/     the worker (claim, run, recover stale tasks)
-    scheduling/          cron scheduler
-    jobs/cron/           batch jobs (reindex, gap-detect, spec-drift, memory lifecycle, ...)
-    jobs/scheduled/      in-process jobs (loretask-watcher, review-reactor, merge-check, ...)
-    loretask-controller/ controller reconcile loop
-    spec-trace/          spec→test trace ingestion
-  adapters/          outbound integrations (github, k8s, anthropic-cost, dark-factory,
-                     audit, episode-writer, escalation, lease-backend, pr-policy, approval, ...)
-  data/              db pool, config loader, repositories/
-  ports/             platform.ts (CodePlatform port)
+  kernel/         shared substrate: db pool, config, agent-invocation,
+                  repositories/, platform-port.ts (CodePlatform) — imported by all
+  composition/    project-boot.ts — the wiring root (the one place impls are wired)
+  delivery/       entrypoints (FROZEN deploy paths): index, job-runner,
+                  loretask-controller-main, runner-cli, gen-catalog, health
+  station/        Station execution units — the StationBackend impls + routers
+                  (agent-cr, k8s-loretask, docker) + kube plumbing
+  assembly-line/  the workflow graph of Stations (floor-graph + run)
+  agent/          Agent-CR catalog seed + telemetry sink
+  task/           the worker, orchestrator, and per-task-type handlers
+  spec-trace/     spec→test graph ingest, audit, drift, coverage backfill/validate
+  loretask/       LoreTask CR controller + Job-spec builder
+  watcher/        Agent/LoreTask CR → PR watchers
+  merge/          auto-merge decision + triggers + merge-outcome capture
+  dark-factory/   dark-mode settings, approval ceremony, audit, baseline
+  platform/       GitHub (CodePlatform impl), PR policy/copy, escalation
+  lease/  memory/  cost/  review/  scheduling/  context-jobs/   (one domain each)
 ```
+
+Cron/scheduled jobs live with the domain they serve (e.g. `memory-lifecycle`
+under `memory/`, `spec-drift` under `spec-trace/`); `delivery/job-runner.ts`
+dispatches them by name.
 
 ## Develop
 

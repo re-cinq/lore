@@ -52,15 +52,15 @@ import {
   runClaudeCode,
   type Workflow,
 } from "@re-cinq/lore-runner";
-import { buildPrompt, getTaskTypeConfig, loadTaskTypes } from "../data/config.js";
+import { buildPrompt, getTaskTypeConfig, loadTaskTypes } from "../kernel/config.js";
 import { PLANNING_INSTRUCTIONS } from "@re-cinq/lore-shared/feature-planning/planning-instructions.js";
 import { AgentDefsHttp } from "@re-cinq/lore-shared/project/agents/agent-defs-http.js";
 import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-yaml.js";
 import type { AgentDefinition } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";
-import { writeEpisode, writeEpisodeWithCuration } from "../adapters/episode-writer.js";
-import { writeAuditLog } from "../adapters/audit.js";
-import { leaseBackendForEnv } from "../adapters/lease-backend.js";
-import { initPool, query } from "../data/db.js";
+import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
+import { writeAuditLog } from "../dark-factory/audit.js";
+import { leaseBackendForEnv } from "../lease/lease-backend.js";
+import { initPool, query } from "../kernel/db.js";
 
 /** Logs one pipeline.llm_calls row. Injected into runClaudeCode in cluster mode. */
 async function logLlmCall(r: {

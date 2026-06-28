@@ -8,28 +8,28 @@
  * scheduler), and exits 0 / non-zero based on outcome.
  */
 
-import { initPool, getPool } from "../data/db.js";
+import { initPool, getPool } from "../kernel/db.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { anthropicCostSyncJob } from "../application/jobs/cron/anthropic-cost-sync/index.js";
-import { autoresearchJob } from "../application/jobs/cron/autoresearch/index.js";
-import { contextCoreBuilderJob } from "../application/jobs/cron/context-core-builder/index.js";
-import { evalRunnerJob } from "../application/jobs/cron/eval-runner/index.js";
-import { gapDetectJob } from "../application/jobs/cron/gap-detect/index.js";
+import { anthropicCostSyncJob } from "../cost/anthropic-cost-sync/index.js";
+import { autoresearchJob } from "../context-jobs/autoresearch/index.js";
+import { contextCoreBuilderJob } from "../context-jobs/context-core-builder/index.js";
+import { evalRunnerJob } from "../context-jobs/eval-runner/index.js";
+import { gapDetectJob } from "../context-jobs/gap-detect/index.js";
 import {
   consolidationJob,
   importanceDecayJob,
-} from "../application/jobs/cron/memory-lifecycle/index.js";
-import { reindexJob } from "../application/jobs/cron/reindex/index.js";
-import { specDriftJob } from "../application/jobs/cron/spec-drift/index.js";
-import { specCoverageBackfillJob } from "../application/jobs/cron/spec-coverage-backfill/index.js";
-import { validateSpecCoverageJob } from "../application/jobs/scheduled/spec-coverage-validate.js";
-import { ttlCleanupJob } from "../application/jobs/cron/ttl-cleanup/index.js";
+} from "../memory/memory-lifecycle/index.js";
+import { reindexJob } from "../context-jobs/reindex/index.js";
+import { specDriftJob } from "../spec-trace/spec-drift/index.js";
+import { specCoverageBackfillJob } from "../spec-trace/spec-coverage-backfill/index.js";
+import { validateSpecCoverageJob } from "../spec-trace/spec-coverage-validate.js";
+import { ttlCleanupJob } from "../memory/ttl-cleanup/index.js";
 import {
   startJobRun,
   completeJobRun,
   failJobRun,
-} from "../adapters/job-run.js";
-import { jobRunLogKey, writeJobRunLogs } from "../adapters/log-storage.js";
+} from "../scheduling/job-run.js";
+import { jobRunLogKey, writeJobRunLogs } from "../scheduling/log-storage.js";
 
 type JobHandler = () => Promise<string>;
 

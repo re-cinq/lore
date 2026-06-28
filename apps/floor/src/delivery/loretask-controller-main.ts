@@ -6,7 +6,7 @@
  */
 
 import { createServer } from "node:http";
-import { startController } from "../application/loretask-controller/loretask-controller.js";
+import { startController } from "../loretask/loretask-controller.js";
 
 const PORT = parseInt(process.env.HEALTH_PORT || "8081", 10);
 
