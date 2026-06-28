@@ -14,7 +14,7 @@
  */
 
 import { scoreImportance } from "@re-cinq/lore-shared";
-import { query } from "../../../data/db.js";
+import { query } from "../../../../data/db.js";
 import { Llm } from "@re-cinq/lore-shared";
 
 // ── Config ──────────────────────────────────────────────────────────

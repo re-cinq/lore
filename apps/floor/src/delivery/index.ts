@@ -38,7 +38,7 @@ async function main(): Promise<void> {
 
   // In-process jobs: sub-minute, hot-path, or webhook-coupled. The 10
   // batch jobs that used to live here now run as K8s CronJob pods via
-  // dist/job-runner.js — see ADR-019 and agent/src/jobs/cron/README.md.
+  // dist/job-runner.js — see ADR-019 and application/jobs/cron/README.md.
   registerJob("merge_check", "*/1 * * * *", mergeCheckJob);
   registerJob("approval_check", "*/1 * * * *", approvalCheckJob);
   // Safety-net cron for review reactor. Primary trigger is the

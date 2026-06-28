@@ -10,20 +10,20 @@
 
 import { initPool, getPool } from "../data/db.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { anthropicCostSyncJob } from "../application/jobs/cron/anthropic-cost-sync.js";
-import { autoresearchJob } from "../application/jobs/cron/autoresearch.js";
-import { contextCoreBuilderJob } from "../application/jobs/cron/context-core-builder.js";
-import { evalRunnerJob } from "../application/jobs/cron/eval-runner.js";
-import { gapDetectJob } from "../application/jobs/cron/gap-detect.js";
+import { anthropicCostSyncJob } from "../application/jobs/cron/anthropic-cost-sync/index.js";
+import { autoresearchJob } from "../application/jobs/cron/autoresearch/index.js";
+import { contextCoreBuilderJob } from "../application/jobs/cron/context-core-builder/index.js";
+import { evalRunnerJob } from "../application/jobs/cron/eval-runner/index.js";
+import { gapDetectJob } from "../application/jobs/cron/gap-detect/index.js";
 import {
   consolidationJob,
   importanceDecayJob,
-} from "../application/jobs/cron/memory-lifecycle.js";
-import { reindexJob } from "../application/jobs/cron/reindex.js";
-import { specDriftJob } from "../application/jobs/cron/spec-drift.js";
-import { specCoverageBackfillJob } from "../application/jobs/cron/spec-coverage-backfill.js";
+} from "../application/jobs/cron/memory-lifecycle/index.js";
+import { reindexJob } from "../application/jobs/cron/reindex/index.js";
+import { specDriftJob } from "../application/jobs/cron/spec-drift/index.js";
+import { specCoverageBackfillJob } from "../application/jobs/cron/spec-coverage-backfill/index.js";
 import { validateSpecCoverageJob } from "../application/jobs/scheduled/spec-coverage-validate.js";
-import { ttlCleanupJob } from "../application/jobs/cron/ttl-cleanup.js";
+import { ttlCleanupJob } from "../application/jobs/cron/ttl-cleanup/index.js";
 import {
   startJobRun,
   completeJobRun,
