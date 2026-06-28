@@ -1,13 +1,13 @@
 import { createServer } from "node:http";
 import { createDgraphClient } from "@re-cinq/lore-shared";
-import { query, isDbAvailable } from "../data/db.js";
-import { writeAuditLog } from "../adapters/audit.js";
-import { dispatchSpecTrace } from "../application/spec-trace/spec-trace-dispatch.js";
-import { projectFor } from "../application/project-boot.js";
-import { runReviewReactorForPR } from "../application/jobs/scheduled/review-reactor.js";
-import { validateSpecCoverageJob } from "../application/jobs/scheduled/spec-coverage-validate.js";
-import { tryAutoMergeForCompletedTask } from "../application/jobs/auto-merge-trigger.js";
-import { parseAgentEvents } from "../adapters/agent-events.js";
+import { query, isDbAvailable } from "../kernel/db.js";
+import { writeAuditLog } from "../dark-factory/audit.js";
+import { dispatchSpecTrace } from "../spec-trace/spec-trace-dispatch.js";
+import { projectFor } from "../composition/project-boot.js";
+import { runReviewReactorForPR } from "../review/review-reactor.js";
+import { validateSpecCoverageJob } from "../spec-trace/spec-coverage-validate.js";
+import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
+import { parseAgentEvents } from "../agent/agent-events.js";
 
 const startTime = Date.now();
 
