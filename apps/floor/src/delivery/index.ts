@@ -9,7 +9,6 @@ import { loadApprovalConfig } from "../dark-factory/approval.js";
 import { approvalCheckJob } from "../dark-factory/approval-check.js";
 import { mergeCheckJob } from "../merge/merge-check.js";
 import { reviewReactorJob } from "../review/review-reactor.js";
-import { loretaskWatcherJob } from "../watcher/loretask-watcher.js";
 import { agentWatcherJob } from "../watcher/agent-watcher.js";
 import { specTaskExecutorJob } from "../task/spec-task-executor.js";
 import { staleTaskCheckJob } from "../task/stale-task-check.js";
@@ -46,8 +45,7 @@ async function main(): Promise<void> {
   // webhook delivery was dropped. Fires hourly Mon-Fri 07:07-17:07 UTC
   // (roughly 09-19 CET/CEST); the job itself gates on business hours.
   registerJob("review_reactor", "7 7-17 * * 1-5", reviewReactorJob);
-  registerJob("loretask_watcher", "*/1 * * * *", loretaskWatcherJob);
-  // ADR-031 cutover: polls Agent CRs, runs alongside loretask_watcher (disjoint groups).
+  // Polls Agent CRs (ai-agent-subsystem) and creates the PR on completion.
   registerJob("agent_watcher", "*/1 * * * *", agentWatcherJob);
   registerJob("spec_task_executor", "*/1 * * * *", specTaskExecutorJob);
   registerJob("stale_task_check", "17 * * * *", staleTaskCheckJob);    // hourly at :17

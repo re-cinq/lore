@@ -60,16 +60,10 @@ describe("parseDarkFactorySettings", () => {
     ).toThrow();
   });
 
-  it("accepts an execution backend opt-in", () => {
+  it("accepts an execution image override", () => {
     expect(
-      parseDarkFactorySettings({ execution: { backend: "agent-cr" } }),
-    ).toEqual({ execution: { backend: "agent-cr" } });
-  });
-
-  it("rejects an unknown execution backend", () => {
-    expect(() =>
-      parseDarkFactorySettings({ execution: { backend: "skynet" } }),
-    ).toThrow();
+      parseDarkFactorySettings({ execution: { image: "golang:1.23" } }),
+    ).toEqual({ execution: { image: "golang:1.23" } });
   });
 });
 

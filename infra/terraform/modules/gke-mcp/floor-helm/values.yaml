@@ -54,27 +54,11 @@ env:
   # calls amortize the 1.25x write premium). Use "none" to disable 1h
   # everywhere, "*" to enable for all jobs. See agent/src/lib/prompt-cache.ts.
   LORE_CACHE_1H_JOBS: "auto-curation,review_reactor,fact-extraction,graph-extraction"
-  # Dark-factory cluster path gate (ADR-016, PR #310). When "true",
-  # dark-mode repos route impl/general/review tasks through the in-pod
-  # supervisor (`/app/dist/delivery/runner-cli.js`); when "false",
-  # those tasks continue through the legacy `claude --print` path.
-  # Required state before flipping to "true": claude-runner image must
-  # ship the agent dist (PR #311). The helm default stays "false" until
-  # a pilot repo has soaked at "true" via override — see
-  # runbooks/dark-factory-rollback.md → "Cluster path enablement".
-  LORE_DARK_FACTORY_CLUSTER_ENABLED: "false"
-  # Station execution backend (ADR-028). On the cluster we run Stations as K8s
-  # LoreTask Job pods. Explicit here, though the in-cluster default
-  # (KUBERNETES_SERVICE_HOST present → k8s) already resolves the same — local dev
-  # sets "docker". Never set this to "docker" on the cluster.
+  # Station execution backend (ADR-028). On the cluster, cluster tasks dispatch
+  # Agent CRs to the ai-agent-subsystem (agent-cr); "k8s" is explicit here though
+  # the in-cluster default (KUBERNETES_SERVICE_HOST present → k8s) resolves the
+  # same. Only the feature-planning/finalize "inprocess" escape hatch reads this.
   LORE_STATION_BACKEND: "k8s"
-  # ai-agent-subsystem cutover gate (ADR-031, #688; runbook floor-graph-gke-cutover.md §5).
-  # Binary on/off: when "true", the Floor routes a repo's tasks through the agent-cr backend
-  # (Agent CRs on the ai-agents controller) IF that repo also opts in via
-  # settings.dark_factory.execution.backend = "agent-cr". Both gates on → agent-cr, otherwise
-  # legacy LoreTask. Quoted string to avoid YAML bool coercion. Flip ENABLED back to "false"
-  # to revert every task to LoreTask on the next dispatch.
-  LORE_AGENT_CR_BACKEND_ENABLED: "true"
   # Bot login the auto-merge gate accepts as the "bot APPROVED" review.
   # Must match the GitHub App slug installed on the org (visible in
   # the App's settings page). If misconfigured, no PR will satisfy

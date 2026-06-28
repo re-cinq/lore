@@ -4,7 +4,6 @@ import styles from './DarkFactoryConsoleView.module.css';
 
 const BADGE_CLASS: Record<string, string> = {
   active: styles.active,
-  inactive: styles.inactive,
   disabled: styles.disabled,
 };
 
@@ -32,7 +31,6 @@ export default function DarkFactoryConsoleView({
         </div>
         <div className={styles.gates}>
           <span>Repo gate: {activation.repoEnabled ? '✓ enabled' : '✗ disabled'}</span>
-          <span>Platform gate: {activation.clusterGateEnabled ? '✓ on' : '✗ off'}</span>
           <span>Trust: {trustLevel}</span>
         </div>
         <p className="meta">

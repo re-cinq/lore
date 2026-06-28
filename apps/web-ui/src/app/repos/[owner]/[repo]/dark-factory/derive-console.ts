@@ -1,10 +1,8 @@
 /**
  * Pure view-model deriver for the Dark Factory console tab. Folds the resolved
- * settings, the platform cluster gate, the repo's recent tasks, and its
- * dark-factory audit events into a render-ready model (container/presentational,
- * data-down). The key honesty: activation is `active` ONLY when the repo is
- * enabled AND the cluster gate is on — so the console never claims a repo runs
- * dark-mode when the cluster gate would route it to the legacy path.
+ * settings, the repo's recent tasks, and its dark-factory audit events into a
+ * render-ready model (container/presentational, data-down). Activation is
+ * `active` when the repo is enabled (all tasks run on the agent-cr subsystem).
  */
 
 import type { ResolvedDarkFactorySettings } from '@/lib/dark-factory-resolve';
@@ -25,19 +23,17 @@ export interface ConsoleAuditEvent {
 
 export interface DarkFactoryConsoleInput {
   resolved: ResolvedDarkFactorySettings;
-  clusterGateEnabled: boolean;
   trustLevel: string;
   tasks: ConsoleTask[];
   decisions: ConsoleAuditEvent[];
 }
 
-export type ActivationState = 'active' | 'inactive' | 'disabled';
+export type ActivationState = 'active' | 'disabled';
 
 export interface Activation {
   state: ActivationState;
   reason: string;
   repoEnabled: boolean;
-  clusterGateEnabled: boolean;
 }
 
 export interface WorkItem {
@@ -62,17 +58,11 @@ export interface DarkFactoryConsoleModel {
   decisions: DecisionItem[];
 }
 
-function deriveActivation(repoEnabled: boolean, clusterGateEnabled: boolean): Pick<Activation, 'state' | 'reason'> {
+function deriveActivation(repoEnabled: boolean): Pick<Activation, 'state' | 'reason'> {
   if (!repoEnabled) {
     return { state: 'disabled', reason: 'Repo opted out — dark_factory.enabled is false.' };
   }
-  if (!clusterGateEnabled) {
-    return {
-      state: 'inactive',
-      reason: 'Platform cluster gate off — LORE_DARK_FACTORY_CLUSTER_ENABLED is not true, so tasks still run the legacy path.',
-    };
-  }
-  return { state: 'active', reason: 'Repo enabled and platform cluster gate on.' };
+  return { state: 'active', reason: 'Repo enabled — tasks run on the agent-cr subsystem.' };
 }
 
 function summarize(event: ConsoleAuditEvent): string {
@@ -94,9 +84,8 @@ function summarize(event: ConsoleAuditEvent): string {
 export function deriveDarkFactoryConsole(input: DarkFactoryConsoleInput): DarkFactoryConsoleModel {
   return {
     activation: {
-      ...deriveActivation(input.resolved.enabled, input.clusterGateEnabled),
+      ...deriveActivation(input.resolved.enabled),
       repoEnabled: input.resolved.enabled,
-      clusterGateEnabled: input.clusterGateEnabled,
     },
     config: input.resolved,
     trustLevel: input.trustLevel,

@@ -336,25 +336,15 @@ async function processTask(task: any): Promise<void> {
     } else if (task.task_type === "feature-request") {
       await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
     } else {
-      // All other task types run as ephemeral Job pods via LoreTask CRD.
-      // For dark-mode repos with a workflow defined for the task type,
-      // pass the workflow name through to the LoreTask spec — the
-      // controller sets LORE_DARK_FACTORY_WORKFLOW on the pod env, and
-      // entrypoint.sh routes to the supervisor CLI instead of the
-      // legacy claude --print flow.
+      // All other task types dispatch an Agent CR (agent-cr / ai-agent-subsystem).
+      // For dark-mode repos with a workflow defined for the task type, pass the
+      // workflow name through so AgentCrStationBackend runs the Floor-side graph
+      // (one Agent CR per node) instead of a single Agent.
       //
-      // Gated behind LORE_DARK_FACTORY_CLUSTER_ENABLED until the
-      // claude-runner image ships the agent build at /app/dist/. Without
-      // the gate, a dark-mode repo firing impl/general/review between
-      // this PR landing and the Dockerfile follow-up landing would
-      // produce Job pods that fail on the first line of the dark-factory
-      // branch in entrypoint.sh.
-      const clusterEnabled =
-        process.env.LORE_DARK_FACTORY_CLUSTER_ENABLED === "true";
-      // feature-planning/finalize always run their workflow in the Station (ADR-028),
-      // regardless of the dark-factory cluster gate. Others need both gates on.
+      // feature-planning/finalize always run their workflow in the Station
+      // (ADR-028); other types need the repo's dark-factory mode enabled.
       const darkFactoryWorkflow =
-        isFeaturePlanningType || (darkFactoryEnabled && clusterEnabled)
+        isFeaturePlanningType || darkFactoryEnabled
           ? task.task_type
           : undefined;
 

@@ -7,25 +7,18 @@ const resolvedDisabled = resolveDarkFactorySettings({ enabled: false });
 
 const baseInput = {
   resolved: resolvedEnabled,
-  clusterGateEnabled: true,
   trustLevel: 'implementation',
   tasks: [],
   decisions: [],
 };
 
 describe('deriveDarkFactoryConsole activation', () => {
-  it('is active when the repo is enabled and the cluster gate is on', () => {
+  it('is active when the repo is enabled', () => {
     expect(deriveDarkFactoryConsole({ ...baseInput }).activation.state).toBe('active');
   });
 
-  it('is inactive with a cluster-gate reason when the repo is enabled but the cluster gate is off', () => {
-    const model = deriveDarkFactoryConsole({ ...baseInput, clusterGateEnabled: false });
-    expect(model.activation.state).toBe('inactive');
-    expect(model.activation.reason).toMatch(/cluster gate/i);
-  });
-
-  it('is disabled when the repo is not enabled, regardless of the cluster gate', () => {
-    const model = deriveDarkFactoryConsole({ ...baseInput, resolved: resolvedDisabled, clusterGateEnabled: true });
+  it('is disabled when the repo is not enabled', () => {
+    const model = deriveDarkFactoryConsole({ ...baseInput, resolved: resolvedDisabled });
     expect(model.activation.state).toBe('disabled');
   });
 });

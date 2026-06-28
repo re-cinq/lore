@@ -13,14 +13,13 @@ single Claude-CLI/API-plus-prompt run.
 ## Responsibilities
 
 - **Task processing** — picks up pipeline tasks, hydrates context from the Lore
-  API, runs them via direct Anthropic API calls (simple) or by creating LoreTask
-  CRs that spawn ephemeral claude-runner Job pods (implementation/review).
+  API, runs them via direct Anthropic API calls (simple) or by dispatching Agent
+  CRs to the ai-agent-subsystem (agent-cr, implementation/review).
 - **Scheduling** — an in-process scheduler for sub-minute, hot-path, and
   webhook-coupled jobs; batch jobs run as standalone CronJob pods.
-- **LoreTask controller** — watches LoreTask CRs and creates Job pods.
-- **Dark Factory supervisor** — drives the branch-as-state workflow inside Job
-  pods, emitting `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` commit trailers so
-  a run can resume after pod death (ADR-016).
+- **Dark Factory supervisor** — drives the branch-as-state AssemblyLine workflow
+  (one Agent CR per node), emitting `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:`
+  commit trailers so a run can resume after interruption (ADR-016/031).
 - **Auto-merge, escalation, leases, audit** — the operational machinery around
   autonomous task runs.
 
@@ -40,15 +39,14 @@ src/
                   repositories/, platform-port.ts (CodePlatform) — imported by all
   composition/    project-boot.ts — the wiring root (the one place impls are wired)
   delivery/       entrypoints (FROZEN deploy paths): index, job-runner,
-                  loretask-controller-main, runner-cli, gen-catalog, health
-  station/        Station execution units — the StationBackend impls + routers
-                  (agent-cr, k8s-loretask, docker) + kube plumbing
+                  gen-catalog, health
+  station/        Station execution — the agent-cr StationBackend (Agent CR
+                  dispatch) + kube plumbing
   assembly-line/  the workflow graph of Stations (floor-graph + run)
   agent/          Agent-CR catalog seed + telemetry sink
   task/           the worker, orchestrator, and per-task-type handlers
   spec-trace/     spec→test graph ingest, audit, drift, coverage backfill/validate
-  loretask/       LoreTask CR controller + Job-spec builder
-  watcher/        Agent/LoreTask CR → PR watchers
+  watcher/        Agent CR → PR watcher
   merge/          auto-merge decision + triggers + merge-outcome capture
   dark-factory/   dark-mode settings, approval ceremony, audit, baseline
   platform/       GitHub (CodePlatform impl), PR policy/copy, escalation

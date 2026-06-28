@@ -8,6 +8,11 @@ domains: [agent, pipeline, infra, governance, web-ui]
 
 # ADR-031: The ai-agent-subsystem is the production execution substrate
 
+> **Cutover complete.** The legacy `LoreTask` path — the CRD + controller, the
+> `claude-runner` image, the `RoutingStationBackend` cutover router, the per-repo
+> `execution.backend` opt-in, and the Docker/local Station backend — has been
+> **removed**. agent-cr is now the only execution path.
+
 > **Revises the earlier draft of ADR-031** (which scoped the CRDs as a *standalone, greenfield,
 > not-wired-to-production* experiment). This version adopts the subsystem as the **production**
 > execution substrate and **supersedes [ADR-011](./ADR-011-loretask-crd-ephemeral-execution.md)**
