@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { query } from "../../../data/db.js";
+import { query } from "../../../../data/db.js";
 
 const execFileAsync = promisify(execFile);
 

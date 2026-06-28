@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const queryMock = vi.fn();
-vi.mock("../../../data/db.js", () => ({ query: (...args: unknown[]) => queryMock(...args) }));
+vi.mock("../../../../data/db.js", () => ({ query: (...args: unknown[]) => queryMock(...args) }));
 
 import { ttlCleanupJob } from "./ttl-cleanup.js";
 

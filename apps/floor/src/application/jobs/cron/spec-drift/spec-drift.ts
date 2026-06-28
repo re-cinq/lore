@@ -1,6 +1,6 @@
-import { query } from "../../../data/db.js";
+import { query } from "../../../../data/db.js";
 import { Llm, createDgraphClient } from "@re-cinq/lore-shared";
-import { projectFor } from "../../../application/project-boot.js";
+import { projectFor } from "../../../../application/project-boot.js";
 import type { Project } from "@re-cinq/lore-shared";
 import {
   isAssertionSource,
