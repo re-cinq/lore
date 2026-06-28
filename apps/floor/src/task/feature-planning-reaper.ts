@@ -20,7 +20,7 @@
  */
 
 import { query } from "../kernel/db.js";
-import { projectFor, stationBackend, loadRepoBackend } from "../composition/project-boot.js";
+import { projectFor, stationBackend } from "../composition/project-boot.js";
 import {
   decidePlanningRecovery,
   latestReadyGap,
@@ -55,8 +55,8 @@ export async function featurePlanningReaperJob(): Promise<string> {
       const feature = await project.features.get(row.id);
       if (!feature) continue;
 
-      // Per-repo router (#688) so isActive probes the backend this repo's round ran on.
-      const station = stationBackend(await loadRepoBackend(row.repo));
+      // isActive probes the agent-cr backend this repo's round ran on.
+      const station = stationBackend();
       const latest = feature.iterations[feature.iterations.length - 1];
       const isActive =
         latest?.status === "running" && latest.task_id ? await station.isActive(latest.task_id) : true;

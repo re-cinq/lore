@@ -8,7 +8,7 @@ import DarkFactoryView from './DarkFactoryView';
 import type { SaveState } from '../../settings/SaveResultBanner';
 
 interface RepoSettings {
-  dark_factory?: { execution?: { image?: string; backend?: string } };
+  dark_factory?: { execution?: { image?: string } };
 }
 
 async function saveDarkFactory(_prev: SaveState, formData: FormData): Promise<SaveState> {
@@ -50,7 +50,6 @@ export default async function RepoDarkFactory({ params }: { params: Promise<{ ow
       fullName={fullName}
       resolved={resolved}
       rawImage={settings.dark_factory?.execution?.image}
-      rawBackend={settings.dark_factory?.execution?.backend}
       defaultExecutionImage={DEFAULT_EXECUTION_IMAGE}
       saveAction={saveDarkFactory}
     />

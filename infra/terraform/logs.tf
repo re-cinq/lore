@@ -52,14 +52,6 @@ resource "google_kms_crypto_key_iam_member" "gcs_encrypt" {
   member        = "serviceAccount:${data.google_storage_project_service_account.gcs_account.email_address}"
 }
 
-# --- Controller SA: admin access (create + overwrite for live log updates) ---
-
-resource "google_storage_bucket_iam_member" "controller_admin" {
-  bucket = google_storage_bucket.task_logs.name
-  role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.loretask_controller.email}"
-}
-
 # --- Web UI SA: read-only access (reads logs for display) ---
 
 resource "google_storage_bucket_iam_member" "ui_read" {
@@ -69,17 +61,6 @@ resource "google_storage_bucket_iam_member" "ui_read" {
 }
 
 # --- Service accounts for Workload Identity ---
-
-resource "google_service_account" "loretask_controller" {
-  account_id   = "loretask-controller"
-  display_name = "LoreTask Controller"
-}
-
-resource "google_service_account_iam_member" "controller_wi" {
-  service_account_id = google_service_account.loretask_controller.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-floor/loretask-controller]"
-}
 
 resource "google_service_account" "lore_ui" {
   account_id   = "lore-ui"
@@ -120,8 +101,7 @@ resource "google_project_iam_member" "lore_agent_aiplatform" {
   member  = "serviceAccount:${google_service_account.lore_agent.email}"
 }
 
-# GCS task-log bucket — admin (create + overwrite for live log updates),
-# mirroring the controller's grant.
+# GCS task-log bucket — admin (create + overwrite for live log updates).
 resource "google_storage_bucket_iam_member" "lore_agent_logs_admin" {
   bucket = google_storage_bucket.task_logs.name
   role   = "roles/storage.objectAdmin"

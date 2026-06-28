@@ -56,8 +56,6 @@ gcloud auth for local dev.
 - `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
 - `agent/src/supervisor/lease.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
 - `agent/src/supervisor/graph-executor.ts` — `executeGraph()` walks workflow YAML, dispatches per-node-type handlers, emits stage commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers (allow-empty for non-file-changing nodes), refreshes lease per node, supports resume from last trailer on the branch
-- `agent/src/supervisor/runner-cli.ts` — Job pod CLI entry point invoked by `entrypoint.sh` when `LORE_DARK_FACTORY_WORKFLOW` is set. Loads workflows from the runner kernel (`/app/libs/runner/dist/workflows/`), drives the supervisor inside the pod's working tree, exits with a documented matrix (0/2/3/4/5/6/7/8/9) consumed by `entrypoint.sh` and surfaced in pod logs / loretask-watcher failure reasons; non-zero is treated as task failure with the specific code distinguishing config error from runtime error
-- `agent/src/supervisor/claude-code-handler.ts` — agent-node handler for the cluster path; spawns `claude --print` rather than calling the SDK directly. Maps non-zero exit → `cli-nonzero`, thrown errors → `cli-error`
 - `agent/src/workflow/loader.ts` — Zod schema for workflow YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check
 - `agent/src/workflows/*.yaml` — declarative workflow definitions (gap-fill, general, implementation; more extensible)
 - `agent/src/jobs/auto-merge.ts` — pure `evaluateAutoMerge()` decision + `evaluateAndMerge()` end-to-end with backoff. Outcome enum captures all 7 deferral reasons + `merged`. OTEL span `lore.auto_merge.decision` carries the rule trace
@@ -72,8 +70,6 @@ gcloud auth for local dev.
 - `shared/src/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `lastStageOnBranch()` exported via `@re-cinq/lore-shared`. Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
 - `web-ui/src/app/assembly-lines/[id]/Timeline.tsx` — client component, vertical stage-commit timeline with node-type icons, outcome badges, lease indicator. Polls `/api/assembly-lines/:id/timeline` every 10s while task is in flight
 - `mcp-server/src/github-client.ts` — consolidated GitHub auth (App + token fallback)
-- `docker/claude-runner/Dockerfile` — multi-stage build (agent-builder → validation-builder → runtime). Bakes `/app/dist/{supervisor,workflows}`, `/app/node_modules` (workspace deps with `--omit=dev` prune), `/app/shared/` (workspace symlink target — required at this exact path), and `/config/task-types.yaml` into the image. Build context = repo root.
-- `terraform/modules/gke-mcp/agent-helm/values.yaml` — `LORE_DARK_FACTORY_CLUSTER_ENABLED` env var (default `"false"`). Cluster-side dark-factory gate: when `"true"`, the worker forwards `darkFactoryWorkflow` to the LoreTask CR; when `"false"`, dark-mode repos still get the legacy `claude --print` path even with `dark_factory.enabled = true`. Use `--set-string` (not `--set`) when overriding to avoid YAML bool coercion.
 - `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
@@ -81,8 +77,6 @@ gcloud auth for local dev.
 - `scripts/agent-prompts/` — Lore Agent prompt templates for scheduled jobs (gap detection, spec drift, autoresearch, nightly reindex, etc.); ingested as context, not loaded as runtime code
 - `.claude/skills/` — platform skills (lore-feature, lore-pr, lore-init)
 - `terraform/modules/` — K8s manifests, Helm charts (lore-db, gke-mcp)
-- `docker/claude-runner/` — ephemeral container for Claude Code execution in K8s Jobs
-- `terraform/modules/gke-mcp/loretask-crd/` — LoreTask CRD, RBAC, controller deployment
 - `specs/` — speckit artifacts (spec, plan, tasks, research, contracts)
 - `adrs/` — architecture decision records (MADR format)
 - `teams/` — per-team CLAUDE.md files
@@ -95,7 +89,6 @@ gcloud auth for local dev.
 - `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` — per-repo spec view; scoped to one team schema; includes a server action form (`addSpec`) that inserts spec chunks directly into `{schema}.chunks` with `content_type = 'spec'`; shows 30 most-recent
 - `web-ui/src/app/assembly-lines/[id]/TaskLogs.tsx` — live Job log viewer (polls every 5s)
 - `web-ui/src/app/assembly-lines/[id]/PRStatusCard.tsx` — live PR status card
-- `agent/src/jobs/loretask-watcher.ts` — polls LoreTasks, creates PRs, triggers auto-review
 - `agent/src/jobs/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
 - `agent/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons
 - `agent/src/health.ts` — exposes `POST /api/trigger/review-reactor`, `POST /api/trigger/auto-merge`, and `POST /api/trigger/spec-coverage-validate` for mcp-server fan-out. Last one is fire-and-forget post-ingest; runs the spec-coverage v3 validate pass (parse spec test links → resolve against AST chunks → open a `spec-link-rot` issue when any rot is found).
@@ -157,7 +150,7 @@ pipeline task** (ADR-023): the repo's `lore-ingest.yml` fans out one job per kin
 `lore_list_tests` / `lore_run_test` (run the manifest commands in the **caller's local
 sandbox**) and `query_trace` (live graph reads — proxies `GET /trace/document`,
 formats coverage + validated_by/violated). **Trust boundary**: execution only in a trusted sandbox (local dev /
-CI / claude-runner pod); the shared GKE server refuses (`executionRefusal`
+CI / agent pod); the shared GKE server refuses (`executionRefusal`
 keyed on `LORE_DB_HOST`) and returns a "run in CI / locally" error.
 
 **Local CLI** — `npm run trace:run-tests` (`mcp-server/src/trace-run-tests-cli.ts`):
@@ -303,7 +296,7 @@ Four services on GKE:
 - PostgreSQL + pgvector: `lore-db` namespace
 - Lore Agent: `lore-agent` namespace
 - Lore MCP server: `mcp-servers` namespace
-- LoreTask controller: `lore-agent` namespace (watches LoreTask CRs, creates Job pods)
+- ai-agent-subsystem (agent-cr controller + Agents): `ai-agents` namespace
 
 All secrets managed by External Secrets Operator (ESO) pulling from
 GCP Secret Manager. Single `terraform apply` deploys everything.
@@ -355,19 +348,20 @@ scripts/task-types.yaml:
 - **review**: reviews a PR against conventions
 
 Agent creates branch + PR when done. Simple tasks use direct
-Anthropic API calls. Implementation and review tasks use ephemeral
-K8s Job pods via the LoreTask CRD:
+Anthropic API calls. Implementation and review tasks run on the
+**ai-agent-subsystem** (agent-cr, ADR-031):
 
-1. Agent worker creates a LoreTask CR (custom resource)
-2. The loretask-controller watches CRs and creates Jobs with the
-   claude-runner image
-3. Job pods: pre-load context via API → run Claude Code → run
-   deterministic validation (lint/typecheck) → commit → push
-4. If validation fails: one retry with fix prompt → if still fails,
+1. The Floor worker dispatches an `Agent` custom resource (or, for task
+   types with a workflow, the Floor-side AssemblyLine graph: one Agent
+   CR per node)
+2. The external ai-agent controller runs the Agent (Claude + prompt) in
+   its own pod: pre-loads context via API → runs → deterministic
+   validation (lint/typecheck) → commit → push
+3. If validation fails: one retry with fix prompt → if still fails,
    mark `needs-human-help` (no PR created)
-5. A watcher job in the agent creates a PR when the Job completes
-6. Agent deploys do NOT affect running Job pods — tasks survive
-   rollout restarts
+4. The `agent_watcher` job creates a PR when the Agent completes
+5. Floor deploys do NOT affect running Agents — tasks survive rollout
+   restarts
 
 **Deterministic validation** (Minions-inspired): After the agent
 edits code, the runner detects repo tooling (package.json, go.mod,
@@ -511,11 +505,11 @@ GCS (no UI needed). `lore_my_usage` shows per-developer token usage
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
 - After implementation PR is created, watcher auto-creates a review
-  LoreTask CR
-- Review Job pod clones the PR branch, reads spec + conventions,
+  task (a review Agent on the ai-agent-subsystem)
+- The review Agent clones the PR branch, reads spec + conventions,
   posts PR comments via `gh`, outputs APPROVED or CHANGES_REQUESTED
 - Approved: task marked reviewed, PR ready for human merge
-- Changes requested (iteration < 2): new implementation LoreTask
+- Changes requested (iteration < 2): new implementation task
   with feedback on the same branch
 - Changes requested (iteration >= 2): escalate to human review
 
@@ -559,8 +553,8 @@ MCP tool's `max_tokens` parameter default is also 8K.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.
 
 **Dark Factory mode** (per-repo, off by default; ADR-016):
-- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Schema in `mcp-server/src/dark-factory-settings.ts`; defaults in `resolveSettings()`. Canonical types + resolver live in `@re-cinq/lore-shared` (`shared/src/dark-factory-settings.ts`) so agent + mcp-server + Job pod runner share one source.
-- **Two-gate enablement.** Per-repo (`dark_factory.enabled = true`) AND cluster (`LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the agent deployment env) must both be on for impl/general/review tasks to take the cluster supervisor path. The cluster gate prevents the helm flag from getting ahead of the claude-runner image (which must ship `/app/dist/`). Either gate off → repo uses the legacy `claude --print` path.
+- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Schema in `mcp-server/src/dark-factory-settings.ts`; defaults in `resolveSettings()`. Canonical types + resolver live in `@re-cinq/lore-shared` (`shared/src/dark-factory-settings.ts`) so floor + mcp-server share one source.
+- **Enablement.** Per-repo `dark_factory.enabled = true` turns on dark mode for impl/general/review tasks. All tasks execute on the ai-agent-subsystem (agent-cr); the legacy LoreTask path and its cluster gate were removed (ADR-031).
 - Privileged changes (`enabled` toggle, `auto_merge.paths`, downgrade of `require_*` to false) need two-key authorization: admin scope + an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md` (`dark-factory-authz.ts`).
 - Branch-as-state: every workflow phase commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers; the supervisor reads `git log` to resume after pod death.
 - Workflow definitions live as YAML files at `agent/src/workflows/*.yaml`. Local runner and GKE supervisor share definitions (FR2.3).

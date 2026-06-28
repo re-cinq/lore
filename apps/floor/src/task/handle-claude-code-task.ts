@@ -1,22 +1,21 @@
 /**
- * LoreTask CR handler.
+ * Cluster task handler.
  *
- * Handle complex tasks (implementation, refactoring) by creating a
- * LoreTask custom resource on the cluster.
+ * Handle complex tasks (implementation, refactoring) by dispatching an Agent CR
+ * to the ai-agent-subsystem (agent-cr) via the Project agents port.
  */
 
 import { projectFor } from "../composition/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../kernel/config.js";
 import { agentPrompt } from "../kernel/agent-invocation.js";
 
-// ── LoreTask CR handler ─────────────────────────────────────────────
+// ── Cluster task handler ────────────────────────────────────────────
 
 /**
- * Handle complex tasks (implementation, refactoring) by creating a
- * LoreTask custom resource on the cluster. The loretask-controller
- * provisions an ephemeral Job with Claude Code inside. When the Job
- * completes, the loretask-watcher job picks up the result and creates
- * a PR.
+ * Handle complex tasks (implementation, refactoring) by dispatching an Agent CR
+ * to the ai-agent-subsystem. The agent-cr backend runs the Agent (or the
+ * Floor-side workflow graph) and the agent-watcher job creates the PR when it
+ * completes.
  */
 export async function handleClaudeCodeTask(
   task: any,
@@ -44,9 +43,9 @@ export async function handleClaudeCodeTask(
     getTaskTypeConfig(task.task_type)?.timeout_minutes ||
     30;
 
-  // Dark-factory mode (PR #309): the label drives `kubectl get loretasks -l
-  // lore.re-cinq.com/dark-factory=true`; the spec.darkFactory block routes the
-  // Job pod's entrypoint.sh to the supervisor CLI instead of legacy claude --print.
+  // Dark-factory mode: the label marks the CR `lore.re-cinq.com/dark-factory=true`
+  // and the spec.darkFactory block tells the agent-cr backend to run the
+  // Floor-side workflow graph for this task type.
   const project = await projectFor(targetRepo);
   const result = await project.agents.run(task.id, {
     mode: "cluster",
@@ -65,21 +64,19 @@ export async function handleClaudeCodeTask(
       : {}),
   });
 
-  // Synchronous Station backends (Docker, local) carry the run's completion back —
-  // there's no loretask-watcher locally, so finalize the run inline (open the PR /
-  // complete the task). Async backends (K8s) omit completion; the watcher resolves
-  // it later. See ADR-028.
+  // A synchronous Station backend would carry the run's completion back, so
+  // finalize inline. The agent-cr backend is async (K8s) and omits completion;
+  // the agent-watcher resolves it later. See ADR-028.
   if (result.completion) {
     const { finalizeStationRun } = await import("./finalize-station-run.js");
     await finalizeStationRun({ task, targetRepo, branch: branchName, completion: result.completion, project });
     return;
   }
 
-  const crName = `loretask-${task.id.substring(0, 8)}`;
   console.log(
     result.started
-      ? `[agent] Created LoreTask CR ${crName} for task ${task.id}`
-      : `[agent] LoreTask CR ${crName} already exists, skipping`,
+      ? `[agent] Dispatched Agent CR for task ${task.id}`
+      : `[agent] Agent CR for task ${task.id} already exists, skipping`,
   );
-  // Don't set pr-created — the loretask-watcher will do that when the Job completes
+  // Don't set pr-created — the agent-watcher will do that when the Agent completes.
 }

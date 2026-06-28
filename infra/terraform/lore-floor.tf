@@ -48,15 +48,6 @@ resource "helm_release" "lore_agent" {
     name  = "env.PORT"
     value = "8080"
   }
-  # ADR-031 cutover cluster gate (#688): turns ON the agent-cr path *eligibility*. Tasks
-  # still only route to it when a repo opts in (settings.dark_factory.execution.backend =
-  # "agent-cr") AND the rollout % allows — so this alone changes no routing. type=string
-  # so "true" isn't coerced to a YAML bool (the code checks === "true").
-  set {
-    name  = "env.LORE_AGENT_CR_BACKEND_ENABLED"
-    value = "true"
-    type  = "string"
-  }
   set {
     name  = "env.LORE_INGEST_URL"
     value = var.lore_api_url

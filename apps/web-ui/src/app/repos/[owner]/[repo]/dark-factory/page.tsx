@@ -36,7 +36,6 @@ export default async function DarkFactoryPage({ params }: { params: Promise<{ ow
   const settings = repoData.settings ?? {};
   const resolved = resolveDarkFactorySettings(settings.dark_factory as DarkFactorySettings | undefined);
   const trustLevel = ((settings.trust as { level?: string } | undefined)?.level) ?? 'unset';
-  const clusterGateEnabled = process.env.LORE_DARK_FACTORY_CLUSTER_ENABLED === 'true';
 
   // Best-effort: pipeline.audit_log may be absent on legacy clusters, and we
   // never want the console to 500 over an empty operational history.
@@ -74,7 +73,7 @@ export default async function DarkFactoryPage({ params }: { params: Promise<{ ow
     // pipeline.audit_log missing — leave decisions empty.
   }
 
-  const model = deriveDarkFactoryConsole({ resolved, clusterGateEnabled, trustLevel, tasks, decisions });
+  const model = deriveDarkFactoryConsole({ resolved, trustLevel, tasks, decisions });
 
   return <DarkFactoryConsoleView owner={owner} repo={repo} model={model} />;
 }

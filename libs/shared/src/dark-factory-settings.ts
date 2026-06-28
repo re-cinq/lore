@@ -33,13 +33,10 @@ export interface DarkFactorySettings {
 
 /**
  * Per-repo execution knobs. `image` is the container image a task's Station
- * runs in (ADR-025). `backend` is the cutover opt-in (ADR-031, #688): which
- * controller runs this repo's tasks — the ai-agent-subsystem (`agent-cr`) or
- * the legacy LoreTask path. Read per-task at dispatch by the Floor.
+ * runs in (ADR-025). All tasks run on the ai-agent-subsystem (`agent-cr`).
  */
 export interface DarkFactoryExecution {
   image?: string;
-  backend?: "agent-cr" | "loretask";
 }
 
 export interface ResolvedDarkFactorySettings {
