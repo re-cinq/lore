@@ -1,0 +1,213 @@
+import { trace } from "@opentelemetry/api";
+import { allPathsMatch, matchingPatterns } from "@re-cinq/lore-shared";
+import { writeAuditLog } from "../dark-factory/audit.js";
+import { projectFor } from "../composition/project-boot.js";
+
+const tracer = trace.getTracer("lore.auto_merge");
+
+export type AutoMergeOutcome =
+  | "merged"
+  | "deferred:human_review"
+  | "deferred:ci_failed"
+  | "deferred:bot_changes_requested"
+  | "deferred:path_outside_allowlist"
+  | "deferred:trust_too_low"
+  | "deferred:dark_mode_off"
+  | "deferred:no_changes"
+  | "deferred:api_failure";
+
+export interface DarkFactoryAutoMerge {
+  paths: string[];
+  min_trust: "docs" | "tests" | "implementation" | "full";
+  require_green_ci: boolean;
+  require_bot_approval: boolean;
+}
+
+export interface AutoMergePolicyInputs {
+  darkFactoryEnabled: boolean;
+  autoMerge: DarkFactoryAutoMerge;
+  trustLevel: "docs" | "tests" | "implementation" | "full" | undefined;
+  changedPaths: string[];
+  ciSucceeded: boolean;
+  botApproved: boolean;
+  humanChangesRequested: boolean;
+}
+
+export interface AutoMergeDecision {
+  outcome: AutoMergeOutcome;
+  rule: {
+    path_match_count: number;
+    trust_level: string | null;
+    ci_status: "success" | "failed" | "pending";
+    bot_review_state: "APPROVED" | "CHANGES_REQUESTED" | "PENDING";
+    human_changes_requested: boolean;
+  };
+}
+
+const TRUST_ORDER: Record<string, number> = {
+  docs: 1,
+  tests: 2,
+  implementation: 3,
+  full: 4,
+};
+
+/**
+ * Pure decision function. Given a fully resolved policy and the PR's
+ * observable state, returns the outcome and the rule trace. Lives in
+ * its own function so the engine's network calls can be unit-tested
+ * separately from the policy logic.
+ */
+export function evaluateAutoMerge(
+  inputs: AutoMergePolicyInputs,
+): AutoMergeDecision {
+  const ciStatus: "success" | "failed" | "pending" = inputs.ciSucceeded
+    ? "success"
+    : "failed";
+  const botReview: "APPROVED" | "CHANGES_REQUESTED" | "PENDING" =
+    inputs.botApproved ? "APPROVED" : "CHANGES_REQUESTED";
+
+  const baseRule = {
+    path_match_count: inputs.changedPaths.filter((p) =>
+      matchingPatterns(p, inputs.autoMerge.paths).length > 0,
+    ).length,
+    trust_level: inputs.trustLevel ?? null,
+    ci_status: ciStatus,
+    bot_review_state: botReview,
+    human_changes_requested: inputs.humanChangesRequested,
+  };
+
+  if (!inputs.darkFactoryEnabled) {
+    return { outcome: "deferred:dark_mode_off", rule: baseRule };
+  }
+
+  // A zero-file PR would technically pass the path-allowlist check
+  // (vacuous truth) but GitHub's merge call would then 422 on an empty
+  // diff. Surface the real reason in the audit log instead.
+  if (inputs.changedPaths.length === 0) {
+    return { outcome: "deferred:no_changes", rule: baseRule };
+  }
+
+  if (inputs.humanChangesRequested) {
+    return { outcome: "deferred:human_review", rule: baseRule };
+  }
+
+  if (inputs.autoMerge.require_green_ci && !inputs.ciSucceeded) {
+    return { outcome: "deferred:ci_failed", rule: baseRule };
+  }
+
+  if (inputs.autoMerge.require_bot_approval && !inputs.botApproved) {
+    return { outcome: "deferred:bot_changes_requested", rule: baseRule };
+  }
+
+  if (!allPathsMatch(inputs.changedPaths, inputs.autoMerge.paths)) {
+    return { outcome: "deferred:path_outside_allowlist", rule: baseRule };
+  }
+
+  const minTrust = TRUST_ORDER[inputs.autoMerge.min_trust] ?? 1;
+  const actualTrust = inputs.trustLevel
+    ? (TRUST_ORDER[inputs.trustLevel] ?? 0)
+    : 0;
+  if (actualTrust < minTrust) {
+    return { outcome: "deferred:trust_too_low", rule: baseRule };
+  }
+
+  return { outcome: "merged", rule: baseRule };
+}
+
+export interface AutoMergeJobInputs {
+  taskId: string;
+  repo: string; // "owner/repo"
+  prNumber: number;
+  policy: AutoMergePolicyInputs;
+}
+
+/**
+ * End-to-end auto-merge job: evaluates the policy, writes an
+ * `auto_merge_decision` audit log entry, performs the merge call when
+ * the outcome is `merged`. GitHub API failures during the merge call
+ * degrade to `deferred:api_failure` (per research R3) — the audit
+ * entry still writes, the PR stays open for a human.
+ */
+export async function evaluateAndMerge(
+  inputs: AutoMergeJobInputs,
+): Promise<AutoMergeDecision> {
+  return await tracer.startActiveSpan(
+    "lore.auto_merge.decision",
+    async (span) => {
+      span.setAttribute("repo", inputs.repo);
+      span.setAttribute("pr_number", inputs.prNumber);
+      span.setAttribute("task_id", inputs.taskId);
+      try {
+        let decision = evaluateAutoMerge(inputs.policy);
+
+        if (decision.outcome === "merged") {
+          try {
+            await mergeWithBackoff({
+              repo: inputs.repo,
+              prNumber: inputs.prNumber,
+            });
+          } catch (err) {
+            console.warn(
+              `[auto-merge] PR ${inputs.repo}#${inputs.prNumber} merge failed:`,
+              (err as Error).message,
+            );
+            decision = {
+              outcome: "deferred:api_failure",
+              rule: decision.rule,
+            };
+          }
+        }
+
+        span.setAttribute("decision", decision.outcome);
+        span.setAttribute("path_match_count", decision.rule.path_match_count);
+        span.setAttribute(
+          "trust_level",
+          decision.rule.trust_level ?? "unknown",
+        );
+        span.setAttribute("ci_status", decision.rule.ci_status);
+        span.setAttribute("bot_review_state", decision.rule.bot_review_state);
+
+        await writeAuditLog({
+          event_type: "auto_merge_decision",
+          task_id: inputs.taskId,
+          repo: inputs.repo,
+          payload: {
+            pr_number: inputs.prNumber,
+            outcome: decision.outcome,
+            rule: decision.rule,
+            decided_at: new Date().toISOString(),
+          },
+        });
+
+        return decision;
+      } finally {
+        span.end();
+      }
+    },
+  );
+}
+
+/**
+ * Try to merge a PR with exponential backoff (per research R3).
+ * Throws on final failure so the caller records the deferral.
+ */
+async function mergeWithBackoff(opts: {
+  repo: string;
+  prNumber: number;
+}): Promise<void> {
+  // Same trade-off as escalation.ts: 5s tail beats 21s while holding
+  // the supervisor lease. On final failure, evaluateAndMerge degrades
+  // to deferred:api_failure and the PR sits open for a human merge.
+  const delays = [1000, 4000];
+
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    try {
+      const project = await projectFor(opts.repo);
+      await project.pulls.merge(opts.prNumber, "squash");
+      return;
+    } catch (err) {
+      if (attempt === delays.length - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    }
+  }
+}

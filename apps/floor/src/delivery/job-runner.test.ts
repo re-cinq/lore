@@ -23,17 +23,17 @@ const EXPECTED_JOBS = [
   "anthropic_cost_sync",
 ];
 
-vi.mock("../data/db.js", () => ({
+vi.mock("../kernel/db.js", () => ({
   query: vi.fn(),
   initPool: vi.fn(),
   getPool: vi.fn(() => ({ query: vi.fn() })),
 }));
-vi.mock("../adapters/job-run.js", () => ({
+vi.mock("../scheduling/job-run.js", () => ({
   startJobRun: vi.fn().mockResolvedValue("run-1"),
   completeJobRun: vi.fn(),
   failJobRun: vi.fn(),
 }));
-vi.mock("../adapters/log-storage.js", () => ({
+vi.mock("../scheduling/log-storage.js", () => ({
   jobRunLogKey: vi.fn(() => "logs/key"),
   writeJobRunLogs: vi.fn(),
 }));

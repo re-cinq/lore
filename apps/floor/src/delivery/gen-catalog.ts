@@ -6,7 +6,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
-import { catalogChartYaml, type TaskTypeConfig } from "../adapters/agent-catalog.js";
+import { catalogChartYaml, type TaskTypeConfig } from "../agent/agent-catalog.js";
 
 const repoRoot = resolve(import.meta.dirname, "../../../..");
 const src = resolve(repoRoot, "scripts/task-types.yaml");

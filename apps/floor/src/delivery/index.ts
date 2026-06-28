@@ -1,20 +1,20 @@
 import { Llm } from "@re-cinq/lore-shared";
-import { initPool, getPool } from "../data/db.js";
-import { loadTaskTypes } from "../data/config.js";
-import { recoverStaleTasks, startWorker } from "../application/task-processing/worker.js";
-import { registerJob, startScheduler, getJobStatus } from "../application/scheduling/scheduler.js";
+import { initPool, getPool } from "../kernel/db.js";
+import { loadTaskTypes } from "../kernel/config.js";
+import { recoverStaleTasks, startWorker } from "../task/worker.js";
+import { registerJob, startScheduler, getJobStatus } from "../scheduling/scheduler.js";
 import { startHealthServer } from "./health.js";
 
-import { loadApprovalConfig } from "../adapters/approval/approval.js";
-import { approvalCheckJob } from "../application/jobs/scheduled/approval-check.js";
-import { mergeCheckJob } from "../application/jobs/scheduled/merge-check.js";
-import { reviewReactorJob } from "../application/jobs/scheduled/review-reactor.js";
-import { loretaskWatcherJob } from "../application/jobs/scheduled/loretask-watcher.js";
-import { agentWatcherJob } from "../application/jobs/scheduled/agent-watcher.js";
-import { specTaskExecutorJob } from "../application/jobs/scheduled/spec-task-executor.js";
-import { staleTaskCheckJob } from "../application/jobs/scheduled/stale-task-check.js";
-import { reclaimOrphanedIngestJob } from "../application/jobs/scheduled/reclaim-orphaned-ingest.js";
-import { featurePlanningReaperJob } from "../application/jobs/scheduled/feature-planning-reaper.js";
+import { loadApprovalConfig } from "../dark-factory/approval.js";
+import { approvalCheckJob } from "../dark-factory/approval-check.js";
+import { mergeCheckJob } from "../merge/merge-check.js";
+import { reviewReactorJob } from "../review/review-reactor.js";
+import { loretaskWatcherJob } from "../watcher/loretask-watcher.js";
+import { agentWatcherJob } from "../watcher/agent-watcher.js";
+import { specTaskExecutorJob } from "../task/spec-task-executor.js";
+import { staleTaskCheckJob } from "../task/stale-task-check.js";
+import { reclaimOrphanedIngestJob } from "../spec-trace/reclaim-orphaned-ingest.js";
+import { featurePlanningReaperJob } from "../task/feature-planning-reaper.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");

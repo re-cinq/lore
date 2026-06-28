@@ -16,13 +16,13 @@ vi.mock("@re-cinq/lore-runner", () => ({
   runClaudeCode: async () => ({ output: "", exitCode: 0, durationMs: 0 }),
 }));
 
-vi.mock("../data/config.js", () => ({
+vi.mock("../kernel/config.js", () => ({
   loadTaskTypes: () => undefined,
   getTaskTypeConfig: () => ({ name: "implementation" }),
   buildPrompt: () => "p",
 }));
 
-vi.mock("../data/db.js", () => ({
+vi.mock("../kernel/db.js", () => ({
   initPool: () => undefined,
   query: async () => [],
   queryOne: async () => null,
