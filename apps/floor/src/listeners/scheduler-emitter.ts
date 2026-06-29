@@ -5,7 +5,7 @@
  * registered here; heavy batch jobs stay as Kubernetes CronJobs (ADR-019).
  */
 
-import { registerJob } from "../scheduling/scheduler.js";
+import { registerJob } from "../main-loop/scheduling/scheduler.js";
 import { insertEvent } from "../main-loop/store.js";
 import { cronDedupeKey } from "../main-loop/dedupe.js";
 

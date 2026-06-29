@@ -1,10 +1,10 @@
 import { Llm } from "@re-cinq/lore-shared";
 import { initPool, getPool } from "./kernel/db.js";
 import { loadTaskTypes } from "./kernel/config.js";
-import { recoverStaleTasks, startWorker } from "./task/worker.js";
-import { startScheduler, getJobStatus } from "./scheduling/scheduler.js";
+import { recoverStaleTasks, startWorker } from "./jobs/task/worker.js";
+import { startScheduler, getJobStatus } from "./main-loop/scheduling/scheduler.js";
 import { startHealthServer } from "./delivery/health.js";
-import { loadApprovalConfig } from "./dark-factory/approval.js";
+import { loadApprovalConfig } from "./jobs/dark-factory/approval.js";
 
 // Event bus (the 3 layers). Layer 1 listeners: the GitHub webhook (mounted on the
 // health server), the k8s Agent-CR watch, and the cron emitters below. Layer 2: the

@@ -10,26 +10,26 @@
 
 import { initPool, getPool } from "../kernel/db.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { anthropicCostSyncJob } from "../cost/anthropic-cost-sync/index.js";
-import { autoresearchJob } from "../context-jobs/autoresearch/index.js";
-import { contextCoreBuilderJob } from "../context-jobs/context-core-builder/index.js";
-import { evalRunnerJob } from "../context-jobs/eval-runner/index.js";
-import { gapDetectJob } from "../context-jobs/gap-detect/index.js";
+import { anthropicCostSyncJob } from "../jobs/cost/anthropic-cost-sync/index.js";
+import { autoresearchJob } from "../jobs/context-jobs/autoresearch/index.js";
+import { contextCoreBuilderJob } from "../jobs/context-jobs/context-core-builder/index.js";
+import { evalRunnerJob } from "../jobs/context-jobs/eval-runner/index.js";
+import { gapDetectJob } from "../jobs/context-jobs/gap-detect/index.js";
 import {
   consolidationJob,
   importanceDecayJob,
-} from "../memory/memory-lifecycle/index.js";
-import { reindexJob } from "../context-jobs/reindex/index.js";
-import { specDriftJob } from "../spec-trace/spec-drift/index.js";
-import { specCoverageBackfillJob } from "../spec-trace/spec-coverage-backfill/index.js";
-import { validateSpecCoverageJob } from "../spec-trace/spec-coverage-validate.js";
-import { ttlCleanupJob } from "../memory/ttl-cleanup/index.js";
+} from "../jobs/memory/memory-lifecycle/index.js";
+import { reindexJob } from "../jobs/context-jobs/reindex/index.js";
+import { specDriftJob } from "../jobs/spec-trace/spec-drift/index.js";
+import { specCoverageBackfillJob } from "../jobs/spec-trace/spec-coverage-backfill/index.js";
+import { validateSpecCoverageJob } from "../jobs/spec-trace/spec-coverage-validate.js";
+import { ttlCleanupJob } from "../jobs/memory/ttl-cleanup/index.js";
 import {
   startJobRun,
   completeJobRun,
   failJobRun,
-} from "../scheduling/job-run.js";
-import { jobRunLogKey, writeJobRunLogs } from "../scheduling/log-storage.js";
+} from "../main-loop/scheduling/job-run.js";
+import { jobRunLogKey, writeJobRunLogs } from "../main-loop/scheduling/log-storage.js";
 
 type JobHandler = () => Promise<string>;
 
