@@ -33,11 +33,7 @@ describe("POST /api/ingest", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("returns 200 and fires the spec-coverage trigger when a file lands", async () => {
-    process.env.LORE_AGENT_URL = "http://agent:8080";
-    process.env.LORE_AGENT_INTERNAL_TOKEN = "tok";
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
-    globalThis.fetch = fetchMock as typeof fetch;
+  it("returns 200 and inserts a spec-coverage-validate event when a file lands", async () => {
     vi.mocked(ingestFiles).mockResolvedValue({ results: [{ status: "ingested" }] } as any);
     const pool = makePool();
     const res = makeRes();
@@ -47,8 +43,8 @@ describe("POST /api/ingest", () => {
       pool as any,
     );
     expect(res.statusCode).toBe(200);
-    expect(fetchMock).toHaveBeenCalledOnce();
-    expect(fetchMock.mock.calls[0][0]).toContain("/api/trigger/spec-coverage-validate");
+    const insert = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find((c) => String(c[0]).includes("INSERT INTO pipeline.events"));
+    expect(insert?.[1]?.[0]).toBe("internal.ingest.spec_coverage_validate");
   });
 
   it("returns 400 when repo is missing", async () => {
@@ -59,11 +55,7 @@ describe("POST /api/ingest", () => {
     expect(res.json).toEqual({ error: "required: files (array of paths or {path,content}), repo (string)" });
   });
 
-  it("treats a deleted status as a landed file and fires the trigger", async () => {
-    process.env.LORE_AGENT_URL = "http://agent:8080";
-    process.env.LORE_AGENT_INTERNAL_TOKEN = "tok";
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
-    globalThis.fetch = fetchMock as typeof fetch;
+  it("treats a deleted status as a landed file and inserts the event", async () => {
     vi.mocked(ingestFiles).mockResolvedValue({ results: [{ status: "deleted" }] } as any);
     const pool = makePool();
     const res = makeRes();
@@ -73,14 +65,11 @@ describe("POST /api/ingest", () => {
       pool as any,
     );
     expect(res.statusCode).toBe(200);
-    expect(fetchMock.mock.calls[0][0]).toContain("/api/trigger/spec-coverage-validate");
+    const insert = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find((c) => String(c[0]).includes("INSERT INTO pipeline.events"));
+    expect(insert?.[1]?.[0]).toBe("internal.ingest.spec_coverage_validate");
   });
 
-  it("does not fire the trigger when nothing landed", async () => {
-    process.env.LORE_AGENT_URL = "http://agent:8080";
-    process.env.LORE_AGENT_INTERNAL_TOKEN = "tok";
-    const fetchMock = vi.fn();
-    globalThis.fetch = fetchMock as typeof fetch;
+  it("does not insert an event when nothing landed", async () => {
     vi.mocked(ingestFiles).mockResolvedValue({ results: [{ status: "skipped" }] } as any);
     const pool = makePool();
     const res = makeRes();
@@ -89,7 +78,7 @@ describe("POST /api/ingest", () => {
       res,
       pool as any,
     );
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect((pool.query as ReturnType<typeof vi.fn>).mock.calls.some((c) => String(c[0]).includes("INSERT INTO pipeline.events"))).toBe(false);
   });
 
   it("does not fire the trigger when the result has no results array", async () => {

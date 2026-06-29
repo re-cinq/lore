@@ -26,7 +26,7 @@ export async function handleIngest(req: IncomingMessage, res: ServerResponse, po
       ? result.results.some((r: { status?: string }) => r.status === "ingested" || r.status === "deleted")
       : false;
     if (landed) {
-      void triggerAgentSpecCoverageValidate(repo);
+      void triggerAgentSpecCoverageValidate(pool, repo);
       // Spec/ADR graph (re-)projection is no longer fanned out from here — it is
       // driven by the repo's `lore-ingest.yml` CI workflow (per-kind jobs POST
       // to /api/repos/:o/:r/ingest-graph), which fires the spec-trace trigger.

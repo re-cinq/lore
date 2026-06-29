@@ -24,7 +24,7 @@ interface IngestGraphBody {
 export async function handleIngestGraphRoute(
   req: IncomingMessage,
   res: ServerResponse,
-  _pool: Pool | null,
+  pool: Pool | null,
 ): Promise<void> {
   const repo = repoFromReposUrl(req.url);
   if (!repo) {
@@ -44,7 +44,7 @@ export async function handleIngestGraphRoute(
 
   // Each doc kind → fire-and-forget projection trigger.
   for (const kind of requested) {
-    void triggerAgentSpecTrace(repo, kind, { commit: body.commit, force: body.force });
+    void triggerAgentSpecTrace(pool, repo, kind, { commit: body.commit, force: body.force });
   }
 
   json(res, 200, { triggered: requested });
