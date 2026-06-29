@@ -14,7 +14,7 @@ on:
       - 'libs/runner/**'
       # Chart or workflow changes need a redeploy too.
       - 'infra/terraform/modules/gke-mcp/floor-helm/**'
-      - '.github/workflows/build-agent.yml'
+      - '.github/workflows/build-floor.yml'
   workflow_dispatch:
 
 concurrency:
@@ -102,13 +102,6 @@ jobs:
             --set image.tag=${{ needs.build.outputs.image_tag }} \
             --reset-then-reuse-values \
             --wait --timeout 5m
-
-      - name: Update controller image
-        run: |
-          kubectl set image deployment/loretask-controller \
-            controller=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }} \
-            -n lore-floor
-          kubectl rollout status deployment/loretask-controller -n lore-floor --timeout=60s
 
   smoke:
     needs: deploy
