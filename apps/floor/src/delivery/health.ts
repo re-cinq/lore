@@ -3,6 +3,7 @@ import { query, isDbAvailable } from "../kernel/db.js";
 import { parseAgentEvents } from "../jobs/agent/agent-events.js";
 import { handleGitHubWebhook } from "../listeners/github-webhook.js";
 import { handleCiIngestWebhook } from "../listeners/ci-ingest.js";
+import { handleCiTestsWebhook } from "../listeners/ci-tests.js";
 
 const startTime = Date.now();
 
@@ -39,6 +40,14 @@ export function startHealthServer(
     // internal.ingest.spec_trace events and INSERTs them — the loop does the work.
     if (req.method === "POST" && req.url === "/api/webhook/ci-ingest") {
       await handleCiIngestWebhook(req, res);
+      return;
+    }
+
+    // ── Layer 1: CI test-report ingress. The lore-code-trace binary runs a repo's
+    // suite and POSTs the report here; bearer-authed on LORE_INGEST_TOKEN, mapped to
+    // an internal.ingest.spec_trace (kind test-report) event for the loop.
+    if (req.method === "POST" && req.url === "/api/webhook/ci-tests") {
+      await handleCiTestsWebhook(req, res);
       return;
     }
 
