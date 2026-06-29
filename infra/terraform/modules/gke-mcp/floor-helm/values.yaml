@@ -100,6 +100,14 @@ slackBotTokenSecret:
   name: lore-slack-credentials
   key: bot-token
 
+# HMAC secret for verifying GitHub webhook signatures (the webhook ingress moved
+# into the Floor — POST /api/webhook/github). Optional: the env is mounted with
+# optional:true so a pod can start before the ExternalSecret lands (the handler
+# returns 503 until the secret is present).
+webhookSecret:
+  name: lore-floor-webhook-secret
+  key: secret
+
 gcpProject: ""
 
 # K8s CronJob batch jobs (one pod per run, isolated from the Deployment).

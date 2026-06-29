@@ -415,6 +415,40 @@ resource "kubectl_manifest" "es_mcp_webhook_secret" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+# The GitHub webhook ingress moved into the Floor, so the same GCP secret must
+# also materialize into the lore-floor namespace. Same remoteRef key as the
+# mcp-servers ES above.
+resource "kubectl_manifest" "es_floor_webhook_secret" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-floor-webhook-secret"
+      namespace = "lore-floor"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-floor-webhook-secret"
+      }
+      data = [
+        {
+          secretKey = "secret"
+          remoteRef = {
+            key = "lore-webhook-secret"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 resource "kubectl_manifest" "es_mcp_ghcr" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
