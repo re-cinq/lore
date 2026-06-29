@@ -126,3 +126,37 @@ Callers that need more ask for more.
   resync (`kubectl annotate externalsecret ... force-sync=...`)
   plus a pod restart (env-from-secret doesn't hot-reload).
   Simultaneously update the GitHub App webhook secret field.
+
+## Amendment (2026-06-29): generalized to a 3-layer event bus
+
+The webhook-primary + cron-backstop pattern this ADR established for the review
+reactor is now the model for **every** Floor trigger, via one `pipeline.events`
+table (migration 0023) drained by a single loop. Three layers:
+
+1. **Listeners** capture occurrences as event rows and nothing else:
+   - The **GitHub webhook ingress moved from mcp-server into Floor** — Floor's HTTP
+     server serves `POST /api/webhook/github` (HMAC-verified), maps the payload to
+     `github.*` events, and inserts them. `LORE_WEBHOOK_SECRET` + the GitHub App
+     webhook URL move to the `lore-floor` namespace/host.
+   - A **Kubernetes watch** on Agent CRs emits `kubernetes.agent.{succeeded,failed}`
+     on terminal phase (replacing the every-minute `agent_watcher` poll), with a
+     reconcile cron as the dropped-event safety net.
+   - The in-process scheduler becomes a **cron emitter**: each tick inserts
+     `cron.<job>.tick` instead of running the job.
+   - mcp-server's post-ingest triggers insert `internal.ingest.*` events (was
+     `POST /api/trigger/*`).
+2. **The loop & internal processes** atomically claim runnable rows
+   (`FOR UPDATE SKIP LOCKED`), dispatch by `event_name` via a registry, with
+   retry/backoff → dead-letter + a stuck-row reaper. Floor is a singleton, but the
+   claim is HA-safe by construction.
+3. **Tasks/jobs** are the existing handlers (review-reactor, auto-merge,
+   agent-watcher per-CR, the cron jobs, spec-trace/coverage, issue-dispatch,
+   spec-PR-merge) keyed in the registry — one `event_name` → one handler.
+
+Event names are source-prefixed + globally unique (`github.*`, `kubernetes.*`,
+`cron.*`, `internal.*`). Floor's `/api/trigger/*` endpoints and mcp-server's GitHub
+webhook + `triggerAgent*` forwarders are removed. **Carve-out:** heavy batch jobs
+stay as Kubernetes CronJobs running their work directly (ADR-019) — they need
+ephemeral-pod isolation + big memory, so they are *not* routed through the loop;
+the event bus wraps the reactive + light-periodic triggers. Module layout:
+`apps/floor/src/events/{listeners,loop,handlers}` + `registry.ts`.

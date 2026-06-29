@@ -1,63 +1,33 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { triggerAgentSpecCoverageValidate } from "../routes.js";
 
+function recordingPool() {
+  const calls: Array<{ text: string; params: unknown[] }> = [];
+  return {
+    calls,
+    query: async (text: string, params: unknown[]) => {
+      calls.push({ text, params });
+      return { rows: [] };
+    },
+  };
+}
+
 describe("triggerAgentSpecCoverageValidate", () => {
-  const originalFetch = globalThis.fetch;
-  const originalEnv = { ...process.env };
-
-  beforeEach(() => {
-    process.env.LORE_AGENT_URL = "http://agent.internal:8080";
-    process.env.LORE_AGENT_INTERNAL_TOKEN = "test-secret";
+  it("inserts an internal.ingest.spec_coverage_validate event for the repo", async () => {
+    const pool = recordingPool();
+    await triggerAgentSpecCoverageValidate(pool as never, "re-cinq/lore");
+    expect(pool.calls).toHaveLength(1);
+    expect(pool.calls[0].text).toContain("INSERT INTO pipeline.events");
+    expect(pool.calls[0].params[0]).toBe("internal.ingest.spec_coverage_validate");
+    expect(JSON.parse(pool.calls[0].params[2] as string)).toEqual({ repo: "re-cinq/lore" });
   });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    process.env = { ...originalEnv };
+  it("is a no-op when there is no DB pool", async () => {
+    await expect(triggerAgentSpecCoverageValidate(null, "o/r")).resolves.toBeUndefined();
   });
 
-  it("POSTs the repo to /api/trigger/spec-coverage-validate with the bearer token", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
-    globalThis.fetch = fetchMock as typeof fetch;
-    await triggerAgentSpecCoverageValidate("re-cinq/lore");
-    expect(fetchMock).toHaveBeenCalledOnce();
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://agent.internal:8080/api/trigger/spec-coverage-validate");
-    expect(init).toMatchObject({
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
-      },
-    });
-    expect(JSON.parse(init.body as string)).toEqual({ repo: "re-cinq/lore" });
-  });
-
-  it("strips a trailing slash on LORE_AGENT_URL so the path is well-formed", async () => {
-    process.env.LORE_AGENT_URL = "http://agent.internal:8080/";
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
-    globalThis.fetch = fetchMock as typeof fetch;
-    await triggerAgentSpecCoverageValidate("o/r");
-    expect(fetchMock.mock.calls[0][0]).toBe("http://agent.internal:8080/api/trigger/spec-coverage-validate");
-  });
-
-  it("skips the call entirely when LORE_AGENT_URL is missing", async () => {
-    delete process.env.LORE_AGENT_URL;
-    const fetchMock = vi.fn();
-    globalThis.fetch = fetchMock as typeof fetch;
-    await triggerAgentSpecCoverageValidate("o/r");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("skips the call entirely when LORE_AGENT_INTERNAL_TOKEN is missing", async () => {
-    delete process.env.LORE_AGENT_INTERNAL_TOKEN;
-    const fetchMock = vi.fn();
-    globalThis.fetch = fetchMock as typeof fetch;
-    await triggerAgentSpecCoverageValidate("o/r");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("swallows fetch errors so a flaky agent never breaks the ingest response", async () => {
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error("ECONNREFUSED")) as typeof fetch;
-    await expect(triggerAgentSpecCoverageValidate("o/r")).resolves.toBeUndefined();
+  it("swallows insert errors so a flaky DB never breaks the ingest response", async () => {
+    const pool = { query: async () => { throw new Error("db down"); } };
+    await expect(triggerAgentSpecCoverageValidate(pool as never, "o/r")).resolves.toBeUndefined();
   });
 });

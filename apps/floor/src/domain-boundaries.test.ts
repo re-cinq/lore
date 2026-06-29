@@ -3,16 +3,19 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Floor is sliced VERTICALLY: each top-level folder under src/ is a domain that
-// owns its port + implementation + orchestration + colocated tests. Special
+// Floor is organized as 3 EVENT-BUS LAYERS under src/ (ADR-015): `listeners/`
+// (producers → pipeline.events), `main-loop/` (the drain loop + internal
+// processes: store/loop/reaper/retry/registry + scheduling + lease), and `jobs/`
+// (the tasks/jobs — the work each event triggers). The layers may cross-reference
+// (the registry in main-loop wires jobs handlers; a cron handler calls the
+// listeners' reconcile), so this is an organizing model, not a strict acyclic
+// stack. The invariants below still hold and are what's enforced. Special
 // citizens: `src/index.ts` is the application entry (the `dist/index.js` the
-// container runs) — it sits at the very top and may import anything; `kernel/`
-// is the shared substrate (DB pool, config, repositories, the CodePlatform port)
-// every domain may import and that imports nothing above it; `delivery/` holds
-// the remaining entry points (job-runner, gen-catalog) + the health module — a
-// top tier imported by nothing except the root entry. `composition/` wires impls.
-// Enforced as a test rather than an eslint stack (replaces the old layer-rank
-// boundaries.test.ts).
+// container runs), may import anything; `kernel/` is the shared substrate (DB
+// pool, config, repositories, the CodePlatform port) imported by all, importing
+// nothing above it; `delivery/` holds the entry points (job-runner, gen-catalog,
+// health) — the `dist/delivery/*` deploy contract, imported by nothing but the
+// root entry; `composition/` wires impls.
 
 const SRC = fileURLToPath(new URL(".", import.meta.url));
 

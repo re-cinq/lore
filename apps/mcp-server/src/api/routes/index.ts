@@ -16,7 +16,7 @@ import { handleGraph } from "./graph.js";
 import { handleGetTask, handleListTasks, handleTaskPost } from "./tasks.js";
 import { handleTaskTimeline, handleTaskByPr } from "./task-timeline.js";
 import { handleMemory, handleEpisode, handleSessionSummary } from "./memory.js";
-import { handleGitHubWebhook, handleSlackWebhook, handleIncidentWebhook } from "./webhooks.js";
+import { handleSlackWebhook, handleIncidentWebhook } from "./webhooks.js";
 import { handleTaskLogs, handleGetTaskLogs, handleGetJobRunLogs } from "./logs.js";
 import { handleTokens } from "./tokens.js";
 import { handleDarkFactorySettingsRoute } from "./dark-factory.js";
@@ -66,7 +66,6 @@ const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/memory", "POST"), handle: handleMemory },
   { match: exact("/api/episode", "POST"), handle: handleEpisode },
   { match: exact("/api/session-summary", "POST"), handle: handleSessionSummary },
-  { match: exact("/api/webhook/github", "POST"), handle: handleGitHubWebhook },
   { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
   { match: exact("/api/task-logs", "POST"), handle: (req, res) => handleTaskLogs(req, res) },
   { match: prefix("/api/task-logs", "GET"), handle: (req, res) => handleGetTaskLogs(req, res) },

@@ -65,4 +65,12 @@ Usage:
       key: {{ .Values.slackBotTokenSecret.key }}
       optional: true
 {{- end }}
+{{- if .Values.webhookSecret }}
+- name: LORE_WEBHOOK_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.webhookSecret.name }}
+      key: {{ .Values.webhookSecret.key }}
+      optional: true
+{{- end }}
 {{- end -}}

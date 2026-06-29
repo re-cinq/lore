@@ -163,3 +163,66 @@ export function inferPhaseDependencies(tasks: ParsedTask[]): ParsedTask[] {
 
   return result;
 }
+
+/**
+ * Upsert parsed spec-tasks into pipeline.tasks (task_type = 'spec-task'). Conflict
+ * key is spec_task_id + spec_slug + target_repo. Relocated from mcp-server so the
+ * Floor spec-PR-merge event handler and the mcp pipeline tools share one writer.
+ */
+export async function syncTasksToDb(
+  pool: any,
+  repo: string,
+  specSlug: string,
+  tasks: ParsedTask[],
+  taskGroupId?: string,
+): Promise<{ synced: number; created: number }> {
+  let created = 0;
+
+  for (const task of tasks) {
+    const title = `${task.specTaskId}: ${task.description}`;
+    const metadata = {
+      spec_task_id: task.specTaskId,
+      depends_on: task.dependsOn,
+      spec_slug: specSlug,
+      parallelizable: task.parallelizable,
+      phase: task.phase,
+      file_path: task.filePath,
+    };
+    const status = task.completed ? "completed" : "pending";
+
+    const { rows: existing } = await pool.query(
+      `SELECT id, status FROM pipeline.tasks
+       WHERE target_repo = $1
+         AND task_type = 'spec-task'
+         AND context_bundle->>'spec_task_id' = $2
+         AND context_bundle->>'spec_slug' = $3`,
+      [repo, task.specTaskId, specSlug],
+    );
+
+    if (existing.length > 0) {
+      await pool.query(
+        `UPDATE pipeline.tasks
+         SET description = $1, context_bundle = $2, status = $3, updated_at = now()
+         WHERE id = $4`,
+        [title, JSON.stringify(metadata), status, existing[0].id],
+      );
+    } else {
+      if (taskGroupId) {
+        await pool.query(
+          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
+           VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks', $5)`,
+          [title, repo, status, JSON.stringify(metadata), taskGroupId],
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by)
+           VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks')`,
+          [title, repo, status, JSON.stringify(metadata)],
+        );
+      }
+      created++;
+    }
+  }
+
+  return { synced: tasks.length, created };
+}
