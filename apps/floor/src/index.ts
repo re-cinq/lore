@@ -1,19 +1,19 @@
 import { Llm } from "@re-cinq/lore-shared";
-import { initPool, getPool } from "../kernel/db.js";
-import { loadTaskTypes } from "../kernel/config.js";
-import { recoverStaleTasks, startWorker } from "../task/worker.js";
-import { registerJob, startScheduler, getJobStatus } from "../scheduling/scheduler.js";
-import { startHealthServer } from "./health.js";
+import { initPool, getPool } from "./kernel/db.js";
+import { loadTaskTypes } from "./kernel/config.js";
+import { recoverStaleTasks, startWorker } from "./task/worker.js";
+import { registerJob, startScheduler, getJobStatus } from "./scheduling/scheduler.js";
+import { startHealthServer } from "./delivery/health.js";
 
-import { loadApprovalConfig } from "../dark-factory/approval.js";
-import { approvalCheckJob } from "../dark-factory/approval-check.js";
-import { mergeCheckJob } from "../merge/merge-check.js";
-import { reviewReactorJob } from "../review/review-reactor.js";
-import { agentWatcherJob } from "../watcher/agent-watcher.js";
-import { specTaskExecutorJob } from "../task/spec-task-executor.js";
-import { staleTaskCheckJob } from "../task/stale-task-check.js";
-import { reclaimOrphanedIngestJob } from "../spec-trace/reclaim-orphaned-ingest.js";
-import { featurePlanningReaperJob } from "../task/feature-planning-reaper.js";
+import { loadApprovalConfig } from "./dark-factory/approval.js";
+import { approvalCheckJob } from "./dark-factory/approval-check.js";
+import { mergeCheckJob } from "./merge/merge-check.js";
+import { reviewReactorJob } from "./review/review-reactor.js";
+import { agentWatcherJob } from "./watcher/agent-watcher.js";
+import { specTaskExecutorJob } from "./task/spec-task-executor.js";
+import { staleTaskCheckJob } from "./task/stale-task-check.js";
+import { reclaimOrphanedIngestJob } from "./spec-trace/reclaim-orphaned-ingest.js";
+import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");

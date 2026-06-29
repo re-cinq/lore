@@ -4,11 +4,13 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Floor is sliced VERTICALLY: each top-level folder under src/ is a domain that
-// owns its port + implementation + orchestration + colocated tests. Two folders
-// are special: `kernel/` is the shared substrate (DB pool, config, repositories,
-// the CodePlatform port) every domain may import and that imports nothing above
-// it; `delivery/` is the entry-point tier (the deploy contract `dist/delivery/*`)
-// that sits at the top and is imported by nothing. `composition/` wires impls.
+// owns its port + implementation + orchestration + colocated tests. Special
+// citizens: `src/index.ts` is the application entry (the `dist/index.js` the
+// container runs) — it sits at the very top and may import anything; `kernel/`
+// is the shared substrate (DB pool, config, repositories, the CodePlatform port)
+// every domain may import and that imports nothing above it; `delivery/` holds
+// the remaining entry points (job-runner, gen-catalog) + the health module — a
+// top tier imported by nothing except the root entry. `composition/` wires impls.
 // Enforced as a test rather than an eslint stack (replaces the old layer-rank
 // boundaries.test.ts).
 
@@ -70,9 +72,11 @@ describe("floor domain boundaries", () => {
     expect(bad).toEqual([]);
   });
 
-  it("delivery/ is the top entry-point tier — nothing else imports it", () => {
+  it("delivery/ is a top entry-point tier — nothing imports it except the root entry", () => {
     const bad: string[] = [];
-    for (const f of files.filter((f) => domainOf(f) !== "delivery")) {
+    const exempt = (f: string) =>
+      domainOf(f) === "delivery" || path.relative(SRC, f) === "index.ts";
+    for (const f of files.filter((f) => !exempt(f))) {
       for (const spec of relImports(readFileSync(f, "utf8"))) {
         const target = domainOf(path.resolve(path.dirname(f), spec));
         if (target === "delivery") bad.push(`${path.relative(SRC, f)} → ${spec}`);
