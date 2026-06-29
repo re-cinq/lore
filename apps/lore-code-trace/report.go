@@ -94,22 +94,11 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 		go func(file string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			out, err := runCommand(ctx, substituteSelector(m.Run, file), runCwd, timeout)
-			if err != nil {
-				fmt.Fprintf(logw, "[lore-code-trace] run failed for %s — skipped: %v\n", file, err)
-				return
+			if rr := runOneFile(ctx, m, file, runCwd, timeout, logw); rr != nil {
+				mu.Lock()
+				runByFile[file] = rr
+				mu.Unlock()
 			}
-			rr, err := parseRunResult(out)
-			if err != nil {
-				fmt.Fprintf(logw, "[lore-code-trace] unparseable run output for %s — skipped: %v\n", file, err)
-				return
-			}
-			for i := range rr.Covered {
-				rr.Covered[i].File = stripPrefix(rr.Covered[i].File, m.PathPrefixStrip)
-			}
-			mu.Lock()
-			runByFile[file] = rr
-			mu.Unlock()
 		}(f)
 	}
 	wg.Wait()
@@ -126,6 +115,41 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 	}
 
 	return TestReport{Commit: meta.Commit, Branch: meta.Branch, Tests: tests, Results: results}, nil
+}
+
+// runOneFile runs the manifest's run command for one file and parses its output
+// per coverage_format. json: stdout is {passed, covered} and a non-zero exit is a
+// broken command (skip). lcov/cobertura: the exit code is pass/fail and stdout is
+// the raw coverage report (parsed even when the test failed). Returns nil to skip.
+func runOneFile(ctx context.Context, m Manifest, file, runCwd string, timeout time.Duration, logw io.Writer) *RunResult {
+	out, err := runCommand(ctx, substituteSelector(m.Run, file), runCwd, timeout)
+
+	var rr *RunResult
+	switch m.CoverageFormat {
+	case "json":
+		if err != nil {
+			fmt.Fprintf(logw, "[lore-code-trace] run failed for %s — skipped: %v\n", file, err)
+			return nil
+		}
+		parsed, perr := parseRunResult(out)
+		if perr != nil {
+			fmt.Fprintf(logw, "[lore-code-trace] unparseable run output for %s — skipped: %v\n", file, perr)
+			return nil
+		}
+		rr = parsed
+	case "lcov":
+		rr = &RunResult{Passed: err == nil, Covered: parseLcovCoverage(string(out))}
+	case "cobertura":
+		rr = &RunResult{Passed: err == nil, Covered: parseCoberturaCoverage(string(out))}
+	default:
+		fmt.Fprintf(logw, "[lore-code-trace] unsupported coverage_format %q for %s — skipped\n", m.CoverageFormat, file)
+		return nil
+	}
+
+	for i := range rr.Covered {
+		rr.Covered[i].File = stripPrefix(rr.Covered[i].File, m.PathPrefixStrip)
+	}
+	return rr
 }
 
 func substituteSelector(run, selector string) string {

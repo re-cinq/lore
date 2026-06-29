@@ -46,6 +46,34 @@ func TestBuildReportFansFileResultOntoEveryDescriptor(t *testing.T) {
 	}
 }
 
+// coverage_format: lcov — the run command emits raw lcov on stdout; the binary
+// parses it to canonical ranges and takes pass/fail from the exit code.
+func TestBuildReportParsesLcovRunOutput(t *testing.T) {
+	listJSON := `[{"id":"x::1","name":"1","file":"x.go"}]`
+	lcov := "SF:src/x.go\nDA:1,1\nDA:2,1\nend_of_record\n"
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            "printf '%s' '" + lcov + "' # {selector}",
+		CoverageFormat: "lcov",
+		Cwd:            ".",
+	}
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report.Results) != 1 {
+		t.Fatalf("results: got %d, want 1", len(report.Results))
+	}
+	r := report.Results[0]
+	if !r.Passed {
+		t.Error("expected passed=true from a zero exit")
+	}
+	want := []CoveredChunk{{File: "src/x.go", StartLine: 1, EndLine: 2}}
+	if len(r.Covered) != 1 || r.Covered[0] != want[0] {
+		t.Errorf("covered: got %+v, want %+v", r.Covered, want)
+	}
+}
+
 // A failing run command must not abort the whole report — that file is skipped.
 func TestBuildReportSkipsFileWhenRunCommandFails(t *testing.T) {
 	listJSON := `[{"id":"x::1","name":"1","file":"x.go"}]`

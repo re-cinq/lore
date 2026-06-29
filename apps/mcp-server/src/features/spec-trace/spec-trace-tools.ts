@@ -9,8 +9,6 @@
  * `loadTestCommandManifest` reads `<repoRoot>/.lore/test-commands.yml`.
  * `listTestsTool` / `runTestTool` are the orchestrators the tool
  * registrations call: gate → manifest precondition → run → JSON.
- * `buildTestReport` is the full-suite orchestrator: it gates, lists,
- * runs every descriptor, and assembles the `/test-report` body.
  * See `specs/project-test-interface/contracts/test-commands.md`.
  */
 
@@ -20,17 +18,11 @@ import { parse } from "yaml";
 import {
   resolveTestCommandManifest,
   executionRefusal,
-  groupRunsByFile,
-  mapWithLimit,
   type TestDescriptor,
   type RunResult,
   type CoveredChunk,
-  type TaggedRunResult,
   type TestCommandManifest,
 } from "@re-cinq/lore-shared";
-
-/** Max test files run concurrently — bounds the per-file vitest processes so a large suite can't fork-bomb. */
-const RUN_CONCURRENCY = 4;
 
 // Relocated to @re-cinq/lore-shared (project/lib/trust.ts); re-exported here for
 // back-compat with existing importers.
@@ -106,97 +98,6 @@ export async function runTestTool(
 
   const result = await runTestsRun(manifest.run, selector, resolveCwd(manifest, cwd));
   return JSON.stringify(stripCoveredPaths(result, manifest.path_prefix_strip));
-}
-
-export interface TestReport {
-  commit: string;
-  branch: string;
-  tests: TestDescriptor[];
-  results: TaggedRunResult[];
-}
-
-/**
- * Split a report so each chunk's JSON stays within `maxBytes` — a full-suite
- * report (thousands of tests × coverage ranges) is multiple MB and exceeds the
- * ingress/app body limits. Each test travels with its matching result so a
- * chunk is self-consistent; the endpoint counts each POST independently. A
- * single test whose result alone exceeds `maxBytes` is emitted as its own
- * (over-limit) chunk rather than dropped.
- */
-export function chunkTestReport(report: TestReport, maxBytes: number): TestReport[] {
-  const resultById = new Map(report.results.map((result) => [result.id, result]));
-  const envelopeBytes = Buffer.byteLength(
-    JSON.stringify({ commit: report.commit, branch: report.branch, tests: [], results: [] }),
-    "utf-8",
-  );
-
-  const chunks: TestReport[] = [];
-  let tests: TestDescriptor[] = [];
-  let results: TaggedRunResult[] = [];
-  let size = envelopeBytes;
-
-  const flush = (): void => {
-    chunks.push({ commit: report.commit, branch: report.branch, tests, results });
-    tests = [];
-    results = [];
-    size = envelopeBytes;
-  };
-
-  for (const test of report.tests) {
-    const result = resultById.get(test.id);
-    // +1 per array element for the comma separator in compact JSON (tests +
-    // results) so the running tally never undercounts the serialized chunk.
-    const addBytes =
-      Buffer.byteLength(JSON.stringify(test), "utf-8") +
-      1 +
-      (result ? Buffer.byteLength(JSON.stringify(result), "utf-8") + 1 : 0);
-    if (tests.length > 0 && size + addBytes > maxBytes) flush();
-    tests.push(test);
-    if (result) results.push(result);
-    size += addBytes;
-  }
-  flush();
-
-  return chunks;
-}
-
-export async function buildTestReport(
-  env: NodeJS.ProcessEnv,
-  manifest: TestCommandManifest,
-  cwd: string,
-  meta: { commit: string; branch: string },
-  concurrency = RUN_CONCURRENCY,
-): Promise<TestReport> {
-  const refusal = executionRefusal(env);
-  if (refusal) throw new Error(refusal);
-  const runCwd = resolveCwd(manifest, cwd);
-  const prefix = manifest.path_prefix_strip;
-  const tests = stripDescriptorPaths(await runTestsList(manifest.list, runCwd), prefix);
-
-  // Coverage is file-level, so run `run` ONCE per file (selector = file, not the
-  // per-`it` id) under a concurrency cap, then fan each file's result to every
-  // descriptor sharing it.
-  const byFile = groupRunsByFile(tests);
-  const files = [...byFile.keys()];
-  const runByFile = new Map<string, RunResult | null>();
-  const fileResults = await mapWithLimit(files, concurrency, (file) =>
-    runTestsRun(manifest.run, file, runCwd)
-      .then((run) => stripCoveredPaths(run, prefix))
-      .catch((err) => {
-        const reason = err instanceof Error ? err.message : String(err);
-        console.warn(`[trace] skipping ${file}: ${reason}`);
-        return null;
-      }),
-  );
-  files.forEach((file, index) => runByFile.set(file, fileResults[index]));
-
-  const results: TaggedRunResult[] = [];
-  for (const [file, ids] of byFile) {
-    const run = runByFile.get(file);
-    if (!run) continue;
-    for (const id of ids) results.push({ id, ...run });
-  }
-  return { commit: meta.commit, branch: meta.branch, tests, results };
 }
 
 export function loadTestCommandManifest(repoRoot: string): TestCommandManifest | null {

@@ -21,8 +21,6 @@ import { handleTaskLogs, handleGetTaskLogs, handleGetJobRunLogs } from "./logs.j
 import { handleTokens } from "./tokens.js";
 import { handleDarkFactorySettingsRoute } from "./dark-factory.js";
 import { handleAgentsRoute } from "./agents.js";
-import { handleCoverageRoute } from "./coverage.js";
-import { handleTestReport } from "./test-report.js";
 import { handleImpactRoute } from "./impact.js";
 import { handleIngestGraphRoute } from "./ingest-graph.js";
 import { handleWebhookStatus, handleWebhookEnsure } from "./webhook.js";
@@ -77,8 +75,6 @@ const API_ROUTES: ApiRoute[] = [
   { match: path((url) => url === "/api/tokens"), handle: handleTokens },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/.test(url)), handle: handleAgentsRoute },
-  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/coverage(\?|$)/, "POST"), handle: handleCoverageRoute },
-  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/test-report(\?|$)/, "POST"), handle: handleTestReport },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$)/, "POST"), handle: handleIngestGraphRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook\/ensure(\?|$)/, "POST"), handle: handleWebhookEnsure },

@@ -60,11 +60,6 @@ func run(startDir string, post bool, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	// JSON run output ({passed, covered}) is supported today. Raw lcov/cobertura
-	// forwarding to the coverage path is a follow-up — fail loudly, not silently.
-	if m.CoverageFormat != "json" {
-		return fmt.Errorf("coverage_format %q is not yet supported by lore-code-trace (json only); lcov/cobertura forwarding is a follow-up", m.CoverageFormat)
-	}
 	commit, branch, repo, err := gitMeta(root)
 	if err != nil {
 		return err

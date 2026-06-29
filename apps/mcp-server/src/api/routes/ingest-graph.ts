@@ -3,8 +3,8 @@
  * trigger for the spec-traceability graph. Only docs (`specs`/`adrs`) flow
  * here: each fires the fire-and-forget spec-trace trigger — the coordinator
  * reads the repo and projects them into the graph, no pipeline task. Test
- * projection is CI-only (lore-tests.yml POSTs /test-report + /coverage), so a
- * non-doc kind is rejected.
+ * projection is CI-only (the lore-code-trace binary POSTs the Floor ci-tests
+ * ingress), so a non-doc kind is rejected.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -37,7 +37,7 @@ export async function handleIngestGraphRoute(
   const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
   if (unsupported.length > 0) {
     json(res, 400, {
-      error: `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (POST /test-report + /coverage)`,
+      error: `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
     });
     return;
   }
