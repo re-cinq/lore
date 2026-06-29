@@ -5,8 +5,8 @@
  * reaper recovers rows stuck in `processing` by a crash.
  */
 
-import { query } from "../../kernel/db.js";
-import type { EventInput, EventRow } from "../types.js";
+import { query } from "../kernel/db.js";
+import type { EventInput, EventRow } from "./types.js";
 
 export async function insertEvent(input: EventInput): Promise<void> {
   await query(

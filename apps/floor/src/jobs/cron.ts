@@ -5,15 +5,15 @@
  * heavy batch jobs (reindex/eval/autoresearch …) are handled separately.
  */
 
-import { mergeCheckJob } from "../../merge/merge-check.js";
-import { approvalCheckJob } from "../../dark-factory/approval-check.js";
-import { reviewReactorJob } from "../../review/review-reactor.js";
-import { specTaskExecutorJob } from "../../task/spec-task-executor.js";
-import { staleTaskCheckJob } from "../../task/stale-task-check.js";
-import { featurePlanningReaperJob } from "../../task/feature-planning-reaper.js";
-import { pruneHandled } from "../loop/store.js";
+import { mergeCheckJob } from "../merge/merge-check.js";
+import { approvalCheckJob } from "../dark-factory/approval-check.js";
+import { reviewReactorJob } from "../review/review-reactor.js";
+import { specTaskExecutorJob } from "../task/spec-task-executor.js";
+import { staleTaskCheckJob } from "../task/stale-task-check.js";
+import { featurePlanningReaperJob } from "../task/feature-planning-reaper.js";
+import { pruneHandled } from "../main-loop/store.js";
 import { reconcileAgents } from "../listeners/k8s-watch.js";
-import type { EventHandler } from "../types.js";
+import type { EventHandler } from "../main-loop/types.js";
 
 /** Adapt an existing `() => Promise<string>` job into an event handler (drop the summary). */
 const fromJob = (job: () => Promise<string>): EventHandler => async () => {

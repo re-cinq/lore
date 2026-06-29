@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { query, isDbAvailable } from "../kernel/db.js";
 import { parseAgentEvents } from "../agent/agent-events.js";
-import { handleGitHubWebhook } from "../events/listeners/github-webhook.js";
+import { handleGitHubWebhook } from "../listeners/github-webhook.js";
 
 const startTime = Date.now();
 

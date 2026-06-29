@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { handleOne, type LoopDeps } from "./loop.js";
-import type { EventRow, EventHandler } from "../types.js";
+import type { EventRow, EventHandler } from "./types.js";
 
 function row(overrides: Partial<EventRow> = {}): EventRow {
   return {

@@ -6,8 +6,8 @@
  */
 
 import type { Agent } from "@re-cinq/agent-contracts";
-import { makeAgentsApi, processAgentCr } from "../../watcher/agent-watcher.js";
-import type { EventHandler } from "../types.js";
+import { makeAgentsApi, processAgentCr } from "../watcher/agent-watcher.js";
+import type { EventHandler } from "../main-loop/types.js";
 
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";

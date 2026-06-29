@@ -91,7 +91,7 @@ gcloud auth for local dev.
 - `web-ui/src/app/assembly-lines/[id]/PRStatusCard.tsx` — live PR status card
 - `agent/src/jobs/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
 - `agent/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons
-- `apps/floor/src/delivery/health.ts` — the Floor HTTP server: `POST /api/webhook/github` (the GitHub webhook ingress, HMAC-verified, maps→inserts `github.*` events), the `/api/agent-events` NDJSON cost sink, and `/healthz`. The old `/api/trigger/*` fan-out endpoints were replaced by the event bus (`apps/floor/src/events/`): listeners insert into `pipeline.events`, the loop dispatches to handlers. spec-coverage validate / spec-trace now run as `internal.ingest.*` event handlers (mcp-server inserts the events post-ingest via the shared `insertEvent`).
+- `apps/floor/src/delivery/health.ts` — the Floor HTTP server: `POST /api/webhook/github` (the GitHub webhook ingress, HMAC-verified, maps→inserts `github.*` events), the `/api/agent-events` NDJSON cost sink, and `/healthz`. The old `/api/trigger/*` fan-out endpoints were replaced by the event bus (`apps/floor/src/{listeners,main-loop,jobs}/`): listeners insert into `pipeline.events`, the loop dispatches to handlers. spec-coverage validate / spec-trace now run as `internal.ingest.*` event handlers (mcp-server inserts the events post-ingest via the shared `insertEvent`).
 - **`spec-test-coverage` v3 (2026-06-02):** source of truth for spec→test links is markdown inside `spec.md` — `Statement. ([validated by name](path/to/test.ts#L42))` at end of each statement. The web UI parses + colors them at render time via `web-ui/src/lib/spec-coverage-derive.ts` (`segmentStatements` → `classifyByHeuristic` → `parseTestLinksInStatement`); no DB linker tables (`spec_statements` / `spec_test_links` / `spec_coverage_runs` dropped in migration 0008). Three write-paths:
   - **Authors hand-write the links** (free; just edit `spec.md`).
   - **`/lore-suggest-links`** (subscription-billed, on-demand, single-spec) — Claude Code skill that walks through the same judge pipeline locally and opens a PR against the spec's repo. See `specs/local-link-suggester/`. Subscription tokens, no API spend.
@@ -516,7 +516,7 @@ GCS (no UI needed). `lore_my_usage` shows per-developer token usage
 - Changes requested (iteration >= 2): escalate to human review
 
 **Event bus — the 3-layer trigger substrate** (ADR-015 amendment;
-`apps/floor/src/events/`): every Floor trigger flows through one
+`apps/floor/src/{listeners,main-loop,jobs}/`): every Floor trigger flows through one
 `pipeline.events` table (migration 0023). **Layer 1 — listeners** only
 write rows: the GitHub webhook ingress moved into the Floor
 (`POST /api/webhook/github`, HMAC-verified, maps to `github.*` events); a

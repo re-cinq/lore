@@ -6,7 +6,7 @@
  * HMAC + insert.
  */
 
-import type { EventInput } from "../types.js";
+import type { EventInput } from "../main-loop/types.js";
 
 const PR_REVIEW_TRIGGER_ACTIONS = new Set(["synchronize", "opened", "reopened", "ready_for_review"]);
 

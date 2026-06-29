@@ -6,8 +6,8 @@
  * import here — keeps the mapper unit-testable; the label is the CR contract.
  */
 
-import type { EventInput } from "../types.js";
-import { k8sDedupeKey } from "../dedupe.js";
+import type { EventInput } from "../main-loop/types.js";
+import { k8sDedupeKey } from "../main-loop/dedupe.js";
 
 /** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentBackend sets it on every CR). */
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";

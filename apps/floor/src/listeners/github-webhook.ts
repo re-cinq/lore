@@ -8,7 +8,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { mapGitHubEvent } from "./github-map.js";
-import { insertEvent } from "../loop/store.js";
+import { insertEvent } from "../main-loop/store.js";
 
 export function verifyGitHubSignature(secret: string, signature: string, rawBody: string): boolean {
   const expected = "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex");

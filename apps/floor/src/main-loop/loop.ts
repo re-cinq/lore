@@ -7,7 +7,7 @@
 
 import { decideRetry } from "./retry.js";
 import { claimBatch, markDone, markFailed, markDead } from "./store.js";
-import type { EventHandler, EventRow } from "../types.js";
+import type { EventHandler, EventRow } from "./types.js";
 
 export interface LoopDeps {
   resolve: (eventName: string) => EventHandler | undefined;

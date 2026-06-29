@@ -6,10 +6,10 @@
  */
 
 import type { EventHandler } from "./types.js";
-import * as github from "./handlers/github.js";
-import * as internal from "./handlers/internal.js";
-import * as cron from "./handlers/cron.js";
-import * as kubernetes from "./handlers/kubernetes.js";
+import * as github from "../jobs/github.js";
+import * as internal from "../jobs/internal.js";
+import * as cron from "../jobs/cron.js";
+import * as kubernetes from "../jobs/kubernetes.js";
 
 export function buildRegistry(): Map<string, EventHandler> {
   return new Map<string, EventHandler>([

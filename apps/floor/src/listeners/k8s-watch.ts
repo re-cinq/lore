@@ -9,10 +9,10 @@
 
 import { KubeConfig, Watch, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent } from "@re-cinq/agent-contracts";
-import { query } from "../../kernel/db.js";
-import { insertEvent } from "../loop/store.js";
+import { query } from "../kernel/db.js";
+import { insertEvent } from "../main-loop/store.js";
 import { mapAgentToEvent } from "./k8s-map.js";
-import { makeAgentsApi } from "../../watcher/agent-watcher.js";
+import { makeAgentsApi } from "../watcher/agent-watcher.js";
 
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";

@@ -5,9 +5,9 @@
  * registered here; heavy batch jobs stay as Kubernetes CronJobs (ADR-019).
  */
 
-import { registerJob } from "../../scheduling/scheduler.js";
-import { insertEvent } from "../loop/store.js";
-import { cronDedupeKey } from "../dedupe.js";
+import { registerJob } from "../scheduling/scheduler.js";
+import { insertEvent } from "../main-loop/store.js";
+import { cronDedupeKey } from "../main-loop/dedupe.js";
 
 /** Register a scheduled job that only emits its tick event (the loop runs the work). */
 export function registerCronEmitter(name: string, cron: string): void {

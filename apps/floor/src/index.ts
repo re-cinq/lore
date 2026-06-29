@@ -10,11 +10,11 @@ import { loadApprovalConfig } from "./dark-factory/approval.js";
 // health server), the k8s Agent-CR watch, and the cron emitters below. Layer 2: the
 // drain loop + reaper over pipeline.events. Layer 3: the registry's handlers (the
 // existing tasks/jobs). See apps/floor/README.md + ADR-015.
-import { buildRegistry, resolve } from "./events/registry.js";
-import { startEventLoop } from "./events/loop/loop.js";
-import { startEventReaper } from "./events/loop/reaper.js";
-import { registerCronEmitter } from "./events/listeners/scheduler-emitter.js";
-import { startK8sWatch } from "./events/listeners/k8s-watch.js";
+import { buildRegistry, resolve } from "./main-loop/registry.js";
+import { startEventLoop } from "./main-loop/loop.js";
+import { startEventReaper } from "./main-loop/reaper.js";
+import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
+import { startK8sWatch } from "./listeners/k8s-watch.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");

@@ -7,11 +7,11 @@
 
 import { randomUUID } from "node:crypto";
 import { createPipelineTask, parseTasks, inferPhaseDependencies, syncTasksToDb } from "@re-cinq/lore-shared";
-import { getPool, query } from "../../kernel/db.js";
-import { GitHubPlatform } from "../../platform/github.js";
-import { runReviewReactorForPR } from "../../review/review-reactor.js";
-import { tryAutoMergeForCompletedTask } from "../../merge/auto-merge-trigger.js";
-import type { EventHandler } from "../types.js";
+import { getPool, query } from "../kernel/db.js";
+import { GitHubPlatform } from "../platform/github.js";
+import { runReviewReactorForPR } from "../review/review-reactor.js";
+import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
+import type { EventHandler } from "../main-loop/types.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */
 async function autoMergeForPR(repo: string, prNumber: number): Promise<void> {

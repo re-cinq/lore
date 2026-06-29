@@ -55,9 +55,12 @@ src/
                   dispatch) + kube plumbing
   assembly-line/  the workflow graph of Stations (floor-graph + run)
   agent/          Agent-CR catalog seed + telemetry sink
-  events/         the event bus (ADR-015): listeners/ (github-webhook, k8s-watch,
-                  scheduler-emitter) + loop/ (store, loop, reaper, retry) +
-                  handlers/ (github, kubernetes, cron, internal) + registry.ts
+  listeners/      EVENT BUS layer 1: capture occurrences → pipeline.events
+                  (github-webhook, k8s-watch, scheduler-emitter + the map/sig pures)
+  main-loop/      EVENT BUS layer 2: store, loop, reaper, retry, registry,
+                  event-names, dedupe, types — claim + dispatch + retry/dead-letter
+  jobs/           EVENT BUS layer 3: the handlers keyed by event_name
+                  (github, kubernetes, cron, internal) — delegate to the domains below
   task/           the worker, orchestrator, and per-task-type handlers
   spec-trace/     spec→test graph ingest, audit, drift, coverage backfill/validate
   watcher/        Agent CR processing (processAgentCr) — driven by kubernetes.* events
