@@ -97,5 +97,5 @@ pending-list helpers it leans on are covered above.)*
 ## Out of Scope
 
 - The notifier loop that populates the pending list (`startNotifier`).
-- Graph-ingest internals (`graph-ingest.local.ts`).
+- Test/spec-trace projection — now CI-driven (ADR-023), no longer a local task.
 - Starting an ad-hoc task — [`lore_run_task_locally`](../run-task-locally/spec.md).

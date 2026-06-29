@@ -110,8 +110,12 @@ had no compute justification (projecting markdown is just parsing).
   fires the trigger. Each kind is its own parallel CI run. The server-side auto
   fan-out from `/api/ingest` is deleted; the endpoint scope drops `admin`→`write`
   (no task creation).
-- `ingest-tests` **stays** a graph-ingest task — it runs the project's suite, so it
-  needs a runner / CI sandbox (it also feeds the test-report path above).
+- `ingest-tests` as a graph-ingest pipeline task is **removed** (2026-06-29): test
+  projection is CI-driven too, the same as specs/ADRs. The repo's `lore-tests.yml`
+  runs the project's suite and POSTs `/test-report` + `/coverage` directly — no
+  pipeline task, no agent definition. (The cluster `ingest-tests` task was a
+  self-skipping no-op anyway: the suite only runs in CI / a local sandbox, never on
+  the shared agent.)
 - Observability (point 3) extends to the repo-read family: each run emits a
   `graphIngestLogLine` + a `spec_trace_ingest` audit row carrying
   `projected`/`skipped`/`failed`/`status`.

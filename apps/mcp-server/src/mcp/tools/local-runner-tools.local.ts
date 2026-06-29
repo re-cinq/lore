@@ -162,24 +162,6 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
           } catch { /* best effort */ }
         }
 
-        // Deterministic graph-ingest tasks run in-process (zero-LLM, no worktree),
-        // dispatched by execution_mode via the task-type prefix. The content source
-        // is the cwd working tree when it matches, else a cached /tmp clone.
-        if (typeof task.task_type === "string" && task.task_type.startsWith("ingest-")) {
-          const { resolveContentSource, executeGraphIngestLocally } = await import("../../features/spec-trace/graph-ingest.local.js");
-          const cb = (task as any).context_bundle || {};
-          const ref = cb.commit || cb.branch || undefined;
-          let sourceDir: string;
-          try {
-            sourceDir = await resolveContentSource(task.target_repo, ref);
-          } catch (err: any) {
-            return { content: [{ type: "text" as const, text: `Could not prepare repo source for ${task.target_repo}: ${err.message}` }] };
-          }
-          const result = await executeGraphIngestLocally(task, sourceDir);
-          skipTask(task.id);
-          return { content: [{ type: "text" as const, text: `${result.message}\n\nTask ${task.id} → ${result.status} (source: ${sourceDir})` }] };
-        }
-
         // Spawn locally
         const localTask = await spawnLocalTask({
           taskId: task.id,

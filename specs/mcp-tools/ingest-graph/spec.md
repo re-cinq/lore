@@ -1,109 +1,47 @@
-# Feature Specification: lore_ingest_graph MCP Tool
+# Feature Specification: lore_ingest_graph MCP Tool (removed)
 
 | Field   | Value                                  |
 |---------|----------------------------------------|
-| Feature | lore_ingest_graph MCP Tool                  |
-| Status  | **Draft**                              |
+| Feature | lore_ingest_graph MCP Tool             |
+| Status  | **Removed (2026-06-29)**               |
 | Created | 2026-06-10                             |
-| Owner   | Platform Engineering                   |
-| Tool    | `lore_ingest_graph`                         |
-| Module  | Spec-trace (`spec-trace-tools.ts`)     |
+| Tool    | `lore_ingest_graph` (deleted)          |
+| Module  | Spec-trace                             |
 | Scope   | shared                                 |
 
-## Problem Statement
+## Status
 
-The spec-traceability graph (Spec → Section → Statement → TestChunk, plus
-Coverage edges) is built by projecting a repo's specs, ADRs, and test reports.
-**Specs and ADRs are projected automatically by CI** — the repo's `lore-ingest.yml`
-fans out one job per kind that fires the spec-trace projection trigger (see
-[ADR-023](../../../adrs/ADR-023-test-run-trace-binding.md)); they are no longer
-pipeline tasks. The one ingest that still needs a task is **tests**: it runs the
-project's test suite (via the `.lore/test-commands.yml` interface), so it executes
-only in a trusted sandbox (local dev / CI / a runner pod). `lore_ingest_graph`
-creates that `ingest-tests` task so a `lore_run_task_locally` (or the cluster
-runner) can pick it up. It is idempotent: an in-flight `ingest-tests` task is
-skipped.
+The `lore_ingest_graph` MCP tool has been **removed**. Its only job was to create
+an `ingest-tests` pipeline task, and that task type is gone: **all three
+spec-traceability projections are now CI-driven, none is a pipeline task** (see
+[ADR-023](../../../adrs/ADR-023-test-run-trace-binding.md)).
 
-## Interface
+- **Specs & ADRs** project via the repo's `lore-ingest.yml` → `POST /api/repos/:o/:r/ingest-graph`
+  (`matrix: [specs, adrs]`), which fires the fire-and-forget spec-trace projection trigger.
+- **Tests** project via the repo's `lore-tests.yml`, which runs the project's test
+  suite (the `.lore/test-commands.yml` interface) and POSTs `/test-report` +
+  `/coverage` directly. The cluster `ingest-tests` task was a self-skipping no-op
+  anyway (the suite only runs in CI / a local sandbox, never on the shared agent).
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/spec-trace-tools.ts#L10)).
+To run the suite locally and project test coverage, use `npm run trace:run-tests`
+(or `lore_list_tests` / `lore_run_test` for individual tests). To read coverage
+from the built graph, use `lore-query-trace`.
 
-- **name**: `lore_ingest_graph`
-- **description** (verbatim):
+## Surviving REST surface — `POST /api/repos/:o/:r/ingest-graph`
 
-```text
-WRITE side of spec-traceability for the TEST suite: creates an ingest-tests pipeline task (run it locally / in CI to project test→spec coverage into the graph). Specs and ADRs project automatically via CI (lore-ingest.yml fans out per-kind jobs that fire the projection trigger), not this tool. Idempotent — an in-flight ingest-tests task is skipped. Instead: to READ spec coverage from the built graph use lore-query-trace; to enumerate or run tests locally use lore_list_tests / lore_run_test.
-```
-
-### Input schema (Zod)
-
-| Param | Type | Required | Default | Constraint / notes |
-|-------|------|----------|---------|--------------------|
-| `repo` | string | no | — | Target repo as 'owner/repo'. Defaults to the repo detected from cwd git remote. |
-| `ref` | string | no | — | Branch name or commit SHA. Defaults to the repo's default branch. |
-
-## Behavior
-
-1. **Repo resolution** — `targetRepo = repo || detectCurrentRepo()`. If both are
-   empty, return the literal text
-   `"No repo specified and could not detect the current repo (run inside a git repo or pass `repo`)."`
-2. **Availability gate** — `dbPoolRef = getPool()`. If null, return the literal
-   text `"Database not available — cannot create ingestion tasks."`
-3. Dynamic-import and call `createIngestGraphTasks(dbPoolRef, targetRepo,
-   { kinds: ["tests"], branch: ref, createdBy: "lore_ingest_graph" })`
-   ([handler](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.ts#L25)):
-   1. Generate one `groupId = randomUUID()`.
-   2. `taskType = "ingest-tests"`. **Dedupe** — `SELECT id FROM pipeline.tasks
-      WHERE target_repo = $1 AND task_type = $2 AND status IN
-      ('pending','queued','running','running-local') LIMIT 1`. If a row exists,
-      push `tests` to `skipped` and continue (so re-runs never stack duplicate
-      in-flight tasks).
-   3. Otherwise `createPipelineTask(pool, { taskType, description: "Ingest tests
-      → graph for {repo}", targetRepo, createdBy, taskGroupId: groupId,
-      contextBundle: { kind: "tests", branch } })` and push `{ id, kind }` to
-      `created`.
-   4. Return `{ groupId, created, skipped }`.
-4. **Success envelope** — build a bulleted list of `  • {kind}: {id}` lines and a
-   `Skipped (already in flight): {kinds…}` note when any were skipped, then return
-   `Created {N} ingestion task(s) for {repo} (group {groupId}):\n{lines}{skippedNote}\n\nRun one locally with: lore_run_task_locally <task_id>`.
-5. Any thrown error is caught and returned as
-   `"Error creating ingestion tasks: {message}"`.
-
-## Output
-
-A single MCP text content block. One of, in priority order: the no-repo text, the
-database-not-available text, the `Created N ingestion task(s) …` success block
-(with the optional skipped note + the `lore_run_task_locally` hint), or the
-`"Error creating ingestion tasks: …"` text. **Never throws** — every path returns
-text.
-
-## Dependencies & side effects
-
-- `detectCurrentRepo()` (repo resolution).
-- `getPool()` (pg pool; null-checked).
-- `createIngestGraphTasks` → `createPipelineTask` (from `@re-cinq/lore-shared`):
-  one dedupe `SELECT`, then **inserts** one `pipeline.tasks` row for the
-  `ingest-tests` task (also recording a `pending` task event). `ingest-tests` is
-  allowed at every trust tier (zero-LLM, no PR).
-- No graph nodes are written by this tool — that happens later when the runner
-  executes the `ingest-tests` task.
+The REST route remains, **docs-only**: it fires the spec-trace trigger for the
+`specs`/`adrs` kinds and rejects any other kind with `400` (test projection is
+CI-only via `/test-report` + `/coverage`). Scope `write`.
+Handler: [`mcp-server/src/api/routes/ingest-graph.ts`](../../../apps/mcp-server/src/api/routes/ingest-graph.ts).
 
 ## Acceptance Criteria
 
-`createIngestGraphTasks` returns the created task's id under `created[].kind`. ([validated by `sets created[].id to the created task's task_id`](../../../apps/mcp-server/src/features/spec-trace/ingest-graph-tasks.test.ts#L27))
+The endpoint fires the spec-trace trigger for the `specs` kind and creates no task. ([validated by `fires the spec-trace trigger for the specs kind and creates no task`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L26))
 
-The REST `/ingest-graph` endpoint that CI calls fires the spec-trace trigger for the `specs` kind and creates no task. ([validated by `fires the spec-trace trigger for the specs kind and creates no task`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L32))
-
-The same endpoint keeps the pipeline-task path for the `tests` kind and fires no doc trigger. ([validated by `keeps the task path for the tests kind and fires no doc trigger`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L52))
-
-The tool wrapper's repo/db guards and the in-flight dedupe branch are exercised
-only against a live DB. *(untested: the dedupe `SELECT` + insert and the
-success-string assembly have no pure seam in the wrapper.)*
+The endpoint rejects the `tests` kind with `400` and fires no trigger (test projection is CI-only). ([validated by `rejects the tests kind with 400 and fires no trigger`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L45))
 
 ## Out of Scope
 
-- **Spec/ADR projection** — now CI-driven via the spec-trace trigger (ADR-023);
-  not this tool. The per-kind graph projection (Spec/Section/Statement/TestChunk/
-  Coverage node writes) is owned by `runIngestGraph` and the
-  `spec-traceability-graph` projection layer.
+- Per-kind graph projection node writes (Spec/Section/Statement/TestChunk/Coverage)
+  — owned by `runIngestGraph` and the spec-traceability projection layer.
 - Reading the graph — `query_trace` (specified separately).
