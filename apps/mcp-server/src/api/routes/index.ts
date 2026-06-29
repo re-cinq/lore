@@ -28,6 +28,7 @@ import { handleIngestGraphRoute } from "./ingest-graph.js";
 import { handleWebhookStatus, handleWebhookEnsure } from "./webhook.js";
 import { handleTraceRoute, handleGlobalTraceSpecs } from "./trace.js";
 import { handleFeaturesRoute } from "./features.js";
+import { handleDistRoute } from "./dist.js";
 
 type RouteHandler = (
   req: IncomingMessage,
@@ -54,6 +55,7 @@ const path = (matcher: (url: string) => boolean): RouteMatcher =>
 // Order matters: specific regex routes precede the broad /api/tasks prefix.
 const API_ROUTES: ApiRoute[] = [
   { match: path((url) => url === "/healthz"), handle: handleHealthz },
+  { match: prefix("/dist/lore-code-trace/", "GET"), handle: (req, res) => handleDistRoute(req, res) },
   { match: prefix("/api/repo-status", "GET"), handle: handleRepoStatus },
   { match: exact("/api/ingest", "POST"), handle: handleIngest },
   { match: exact("/api/onboard", "POST"), handle: handleOnboard },
@@ -107,7 +109,7 @@ export async function handleApiRoute(
   }
 
   // Centralized auth — webhooks have their own HMAC auth, healthz is public
-  const authExempt = url === "/healthz" || url.startsWith("/api/webhook/");
+  const authExempt = url === "/healthz" || url.startsWith("/api/webhook/") || url.startsWith("/dist/");
   if (!authExempt) {
     const bearer = req.headers.authorization?.replace("Bearer ", "");
     if (!bearer) {
