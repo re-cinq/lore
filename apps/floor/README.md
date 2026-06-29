@@ -27,19 +27,22 @@ single Claude-CLI/API-plus-prompt run.
 
 The source is sliced **vertically by domain** — each top-level folder under
 `src/` owns its port + implementation + orchestration + colocated tests (the
-`libs/shared/src/project/<domain>/` pattern). Two folders are special: `kernel/`
-is the shared substrate every domain may import and that imports nothing above
-it; `delivery/` is the entry-point tier (the `dist/delivery/*` deploy contract)
-that nothing else imports. The invariant is enforced by
+`libs/shared/src/project/<domain>/` pattern). Special citizens: `src/index.ts`
+is the application entry (the `dist/index.js` the container runs), top of the
+tree, may import anything; `kernel/` is the shared substrate every domain may
+import and that imports nothing above it; `delivery/` holds the remaining entry
+points + the health module (`dist/delivery/*` deploy contract), imported by
+nothing but the root entry. The invariant is enforced by
 [`src/domain-boundaries.test.ts`](./src/domain-boundaries.test.ts).
 
 ```
 src/
+  index.ts        the application entry — boots scheduler + worker + health
+                  (dist/index.js; the container CMD)
   kernel/         shared substrate: db pool, config, agent-invocation,
                   repositories/, platform-port.ts (CodePlatform) — imported by all
   composition/    project-boot.ts — the wiring root (the one place impls are wired)
-  delivery/       entrypoints (FROZEN deploy paths): index, job-runner,
-                  gen-catalog, health
+  delivery/       other entry points (job-runner, gen-catalog) + health module
   station/        Station execution — the agent-cr StationBackend (Agent CR
                   dispatch) + kube plumbing
   assembly-line/  the workflow graph of Stations (floor-graph + run)
@@ -83,6 +86,6 @@ npm run jobs:all -w @re-cinq/lore-floor           # run every batch job in seque
 
 Built into a container via [`Dockerfile`](./Dockerfile) (multi-stage; mirrors the
 `apps/` + `libs/` workspace layout so the symlinked workspace deps resolve at
-runtime). `CMD` runs `dist/delivery/index.js`, exposing the health server on
+runtime). `CMD` runs `dist/index.js`, exposing the health server on
 port 8080. Deployed to the `lore-floor` namespace on GKE via Terraform/Helm —
 see [`infra/`](../../infra) and the root README.

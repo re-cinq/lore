@@ -36,4 +36,4 @@ COPY --from=builder /app/apps/floor/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/floor/package.json ./
 EXPOSE 8080
-CMD ["node", "dist/delivery/index.js"]
+CMD ["node", "dist/index.js"]
