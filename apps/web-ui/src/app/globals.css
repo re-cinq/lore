@@ -768,6 +768,7 @@ pre {
 
 .enroll-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 5px 0;

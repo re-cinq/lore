@@ -9,11 +9,15 @@ export interface Check {
   /** A fixable check the UI can act on directly (open a PR with the file, or
    *  create/repoint the GitHub webhook). */
   action?: { kind: 'reonboard'; text: string } | { kind: 'setup-webhook'; text: string };
+  /** A value to display verbatim with a copy button (e.g. the webhook URL to set by hand). */
+  copy?: { value: string; label?: string };
 }
 
 /** The repo's GitHub-webhook status, as classified by mcp-server (null = not fetched). */
 export interface WebhookCheck {
   state: 'configured' | 'wrong_url' | 'inactive' | 'narrow_events' | 'delivery_failing' | 'missing' | 'unknown';
+  /** The canonical Floor ingress URL the hook should point at. */
+  canonicalUrl?: string;
   url?: string | null;
   lastCode?: number | null;
   reason?: string;
@@ -139,6 +143,9 @@ export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
     const m = WEBHOOK[w.state] ?? WEBHOOK.unknown;
     const check: Check = { id: 'webhook', label: 'GitHub webhook → Floor', status: m.status, detail: m.detail };
     if (m.fixable) check.action = { kind: 'setup-webhook', text: 'set up' };
+    // Show the URL to set by hand whenever it's known and not already in place —
+    // covers manual setup and the App-lacks-permission case where the button can't help.
+    if (w.canonicalUrl && w.state !== 'configured') check.copy = { value: w.canonicalUrl, label: 'set this URL' };
     checks.push(check);
   }
 

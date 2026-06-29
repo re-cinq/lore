@@ -43,6 +43,13 @@ function CheckRow({
       {check.action?.kind === 'setup-webhook' && setupWebhookAction && (
         <SetupWebhookButton action={setupWebhookAction} text={check.action.text} />
       )}
+      {check.copy && (
+        <span className={styles.copyUrl}>
+          {check.copy.label && <span className="meta">{check.copy.label}:</span>}
+          <code className={styles.copyUrlValue}>{check.copy.value}</code>
+          <CopyButton text={check.copy.value} />
+        </span>
+      )}
     </div>
   );
 }
