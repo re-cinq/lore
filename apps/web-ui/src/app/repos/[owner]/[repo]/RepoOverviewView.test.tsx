@@ -26,6 +26,7 @@ const checks: Check[] = [
     status: 'warn',
     detail: 'last delivery 401 — secret mismatch; re-set up',
     action: { kind: 'setup-webhook', text: 'set up' },
+    copy: { value: 'https://lore-webhook.gcp.re-cinq.com/api/webhook/github', label: 'set this URL' },
   },
 ];
 
@@ -74,6 +75,7 @@ describe('RepoOverviewView', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Enrollment' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'create a PR with this file' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'set up' })).toBeInTheDocument();
+    expect(screen.getByText('https://lore-webhook.gcp.re-cinq.com/api/webhook/github')).toBeInTheDocument();
   });
 
   it('shows Off (legacy) mode and links Dark Factory settings to the repo settings page', () => {

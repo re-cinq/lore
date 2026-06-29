@@ -19,6 +19,21 @@
   font-size: var(--fs-xs);
 }
 
+/* Copyable value (e.g. the webhook URL to set by hand) — drops to its own full
+   width line under the status row so a long URL stays fully readable. */
+.copyUrl {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 22px;
+  font-size: var(--fs-xs);
+  min-width: 0;
+}
+.copyUrlValue {
+  word-break: break-all;
+}
+
 .commandRow {
   display: flex;
   gap: 8px;
