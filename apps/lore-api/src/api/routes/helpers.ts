@@ -119,11 +119,11 @@ export async function triggerAgentAutoMerge(repo: string, prNumber: number): Pro
 // ── Post-ingest producers (Floor event bus) ─────────────────────────
 
 /**
- * Project specs/adrs/test-report/coverage into the spec-trace graph: emit an
- * `internal.ingest.spec_trace` event. The Floor loop's handler runs
- * dispatchSpecTrace, which routes by `kind` (repo-read for specs/adrs, payload for
- * test-report/coverage). No dedupe key — projection is content-hash idempotent, so
- * a `force` re-ingest must not be collapsed away. No-op when there's no DB pool.
+ * Project specs/adrs into the spec-trace graph: emit an `internal.ingest.spec_trace`
+ * event. The Floor loop's handler runs dispatchSpecTrace, which reads the repo for
+ * these doc kinds. (Test-report projection moved to the Floor ci-tests ingress, fed
+ * by the lore-code-trace binary.) No dedupe key — projection is content-hash
+ * idempotent, so a `force` re-ingest must not be collapsed away. No-op without a pool.
  */
 export async function triggerAgentSpecTrace(pool: Pool | null, repo: string, kind: string, payload: unknown): Promise<void> {
   if (!pool) return;

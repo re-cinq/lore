@@ -20,6 +20,14 @@ const checks: Check[] = [
     status: 'fail',
     action: { kind: 'reonboard', text: 'create a PR with this file' },
   },
+  {
+    id: 'webhook',
+    label: 'GitHub webhook → Floor',
+    status: 'warn',
+    detail: 'last delivery 401 — secret mismatch; re-set up',
+    action: { kind: 'setup-webhook', text: 'set up' },
+    copy: { value: 'https://lore-webhook.gcp.re-cinq.com/api/webhook/github', label: 'set this URL' },
+  },
 ];
 
 const task = (over: Partial<RecentTask>): RecentTask => ({
@@ -43,6 +51,7 @@ const baseProps = {
   escalationsWeek: 0,
   recentTasks: [] as RecentTask[],
   reonboardAction: action,
+  setupWebhookAction: action,
 };
 
 describe('RepoOverviewView', () => {
@@ -61,10 +70,12 @@ describe('RepoOverviewView', () => {
     expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
   });
 
-  it('renders the enrollment section and wires the reonboard action button', () => {
+  it('renders the enrollment section and wires the reonboard + webhook action buttons', () => {
     render(<RepoOverviewView {...baseProps} />);
     expect(screen.getByRole('heading', { level: 3, name: 'Enrollment' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'create a PR with this file' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'set up' })).toBeInTheDocument();
+    expect(screen.getByText('https://lore-webhook.gcp.re-cinq.com/api/webhook/github')).toBeInTheDocument();
   });
 
   it('shows Off (legacy) mode and links Dark Factory settings to the repo settings page', () => {

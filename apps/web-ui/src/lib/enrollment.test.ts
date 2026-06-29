@@ -15,6 +15,7 @@ function input(overrides: Partial<EnrollmentInput> = {}): EnrollmentInput {
     hasConventions: true,
     team: 'platform',
     githubFiles: { 'AGENTS.md': true, '.github/workflows/lore-ingest.yml': true },
+    webhook: null,
     localMcp: { developerCount: 2, lastActivity: daysBefore(1) },
     now: NOW,
     ...overrides,
@@ -126,6 +127,53 @@ describe('computeEnrollmentChecks', () => {
   it('local MCP fails when no sessions recorded', () => {
     expect(byId(computeEnrollmentChecks(input({ localMcp: { developerCount: 0, lastActivity: null } })), 'local-mcp'))
       .toMatchObject({ status: 'fail', detail: 'no local Claude Code sessions yet' });
+  });
+
+  it('omits the webhook check when status was not fetched', () => {
+    expect(computeEnrollmentChecks(input({ webhook: null })).find(c => c.id === 'webhook')).toBeUndefined();
+  });
+
+  it('webhook passes when configured', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'configured' } })), 'webhook'))
+      .toMatchObject({ status: 'pass', detail: 'delivering to the Floor' });
+  });
+
+  it('webhook fails when missing and offers the set-up action', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'missing' } })), 'webhook'))
+      .toMatchObject({ status: 'fail', action: { kind: 'setup-webhook', text: 'set up' } });
+  });
+
+  it('webhook warns on a failing delivery and notes the last code', () => {
+    const c = byId(computeEnrollmentChecks(input({ webhook: { state: 'delivery_failing', lastCode: 401 } })), 'webhook');
+    expect(c).toMatchObject({ status: 'warn', action: { kind: 'setup-webhook' } });
+    expect(c.detail).toContain('401');
+  });
+
+  it('webhook is unknown (no action) when the App lacks the webhook permission', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'unknown', reason: 'app_no_webhook_permission' } })), 'webhook'))
+      .toMatchObject({ status: 'unknown', detail: 'GitHub App lacks the Webhooks permission' });
+  });
+
+  const HOOK_URL = 'https://lore-webhook.gcp.re-cinq.com/api/webhook/github';
+
+  it('webhook surfaces the URL to set by hand when not configured', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'missing', canonicalUrl: HOOK_URL } })), 'webhook').copy)
+      .toEqual({ value: HOOK_URL, label: 'set this URL' });
+  });
+
+  it('webhook still surfaces the URL when the App lacks permission (manual is the only path)', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'unknown', reason: 'app_no_webhook_permission', canonicalUrl: HOOK_URL } })), 'webhook').copy)
+      .toEqual({ value: HOOK_URL, label: 'set this URL' });
+  });
+
+  it('webhook omits the copy URL when already configured', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'configured', canonicalUrl: HOOK_URL } })), 'webhook').copy)
+      .toBeUndefined();
+  });
+
+  it('webhook omits the copy URL when the host is not configured', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'unknown', reason: 'webhook_host_not_configured' } })), 'webhook').copy)
+      .toBeUndefined();
   });
 
   it('passSummary counts passing over total', () => {

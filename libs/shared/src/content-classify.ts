@@ -13,7 +13,7 @@
 export type ContentType = "doc" | "adr" | "spec" | "code";
 
 const BINARY_RE = /\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|pdf|zip|tar|gz|lock)$/i;
-const CODE_RE = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp)$/;
+const CODE_RE = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp|css|scss|sass|less)$/;
 
 export function classifyFile(path: string): ContentType | null {
   if (BINARY_RE.test(path)) return null;

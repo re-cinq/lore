@@ -1,0 +1,6 @@
+# Built binaries — CI/Docker produce these; local builds must not be committed.
+/lore-code-trace
+/lore-code-trace-*
+/linux-*
+/darwin-*
+*.test

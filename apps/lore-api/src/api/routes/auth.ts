@@ -78,20 +78,23 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[]
     methods: ["POST", "PUT", "DELETE"],
   },
   {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/coverage(\?|$|\/)/,
-    scope: "write",
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/test-report(\?|$|\/)/,
-    scope: "write",
-  },
-  {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$|\/)/,
     scope: "write",
   },
   {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$|\/)/,
     scope: "write",
+  },
+  // Webhook: GET status is read; POST .../webhook/ensure creates/repoints (write).
+  {
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook(\?|$|\/)/,
+    scope: "read",
+    methods: ["GET"],
+  },
+  {
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook\/ensure(\?|$|\/)/,
+    scope: "write",
+    methods: ["POST"],
   },
   // Feature planning: list/get are read; create/refine/finalize/split and the
   // pod result POST are write. Method-specific so a read token can poll.

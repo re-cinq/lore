@@ -27,6 +27,20 @@ COPY apps/lore-api/tsconfig.json ./apps/lore-api/
 COPY apps/lore-api/src ./apps/lore-api/src
 RUN npm run build --workspace=@re-cinq/lore-api
 
+# Go builder: cross-compile the portable test-ingestion binary for the targets
+# the /dist/lore-code-trace route serves. Baked into this image so onboarded CI
+# downloads a binary that always matches this server's ingestion contract.
+FROM golang:1.26-alpine AS gobuilder
+WORKDIR /src
+COPY apps/lore-code-trace/go.mod apps/lore-code-trace/go.sum ./
+RUN go mod download
+COPY apps/lore-code-trace/ ./
+RUN set -eu; mkdir -p /out; \
+    for t in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do \
+      CGO_ENABLED=0 GOOS="${t%-*}" GOARCH="${t#*-}" go build -ldflags="-s -w" -o "/out/$t" .; \
+    done; \
+    cd /out && sha256sum * > checksums.txt
+
 FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
@@ -36,4 +50,6 @@ COPY --from=builder /app/libs ./libs
 COPY --from=builder /app/apps/lore-api/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/lore-api/dist ./dist
+# Served at GET /dist/lore-code-trace/<os>-<arch> (+ /checksums.txt).
+COPY --from=gobuilder /out ./dist-bin
 ENTRYPOINT ["node", "dist/index.js"]

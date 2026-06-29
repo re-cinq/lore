@@ -1,24 +1,16 @@
 name: Lore test-report
 
-# Spec-traceability test-report ingest for THIS repo. Onboarded repos get an
-# equivalent workflow seeded from LORE_TESTS_INSTRUCTION (shared/src/
-# lore-tests-instruction.ts), which inlines the manifest list/run + POST
-# because they don't ship the CLI. The platform repo DOES ship the CLI, so the
-# proper form here reuses its own blessed entry point — `trace:run-tests
-# --post` (mcp-server/package.json) — driven by .lore/test-commands.yml. It
-# runs every test file once with V8 coverage and POSTs {commit,branch,tests,
-# results} to /api/repos/<owner>/<repo>/test-report.
-#
-# Runs on push to main only (the merge commit) so the graph records the
-# authoritative MERGED state, not transient PR branches — and full per-file
-# coverage across all four packages is too heavy to run on every PR commit.
+# Spec-traceability test-report ingest for THIS repo, via the portable
+# lore-code-trace binary — the same orchestrator onboarded repos download. CI sets
+# up the toolchain (the manifest's list/run use node+vitest), fetches the binary
+# from the mcp /dist route, and runs it --post, which POSTs the report to the Floor
+# ci-tests ingress. Runs on push to main (the merged state) only.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  # Never cancel an in-flight graph-recording run on main.
   group: lore-tests-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
@@ -33,27 +25,40 @@ jobs:
         with:
           node-version: 22
 
-      # Workspaces (shared, agent, mcp-server) install from the root lockfile;
-      # web-ui is not a workspace and has its own lockfile (see test.yml).
+      # The manifest's list/run scripts (node shared/scripts/trace/*.mjs) need the
+      # deps + the built shared dist. mcp no longer builds here — the Go binary
+      # replaces the trace:run-tests CLI.
       - name: Install deps
         run: |
           npm ci
           npm install --prefix apps/web-ui
 
-      # shared/dist feeds the trace `list`/`run` scripts; mcp-server/dist is the
-      # `trace:run-tests` CLI itself.
       - name: Build trace tooling
-        run: |
-          npm run build -w @re-cinq/lore-shared
-          npm run build -w @re-cinq/lore-server-core
-          npm run build -w @re-cinq/lore-mcp
+        run: npm run build -w @re-cinq/lore-shared
 
-      - name: Collect coverage and POST test-report
+      # Fetch the orchestrator from the host this repo already talks to (mcp).
+      - name: Fetch lore-code-trace
         env:
           LORE_API_URL: ${{ vars.LORE_API_URL }}
+        run: |
+          if [ -z "${LORE_API_URL}" ]; then
+            echo "::warning::LORE_API_URL not set — skipping test ingest"; exit 0
+          fi
+          curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/linux-amd64" -o lore-code-trace
+          curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt
+          echo "$(awk '/ linux-amd64$/{print $1}' checksums.txt)  lore-code-trace" | sha256sum -c -
+          chmod +x lore-code-trace
+
+      - name: Run tests + ingest
+        if: hashFiles('lore-code-trace') != ''
+        env:
+          LORE_WEBHOOK_URL: ${{ vars.LORE_WEBHOOK_URL }}
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          # Cold CI runners are slower than dev machines; give the full-suite
-          # list + per-file coverage runs headroom over the 120s default.
+          # Cold CI runners are slower than dev machines; give the full-suite list +
+          # per-file coverage runs headroom over the 120s default.
           LORE_TRACE_TIMEOUT_MS: "600000"
-        # Soft-fail: a Lore outage must never fail this repo's own CI.
-        run: npm run trace:run-tests -w @re-cinq/lore-mcp -- --post || echo "::warning::Lore test-report ingest failed"
+        run: |
+          if [ -z "${LORE_WEBHOOK_URL}" ]; then
+            echo "::warning::LORE_WEBHOOK_URL not set — skipping (pending Floor ci-tests cutover)"; exit 0
+          fi
+          ./lore-code-trace --post || echo "::warning::Lore test ingest failed"

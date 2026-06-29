@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -9,10 +9,7 @@ import {
   listTestsTool,
   runTestTool,
   loadTestCommandManifest,
-  buildTestReport,
-  chunkTestReport,
   stripPathPrefix,
-  type TestReport,
 } from "./spec-trace-tools.js";
 import type { TestCommandManifest } from "@re-cinq/lore-shared";
 
@@ -29,61 +26,6 @@ describe("executionRefusal", () => {
 
   it("names the remedy of running in CI or locally when refusing", () => {
     expect(executionRefusal({ LORE_DB_HOST: "10.0.0.5" })).toMatch(/CI|local/i);
-  });
-});
-
-describe("chunkTestReport", () => {
-  function bigReport(testCount: number, coveredPerTest: number): TestReport {
-    const tests = Array.from({ length: testCount }, (_, i) => ({
-      id: `mcp-server/src/file${i}.test.ts::case ${i}`,
-      name: `case ${i}`,
-      file: `mcp-server/src/file${i}.test.ts`,
-      startLine: 1,
-      endLine: 9,
-      spec: i % 2 === 0 ? `specs/x/spec.md#L${i}` : undefined,
-    }));
-    const results = tests.map((test) => ({
-      id: test.id,
-      passed: true,
-      covered: Array.from({ length: coveredPerTest }, (_, j) => ({
-        file: `mcp-server/src/file${j}.ts`,
-        startLine: j,
-        endLine: j + 1,
-      })),
-    }));
-    return { commit: "abc1234", branch: "main", tests, results };
-  }
-
-  function bytes(chunk: TestReport): number {
-    return Buffer.byteLength(JSON.stringify(chunk), "utf-8");
-  }
-
-  it("splits a report exceeding maxBytes into multiple chunks each within the limit", () => {
-    const report = bigReport(20, 12);
-    const maxBytes = 2_000;
-
-    const chunks = chunkTestReport(report, maxBytes);
-
-    expect(chunks.length).toBeGreaterThan(1);
-    for (const chunk of chunks) {
-      const oversizedSingleTest = chunk.tests.length === 1;
-      expect(oversizedSingleTest || bytes(chunk) <= maxBytes).toBe(true);
-    }
-  });
-
-  it("preserves every test and result and the commit/branch across chunks", () => {
-    const report = bigReport(20, 12);
-
-    const chunks = chunkTestReport(report, 2_000);
-
-    expect(chunks.flatMap((c) => c.tests)).toEqual(report.tests);
-    expect(chunks.flatMap((c) => c.results)).toEqual(report.results);
-    expect(chunks.every((c) => c.commit === "abc1234" && c.branch === "main")).toBe(true);
-  });
-
-  it("returns a single chunk when the whole report fits within maxBytes", () => {
-    const report = bigReport(2, 1);
-    expect(chunkTestReport(report, 1_000_000)).toEqual([report]);
   });
 });
 
@@ -190,153 +132,6 @@ describe("loadTestCommandManifest", () => {
   it("returns null when no .lore/test-commands.yml exists", () => {
     repoRoot = mkdtempSync(join(tmpdir(), "lore-"));
     expect(loadTestCommandManifest(repoRoot)).toBeNull();
-  });
-});
-
-describe("buildTestReport", () => {
-  it("assembles commit, branch, descriptors, and per-descriptor results", async () => {
-    const manifest: TestCommandManifest = {
-      list: `printf '[{"id":"t1","name":"first","file":"a.test.ts","startLine":1,"endLine":2}]'`,
-      run: `printf '{"passed":true,"covered":[{"file":"a.ts","startLine":3,"endLine":4}]}'`,
-      coverage_format: "json",
-      cwd: ".",
-      path_prefix_strip: "",
-    };
-
-    const report = await buildTestReport({}, manifest, process.cwd(), {
-      commit: "c1",
-      branch: "main",
-    });
-
-    expect(report).toEqual({
-      commit: "c1",
-      branch: "main",
-      tests: [{ id: "t1", name: "first", file: "a.test.ts", startLine: 1, endLine: 2 }],
-      results: [{ id: "t1", passed: true, covered: [{ file: "a.ts", startLine: 3, endLine: 4 }] }],
-    });
-  });
-
-  it("runs `run` once per file and fans the result to every descriptor sharing that file", async () => {
-    const root = mkdtempSync(join(tmpdir(), "lore-fan-"));
-    const marker = join(root, "runs.log");
-    // `run` appends the selector it was given, then prints the selector as the covered file.
-    const run = `node -e "require('fs').appendFileSync('${marker}','{selector}\\n');process.stdout.write(JSON.stringify({passed:true,covered:[{file:'{selector}',startLine:1,endLine:1}]}))"`;
-    const manifest: TestCommandManifest = {
-      list: `printf '[{"id":"a.test.ts::x","name":"A > x","file":"a.test.ts","suite":["A"]},{"id":"a.test.ts::y","name":"A > y","file":"a.test.ts","suite":["A"]},{"id":"b.test.ts::z","name":"B > z","file":"b.test.ts","suite":["B"]}]'`,
-      run,
-      coverage_format: "json",
-      cwd: ".",
-      path_prefix_strip: "",
-    };
-
-    try {
-      const report = await buildTestReport({}, manifest, process.cwd(), { commit: "c1", branch: "main" });
-
-      // 3 descriptors across 2 files → `run` invoked exactly twice (once per file).
-      expect(readFileSync(marker, "utf-8").trim().split("\n").sort()).toEqual(["a.test.ts", "b.test.ts"]);
-      // Every descriptor gets a result; covered.file equals the FILE selector, not the per-it id.
-      expect(report.results).toEqual([
-        { id: "a.test.ts::x", passed: true, covered: [{ file: "a.test.ts", startLine: 1, endLine: 1 }] },
-        { id: "a.test.ts::y", passed: true, covered: [{ file: "a.test.ts", startLine: 1, endLine: 1 }] },
-        { id: "b.test.ts::z", passed: true, covered: [{ file: "b.test.ts", startLine: 1, endLine: 1 }] },
-      ]);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it("strips path_prefix_strip from descriptor and covered-chunk file paths", async () => {
-    const manifest: TestCommandManifest = {
-      list: `printf '[{"id":"t1","name":"a","file":"pkg/src/a.test.ts"}]'`,
-      run: `printf '{"passed":true,"covered":[{"file":"pkg/src/a.ts","startLine":1,"endLine":1}]}'`,
-      coverage_format: "json",
-      cwd: ".",
-      path_prefix_strip: "pkg/",
-    };
-
-    const report = await buildTestReport({}, manifest, process.cwd(), {
-      commit: "c1",
-      branch: "main",
-    });
-
-    expect(report).toEqual({
-      commit: "c1",
-      branch: "main",
-      tests: [{ id: "t1", name: "a", file: "src/a.test.ts" }],
-      results: [
-        { id: "t1", passed: true, covered: [{ file: "src/a.ts", startLine: 1, endLine: 1 }] },
-      ],
-    });
-  });
-
-  it("skips a descriptor whose run command exits non-zero and resolves with empty results", async () => {
-    const manifest: TestCommandManifest = {
-      list: `printf '[{"id":"t1","name":"a","file":"a.ts"}]'`,
-      run: "sh -c 'exit 1'",
-      coverage_format: "json",
-      cwd: ".",
-      path_prefix_strip: "",
-    };
-
-    const report = await buildTestReport({}, manifest, process.cwd(), {
-      commit: "c1",
-      branch: "main",
-    });
-
-    expect(report).toEqual({
-      commit: "c1",
-      branch: "main",
-      tests: [{ id: "t1", name: "a", file: "a.ts" }],
-      results: [],
-    });
-  });
-
-  it("runs list and run commands in manifest.cwd resolved under the passed cwd", async () => {
-    const root = mkdtempSync(join(tmpdir(), "lore-"));
-    mkdirSync(join(root, "pkg"));
-    writeFileSync(join(root, "pkg", "list.json"), '[{"id":"t1","name":"a","file":"a.ts"}]');
-    writeFileSync(join(root, "pkg", "run.json"), '{"passed":true,"covered":[]}');
-
-    const manifest: TestCommandManifest = {
-      list: "cat list.json",
-      run: "cat run.json",
-      coverage_format: "json",
-      cwd: "pkg",
-      path_prefix_strip: "",
-    };
-
-    try {
-      const report = await buildTestReport({}, manifest, root, {
-        commit: "c1",
-        branch: "main",
-      });
-
-      expect(report).toEqual({
-        commit: "c1",
-        branch: "main",
-        tests: [{ id: "t1", name: "a", file: "a.ts" }],
-        results: [{ id: "t1", passed: true, covered: [] }],
-      });
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it("refuses to run manifest commands on the shared cluster when LORE_DB_HOST is set", async () => {
-    const manifest: TestCommandManifest = {
-      list: "printf 'SHOULD_NOT_RUN'",
-      run: "printf 'SHOULD_NOT_RUN'",
-      coverage_format: "json",
-      cwd: ".",
-      path_prefix_strip: "",
-    };
-
-    await expect(
-      buildTestReport({ LORE_DB_HOST: "10.0.0.5" }, manifest, process.cwd(), {
-        commit: "c1",
-        branch: "main",
-      }),
-    ).rejects.toThrow(/CI|local/i);
   });
 });
 

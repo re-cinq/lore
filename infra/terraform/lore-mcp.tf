@@ -110,6 +110,13 @@ resource "helm_release" "lore_mcp" {
     name  = "env.LORE_AGENT_URL"
     value = "http://lore-floor.lore-floor.svc.cluster.local:8080"
   }
+  # Canonical GitHub-webhook ingress URL (the Floor host) — used by the
+  # /api/repos/:o/:r/webhook status + ensure endpoints to read/repoint repo hooks.
+  # Empty when no webhook hostname is set → those endpoints report `unknown`.
+  set {
+    name  = "env.LORE_WEBHOOK_URL"
+    value = var.lore_webhook_hostname != "" ? "https://${var.lore_webhook_hostname}/api/webhook/github" : ""
+  }
 
   # Task type config — inlined from scripts/task-types.yaml.
   # Passed via `values` (not `set`) because helm's CLI parser

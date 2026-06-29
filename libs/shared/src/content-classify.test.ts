@@ -31,6 +31,18 @@ describe("classifyFile", () => {
     expect(classifyFile("scripts/runbooks/rotate.sh")).toBe("code");
   });
 
+  it("classifies a CSS module under a nested specs/ dir as code, not spec", () => {
+    expect(classifyFile("web-ui/src/app/specs/SpecsListView.module.css")).toBe("code");
+    expect(classifyFile("apps/web-ui/src/app/repos/[owner]/[repo]/specs/TestCommandsSetup.module.css")).toBe("code");
+  });
+
+  it("classifies stylesheets as code by extension", () => {
+    expect(classifyFile("styles/app.css")).toBe("code");
+    expect(classifyFile("theme.scss")).toBe("code");
+    expect(classifyFile("vars.sass")).toBe("code");
+    expect(classifyFile("legacy.less")).toBe("code");
+  });
+
   it("still classifies a real markdown spec under a nested specs/ dir as spec", () => {
     expect(classifyFile("packages/api/specs/auth/spec.md")).toBe("spec");
   });

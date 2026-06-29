@@ -6,8 +6,21 @@ export interface Check {
   status: CheckStatus;
   detail?: string;
   link?: { href: string; text: string };
-  /** A fixable check the UI can act on directly (e.g. open a PR with the file). */
-  action?: { kind: 'reonboard'; text: string };
+  /** A fixable check the UI can act on directly (open a PR with the file, or
+   *  create/repoint the GitHub webhook). */
+  action?: { kind: 'reonboard'; text: string } | { kind: 'setup-webhook'; text: string };
+  /** A value to display verbatim with a copy button (e.g. the webhook URL to set by hand). */
+  copy?: { value: string; label?: string };
+}
+
+/** The repo's GitHub-webhook status, as classified by mcp-server (null = not fetched). */
+export interface WebhookCheck {
+  state: 'configured' | 'wrong_url' | 'inactive' | 'narrow_events' | 'delivery_failing' | 'missing' | 'unknown';
+  /** The canonical Floor ingress URL the hook should point at. */
+  canonicalUrl?: string;
+  url?: string | null;
+  lastCode?: number | null;
+  reason?: string;
 }
 
 export interface EnrollmentInput {
@@ -21,6 +34,8 @@ export interface EnrollmentInput {
   team: string | null;
   /** path -> exists (true/false) or null when unknown (App not configured / no access) */
   githubFiles: Record<string, boolean | null>;
+  /** GitHub webhook → Floor status, or null when not fetched. */
+  webhook: WebhookCheck | null;
   localMcp: { developerCount: number; lastActivity: string | null };
   now: number;
 }
@@ -102,6 +117,35 @@ export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
     } else if (purpose) {
       check.detail = purpose;
     }
+    checks.push(check);
+  }
+
+  if (input.webhook) {
+    const w = input.webhook;
+    const WEBHOOK: Record<WebhookCheck['state'], { status: CheckStatus; detail: string; fixable: boolean }> = {
+      configured: { status: 'pass', detail: 'delivering to the Floor', fixable: false },
+      missing: { status: 'fail', detail: 'no webhook — GitHub events are not delivered', fixable: true },
+      wrong_url: { status: 'warn', detail: `points at ${w.url ?? 'an old host'} — repoint to the Floor`, fixable: true },
+      inactive: { status: 'warn', detail: 'webhook is disabled', fixable: true },
+      narrow_events: { status: 'warn', detail: 'missing event types (PRs / checks / reviews)', fixable: true },
+      delivery_failing: { status: 'warn', detail: `last delivery ${w.lastCode ?? 'failed'} — secret mismatch; re-set up`, fixable: true },
+      unknown: {
+        status: 'unknown',
+        detail:
+          w.reason === 'app_no_webhook_permission'
+            ? 'GitHub App lacks the Webhooks permission'
+            : w.reason === 'webhook_host_not_configured'
+              ? 'webhook host not configured'
+              : 'could not read the webhook',
+        fixable: false,
+      },
+    };
+    const m = WEBHOOK[w.state] ?? WEBHOOK.unknown;
+    const check: Check = { id: 'webhook', label: 'GitHub webhook → Floor', status: m.status, detail: m.detail };
+    if (m.fixable) check.action = { kind: 'setup-webhook', text: 'set up' };
+    // Show the URL to set by hand whenever it's known and not already in place —
+    // covers manual setup and the App-lacks-permission case where the button can't help.
+    if (w.canonicalUrl && w.state !== 'configured') check.copy = { value: w.canonicalUrl, label: 'set this URL' };
     checks.push(check);
   }
 
