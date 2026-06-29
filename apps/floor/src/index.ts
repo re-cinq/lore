@@ -12,7 +12,6 @@ import { reviewReactorJob } from "./review/review-reactor.js";
 import { agentWatcherJob } from "./watcher/agent-watcher.js";
 import { specTaskExecutorJob } from "./task/spec-task-executor.js";
 import { staleTaskCheckJob } from "./task/stale-task-check.js";
-import { reclaimOrphanedIngestJob } from "./spec-trace/reclaim-orphaned-ingest.js";
 import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
 
 async function main(): Promise<void> {
@@ -49,9 +48,6 @@ async function main(): Promise<void> {
   registerJob("agent_watcher", "*/1 * * * *", agentWatcherJob);
   registerJob("spec_task_executor", "*/1 * * * *", specTaskExecutorJob);
   registerJob("stale_task_check", "17 * * * *", staleTaskCheckJob);    // hourly at :17
-  // Recurring orphan recovery: resets graph-ingest tasks stranded in `running`
-  // by a mid-batch pod roll back to `pending` (idempotent re-run). Every 10 min.
-  registerJob("reclaim_orphaned_ingest", "*/10 * * * *", reclaimOrphanedIngestJob);
   // Heals planning rounds whose Station container/pod died mid-flight (the wizard
   // would otherwise "analyze" forever) and re-applies any missed status transition.
   registerJob("feature_planning_reaper", "*/1 * * * *", featurePlanningReaperJob);

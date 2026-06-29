@@ -235,18 +235,7 @@ task_types:
     # a human always reviews before merge. Haiku is fine for drafts.
     model: claude-haiku-4-5-20251001
 
-  # ── Spec-traceability graph ingestion (deterministic, zero-LLM) ──────
-  # execution_mode: graph-ingest routes to the in-process projection core
-  # (runIngestGraph), NOT Claude Code. No prompt, no model, no PR.
-  #
-  # specs/adrs are NOT tasks — they project via the CI-driven spec-trace
-  # trigger (lore-ingest.yml → /api/repos/:o/:r/ingest-graph). Only `ingest-tests`
-  # remains a task: it runs the project test interface (.lore/test-commands.yml),
-  # so this kind executes ONLY locally / in CI (the trusted sandbox), never on the
-  # shared agent — it self-skips there.
-  ingest-tests:
-    prompt_template: ""
-    target_repo: null
-    timeout_minutes: 20
-    review_required: false
-    execution_mode: graph-ingest
+  # Spec-traceability graph ingestion is CI-driven, not a pipeline task: specs/ADRs
+  # project via lore-ingest.yml → /api/repos/:o/:r/ingest-graph (fire-and-forget
+  # trigger), and tests via lore-tests.yml → /test-report + /coverage. No task type
+  # here (ADR-023). The deterministic projection core is runIngestGraph.

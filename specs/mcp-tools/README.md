@@ -91,7 +91,7 @@ tool's spec + this section together are sufficient to recreate the handler.
 ## Spec-trace (`spec-trace-tools.ts`)
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
-| `lore_ingest_graph` | [spec](ingest-graph/spec.md) | Create spec-traceability ingest tasks. | shared |
+| ~~`lore_ingest_graph`~~ | [spec](ingest-graph/spec.md) | **Removed** — spec-traceability projection is CI-driven (ADR-023); no ingest task. | — |
 
 ## Usage (`usage-tools.ts`)
 | Tool | Spec | Purpose | Scope |

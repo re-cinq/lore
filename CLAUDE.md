@@ -133,11 +133,13 @@ read the repo at the posted commit and project via `runIngestGraph`
 `ingestCoverageReport`. Idempotent via xid upserts; no-ops when the coordinator
 env (or `LORE_DGRAPH_HTTP`) is unset. **Doc projection is CI-driven, not a
 pipeline task** (ADR-023): the repo's `lore-ingest.yml` fans out one job per kind
-(`matrix: [specs, adrs]`) that POSTs `ingest-graph`. `ingest-tests` stays a task
-(it runs the suite); specs/adrs are never tasks.
-- `POST /api/repos/:o/:r/ingest-graph` — `{kinds[], commit, force?}`. For
-  `specs`/`adrs` fires the spec-trace trigger per kind (no task); `tests` creates an
-  `ingest-tests` pipeline task. Scope `write`. `mcp-server/src/api/routes/ingest-graph.ts`.
+(`matrix: [specs, adrs]`) that POSTs `ingest-graph`. Test projection is CI-driven
+too — `lore-tests.yml` POSTs `/test-report` + `/coverage`. None of the three
+(specs/adrs/tests) is a pipeline task.
+- `POST /api/repos/:o/:r/ingest-graph` — `{kinds[], commit, force?}`. Docs-only:
+  `specs`/`adrs` fire the spec-trace trigger per kind (no task); any other kind is
+  rejected `400` (test projection is CI-only via `/test-report` + `/coverage`).
+  Scope `write`. `mcp-server/src/api/routes/ingest-graph.ts`.
 - `POST /api/repos/:o/:r/test-report` — `{commit, branch, tests[], results[]}` →
   `{tests_seen, test_chunks, validated_by, coverage_nodes, covers_edges, violated}`.
   `mcp-server/src/api/routes/test-report.ts`.

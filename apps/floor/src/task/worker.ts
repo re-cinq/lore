@@ -5,7 +5,7 @@
  * and creates branches + PRs with the results.
  */
 
-import { query, getPool } from "../kernel/db.js";
+import { query } from "../kernel/db.js";
 import { generateArtifactCopy } from "../platform/artifact-copy.js";
 import { projectFor } from "../composition/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../kernel/config.js";
@@ -16,8 +16,7 @@ import {
   resolveExecutionImage,
 } from "@re-cinq/lore-shared";
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { linkifyMarkdown, createDgraphClient, selectStationBackend, isGraphIngestTaskType } from "@re-cinq/lore-shared";
-import { handleGraphIngest } from "../spec-trace/graph-ingest-handler.js";
+import { linkifyMarkdown, selectStationBackend } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
@@ -112,19 +111,6 @@ async function processTask(task: any): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
   const project = await projectFor(targetRepo);
-
-  // Deterministic graph-ingest tasks: zero-LLM, no Issue, no PR. Dispatch before
-  // the LLM ladder (Issue creation / approval / Claude Code). The shared
-  // runIngestGraph runs in-process against the trace graph. The drift-proof
-  // `isGraphIngestTaskType` is OR'd in so a stale/missing `/config/task-types.yaml`
-  // (execution_mode goes undefined) can't drop these onto the LLM issue path.
-  if (
-    getTaskTypeConfig(task.task_type)?.execution_mode === "graph-ingest" ||
-    isGraphIngestTaskType(task.task_type)
-  ) {
-    await handleGraphIngest(task, targetRepo, agentId, { pool: getPool(), project, dgraph: createDgraphClient() });
-    return;
-  }
 
   // Feature decomposition (ADR-029): a merged spec → user-story Issues + spec-tasks.
   // Pure LLM analysis + coordinator-side Issue/pipeline writes → always in-process,

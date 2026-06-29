@@ -9,7 +9,6 @@ export {
   updateTaskStatus,
   cancelTask as cancelPipelineTask,
   markTaskMerged,
-  isGraphIngestTaskType,
   type CreateTaskInput,
 } from './pipeline-tasks.js';
 export { chunkFile, buildIngestedChunkMetadata, type Chunk } from './chunker.js';

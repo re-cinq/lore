@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import type { SpecGraph } from '@/lib/spec-graph';
 import SpecGraphD3 from './SpecGraphD3';
-import IngestButtons, { BTN } from './IngestButtons';
 
 const SEARCH_INPUT: React.CSSProperties = {
   padding: '6px 10px',
@@ -13,6 +12,16 @@ const SEARCH_INPUT: React.CSSProperties = {
   color: 'var(--text)',
   fontSize: 13,
   minWidth: 200,
+};
+
+const BTN: React.CSSProperties = {
+  padding: '6px 12px',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  background: 'var(--bg-surface)',
+  color: 'var(--text)',
+  cursor: 'pointer',
+  fontSize: 13,
 };
 
 /**
@@ -38,8 +47,7 @@ export default function GraphView({ owner, repo, data }: { owner: string; repo: 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-        <IngestButtons owner={owner} repo={repo} />
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             type="text"
