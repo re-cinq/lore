@@ -31,7 +31,7 @@ for f in "$REPO"/specs/*/spec.md "$REPO"/specs/*/plan.md "$REPO"/specs/*/tasks.m
 done
 
 # Code
-for f in "$REPO"/mcp-server/src/*.ts; do [ -f "$f" ] && insert code "mcp-server/src/$(basename "$f")"; done
+for f in "$REPO"/apps/mcp-server/src/*.ts; do [ -f "$f" ] && insert code "apps/mcp-server/src/$(basename "$f")"; done
 
 # Scripts
 for f in "$REPO"/scripts/*.sh "$REPO"/scripts/*.js "$REPO"/scripts/*.py; do [ -f "$f" ] && insert code "scripts/$(basename "$f")"; done
