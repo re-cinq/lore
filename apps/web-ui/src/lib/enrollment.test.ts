@@ -154,6 +154,28 @@ describe('computeEnrollmentChecks', () => {
       .toMatchObject({ status: 'unknown', detail: 'GitHub App lacks the Webhooks permission' });
   });
 
+  const HOOK_URL = 'https://lore-webhook.gcp.re-cinq.com/api/webhook/github';
+
+  it('webhook surfaces the URL to set by hand when not configured', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'missing', canonicalUrl: HOOK_URL } })), 'webhook').copy)
+      .toEqual({ value: HOOK_URL, label: 'set this URL' });
+  });
+
+  it('webhook still surfaces the URL when the App lacks permission (manual is the only path)', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'unknown', reason: 'app_no_webhook_permission', canonicalUrl: HOOK_URL } })), 'webhook').copy)
+      .toEqual({ value: HOOK_URL, label: 'set this URL' });
+  });
+
+  it('webhook omits the copy URL when already configured', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'configured', canonicalUrl: HOOK_URL } })), 'webhook').copy)
+      .toBeUndefined();
+  });
+
+  it('webhook omits the copy URL when the host is not configured', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'unknown', reason: 'webhook_host_not_configured' } })), 'webhook').copy)
+      .toBeUndefined();
+  });
+
   it('passSummary counts passing over total', () => {
     expect(passSummary(computeEnrollmentChecks(input()))).toEqual({ passed: 8, total: 8 });
   });
