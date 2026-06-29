@@ -21,6 +21,7 @@ export default defineConfig({
         // (covered) and confines IO to these files and the page.tsx containers.
         'src/lib/db.ts',
         'src/lib/trace-api.ts',
+        'src/lib/webhook-api.ts',
         'src/lib/auth.ts',
         'src/lib/auth-options.ts',
         'src/lib/session.ts',

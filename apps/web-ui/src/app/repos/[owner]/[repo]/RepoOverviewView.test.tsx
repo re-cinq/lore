@@ -20,6 +20,13 @@ const checks: Check[] = [
     status: 'fail',
     action: { kind: 'reonboard', text: 'create a PR with this file' },
   },
+  {
+    id: 'webhook',
+    label: 'GitHub webhook → Floor',
+    status: 'warn',
+    detail: 'last delivery 401 — secret mismatch; re-set up',
+    action: { kind: 'setup-webhook', text: 'set up' },
+  },
 ];
 
 const task = (over: Partial<RecentTask>): RecentTask => ({
@@ -62,10 +69,11 @@ describe('RepoOverviewView', () => {
     expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
   });
 
-  it('renders the enrollment section and wires the reonboard action button', () => {
+  it('renders the enrollment section and wires the reonboard + webhook action buttons', () => {
     render(<RepoOverviewView {...baseProps} />);
     expect(screen.getByRole('heading', { level: 3, name: 'Enrollment' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'create a PR with this file' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'set up' })).toBeInTheDocument();
   });
 
   it('shows Off (legacy) mode and links Dark Factory settings to the repo settings page', () => {
