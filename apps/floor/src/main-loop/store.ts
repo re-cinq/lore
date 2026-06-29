@@ -5,15 +5,16 @@
  * reaper recovers rows stuck in `processing` by a crash.
  */
 
+import { eventRepo } from "@re-cinq/lore-shared";
 import { query } from "../kernel/db.js";
 import type { EventInput, EventRow } from "./types.js";
 
 export async function insertEvent(input: EventInput): Promise<void> {
   await query(
-    `INSERT INTO pipeline.events (event_name, source, params, dedupe_key)
-     VALUES ($1, $2, $3::jsonb, $4)
+    `INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
+     VALUES ($1, $2, $3::jsonb, $4, $5)
      ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
-    [input.eventName, input.source, JSON.stringify(input.params ?? {}), input.dedupeKey ?? null],
+    [input.eventName, input.source, JSON.stringify(input.params ?? {}), eventRepo(input.params), input.dedupeKey ?? null],
   );
 }
 

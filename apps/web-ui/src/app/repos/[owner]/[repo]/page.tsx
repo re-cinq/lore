@@ -5,6 +5,7 @@ import { getWebhookStatus } from '@/lib/webhook-api';
 import { computeEnrollmentChecks } from '@/lib/enrollment';
 import { reonboard, setupWebhook } from './actions';
 import RepoOverviewView, { type RecentTask } from './RepoOverviewView';
+import { type RepoEvent } from './events/pagination';
 
 export default async function RepoOverview({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo: repoName } = await params;
@@ -24,6 +25,15 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
      FROM pipeline.tasks WHERE target_repo = $1 ORDER BY created_at DESC LIMIT 5`,
     [fullName]
   );
+  // Latest event-bus activity for this repo (fail-soft — repo is a first-class
+  // column since migration 0024, so only github.* / internal.* events match; the
+  // full, infinite-scrolling list lives at /repos/:o/:r/events).
+  const latestEvents = await query<RepoEvent>(
+    `SELECT id, event_name, source, params, status, captured_at
+     FROM pipeline.events WHERE repo = $1
+     ORDER BY captured_at DESC LIMIT 10`,
+    [fullName]
+  ).catch(() => []);
   const schema = await getRepoSchema(fullName);
   const contextCount = await queryOne<{count: number}>(
     `SELECT count(*)::int as count FROM ${schema}.chunks WHERE repo = $1`,
@@ -115,6 +125,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
       autoMergedWeek={autoMergedWeek}
       escalationsWeek={escalationsWeek}
       recentTasks={recentTasks as RecentTask[]}
+      latestEvents={latestEvents}
       reonboardAction={reonboard.bind(null, fullName)}
       setupWebhookAction={setupWebhook.bind(null, fullName)}
     />

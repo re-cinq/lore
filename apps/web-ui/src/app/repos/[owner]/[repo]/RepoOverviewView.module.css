@@ -31,6 +31,16 @@
   margin-top: 2px;
 }
 
+.eventsHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.eventsTitle {
+  margin: 0;
+}
+
 .success {
   color: var(--success);
 }
