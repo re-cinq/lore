@@ -10,6 +10,16 @@
 | Feeds          | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — seeds `TestChunk`/`Coverage`/`COVERS`, the `violated` signal, and the `VALIDATED_BY` link |
 | Wire contract  | [`contracts/test-commands.md`](./contracts/test-commands.md) |
 
+> **Cutover note (2026-06-29):** the mcp ingest endpoints described below —
+> `POST /api/repos/:o/:r/test-report` and `…/coverage` — have been **removed**.
+> The manifest contract (`list`/`run`, `contracts/test-commands.md`) is unchanged,
+> but the orchestration + ingest moved to the portable **`lore-code-trace`** Go binary
+> (`apps/lore-code-trace`): it runs the manifest in CI, parses json/lcov/cobertura to
+> canonical ranges itself, and POSTs the report to the Floor **`ci-tests`** hook
+> (`POST /api/webhook/ci-tests` → `internal.ingest.spec_trace`, kind `test-report`).
+> The acceptance criteria below and their inline `validated by` links to the old route
+> tests are historical and pending a re-link pass.
+
 ## Problem Statement
 
 The traceability graph needs to know a repo's tests, what code each test
