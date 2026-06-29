@@ -18,4 +18,14 @@ describe("Leases sub-facade", () => {
 
     expect(await leases.release("lore/feat/x", "pod-a")).toBe(true);
   });
+
+  it("reapExpired returns the leases the backend swept past the cutoff", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-leases-"));
+    const leases = new Leases(new FileLeaseBackend(dir));
+
+    await leases.acquire("lore/feat/x", "task-1", "pod-a", -1); // expired
+    const expired = await leases.reapExpired(new Date());
+
+    expect(expired.map((l) => l.task_id)).toEqual(["task-1"]);
+  });
 });

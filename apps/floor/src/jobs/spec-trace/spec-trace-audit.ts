@@ -7,7 +7,7 @@
  */
 
 import type { SpecTraceOutcome, IngestGraphSummary } from "@re-cinq/lore-shared";
-import type { AuditLogEntry } from "../../kernel/repositories/index.js";
+import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 
 export function specTraceAuditEntry(repo: string, outcome: SpecTraceOutcome): AuditLogEntry {
   return {

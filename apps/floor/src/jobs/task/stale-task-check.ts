@@ -20,31 +20,12 @@
 
 import { query } from "../../kernel/db.js";
 import { projectFor } from "../../composition/project-boot.js";
+import { taskQueue } from "../../kernel/queues.js";
 
 const STALE_THRESHOLD_HOURS = 6;
 
-interface StaleTask {
-  id: string;
-  target_repo: string;
-  task_type: string;
-  created_at: string;
-  issue_number: number | null;
-  age_hours: number;
-}
-
 export async function staleTaskCheckJob(): Promise<string> {
-  const rows = await query<StaleTask>(
-    `SELECT id,
-            target_repo,
-            task_type,
-            created_at,
-            issue_number,
-            EXTRACT(EPOCH FROM (now() - created_at)) / 3600 AS age_hours
-     FROM pipeline.tasks
-     WHERE status = 'running'
-       AND created_at < now() - ($1 || ' hours')::interval`,
-    [String(STALE_THRESHOLD_HOURS)],
-  );
+  const rows = await taskQueue().findStaleRunning(STALE_THRESHOLD_HOURS);
 
   if (rows.length === 0) {
     return `No stale tasks (threshold ${STALE_THRESHOLD_HOURS}h)`;
