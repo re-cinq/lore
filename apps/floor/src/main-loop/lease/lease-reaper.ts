@@ -1,11 +1,8 @@
 import { trace } from "@opentelemetry/api";
 import { writeAuditLog } from "../../jobs/dark-factory/audit.js";
-import {
-  pgAuditLog,
-  pgLeases,
-  type AuditLogRepository,
-  type LeaseRepository,
-} from "../../kernel/repositories/index.js";
+import { leaseBackend, auditLog } from "../../kernel/queues.js";
+import type { LeaseReaper } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
+import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 
 const tracer = trace.getTracer("lore.lease");
 
@@ -13,8 +10,8 @@ const tracer = trace.getTracer("lore.lease");
 const GRACE_MS = 5 * 60 * 1000;
 
 export interface LeaseReaperDeps {
-  leases: LeaseRepository;
-  audit: AuditLogRepository;
+  leases: LeaseReaper;
+  audit: AuditPort;
 }
 
 /**
@@ -24,13 +21,13 @@ export interface LeaseReaperDeps {
  * the database. Scheduled at 60s tick by the agent's job runner.
  */
 export async function leaseReaperJob(
-  deps: LeaseReaperDeps = { leases: pgLeases, audit: pgAuditLog },
+  deps: LeaseReaperDeps = { leases: leaseBackend(), audit: auditLog() },
   now: Date = new Date(),
 ): Promise<string> {
   return await tracer.startActiveSpan("lore.lease.expired", async (span) => {
     try {
       const cutoff = new Date(now.getTime() - GRACE_MS);
-      const expired = await deps.leases.deleteExpired(cutoff);
+      const expired = await deps.leases.reapExpired(cutoff);
 
       for (const lease of expired) {
         await writeAuditLog(

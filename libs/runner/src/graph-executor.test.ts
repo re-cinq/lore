@@ -70,6 +70,7 @@ function noopBackend(): LeaseBackend {
     acquire: vi.fn(async () => ({ acquired: true })),
     refresh: vi.fn(async () => true),
     release: vi.fn(async () => true),
+    reapExpired: vi.fn(async () => []),
   };
 }
 

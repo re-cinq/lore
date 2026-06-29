@@ -18,7 +18,7 @@ import {
   graphIngestAuditEntry,
   graphIngestLogLine,
 } from "./spec-trace-audit.js";
-import type { AuditLogEntry } from "../../kernel/repositories/index.js";
+import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 
 /** Kinds whose data is read from the repo (not carried in the trigger payload). */
 const REPO_READ_KINDS = new Set(["specs", "adrs"]);

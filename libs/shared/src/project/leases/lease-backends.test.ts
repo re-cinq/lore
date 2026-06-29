@@ -5,6 +5,8 @@ import * as path from "node:path";
 import {
   DbLeaseBackend,
   FileLeaseBackend,
+  InMemoryLeaseReaper,
+  type ExpiredLease,
 } from "./lease-backends.js";
 
 // ── pg.Pool mock ───────────────────────────────────────────────────────
@@ -127,6 +129,34 @@ describe("DbLeaseBackend.release", () => {
   });
 });
 
+describe("DbLeaseBackend.reapExpired", () => {
+  it("deletes leases past the cutoff and returns them", async () => {
+    const cutoff = new Date("2026-06-03T10:00:00Z");
+    const row = {
+      branch_name: "lore/task",
+      task_id: "old",
+      holder: "pod-a",
+      expires_at: new Date("2026-06-03T09:00:00Z"),
+    };
+    const { pool, calls } = mockPool([{ rowCount: 1, rows: [row] }]);
+    const expired = await new DbLeaseBackend(pool).reapExpired(cutoff);
+    expect(expired).toEqual([row]);
+    expect(calls[0].sql).toContain("DELETE FROM pipeline.task_leases");
+    expect(calls[0].sql).toContain("WHERE expires_at < $1");
+    expect(calls[0].sql).toContain(
+      "RETURNING branch_name, task_id, holder, expires_at",
+    );
+    expect(calls[0].values).toEqual([cutoff]);
+  });
+
+  it("returns an empty array when nothing is past the cutoff", async () => {
+    const { pool } = mockPool([{ rowCount: 0, rows: [] }]);
+    expect(
+      await new DbLeaseBackend(pool).reapExpired(new Date("2026-06-03T10:00:00Z")),
+    ).toEqual([]);
+  });
+});
+
 // ── FileLeaseBackend ───────────────────────────────────────────────────
 
 describe("FileLeaseBackend", () => {
@@ -203,11 +233,55 @@ describe("FileLeaseBackend", () => {
     await fs.access(fname); // does not throw
   });
 
+  it("reapExpired removes and returns only leases past the cutoff", async () => {
+    const backend = new FileLeaseBackend(tmpDir);
+    await backend.acquire("a", "t-old", "h", -1); // already expired
+    await backend.acquire("b", "t-fresh", "h", 600);
+
+    const expired = await backend.reapExpired(new Date());
+
+    expect(expired.map((l) => l.task_id)).toEqual(["t-old"]);
+    const files = await fs.readdir(tmpDir);
+    expect(files).toEqual([encodeURIComponent("b") + ".json"]);
+  });
+
   it("encodes branch names with slashes correctly", async () => {
     const backend = new FileLeaseBackend(tmpDir);
     await backend.acquire("lore/feature/with/slashes", "t", "h");
     const files = await fs.readdir(tmpDir);
     expect(files).toHaveLength(1);
     expect(files[0]).toContain("lore%2Ffeature%2Fwith%2Fslashes");
+  });
+});
+
+// ── InMemoryLeaseReaper ────────────────────────────────────────────────
+
+describe("InMemoryLeaseReaper.reapExpired", () => {
+  const lease = (over: Partial<ExpiredLease>): ExpiredLease => ({
+    branch_name: "lore/task",
+    task_id: "t1",
+    holder: "pod-a",
+    expires_at: new Date("2026-06-03T10:00:00Z"),
+    ...over,
+  });
+
+  it("removes and returns only leases before the cutoff", async () => {
+    const reaper = new InMemoryLeaseReaper([
+      lease({ task_id: "old", expires_at: new Date("2026-06-03T09:00:00Z") }),
+      lease({ task_id: "fresh", expires_at: new Date("2026-06-03T11:00:00Z") }),
+    ]);
+
+    const expired = await reaper.reapExpired(new Date("2026-06-03T10:00:00Z"));
+
+    expect(expired.map((l) => l.task_id)).toEqual(["old"]);
+    expect(reaper.leases.map((l) => l.task_id)).toEqual(["fresh"]);
+  });
+
+  it("returns an empty array when nothing is past the cutoff", async () => {
+    const reaper = new InMemoryLeaseReaper([
+      lease({ expires_at: new Date("2026-06-03T11:00:00Z") }),
+    ]);
+    expect(await reaper.reapExpired(new Date("2026-06-03T10:00:00Z"))).toEqual([]);
+    expect(reaper.leases).toHaveLength(1);
   });
 });
