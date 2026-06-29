@@ -93,6 +93,17 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[]
     re: /^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$|\/)/,
     scope: "write",
   },
+  // Webhook: GET status is read; POST .../webhook/ensure creates/repoints (write).
+  {
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook(\?|$|\/)/,
+    scope: "read",
+    methods: ["GET"],
+  },
+  {
+    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook\/ensure(\?|$|\/)/,
+    scope: "write",
+    methods: ["POST"],
+  },
   // Feature planning: list/get are read; create/refine/finalize/split and the
   // pod result POST are write. Method-specific so a read token can poll.
   {

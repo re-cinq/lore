@@ -2,6 +2,7 @@ import { type Check, type CheckStatus, passSummary } from '@/lib/enrollment';
 import HelpPopover from './HelpPopover';
 import CopyButton from './CopyButton';
 import ReonboardButton from './ReonboardButton';
+import SetupWebhookButton from './SetupWebhookButton';
 import Icon from './Icon';
 import type { IconName } from './icon-map';
 import styles from './EnrollmentSection.module.css';
@@ -13,7 +14,15 @@ const STATUS: Record<CheckStatus, { icon: IconName; color: string }> = {
   unknown: { icon: 'unknown', color: 'var(--text-muted)' },
 };
 
-function CheckRow({ check, reonboardAction }: { check: Check; reonboardAction?: () => Promise<void> }) {
+function CheckRow({
+  check,
+  reonboardAction,
+  setupWebhookAction,
+}: {
+  check: Check;
+  reonboardAction?: () => Promise<void>;
+  setupWebhookAction?: () => Promise<void>;
+}) {
   const s = STATUS[check.status];
   return (
     <div className="enroll-row">
@@ -30,6 +39,9 @@ function CheckRow({ check, reonboardAction }: { check: Check; reonboardAction?: 
       )}
       {check.action?.kind === 'reonboard' && reonboardAction && (
         <ReonboardButton action={reonboardAction} text={check.action.text} />
+      )}
+      {check.action?.kind === 'setup-webhook' && setupWebhookAction && (
+        <SetupWebhookButton action={setupWebhookAction} text={check.action.text} />
       )}
     </div>
   );
@@ -78,9 +90,11 @@ const CURL_CMD = 'curl -fsSL https://raw.githubusercontent.com/re-cinq/lore/main
 export default function EnrollmentSection({
   checks,
   reonboardAction,
+  setupWebhookAction,
 }: {
   checks: Check[];
   reonboardAction?: () => Promise<void>;
+  setupWebhookAction?: () => Promise<void>;
 }) {
   const { passed, total } = passSummary(checks);
 
@@ -103,7 +117,7 @@ export default function EnrollmentSection({
         Repo integration
       </div>
       <div className={styles.checks}>
-        {checks.map(c => <CheckRow key={c.id} check={c} reonboardAction={reonboardAction} />)}
+        {checks.map(c => <CheckRow key={c.id} check={c} reonboardAction={reonboardAction} setupWebhookAction={setupWebhookAction} />)}
       </div>
 
       <div className={`meta ${styles.groupLabel}`}>
