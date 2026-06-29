@@ -3,12 +3,18 @@
 | Field      | Value                                                  |
 |------------|--------------------------------------------------------|
 | Feature    | Repo test-report ingest route                          |
-| Status     | **Draft**                                              |
+| Status     | **Removed** (cutover 2026-06-29)                        |
 | Created    | 2026-06-10                                             |
 | Owner      | Platform Engineering                                   |
-| Route      | `POST /api/repos/:owner/:repo/test-report`             |
-| Auth scope | `write` (SCOPE_OVERRIDES)                              |
-| Module     | `mcp-server/src/api/routes/test-report.ts`             |
+| Route      | ~~`POST /api/repos/:owner/:repo/test-report`~~ (deleted) |
+| Auth scope | —                                                      |
+| Module     | (was `mcp-server/src/api/routes/test-report.ts`)       |
+
+> **Removed.** Test ingest moved to the Floor **`ci-tests`** hook
+> (`POST /api/webhook/ci-tests` → `internal.ingest.spec_trace`, kind `test-report`),
+> fed by the portable `lore-code-trace` binary (`apps/lore-code-trace`). The request
+> body (`{commit, branch, tests[], results[]}`) and graph fan-out are unchanged;
+> only the ingress host moved (mcp → Floor). See `specs/project-test-interface/spec.md`.
 
 ## Problem Statement
 

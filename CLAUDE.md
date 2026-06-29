@@ -134,19 +134,19 @@ read the repo at the posted commit and project via `runIngestGraph`
 env (or `LORE_DGRAPH_HTTP`) is unset. **Doc projection is CI-driven, not a
 pipeline task** (ADR-023): the repo's `lore-ingest.yml` fans out one job per kind
 (`matrix: [specs, adrs]`) that POSTs `ingest-graph`. Test projection is CI-driven
-too — `lore-tests.yml` POSTs `/test-report` + `/coverage`. None of the three
-(specs/adrs/tests) is a pipeline task.
+too — but via the portable **lore-code-trace binary**, not an mcp route. None of the
+three (specs/adrs/tests) is a pipeline task.
 - `POST /api/repos/:o/:r/ingest-graph` — `{kinds[], commit, force?}`. Docs-only:
   `specs`/`adrs` fire the spec-trace trigger per kind (no task); any other kind is
-  rejected `400` (test projection is CI-only via `/test-report` + `/coverage`).
+  rejected `400` (test projection is CI-only via the lore-code-trace binary).
   Scope `write`. `mcp-server/src/api/routes/ingest-graph.ts`.
-- `POST /api/repos/:o/:r/test-report` — `{commit, branch, tests[], results[]}` →
-  `{tests_seen, test_chunks, validated_by, coverage_nodes, covers_edges, violated}`.
-  `mcp-server/src/api/routes/test-report.ts`.
-- `POST /api/repos/:o/:r/coverage` — canonical JSON list `{file,startLine,endLine}[]`
-  (optionally per-test grouped); LCOV (incl. `TN:` per-test attribution) and
-  Cobertura accepted and normalized → `{coverage_nodes, covers_edges, files_covered}`.
-  `mcp-server/src/api/routes/coverage.ts` (`parseLcov`/`parseLcovGroups`/`parseCobertura`).
+- **Test ingest = the Floor `ci-tests` hook** (the old mcp `/test-report` + `/coverage`
+  routes were removed in the cutover). The `lore-code-trace` binary runs the repo's suite
+  in CI and POSTs `{repo, commit, branch, tests[], results[]}` to `POST /api/webhook/ci-tests`
+  on the Floor server (`apps/floor/src/listeners/ci-tests.ts`, bearer `LORE_INGEST_TOKEN`),
+  which emits `internal.ingest.spec_trace` (kind `test-report`) → `ingestTestReport`. The
+  binary parses json / lcov (incl. `TN:`) / cobertura to canonical ranges itself
+  (`apps/lore-code-trace/coverage.go`) — the server never parses coverage.
 
 **MCP tools** (`mcp-server/src/index.ts` → `mcp-server/src/spec-trace-tools.ts`):
 `lore_list_tests` / `lore_run_test` (run the manifest commands in the **caller's local
@@ -155,9 +155,11 @@ formats coverage + validated_by/violated). **Trust boundary**: execution only in
 CI / agent pod); the shared GKE server refuses (`executionRefusal`
 keyed on `LORE_DB_HOST`) and returns a "run in CI / locally" error.
 
-**Local CLI** — `npm run trace:run-tests` (`mcp-server/src/trace-run-tests-cli.ts`):
-loads the manifest, runs the full suite locally via `buildTestReport`, prints
-the `/test-report` body (or `--post`s it to the API).
+**Local + CI orchestrator** — the `lore-code-trace` Go binary (`apps/lore-code-trace`):
+loads the manifest, runs the full suite, and prints the report (or `--post`s it to the
+Floor `ci-tests` ingress). Baked into the mcp image + served at
+`GET /dist/lore-code-trace/<os>-<arch>`; each repo's `lore-tests.yml` downloads + runs it.
+(Replaced the old `npm run trace:run-tests` CLI + `buildTestReport`.)
 
 **Onboarding** — the `onboard` task runs a test-interface check
 (`decideTestInterfaceCheck`): when no manifest is declared it scaffolds a

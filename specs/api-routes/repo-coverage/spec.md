@@ -3,12 +3,18 @@
 | Field      | Value                                                  |
 |------------|--------------------------------------------------------|
 | Feature    | Repo coverage ingest route                             |
-| Status     | **Draft**                                              |
+| Status     | **Removed** (cutover 2026-06-29)                        |
 | Created    | 2026-06-10                                             |
 | Owner      | Platform Engineering                                   |
-| Route      | `POST /api/repos/:owner/:repo/coverage`                |
-| Auth scope | `write` (SCOPE_OVERRIDES)                              |
-| Module     | `mcp-server/src/api/routes/coverage.ts`                |
+| Route      | ~~`POST /api/repos/:owner/:repo/coverage`~~ (deleted)  |
+| Auth scope | —                                                      |
+| Module     | (was `mcp-server/src/api/routes/coverage.ts`)          |
+
+> **Removed.** The bulk coverage route and its LCOV/Cobertura parsers were deleted.
+> The `lore-code-trace` binary now parses json/lcov/cobertura to canonical ranges in CI
+> (`apps/lore-code-trace/coverage.go`) and ships them inside the test-report it POSTs to
+> the Floor `ci-tests` hook — the server never parses coverage. See
+> `specs/project-test-interface/spec.md`.
 
 ## Problem Statement
 

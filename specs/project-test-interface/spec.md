@@ -10,6 +10,16 @@
 | Feeds          | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — seeds `TestChunk`/`Coverage`/`COVERS`, the `violated` signal, and the `VALIDATED_BY` link |
 | Wire contract  | [`contracts/test-commands.md`](./contracts/test-commands.md) |
 
+> **Cutover note (2026-06-29):** the mcp ingest endpoints described below —
+> `POST /api/repos/:o/:r/test-report` and `…/coverage` — have been **removed**.
+> The manifest contract (`list`/`run`, `contracts/test-commands.md`) is unchanged,
+> but the orchestration + ingest moved to the portable **`lore-code-trace`** Go binary
+> (`apps/lore-code-trace`): it runs the manifest in CI, parses json/lcov/cobertura to
+> canonical ranges itself, and POSTs the report to the Floor **`ci-tests`** hook
+> (`POST /api/webhook/ci-tests` → `internal.ingest.spec_trace`, kind `test-report`).
+> The acceptance criteria below and their inline `validated by` links to the old route
+> tests are historical and pending a re-link pass.
+
 ## Problem Statement
 
 The traceability graph needs to know a repo's tests, what code each test
@@ -38,11 +48,13 @@ this path.
 - **`tests.list`** → enumerate the repo's tests as descriptors.
 - **`tests.run <id>`** → run one test with coverage; return pass/fail +
   the covered code chunks.
-- **`POST /api/repos/:o/:r/coverage`** → bulk upload: a standard JSON list
-  of `{file, startLine, endLine}` covered chunks (LCOV/Cobertura accepted
-  and normalized to that list).
-- **`POST /api/repos/:o/:r/test-report`** → the structured combined
-  output CI (or any trusted sandbox) posts to update the graph.
+- **`lore-code-trace` binary** (`apps/lore-code-trace`) → in CI (or any trusted
+  sandbox) it runs the manifest, parses json/lcov/cobertura coverage to canonical
+  `{file, startLine, endLine}` ranges **itself**, chunks at 512 KB, and POSTs the
+  combined report to the Floor **`ci-tests`** ingress (`POST /api/webhook/ci-tests`)
+  to update the graph. (The former mcp `/coverage` + `/test-report` routes — and the
+  server-side LCOV/Cobertura parsers — were removed in the cutover; the binary owns
+  parsing now.)
 
 Lore consumes the output and updates the [traceability
 graph](../spec-traceability-graph/data-model.md): seed `TestChunk`,
@@ -198,14 +210,14 @@ agent's sandbox; the graph update is proxied through the MCP server.
 ```
 ┌──────  Trusted sandbox: CI  |  local dev (stdio MCP/CLI)  |  claude-runner pod  ──────┐
 │  tests.list / tests.run <id>   (project's own runner; the only place code executes)   │
-│  ── CI: lore-tests.yml (onboard-emitted) runs them on push/PR, then ──┐               │
-└────────────────────────────────────────────────────────────────────────┼─────────────┘
-                                                                           ▼ HTTPS (bearer)
-┌────────────────────────────  mcp-server (GKE, long-lived)  ───────────────────────────┐
-│  POST /api/repos/:o/:r/test-report  { commit, branch, tests[], results[] }             │
-│       covered[] = standard JSON list { file, startLine, endLine }                      │
-│  POST /api/repos/:o/:r/coverage     (bulk: same JSON list; LCOV/Cobertura normalized)  │
-│  MCP tools lore_list_tests / lore_run_test / query_trace  (proxy graph update; refuse to exec)   │
+│  ── CI: lore-tests.yml runs the lore-code-trace binary, which orchestrates them ──┐   │
+│       and parses json/lcov/cobertura → canonical { file, startLine, endLine }      │   │
+└────────────────────────────────────────────────────────────────────────────────────┼─┘
+                                                                                       ▼ HTTPS (bearer)
+┌────────────────────────────  Floor ci-tests hook (GKE, long-lived)  ───────────────────┐
+│  POST /api/webhook/ci-tests  { repo, commit, branch, tests[], results[] }              │
+│       → internal.ingest.spec_trace (kind test-report) → ingestTestReport              │
+│  (mcp MCP tools lore_list_tests / lore_run_test / query_trace still proxy graph reads) │
 │     → spec-trace graph units:                                                          │
 │         seed TestChunk(range) + VALIDATED_BY (when spec anchor)                        │
 │         upsert Coverage + COVERS (by line overlap)                                     │
@@ -270,8 +282,8 @@ Wire shapes (descriptor + covered chunk) live in the contract.
 |------|--------|
 | `shared/src/test-command-manifest.ts` | NEW: Zod schema + loader (`.lore/test-commands.yml` / settings; polyglot list) |
 | `shared/src/spec-trace/test-command-runner.ts` | NEW: sandboxed `tests.list`/`tests.run` executor + trust-context gate + timeout/flaky guard |
-| `mcp-server/src/routes/coverage.ts` | NEW/absorbed: bulk LCOV/Cobertura parsers + `POST /coverage` (from coverage-ingestion) |
-| `mcp-server/src/routes/test-report.ts` | NEW: `POST /test-report` handler → graph fan-out (seeds `TestChunk` + nested `TestSuite` chain from each descriptor's `suite`) |
+| `apps/lore-code-trace/` | NEW (Go): the portable orchestrator — runs the manifest, parses json/lcov/cobertura → canonical ranges, chunks, POSTs. (Replaced the deleted mcp `coverage.ts`/`test-report.ts` routes + their parsers.) |
+| `apps/floor/src/listeners/ci-tests.ts` | NEW: the `POST /api/webhook/ci-tests` ingress → `internal.ingest.spec_trace` (kind `test-report`) → graph fan-out (seeds `TestChunk` + nested `TestSuite` chain). |
 | `shared/src/spec-trace/ingest-coverage.ts` | Modify: consume command output, `test-report`, and bulk upload → `Coverage`/`COVERS` |
 | `shared/src/spec-trace/drift-check-file.ts` | Modify: `violated` distinct from `drifted`; flaky guard before flagging |
 | `mcp-server/src/index.ts` | Modify: register MCP tools `lore_list_tests` / `lore_run_test` / `query_trace` (Zod inputs) |
@@ -287,7 +299,7 @@ Wire shapes (descriptor + covered chunk) live in the contract.
 | `specs/coverage-ingestion/spec.md` | Modify: status → **Superseded by** this spec |
 | `specs/spec-traceability-graph/data-model.md` | Modify: add `violated` + `violation_reason` to `Statement` + `AcceptanceCriterion`; add the `TestSuite` node (`parent` nesting, `spec` link) + `TestChunk.suite` |
 | `specs/spec-traceability-graph/spec.md` | Modify: point test discovery/coverage at this authoritative spec (contract moved here) |
-| `CLAUDE.md` | Modify: document the manifest, the two endpoints, and the MCP tools |
+| `CLAUDE.md` | Modify: document the manifest, the lore-code-trace binary + Floor ci-tests hook, and the MCP tools |
 
 ## Acceptance Criteria
 
@@ -296,13 +308,13 @@ Wire shapes (descriptor + covered chunk) live in the contract.
 2a. A descriptor's `suite` chain seeds one idempotent `TestSuite` per element (`xid = repo|file_path|suite_chain`), nested via `TestSuite.parent` outermost→innermost; the `TestChunk` links to the innermost via `TestChunk.suite`; a suite shared by many tests is created once. When a suite name resolves to a spec `path`/`path#ordinal` anchor, `TestSuite.spec` (`VALIDATES_SPEC`) is set; descriptors with no `suite` still seed the bare `TestChunk` (suites are optional).
 3. When a descriptor carries `spec`, exactly one `VALIDATED_BY` edge (`evidence = generated-provenance`) is created to the single `Statement` or `AcceptanceCriterion` at that `path#ordinal` anchor.
 4. `tests.run <id>` output `{passed, covered[]}` upserts one `Coverage` node (`xid = repo|test_file|test_name`) + `COVERS` edges to each overlapping `CodeChunk`; re-running for the same `(id, commit)` is idempotent. ([validated by `parses passed + a list of covered chunks`](libs/shared/src/test-report.test.ts#L49), [validated by `throws when a covered chunk is missing its line bounds`](libs/shared/src/test-report.test.ts#L60))
-5. A failing validating test sets `violated=true` + `violation_reason` on its `Statement`/`AcceptanceCriterion` and opens/labels a `spec-violated` issue — distinct from `drifted`; the flag is raised only after the flaky guard confirms (N consecutive failures or a re-run confirm). ([validated by `returns violated 1 when only the spec-anchored test fails`](apps/mcp-server/src/routes/test-report.test.ts#L51))
-6. The bulk `POST /api/repos/:o/:r/coverage` endpoint accepts a standard JSON list of `{file, startLine, endLine}` covered chunks as its canonical body (the same shape as `tests.run`/`test-report` `covered[]`), and also accepts LCOV/Cobertura which it normalizes into that list; idempotent on `commit`; no behavioural regression from the superseded `coverage-ingestion` endpoint. ([validated by `counts per-test nodes for an lcov payload with two TN tests on the same file`](apps/mcp-server/src/routes/coverage-route.test.ts#L60), [validated by `keys the group by TN and collapses contiguous lines into one range`](apps/mcp-server/src/routes/coverage.test.ts#L30), [validated by `falls back to a per-file group keyed by SF when TN is absent`](apps/mcp-server/src/routes/coverage.test.ts#L55))
-7. `POST /api/repos/:o/:r/test-report` ingests `{commit, branch, tests[], results[]}` and performs criteria 2–5 in one call; write-scope + bearer auth; idempotent on `commit`.
-8. The whole path is zero-LLM and deterministic; a per-invocation timeout skips the offending test (logged) without blocking ingest or sibling units. ([validated by `rejects when the command outlives the timeout`](apps/mcp-server/src/spec-trace-tools.test.ts#L239), [validated by `rejects when the command outlives the timeout`](apps/mcp-server/src/spec-trace-tools.test.ts#L43), [validated by `skips a descriptor whose run command exits non-zero and resolves with empty results`](apps/mcp-server/src/spec-trace-tools.test.ts#L155))
+5. The binary reports each test's `passed` (json `passed`, or the run command's exit code for lcov/cobertura); a failing **validating** test then sets `violated=true` + `violation_reason` on its `Statement`/`AcceptanceCriterion` and opens/labels a `spec-violated` issue during graph projection (owned by [`spec-traceability-graph`](../spec-traceability-graph/spec.md)) — distinct from `drifted`, raised only after the flaky guard confirms. ([validated by `TestBuildReportParsesLcovRunOutput`](apps/lore-code-trace/report_test.go#L51))
+6. The `lore-code-trace` binary parses coverage in CI: json `{passed, covered[]}` inline, and LCOV (incl. `TN:`) / Cobertura normalized to canonical `{file, startLine, endLine}` ranges with contiguous lines collapsed — so the server ingests canonical chunks only (the bulk `/coverage` endpoint + its server-side parsers were removed in the cutover). ([validated by `TestParseLcovCoverageKeepsHitLinesAndCollapsesRanges`](apps/lore-code-trace/coverage_test.go#L8), [validated by `TestParseCoberturaCoverageKeepsHitLines`](apps/lore-code-trace/coverage_test.go#L20), [validated by `TestCollapseRangesSortsAndMergesContiguous`](apps/lore-code-trace/coverage_test.go#L34))
+7. The binary POSTs `{repo, commit, branch, tests[], results[]}` to the Floor `ci-tests` hook (`POST /api/webhook/ci-tests`, bearer auth); the listener emits `internal.ingest.spec_trace` (kind `test-report`) → `ingestTestReport` performs criteria 2–6 in one pass; idempotent on `commit`.
+8. The whole path is zero-LLM and deterministic; a per-invocation timeout skips the offending test (logged) without blocking ingest or sibling units. ([validated by `rejects when the command outlives the timeout`](apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L43), [validated by `rejects when the command outlives the timeout`](apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L151), [validated by `TestBuildReportSkipsFileWhenRunCommandFails`](apps/lore-code-trace/report_test.go#L78))
 9. Project commands execute **only** in a trusted sandbox (local dev, the repo's CI, or the claude-runner Job pod); the long-lived shared MCP/agent services never execute them.
 10. MCP tools `lore_list_tests` / `lore_run_test` / `query_trace` run the commands in the caller's sandbox and update the graph through the MCP server (proxied to the backend like memory writes); a call with no trusted local sandbox returns a "run in CI / locally" error instead of executing on the cluster; a failing `lore_run_test` on a validating test sets `violated` identically to the CI path.
-11. The `onboard` task emits a per-language `lore-tests.yml` (one per detected toolchain, subdir-scoped for monorepos) that runs the commands on push/PR and posts to `/test-report` (and/or `/coverage`).
+11. The `onboard` task emits a per-toolchain `lore-tests.yml` (one per detected toolchain, subdir-scoped for monorepos) that sets up the toolchain, downloads the `lore-code-trace` binary, and runs it `--post` on push/PR (which POSTs to the Floor `ci-tests` hook).
 12. The `onboard` task runs a **test-interface check**: when no manifest is declared (neither `.lore/test-commands.yml` nor `lore.repos.settings.test_commands`), it detects the toolchain and scaffolds a suggested `.lore/test-commands.yml` (+ `lore-tests.yml`) in the onboarding PR; when a manifest already exists it reports "configured" and scaffolds nothing (idempotent); declining the scaffold leaves the repo in documented fallback mode with no error.
 13. The web UI surfaces a single, language-agnostic **setup prompt** (copy-to-clipboard, on the repo specs/coverage page + onboarding result, and as the `/lore-test-commands` skill) that names no language; running it with Claude in the repo produces a `.lore/test-commands.yml` + any wrapper scripts whose `list`/`run` output conforms to [`contracts/test-commands.md`](./contracts/test-commands.md). The prompt text is stored once and shared by the UI surface and the skill. ([validated by `renders the setup prompt text into the DOM`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/TestCommandsSetup.test.tsx#L12), [validated by `names no concrete language or test runner`](libs/shared/src/test-command-setup-prompt.test.ts#L10), [validated by `copies the full setup prompt to the clipboard on Copy click`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/TestCommandsSetup.test.tsx#L26), [validated by `renders a "Set up test commands" heading`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/TestCommandsSetup.test.tsx#L19), [validated by `surfaces the Set up test commands section`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/RepoSpecsView.test.tsx#L37), [validated by `is a non-empty string`](libs/shared/src/test-command-setup-prompt.test.ts#L5), [validated by `exports a byte-identical constant to the shared source`](apps/web-ui/src/lib/test-command-setup-prompt.test.ts#L23), [validated by `carries the canonical TEST_COMMAND_SETUP_PROMPT verbatim`](libs/shared/src/lore-test-commands-skill.test.ts#L11))
 12. Drift re-verification dispatches a single `tests.run` for the affected test into a trusted sandbox (Claude/MCP, CI, or local) — never the long-lived services.

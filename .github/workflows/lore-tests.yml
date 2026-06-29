@@ -44,7 +44,13 @@ jobs:
           if [ -z "${LORE_API_URL}" ]; then
             echo "::warning::LORE_API_URL not set — skipping test ingest"; exit 0
           fi
-          curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/linux-amd64" -o lore-code-trace
+          # Soft-fail the download: during the cutover rollout the mcp image may not
+          # be serving /dist yet. Warn + skip (the run step is gated on the file)
+          # rather than redden main; a later push picks it up once deployed.
+          if ! curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/linux-amd64" -o lore-code-trace; then
+            echo "::warning::lore-code-trace not served at ${LORE_API_URL}/dist yet — skipping (pending mcp deploy)"
+            rm -f lore-code-trace; exit 0
+          fi
           curl -fsSL "${LORE_API_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt
           echo "$(awk '/ linux-amd64$/{print $1}' checksums.txt)  lore-code-trace" | sha256sum -c -
           chmod +x lore-code-trace
