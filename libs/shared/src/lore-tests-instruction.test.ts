@@ -18,8 +18,9 @@ describe("LORE_TESTS_INSTRUCTION", () => {
     expect(LORE_TESTS_INSTRUCTION).toMatch(/\bpull_request\b/);
   });
 
-  it("instructs posting to the test-report ingest route", () => {
-    expect(LORE_TESTS_INSTRUCTION).toMatch(/\/api\/repos\/.*\/test-report/);
+  it("instructs downloading and running the lore-code-trace orchestrator binary", () => {
+    expect(LORE_TESTS_INSTRUCTION).toContain("/dist/lore-code-trace/");
+    expect(LORE_TESTS_INSTRUCTION).toContain("lore-code-trace --post");
   });
 
   it("instructs running the .lore/test-commands.yml commands", () => {
@@ -31,8 +32,9 @@ describe("LORE_TESTS_INSTRUCTION", () => {
     expect(LORE_TESTS_INSTRUCTION).toContain("working-directory");
   });
 
-  it("names the LORE_INGEST_TOKEN secret and LORE_INGEST_URL var", () => {
+  it("names the ingest token, the binary host var, and the ci-tests post host var", () => {
     expect(LORE_TESTS_INSTRUCTION).toContain("LORE_INGEST_TOKEN");
     expect(LORE_TESTS_INSTRUCTION).toContain("LORE_INGEST_URL");
+    expect(LORE_TESTS_INSTRUCTION).toContain("LORE_WEBHOOK_URL");
   });
 });

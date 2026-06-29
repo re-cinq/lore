@@ -78,14 +78,6 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[]
     methods: ["POST", "PUT", "DELETE"],
   },
   {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/coverage(\?|$|\/)/,
-    scope: "write",
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/test-report(\?|$|\/)/,
-    scope: "write",
-  },
-  {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$|\/)/,
     scope: "write",
   },
