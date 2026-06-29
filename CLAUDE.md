@@ -91,7 +91,7 @@ gcloud auth for local dev.
 - `web-ui/src/app/assembly-lines/[id]/PRStatusCard.tsx` — live PR status card
 - `agent/src/jobs/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
 - `agent/src/lib/business-hours.ts` — IANA-TZ-aware gate used by safety crons
-- `agent/src/health.ts` — exposes `POST /api/trigger/review-reactor`, `POST /api/trigger/auto-merge`, and `POST /api/trigger/spec-coverage-validate` for mcp-server fan-out. Last one is fire-and-forget post-ingest; runs the spec-coverage v3 validate pass (parse spec test links → resolve against AST chunks → open a `spec-link-rot` issue when any rot is found).
+- `apps/floor/src/delivery/health.ts` — the Floor HTTP server: `POST /api/webhook/github` (the GitHub webhook ingress, HMAC-verified, maps→inserts `github.*` events), the `/api/agent-events` NDJSON cost sink, and `/healthz`. The old `/api/trigger/*` fan-out endpoints were replaced by the event bus (`apps/floor/src/events/`): listeners insert into `pipeline.events`, the loop dispatches to handlers. spec-coverage validate / spec-trace now run as `internal.ingest.*` event handlers (mcp-server inserts the events post-ingest via the shared `insertEvent`).
 - **`spec-test-coverage` v3 (2026-06-02):** source of truth for spec→test links is markdown inside `spec.md` — `Statement. ([validated by name](path/to/test.ts#L42))` at end of each statement. The web UI parses + colors them at render time via `web-ui/src/lib/spec-coverage-derive.ts` (`segmentStatements` → `classifyByHeuristic` → `parseTestLinksInStatement`); no DB linker tables (`spec_statements` / `spec_test_links` / `spec_coverage_runs` dropped in migration 0008). Three write-paths:
   - **Authors hand-write the links** (free; just edit `spec.md`).
   - **`/lore-suggest-links`** (subscription-billed, on-demand, single-spec) — Claude Code skill that walks through the same judge pipeline locally and opens a PR against the spec's repo. See `specs/local-link-suggester/`. Subscription tokens, no API spend.
@@ -515,19 +515,26 @@ GCS (no UI needed). `lore_my_usage` shows per-developer token usage
   with feedback on the same branch
 - Changes requested (iteration >= 2): escalate to human review
 
-**Event-driven review reactor** (ADR-015): The `review_reactor` that
-addresses post-PR reviewer feedback is webhook-driven, not polled.
-GitHub webhooks for `pull_request` (synchronize / opened / reopened /
-ready_for_review), `pull_request_review.submitted`, and
-`issue_comment.created` (on PRs) arrive at mcp-server, which POSTs
-`{repo, pr_number}` to the agent's `POST /api/trigger/review-reactor`
-endpoint authenticated via `LORE_AGENT_INTERNAL_TOKEN`. The agent
-returns `202 Accepted` and runs `runReviewReactorForPR` in the
-background. A business-hours safety cron (`7 7-17 * * 1-5` UTC, gated
-by `isBusinessHours()` reading `LORE_BUSINESS_HOURS_{TZ,START,END}`
-and `LORE_BUSINESS_DAYS`; defaults Europe/Berlin, 9-18, Mon-Fri)
-catches any dropped webhook deliveries. Webhook-triggered runs are
-never gated.
+**Event bus — the 3-layer trigger substrate** (ADR-015 amendment;
+`apps/floor/src/events/`): every Floor trigger flows through one
+`pipeline.events` table (migration 0023). **Layer 1 — listeners** only
+write rows: the GitHub webhook ingress moved into the Floor
+(`POST /api/webhook/github`, HMAC-verified, maps to `github.*` events); a
+Kubernetes watch on Agent CRs emits `kubernetes.agent.{succeeded,failed}`
+on terminal phase (replacing the polled `agent_watcher`, with a reconcile
+cron as the dropped-event safety net); the in-process scheduler emits
+`cron.<job>.tick`; mcp-server's post-ingest triggers insert
+`internal.ingest.*` (was `POST /api/trigger/*`). **Layer 2 — the loop**
+atomically claims runnable rows (`FOR UPDATE SKIP LOCKED`), dispatches by
+`event_name` via the registry, retry/backoff → dead-letter + a stuck-row
+reaper. **Layer 3 — tasks/jobs** are the existing handlers (review-reactor,
+auto-merge, agent-watcher `processAgentCr`, the cron jobs, spec-trace/
+coverage, issue-dispatch, spec-PR-merge). The `review_reactor` business-hours
+safety cron (`7 7-17 * * 1-5` UTC, gated by `isBusinessHours()` reading
+`LORE_BUSINESS_HOURS_{TZ,START,END}` / `LORE_BUSINESS_DAYS`; default
+Europe/Berlin 9-18 Mon-Fri) becomes a `cron.review_reactor.tick` emitter
+that catches dropped webhook deliveries. **Carve-out:** heavy batch jobs
+stay as K8s CronJobs running their work directly (ADR-019).
 
 **Prompt caching on agent LLM calls**: `callLLM` / `callLLMWithTool`
 in `agent/src/anthropic.ts` use `getCacheControl(jobName)` from

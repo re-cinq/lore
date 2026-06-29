@@ -12,11 +12,19 @@ single Claude-CLI/API-plus-prompt run.
 
 ## Responsibilities
 
+- **Event bus (the trigger substrate)** — a single `pipeline.events` table in 3
+  layers (ADR-015 amendment): **listeners** capture occurrences as rows (the
+  GitHub webhook ingress `POST /api/webhook/github`, the Kubernetes Agent-CR
+  watch, the cron emitters, mcp-server post-ingest); **the loop** atomically
+  claims runnable rows and dispatches by `event_name` via a registry, with
+  retry/backoff → dead-letter + a reaper; **tasks/jobs** are the existing handlers.
+  Event names are source-prefixed (`github.*` / `kubernetes.*` / `cron.*` /
+  `internal.*`). Heavy batch jobs stay as K8s CronJobs (carve-out, ADR-019).
 - **Task processing** — picks up pipeline tasks, hydrates context from the Lore
   API, runs them via direct Anthropic API calls (simple) or by dispatching Agent
   CRs to the ai-agent-subsystem (agent-cr, implementation/review).
-- **Scheduling** — an in-process scheduler for sub-minute, hot-path, and
-  webhook-coupled jobs; batch jobs run as standalone CronJob pods.
+- **Scheduling** — an in-process scheduler whose ticks *emit* `cron.<job>.tick`
+  events (the loop runs them); heavy batch jobs run as standalone CronJob pods.
 - **Dark Factory supervisor** — drives the branch-as-state AssemblyLine workflow
   (one Agent CR per node), emitting `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:`
   commit trailers so a run can resume after interruption (ADR-016/031).
@@ -47,9 +55,12 @@ src/
                   dispatch) + kube plumbing
   assembly-line/  the workflow graph of Stations (floor-graph + run)
   agent/          Agent-CR catalog seed + telemetry sink
+  events/         the event bus (ADR-015): listeners/ (github-webhook, k8s-watch,
+                  scheduler-emitter) + loop/ (store, loop, reaper, retry) +
+                  handlers/ (github, kubernetes, cron, internal) + registry.ts
   task/           the worker, orchestrator, and per-task-type handlers
   spec-trace/     spec→test graph ingest, audit, drift, coverage backfill/validate
-  watcher/        Agent CR → PR watcher
+  watcher/        Agent CR processing (processAgentCr) — driven by kubernetes.* events
   merge/          auto-merge decision + triggers + merge-outcome capture
   dark-factory/   dark-mode settings, approval ceremony, audit, baseline
   platform/       GitHub (CodePlatform impl), PR policy/copy, escalation
