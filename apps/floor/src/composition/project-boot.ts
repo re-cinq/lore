@@ -6,19 +6,19 @@ import {
 } from "@re-cinq/lore-shared";
 import { loadBuiltinWorkflows } from "@re-cinq/lore-runner";
 import { getPool } from "../kernel/db.js";
-import { AgentBackend } from "../station/agent-backend.js";
-import { KubeAgentApi } from "../station/kube-agent-api.js";
-import { HttpContextSource } from "../station/http-context-source.js";
+import { AgentBackend } from "../jobs/station/agent-backend.js";
+import { KubeAgentApi } from "../jobs/station/kube-agent-api.js";
+import { HttpContextSource } from "../jobs/station/http-context-source.js";
 import {
   KubeTokenProvisioner,
   GithubTokenMinter,
   KubeSecretKeyWriter,
   KubeCatalogApi,
-} from "../station/kube-token-provisioner.js";
-import { GitHubPlatform } from "../platform/github.js";
-import { GraphStationBackend } from "../assembly-line/graph-station-backend.js";
-import { AgentCrStationBackend } from "../station/agent-cr-station-backend.js";
-import { floorGraphRuntime } from "../assembly-line/floor-graph-run.js";
+} from "../jobs/station/kube-token-provisioner.js";
+import { GitHubPlatform } from "../jobs/platform/github.js";
+import { GraphStationBackend } from "../jobs/assembly-line/graph-station-backend.js";
+import { AgentCrStationBackend } from "../jobs/station/agent-cr-station-backend.js";
+import { floorGraphRuntime } from "../jobs/assembly-line/floor-graph-run.js";
 
 /**
  * Per-repo Project composition root for the agent. Builds from the agent's

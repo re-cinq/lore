@@ -28,12 +28,12 @@ vi.mock("../kernel/db.js", () => ({
   initPool: vi.fn(),
   getPool: vi.fn(() => ({ query: vi.fn() })),
 }));
-vi.mock("../scheduling/job-run.js", () => ({
+vi.mock("../main-loop/scheduling/job-run.js", () => ({
   startJobRun: vi.fn().mockResolvedValue("run-1"),
   completeJobRun: vi.fn(),
   failJobRun: vi.fn(),
 }));
-vi.mock("../scheduling/log-storage.js", () => ({
+vi.mock("../main-loop/scheduling/log-storage.js", () => ({
   jobRunLogKey: vi.fn(() => "logs/key"),
   writeJobRunLogs: vi.fn(),
 }));

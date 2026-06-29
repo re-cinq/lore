@@ -35,16 +35,14 @@ interface TestReportCounts {
 export async function handleTestReport(
   req: IncomingMessage,
   res: ServerResponse,
-  _pool: Pool | null,
+  pool: Pool | null,
 ): Promise<void> {
-  // Graph persistence is a deferred seam (no Dgraph projection layer yet),
-  // so `_pool` is intentionally untouched.
   const body = (await readJsonBody(req)) as TestReportBody;
 
   if (!requireCommit(body, res)) return;
 
   const repo = repoFromReposUrl(req.url);
-  if (repo) void triggerAgentSpecTrace(repo, "test-report", body);
+  if (repo) void triggerAgentSpecTrace(pool, repo, "test-report", body);
 
   json(res, 200, countReport(body));
 }

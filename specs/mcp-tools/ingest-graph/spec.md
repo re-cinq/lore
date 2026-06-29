@@ -17,7 +17,8 @@ spec-traceability projections are now CI-driven, none is a pipeline task** (see
 [ADR-023](../../../adrs/ADR-023-test-run-trace-binding.md)).
 
 - **Specs & ADRs** project via the repo's `lore-ingest.yml` → `POST /api/repos/:o/:r/ingest-graph`
-  (`matrix: [specs, adrs]`), which fires the fire-and-forget spec-trace projection trigger.
+  (`matrix: [specs, adrs]`), which inserts an `internal.ingest.spec_trace` event on the Floor
+  event bus; the loop projects them into the graph.
 - **Tests** project via the repo's `lore-tests.yml`, which runs the project's test
   suite (the `.lore/test-commands.yml` interface) and POSTs `/test-report` +
   `/coverage` directly. The cluster `ingest-tests` task was a self-skipping no-op
@@ -29,16 +30,16 @@ from the built graph, use `lore-query-trace`.
 
 ## Surviving REST surface — `POST /api/repos/:o/:r/ingest-graph`
 
-The REST route remains, **docs-only**: it fires the spec-trace trigger for the
-`specs`/`adrs` kinds and rejects any other kind with `400` (test projection is
-CI-only via `/test-report` + `/coverage`). Scope `write`.
+The REST route remains, **docs-only**: it inserts an `internal.ingest.spec_trace`
+event for the `specs`/`adrs` kinds and rejects any other kind with `400` (test
+projection is CI-only via `/test-report` + `/coverage`). Scope `write`.
 Handler: [`mcp-server/src/api/routes/ingest-graph.ts`](../../../apps/mcp-server/src/api/routes/ingest-graph.ts).
 
 ## Acceptance Criteria
 
-The endpoint fires the spec-trace trigger for the `specs` kind and creates no task. ([validated by `fires the spec-trace trigger for the specs kind and creates no task`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L26))
+The endpoint inserts an `internal.ingest.spec_trace` event for the `specs` kind and creates no task. ([validated by `inserts a spec-trace event for the specs kind and creates no task`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L23))
 
-The endpoint rejects the `tests` kind with `400` and fires no trigger (test projection is CI-only). ([validated by `rejects the tests kind with 400 and fires no trigger`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L45))
+The endpoint rejects the `tests` kind with `400` (test projection is CI-only). ([validated by `rejects the tests kind with 400 (test projection is CI-only)`](../../../apps/mcp-server/src/api/routes/ingest-graph.test.ts#L44))
 
 ## Out of Scope
 

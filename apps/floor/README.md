@@ -12,11 +12,19 @@ single Claude-CLI/API-plus-prompt run.
 
 ## Responsibilities
 
+- **Event bus (the trigger substrate)** — a single `pipeline.events` table in 3
+  layers (ADR-015 amendment): **listeners** capture occurrences as rows (the
+  GitHub webhook ingress `POST /api/webhook/github`, the Kubernetes Agent-CR
+  watch, the cron emitters, mcp-server post-ingest); **the loop** atomically
+  claims runnable rows and dispatches by `event_name` via a registry, with
+  retry/backoff → dead-letter + a reaper; **tasks/jobs** are the existing handlers.
+  Event names are source-prefixed (`github.*` / `kubernetes.*` / `cron.*` /
+  `internal.*`). Heavy batch jobs stay as K8s CronJobs (carve-out, ADR-019).
 - **Task processing** — picks up pipeline tasks, hydrates context from the Lore
   API, runs them via direct Anthropic API calls (simple) or by dispatching Agent
   CRs to the ai-agent-subsystem (agent-cr, implementation/review).
-- **Scheduling** — an in-process scheduler for sub-minute, hot-path, and
-  webhook-coupled jobs; batch jobs run as standalone CronJob pods.
+- **Scheduling** — an in-process scheduler whose ticks *emit* `cron.<job>.tick`
+  events (the loop runs them); heavy batch jobs run as standalone CronJob pods.
 - **Dark Factory supervisor** — drives the branch-as-state AssemblyLine workflow
   (one Agent CR per node), emitting `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:`
   commit trailers so a run can resume after interruption (ADR-016/031).
@@ -25,40 +33,36 @@ single Claude-CLI/API-plus-prompt run.
 
 ## Layout
 
-The source is sliced **vertically by domain** — each top-level folder under
-`src/` owns its port + implementation + orchestration + colocated tests (the
-`libs/shared/src/project/<domain>/` pattern). Special citizens: `src/index.ts`
-is the application entry (the `dist/index.js` the container runs), top of the
-tree, may import anything; `kernel/` is the shared substrate every domain may
-import and that imports nothing above it; `delivery/` holds the remaining entry
-points + the health module (`dist/delivery/*` deploy contract), imported by
-nothing but the root entry. The invariant is enforced by
-[`src/domain-boundaries.test.ts`](./src/domain-boundaries.test.ts).
+The source is organized as the **3 event-bus layers** (ADR-015) plus the
+unavoidable substrate. Every trigger flows through `pipeline.events`: listeners
+write rows, the main loop drains + dispatches, the jobs do the work. Special
+citizens that can't nest under a layer: `src/index.ts` (the `dist/index.js`
+entry, may import anything); `kernel/` (substrate imported by all, importing
+nothing above it); `delivery/` (the `dist/delivery/*` deploy contract:
+job-runner, gen-catalog, health); `composition/` (the wiring root). Boundaries
+enforced by [`src/domain-boundaries.test.ts`](./src/domain-boundaries.test.ts).
 
 ```
 src/
-  index.ts        the application entry — boots scheduler + worker + health
-                  (dist/index.js; the container CMD)
-  kernel/         shared substrate: db pool, config, agent-invocation,
-                  repositories/, platform-port.ts (CodePlatform) — imported by all
+  index.ts        the application entry — boots the loop + worker + health
+  kernel/         shared substrate: db pool, config, agent-invocation, repositories
   composition/    project-boot.ts — the wiring root (the one place impls are wired)
-  delivery/       other entry points (job-runner, gen-catalog) + health module
-  station/        Station execution — the agent-cr StationBackend (Agent CR
-                  dispatch) + kube plumbing
-  assembly-line/  the workflow graph of Stations (floor-graph + run)
-  agent/          Agent-CR catalog seed + telemetry sink
-  task/           the worker, orchestrator, and per-task-type handlers
-  spec-trace/     spec→test graph ingest, audit, drift, coverage backfill/validate
-  watcher/        Agent CR → PR watcher
-  merge/          auto-merge decision + triggers + merge-outcome capture
-  dark-factory/   dark-mode settings, approval ceremony, audit, baseline
-  platform/       GitHub (CodePlatform impl), PR policy/copy, escalation
-  lease/  memory/  cost/  review/  scheduling/  context-jobs/   (one domain each)
+  delivery/       entry points (job-runner, gen-catalog) + health (deploy contract)
+
+  listeners/      LAYER 1 — producers: capture occurrences → pipeline.events
+                  (github-webhook, k8s-watch, scheduler-emitter + map/sig pures)
+  main-loop/      LAYER 2 — the drain loop + internal processes: store, loop,
+                  reaper, retry, registry, event-names, dedupe, types
+                  + scheduling/ (the cron timer) + lease/ (branch coordination)
+  jobs/           LAYER 3 — the tasks/jobs the events trigger:
+                  github · kubernetes · cron · internal      (the event handlers)
+                  task/ station/ assembly-line/ agent/ watcher/ merge/ review/
+                  spec-trace/ memory/ cost/ context-jobs/ dark-factory/ platform/
 ```
 
-Cron/scheduled jobs live with the domain they serve (e.g. `memory-lifecycle`
-under `memory/`, `spec-drift` under `spec-trace/`); `delivery/job-runner.ts`
-dispatches them by name.
+Heavy batch jobs (under `jobs/context-jobs/`, `jobs/memory/`, …) still run as K8s
+CronJob pods via `delivery/job-runner.ts` (carve-out, ADR-019); the light
+operational crons emit `cron.<job>.tick` events that the loop runs.
 
 ## Develop
 

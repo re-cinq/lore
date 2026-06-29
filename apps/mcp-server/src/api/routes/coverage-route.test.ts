@@ -95,12 +95,7 @@ describe("POST /api/repos/:owner/:repo/coverage", () => {
     expect(res.json).toEqual({ coverage_nodes: 1, covers_edges: 2, files_covered: 1 });
   });
 
-  it("fires the spec-trace trigger with the normalized coverage groups when the agent env is configured", async () => {
-    const originalFetch = globalThis.fetch;
-    process.env.LORE_AGENT_URL = "http://agent.internal:8080";
-    process.env.LORE_AGENT_INTERNAL_TOKEN = "test-secret";
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
-    globalThis.fetch = fetchMock as typeof fetch;
+  it("inserts an internal.ingest.spec_trace event with the normalized coverage groups", async () => {
     const pool = makePool();
     const res = makeRes();
     const body = {
@@ -112,11 +107,10 @@ describe("POST /api/repos/:owner/:repo/coverage", () => {
       res,
       pool as any,
     );
-    globalThis.fetch = originalFetch;
     expect(res.statusCode).toBe(200);
-    expect(fetchMock).toHaveBeenCalledOnce();
-    expect(fetchMock.mock.calls[0][0]).toBe("http://agent.internal:8080/api/trigger/spec-trace");
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+    const insert = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find((c) => String(c[0]).includes("INSERT INTO pipeline.events"));
+    expect(insert?.[1]?.[0]).toBe("internal.ingest.spec_trace");
+    expect(JSON.parse(insert?.[1]?.[2] as string)).toEqual({
       repo: "o/r",
       kind: "coverage",
       payload: {
