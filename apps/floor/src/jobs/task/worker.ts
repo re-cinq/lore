@@ -15,9 +15,10 @@ import {
   TaskFailure,
   resolveExecutionImage,
 } from "@re-cinq/lore-shared";
-import type { PipelineTask } from "@re-cinq/lore-shared";
 import { linkifyMarkdown, selectStationBackend } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
+import { taskQueue } from "../../kernel/queues.js";
+import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
@@ -36,16 +37,22 @@ export { handleGenericOutput } from "./handle-generic-output.js";
 
 // ── Crash recovery ────────────────────────────────────────────────────
 
+/** Dependencies of {@link recoverStaleTasks}; side-effects are injectable so the
+ *  recovery policy is testable against the shared InMemory queue with no DB. */
+export interface RecoverStaleDeps {
+  queue: Pick<TaskQueueRepository, "findRecoverable">;
+  setStatus: typeof setStatus;
+  insertEvent: typeof insertEvent;
+}
+
 /**
  * Reset tasks that have been stuck in running/queued for over 30 minutes
  * back to pending so they can be retried.
  */
-export async function recoverStaleTasks(): Promise<number> {
-  const stale = await query<{ id: string; task_type: string }>(
-    `SELECT id, task_type FROM pipeline.tasks
-     WHERE status IN ('running', 'queued')
-       AND updated_at < now() - interval '30 minutes'`,
-  );
+export async function recoverStaleTasks(
+  deps: RecoverStaleDeps = { queue: taskQueue(), setStatus, insertEvent },
+): Promise<number> {
+  const stale = await deps.queue.findRecoverable();
 
   let recovered = 0;
   for (const row of stale) {
@@ -57,8 +64,8 @@ export async function recoverStaleTasks(): Promise<number> {
       );
       continue;
     }
-    await setStatus(row.id, "pending");
-    await insertEvent(row.id, "running", "pending", {
+    await deps.setStatus(row.id, "pending");
+    await deps.insertEvent(row.id, "running", "pending", {
       reason: "crash-recovery",
     });
     console.log(
@@ -83,23 +90,10 @@ export async function startWorker(): Promise<void> {
 }
 
 async function pollOnce(): Promise<void> {
-  // Pick up tasks by priority:
-  // - 'immediate': no grace period, executed right away
-  // - 'normal': 30-second grace period for local runners to claim first
-  const task = await query<PipelineTask>(
-    `SELECT * FROM pipeline.tasks
-     WHERE status = 'pending'
-       AND status != 'running-local'
-       AND (
-         (priority = 'immediate')
-         OR (created_at < now() - interval '30 seconds')
-       )
-     ORDER BY
-       CASE WHEN priority = 'immediate' THEN 0 ELSE 1 END,
-       created_at ASC
-     LIMIT 1`,
-  ).then((rows) => rows[0] ?? null);
-
+  // Pick up the next runnable task: immediate first, otherwise the oldest task
+  // past the 30-second grace that lets a local runner claim it first. The claim
+  // SQL lives in the shared TaskQueue.
+  const task = await taskQueue().claimNextPending();
   if (!task) return;
 
   await processTask(task);
