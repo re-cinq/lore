@@ -2,17 +2,19 @@ import { Llm } from "@re-cinq/lore-shared";
 import { initPool, getPool } from "./kernel/db.js";
 import { loadTaskTypes } from "./kernel/config.js";
 import { recoverStaleTasks, startWorker } from "./task/worker.js";
-import { registerJob, startScheduler, getJobStatus } from "./scheduling/scheduler.js";
+import { startScheduler, getJobStatus } from "./scheduling/scheduler.js";
 import { startHealthServer } from "./delivery/health.js";
-
 import { loadApprovalConfig } from "./dark-factory/approval.js";
-import { approvalCheckJob } from "./dark-factory/approval-check.js";
-import { mergeCheckJob } from "./merge/merge-check.js";
-import { reviewReactorJob } from "./review/review-reactor.js";
-import { agentWatcherJob } from "./watcher/agent-watcher.js";
-import { specTaskExecutorJob } from "./task/spec-task-executor.js";
-import { staleTaskCheckJob } from "./task/stale-task-check.js";
-import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
+
+// Event bus (the 3 layers). Layer 1 listeners: the GitHub webhook (mounted on the
+// health server), the k8s Agent-CR watch, and the cron emitters below. Layer 2: the
+// drain loop + reaper over pipeline.events. Layer 3: the registry's handlers (the
+// existing tasks/jobs). See apps/floor/README.md + ADR-015.
+import { buildRegistry, resolve } from "./events/registry.js";
+import { startEventLoop } from "./events/loop/loop.js";
+import { startEventReaper } from "./events/loop/reaper.js";
+import { registerCronEmitter } from "./events/listeners/scheduler-emitter.js";
+import { startK8sWatch } from "./events/listeners/k8s-watch.js";
 
 async function main(): Promise<void> {
   console.log("[agent] Lore Agent Service starting...");
@@ -34,23 +36,28 @@ async function main(): Promise<void> {
     console.log(`[agent] Recovered ${recovered} stale tasks`);
   }
 
-  // In-process jobs: sub-minute, hot-path, or webhook-coupled. The 10
-  // batch jobs that used to live here now run as K8s CronJob pods via
-  // dist/job-runner.js — see ADR-019 and application/jobs/cron/README.md.
-  registerJob("merge_check", "*/1 * * * *", mergeCheckJob);
-  registerJob("approval_check", "*/1 * * * *", approvalCheckJob);
-  // Safety-net cron for review reactor. Primary trigger is the
-  // GitHub webhook (see mcp-server routes); this cron catches PRs whose
-  // webhook delivery was dropped. Fires hourly Mon-Fri 07:07-17:07 UTC
-  // (roughly 09-19 CET/CEST); the job itself gates on business hours.
-  registerJob("review_reactor", "7 7-17 * * 1-5", reviewReactorJob);
-  // Polls Agent CRs (ai-agent-subsystem) and creates the PR on completion.
-  registerJob("agent_watcher", "*/1 * * * *", agentWatcherJob);
-  registerJob("spec_task_executor", "*/1 * * * *", specTaskExecutorJob);
-  registerJob("stale_task_check", "17 * * * *", staleTaskCheckJob);    // hourly at :17
-  // Heals planning rounds whose Station container/pod died mid-flight (the wizard
-  // would otherwise "analyze" forever) and re-applies any missed status transition.
-  registerJob("feature_planning_reaper", "*/1 * * * *", featurePlanningReaperJob);
+  // ── Layer 2: the drain loop + reaper over pipeline.events ──
+  const registry = buildRegistry();
+  startEventLoop((name) => resolve(registry, name));
+  startEventReaper();
+
+  // ── Layer 1: the k8s Agent-CR watch (emits kubernetes.agent.* events) ──
+  startK8sWatch();
+
+  // ── Layer 1: cron emitters. Each scheduled tick INSERTs a cron.<name>.tick event;
+  // the loop runs the handler. Heavy batch jobs stay as K8s CronJob pods (ADR-019,
+  // carve-out) — they are NOT emitted here.
+  registerCronEmitter("merge_check", "*/1 * * * *");
+  registerCronEmitter("approval_check", "*/1 * * * *");
+  // Review-reactor safety net (the GitHub webhook is the primary trigger); the
+  // handler self-gates on business hours. Hourly Mon-Fri 07:07-17:07 UTC.
+  registerCronEmitter("review_reactor", "7 7-17 * * 1-5");
+  registerCronEmitter("spec_task_executor", "*/1 * * * *");
+  registerCronEmitter("stale_task_check", "17 * * * *"); // hourly at :17
+  registerCronEmitter("feature_planning_reaper", "*/1 * * * *");
+  // Safety net for dropped k8s watch events: re-emit terminal-unhandled CRs + prune.
+  registerCronEmitter("agent_watcher_reconcile", "*/1 * * * *");
+  registerCronEmitter("events_prune", "0 * * * *"); // hourly housekeeping
 
   startScheduler();
   startWorker();

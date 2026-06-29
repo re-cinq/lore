@@ -1,16 +1,18 @@
 /**
- * Agent watcher job (ADR-031) — the agent-watcher that replaces loretask-watcher,
- * re-targeted onto `Agent` custom resources (agents.re-cinq.com) in the ai-agents
- * namespace. The decisions that differ from a LoreTask (Agent.status carries no
- * changedFiles / reviewResult / taskType, and the deterministic gate is the repo's
- * GitHub Actions conclusion, D3) live in agent-watcher-logic.ts; this is the IO shell.
+ * Agent CR (agents.re-cinq.com) processing (ADR-031). The decisions that differ
+ * from a LoreTask (Agent.status carries no changedFiles / reviewResult / taskType,
+ * and the deterministic gate is the repo's GitHub Actions conclusion, D3) live in
+ * agent-watcher-logic.ts; this is the IO shell.
  *
  * On Succeeded: compute the changed-file count via compare-commits → open a PR (or
  * close out a no-changes task), gate auto-merge on green CI, and fan out auto-review.
  * On Failed: record the failure (with bounded transient-infra retry). Review verdicts
- * (parsed from status.output) drive the iteration-capped fix loop. Old CRs are pruned.
+ * (parsed from status.output) drive the iteration-capped fix loop.
  *
- * Runs alongside loretask-watcher during the cutover; the two poll disjoint CR groups.
+ * Event-driven (the event bus): the k8s watch emits `kubernetes.agent.{succeeded,
+ * failed}` events; the handler re-GETs the CR and calls `processAgentCr`. The
+ * reconcile path (k8s-watch listener) lists CRs, emits for terminal-unhandled ones,
+ * and prunes old terminal CRs.
  */
 
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
@@ -40,7 +42,7 @@ const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";
 const PLURAL = "agents";
 
-function agentsNamespace(): string {
+export function agentsNamespace(): string {
   return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
 }
 
@@ -56,7 +58,7 @@ function cleanupPerTaskToken(taskId: string): Promise<void> {
     .catch(() => {});
 }
 
-// ── Slack batching (copied from loretask-watcher; CR-agnostic) ──────────
+// ── Slack batching (CR-agnostic) ──────────
 
 interface SlackBatchEntry {
   repo: string;
@@ -100,7 +102,7 @@ async function flushSlackBatch(): Promise<void> {
   slackBatch.length = 0;
 }
 
-// ── Helpers (copied from loretask-watcher; CR-agnostic) ─────────────────
+// ── Helpers (CR-agnostic) ─────────────────
 
 async function notifySlack(taskId: string, repo: string, message: string): Promise<void> {
   const botToken = process.env.LORE_SLACK_BOT_TOKEN;
@@ -164,20 +166,26 @@ async function patchAgentStatus(k8sApi: CustomObjectsApi, name: string, patch: R
   } catch { /* best effort — CR may already be cleaned up */ }
 }
 
-export async function watchAgents(): Promise<void> {
+/** Construct the in-cluster Agent CR API client + namespace. */
+export function makeAgentsApi(): { k8sApi: CustomObjectsApi; namespace: string } {
   const kc = new KubeConfig();
   kc.loadFromCluster();
-  const k8sApi = kc.makeApiClient(CustomObjectsApi);
+  return { k8sApi: kc.makeApiClient(CustomObjectsApi), namespace: agentsNamespace() };
+}
+
+/**
+ * Process one terminal Agent CR. Invoked by the `kubernetes.agent.{succeeded,failed}`
+ * event handlers (the event carries the agent name; the handler re-GETs the fresh
+ * CR). The body is the former list-loop body verbatim, with `continue`→`return`;
+ * the Slack flush runs in `finally` so an early return still delivers notifications.
+ */
+export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Promise<void> {
   const namespace = agentsNamespace();
-
-  const result = await k8sApi.listNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL });
-  const items: Agent[] = (result as any).items || [];
-
-  for (const agent of items) {
+  try {
     const status = agent.status ?? {};
     const phase = status.phase;
     const taskId = taskIdOf(agent);
-    if (!taskId) continue;
+    if (!taskId) return;
     const taskType = taskTypeOf(agent) ?? "general";
     const branch = agent.spec?.branch ?? "";
     const targetRepo = agent.spec?.targetRepo ?? "";
@@ -188,7 +196,7 @@ export async function watchAgents(): Promise<void> {
     // DB-level re-entry guard (only act on tasks still running/queued).
     if (phase === "Succeeded" || phase === "Failed") {
       const dbStatus = (await query<{ status: string }>(`SELECT status FROM pipeline.tasks WHERE id = $1`, [taskId]))[0]?.status;
-      if (dbStatus && !["running", "queued"].includes(dbStatus)) continue;
+      if (dbStatus && !["running", "queued"].includes(dbStatus)) return;
     }
 
     if (phase === "Succeeded" && !status.prUrl && taskType !== "review") {
@@ -217,7 +225,7 @@ export async function watchAgents(): Promise<void> {
           } catch (err: any) {
             console.error(`[agent-watcher] feature-planning completion failed for ${taskId}: ${err.message}`);
           }
-          continue;
+          return;
         }
         try {
           let { issue_number, target_repo } = await getIssueNumber(taskId);
@@ -253,7 +261,7 @@ export async function watchAgents(): Promise<void> {
         } catch (err: any) {
           console.error(`[agent-watcher] Failed to complete no-change task ${taskId}: ${err.message}`);
         }
-        continue;
+        return;
       }
 
       // Open a PR from the pushed branch.
@@ -398,10 +406,10 @@ export async function watchAgents(): Promise<void> {
     const reviewResult = phase === "Succeeded" && taskType === "review" ? parseReviewResult(output) : undefined;
     if (reviewResult) {
       const reviewRow = (await query<{ status: string }>(`SELECT status FROM pipeline.tasks WHERE id = $1`, [taskId]))[0];
-      if (reviewRow && reviewRow.status !== "running") continue;
+      if (reviewRow && reviewRow.status !== "running") return;
       const contextBundle = (await query<{ context_bundle: any }>(`SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId]))[0]?.context_bundle;
       const parentTaskId: string | undefined = contextBundle?.parent_task_id;
-      if (!parentTaskId) { console.log(`[agent-watcher] Review ${taskId} has no parent task, skipping`); continue; }
+      if (!parentTaskId) { console.log(`[agent-watcher] Review ${taskId} has no parent task, skipping`); return; }
 
       if (reviewResult === "approved") {
         await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [parentTaskId]);
@@ -417,7 +425,7 @@ export async function watchAgents(): Promise<void> {
         const parent = (await query<{ review_iteration: number; target_repo: string; target_branch: string; description: string; issue_number: number | null; pr_number: number | null }>(
           `SELECT review_iteration, target_repo, target_branch, description, issue_number, pr_number FROM pipeline.tasks WHERE id = $1`, [parentTaskId],
         ))[0];
-        if (!parent) continue;
+        if (!parent) return;
         const iteration = (Number(parent.review_iteration) || 0) + 1;
         await query(`UPDATE pipeline.tasks SET review_iteration = $1, updated_at = now() WHERE id = $2`, [iteration, parentTaskId]);
 
@@ -452,30 +460,12 @@ export async function watchAgents(): Promise<void> {
         }
       }
     }
-
-    // Prune old completed/failed Agents (> 1h).
-    if ((phase === "Succeeded" && (status.prUrl || changedFilesIsZero(status))) || phase === "Failed") {
-      const completedAt = status.completedAt ? new Date(status.completedAt) : null;
-      if (completedAt && Date.now() - completedAt.getTime() > 60 * 60 * 1000) {
-        try {
-          await k8sApi.deleteNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL, name });
-          await cleanupPerTaskToken(taskId);
-          console.log(`[agent-watcher] Cleaned up Agent ${name}`);
-        } catch { /* best effort */ }
-      }
-    }
+  } finally {
+    await flushSlackBatch();
   }
-
-  await flushSlackBatch();
 }
 
 /** A no-changes Agent we already closed out carries the prUrl sentinel "no-changes". */
-function changedFilesIsZero(status: NonNullable<Agent["status"]>): boolean {
+export function changedFilesIsZero(status: NonNullable<Agent["status"]>): boolean {
   return status.prUrl === "no-changes";
-}
-
-/** Job wrapper for the scheduler. */
-export async function agentWatcherJob(): Promise<string> {
-  await watchAgents();
-  return "Agent watcher completed";
 }

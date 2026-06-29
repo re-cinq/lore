@@ -12,6 +12,7 @@ import { specTaskExecutorJob } from "../../task/spec-task-executor.js";
 import { staleTaskCheckJob } from "../../task/stale-task-check.js";
 import { featurePlanningReaperJob } from "../../task/feature-planning-reaper.js";
 import { pruneHandled } from "../loop/store.js";
+import { reconcileAgents } from "../listeners/k8s-watch.js";
 import type { EventHandler } from "../types.js";
 
 /** Adapt an existing `() => Promise<string>` job into an event handler (drop the summary). */
@@ -30,4 +31,9 @@ export const featurePlanningReaper = fromJob(featurePlanningReaperJob);
 export const eventsPrune: EventHandler = async () => {
   const n = await pruneHandled(7);
   if (n > 0) console.log(`[events] pruned ${n} handled event(s)`);
+};
+
+/** Safety net for dropped k8s watch events: re-emit for terminal-unhandled CRs + prune old ones. */
+export const agentWatcherReconcile: EventHandler = async () => {
+  await reconcileAgents();
 };
