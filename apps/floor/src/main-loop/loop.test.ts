@@ -8,6 +8,7 @@ function row(overrides: Partial<EventRow> = {}): EventRow {
     event_name: "cron.merge_check.tick",
     source: "cron",
     params: {},
+    repo: null,
     dedupe_key: null,
     status: "processing",
     attempts: 1,

@@ -13,11 +13,22 @@ export interface EventInsert {
   dedupeKey?: string;
 }
 
+/**
+ * The repo a (repo-scoped) event belongs to, by convention `params.repo`
+ * (full_name). github.* / internal.* events carry it; org-wide cron.* and
+ * task-keyed kubernetes.* events don't, so this returns null for them. Single
+ * source for the `pipeline.events.repo` column across both producers.
+ */
+export function eventRepo(params?: Record<string, unknown>): string | null {
+  const repo = params?.repo;
+  return typeof repo === "string" ? repo : null;
+}
+
 export async function insertEvent(pool: any, ev: EventInsert): Promise<void> {
   await pool.query(
-    `INSERT INTO pipeline.events (event_name, source, params, dedupe_key)
-     VALUES ($1, $2, $3::jsonb, $4)
+    `INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
+     VALUES ($1, $2, $3::jsonb, $4, $5)
      ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
-    [ev.eventName, ev.source, JSON.stringify(ev.params ?? {}), ev.dedupeKey ?? null],
+    [ev.eventName, ev.source, JSON.stringify(ev.params ?? {}), eventRepo(ev.params), ev.dedupeKey ?? null],
   );
 }
