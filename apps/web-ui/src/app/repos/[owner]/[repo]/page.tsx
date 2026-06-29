@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne, getRepoSchema } from '@/lib/db';
 import { getReadme, checkRepoFiles } from '@/lib/github';
+import { getWebhookStatus } from '@/lib/webhook-api';
 import { computeEnrollmentChecks } from '@/lib/enrollment';
-import { reonboard } from './actions';
+import { reonboard, setupWebhook } from './actions';
 import RepoOverviewView, { type RecentTask } from './RepoOverviewView';
 
 export default async function RepoOverview({ params }: { params: Promise<{ owner: string; repo: string }> }) {
@@ -50,6 +51,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
   const githubFiles = await checkRepoFiles(fullName, ['AGENTS.md', '.github/workflows/lore-ingest.yml']).catch(
     () => ({ 'AGENTS.md': null, '.github/workflows/lore-ingest.yml': null }),
   );
+  const webhook = await getWebhookStatus(fullName).catch(() => null);
 
   const enrollmentChecks = computeEnrollmentChecks({
     onboarded: !!repoInfo,
@@ -61,6 +63,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
     hasConventions: conventionRows.length > 0,
     team: repoInfo?.team ?? null,
     githubFiles,
+    webhook,
     localMcp,
     now: Date.now(),
   });
@@ -113,6 +116,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
       escalationsWeek={escalationsWeek}
       recentTasks={recentTasks as RecentTask[]}
       reonboardAction={reonboard.bind(null, fullName)}
+      setupWebhookAction={setupWebhook.bind(null, fullName)}
     />
   );
 }

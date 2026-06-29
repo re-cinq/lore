@@ -25,6 +25,7 @@ import { handleCoverageRoute } from "./coverage.js";
 import { handleTestReport } from "./test-report.js";
 import { handleImpactRoute } from "./impact.js";
 import { handleIngestGraphRoute } from "./ingest-graph.js";
+import { handleWebhookStatus, handleWebhookEnsure } from "./webhook.js";
 import { handleTraceRoute, handleGlobalTraceSpecs } from "./trace.js";
 import { handleFeaturesRoute } from "./features.js";
 
@@ -78,6 +79,8 @@ const API_ROUTES: ApiRoute[] = [
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/test-report(\?|$)/, "POST"), handle: handleTestReport },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$)/, "POST"), handle: handleIngestGraphRoute },
+  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook\/ensure(\?|$)/, "POST"), handle: handleWebhookEnsure },
+  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook(\?|$)/, "GET"), handle: handleWebhookStatus },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/trace\//, "GET"), handle: handleTraceRoute },
   { match: pattern(/^\/api\/trace\/specs(\?|$)/, "GET"), handle: handleGlobalTraceSpecs },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/features(\/.*)?(\?|$)/.test(url)), handle: handleFeaturesRoute },

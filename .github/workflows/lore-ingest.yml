@@ -57,8 +57,9 @@ jobs:
             || echo "::warning::Lore ingest endpoint returned an error (transient — not blocking merge)"
 
   # Spec/ADR → spec-traceability graph projection. Each kind is its own job
-  # (parallel via the matrix) so specs and ADRs project independently; the
-  # endpoint fires a fire-and-forget trigger (no pipeline task). Soft-fail.
+  # (parallel via the matrix) so specs and ADRs project independently. The CI
+  # ingress is the Floor event bus: this POST registers an internal.ingest.spec_trace
+  # event and the Floor loop projects it (no pipeline task). Soft-fail.
   graph:
     runs-on: ubuntu-latest
     strategy:
@@ -69,15 +70,19 @@ jobs:
       - name: Project ${{ matrix.kind }} into the graph
         env:
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
-          LORE_API_URL: ${{ vars.LORE_API_URL }}
+          LORE_WEBHOOK_URL: ${{ vars.LORE_WEBHOOK_URL }}
         run: |
-          if [ -z "${LORE_API_URL}" ]; then
-            echo "::error::LORE_API_URL repository variable is not set — ${{ matrix.kind }} was NOT projected"
-            exit 1
+          # Canary: doc projection moved to the Floor event-bus ingress. Until the
+          # operator provisions LORE_WEBHOOK_URL (+ exposes the Floor ingress), this
+          # repo hasn't cut over yet — warn and skip (the nightly reindex backstops),
+          # don't red-fail main. A SET-but-broken URL still surfaces via curl below.
+          if [ -z "${LORE_WEBHOOK_URL}" ]; then
+            echo "::warning::LORE_WEBHOOK_URL not set — ${{ matrix.kind }} projection skipped (pending Floor ci-ingest cutover)"
+            exit 0
           fi
           curl -sf -X POST \
             -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"kinds\": [\"${{ matrix.kind }}\"], \"commit\": \"${{ github.sha }}\"}" \
-            "${LORE_API_URL}/api/repos/${{ github.repository }}/ingest-graph" \
-            || echo "::warning::Lore ingest-graph endpoint returned an error for ${{ matrix.kind }} (transient — not blocking merge)"
+            -d "{\"repo\": \"${{ github.repository }}\", \"kinds\": [\"${{ matrix.kind }}\"], \"commit\": \"${{ github.sha }}\"}" \
+            "${LORE_WEBHOOK_URL}/api/webhook/ci-ingest" \
+            || echo "::warning::Lore ci-ingest endpoint returned an error for ${{ matrix.kind }} (transient — not blocking merge)"

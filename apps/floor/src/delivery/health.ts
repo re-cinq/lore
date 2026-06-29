@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { query, isDbAvailable } from "../kernel/db.js";
 import { parseAgentEvents } from "../jobs/agent/agent-events.js";
 import { handleGitHubWebhook } from "../listeners/github-webhook.js";
+import { handleCiIngestWebhook } from "../listeners/ci-ingest.js";
 
 const startTime = Date.now();
 
@@ -30,6 +31,14 @@ export function startHealthServer(
     // the work. (Was POST /api/webhook/github on mcp-server + the /api/trigger/* set.)
     if (req.method === "POST" && req.url === "/api/webhook/github") {
       await handleGitHubWebhook(req, res);
+      return;
+    }
+
+    // ── Layer 1: CI doc-projection ingress (moved into Floor from mcp-server's
+    // /ingest-graph). Bearer-authed on LORE_INGEST_TOKEN; maps the body to
+    // internal.ingest.spec_trace events and INSERTs them — the loop does the work.
+    if (req.method === "POST" && req.url === "/api/webhook/ci-ingest") {
+      await handleCiIngestWebhook(req, res);
       return;
     }
 
