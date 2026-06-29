@@ -43,6 +43,7 @@ const baseProps = {
   escalationsWeek: 0,
   recentTasks: [] as RecentTask[],
   reonboardAction: action,
+  setupWebhookAction: action,
 };
 
 describe('RepoOverviewView', () => {

@@ -32,6 +32,8 @@ export interface RepoOverviewViewProps {
   recentTasks: RecentTask[];
   /** Server action wired to the enrollment re-onboard button ("actions up"). */
   reonboardAction: () => Promise<void>;
+  /** Server action wired to the enrollment webhook "set up" button. */
+  setupWebhookAction: () => Promise<void>;
 }
 
 /**
@@ -52,6 +54,7 @@ export default function RepoOverviewView({
   escalationsWeek,
   recentTasks,
   reonboardAction,
+  setupWebhookAction,
 }: RepoOverviewViewProps) {
   return (
     <div>
@@ -59,7 +62,7 @@ export default function RepoOverviewView({
         <ReadmeBox markdown={readme.markdown} rawBaseUrl={readme.rawBaseUrl} htmlUrl={readme.htmlUrl} />
       )}
 
-      <EnrollmentSection checks={enrollmentChecks} reonboardAction={reonboardAction} />
+      <EnrollmentSection checks={enrollmentChecks} reonboardAction={reonboardAction} setupWebhookAction={setupWebhookAction} />
 
       <div className={`spec-card ${styles.dfCard}`}>
         <div className={styles.dfHead}>
