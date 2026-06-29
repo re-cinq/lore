@@ -99,6 +99,47 @@ resource "kubectl_manifest" "es_ai_agents_ghcr" {
   ]
 }
 
+# agent-events-auth: the Authorization header the seeded recipes' http telemetry sink
+# (headers_secret: agent-events-auth) sends to the Floor's /api/agent-events endpoint.
+# The Floor authenticates it as `Bearer <LORE_AGENT_INTERNAL_TOKEN>` (#687) — same
+# remoteRef as the agent-secrets internal token, templated into the header value.
+resource "kubectl_manifest" "es_ai_agents_events_auth" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "agent-events-auth"
+      namespace = "ai-agents"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "agent-events-auth"
+        template = {
+          data = {
+            Authorization = "Bearer {{ .token }}"
+          }
+        }
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = { key = "lore-agent-internal-token" }
+        },
+      ]
+    }
+  })
+
+  depends_on = [
+    kubectl_manifest.cluster_secret_store,
+    kubernetes_namespace.ai_agents,
+  ]
+}
+
 # The chart (CRDs + controller + RBAC + cross-namespace Floor binding + run-pod
 # NetworkPolicy). create_namespace=false: the namespace + ESO secrets exist first.
 # No --wait (Autopilot rollout-wait wedges releases — see the helm/terraform notes).
@@ -112,5 +153,6 @@ resource "helm_release" "ai_agents" {
     kubernetes_namespace.ai_agents,
     kubectl_manifest.es_ai_agents_secrets,
     kubectl_manifest.es_ai_agents_ghcr,
+    kubectl_manifest.es_ai_agents_events_auth,
   ]
 }

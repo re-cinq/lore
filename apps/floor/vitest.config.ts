@@ -9,22 +9,22 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       // 100% on the new ai-agent-subsystem backend logic (ADR-031, #683). The IO
-      // adapter (kube-agent-api.ts) and composition roots are excluded — the pure
-      // mapping + decision logic is what's enforced. Other floor files aren't gated
-      // yet (legacy code is not retroactively boiled to 100%).
+      // adapters (kube-agent-api.ts, agent-events-store.ts) and composition roots are
+      // excluded — the pure mapping + decision logic is what's enforced. Other floor
+      // files aren't gated yet (legacy code is not retroactively boiled to 100%).
       // The agent-watcher orchestration shell (agent-watcher.ts) is IO-bound and
       // excluded, as loretask-watcher is; its extracted pure logic is gated here.
+      // Paths track the jobs/ layout after the #730 re-slice + #731 LoreTask removal
+      // (execution-backend / routing-station-backend were deleted with the router).
       include: [
-        "src/adapters/agent-backend.ts",
-        "src/adapters/agent-catalog.ts",
-        "src/adapters/agent-events.ts",
-        "src/adapters/execution-backend.ts",
-        "src/adapters/per-task-token.ts",
-        "src/adapters/routing-station-backend.ts",
-        "src/application/agent-cr-station-backend.ts",
-        "src/application/floor-graph.ts",
-        "src/application/graph-station-backend.ts",
-        "src/application/jobs/scheduled/agent-watcher-logic.ts",
+        "src/jobs/agent/agent-catalog.ts",
+        "src/jobs/agent/agent-events.ts",
+        "src/jobs/assembly-line/floor-graph.ts",
+        "src/jobs/assembly-line/graph-station-backend.ts",
+        "src/jobs/station/agent-backend.ts",
+        "src/jobs/station/agent-cr-station-backend.ts",
+        "src/jobs/station/per-task-token.ts",
+        "src/jobs/watcher/agent-watcher-logic.ts",
       ],
       thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
     },
