@@ -106,7 +106,7 @@ export {
   type IngestGraphPorts,
   type IngestKindDef,
 } from './spec-trace/ingest-graph-task.js';
-export { parseTasks, inferPhaseDependencies, type ParsedTask } from './tasks.js';
+export { parseTasks, inferPhaseDependencies, syncTasksToDb, type ParsedTask } from './tasks.js';
 export {
   formatTrailers,
   formatValidatesTrailer,
