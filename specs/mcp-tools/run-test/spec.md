@@ -28,7 +28,7 @@ Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/to
 - **description** (verbatim):
 
 ```text
-Runs a single test by selector using the repo's .lore/test-commands.yml 'run' command; returns {passed: boolean, covered: [{file, startLine, endLine}]}. Use to execute ONE test and see what code it covers. Instead: to discover selectors first use lore_list_tests; to read built-graph coverage without executing use lore-query-trace; to rebuild the graph use lore_ingest_graph.
+Runs a single test by selector using the repo's .lore/test-commands.yml 'run' command; returns {passed: boolean, covered: [{file, startLine, endLine}]}. Use to execute ONE test and see what code it covers. Instead: to discover selectors first use lore_list_tests; to read built-graph coverage without executing use lore-query-trace.
 Trusted-sandbox only — executes a shell command in your local checkout. The shared cluster server refuses and returns "Test commands run only in a trusted sandbox — run in CI or locally."
 ```
 

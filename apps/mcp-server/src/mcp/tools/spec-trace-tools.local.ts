@@ -5,7 +5,7 @@ import { ToolDeps } from "./deps.js";
 export function registerSpecTraceLocalTools(server: McpServer, _deps: ToolDeps) {
   server.tool(
     "lore_list_tests",
-    `Runs the repo's .lore/test-commands.yml 'list' command and returns a JSON array of test descriptors {id, name, file, startLine?, endLine?, suite?, spec?}; 'id' is the selector to pass to lore_run_test. Use to discover available tests before running one. Instead: to run a test and see coverage use lore_run_test; to read built-graph coverage without executing use lore-query-trace; to rebuild the graph use lore_ingest_graph.
+    `Runs the repo's .lore/test-commands.yml 'list' command and returns a JSON array of test descriptors {id, name, file, startLine?, endLine?, suite?, spec?}; 'id' is the selector to pass to lore_run_test. Use to discover available tests before running one. Instead: to run a test and see coverage use lore_run_test; to read built-graph coverage without executing use lore-query-trace.
 Trusted-sandbox only — executes a shell command in your local checkout. The shared cluster server refuses and returns "Test commands run only in a trusted sandbox — run in CI or locally."`,
     {},
     async () => {
@@ -23,7 +23,7 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
 
   server.tool(
     "lore_run_test",
-    `Runs a single test by selector using the repo's .lore/test-commands.yml 'run' command; returns {passed: boolean, covered: [{file, startLine, endLine}]}. Use to execute ONE test and see what code it covers. Instead: to discover selectors first use lore_list_tests; to read built-graph coverage without executing use lore-query-trace; to rebuild the graph use lore_ingest_graph.
+    `Runs a single test by selector using the repo's .lore/test-commands.yml 'run' command; returns {passed: boolean, covered: [{file, startLine, endLine}]}. Use to execute ONE test and see what code it covers. Instead: to discover selectors first use lore_list_tests; to read built-graph coverage without executing use lore-query-trace.
 Trusted-sandbox only — executes a shell command in your local checkout. The shared cluster server refuses and returns "Test commands run only in a trusted sandbox — run in CI or locally."`,
     {
       selector: z.string().describe("Runner-native test id from lore_list_tests output; substituted into the manifest's run command at the {selector} placeholder. Format is runner-specific, e.g. 'tests/test_api.py::TestAuth::test_login' (pytest) or 'src/auth.test.ts > logs in' (vitest)."),

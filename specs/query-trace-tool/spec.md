@@ -17,7 +17,7 @@ Registered via `server.tool` ([registration](../../apps/mcp-server/src/mcp/tools
 - **description** (verbatim):
 
 ```text
-READ side of spec-traceability: returns per-statement coverage for a spec — which tests validate each statement and which are drifted or violated. Read-only; executes and builds nothing. Instead: to rebuild the graph use lore_ingest_graph; to enumerate or run tests locally use lore_list_tests / lore_run_test.
+READ side of spec-traceability: returns per-statement coverage for a spec — which tests validate each statement and which are drifted or violated. Read-only; executes and builds nothing. The graph is (re)projected by CI — specs/adrs on push, tests via lore-tests.yml — not by an MCP tool. Instead: to enumerate or run tests locally use lore_list_tests / lore_run_test.
 ```
 
 ### Input schema

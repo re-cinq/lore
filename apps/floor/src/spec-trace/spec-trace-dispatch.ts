@@ -3,10 +3,11 @@
  * ingest path by kind, returning a normalized log line + audit entry for the
  * caller to surface. Two families:
  *   - repo-read kinds (specs/adrs): read the repo's markdown at the posted ref
- *     and project it via {@link projectRepoGraph} — the same core the task path
- *     runs. Docs no longer flow as pipeline tasks; this is their only lane.
+ *     and project it via {@link projectRepoGraph}. Docs never flow as pipeline
+ *     tasks; this is their only lane.
  *   - payload kinds (test-report/coverage): the data is in the posted payload,
- *     so delegate to the shared {@link ingestSpecTrace}.
+ *     so delegate to the shared {@link ingestSpecTrace}. Tests are CI-only too
+ *     (lore-tests.yml POSTs /test-report + /coverage) — no pipeline task.
  */
 
 import { ingestSpecTrace, type DgraphClientPort } from "@re-cinq/lore-shared";
