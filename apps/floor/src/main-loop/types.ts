@@ -19,6 +19,7 @@ export interface EventRow {
   event_name: string;
   source: string;
   params: Record<string, unknown>;
+  repo: string | null; // denormalized from params.repo; NULL for cron/k8s events
   dedupe_key: string | null;
   status: string;
   attempts: number;

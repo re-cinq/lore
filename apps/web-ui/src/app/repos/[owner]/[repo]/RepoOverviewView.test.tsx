@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import RepoOverviewView, { type RecentTask } from './RepoOverviewView';
+import { type RepoEvent } from './events/pagination';
 import { type Check } from '@/lib/enrollment';
 
 // EnrollmentSection (rendered as-is by the View) pulls in Icon, which calls
@@ -39,6 +40,16 @@ const task = (over: Partial<RecentTask>): RecentTask => ({
   ...over,
 });
 
+const event = (over: Partial<RepoEvent>): RepoEvent => ({
+  id: 1,
+  event_name: 'github.pull_request.opened',
+  source: 'github',
+  params: { repo: 're-cinq/lore' },
+  status: 'done',
+  captured_at: '2026-06-01T10:00:00.000Z',
+  ...over,
+});
+
 const baseProps = {
   owner: 're-cinq',
   repo: 'lore',
@@ -50,6 +61,7 @@ const baseProps = {
   autoMergedWeek: 0,
   escalationsWeek: 0,
   recentTasks: [] as RecentTask[],
+  latestEvents: [] as RepoEvent[],
   reonboardAction: action,
   setupWebhookAction: action,
 };
@@ -146,6 +158,34 @@ describe('RepoOverviewView', () => {
     expect(screen.getByRole('link', { name: 'Create one' })).toHaveAttribute(
       'href',
       '/repos/re-cinq/lore/tasks',
+    );
+  });
+
+  it('renders a row per latest event with a status badge and a Show all link', () => {
+    render(
+      <RepoOverviewView
+        {...baseProps}
+        latestEvents={[
+          event({ id: 1, event_name: 'github.pull_request.opened', source: 'github', status: 'done' }),
+          event({ id: 2, event_name: 'internal.ingest.spec_trace', source: 'internal', status: 'pending' }),
+        ]}
+      />,
+    );
+    expect(screen.getByText('github.pull_request.opened')).toBeInTheDocument();
+    expect(screen.getByText('internal.ingest.spec_trace')).toBeInTheDocument();
+    expect(screen.getByText('done')).toHaveClass('op-badge', 'op-done');
+    expect(screen.getByRole('link', { name: 'Show all →' })).toHaveAttribute(
+      'href',
+      '/repos/re-cinq/lore/events',
+    );
+  });
+
+  it('shows the empty-events state with a Show all link when there are no events', () => {
+    render(<RepoOverviewView {...baseProps} latestEvents={[]} />);
+    expect(screen.getByText('No events yet.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Show all →' })).toHaveAttribute(
+      'href',
+      '/repos/re-cinq/lore/events',
     );
   });
 });

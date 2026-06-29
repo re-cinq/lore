@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import ReadmeBox from './ReadmeBox';
 import EnrollmentSection from '@/components/EnrollmentSection';
+import EventRow from './events/EventRow';
+import { type RepoEvent } from './events/pagination';
 import { type Check } from '@/lib/enrollment';
 import styles from './RepoOverviewView.module.css';
 
@@ -30,6 +32,8 @@ export interface RepoOverviewViewProps {
   autoMergedWeek: number;
   escalationsWeek: number;
   recentTasks: RecentTask[];
+  /** The 10 most recent event-bus rows for this repo (newest first). */
+  latestEvents: RepoEvent[];
   /** Server action wired to the enrollment re-onboard button ("actions up"). */
   reonboardAction: () => Promise<void>;
   /** Server action wired to the enrollment webhook "set up" button. */
@@ -53,6 +57,7 @@ export default function RepoOverviewView({
   autoMergedWeek,
   escalationsWeek,
   recentTasks,
+  latestEvents,
   reonboardAction,
   setupWebhookAction,
 }: RepoOverviewViewProps) {
@@ -111,6 +116,21 @@ export default function RepoOverviewView({
           </tbody>
         </table>
       ) : <p className="meta">No tasks yet. <Link href={`/repos/${owner}/${repo}/tasks`}>Create one</Link></p>}
+
+      <div className={styles.eventsHead}>
+        <h2 className={styles.eventsTitle}>Latest Events</h2>
+        <Link href={`/repos/${owner}/${repo}/events`} className="meta">Show all →</Link>
+      </div>
+      {latestEvents.length > 0 ? (
+        <table>
+          <thead><tr><th>When</th><th>Event</th><th>Source</th><th>Status</th></tr></thead>
+          <tbody>
+            {latestEvents.map((e) => (
+              <EventRow key={e.id} event={e} />
+            ))}
+          </tbody>
+        </table>
+      ) : <p className="meta">No events yet.</p>}
     </div>
   );
 }
