@@ -45,6 +45,31 @@ function isAuthDenial(status: number): boolean {
   return status === 401 || status === 403;
 }
 
+// Read an error response body without ever throwing: a missing/throwing
+// `text()` (or a rejected read) must NOT escape and flip a non-retriable 4xx
+// into the retry path. `try` (not `.catch`) so a synchronous throw is caught too.
+async function readErrorBody(res: { text?: () => Promise<string> }): Promise<string> {
+  try {
+    return res.text ? await res.text() : "";
+  } catch {
+    return "";
+  }
+}
+
+// Fold the server's error message into the detail for non-retriable (4xx)
+// responses so callers surface the cause (e.g. "GitHub not configured")
+// instead of a bare status line. Best-effort: tolerates non-JSON bodies.
+function errorBodyDetail(status: number, statusText: string, body: string): string {
+  const base = `HTTP ${status} ${statusText}`;
+  if (!body) return base;
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    return typeof parsed.error === "string" ? `${base}: ${parsed.error}` : `${base}: ${body}`;
+  } catch {
+    return `${base}: ${body}`;
+  }
+}
+
 export async function proxyToApi(endpoint: string, body: Record<string, any>): Promise<ProxyResult> {
   const apiUrl = process.env.LORE_API_URL;
   const apiToken = process.env.LORE_INGEST_TOKEN;
@@ -68,9 +93,11 @@ export async function proxyToApi(endpoint: string, body: Record<string, any>): P
         return { ok: false, reason: "denied", detail: lastDetail };
       }
       if (!isRetriableStatus(res.status)) {
-        // 4xx (validation) — retrying won't help.
-        console.error(`[lore-mcp] proxy ${endpoint} failed (${lastDetail}); not retrying`);
-        return { ok: false, reason: "unreachable", detail: lastDetail };
+        // 4xx (validation / config gap) — retrying won't help. Surface the
+        // server's message so the caller sees the cause, not just the status.
+        const detail = errorBodyDetail(res.status, res.statusText, await readErrorBody(res));
+        console.error(`[lore-mcp] proxy ${endpoint} failed (${detail}); not retrying`);
+        return { ok: false, reason: "unreachable", detail };
       }
     } catch (err: any) {
       lastDetail = err?.name === "TimeoutError" ? "request timed out (15s)" : (err?.message || String(err));
@@ -141,8 +168,11 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
         return { ok: false, reason: "denied", detail: lastDetail };
       }
       if (!isRetriableStatus(res.status)) {
-        console.error(`[lore-mcp] proxy GET ${path} failed (${lastDetail}); not retrying`);
-        return { ok: false, reason: "unreachable", detail: lastDetail };
+        // 4xx (validation / config gap) — retrying won't help. Surface the
+        // server's message so the caller sees the cause, not just the status.
+        const detail = errorBodyDetail(res.status, res.statusText, await readErrorBody(res));
+        console.error(`[lore-mcp] proxy GET ${path} failed (${detail}); not retrying`);
+        return { ok: false, reason: "unreachable", detail };
       }
     } catch (err: any) {
       lastDetail = err?.name === "TimeoutError" ? "request timed out (15s)" : (err?.message || String(err));

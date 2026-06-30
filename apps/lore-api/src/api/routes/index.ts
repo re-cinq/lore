@@ -84,7 +84,7 @@ const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/webhook/github", "POST"), handle: handleGitHubWebhook },
   { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
   { match: exact("/api/task-logs", "POST"), handle: (req, res) => handleTaskLogs(req, res) },
-  { match: prefix("/api/task-logs", "GET"), handle: (req, res) => handleGetTaskLogs(req, res) },
+  { match: prefix("/api/task-logs", "GET"), handle: (req, res, pool) => handleGetTaskLogs(req, res, pool) },
   { match: prefix("/api/job-run-logs", "GET"), handle: (req, res) => handleGetJobRunLogs(req, res) },
   { match: prefix("/api/pr-status", "GET"), handle: handlePrStatus },
   { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },

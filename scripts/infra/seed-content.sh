@@ -30,8 +30,11 @@ for f in "$REPO"/specs/*/spec.md "$REPO"/specs/*/plan.md "$REPO"/specs/*/tasks.m
   [ -f "$f" ] && insert spec "$(echo "$f" | sed "s|$REPO/||")"
 done
 
-# Code
-for f in "$REPO"/apps/mcp-server/src/*.ts; do [ -f "$f" ] && insert code "apps/mcp-server/src/$(basename "$f")"; done
+# Code (recurse into subdirs — after the apps/ regroup most source moved out of the
+# top level into mcp/, platform/, features/, server/)
+while IFS= read -r f; do insert code "${f#"$REPO"/}"; done < <(
+  find "$REPO"/apps/mcp-server/src -type f -name '*.ts' ! -name '*.test.ts'
+)
 
 # Scripts
 for f in "$REPO"/scripts/*.sh "$REPO"/scripts/*.js "$REPO"/scripts/*.py; do [ -f "$f" ] && insert code "scripts/$(basename "$f")"; done

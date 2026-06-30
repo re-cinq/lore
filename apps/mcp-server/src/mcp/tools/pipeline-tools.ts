@@ -55,7 +55,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         const resolvedRepo = target_repo || detectCurrentRepo() || undefined;
 
         // When running locally (no DB), proxy to the GKE MCP server
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
           if (!apiUrl || !apiToken) {
@@ -102,7 +102,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ task_id }) => {
       try {
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
           if (!apiUrl || !apiToken) return { content: [{ type: "text" as const, text: "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access." }] };
@@ -133,7 +133,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         if (proxied.ok) return { content: [{ type: "text" as const, text: JSON.stringify(JSON.parse(proxied.body), null, 2) }] };
         if (proxied.reason === "not_configured") return { content: [{ type: "text" as const, text: "PR status requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure." }] };
         if (proxied.reason === "denied") return deniedError("lore_get_pr_status", proxied.detail);
-        return unreachableError("lore_get_pr_status", proxied.detail);
+        // A read with no local fallback: surface the server's reason (e.g. a 424
+        // "GitHub not configured" config gap, or a real timeout) plainly rather
+        // than the write-oriented "unreachable / refusing local fallback" copy.
+        return { content: [{ type: "text" as const, text: `Could not fetch PR status from the Lore API: ${proxied.detail}` }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
       }
@@ -149,7 +152,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ status, limit }) => {
       try {
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
           if (!apiUrl || !apiToken) return { content: [{ type: "text" as const, text: "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access." }] };
@@ -180,7 +183,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ task_id }) => {
       try {
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
         }
         const result = await cancelTask(task_id);
@@ -199,7 +202,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ task_id }) => {
       try {
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
         }
         const { retryTask } = await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
@@ -362,20 +365,17 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ task_id, offset }) => {
       try {
-        // Get task to find repo and log_url
-        const task = await getTask(task_id);
-        if (!task) return { content: [{ type: "text" as const, text: `Task not found: ${task_id}` }] };
-        const repo = task.target_repo;
-
-        // Proxy log reads to the remote API (logs live server-side in GCS).
+        // Logs live server-side in GCS; proxy the read. The API resolves the
+        // task's repo from task_id — the local adapter holds no DB to look it up,
+        // so calling getTask() here would throw "Pipeline database not configured".
         const apiUrl = process.env.LORE_API_URL;
         const apiToken = process.env.LORE_INGEST_TOKEN;
         if (!apiUrl || !apiToken) {
           return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
         }
-        const params = new URLSearchParams({ task_id, repo, offset: String(offset) });
+        const params = new URLSearchParams({ task_id, offset: String(offset) });
         const proxied = await withReadCache(
-          { tool: "lore_get_task_logs", args: { task_id, repo, offset }, repo, ttlSeconds: 86400 },
+          { tool: "lore_get_task_logs", args: { task_id, offset }, ttlSeconds: 86400 },
           async () => {
             const res = await fetch(`${apiUrl}/api/task-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
             if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };

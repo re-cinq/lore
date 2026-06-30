@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { Pool } from "pg";
 import { handleApiRoute } from "../../routes.js";
-import { makeReq, makeRes, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const storage = vi.hoisted(() => {
   const file = { save: vi.fn(), exists: vi.fn(), download: vi.fn() };
@@ -48,10 +49,23 @@ describe("/api/task-logs", () => {
   });
 
   describe("GET", () => {
-    it("returns 400 when task_id or repo missing", async () => {
+    it("returns 400 when task_id is missing", async () => {
+      const res = makeRes();
+      await handleApiRoute(makeReq({ url: "/api/task-logs?repo=o/r", headers: AUTH }), res, null);
+      expect(res.statusCode).toBe(400);
+    });
+    it("returns 503 when repo is omitted and no pool resolves it", async () => {
       const res = makeRes();
       await handleApiRoute(makeReq({ url: "/api/task-logs?task_id=t", headers: AUTH }), res, null);
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(503);
+    });
+    it("resolves repo from task_id when repo is omitted", async () => {
+      storage.file.exists.mockResolvedValue([false]);
+      const pool = makePool();
+      pool.query.mockResolvedValue({ rows: [{ target_repo: "o/r" }] });
+      const res = makeRes();
+      await handleApiRoute(makeReq({ url: "/api/task-logs?task_id=t", headers: AUTH }), res, pool as unknown as Pool);
+      expect(res.json).toEqual({ logs: "", next_offset: 0, complete: false });
     });
     it("returns empty and incomplete when the log file does not exist", async () => {
       storage.file.exists.mockResolvedValue([false]);

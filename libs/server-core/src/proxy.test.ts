@@ -7,7 +7,7 @@ import { proxyToApi, proxyGetApi } from "./proxy.js";
 // server share LORE_INGEST_TOKEN there — so the 401/403 -> "denied" and the
 // 4xx -> "unreachable" mappings are pinned here with a mocked fetch instead.
 
-function fetchReturning(response: { ok: boolean; status?: number; statusText?: string; json?: () => Promise<unknown> }) {
+function fetchReturning(response: { ok: boolean; status?: number; statusText?: string; json?: () => Promise<unknown>; text?: () => Promise<string> }) {
   return vi.fn().mockResolvedValue(response);
 }
 
@@ -66,6 +66,17 @@ describe("proxy client result mapping", () => {
     const spy = fetchReturning({ ok: false, status: 400, statusText: "Bad Request" });
     global.fetch = spy as typeof fetch;
     expect(await proxyToApi("/api/task", {})).toMatchObject({ ok: false, reason: "unreachable" });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("folds the server error body into the detail on a non-retriable 4xx", async () => {
+    const spy = fetchReturning({ ok: false, status: 424, statusText: "Failed Dependency", text: async () => JSON.stringify({ error: "GitHub not configured" }) });
+    global.fetch = spy as typeof fetch;
+    expect(await proxyGetApi("/api/pr-status")).toMatchObject({
+      ok: false,
+      reason: "unreachable",
+      detail: "HTTP 424 Failed Dependency: GitHub not configured",
+    });
     expect(spy).toHaveBeenCalledTimes(1);
   });
 });

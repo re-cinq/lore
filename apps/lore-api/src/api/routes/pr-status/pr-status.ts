@@ -20,7 +20,10 @@ export async function handlePrStatus(req: IncomingMessage, res: ServerResponse, 
   try {
     const result = await fetchPrStatus(repo, prNumber);
     if (!result) {
-      json(res, 502, { error: "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN." });
+      // 424 (not 502): a missing-GitHub-credentials config gap is deterministic,
+      // so the proxy must classify it non-retriable and not burn its retry budget
+      // or report it as a transient Lore-API outage.
+      json(res, 424, { error: "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN." });
       return;
     }
     json(res, 200, result);
