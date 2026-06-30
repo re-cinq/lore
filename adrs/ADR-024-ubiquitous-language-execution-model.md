@@ -173,3 +173,38 @@ only through the Project facade port **`project.agentDefs`** (the config side;
   never uses the bare word "Agents" to mean both.
 - Phase 2 (separate): the `.lore/workflows/` loader and the workflow `on:`
   triggers + event-dispatch registry.
+
+## Floor data access — all SQL behind the Project ports
+
+The Floor (the coordinator) had ~130 hand-rolled SQL statements smeared across
+~30 job files via a raw `query()` escape hatch (`apps/floor/src/kernel/db.ts`).
+PR #749 single-sourced only the org-wide *queue mechanics* (`pipeline.tasks`
+claim/sweep, `pipeline.events`, leases, audit) and deferred the rest. This ADR
+records the completion of that extraction: **Floor reaches Postgres through the
+shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
+
+- **Two access paths.** A job that holds a repo uses the per-repo facade
+  (`projectFor(repo)` → `project.tasks` / `.settings` / `.usage` / `.issues` …).
+  A cross-repo / no-repo job (most crons, the agent-events sink) uses a lazy
+  port singleton in `apps/floor/src/kernel/queues.ts` (`taskStore()`,
+  `taskQueue()`, `settings()`, `usage()`, `jobRuns()`, `evalRuns()`, `cost()`,
+  `contextCore()`, `research()`, `baseline()`, `chunks()`, `memoryLifecycle()`)
+  that binds the shared `Pg…` adapter to the pool — the established
+  `eventQueue()`/`auditLog()` pattern.
+- **One home per table.** Each port ships a port interface + Pg adapter (SQL
+  lifted byte-for-byte) + InMemory behavioral double + colocated test. The
+  Floor-local `kernel/repositories/*` halfway house was deleted.
+- **Byte-for-byte hazards** flagged in #749 are honored: CAS status writes
+  (`UPDATE … WHERE id AND status = '…'`) use `setStatusIf`, not `setStatus`;
+  column-only stamps use `setColumns` (no status / no `updated_at`); gate-free
+  task creation (spec-task / feature-decompose, which the trust gate would reject)
+  uses `insertTask`, not `createTask`.
+- **Legitimate pool passes remain:** the composition roots (`project-boot`,
+  `kernel/queues`, lease backend, `Llm.configure({ costPool })`) and shared
+  multi-app helpers that take a pool (`syncTasksToDb`) still call `getPool()` —
+  they pass the pool to shared code, they do not run inline SQL.
+- **Phase 2 (separate):** the spec-coverage / gap-detect / spec-drift jobs read
+  vector-store chunk *content* (`{schema}.chunks` / `org_shared.chunks` with
+  `content_type` / `file_path` filters), and a few read the global `lore.settings`
+  / `lore.features` tables. These need a knowledge-read port surface and are the
+  remaining inline-SQL holdouts, tracked as a fast follow.

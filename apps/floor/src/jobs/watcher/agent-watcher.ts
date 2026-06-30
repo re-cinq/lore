@@ -18,7 +18,7 @@
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent } from "@re-cinq/agent-contracts";
 import { projectFor } from "../../composition/project-boot.js";
-import { query } from "../../kernel/db.js";
+import { taskStore, settings, taskQueue } from "../../kernel/queues.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import { isTransientInfraFailure, MAX_INFRA_RETRIES } from "../platform/infra-failure.js";
@@ -107,13 +107,13 @@ async function flushSlackBatch(): Promise<void> {
 async function notifySlack(taskId: string, repo: string, message: string): Promise<void> {
   const botToken = process.env.LORE_SLACK_BOT_TOKEN;
   if (!botToken) return;
-  const bundle = (await query<{ context_bundle: any }>(
-    `SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
-  ))[0]?.context_bundle;
+  const bundle = (await taskStore().getById(taskId))?.context_bundle as
+    | { slack_channel_id?: string }
+    | undefined;
   let channel = bundle?.slack_channel_id;
   if (!channel) {
-    const repoRows = await query<{ settings: any }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
-    channel = repoRows[0]?.settings?.slack_channel_id;
+    const repoSettings = (await settings().rawSettings(repo)) as { slack_channel_id?: string } | null;
+    channel = repoSettings?.slack_channel_id;
   }
   if (!channel) return;
   try {
@@ -126,14 +126,13 @@ async function notifySlack(taskId: string, repo: string, message: string): Promi
 }
 
 async function shouldAutoReview(repo: string): Promise<boolean> {
-  const rows = await query<{ settings: any }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
-  return rows[0]?.settings?.auto_review === true;
+  const repoSettings = (await settings().rawSettings(repo)) as { auto_review?: boolean } | null;
+  return repoSettings?.auto_review === true;
 }
 async function getIssueNumber(taskId: string): Promise<{ issue_number: number | null; target_repo: string }> {
-  const rows = await query<{ issue_number: number | null; target_repo: string }>(
-    `SELECT issue_number, target_repo FROM pipeline.tasks WHERE id = $1`, [taskId],
-  );
-  return rows[0] || { issue_number: null, target_repo: "" };
+  const task = await taskStore().getById(taskId);
+  if (!task) return { issue_number: null, target_repo: "" };
+  return { issue_number: task.issue_number ?? null, target_repo: task.target_repo };
 }
 async function linkPrToIssue(repo: string, issueNumber: number | null, prUrl: string): Promise<void> {
   if (!issueNumber) return;
@@ -195,7 +194,7 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
 
     // DB-level re-entry guard (only act on tasks still running/queued).
     if (phase === "Succeeded" || phase === "Failed") {
-      const dbStatus = (await query<{ status: string }>(`SELECT status FROM pipeline.tasks WHERE id = $1`, [taskId]))[0]?.status;
+      const dbStatus = (await taskStore().getById(taskId))?.status;
       if (dbStatus && !["running", "queued"].includes(dbStatus)) return;
     }
 
@@ -216,11 +215,8 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
         // feature-planning posts its result straight to the features API (ADR-027).
         if (taskType === "feature-planning") {
           try {
-            await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [taskId]);
-            await query(
-              `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'completed', $2)`,
-              [taskId, JSON.stringify({ feature_planning: true })],
-            );
+            await taskStore().setStatus(taskId, "completed");
+            await taskStore().recordEvent(taskId, "running", "completed", { feature_planning: true });
             await patchAgentStatus(k8sApi, name, { prUrl: "feature-planning" });
           } catch (err: any) {
             console.error(`[agent-watcher] feature-planning completion failed for ${taskId}: ${err.message}`);
@@ -238,7 +234,7 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
                 : `${copy.body}\n\nTask completed (no output). See [logs](${logUrl}).`;
               const issue = await (await projectFor(target_repo)).issues.create(copy.title, body, ["lore-managed", taskType]);
               issue_number = issue.number;
-              await query(`UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`, [issue.number, issue.url, taskId]);
+              await taskQueue().setColumns(taskId, { issue_number: issue.number, issue_url: issue.url });
             } catch { /* best effort */ }
           } else {
             const body = output
@@ -246,11 +242,8 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
               : "Task completed (no code changes). See logs for full output.";
             await projectFor(target_repo).then((p) => p.issues.comment(issue_number!, body)).catch(() => {});
           }
-          await query(`UPDATE pipeline.tasks SET status = 'completed', log_url = $1, updated_at = now() WHERE id = $2`, [logUrl, taskId]);
-          await query(
-            `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'completed', $2)`,
-            [taskId, JSON.stringify({ no_changes: true, issue_number })],
-          );
+          await taskStore().setStatus(taskId, "completed", { log_url: logUrl });
+          await taskStore().recordEvent(taskId, "running", "completed", { no_changes: true, issue_number });
           await patchAgentStatus(k8sApi, name, { prUrl: "no-changes", issueNumber: issue_number });
           if (issue_number) queueSlackNotification(target_repo, taskId, "completed", `https://github.com/${target_repo}/issues/${issue_number}`);
           writeEpisode(
@@ -273,23 +266,24 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
         const prProject = await projectFor(targetRepo);
         const pr = await prProject.pulls.open(branch, copy.title, `${body}${footer}`);
 
-        await query(
-          `UPDATE pipeline.tasks SET status = 'pr-created', pr_url = $1, pr_number = $2, target_branch = $3, log_url = $4, updated_at = now() WHERE id = $5`,
-          [pr.url, pr.number, branch, logUrl, taskId],
-        );
-        await query(
-          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'pr-created', $2)`,
-          [taskId, JSON.stringify({ pr_url: pr.url })],
-        );
+        await taskStore().setStatus(taskId, "pr-created", {
+          pr_url: pr.url,
+          pr_number: pr.number,
+          target_branch: branch,
+          log_url: logUrl,
+        });
+        await taskStore().recordEvent(taskId, "running", "pr-created", { pr_url: pr.url });
         await linkPrToIssue(target_repo, issue_number, pr.url);
         await patchAgentStatus(k8sApi, name, { prUrl: pr.url, prNumber: pr.number });
 
         // feature-finalize: link the PR back to the feature row (ADR-027).
         if (taskType === "feature-finalize") {
           try {
-            const rows = await query<{ context_bundle: any }>(`SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId]);
-            const featureId = rows[0]?.context_bundle?.feature_id;
-            const slug = rows[0]?.context_bundle?.slug;
+            const contextBundle = (await taskStore().getById(taskId))?.context_bundle as
+              | { feature_id?: string; slug?: string }
+              | undefined;
+            const featureId = contextBundle?.feature_id;
+            const slug = contextBundle?.slug;
             if (featureId) {
               await prProject.features.transitionStatus(featureId, "pr-open", {
                 spec_pr_url: pr.url, spec_pr_number: pr.number, ...(slug ? { spec_path: `specs/${slug}/spec.md` } : {}),
@@ -323,22 +317,21 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
         }
 
         if (await shouldAutoReview(targetRepo)) {
-          const reviewTaskId = (await query<{ id: string }>(
-            `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle)
-             VALUES ($1, 'review', $2, 'agent-watcher', $3) RETURNING id`,
-            [`Review PR #${pr.number} on ${targetRepo}`, targetRepo, JSON.stringify({ pr_number: pr.number, branch, parent_task_id: taskId })],
-          ))[0].id;
+          const reviewTaskId = (await taskQueue().insertTask({
+            description: `Review PR #${pr.number} on ${targetRepo}`,
+            taskType: "review",
+            targetRepo,
+            createdBy: "agent-watcher",
+            contextBundle: { pr_number: pr.number, branch, parent_task_id: taskId },
+          })) as string;
           await (await projectFor(targetRepo)).agents.run(reviewTaskId, {
             mode: "cluster", taskType: "review",
             description: `Review PR #${pr.number} on ${targetRepo}`,
             prompt: `Review PR #${pr.number} on this branch. Read the spec in specs/ for the feature requirements. Check all changes against CLAUDE.md conventions and ADRs in adrs/. Post specific review comments on the PR using 'gh pr review'. Then output exactly one of:\n- REVIEW_RESULT:APPROVED\n- REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>`,
             branch, prNumber: pr.number, model: "claude-sonnet-4-6", timeoutMinutes: 10,
           });
-          await query(`UPDATE pipeline.tasks SET status = 'review', updated_at = now() WHERE id = $1`, [taskId]);
-          await query(
-            `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'pr-created', 'review', $2)`,
-            [taskId, JSON.stringify({ review_task_id: reviewTaskId, auto_review: true })],
-          );
+          await taskStore().setStatus(taskId, "review");
+          await taskStore().recordEvent(taskId, "pr-created", "review", { review_task_id: reviewTaskId, auto_review: true });
           console.log(`[agent-watcher] Auto-review: created review task ${reviewTaskId} for PR #${pr.number}`);
         }
       } catch (err: any) {
@@ -348,14 +341,12 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
         const isPrExists = /A pull request already exists/i.test(msg);
         if (isNoCommits || isPrExists) {
           const reason = isNoCommits ? "no-code-changes" : "pr-already-exists";
-          await query(
-            `UPDATE pipeline.tasks SET status = 'needs-human-help', failure_reason = $2, updated_at = now() WHERE id = $1`,
-            [taskId, `createPR failed: ${reason}. ${msg.substring(0, 300)}`],
-          ).catch(() => {});
-          await query(
-            `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'needs-human-help', $2)`,
-            [taskId, JSON.stringify({ reason, detected_by: "agent-watcher", error: msg.substring(0, 500) })],
-          ).catch(() => {});
+          await taskStore()
+            .setStatus(taskId, "needs-human-help", { failure_reason: `createPR failed: ${reason}. ${msg.substring(0, 300)}` })
+            .catch(() => {});
+          await taskStore()
+            .recordEvent(taskId, "running", "needs-human-help", { reason, detected_by: "agent-watcher", error: msg.substring(0, 500) })
+            .catch(() => {});
           try {
             await k8sApi.deleteNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL, name });
           } catch { /* already gone */ }
@@ -366,34 +357,32 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
     }
 
     if (phase === "Failed" && status.failureReason) {
-      const rows = await query<{ status: string; issue_number: number | null; target_repo: string; created_by: string; context_bundle: Record<string, unknown> | null }>(
-        `SELECT status, issue_number, target_repo, created_by, context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId],
-      );
+      const failedTask = await taskStore().getById(taskId);
       const reason = status.failureReason;
-      const bundle = rows[0]?.context_bundle ?? {};
+      const bundle = failedTask?.context_bundle ?? {};
       const infraRetries = Number(bundle.infra_retry_count ?? 0);
       const logUrl = `gs://${process.env.LORE_LOG_BUCKET || "lore-task-logs"}/${targetRepo}/${taskId}/output.log`;
 
-      if (rows[0]?.status === "running" && isTransientInfraFailure(reason) && infraRetries < MAX_INFRA_RETRIES) {
-        await query(`UPDATE pipeline.tasks SET status = 'failed', failure_reason = $1, log_url = $2, updated_at = now() WHERE id = $3`, [reason, logUrl, taskId]);
-        await query(
-          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'failed', $2)`,
-          [taskId, JSON.stringify({ error: reason, transient_infra: true, infra_retry: infraRetries + 1 })],
-        );
-        await query(
-          `INSERT INTO pipeline.tasks (description, task_type, status, target_repo, created_by, context_bundle, issue_number)
-           VALUES ($1, $2, 'pending', $3, $4, $5, $6)`,
-          [description, taskType, targetRepo, rows[0].created_by, JSON.stringify({ ...bundle, infra_retry_count: infraRetries + 1, retry_of: taskId }), rows[0].issue_number],
-        );
+      if (failedTask?.status === "running" && isTransientInfraFailure(reason) && infraRetries < MAX_INFRA_RETRIES) {
+        await taskStore().setStatus(taskId, "failed", { failure_reason: reason, log_url: logUrl });
+        await taskStore().recordEvent(taskId, "running", "failed", { error: reason, transient_infra: true, infra_retry: infraRetries + 1 });
+        const requeuedId = await taskQueue().insertTask({
+          description,
+          taskType,
+          status: "pending",
+          targetRepo,
+          createdBy: failedTask.created_by,
+          contextBundle: { ...bundle, infra_retry_count: infraRetries + 1, retry_of: taskId },
+        });
+        if (requeuedId && failedTask.issue_number != null) {
+          await taskQueue().setColumns(requeuedId, { issue_number: failedTask.issue_number });
+        }
         console.log(`[agent-watcher] Task ${taskId} transient infra failure (${reason}) — re-queued ${infraRetries + 1}/${MAX_INFRA_RETRIES}`);
-      } else if (rows[0]?.status === "running") {
-        await query(`UPDATE pipeline.tasks SET status = 'failed', failure_reason = $1, log_url = $2, updated_at = now() WHERE id = $3`, [reason, logUrl, taskId]);
-        await query(
-          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'running', 'failed', $2)`,
-          [taskId, JSON.stringify({ error: reason })],
-        );
-        await commentFailureOnIssue(rows[0].target_repo, rows[0].issue_number, reason);
-        queueSlackNotification(rows[0].target_repo, taskId, "failed", `${taskType}: ${reason.substring(0, 200)}`);
+      } else if (failedTask?.status === "running") {
+        await taskStore().setStatus(taskId, "failed", { failure_reason: reason, log_url: logUrl });
+        await taskStore().recordEvent(taskId, "running", "failed", { error: reason });
+        await commentFailureOnIssue(failedTask.target_repo, failedTask.issue_number ?? null, reason);
+        queueSlackNotification(failedTask.target_repo, taskId, "failed", `${taskType}: ${reason.substring(0, 200)}`);
         writeEpisodeWithCuration(
           `Task failed on ${targetRepo}: ${taskType}\n\nDescription: ${description}\n\nFailure: ${reason}\n\nOutput:\n${output.slice(-2000)}`,
           "ci", `${targetRepo}/${taskId}`, "agent-watcher", taskId,
@@ -405,57 +394,51 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
     // Review verdict (parsed from status.output — Agent has no reviewResult field).
     const reviewResult = phase === "Succeeded" && taskType === "review" ? parseReviewResult(output) : undefined;
     if (reviewResult) {
-      const reviewRow = (await query<{ status: string }>(`SELECT status FROM pipeline.tasks WHERE id = $1`, [taskId]))[0];
-      if (reviewRow && reviewRow.status !== "running") return;
-      const contextBundle = (await query<{ context_bundle: any }>(`SELECT context_bundle FROM pipeline.tasks WHERE id = $1`, [taskId]))[0]?.context_bundle;
+      const reviewTask = await taskStore().getById(taskId);
+      if (reviewTask && reviewTask.status !== "running") return;
+      const contextBundle = reviewTask?.context_bundle as { parent_task_id?: string } | undefined;
       const parentTaskId: string | undefined = contextBundle?.parent_task_id;
       if (!parentTaskId) { console.log(`[agent-watcher] Review ${taskId} has no parent task, skipping`); return; }
 
       if (reviewResult === "approved") {
-        await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [parentTaskId]);
-        await query(
-          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'review', 'completed', $2)`,
-          [parentTaskId, JSON.stringify({ review_result: "approved", review_task_id: taskId })],
-        );
+        await taskStore().setStatus(parentTaskId, "completed");
+        await taskStore().recordEvent(parentTaskId, "review", "completed", { review_result: "approved", review_task_id: taskId });
         const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
         if (issue_number) await projectFor(target_repo).then((p) => p.issues.comment(issue_number, "Agent review: **approved**. PR is ready for human merge.")).catch(() => {});
-        await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [taskId]);
+        await taskStore().setStatus(taskId, "completed");
         console.log(`[agent-watcher] Review approved for parent task ${parentTaskId}`);
       } else {
-        const parent = (await query<{ review_iteration: number; target_repo: string; target_branch: string; description: string; issue_number: number | null; pr_number: number | null }>(
-          `SELECT review_iteration, target_repo, target_branch, description, issue_number, pr_number FROM pipeline.tasks WHERE id = $1`, [parentTaskId],
-        ))[0];
+        const parent = await taskStore().getById(parentTaskId);
         if (!parent) return;
         const iteration = (Number(parent.review_iteration) || 0) + 1;
-        await query(`UPDATE pipeline.tasks SET review_iteration = $1, updated_at = now() WHERE id = $2`, [iteration, parentTaskId]);
+        await taskQueue().setColumns(parentTaskId, { review_iteration: iteration });
 
         if (iteration >= 2) {
-          await query(
-            `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'review', 'review', $2)`,
-            [parentTaskId, JSON.stringify({ review_result: "needs-human-review", iterations: iteration })],
-          );
+          await taskStore().recordEvent(parentTaskId, "review", "review", { review_result: "needs-human-review", iterations: iteration });
           if (parent.issue_number) {
             await projectFor(parent.target_repo).then((p) => p.issues.comment(parent.issue_number!, `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`)).catch(() => {});
             await projectFor(parent.target_repo).then((p) => p.issues.addLabel(parent.issue_number!, "needs-human-review")).catch(() => {});
           }
-          await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [taskId]);
+          await taskStore().setStatus(taskId, "completed");
           console.log(`[agent-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`);
         } else {
           const comments = parent.pr_number ? await projectFor(parent.target_repo).then((p) => p.pulls.listComments(parent.pr_number!)).catch(() => []) : [];
           const feedback = formatReviewFeedback(comments) || "The agent review requested changes. Read the review comments on the PR and address them.";
-          const fixDescription = buildReviewFixDescription({ prNumber: parent.pr_number, iteration });
-          const fixTaskId = (await query<{ id: string }>(
-            `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle)
-             VALUES ($1, 'implementation', $2, 'review-loop', $3) RETURNING id`,
-            [fixDescription, parent.target_repo, JSON.stringify({ branch: parent.target_branch, review_feedback: feedback, parent_task_id: parentTaskId })],
-          ))[0].id;
+          const fixDescription = buildReviewFixDescription({ prNumber: parent.pr_number ?? null, iteration });
+          const fixTaskId = (await taskQueue().insertTask({
+            description: fixDescription,
+            taskType: "implementation",
+            targetRepo: parent.target_repo,
+            createdBy: "review-loop",
+            contextBundle: { branch: parent.target_branch, review_feedback: feedback, parent_task_id: parentTaskId },
+          })) as string;
           await (await projectFor(parent.target_repo)).agents.run(fixTaskId, {
             mode: "cluster", taskType: "implementation", description: fixDescription,
             prompt: `Address the following review feedback on PR #${parent.pr_number ?? "?"}. The PR already exists — push fixes to the same branch.\n\nFeedback:\n${feedback}`,
             branch: parent.target_branch || branch, model: "claude-sonnet-4-6", timeoutMinutes: 30,
           });
           if (parent.issue_number) await projectFor(parent.target_repo).then((p) => p.issues.comment(parent.issue_number!, `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`)).catch(() => {});
-          await query(`UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`, [taskId]);
+          await taskStore().setStatus(taskId, "completed");
           console.log(`[agent-watcher] Review changes requested, created fix task ${fixTaskId} (iteration ${iteration})`);
         }
       }

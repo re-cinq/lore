@@ -18,9 +18,8 @@
  *     tick even when no real progress is happening.
  */
 
-import { query } from "../../kernel/db.js";
 import { projectFor } from "../../composition/project-boot.js";
-import { taskQueue } from "../../kernel/queues.js";
+import { taskQueue, taskStore } from "../../kernel/queues.js";
 
 const STALE_THRESHOLD_HOURS = 6;
 
@@ -35,24 +34,17 @@ export async function staleTaskCheckJob(): Promise<string> {
   for (const task of rows) {
     try {
       const ageHoursRounded = Math.round(Number(task.age_hours) * 10) / 10;
-      await query(
-        `UPDATE pipeline.tasks
-         SET status = 'needs-human-help',
-             failure_reason = $2,
-             updated_at = now()
-         WHERE id = $1 AND status = 'running'`,
-        [task.id, `Stuck in 'running' for ${ageHoursRounded}h — safety-net timeout at ${STALE_THRESHOLD_HOURS}h`],
-      );
-      await query(
-        `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
-         VALUES ($1, 'running', 'needs-human-help', $2)`,
-        [task.id, JSON.stringify({
+      await taskStore().setStatusIf(task.id, "running", "needs-human-help", {
+        failure_reason: `Stuck in 'running' for ${ageHoursRounded}h — safety-net timeout at ${STALE_THRESHOLD_HOURS}h`,
+      });
+      await taskStore()
+        .recordEvent(task.id, "running", "needs-human-help", {
           reason: "stale-timeout",
           age_hours: ageHoursRounded,
           threshold_hours: STALE_THRESHOLD_HOURS,
           detected_by: "stale-task-check",
-        })],
-      ).catch(() => {});
+        })
+        .catch(() => {});
 
       if (task.issue_number) {
         const project = await projectFor(task.target_repo);

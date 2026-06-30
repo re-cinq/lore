@@ -5,7 +5,6 @@
  * and creates branches + PRs with the results.
  */
 
-import { query } from "../../kernel/db.js";
 import { generateArtifactCopy } from "../platform/artifact-copy.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
@@ -17,7 +16,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { linkifyMarkdown, selectStationBackend } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
-import { taskQueue } from "../../kernel/queues.js";
+import { taskQueue, taskStore, settings } from "../../kernel/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
@@ -151,10 +150,10 @@ async function processTask(task: any): Promise<void> {
         ["lore-managed", taskTypeLabel],
       );
       issueNumber = issue.number;
-      await query(
-        `UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`,
-        [issue.number, issue.url, task.id],
-      );
+      await taskQueue().setColumns(task.id, {
+        issue_number: issue.number,
+        issue_url: issue.url,
+      });
       console.log(`[agent] Created issue #${issue.number} on ${targetRepo}`);
     } catch (err: any) {
       // Non-fatal — proceed without issue if GitHub App lacks permission
@@ -197,10 +196,7 @@ async function processTask(task: any): Promise<void> {
     // Fetch per-repo settings for prompt customization
     let repoSettings: any = {};
     try {
-      const settingsRows = await query<{ settings: any }>(
-        `SELECT settings FROM lore.repos WHERE full_name = $1`, [targetRepo],
-      );
-      if (settingsRows.length > 0) repoSettings = settingsRows[0].settings || {};
+      repoSettings = (await settings().rawSettings(targetRepo)) ?? {};
     } catch { /* non-fatal */ }
 
     // Resolve the agent definition (project → org → yaml) through the single

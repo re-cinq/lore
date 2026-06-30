@@ -9,7 +9,7 @@
 
 import { KubeConfig, Watch, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent } from "@re-cinq/agent-contracts";
-import { query } from "../kernel/db.js";
+import { taskStore } from "../kernel/queues.js";
 import { insertEvent } from "../main-loop/store.js";
 import { mapAgentToEvent } from "./k8s-map.js";
 import { makeAgentsApi } from "../jobs/watcher/agent-watcher.js";
@@ -41,7 +41,7 @@ export async function reconcileAgents(): Promise<void> {
     if (ev) {
       const taskId = String((ev.params ?? {}).taskId ?? "");
       const dbStatus = taskId
-        ? (await query<{ status: string }>(`SELECT status FROM pipeline.tasks WHERE id = $1`, [taskId]))[0]?.status
+        ? (await taskStore().getById(taskId))?.status
         : undefined;
       if (dbStatus && ["running", "queued"].includes(dbStatus)) await insertEvent(ev).catch(() => {});
     }

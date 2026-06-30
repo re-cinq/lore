@@ -1,5 +1,4 @@
 import { prFooter, type Project, type StationCompletion } from "@re-cinq/lore-shared";
-import { query } from "../../kernel/db.js";
 import { generateArtifactCopy } from "../platform/artifact-copy.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
@@ -119,10 +118,11 @@ export async function finalizeStationRun(opts: {
   const footer = prFooter({ issueNumber: task.issue_number ?? undefined, taskId: task.id });
   const pr = await project.pulls.open(branch, copy.title, `${copy.body}${footer}`, "main", ["needs-review"]);
 
-  await query(
-    `UPDATE pipeline.tasks SET status='pr-created', pr_url=$1, pr_number=$2, target_branch=$3, updated_at=now() WHERE id=$4`,
-    [pr.url, pr.number, branch, task.id],
-  );
+  await setStatus(task.id, "pr-created", {
+    pr_url: pr.url,
+    pr_number: pr.number,
+    target_branch: branch,
+  });
   await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
 
   // feature-finalize: link the PR back to the feature row (Features tab → pr-open).

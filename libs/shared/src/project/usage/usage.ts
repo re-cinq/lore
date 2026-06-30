@@ -1,4 +1,4 @@
-import type { UsagePort, LlmCallRecord } from "./usage-port.js";
+import type { UsagePort, LlmCallRecord, ProcessedCounts } from "./usage-port.js";
 
 /**
  * project.usage — LLM-call accounting. The runner logs each completion here
@@ -9,5 +9,9 @@ export class Usage {
 
   logLlmCall(record: LlmCallRecord): Promise<void> {
     return this.port.logLlmCall(record);
+  }
+
+  processedCounts(): Promise<ProcessedCounts> {
+    return this.port.processedCounts();
   }
 }

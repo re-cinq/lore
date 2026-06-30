@@ -1,15 +1,6 @@
-import { query, getPool } from "../../../kernel/db.js";
 import { projectFor } from "../../../composition/project-boot.js";
+import { chunks, settings } from "../../../kernel/queues.js";
 import { chunkFile, classifyFile, buildIngestedChunkMetadata } from "@re-cinq/lore-shared";
-
-interface OnboardedRepo {
-  full_name: string;
-  last_ingested_at: Date | null;
-}
-
-interface RepoTeam {
-  team: string | null;
-}
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
@@ -58,18 +49,10 @@ export function selectSeedFiles(treePaths: string[]): string[] {
 
 async function resolveSchema(repo: string): Promise<string> {
   try {
-    const rows = await query<RepoTeam>(
-      `SELECT team FROM lore.repos WHERE full_name = $1`,
-      [repo],
-    );
-    const team = rows[0]?.team;
+    const team = await settings().team(repo);
     if (team && SCHEMA_RE.test(team)) {
       // Verify schema exists in DB
-      const schemaRows = await query<{ schema_name: string }>(
-        `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1`,
-        [team],
-      );
-      if (schemaRows.length > 0) return team;
+      if (await chunks().schemaExists(team)) return team;
     }
   } catch (err) {
     console.error("[job] Schema resolution error:", err);
@@ -168,8 +151,6 @@ async function ingestFile(
   fullName: string,
   schema: string,
 ): Promise<boolean> {
-  const pool = getPool();
-
   // Classify before fetching content
   const contentType = classifyFile(filePath);
   if (!contentType) {
@@ -181,48 +162,32 @@ async function ingestFile(
   const content = await projectFor(fullName).then((p) => p.repo.read(filePath));
   if (content === null) {
     // File was deleted or not found — remove existing chunks
-    await pool.query(
-      `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-      [filePath, fullName],
-    );
+    await chunks().deleteChunksForFile(schema, filePath, fullName);
     console.log(`[job] Deleted chunks for removed file ${filePath}`);
     return true;
   }
 
   // Delete existing chunks for this file
-  await pool.query(
-    `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-    [filePath, fullName],
-  );
+  await chunks().deleteChunksForFile(schema, filePath, fullName);
 
   // Chunk the file using AST-based chunking (code) or heading-based (docs)
-  const chunks = await chunkFile(content, filePath, contentType);
+  const fileChunks = await chunkFile(content, filePath, contentType);
 
-  for (const chunk of chunks) {
-    const { rows } = await pool.query(
-      `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id`,
-      [
-        chunk.content,
-        contentType,
-        schema,
-        fullName,
-        filePath,
-        JSON.stringify(buildIngestedChunkMetadata(chunk, { filePath, ingestedBy: "reindex-job" })),
-      ],
-    );
-
-    const chunkId = rows[0]?.id;
+  for (const chunk of fileChunks) {
+    const chunkId = await chunks().insertChunk(schema, {
+      content: chunk.content,
+      contentType,
+      team: schema,
+      repo: fullName,
+      filePath,
+      metadata: buildIngestedChunkMetadata(chunk, { filePath, ingestedBy: "reindex-job" }),
+    });
 
     // Generate and store embedding per chunk (input already capped at 8k in generateEmbedding)
     const embedding = await generateEmbedding(chunk.content);
     if (embedding && chunkId) {
       const embeddingStr = `[${embedding.join(",")}]`;
-      await pool.query(
-        `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
-        [embeddingStr, chunkId],
-      );
+      await chunks().setEmbedding(schema, chunkId, embeddingStr);
       console.log(`[job] Embedded ${filePath} chunk ${chunk.metadata.chunk_index} (id ${chunkId})`);
     } else if (chunkId) {
       console.log(`[job] Ingested ${filePath} chunk ${chunk.metadata.chunk_index} without embedding (id ${chunkId})`);
@@ -235,11 +200,7 @@ async function ingestFile(
 // ── Main job ─────────────────────────────────────────────────────────
 
 export async function reindexJob(): Promise<string> {
-  const repos = await query<OnboardedRepo>(
-    `SELECT full_name, last_ingested_at
-     FROM lore.repos
-     WHERE onboarding_pr_merged = true`,
-  );
+  const repos = await settings().onboardedRepos();
 
   if (repos.length === 0) {
     console.log("[job] No onboarded repos to reindex");
@@ -264,10 +225,7 @@ export async function reindexJob(): Promise<string> {
 
       // Determine which files to process
       // If repo has zero chunks, always do a full seed (handles failed first ingestion)
-      const chunkCount = await query<{ c: string }>(
-        `SELECT count(*)::text as c FROM ${schema}.chunks WHERE repo = $1`, [repo.full_name],
-      );
-      const hasChunks = Number(chunkCount[0]?.c || 0) > 0;
+      const hasChunks = (await chunks().countChunks(schema, repo.full_name)) > 0;
 
       let filePaths: string[];
       if (repo.last_ingested_at && hasChunks) {
@@ -279,10 +237,7 @@ export async function reindexJob(): Promise<string> {
       if (filePaths.length === 0) {
         console.log(`[job] No files to reindex for ${repo.full_name}`);
         // Still update timestamp so we don't re-check the same window
-        await query(
-          `UPDATE lore.repos SET last_ingested_at = now() WHERE full_name = $1`,
-          [repo.full_name],
-        );
+        await settings().markIngested(repo.full_name);
         continue;
       }
 
@@ -299,10 +254,7 @@ export async function reindexJob(): Promise<string> {
       }
 
       // Update last_ingested_at
-      await query(
-        `UPDATE lore.repos SET last_ingested_at = now() WHERE full_name = $1`,
-        [repo.full_name],
-      );
+      await settings().markIngested(repo.full_name);
 
       totalFiles += repoFileCount;
       totalRepos++;

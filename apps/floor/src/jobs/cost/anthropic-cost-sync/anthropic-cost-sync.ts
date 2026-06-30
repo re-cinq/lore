@@ -1,4 +1,4 @@
-import { query } from "../../../kernel/db.js";
+import { cost } from "../../../kernel/queues.js";
 import {
   parseCostReport,
   parseUsageReport,
@@ -50,29 +50,16 @@ async function fetchAllBuckets(
   return buckets;
 }
 
-async function upsertRow(row: AnthropicCostDailyRow): Promise<void> {
-  await query(
-    `INSERT INTO pipeline.anthropic_cost_daily
-       (bucket_date, model, cost_usd, input_tokens, output_tokens,
-        cache_creation_tokens, cache_read_tokens, fetched_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
-     ON CONFLICT (bucket_date, model) DO UPDATE SET
-       cost_usd = EXCLUDED.cost_usd,
-       input_tokens = EXCLUDED.input_tokens,
-       output_tokens = EXCLUDED.output_tokens,
-       cache_creation_tokens = EXCLUDED.cache_creation_tokens,
-       cache_read_tokens = EXCLUDED.cache_read_tokens,
-       fetched_at = now()`,
-    [
-      row.date,
-      row.model,
-      row.costUsd,
-      row.inputTokens,
-      row.outputTokens,
-      row.cacheCreationTokens,
-      row.cacheReadTokens,
-    ],
-  );
+function upsertRow(row: AnthropicCostDailyRow): Promise<void> {
+  return cost().upsertDaily({
+    bucketDate: row.date,
+    model: row.model,
+    costUsd: row.costUsd,
+    inputTokens: row.inputTokens,
+    outputTokens: row.outputTokens,
+    cacheCreationTokens: row.cacheCreationTokens,
+    cacheReadTokens: row.cacheReadTokens,
+  });
 }
 
 export async function anthropicCostSyncJob(): Promise<string> {

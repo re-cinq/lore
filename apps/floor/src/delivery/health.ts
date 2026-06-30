@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { trace } from "@opentelemetry/api";
-import { query, isDbAvailable } from "../kernel/db.js";
+import { isDbAvailable } from "../kernel/db.js";
+import { usage } from "../kernel/queues.js";
 import { parseAgentEvents, agentEventsArchiveKey } from "../jobs/agent/agent-events.js";
 import { archiveAgentEvents } from "../jobs/agent/agent-events-store.js";
 import { handleGitHubWebhook } from "../listeners/github-webhook.js";
@@ -71,12 +72,15 @@ export function startHealthServer(
           let recorded = 0;
           for (const row of rows) {
             try {
-              await query(
-                `INSERT INTO pipeline.llm_calls
-                   (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
-                 VALUES ($1, 'agent', $2, $3, $4, $5, $6)`,
-                [row.taskId, row.model, row.inputTokens, row.outputTokens, row.costUsd, row.durationMs],
-              );
+              await usage().logLlmCall({
+                taskId: row.taskId,
+                jobName: "agent",
+                model: row.model,
+                inputTokens: row.inputTokens,
+                outputTokens: row.outputTokens,
+                costUsd: row.costUsd,
+                durationMs: row.durationMs,
+              });
               recorded++;
             } catch (err: any) {
               console.warn(`[agent] llm_calls insert skipped for ${row.taskId}: ${err.message}`);
@@ -119,15 +123,8 @@ export function startHealthServer(
       }
 
       try {
-        const todayRows = await query<{ today: number }>(
-          "SELECT count(*)::int as today FROM pipeline.llm_calls WHERE created_at > current_date",
-        );
-        const totalRows = await query<{ total: number }>(
-          "SELECT count(*)::int as total FROM pipeline.llm_calls",
-        );
-
-        const processedToday = todayRows[0]?.today ?? 0;
-        const processedTotal = totalRows[0]?.total ?? 0;
+        const { today: processedToday, total: processedTotal } =
+          await usage().processedCounts();
         const jobStatus = getJobStatus();
 
         res.writeHead(200, { "Content-Type": "application/json" });

@@ -1,46 +1,31 @@
-import { query } from "../../kernel/db.js";
+import type { JobRunsPort } from "@re-cinq/lore-shared/project/job-runs/job-runs-port.js";
+import { jobRuns } from "../../kernel/queues.js";
 
 export interface JobRunOptions {
   logPath?: string;
 }
 
-export async function startJobRun(jobName: string): Promise<string> {
-  const rows = await query<{ id: string }>(
-    `INSERT INTO pipeline.job_runs (job_name, status)
-     VALUES ($1, 'running') RETURNING id`,
-    [jobName],
-  );
-  return rows[0].id;
+export function startJobRun(
+  jobName: string,
+  runs: JobRunsPort = jobRuns(),
+): Promise<string> {
+  return runs.start(jobName);
 }
 
-export async function completeJobRun(
+export function completeJobRun(
   runId: string,
   summary: string,
   opts: JobRunOptions = {},
+  runs: JobRunsPort = jobRuns(),
 ): Promise<void> {
-  await query(
-    `UPDATE pipeline.job_runs
-     SET completed_at = now(),
-         status = 'completed',
-         result_summary = $1,
-         log_path = $2
-     WHERE id = $3`,
-    [summary, opts.logPath ?? null, runId],
-  );
+  return runs.complete(runId, summary, opts.logPath);
 }
 
-export async function failJobRun(
+export function failJobRun(
   runId: string,
   error: string,
   opts: JobRunOptions = {},
+  runs: JobRunsPort = jobRuns(),
 ): Promise<void> {
-  await query(
-    `UPDATE pipeline.job_runs
-     SET completed_at = now(),
-         status = 'failed',
-         error = $1,
-         log_path = $2
-     WHERE id = $3`,
-    [error, opts.logPath ?? null, runId],
-  );
+  return runs.fail(runId, error, opts.logPath);
 }

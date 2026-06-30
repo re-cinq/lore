@@ -15,7 +15,7 @@ import { parseDecomposition } from "@re-cinq/lore-shared/feature-planning/decomp
 import { specTaskRows, storyIssueBody } from "@re-cinq/lore-shared/feature-planning/decomposition-plan.js";
 import { DECOMPOSITION_INSTRUCTIONS } from "@re-cinq/lore-shared/feature-planning/decomposition-instructions.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
-import { query } from "../../kernel/db.js";
+import { taskQueue } from "../../kernel/queues.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
@@ -49,13 +49,8 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
 
     // Idempotency: a feature already broken into spec-tasks is left untouched
     // (a re-merge, replay, or the cron + webhook both firing must not duplicate).
-    const existing = await query<{ id: string }>(
-      `SELECT id FROM pipeline.tasks
-        WHERE task_type = 'spec-task' AND target_repo = $1 AND context_bundle->>'spec_slug' = $2
-        LIMIT 1`,
-      [targetRepo, specSlug],
-    );
-    if (existing.length > 0) {
+    const alreadyDecomposed = await taskQueue().hasSpecTasksForSlug(targetRepo, specSlug);
+    if (alreadyDecomposed) {
       await setStatus(task.id, "completed");
       await insertEvent(task.id, "running", "completed", { feature_id: featureId, skipped: "already-decomposed" });
       console.log(`[agent] feature-decompose: ${specSlug} already has spec-tasks — skipping`);
@@ -101,14 +96,16 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
       }
 
       for (const row of specTaskRows(story, { specSlug, featureId, storyIssue })) {
-        const inserted = await query<{ id: string }>(
-          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
-           VALUES ($1, 'spec-task', $2, 'pending', $3, 'feature-decompose', $4)
-           ON CONFLICT DO NOTHING
-           RETURNING id`,
-          [row.title, targetRepo, JSON.stringify(row.metadata), taskGroupId],
-        );
-        if (inserted.length > 0) tasksCreated++;
+        const insertedId = await taskQueue().insertTask({
+          description: row.title,
+          taskType: "spec-task",
+          targetRepo,
+          status: "pending",
+          contextBundle: row.metadata,
+          createdBy: "feature-decompose",
+          taskGroupId,
+        });
+        if (insertedId) tasksCreated++;
       }
     }
 

@@ -5,9 +5,9 @@
  * ADRs, spec, CI workflows, test-command manifest) in an onboarding PR.
  */
 
-import { query } from "../../kernel/db.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../composition/project-boot.js";
+import { settings } from "../../kernel/queues.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { writeEpisode } from "../memory/episode-writer.js";
 import {
@@ -181,11 +181,8 @@ export async function handleOnboard(
   // mode with no error — the scaffold is a suggestion, never enforced.
   let settingsTestCommands: unknown;
   try {
-    const rows = await query<{ settings: any }>(
-      `SELECT settings FROM lore.repos WHERE full_name = $1`,
-      [targetRepo],
-    );
-    settingsTestCommands = rows[0]?.settings?.test_commands;
+    const repoSettings = await settings().rawSettings(targetRepo);
+    settingsTestCommands = (repoSettings as { test_commands?: unknown } | null)?.test_commands;
   } catch (err: any) {
     console.warn(`[agent] Onboard: could not read repo settings for test-interface check: ${err.message}`);
   }
@@ -332,10 +329,7 @@ export async function handleOnboard(
   await linkPrToIssue(targetRepo, issueNumber, pr.url);
 
   // Update lore.repos with the PR URL
-  await query(
-    `UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2`,
-    [pr.url, targetRepo],
-  );
+  await settings().setOnboardingPrUrl(targetRepo, pr.url);
 
   // Create Lore dispatch labels on the repo
   try {

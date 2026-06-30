@@ -1,20 +1,11 @@
-import { query } from "../../kernel/db.js";
+import { taskQueue, memoryLifecycle } from "../../kernel/queues.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { Llm } from "@re-cinq/lore-shared";
+import type { ReviewableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { writeEpisode } from "../memory/episode-writer.js";
 import { isBusinessHours } from "@re-cinq/lore-shared";
 
-interface PendingTask {
-  id: string;
-  description: string;
-  task_type: string;
-  target_repo: string;
-  pr_number: number;
-  pr_url: string;
-  issue_number: number | null;
-  review_iteration: number | null;
-  target_branch: string;
-}
+type PendingTask = ReviewableTask;
 
 /**
  * Safety-net polling entry point. Webhooks are the primary trigger — this
@@ -26,14 +17,7 @@ export async function reviewReactorJob(): Promise<string> {
     return "Skipped: outside business hours";
   }
 
-  const tasks = await query<PendingTask>(
-    `SELECT id, description, task_type, target_repo, pr_number, pr_url,
-            issue_number, review_iteration, target_branch
-     FROM pipeline.tasks
-     WHERE status IN ('pr-created', 'review', 'revision-requested')
-       AND pr_number IS NOT NULL
-       AND (review_iteration IS NULL OR review_iteration < 3)`,
-  );
+  const tasks = await taskQueue().reviewable();
 
   if (tasks.length === 0) {
     console.log("[job] review-reactor: no PRs to check");
@@ -66,24 +50,14 @@ export async function runReviewReactorForPR(
   repo: string,
   prNumber: number,
 ): Promise<{ processed: boolean; reason?: string }> {
-  const tasks = await query<PendingTask>(
-    `SELECT id, description, task_type, target_repo, pr_number, pr_url,
-            issue_number, review_iteration, target_branch
-     FROM pipeline.tasks
-     WHERE status IN ('pr-created', 'review', 'revision-requested')
-       AND target_repo = $1
-       AND pr_number = $2
-       AND (review_iteration IS NULL OR review_iteration < 3)
-     LIMIT 1`,
-    [repo, prNumber],
-  );
+  const task = await taskQueue().reviewableForPR(repo, prNumber);
 
-  if (tasks.length === 0) {
+  if (!task) {
     return { processed: false, reason: "no matching task" };
   }
 
   try {
-    const processed = await checkAndProcessPR(tasks[0]);
+    const processed = await checkAndProcessPR(task);
     return { processed };
   } catch (err) {
     console.error(
@@ -208,14 +182,7 @@ For each file that needs changes, output:
   }
 
   // Increment review_iteration
-  const iterRows = await query<{ review_iteration: number }>(
-    `UPDATE pipeline.tasks
-     SET review_iteration = COALESCE(review_iteration, 0) + 1
-     WHERE id = $1
-     RETURNING review_iteration`,
-    [task.id],
-  );
-  const iteration = iterRows[0]?.review_iteration ?? 1;
+  const iteration = await taskQueue().incrementReviewIteration(task.id);
 
   // Post summary comment on PR
   const fileList = files.map((f) => `- \`${f.path}\``).join("\n");
@@ -247,12 +214,7 @@ For each file that needs changes, output:
     .filter(Boolean)
     .join("\n");
   if (corrections.length > 20) {
-    await query(
-      `INSERT INTO memory.memories (agent_id, key, value)
-       VALUES ('lore-agent', $1, $2)
-       ON CONFLICT (agent_id, key) DO UPDATE SET value = memory.memories.value || E'\n' || $2, version = memory.memories.version + 1`,
-      [`review-lessons:${task.target_repo}`, corrections],
-    );
+    await memoryLifecycle().appendMemory("lore-agent", `review-lessons:${task.target_repo}`, corrections);
   }
 
   console.log(

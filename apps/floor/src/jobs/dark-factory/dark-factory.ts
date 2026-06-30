@@ -1,4 +1,4 @@
-import { query } from "../../kernel/db.js";
+import { settings as settingsRepo } from "../../kernel/queues.js";
 import { requiresApproval } from "./approval.js";
 // Canonical types + resolver moved to @re-cinq/lore-shared so all
 // consumers (agent, mcp-server, GKE Job pod runner) share one source.
@@ -160,13 +160,9 @@ async function loadRepoSettings(
   targetRepo: string,
 ): Promise<DarkFactoryRepoSettings | undefined> {
   try {
-    const rows = await query<{
-      settings: { dark_factory?: DarkFactoryRepoSettings };
-    }>(
-      `SELECT settings FROM lore.repos WHERE full_name = $1`,
-      [targetRepo],
-    );
-    return rows[0]?.settings?.dark_factory;
+    const raw = await settingsRepo().rawSettings(targetRepo);
+    return (raw as { dark_factory?: DarkFactoryRepoSettings } | null)
+      ?.dark_factory;
   } catch (err) {
     console.warn(
       `[dark-factory] settings read failed for ${targetRepo}:`,
