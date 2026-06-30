@@ -22,10 +22,10 @@ LORE_DIR="$HOME/.re-cinq/lore"
 echo "[lore] Running diagnostics..."
 echo ""
 
-# 1. MCP server entry point
-check "MCP server built" \
+# 1. MCP adapter entry point (local stdio; proxies to the Lore API)
+check "MCP adapter built" \
   test -f "$LORE_DIR/apps/mcp-server/dist/index.js" || \
-  echo "     Fix: cd $LORE_DIR && npm install && npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-mcp"
+  echo "     Fix: cd $LORE_DIR && npm install && npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-server-core -w @re-cinq/lore-mcp"
 
 # 2. specify CLI (optional — warn but don't count as failure)
 if command -v specify >/dev/null 2>&1; then
@@ -36,9 +36,11 @@ else
   echo "     Install: pipx install specify-cli  OR  uv tool install specify-cli"
 fi
 
-# 4. Git connectivity (test SSH — GitHub returns exit 1 but prints "successfully" on success)
+# 4. Git connectivity (test SSH — GitHub returns exit 1 but prints "successfully" on success).
+# Bound the attempt with ssh's own BatchMode + ConnectTimeout rather than the external
+# `timeout` binary, which is absent on macOS (GNU coreutils ships it as `gtimeout`).
 git_ssh_ok() {
-  timeout 5 ssh -T git@github.com 2>&1 | grep -qi "successfully" 2>/dev/null
+  ssh -o BatchMode=yes -o ConnectTimeout=5 -T git@github.com 2>&1 | grep -qi "successfully" 2>/dev/null
 }
 check "Git can reach github.com (SSH)" \
   git_ssh_ok || \

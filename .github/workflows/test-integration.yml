@@ -42,6 +42,13 @@ jobs:
       - name: Install deps
         run: npm install
 
+      # The integration suite imports lore-api's real route tree, which pulls in
+      # the compiled @re-cinq/lore-shared + @re-cinq/lore-server-core via package
+      # subpaths (e.g. @re-cinq/lore-server-core/platform/db.js → dist). Both libs
+      # must be built before the suite runs (same rationale as test.yml).
+      - name: Build libs
+        run: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core
+
       - name: Set up test database
         env:
           PGHOST: localhost
@@ -143,7 +150,7 @@ jobs:
           "
 
       - name: Run integration tests
-        working-directory: apps/mcp-server
+        working-directory: apps/lore-api
         env:
           LORE_DB_HOST: localhost
           LORE_DB_PORT: 5432

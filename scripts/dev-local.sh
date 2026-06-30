@@ -118,7 +118,7 @@ fi
 #    Order matters: floor imports @re-cinq/lore-runner and mcp imports
 #    @re-cinq/lore-shared, so dependencies must be built first. The root
 #    `build` script encodes the canonical order (shared -> runner -> mcp -> floor).
-log "Building shared, runner, mcp-server, agent..."
+log "Building shared, runner, server-core, lore-api, mcp-server, agent..."
 npm run build
 
 # 5. Run everything with live reload — one slot per process so -k kills all.
@@ -152,12 +152,17 @@ log "Starting all components..."
 # set -m puts the backgrounded stack in its own process group (PGID == PID) on
 # both macOS and Linux — a portable stand-in for `setsid`.
 set -m
+# The :3001 HTTP backend is now apps/lore-api (the remote REST API). The local
+# stdio MCP adapter (apps/mcp-server) is not run as a daemon here — Claude Code
+# spawns it on demand — but its tsc --watch keeps dist/ fresh for that use.
 npx concurrently -k \
-  -n "shared,mcp-tsc,mcp,agent-tsc,agent,ui" \
-  -c "blue,green,greenBright,magenta,magentaBright,cyan" \
+  -n "shared,core,api-tsc,api,mcp-tsc,agent-tsc,agent,ui" \
+  -c "blue,gray,green,greenBright,yellow,magenta,magentaBright,cyan" \
   "npm run dev -w @re-cinq/lore-shared" \
+  "npm run dev -w @re-cinq/lore-server-core" \
+  "npm run dev -w @re-cinq/lore-api" \
+  "PORT=3001 npm run start:watch -w @re-cinq/lore-api" \
   "npm run dev -w @re-cinq/lore-mcp" \
-  "MCP_TRANSPORT=http PORT=3001 npm run start:watch -w @re-cinq/lore-mcp" \
   "npm run dev -w @re-cinq/lore-floor" \
   "npm run start:watch -w @re-cinq/lore-floor" \
   "npm --prefix apps/web-ui run dev" &

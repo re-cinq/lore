@@ -16,8 +16,8 @@ import { resolveTestLines } from "../../dist/spec-trace/resolve-test-lines.js";
 
 const ROOT = process.cwd(); // manifest cwd == repo root
 // Packages whose `src/` tests feed the graph. Override to narrow scope, e.g.
-// LORE_TRACE_PKGS=shared LORE_TRACE_SCOPE=src/spec-trace for the old behavior.
-const PKGS = (process.env.LORE_TRACE_PKGS || "shared,agent,mcp-server,web-ui")
+// LORE_TRACE_PKGS=libs/shared LORE_TRACE_SCOPE=src/spec-trace for the old behavior.
+const PKGS = (process.env.LORE_TRACE_PKGS || "libs/shared,libs/runner,libs/server-core,apps/floor,apps/lore-api,apps/mcp-server,apps/web-ui")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);

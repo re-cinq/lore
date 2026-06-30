@@ -1,52 +1,43 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import {
-  getOnboardedReposWithCounts,
-  onboardRepo,
-} from "../../features/repo/repo-onboard.js";
-import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
-import { ToolDeps } from "./deps.js";
-import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
+import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
+import { ToolDeps, proxyToApi, proxyGetApi, deniedError, unreachableError } from "./deps.js";
+import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
-export function registerRepoTools(server: McpServer, deps: ToolDeps) {
-  const { getPool } = deps;
+const NOT_CONFIGURED = "Repo management requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.";
 
+export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
   server.tool(
     "lore_list_repos",
-    `Lists every repo onboarded into Lore, returning a JSON array with per-repo metadata and pipeline task count (DB-only). Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,
+    `Lists every repo onboarded into Lore, returning a JSON array with per-repo metadata and pipeline task count. Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,
     {},
     async () => {
-      try {
-        if (!process.env.LORE_DB_HOST) {
-          return { content: [{ type: "text" as const, text: "Repo management requires PostgreSQL (LORE_DB_HOST not set)." }] };
-        }
-        const repos = await getOnboardedReposWithCounts(getPool()!);
-        if (repos.length === 0) {
+      const proxied = await proxyGetApi("/api/repos");
+      if (proxied.ok) {
+        const repos = JSON.parse(proxied.body);
+        if (!Array.isArray(repos) || repos.length === 0) {
           return { content: [{ type: "text" as const, text: "No repos onboarded yet. Use lore_onboard_repo to add one." }] };
         }
         return { content: [{ type: "text" as const, text: JSON.stringify(repos, null, 2) }] };
-      } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error listing repos: ${err.message}` }] };
       }
+      if (proxied.reason === "not_configured") return { content: [{ type: "text" as const, text: NOT_CONFIGURED }] };
+      if (proxied.reason === "denied") return deniedError("lore_list_repos", proxied.detail);
+      return unreachableError("lore_list_repos", proxied.detail);
     }
   );
 
   server.tool(
     "lore_onboard_repo",
-    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status } (DB-only). Re-onboarding an existing repo refreshes onboarded_at. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
+    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status }. Re-onboarding an existing repo refreshes onboarded_at. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
     {
       full_name: z.string().describe('"owner/repo" format; both segments must be non-empty.'),
     },
     async ({ full_name }) => {
-      try {
-        if (!process.env.LORE_DB_HOST) {
-          return { content: [{ type: "text" as const, text: "Repo onboarding requires PostgreSQL (LORE_DB_HOST not set)." }] };
-        }
-        const result = await onboardRepo(getPool()!, full_name);
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-      } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error onboarding repo: ${err.message}` }] };
-      }
+      const proxied = await proxyToApi("/api/onboard", { repo: full_name });
+      if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+      if (proxied.reason === "not_configured") return { content: [{ type: "text" as const, text: NOT_CONFIGURED }] };
+      if (proxied.reason === "denied") return deniedError("lore_onboard_repo", proxied.detail);
+      return unreachableError("lore_onboard_repo", proxied.detail);
     }
   );
 
