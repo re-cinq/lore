@@ -203,32 +203,11 @@ resource "kubectl_manifest" "lore_db_cluster" {
 
 # ── Operational add-ons (ownership reconciler) ─────────────────────
 #
-# A tiny chart with a `pre-install,pre-upgrade` hook Job that re-aligns
-# `pipeline.*` ownership with the `lore` role on every deploy, via the
-# CNPG primary's in-pod local socket (peer-authenticated as `postgres`
-# — no network superuser, `enableSuperuserAccess` stays off). This
-# keeps long-lived clusters — provisioned before `setup-pipeline-
-# schema.sh` grew its `ALTER … OWNER TO lore` block — converging
-# automatically instead of needing an operator `kubectl exec`. On
-# fresh clusters where `lore` already owns the schema it's a no-op.
-
-resource "helm_release" "lore_db_extras" {
-  name      = "lore-db"
-  chart     = "${path.module}/modules/gke-mcp/lore-db-helm"
-  namespace = "lore-db"
-
-  # Pre-upgrade hook waits up to ~60s for the CNPG primary to label
-  # itself role=primary. If you scale to more replicas later, the
-  # selector still picks the current primary across failovers.
-  set {
-    name  = "cluster.name"
-    value = "lore-db"
-  }
-
-  depends_on = [
-    kubectl_manifest.lore_db_cluster,
-  ]
-}
+# The `pre-install,pre-upgrade` hook Job that re-aligns `pipeline.*` ownership
+# with the `lore` role now ships in the umbrella Helm release
+# (`helm_release.lore_platform` in lore-platform.tf), under the `lore-db-helm`
+# subchart key (cluster.name = "lore-db"). That release depends_on
+# `kubectl_manifest.lore_db_cluster` so the CNPG primary exists first.
 
 # ── Scheduled backup (plugin method) ───────────────────────────────
 

@@ -1,0 +1,118 @@
+{{- if .Values.ownershipReconciler.enabled }}
+# Hands the configured schemas (default: `pipeline`) over to the
+# `lore` role on every deploy, so the ui-helm `pre-upgrade` migrate
+# Job — which connects as `lore` — can ALTER TABLE without being the
+# table owner. Mirrors the lore-schema handoff already automated in
+# `setup-db.sh`/`setup-pipeline-schema.sh` for fresh installs;
+# this Hook keeps long-lived clusters (provisioned before those
+# scripts grew the ALTER OWNER block) converging declaratively
+# instead of requiring an operator to kubectl-exec by hand.
+#
+# Auth path: ServiceAccount → kubectl exec into the CNPG primary →
+# psql against the in-pod local socket. Postgres' default peer-auth
+# accepts `postgres` over the socket without a password, so we never
+# enable CNPG `enableSuperuserAccess` (no network superuser).
+#
+# Hook weight -5: runs BEFORE ui-helm migrate (weight 0) on shared
+# deploys; on standalone deploys of this chart, weight is moot.
+# Idempotent: ALTER … OWNER TO `lore` on an already-`lore`-owned
+# object is a Postgres no-op.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lore-db-ownership-reconciler
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: lore-db-ownership-reconciler
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: lore-db-ownership-reconciler
+    spec:
+      restartPolicy: Never
+      serviceAccountName: lore-db-ownership-reconciler
+      containers:
+        - name: reconciler
+          image: {{ .Values.ownershipReconciler.image | quote }}
+          command: ["/bin/sh", "-c"]
+          env:
+            - name: CLUSTER_NAME
+              value: {{ .Values.cluster.name | quote }}
+            - name: CONTAINER
+              value: {{ .Values.cluster.container | quote }}
+            - name: TARGET_ROLE
+              value: {{ .Values.ownershipReconciler.targetRole | quote }}
+            - name: SCHEMAS
+              value: {{ join " " .Values.ownershipReconciler.schemas | quote }}
+          args:
+            - |
+              set -eu
+
+              echo "[reconciler] discovering CNPG primary for cluster=$CLUSTER_NAME ..."
+              # CNPG labels the primary pod with role=primary. Selecting by
+              # cluster + role avoids hard-coding the suffix index (which
+              # changes on failover).
+              i=0
+              until PRIMARY=$(kubectl get pod \
+                  -l "cnpg.io/cluster=$CLUSTER_NAME,role=primary" \
+                  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) \
+                  && [ -n "$PRIMARY" ]; do
+                i=$((i + 1))
+                if [ "$i" -ge 30 ]; then
+                  echo "[reconciler] ERROR: no primary found after 60s" >&2
+                  exit 1
+                fi
+                sleep 2
+              done
+              echo "[reconciler] primary = $PRIMARY"
+
+              # Run as `postgres` via the pod's local UNIX socket (peer
+              # auth — no password, no network superuser). One psql
+              # invocation per schema; each one wrapped in a DO so a
+              # missing schema (e.g. a fresh cluster where the bootstrap
+              # script hasn't created it yet) is a notice, not a deploy
+              # failure. SQL is built per-schema with shell substitution
+              # before sending — psql vars don't propagate into PL/pgSQL,
+              # so the simpler path is to inline the names here.
+              for SCHEMA in $SCHEMAS; do
+                echo "[reconciler] schema=$SCHEMA target=$TARGET_ROLE"
+                SQL=$(cat <<EOF
+              DO \$\$
+              DECLARE
+                rec record;
+              BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = '$SCHEMA') THEN
+                  RAISE NOTICE 'schema % does not exist, skipping', '$SCHEMA';
+                  RETURN;
+                END IF;
+                EXECUTE format('ALTER SCHEMA %I OWNER TO %I', '$SCHEMA', '$TARGET_ROLE');
+                FOR rec IN
+                  SELECT c.relname, c.relkind
+                  FROM pg_catalog.pg_class c
+                  JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                  WHERE n.nspname = '$SCHEMA' AND c.relkind IN ('r','S','v','m')
+                LOOP
+                  CASE rec.relkind
+                    WHEN 'r' THEN EXECUTE format('ALTER TABLE %I.%I OWNER TO %I', '$SCHEMA', rec.relname, '$TARGET_ROLE');
+                    WHEN 'S' THEN EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO %I', '$SCHEMA', rec.relname, '$TARGET_ROLE');
+                    WHEN 'v' THEN EXECUTE format('ALTER VIEW %I.%I OWNER TO %I', '$SCHEMA', rec.relname, '$TARGET_ROLE');
+                    WHEN 'm' THEN EXECUTE format('ALTER MATERIALIZED VIEW %I.%I OWNER TO %I', '$SCHEMA', rec.relname, '$TARGET_ROLE');
+                  END CASE;
+                END LOOP;
+              END \$\$;
+              EOF
+              )
+                printf '%s\n' "$SQL" | kubectl exec -i "$PRIMARY" -c "$CONTAINER" -- \
+                  psql -U postgres -d lore -v ON_ERROR_STOP=1
+              done
+
+              echo "[reconciler] done"
+          resources:
+            {{- toYaml .Values.ownershipReconciler.resources | nindent 12 }}
+{{- end }}

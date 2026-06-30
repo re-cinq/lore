@@ -36,7 +36,7 @@ needs your ghcr read):
 ```bash
 skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.3.0 \
   | grep -oE 'sha256:[a-f0-9]{64}' | head -1
-# put it in modules/gke-mcp/ai-agents-helm/values.yaml → controller.agentImage
+# put it in modules/gke-mcp/lore-platform/charts/ai-agents-helm/values.yaml → controller.agentImage
 ```
 
 ## 2. Deploy the subsystem (reversible)

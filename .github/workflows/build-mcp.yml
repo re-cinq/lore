@@ -13,13 +13,17 @@ on:
       # Chart or workflow changes need a redeploy too — without this,
       # a chart-only PR merges to main and nothing redeploys, leaving
       # the cluster on old code forever (rediscovered 2026-04-29).
-      - 'infra/terraform/modules/gke-mcp/mcp-helm/**'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/mcp-helm/**'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
       - '.github/workflows/build-mcp.yml'
   pull_request:
     paths:
       - 'apps/mcp-server/**'
       - 'libs/shared/**'
-      - 'infra/terraform/modules/gke-mcp/mcp-helm/**'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/mcp-helm/**'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
       - '.github/workflows/build-mcp.yml'
   workflow_dispatch:
 
@@ -78,6 +82,12 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # All three service deploys upgrade the SAME umbrella release; serialize them
+    # across workflows so two helm upgrades never collide ("another operation in
+    # progress"). cancel-in-progress: false → queue, never drop a deploy.
+    concurrency:
+      group: helm-lore-platform-deploy
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -101,17 +111,35 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
 
-      - name: Helm upgrade
+      - name: Recover wedged release
         run: |
-          # --reset-then-reuse-values (helm 3.14+) preserves user --set
-          # overrides while picking up new chart defaults from values.yaml.
-          # Plain --reuse-values would skip new chart-level additions like
-          # podDisruptionBudget and crash on nil-pointer evals.
-          helm upgrade --install lore-mcp ./infra/terraform/modules/gke-mcp/mcp-helm \
-            --namespace mcp-servers \
-            --set image.tag=${{ needs.build.outputs.image_tag }} \
+          # An interrupted prior deploy can strand the umbrella release in a
+          # pending-* state that blocks the next upgrade ("another operation in
+          # progress"). Clear the stranded revision record (in the lore-floor
+          # home namespace) so the upgrade reconciles forward — live workloads
+          # are left untouched.
+          status=$(helm status lore-platform -n lore-floor -o json 2>/dev/null | jq -r '.info.status' || echo none)
+          echo "[lore] current release status: ${status}"
+          case "$status" in
+            pending-*)
+              echo "[lore] release wedged in ${status}; deleting stranded revision record."
+              kubectl delete secret -n lore-floor -l "owner=helm,name=lore-platform,status=${status}" ;;
+          esac
+
+      - name: Helm upgrade (mcp subchart of the umbrella release)
+        run: |
+          # ONE umbrella release for the whole platform; bump ONLY this service's
+          # image tag. --reset-then-reuse-values (helm 3.14+) keeps the other
+          # subcharts' tags and the terraform-supplied config intact. No --wait
+          # (Autopilot wedges on it — see build-ui.yml); rollout gated below.
+          helm upgrade --install lore-platform ./infra/terraform/modules/gke-mcp/lore-platform \
+            --namespace lore-floor \
+            --set lore-mcp.image.tag=${{ needs.build.outputs.image_tag }} \
             --reset-then-reuse-values \
-            --wait --timeout 5m
+            --cleanup-on-fail
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/lore-mcp -n mcp-servers --timeout=5m
 
   smoke:
     needs: deploy

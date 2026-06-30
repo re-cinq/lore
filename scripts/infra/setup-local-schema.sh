@@ -148,7 +148,7 @@ SQL
 # order, per-file single transaction, skip-if-applied — so a migration the 'lore'
 # role cannot apply (e.g. DDL on a schema it lacks CREATE on) fails here too,
 # instead of silently passing as superuser and only breaking on deploy.
-MIGRATIONS_DIR="$DIR/../../infra/terraform/modules/gke-mcp/ui-helm/migrations"
+MIGRATIONS_DIR="$DIR/../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations"
 psql() { docker exec -i "$CONTAINER" psql -U lore -d lore "$@"; }
 log "Applying migrations from $MIGRATIONS_DIR (as role 'lore')"
 psql -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
