@@ -7,7 +7,7 @@ import * as fs from "node:fs/promises";
 import { FileLeaseBackend } from "@re-cinq/lore-shared";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { Workflow } from "@re-cinq/lore-runner";
-import { runFloorGraph } from "./floor-graph-run.js";
+import { runFloorGraph, checkoutBranch } from "./floor-graph-run.js";
 import type { FloorGraphTask, FloorGraphPorts } from "./floor-graph.js";
 
 const execFile = promisify(execFileCb);
@@ -135,5 +135,52 @@ describe("runFloorGraph (local integration — cluster ports faked)", () => {
       "implement", "ci", "implement", "ci", "wrap",
     ]);
     expect(dispatched).toHaveLength(2); // the agent node ran twice
+  });
+});
+
+// checkoutBranch clones the task's working tree. A task's FIRST run has no branch yet,
+// so it must bootstrap one off the default; a resumed task must check out the existing
+// branch to read its stage-commit trailers. Real git, local repo as the "remote".
+describe("checkoutBranch (resume existing / bootstrap new)", () => {
+  let work: string;
+  let origin: string;
+
+  async function currentBranch(dir: string): Promise<string> {
+    const { stdout } = await execFile("git", ["-C", dir, "rev-parse", "--abbrev-ref", "HEAD"]);
+    return stdout.trim();
+  }
+
+  beforeEach(async () => {
+    work = await fs.mkdtemp(path.join(os.tmpdir(), "lore-checkout-"));
+    origin = path.join(work, "origin");
+    await fs.mkdir(origin);
+    await execFile("git", ["-C", origin, "init", "-b", "main"]);
+    await execFile("git", ["-C", origin, "config", "user.email", "t@e.com"]);
+    await execFile("git", ["-C", origin, "config", "user.name", "t"]);
+    await fs.writeFile(path.join(origin, "README.md"), "x\n");
+    await execFile("git", ["-C", origin, "add", "."]);
+    await execFile("git", ["-C", origin, "commit", "-m", "init"]);
+  });
+
+  afterEach(async () => {
+    await fs.rm(work, { recursive: true, force: true });
+  });
+
+  it("bootstraps a new branch off the default when it does not exist on the remote", async () => {
+    const dir = await checkoutBranch("re-cinq/lore", "lore/general/new-task-abcd1234", origin);
+    expect(await currentBranch(dir)).toBe("lore/general/new-task-abcd1234");
+  });
+
+  it("checks out the existing branch to resume its stage-commit history", async () => {
+    await execFile("git", ["-C", origin, "checkout", "-b", "lore/general/existing-task"]);
+    await fs.writeFile(path.join(origin, "stage.txt"), "done\n");
+    await execFile("git", ["-C", origin, "add", "."]);
+    await execFile("git", ["-C", origin, "commit", "-m", "stage", "-m", "Lore-Stage: implement"]);
+    await execFile("git", ["-C", origin, "checkout", "main"]);
+
+    const dir = await checkoutBranch("re-cinq/lore", "lore/general/existing-task", origin);
+    expect(await currentBranch(dir)).toBe("lore/general/existing-task");
+    const { stdout } = await execFile("git", ["-C", dir, "log", "--format=%B"]);
+    expect(stdout).toContain("Lore-Stage: implement");
   });
 });

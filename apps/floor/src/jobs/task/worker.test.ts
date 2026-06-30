@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { recoverStaleTasks } from "./worker.js";
+import { InMemoryTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-memory.js";
 
 // ── slugify (copied from worker.ts — private function) ──────────────
 
@@ -153,94 +155,37 @@ describe("issueRef", () => {
   });
 });
 
-// ── Task priority filtering (mirrors pollOnce decision logic) ──────
+// ── Claim ordering / grace ──────────────────────────────────────────
+// pollOnce's claim semantics (immediate-first, 30s grace, status filter,
+// FIFO) now live in the shared TaskQueue and are covered for real by
+// libs/shared/src/project/tasks/task-queue.test.ts — no mirror here.
 
-describe("task priority filtering", () => {
-  /**
-   * Mirrors the pollOnce query logic: immediate tasks skip the grace
-   * period, normal tasks need to be older than 30 seconds.
-   */
-  function shouldPickUp(task: { priority: string; ageSeconds: number; status: string }): boolean {
-    if (task.status !== "pending") return false;
-    if (task.priority === "immediate") return true;
-    return task.ageSeconds >= 30;
-  }
+// ── Stale task recovery ─────────────────────────────────────────────
 
-  it("picks up immediate tasks regardless of age", () => {
-    expect(shouldPickUp({ priority: "immediate", ageSeconds: 0, status: "pending" })).toBe(true);
-    expect(shouldPickUp({ priority: "immediate", ageSeconds: 5, status: "pending" })).toBe(true);
-  });
+describe("recoverStaleTasks", () => {
+  const NOW = Date.UTC(2026, 5, 30, 12, 0, 0);
+  const OLD = new Date(NOW - 31 * 60_000).toISOString();
 
-  it("does NOT pick up normal tasks younger than 30 seconds", () => {
-    expect(shouldPickUp({ priority: "normal", ageSeconds: 10, status: "pending" })).toBe(false);
-    expect(shouldPickUp({ priority: "normal", ageSeconds: 29, status: "pending" })).toBe(false);
-  });
-
-  it("picks up normal tasks older than 30 seconds", () => {
-    expect(shouldPickUp({ priority: "normal", ageSeconds: 30, status: "pending" })).toBe(true);
-    expect(shouldPickUp({ priority: "normal", ageSeconds: 120, status: "pending" })).toBe(true);
-  });
-
-  it("skips running-local tasks", () => {
-    expect(shouldPickUp({ priority: "immediate", ageSeconds: 0, status: "running-local" })).toBe(false);
-  });
-
-  it("skips non-pending tasks", () => {
-    expect(shouldPickUp({ priority: "immediate", ageSeconds: 0, status: "running" })).toBe(false);
-    expect(shouldPickUp({ priority: "immediate", ageSeconds: 0, status: "completed" })).toBe(false);
-  });
-
-  /**
-   * When multiple tasks are eligible, immediate tasks should be
-   * processed before normal ones (ORDER BY priority).
-   */
-  function sortByPriority(tasks: { priority: string; createdAt: number }[]): typeof tasks {
-    return [...tasks].sort((a, b) => {
-      const pa = a.priority === "immediate" ? 0 : 1;
-      const pb = b.priority === "immediate" ? 0 : 1;
-      if (pa !== pb) return pa - pb;
-      return a.createdAt - b.createdAt;
-    });
-  }
-
-  it("immediate tasks sort before normal tasks", () => {
-    const tasks = [
-      { priority: "normal", createdAt: 1 },
-      { priority: "immediate", createdAt: 3 },
-      { priority: "normal", createdAt: 2 },
-    ];
-    const sorted = sortByPriority(tasks);
-    expect(sorted[0].priority).toBe("immediate");
-  });
-
-  it("within same priority, older tasks come first (FIFO)", () => {
-    const tasks = [
-      { priority: "normal", createdAt: 3 },
-      { priority: "normal", createdAt: 1 },
-      { priority: "normal", createdAt: 2 },
-    ];
-    const sorted = sortByPriority(tasks);
-    expect(sorted.map(t => t.createdAt)).toEqual([1, 2, 3]);
-  });
-});
-
-// ── Stale task recovery logic ───────────────────────────────────────
-
-describe("recoverStaleTasks (logic)", () => {
-  it("skips implementation tasks (managed by LoreTask CRD)", () => {
-    const staleTasks = [
-      { id: "task-1", task_type: "implementation" },
-      { id: "task-2", task_type: "general" },
-      { id: "task-3", task_type: "implementation" },
-      { id: "task-4", task_type: "onboard" },
-    ];
-
-    // Same filter logic as recoverStaleTasks
-    const toRecover = staleTasks.filter(
-      (t) => t.task_type !== "implementation",
+  it("recovers stale non-implementation tasks and skips CRD-managed implementation tasks", async () => {
+    const queue = new InMemoryTaskQueue(
+      [
+        { id: "task-1", status: "running", task_type: "implementation", updated_at: OLD },
+        { id: "task-2", status: "running", task_type: "general", updated_at: OLD },
+        { id: "task-3", status: "queued", task_type: "implementation", updated_at: OLD },
+        { id: "task-4", status: "running", task_type: "onboard", updated_at: OLD },
+      ],
+      () => NOW,
     );
+    const setStatus = vi.fn();
+    const insertEvent = vi.fn();
 
-    expect(toRecover).toHaveLength(2);
-    expect(toRecover.map((t) => t.id)).toEqual(["task-2", "task-4"]);
+    const recovered = await recoverStaleTasks({ queue, setStatus, insertEvent });
+
+    expect(recovered).toBe(2);
+    expect(setStatus.mock.calls.map((c) => c[0])).toEqual(["task-2", "task-4"]);
+    expect(setStatus).toHaveBeenCalledWith("task-2", "pending");
+    expect(insertEvent).toHaveBeenCalledWith("task-4", "running", "pending", {
+      reason: "crash-recovery",
+    });
   });
 });

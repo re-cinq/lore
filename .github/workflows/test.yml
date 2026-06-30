@@ -46,6 +46,13 @@ jobs:
           - name: agent
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-runner
             test: npm run test:coverage -w @re-cinq/lore-floor
+          # Catalog drift guard. The seeded ai-agents-helm catalog.yaml is generated
+          # from scripts/task-types.yaml by floor's gen:catalog; this fails the moment
+          # a recipe edit lands without regenerating the catalog. The script builds
+          # floor + regenerates itself, so it only needs shared + runner prebuilt.
+          - name: catalog-drift
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-runner
+            test: bash scripts/check-catalog-drift.sh
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui

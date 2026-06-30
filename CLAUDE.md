@@ -76,6 +76,10 @@ gcloud auth for local dev.
 - `agent/src/lib/audit.ts` — `writeAuditLog()` writer for the new `pipeline.audit_log` table
 - `agent/src/lib/pr-body.ts` — `prFooter()` composes the standard `Lore-Task: <uuid>` (+ optional `Refs #N`) PR-body footer used by every Lore-authored PR
 - `shared/src/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `lastStageOnBranch()` exported via `@re-cinq/lore-shared`. Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
+- `libs/shared/src/project/tasks/task-queue-{port,pg,memory}.ts` — `TaskQueueRepository`: the org-wide (repo-agnostic) `pipeline.tasks` claim/sweep mechanics single-sourced out of Floor — `claimNextPending` (worker poll, immediate-first + 30s grace), `findRecoverable`/`findStaleRunning` (crash-recovery + safety-net sweeps), `findReadySpecTasks`/`countRunningSpecTasksByGroup`/`claimSpecTask` (spec-task DAG dispatch). Pg adapter + InMemory double (the behavioral spec) + colocated tests. Repo-scoped task *record* ops stay on `project.tasks`
+- `libs/shared/src/project/events/event-queue-{port,pg,memory}.ts` — `EventQueueRepository`: the `pipeline.events` consume side (`claimBatch` with `FOR UPDATE SKIP LOCKED`, `markDone`/`markFailed`/`markDead`, `reapStuck`, `pruneHandled`); `insert` delegates to the shared `events.ts insertEvent`. The Floor event **loop/registry/scheduler** stay in `apps/floor/src/main-loop/`; only the SQL moved
+- `libs/shared/src/project/leases/lease-backends.ts` — `LeaseBackend` gained `reapExpired(cutoff)` (Db DELETE…RETURNING with OTEL span, File scan, `InMemoryLeaseReaper` double) so the lease-reaper goes through `project.leases` instead of a Floor-local repo
+- `apps/floor/src/kernel/queues.ts` — Floor-side lazy singletons binding the agent pool to the shared `PgTaskQueue` / `PgEventQueue` / `DbLeaseBackend` / `PgAudit` (lazy because `getPool()` requires `initPool()` first). Replaced the collapsed `kernel/repositories/{leases,audit-log}.ts`
 - `web-ui/src/app/assembly-lines/[id]/Timeline.tsx` — client component, vertical stage-commit timeline with node-type icons, outcome badges, lease indicator. Polls `/api/assembly-lines/:id/timeline` every 10s while task is in flight
 - `mcp-server/src/github-client.ts` — consolidated GitHub auth (App + token fallback)
 - `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
@@ -142,19 +146,19 @@ read the repo at the posted commit and project via `runIngestGraph`
 env (or `LORE_DGRAPH_HTTP`) is unset. **Doc projection is CI-driven, not a
 pipeline task** (ADR-023): the repo's `lore-ingest.yml` fans out one job per kind
 (`matrix: [specs, adrs]`) that POSTs `ingest-graph`. Test projection is CI-driven
-too — `lore-tests.yml` POSTs `/test-report` + `/coverage`. None of the three
-(specs/adrs/tests) is a pipeline task.
+too — but via the portable **lore-code-trace binary**, not an mcp route. None of the
+three (specs/adrs/tests) is a pipeline task.
 - `POST /api/repos/:o/:r/ingest-graph` — `{kinds[], commit, force?}`. Docs-only:
   `specs`/`adrs` fire the spec-trace trigger per kind (no task); any other kind is
-  rejected `400` (test projection is CI-only via `/test-report` + `/coverage`).
+  rejected `400` (test projection is CI-only via the lore-code-trace binary).
   Scope `write`. `mcp-server/src/api/routes/ingest-graph.ts`.
-- `POST /api/repos/:o/:r/test-report` — `{commit, branch, tests[], results[]}` →
-  `{tests_seen, test_chunks, validated_by, coverage_nodes, covers_edges, violated}`.
-  `mcp-server/src/api/routes/test-report.ts`.
-- `POST /api/repos/:o/:r/coverage` — canonical JSON list `{file,startLine,endLine}[]`
-  (optionally per-test grouped); LCOV (incl. `TN:` per-test attribution) and
-  Cobertura accepted and normalized → `{coverage_nodes, covers_edges, files_covered}`.
-  `mcp-server/src/api/routes/coverage.ts` (`parseLcov`/`parseLcovGroups`/`parseCobertura`).
+- **Test ingest = the Floor `ci-tests` hook** (the old mcp `/test-report` + `/coverage`
+  routes were removed in the cutover). The `lore-code-trace` binary runs the repo's suite
+  in CI and POSTs `{repo, commit, branch, tests[], results[]}` to `POST /api/webhook/ci-tests`
+  on the Floor server (`apps/floor/src/listeners/ci-tests.ts`, bearer `LORE_INGEST_TOKEN`),
+  which emits `internal.ingest.spec_trace` (kind `test-report`) → `ingestTestReport`. The
+  binary parses json / lcov (incl. `TN:`) / cobertura to canonical ranges itself
+  (`apps/lore-code-trace/coverage.go`) — the server never parses coverage.
 
 **MCP tools** (`mcp-server/src/index.ts` → `mcp-server/src/spec-trace-tools.ts`):
 `lore_list_tests` / `lore_run_test` (run the manifest commands in the **caller's local
@@ -163,9 +167,11 @@ formats coverage + validated_by/violated). **Trust boundary**: execution only in
 CI / agent pod); the shared GKE server refuses (`executionRefusal`
 keyed on `LORE_DB_HOST`) and returns a "run in CI / locally" error.
 
-**Local CLI** — `npm run trace:run-tests` (`mcp-server/src/trace-run-tests-cli.ts`):
-loads the manifest, runs the full suite locally via `buildTestReport`, prints
-the `/test-report` body (or `--post`s it to the API).
+**Local + CI orchestrator** — the `lore-code-trace` Go binary (`apps/lore-code-trace`):
+loads the manifest, runs the full suite, and prints the report (or `--post`s it to the
+Floor `ci-tests` ingress). Baked into the mcp image + served at
+`GET /dist/lore-code-trace/<os>-<arch>`; each repo's `lore-tests.yml` downloads + runs it.
+(Replaced the old `npm run trace:run-tests` CLI + `buildTestReport`.)
 
 **Onboarding** — the `onboard` task runs a test-interface check
 (`decideTestInterfaceCheck`): when no manifest is declared it scaffolds a

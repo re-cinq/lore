@@ -18,6 +18,17 @@ const DEFAULT_TTL_SEC = 600;
 
 const tracer: Tracer = trace.getTracer("lore.lease");
 
+/**
+ * A lease the reaper swept because its `expires_at` was past the cutoff.
+ * `expires_at` is widened to tolerate both a pg `Date` and a serialized string.
+ */
+export interface ExpiredLease {
+  branch_name: string;
+  task_id: string;
+  holder: string;
+  expires_at: Date | string;
+}
+
 export interface AcquireResult {
   acquired: boolean;
   /**
@@ -60,6 +71,13 @@ export interface LeaseBackend {
   ): Promise<boolean>;
 
   release(branchName: string, holder: string): Promise<boolean>;
+
+  /**
+   * Janitor sweep: remove every lease whose `expires_at` is before `cutoff`,
+   * returning the swept rows so the caller can audit each takeover. Used by the
+   * lease-reaper (org-wide, no repo in scope).
+   */
+  reapExpired(cutoff: Date): Promise<ExpiredLease[]>;
 }
 
 export class DbLeaseBackend implements LeaseBackend {
@@ -170,6 +188,24 @@ export class DbLeaseBackend implements LeaseBackend {
         const released = (result.rowCount ?? 0) > 0;
         span.setAttribute("outcome", released ? "released" : "not_held");
         return released;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
+    return await tracer.startActiveSpan("lore.lease.reap", async (span) => {
+      span.setAttribute("backend", "db");
+      try {
+        const result = await this.pool.query<ExpiredLease>(
+          `DELETE FROM pipeline.task_leases
+            WHERE expires_at < $1
+          RETURNING branch_name, task_id, holder, expires_at`,
+          [cutoff],
+        );
+        span.setAttribute("reaped_count", result.rows.length);
+        return result.rows;
       } finally {
         span.end();
       }
@@ -308,5 +344,59 @@ export class FileLeaseBackend implements LeaseBackend {
         span.end();
       }
     });
+  }
+
+  async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
+    return await tracer.startActiveSpan("lore.lease.reap", async (span) => {
+      span.setAttribute("backend", "file");
+      try {
+        let entries: string[];
+        try {
+          entries = await fs.readdir(this.leasesDir);
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+          throw err;
+        }
+        const reaped: ExpiredLease[] = [];
+        for (const entry of entries) {
+          const rec = await this.readRecord(decodeURIComponent(entry.replace(/\.json$/, "")));
+          if (!rec || new Date(rec.expires_at).getTime() >= cutoff.getTime()) continue;
+          await fs.unlink(path.join(this.leasesDir, entry));
+          reaped.push({
+            branch_name: rec.branch_name,
+            task_id: rec.task_id,
+            holder: rec.holder,
+            expires_at: rec.expires_at,
+          });
+        }
+        span.setAttribute("reaped_count", reaped.length);
+        return reaped;
+      } finally {
+        span.end();
+      }
+    });
+  }
+}
+
+/** The narrow reap surface the lease-reaper depends on (DbLeaseBackend satisfies it). */
+export interface LeaseReaper {
+  reapExpired(cutoff: Date): Promise<ExpiredLease[]>;
+}
+
+/**
+ * In-memory {@link LeaseReaper}: seeded with leases, removes and returns those
+ * before the cutoff. The double for the lease-reaper job (relocated from the
+ * Floor kernel so it stays a unit with the Db/File reap semantics).
+ */
+export class InMemoryLeaseReaper implements LeaseReaper {
+  constructor(public leases: ExpiredLease[] = []) {}
+
+  async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
+    const isExpired = (lease: ExpiredLease) =>
+      !(lease.expires_at instanceof Date) ||
+      lease.expires_at.getTime() < cutoff.getTime();
+    const expired = this.leases.filter(isExpired);
+    this.leases = this.leases.filter((lease) => !isExpired(lease));
+    return expired;
   }
 }

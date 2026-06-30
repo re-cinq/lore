@@ -8,6 +8,13 @@ seedCatalog: true
 # `agent-events-auth` headers_secret for the Authorization header.
 agentEventsUrl: http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events
 
+# In-cluster egress target for the agent-events sink — must match the host:port in
+# agentEventsUrl above. The run-pod NetworkPolicy denies all RFC1918 egress except
+# this one ClusterIP:port (templates/networkpolicy.yaml).
+floorSink:
+  namespace: lore-floor
+  port: 8080
+
 controller:
   replicas: 2
   image:

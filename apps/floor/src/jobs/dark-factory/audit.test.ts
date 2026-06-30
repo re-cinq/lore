@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { writeAuditLog } from "./audit.js";
-import { InMemoryAuditLogRepository } from "../../kernel/repositories/index.js";
+import { InMemoryAudit } from "@re-cinq/lore-shared/project/audit/audit-memory.js";
 
 describe("writeAuditLog", () => {
   it("inserts the entry into the injected repository", async () => {
-    const repo = new InMemoryAuditLogRepository();
+    const repo = new InMemoryAudit();
     await writeAuditLog(
       {
         event_type: "auto_merge_decision",
@@ -15,7 +15,7 @@ describe("writeAuditLog", () => {
       },
       repo,
     );
-    expect(repo.rows).toEqual([
+    expect(repo.entries).toEqual([
       {
         event_type: "auto_merge_decision",
         task_id: "t1",
@@ -27,15 +27,15 @@ describe("writeAuditLog", () => {
   });
 
   it("accepts an entry that omits the optional fields", async () => {
-    const repo = new InMemoryAuditLogRepository();
+    const repo = new InMemoryAudit();
     await writeAuditLog({ event_type: "lease_expired", payload: { n: 1 } }, repo);
-    expect(repo.rows[0]).toMatchObject({ event_type: "lease_expired", payload: { n: 1 } });
+    expect(repo.entries[0]).toMatchObject({ event_type: "lease_expired", payload: { n: 1 } });
   });
 
   it("accumulates entries in insertion order", async () => {
-    const repo = new InMemoryAuditLogRepository();
+    const repo = new InMemoryAudit();
     await writeAuditLog({ event_type: "a", payload: {} }, repo);
     await writeAuditLog({ event_type: "b", payload: {} }, repo);
-    expect(repo.rows.map((r) => r.event_type)).toEqual(["a", "b"]);
+    expect(repo.entries.map((r) => r.event_type)).toEqual(["a", "b"]);
   });
 });

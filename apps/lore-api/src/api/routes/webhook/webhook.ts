@@ -7,8 +7,9 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { listRepoWebhooks, ensureRepoWebhook } from "../../../features/webhook/webhook-manage.js";
-import { classifyWebhook, REQUIRED_EVENTS } from "../../../features/webhook/webhook-status.js";
+import { listRepoWebhooks } from "../../../features/webhook/webhook-manage.js";
+import { ensureFloorWebhook } from "../../../features/webhook/webhook-ensure.js";
+import { classifyWebhook } from "../../../features/webhook/webhook-status.js";
 import { json, repoFromReposUrl } from "../http.js";
 
 function canonicalUrl(): string {
@@ -42,24 +43,24 @@ export async function handleWebhookEnsure(req: IncomingMessage, res: ServerRespo
     json(res, 400, { error: "could not resolve repo from url" });
     return;
   }
-  const url = canonicalUrl();
-  const secret = process.env.LORE_WEBHOOK_SECRET || "";
-  if (!url) {
-    json(res, 503, { error: "LORE_WEBHOOK_URL not configured" });
-    return;
-  }
-  if (!secret) {
-    json(res, 503, { error: "LORE_WEBHOOK_SECRET not configured" });
-    return;
+  // Shared with onboarding: ensureFloorWebhook reads LORE_WEBHOOK_URL/SECRET +
+  // the canonical events and repoints/creates the hook with the HMAC secret.
+  const result = await ensureFloorWebhook(repo);
+  if (!result.ok) {
+    switch (result.reason) {
+      case "webhook_host_not_configured":
+        return json(res, 503, { error: "LORE_WEBHOOK_URL not configured" });
+      case "secret_not_configured":
+        return json(res, 503, { error: "LORE_WEBHOOK_SECRET not configured" });
+      case "app_no_webhook_permission":
+        return json(res, 403, { error: "GitHub App lacks the Webhooks (read & write) permission" });
+      default:
+        return json(res, 500, { error: result.detail || "webhook ensure failed" });
+    }
   }
   try {
-    await ensureRepoWebhook(repo, url, secret, [...REQUIRED_EVENTS]);
-    json(res, 200, classifyWebhook(await listRepoWebhooks(repo), url));
+    json(res, 200, classifyWebhook(await listRepoWebhooks(repo), canonicalUrl()));
   } catch (err: any) {
-    if (err?.status === 403) {
-      json(res, 403, { error: "GitHub App lacks the Webhooks (read & write) permission" });
-      return;
-    }
     json(res, 500, { error: err?.message || String(err) });
   }
 }

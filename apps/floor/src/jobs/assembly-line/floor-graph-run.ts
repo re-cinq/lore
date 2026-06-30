@@ -86,10 +86,17 @@ export interface FloorGraphRuntime {
   cloneUrl: (repo: string) => Promise<string>;
 }
 
-/** Clone the task's branch into a fresh temp working tree for the stage-commit state. */
-async function checkoutBranch(repo: string, branch: string, cloneUrl: string): Promise<string> {
+/** Clone the task's working tree for the stage-commit state: resume the branch if it
+ *  already exists, otherwise bootstrap it off the default — a task's first run has no
+ *  branch yet, so `clone --branch <missing>` would die with "Remote branch not found". */
+export async function checkoutBranch(repo: string, branch: string, cloneUrl: string): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), `lore-graph-${repo.replace("/", "-")}-`));
-  await execFile("git", ["clone", "--branch", branch, "--single-branch", cloneUrl, dir]);
+  await execFile("git", ["clone", cloneUrl, dir]);
+  try {
+    await execFile("git", ["-C", dir, "checkout", branch]);
+  } catch {
+    await execFile("git", ["-C", dir, "checkout", "-b", branch]);
+  }
   return dir;
 }
 

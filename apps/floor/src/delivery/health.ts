@@ -1,11 +1,14 @@
 import { createServer } from "node:http";
+import { trace } from "@opentelemetry/api";
 import { query, isDbAvailable } from "../kernel/db.js";
-import { parseAgentEvents } from "../jobs/agent/agent-events.js";
+import { parseAgentEvents, agentEventsArchiveKey } from "../jobs/agent/agent-events.js";
+import { archiveAgentEvents } from "../jobs/agent/agent-events-store.js";
 import { handleGitHubWebhook } from "../listeners/github-webhook.js";
 import { handleCiIngestWebhook } from "../listeners/ci-ingest.js";
 import { handleCiTestsWebhook } from "../listeners/ci-tests.js";
 
 const startTime = Date.now();
+const tracer = trace.getTracer("lore.agent_events");
 
 function readBody(req: import("node:http").IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
@@ -61,28 +64,42 @@ export function startHealthServer(
         res.end(JSON.stringify({ error: "unauthorized" }));
         return;
       }
-      try {
-        const rows = parseAgentEvents(await readBody(req));
-        let recorded = 0;
-        for (const row of rows) {
-          try {
-            await query(
-              `INSERT INTO pipeline.llm_calls
-                 (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
-               VALUES ($1, 'agent', $2, $3, $4, $5, $6)`,
-              [row.taskId, row.model, row.inputTokens, row.outputTokens, row.costUsd, row.durationMs],
-            );
-            recorded++;
-          } catch (err: any) {
-            console.warn(`[agent] llm_calls insert skipped for ${row.taskId}: ${err.message}`);
+      await tracer.startActiveSpan("ingest", async (span) => {
+        try {
+          const body = await readBody(req);
+          const rows = parseAgentEvents(body);
+          let recorded = 0;
+          for (const row of rows) {
+            try {
+              await query(
+                `INSERT INTO pipeline.llm_calls
+                   (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
+                 VALUES ($1, 'agent', $2, $3, $4, $5, $6)`,
+                [row.taskId, row.model, row.inputTokens, row.outputTokens, row.costUsd, row.durationMs],
+              );
+              recorded++;
+            } catch (err: any) {
+              console.warn(`[agent] llm_calls insert skipped for ${row.taskId}: ${err.message}`);
+            }
           }
+          span.setAttribute("events", rows.length);
+          span.setAttribute("recorded", recorded);
+          // Archive the raw NDJSON for replay (redacted, dormant until a bucket is set).
+          // Fire-and-forget: a failed archive must never fail cost-row ingestion.
+          void archiveAgentEvents(
+            body,
+            agentEventsArchiveKey(new Date().toISOString(), rows.map((r) => r.taskId)),
+          ).catch((err: any) => console.warn(`[agent] events archive skipped: ${err.message}`));
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "ok", events: rows.length, recorded }));
+        } catch (err: any) {
+          span.recordException(err);
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: err.message }));
+        } finally {
+          span.end();
         }
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", events: rows.length, recorded }));
-      } catch (err: any) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: err.message }));
-      }
+      });
       return;
     }
 

@@ -49,6 +49,11 @@ export default defineConfig({
         // IO render shells like the graph components above. Their pure logic is
         // covered in feature-status.ts + lib/feature-api.ts.
         'src/app/repos/[owner]/[repo]/features/**/*.tsx',
+        // Infinite-scroll pager: an IntersectionObserver + fetch shell (browser
+        // APIs absent in jsdom), like the graph/feature shells above. The query
+        // it pages is covered in events/pagination.ts; the row markup in
+        // EventsView/EventRow tests.
+        'src/app/repos/[owner]/[repo]/events/InfiniteEvents.tsx',
         // Type shapes + constants mirroring the /trace API JSON (no logic).
         'src/lib/spec-graph.ts',
         // Test / type-only files.

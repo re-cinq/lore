@@ -7,6 +7,7 @@
  */
 
 import { createBranch, commitFile, createPR, isGitHubConfigured, getOctokit } from '../../platform/github-client.js';
+import { ensureFloorWebhook, type EnsureFloorWebhookResult } from '../webhook/webhook-ensure.js';
 
 // ── Installation repos ──────────────────────────────────────────────
 
@@ -113,6 +114,9 @@ export interface OnboardResult {
   repo_id: string;
   task_id: string;
   status: string;
+  /** Outcome of pointing the repo's GitHub webhook at the Floor ingress (with
+   *  the HMAC secret). Best-effort — a skip never fails onboarding. */
+  webhook: EnsureFloorWebhookResult;
 }
 
 /**
@@ -146,7 +150,17 @@ export async function onboardRepo(pool: any, fullName: string): Promise<OnboardR
     { repo: fullName },
   );
 
-  return { repo_id: rows[0].id, task_id: result.task_id, status: 'onboarding-agent-spawned' };
+  // Point the repo's GitHub webhook at the Floor ingress WITH the HMAC secret so
+  // events flow once the App is installed — without it, deliveries 401. Best-effort:
+  // a missing secret/host or a lacking App permission is reported, never fatal.
+  const webhook = await ensureFloorWebhook(fullName);
+  if (webhook.ok) {
+    console.log(`[onboard] Webhook ${webhook.created ? 'created' : 'updated'} for ${fullName} (hook ${webhook.hookId})`);
+  } else {
+    console.warn(`[onboard] Webhook not configured for ${fullName}: ${webhook.reason}${webhook.detail ? ` (${webhook.detail})` : ''}`);
+  }
+
+  return { repo_id: rows[0].id, task_id: result.task_id, status: 'onboarding-agent-spawned', webhook };
 }
 
 // ── Fetch repo context for onboarding agents ────────────────────────
