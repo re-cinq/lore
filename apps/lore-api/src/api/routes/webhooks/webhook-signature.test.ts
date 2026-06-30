@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
 import { verifyGitHubSignature } from "./webhook-github.js";
-import { verifySlackSignature } from "../webhook-slack/webhook-slack.js";
+import { verifySlackSignature } from "./webhook-slack.js";
 
 const SECRET = "shhh";
 
