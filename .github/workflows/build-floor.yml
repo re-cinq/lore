@@ -123,9 +123,13 @@ jobs:
           # image tag. --reset-then-reuse-values (helm 3.14+) keeps the other
           # subcharts' tags and the terraform-supplied config intact. No --wait
           # (Autopilot wedges on it — see build-ui.yml); rollout gated below.
+          # Disable the lore-db ownership-reconciler hook: CI's deploy SA can't
+          # manage RBAC in the lore-db namespace, and an image bump never needs to
+          # reconcile DB ownership — that hook runs on the privileged terraform apply.
           helm upgrade --install lore-platform ./infra/terraform/modules/gke-mcp/lore-platform \
             --namespace lore-floor \
             --set lore-floor.image.tag=${{ needs.build.outputs.image_tag }} \
+            --set lore-db-helm.ownershipReconciler.enabled=false \
             --reset-then-reuse-values \
             --cleanup-on-fail
 
