@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { makePool } from "../../test-helpers/http-mock.js";
+import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import {
   syncTasksToDb,
   getReadyTasks,
   claimTask,
   completeTask,
-} from "./tasks.js";
+} from "@re-cinq/lore-server-core/features/pipeline/tasks.js";
 import type { ParsedTask } from "@re-cinq/lore-shared";
 
 function parsed(overrides: Partial<ParsedTask>): ParsedTask {

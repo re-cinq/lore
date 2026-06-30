@@ -2,8 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { redactSecrets as sanitizeContent } from "@re-cinq/lore-shared";
-import { getQueryEmbedding } from "../../platform/db.js";
-import { resolveAgentId } from "../../platform/agent-id.js";
+import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
+import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
 import {
   writeMemory,
   readMemory,
@@ -12,19 +12,19 @@ import {
   isMemoryDbAvailable,
   agentHealth,
   agentStats,
-} from "../../features/memory/memory.js";
+} from "@re-cinq/lore-server-core/features/memory/memory.js";
 import {
   writeMemoryFile,
   readMemoryFile,
   deleteMemoryFile,
   listMemoriesFile,
   searchMemoryFile,
-} from "../../features/memory/memory-file.js";
-import { searchMemories } from "../../features/memory/memory-search.js";
-import { extractFacts, extractFactsFromEpisode } from "../../features/memory/facts.js";
-import { extractAndUpdateGraph, queryLiveGraph } from "../../features/memory/graph.js";
-import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
-import { createGraphLlmCall } from "../../platform/anthropic-client.js";
+} from "@re-cinq/lore-server-core/features/memory/memory-file.js";
+import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
+import { extractFacts, extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
+import { extractAndUpdateGraph, queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
+import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
+import { createGraphLlmCall } from "@re-cinq/lore-server-core/platform/anthropic-client.js";
 import {
   ToolDeps,
   makeTrackLatency,
@@ -35,7 +35,7 @@ import {
   unreachableError,
   deniedError,
 } from "./deps.js";
-import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
+import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
 // Reads whose results a memory/episode write can change. Over-invalidating is
 // safe — it only forces the next read to re-fetch.
@@ -64,7 +64,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           const result = await writeMemory(key, value, agent_id, ttl, embedding || undefined, repo);
           invalidateCache(MEMORY_DERIVED_READS);
           if (extract_facts) {
-            import("../../features/memory/memory.js").then(({ getMemoryPool }) => {
+            import("@re-cinq/lore-server-core/features/memory/memory.js").then(({ getMemoryPool }) => {
               const p = getMemoryPool();
               if (p) {
                 p.query(

@@ -2,7 +2,8 @@
 // Lore test-command interface -- `run`. Runs ONE test file in ITS package's cwd
 // with V8 coverage and prints {passed, covered:[{file,startLine,endLine}]} with
 // repo-relative paths. The selector is a repo-relative path (e.g.
-// `web-ui/src/x.test.tsx`); its first segment is the package vitest runs in.
+// `apps/web-ui/src/x.test.tsx`); its first two segments are the package vitest
+// runs in (the apps/ + libs/ layout makes every package path two segments).
 // coverage_format is json because runTestsRun() JSON.parses stdout locally.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -12,15 +13,16 @@ import { join } from "node:path";
 const ROOT = process.cwd(); // manifest cwd == repo root
 // Covered code we keep: any traceability package's src (a test may cover code in
 // its own package; cross-package src is captured only if vitest reports it).
-const SRC_RE = /^(?:shared|agent|mcp-server|web-ui)\/src\//;
+const SRC_RE = /^(?:libs|apps)\/[^/]+\/src\//;
 
 const id = process.argv[2];
 if (!id) {
   console.error("run-test: missing test id");
   process.exit(2);
 }
-const pkg = id.split("/")[0];
-const fileInPkg = id.slice(pkg.length + 1);
+const segments = id.split("/");
+const pkg = segments.slice(0, 2).join("/");
+const fileInPkg = segments.slice(2).join("/");
 
 const reportDir = mkdtempSync(join(tmpdir(), "lore-trace-cov-"));
 

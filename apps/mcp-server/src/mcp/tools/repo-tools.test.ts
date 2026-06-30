@@ -7,11 +7,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
  * mocked so the "could not detect repo" branch is reachable without a git
  * remote.
  */
-vi.mock("../../features/repo/repo-detect.js", () => ({
+vi.mock("@re-cinq/lore-server-core/features/repo/repo-detect.js", () => ({
   detectCurrentRepo: vi.fn(),
 }));
 
-import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
+import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { registerRepoTools } from "./repo-tools.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{

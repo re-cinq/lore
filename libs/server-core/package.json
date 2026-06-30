@@ -1,0 +1,31 @@
+{
+  "name": "@re-cinq/lore-server-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./*.js": { "types": "./dist/*.d.ts", "default": "./dist/*.js" }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@re-cinq/lore-shared": "*",
+    "@opentelemetry/api": "^1.9.0",
+    "glob": "^11.0.1",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/pg": "^8.20.0",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.2"
+  }
+}

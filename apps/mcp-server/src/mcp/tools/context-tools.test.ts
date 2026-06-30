@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { store } from "../../platform/proxy-cache.js";
+import { store } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
 // The handler captures `CONTEXT_PATH` from the environment at module load,
 // and with no pg pool configured `isDbAvailable()` is false, so lore_search_context

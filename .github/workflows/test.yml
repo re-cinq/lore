@@ -28,11 +28,19 @@ jobs:
           - name: runner
             build: npm run build -w @re-cinq/lore-shared
             test: npm run test:coverage -w @re-cinq/lore-runner
-          # mcp-server and agent import the compiled @re-cinq/lore-shared,
-          # so shared must be built before their suites run.
-          - name: mcp-server
+          # server-core imports compiled @re-cinq/lore-shared, so shared first.
+          - name: server-core
             build: npm run build -w @re-cinq/lore-shared
+            test: npm test -w @re-cinq/lore-server-core
+          # mcp-server (local adapter) and lore-api (remote REST) both import the
+          # compiled @re-cinq/lore-shared + @re-cinq/lore-server-core, so both
+          # libs must be built before their suites run.
+          - name: mcp-server
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core
             test: npm test -w @re-cinq/lore-mcp
+          - name: lore-api
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core
+            test: npm test -w @re-cinq/lore-api
           # agent also imports the compiled @re-cinq/lore-runner kernel, so
           # both shared and runner must be built before its suite runs.
           - name: agent

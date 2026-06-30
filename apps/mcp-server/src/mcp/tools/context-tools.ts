@@ -3,12 +3,12 @@ import { z } from "zod";
 import { readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { globSync } from "glob";
-import { hybridSearch, isDbAvailable } from "../../platform/db.js";
-import { isMemoryDbAvailable } from "../../features/memory/memory.js";
-import { assembleContext } from "../../features/context/context-assembly.js";
-import { resolveCrossRepo } from "../../features/context/cross-repo.js";
-import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
-import { traceRetrieval } from "../../platform/otel.js";
+import { hybridSearch, isDbAvailable } from "@re-cinq/lore-server-core/platform/db.js";
+import { isMemoryDbAvailable } from "@re-cinq/lore-server-core/features/memory/memory.js";
+import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
+import { resolveCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
+import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
+import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
 import { ToolDeps, makeTrackLatency, proxyGetApi, withReadCache, unreachableError, deniedError } from "./deps.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();

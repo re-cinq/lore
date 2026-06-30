@@ -5,19 +5,19 @@ import {
   getTask,
   listTasks,
   cancelTask,
-} from "../../features/pipeline/pipeline.js";
-import { getTaskTypes } from "../../features/pipeline/pipeline-config.js";
+} from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
+import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import {
   parseTasks,
   syncTasksToDb,
   getReadyTasks,
   claimTask,
   completeTask,
-} from "../../features/pipeline/tasks.js";
-import { detectCurrentRepo } from "../../features/repo/repo-detect.js";
-import { resolveAgentId } from "../../platform/agent-id.js";
-import { ToolDeps, withReadCache, unreachableError, deniedError } from "./deps.js";
-import { invalidate as invalidateCache } from "../../platform/proxy-cache.js";
+} from "@re-cinq/lore-server-core/features/pipeline/tasks.js";
+import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
+import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
+import { ToolDeps, withReadCache, unreachableError, deniedError, proxyGetApi } from "./deps.js";
+import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
 function completeOnly(body: string): boolean {
   try {
@@ -55,7 +55,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         const resolvedRepo = target_repo || detectCurrentRepo() || undefined;
 
         // When running locally (no DB), proxy to the GKE MCP server
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
           if (!apiUrl || !apiToken) {
@@ -102,7 +102,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ task_id }) => {
       try {
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
           if (!apiUrl || !apiToken) return { content: [{ type: "text" as const, text: "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access." }] };
@@ -128,10 +128,15 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ repo, pr_number }) => {
       try {
-        const { fetchPrStatus } = await import("../../platform/github-client.js");
-        const result = await fetchPrStatus(repo, pr_number);
-        if (!result) return { content: [{ type: "text" as const, text: "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN." }] };
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+        const params = new URLSearchParams({ repo, pr_number: String(pr_number) });
+        const proxied = await proxyGetApi(`/api/pr-status?${params}`);
+        if (proxied.ok) return { content: [{ type: "text" as const, text: JSON.stringify(JSON.parse(proxied.body), null, 2) }] };
+        if (proxied.reason === "not_configured") return { content: [{ type: "text" as const, text: "PR status requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure." }] };
+        if (proxied.reason === "denied") return deniedError("lore_get_pr_status", proxied.detail);
+        // A read with no local fallback: surface the server's reason (e.g. a 424
+        // "GitHub not configured" config gap, or a real timeout) plainly rather
+        // than the write-oriented "unreachable / refusing local fallback" copy.
+        return { content: [{ type: "text" as const, text: `Could not fetch PR status from the Lore API: ${proxied.detail}` }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
       }
@@ -147,7 +152,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ status, limit }) => {
       try {
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
           if (!apiUrl || !apiToken) return { content: [{ type: "text" as const, text: "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access." }] };
@@ -178,7 +183,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ task_id }) => {
       try {
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
         }
         const result = await cancelTask(task_id);
@@ -197,10 +202,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ task_id }) => {
       try {
-        if (!process.env.LORE_DB_HOST) {
+        if (!getPool()) {
           return { content: [{ type: "text" as const, text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set)." }] };
         }
-        const { retryTask } = await import("../../features/pipeline/pipeline.js");
+        const { retryTask } = await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
         const result = await retryTask(task_id);
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       } catch (err: any) {
@@ -360,50 +365,30 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ task_id, offset }) => {
       try {
-        // Get task to find repo and log_url
-        const task = await getTask(task_id);
-        if (!task) return { content: [{ type: "text" as const, text: `Task not found: ${task_id}` }] };
-        const repo = task.target_repo;
-
-        // Try local proxy first (GCS via API)
-        if (!process.env.LORE_DB_HOST) {
-          const apiUrl = process.env.LORE_API_URL;
-          const apiToken = process.env.LORE_INGEST_TOKEN;
-          if (!apiUrl || !apiToken) {
-            return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
-          }
-          const params = new URLSearchParams({ task_id, repo, offset: String(offset) });
-          const proxied = await withReadCache(
-            { tool: "lore_get_task_logs", args: { task_id, repo, offset }, repo, ttlSeconds: 86400 },
-            async () => {
-              const res = await fetch(`${apiUrl}/api/task-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
-              if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
-              const detail = `HTTP ${res.status} ${res.statusText}`;
-              if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
-              return { ok: false as const, reason: "unreachable" as const, detail };
-            },
-            { label: false, cacheIf: completeOnly },
-          );
-          if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-          if (proxied.reason === "denied") return deniedError("lore_get_task_logs", proxied.detail);
-          if (proxied.reason === "unreachable") return unreachableError("lore_get_task_logs", proxied.detail);
+        // Logs live server-side in GCS; proxy the read. The API resolves the
+        // task's repo from task_id — the local adapter holds no DB to look it up,
+        // so calling getTask() here would throw "Pipeline database not configured".
+        const apiUrl = process.env.LORE_API_URL;
+        const apiToken = process.env.LORE_INGEST_TOKEN;
+        if (!apiUrl || !apiToken) {
           return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
         }
-
-        // Direct GCS read (GKE mode)
-        try {
-          const { Storage } = await import("@google-cloud/storage");
-          const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
-          const file = bucket.file(`${repo}/${task_id}/output.log`);
-          const [exists] = await file.exists();
-          if (!exists) return { content: [{ type: "text" as const, text: JSON.stringify({ logs: "", next_offset: 0, complete: task.status !== 'running' }) }] };
-          const [content] = await file.download();
-          const full = content.toString("utf-8");
-          const sliced = full.substring(offset);
-          return { content: [{ type: "text" as const, text: JSON.stringify({ logs: sliced, next_offset: full.length, complete: task.status !== 'running' }) }] };
-        } catch (err: any) {
-          return { content: [{ type: "text" as const, text: `Error reading logs: ${err.message}` }] };
-        }
+        const params = new URLSearchParams({ task_id, offset: String(offset) });
+        const proxied = await withReadCache(
+          { tool: "lore_get_task_logs", args: { task_id, offset }, ttlSeconds: 86400 },
+          async () => {
+            const res = await fetch(`${apiUrl}/api/task-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
+            if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
+            const detail = `HTTP ${res.status} ${res.statusText}`;
+            if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
+            return { ok: false as const, reason: "unreachable" as const, detail };
+          },
+          { label: false, cacheIf: completeOnly },
+        );
+        if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+        if (proxied.reason === "denied") return deniedError("lore_get_task_logs", proxied.detail);
+        if (proxied.reason === "unreachable") return unreachableError("lore_get_task_logs", proxied.detail);
+        return { content: [{ type: "text" as const, text: "Task logs require LORE_API_URL." }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
       }
@@ -419,39 +404,28 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ job_name, run_id }) => {
       try {
-        // Local-stdio mode → proxy to API
-        if (!process.env.LORE_DB_HOST) {
-          const apiUrl = process.env.LORE_API_URL;
-          const apiToken = process.env.LORE_INGEST_TOKEN;
-          if (!apiUrl || !apiToken) {
-            return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
-          }
-          const params = new URLSearchParams({ job_name, run_id });
-          const proxied = await withReadCache(
-            { tool: "lore_get_job_logs", args: { job_name, run_id }, ttlSeconds: 86400 },
-            async () => {
-              const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
-              if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
-              const detail = `HTTP ${res.status} ${res.statusText}`;
-              if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
-              return { ok: false as const, reason: "unreachable" as const, detail };
-            },
-            { label: false, cacheIf: completeOnly },
-          );
-          if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
-          if (proxied.reason === "denied") return deniedError("lore_get_job_logs", proxied.detail);
-          if (proxied.reason === "unreachable") return unreachableError("lore_get_job_logs", proxied.detail);
+        // Proxy log reads to the remote API (logs live server-side in GCS).
+        const apiUrl = process.env.LORE_API_URL;
+        const apiToken = process.env.LORE_INGEST_TOKEN;
+        if (!apiUrl || !apiToken) {
           return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
         }
-
-        // Direct GCS read (GKE mode)
-        const { Storage } = await import("@google-cloud/storage");
-        const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
-        const file = bucket.file(`__job_runs__/${job_name}/${run_id}/output.log`);
-        const [exists] = await file.exists();
-        if (!exists) return { content: [{ type: "text" as const, text: JSON.stringify({ logs: "", complete: true }) }] };
-        const [content] = await file.download();
-        return { content: [{ type: "text" as const, text: JSON.stringify({ logs: content.toString("utf-8"), complete: true }) }] };
+        const params = new URLSearchParams({ job_name, run_id });
+        const proxied = await withReadCache(
+          { tool: "lore_get_job_logs", args: { job_name, run_id }, ttlSeconds: 86400 },
+          async () => {
+            const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
+            if (res.ok) return { ok: true as const, body: JSON.stringify(await res.json()) };
+            const detail = `HTTP ${res.status} ${res.statusText}`;
+            if (res.status === 401 || res.status === 403) return { ok: false as const, reason: "denied" as const, detail };
+            return { ok: false as const, reason: "unreachable" as const, detail };
+          },
+          { label: false, cacheIf: completeOnly },
+        );
+        if (proxied.ok) return { content: [{ type: "text" as const, text: proxied.body }] };
+        if (proxied.reason === "denied") return deniedError("lore_get_job_logs", proxied.detail);
+        if (proxied.reason === "unreachable") return unreachableError("lore_get_job_logs", proxied.detail);
+        return { content: [{ type: "text" as const, text: "Job-run logs require LORE_API_URL." }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
       }
