@@ -19,7 +19,7 @@ floorSink:
   port: 8080
 
 controller:
-  replicas: 2
+  replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
     # Pinned by digest (never a floating tag) — v0.3.0, resolved via

@@ -62,6 +62,7 @@ resource "helm_release" "lore_platform" {
     # ---- MCP server (mcp-servers namespace) ----
     "lore-mcp" = {
       taskTypesConfig = file("${path.module}/../../scripts/task-types.yaml")
+      replicaCount    = 1
       env = {
         MCP_TRANSPORT    = "http"
         PORT             = "3000"
@@ -91,6 +92,7 @@ resource "helm_release" "lore_platform" {
 
     # ---- Web UI (lore-ui namespace) ----
     "lore-ui" = {
+      replicaCount = 1
       env = {
         LORE_DB_HOST       = "lore-db-rw.lore-db.svc.cluster.local"
         LORE_DB_PORT       = "5432"
@@ -112,8 +114,11 @@ resource "helm_release" "lore_platform" {
       cluster = { name = "lore-db" }
     }
 
-    # ai-agents (ai-agents namespace) uses the subchart defaults (seedCatalog,
-    # controller image digests, floor/mcpServer cross-namespace refs).
+    # ai-agents: 1 controller replica (leader-election still elects the sole pod);
+    # other config (seedCatalog, image digests, cross-ns refs) stays subchart default.
+    "ai-agents" = {
+      controller = { replicas = 1 }
+    }
   })]
 
   depends_on = [
