@@ -126,6 +126,14 @@ make the names tell the truth.
    neither the leanness nor the naming-honesty goal a developer ever sees. A
    later, carefully-staged cutover can do it if desired.
 
+   **Update (2026-06-30):** done as a follow-up once the pre-launch window made
+   the namespace destroy/recreate free of user impact — the remote workload +
+   namespace were renamed `lore-mcp`/`mcp-servers` → `lore-api`/`lore-api`
+   (Helm chart `charts/mcp-helm/` → `charts/lore-api-helm/`; `lore-mcp.tf` had
+   already been folded into the `lore-platform` umbrella). The `mcp` name now
+   lives only on the local adapter (`@re-cinq/lore-mcp`). See branch
+   `infra/rename-lore-api-workload` / spec Phase 8.
+
 4. **Fold the light logic into `@re-cinq/lore-shared`.** Rejected: `lore-shared`
    is pure helpers (commit-trailers, settings types). Mixing server-runtime glue
    in risks pulling runtime concerns into a currently-pure lib. A dedicated

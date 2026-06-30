@@ -50,7 +50,7 @@ idempotent — safe to re-run. Prefix output with `[lore]`. Exit 0 on
 success, 1 on failure.
 
 **Helm charts** for K8s deployments. All five service workloads ship as
-ONE umbrella chart, `lore-platform` (vendoring floor/mcp/ui/lore-db/ai-agents
+ONE umbrella chart, `lore-platform` (vendoring floor/lore-api/ui/lore-db/ai-agents
 subcharts under `charts/`); one `helm_release.lore_platform` deploys them.
 Values files should have sane defaults. No hardcoded secrets — use
 K8s Secrets.
@@ -90,7 +90,7 @@ gcloud auth for local dev.
 - `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every deploy by a `pre-install,pre-upgrade` Helm hook Job (`lore-platform/charts/ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on both deploy paths (CI `helm upgrade` of the umbrella and terraform `helm_release.lore_platform`). The hook now fires on every umbrella upgrade regardless of which service changed; it is idempotent (skip-if-applied) so re-running on a floor/mcp deploy is a no-op. Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
 - `scripts/agent-prompts/` — Lore Agent prompt templates for scheduled jobs (gap detection, spec drift, autoresearch, nightly reindex, etc.); ingested as context, not loaded as runtime code
 - `.claude/skills/` — platform skills (lore-feature, lore-pr, lore-init)
-- `infra/terraform/modules/gke-mcp/lore-platform/` — the single umbrella Helm chart for all five service workloads (floor/mcp/ui/lore-db/ai-agents subcharts under `charts/`); each subchart stamps its own namespace so one release spans them. `infra/terraform/modules/gke-mcp/` also holds the standalone bootstrap root (cluster + node pools)
+- `infra/terraform/modules/gke-mcp/lore-platform/` — the single umbrella Helm chart for all five service workloads (floor/lore-api/ui/lore-db/ai-agents subcharts under `charts/`); each subchart stamps its own namespace so one release spans them. `infra/terraform/modules/gke-mcp/` also holds the standalone bootstrap root (cluster + node pools)
 - `specs/` — speckit artifacts (spec, plan, tasks, research, contracts)
 - `adrs/` — architecture decision records (MADR format)
 - `teams/` — per-team CLAUDE.md files
@@ -313,7 +313,7 @@ migration-added tables exist locally (local dev has no Helm hook).
 Four services on GKE:
 - PostgreSQL + pgvector: `lore-db` namespace
 - Lore Agent: `lore-agent` namespace
-- Lore MCP server: `mcp-servers` namespace
+- Lore API server (remote REST): `lore-api` namespace
 - ai-agent-subsystem (agent-cr controller + Agents): `ai-agents` namespace
 
 All secrets managed by External Secrets Operator (ESO) pulling from
