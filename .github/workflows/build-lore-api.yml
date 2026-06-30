@@ -111,7 +111,7 @@ jobs:
       # holds it) instead of a GitHub concurrency group, which would cancel the
       # middle of 3 simultaneous deploys. See the script header.
       - name: Deploy mcp into the umbrella release
-        run: bash scripts/ci/deploy-lore-platform.sh lore-mcp "${{ needs.build.outputs.image_tag }}" lore-mcp mcp-servers
+        run: bash scripts/ci/deploy-lore-platform.sh lore-mcp "${{ needs.build.outputs.image_tag }}" lore-mcp mcp-servers "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
 
   smoke:
     needs: deploy
