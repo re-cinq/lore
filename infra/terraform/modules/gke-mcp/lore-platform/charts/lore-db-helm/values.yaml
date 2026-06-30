@@ -1,0 +1,40 @@
+# Namespace this subchart's resources are deployed into (umbrella spans namespaces).
+namespace: lore-db
+
+# --------------------------------------------------------------------
+# lore-db-helm — operational add-ons for the CNPG lore-db cluster.
+# --------------------------------------------------------------------
+
+cluster:
+  # CNPG Cluster name (used by label selector to find the primary pod).
+  name: lore-db
+  # Container in the CNPG Pod where psql + the local socket live.
+  container: postgres
+
+ownershipReconciler:
+  # Disable to skip the pre-install/pre-upgrade hook (e.g. for an
+  # offline cluster where you'd run it manually).
+  enabled: true
+  # Image that ships kubectl. Pinned for reproducibility — bump
+  # deliberately; the hook is on the critical deploy path.
+  # Note: bitnami/kubectl tags <1.31.6 were removed from Docker Hub
+  # in late 2024 ("Bitnami Legacy" reshuffle), so we use the
+  # alpine/k8s image which is maintained and stable on Docker Hub.
+  image: alpine/k8s:1.31.6
+  # Schemas whose ownership the reconciler should hand to `lore`. Keep
+  # this list narrow — every entry runs ALTER SCHEMA + ALTER on every
+  # relation in it as `postgres`. `pipeline` is the original case
+  # (job_runs.log_path migration); add new entries when introducing a
+  # ui-helm/migrations/ file that DDLs another postgres-owned schema.
+  schemas:
+    - pipeline
+  # Role that should own the schemas after reconciliation. The
+  # ui-helm migration runner connects as this role.
+  targetRole: lore
+  resources:
+    requests:
+      cpu: "50m"
+      memory: 64Mi
+    limits:
+      cpu: "200m"
+      memory: 128Mi

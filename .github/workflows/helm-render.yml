@@ -6,7 +6,7 @@ name: Helm render
 on:
   pull_request:
     paths:
-      - 'infra/terraform/modules/gke-mcp/ai-agents-helm/**'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/**'
       - 'scripts/check-ai-agents-render.sh'
       - '.github/workflows/helm-render.yml'
   workflow_dispatch:

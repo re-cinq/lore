@@ -16,6 +16,8 @@ const MIGRATIONS_DIR = join(
   "terraform",
   "modules",
   "gke-mcp",
+  "lore-platform",
+  "charts",
   "ui-helm",
   "migrations",
 );

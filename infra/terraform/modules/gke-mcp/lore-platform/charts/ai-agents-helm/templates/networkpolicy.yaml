@@ -1,0 +1,58 @@
+# Run pods get egress only: DNS to the in-cluster resolver, outbound HTTPS to the
+# public internet (model provider, git forges, the public Lore API LB, registries),
+# and the in-cluster Floor telemetry sink (agent-events) on its ClusterIP — but NOT
+# the rest of the cluster-internal network or the cloud metadata endpoint. All ingress
+# is denied. Self-hydration goes over the public LB (ADR-031 D7).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-job-egress
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      agents.re-cinq.com/component: job
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    # DNS only to the in-cluster resolver (CoreDNS/kube-dns).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # HTTPS to the public internet, excluding RFC1918 + link-local (169.254.0.0/16
+    # covers the metadata endpoint) — blocks SSRF to internal services + metadata theft.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    # The agent-events telemetry sink (ADR-031 D8) runs on the in-cluster Floor over
+    # plain HTTP — the broad HTTPS rule above excludes RFC1918, so allow this one
+    # ClusterIP:port explicitly. Host/port must match agentEventsUrl.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.floorSink.namespace }}
+          podSelector:
+            matchLabels:
+              app: lore-floor
+      ports:
+        - protocol: TCP
+          port: {{ .Values.floorSink.port }}
