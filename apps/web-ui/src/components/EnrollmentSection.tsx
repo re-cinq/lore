@@ -1,6 +1,7 @@
 import { type Check, type CheckStatus, passSummary } from '@/lib/enrollment';
 import HelpPopover from './HelpPopover';
 import CopyButton from './CopyButton';
+import SecretReveal from './SecretReveal';
 import ReonboardButton from './ReonboardButton';
 import SetupWebhookButton from './SetupWebhookButton';
 import Icon from './Icon';
@@ -50,6 +51,7 @@ function CheckRow({
           <CopyButton text={check.copy.value} />
         </span>
       )}
+      {check.secret && <SecretReveal value={check.secret.value} label={check.secret.label} />}
     </div>
   );
 }
