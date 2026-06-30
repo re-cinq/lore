@@ -14,7 +14,7 @@ on:
       # Chart or workflow changes need a redeploy too — without this,
       # a chart-only PR merges to main and nothing redeploys, leaving
       # the cluster on old code forever (rediscovered 2026-04-29).
-      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/mcp-helm/**'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/lore-api-helm/**'
       - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
       - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
       - '.github/workflows/build-lore-api.yml'
@@ -23,7 +23,7 @@ on:
       - 'apps/lore-api/**'
       - 'libs/shared/**'
       - 'libs/server-core/**'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/mcp-helm/**'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/lore-api-helm/**'
       - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
       - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
       - '.github/workflows/build-lore-api.yml'
@@ -110,8 +110,8 @@ jobs:
       # Serialize on Helm's release lock (retry while another service's deploy
       # holds it) instead of a GitHub concurrency group, which would cancel the
       # middle of 3 simultaneous deploys. See the script header.
-      - name: Deploy mcp into the umbrella release
-        run: bash scripts/ci/deploy-lore-platform.sh lore-mcp "${{ needs.build.outputs.image_tag }}" lore-mcp mcp-servers "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+      - name: Deploy lore-api into the umbrella release
+        run: bash scripts/ci/deploy-lore-platform.sh lore-api "${{ needs.build.outputs.image_tag }}" lore-api lore-api "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
 
   smoke:
     needs: deploy

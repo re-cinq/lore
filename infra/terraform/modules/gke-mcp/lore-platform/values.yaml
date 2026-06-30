@@ -14,8 +14,8 @@
 lore-floor:
   namespace: lore-floor
 
-lore-mcp:
-  namespace: mcp-servers
+lore-api:
+  namespace: lore-api
 
 lore-ui:
   namespace: lore-ui

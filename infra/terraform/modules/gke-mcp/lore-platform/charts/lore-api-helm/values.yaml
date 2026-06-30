@@ -1,9 +1,9 @@
 # Namespace this subchart's resources are deployed into (umbrella spans namespaces).
-namespace: mcp-servers
+namespace: lore-api
 
 replicaCount: 1
 
-# PodDisruptionBudget keeps at least one mcp-server pod available during
+# PodDisruptionBudget keeps at least one lore-api pod available during
 # Autopilot node consolidation. Without this, scale-down evictions
 # briefly take the API offline and local MCP clients silently fall
 # back to file mode (writes never reach Postgres).
@@ -43,12 +43,12 @@ env:
   # Shared Dgraph endpoint (memory + spec-trace graphs). Empty → /impact + graph
   # reads fail soft. Overridden by terraform set to the in-cluster service DNS.
   LORE_DGRAPH_HTTP: ""
-  # Internal cluster URL for the lore-floor health server. mcp-server
+  # Internal cluster URL for the lore-floor health server. lore-api
   # uses this to POST /api/trigger/review-reactor on GitHub webhooks.
   LORE_AGENT_URL: http://lore-floor.lore-floor.svc.cluster.local:8080
 
 dbPasswordSecret:
-  name: lore-mcp-db-password
+  name: lore-api-db-password
   key: password
 
 ingestTokenSecret:
@@ -56,7 +56,7 @@ ingestTokenSecret:
   key: token
 
 configMap:
-  name: lore-mcp-config
+  name: lore-api-config
 
 githubAppSecret:
   name: github-app-credentials

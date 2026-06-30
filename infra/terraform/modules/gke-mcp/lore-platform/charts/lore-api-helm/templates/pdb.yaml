@@ -11,10 +11,10 @@ metadata:
   name: {{ .Chart.Name }}
   namespace: {{ .Values.namespace }}
   labels:
-    app: lore-mcp
+    app: lore-api
 spec:
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable | default 1 }}
   selector:
     matchLabels:
-      app: lore-mcp
+      app: lore-api
 {{- end }}
