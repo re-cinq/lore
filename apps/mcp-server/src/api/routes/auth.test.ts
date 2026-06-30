@@ -33,6 +33,11 @@ describe("getRequiredScope", () => {
     expect(getRequiredScope("/api/repos/o/r/agent-definitions/general", "DELETE")).toBe("admin");
   });
 
+  it("gates the webhook secret behind admin while status stays read", () => {
+    expect(getRequiredScope("/api/repos/o/r/webhook/secret", "GET")).toBe("admin");
+    expect(getRequiredScope("/api/repos/o/r/webhook", "GET")).toBe("read");
+  });
+
   it("returns read for an unmapped route", () => {
     expect(getRequiredScope("/api/unknown/path")).toBe("read");
   });

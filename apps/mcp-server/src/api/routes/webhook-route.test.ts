@@ -95,3 +95,31 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
     expect(res.json).toMatchObject({ state: "configured" });
   });
 });
+
+describe("GET /api/repos/:o/:r/webhook/secret", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.clearAllMocks();
+  });
+
+  it("returns the HMAC secret + canonical URL for an admin caller", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    process.env.LORE_WEBHOOK_SECRET = "s3cr3t";
+    const res = makeRes();
+    await handleApiRoute(makeReq({ url: "/api/repos/o/r/webhook/secret", method: "GET", headers: AUTH }), res, makePool() as any);
+    expect(res.statusCode).toBe(200);
+    expect(res.json).toMatchObject({ secret: "s3cr3t", canonicalUrl: URL });
+  });
+
+  it("returns 503 when the secret is not configured", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    delete process.env.LORE_WEBHOOK_SECRET;
+    const res = makeRes();
+    await handleApiRoute(makeReq({ url: "/api/repos/o/r/webhook/secret", method: "GET", headers: AUTH }), res, makePool() as any);
+    expect(res.statusCode).toBe(503);
+  });
+});

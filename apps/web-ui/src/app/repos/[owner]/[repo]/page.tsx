@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne, getRepoSchema } from '@/lib/db';
 import { getReadme, checkRepoFiles } from '@/lib/github';
-import { getWebhookStatus } from '@/lib/webhook-api';
+import { getWebhookStatus, getWebhookSecret } from '@/lib/webhook-api';
 import { computeEnrollmentChecks } from '@/lib/enrollment';
 import { reonboard, setupWebhook } from './actions';
 import RepoOverviewView, { type RecentTask } from './RepoOverviewView';
@@ -62,6 +62,13 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
     () => ({ 'AGENTS.md': null, '.github/workflows/lore-ingest.yml': null }),
   );
   const webhook = await getWebhookStatus(fullName).catch(() => null);
+  // The hook needs setting up by hand → reveal the signing secret so it can be
+  // pasted into GitHub alongside the URL. Fetched (admin-scoped) only in this
+  // case, so the secret never reaches the client for an already-wired repo.
+  const webhookWithSecret =
+    webhook && webhook.state !== 'configured'
+      ? { ...webhook, secret: (await getWebhookSecret(fullName).catch(() => null)) ?? undefined }
+      : webhook;
 
   const enrollmentChecks = computeEnrollmentChecks({
     onboarded: !!repoInfo,
@@ -73,7 +80,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
     hasConventions: conventionRows.length > 0,
     team: repoInfo?.team ?? null,
     githubFiles,
-    webhook,
+    webhook: webhookWithSecret,
     localMcp,
     now: Date.now(),
   });
