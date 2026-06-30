@@ -24,7 +24,6 @@ import { handleTaskByPr } from "./tasks/task-by-pr.js";
 import { handleMemory } from "./memory/memory.js";
 import { handleEpisode } from "./memory/episode.js";
 import { handleSessionSummary } from "./memory/session-summary.js";
-import { handleGitHubWebhook } from "./webhooks/webhook-github.js";
 import { handleSlackWebhook } from "./webhooks/webhook-slack.js";
 import { handleIncidentWebhook } from "./webhooks/webhook-incident.js";
 import { handleTaskLogs, handleGetTaskLogs } from "./tasks/task-logs.js";
@@ -35,7 +34,7 @@ import { handleDarkFactorySettingsRoute } from "./dark-factory/dark-factory.js";
 import { handleAgentsRoute } from "./agent-definitions/agents.js";
 import { handleImpactRoute } from "./impact/impact.js";
 import { handleIngestGraphRoute } from "./ingest/ingest-graph.js";
-import { handleWebhookStatus, handleWebhookEnsure } from "./webhooks/webhook.js";
+import { handleWebhookStatus, handleWebhookEnsure, handleWebhookSecret } from "./webhooks/webhook.js";
 import { handleDistRoute } from "./dist/dist.js";
 import { handleTraceRoute } from "./trace/trace.js";
 import { handleGlobalTraceSpecs } from "./trace/trace-specs.js";
@@ -81,7 +80,6 @@ const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/memory", "POST"), handle: handleMemory },
   { match: exact("/api/episode", "POST"), handle: handleEpisode },
   { match: exact("/api/session-summary", "POST"), handle: handleSessionSummary },
-  { match: exact("/api/webhook/github", "POST"), handle: handleGitHubWebhook },
   { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
   { match: exact("/api/task-logs", "POST"), handle: (req, res) => handleTaskLogs(req, res) },
   { match: prefix("/api/task-logs", "GET"), handle: (req, res, pool) => handleGetTaskLogs(req, res, pool) },
@@ -94,6 +92,7 @@ const API_ROUTES: ApiRoute[] = [
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$)/, "POST"), handle: handleIngestGraphRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook\/ensure(\?|$)/, "POST"), handle: handleWebhookEnsure },
+  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook\/secret(\?|$)/, "GET"), handle: handleWebhookSecret },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook(\?|$)/, "GET"), handle: handleWebhookStatus },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/trace\//, "GET"), handle: handleTraceRoute },
   { match: pattern(/^\/api\/trace\/specs(\?|$)/, "GET"), handle: handleGlobalTraceSpecs },

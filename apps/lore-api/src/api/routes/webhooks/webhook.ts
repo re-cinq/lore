@@ -37,6 +37,26 @@ export async function handleWebhookStatus(req: IncomingMessage, res: ServerRespo
   }
 }
 
+/**
+ * `GET .../webhook/secret` — reveal the HMAC signing secret so an operator can
+ * set a repo's webhook BY HAND (the App can't always manage it). Admin scope —
+ * the secret is shared across all hooks, so it must not ride the read-scope
+ * status response. 503 when no secret is configured.
+ */
+export async function handleWebhookSecret(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const repo = repoFromReposUrl(req.url);
+  if (!repo) {
+    json(res, 400, { error: "could not resolve repo from url" });
+    return;
+  }
+  const secret = process.env.LORE_WEBHOOK_SECRET || "";
+  if (!secret) {
+    json(res, 503, { error: "LORE_WEBHOOK_SECRET not configured" });
+    return;
+  }
+  json(res, 200, { secret, canonicalUrl: canonicalUrl() });
+}
+
 export async function handleWebhookEnsure(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const repo = repoFromReposUrl(req.url);
   if (!repo) {
