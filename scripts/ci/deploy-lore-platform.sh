@@ -18,8 +18,18 @@ SUBCHART="${1:?subchart values key, e.g. lore-floor}"
 TAG="${2:?image tag}"
 DEPLOY="${3:?deployment name for rollout status}"
 NS="${4:?namespace of that deployment}"
+IMAGE_REPO="${5:-}" # optional: pin image.repository too
 
 CHART="infra/terraform/modules/gke-mcp/lore-platform"
+
+# Pin the repository we just built, not only the tag. --reset-then-reuse-values
+# reuses the prior release's values on top of the new chart default, so after a
+# package rename (lore-mcp -> lore-api) the old repository lingers and new tags
+# 404 against the dead package. An explicit --set overrides that stale value.
+repo_set=()
+if [ -n "$IMAGE_REPO" ]; then
+  repo_set+=(--set "${SUBCHART}.image.repository=${IMAGE_REPO}")
+fi
 HOME_NS="lore-floor" # the umbrella release record lives here
 STALE_SECS=300       # a pending revision older than this is from a dead run, not an active deploy
 ATTEMPTS=12
@@ -55,6 +65,7 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
   if helm upgrade --install lore-platform "$CHART" \
       --namespace "$HOME_NS" \
       --set "${SUBCHART}.image.tag=${TAG}" \
+      "${repo_set[@]}" \
       --set lore-db-helm.ownershipReconciler.enabled=false \
       --reset-then-reuse-values \
       --cleanup-on-fail 2>"$ERRLOG"; then
