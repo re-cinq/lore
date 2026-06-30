@@ -176,6 +176,17 @@ describe('computeEnrollmentChecks', () => {
       .toBeUndefined();
   });
 
+  it('webhook surfaces the signing secret next to the URL for manual setup', () => {
+    const c = byId(computeEnrollmentChecks(input({ webhook: { state: 'missing', canonicalUrl: HOOK_URL, secret: 'whsec_x' } })), 'webhook');
+    expect(c.copy).toEqual({ value: HOOK_URL, label: 'set this URL' });
+    expect(c.secret).toEqual({ value: 'whsec_x', label: 'and this secret' });
+  });
+
+  it('webhook omits the secret when already configured (not fetched)', () => {
+    expect(byId(computeEnrollmentChecks(input({ webhook: { state: 'configured', canonicalUrl: HOOK_URL, secret: 'whsec_x' } })), 'webhook').secret)
+      .toBeUndefined();
+  });
+
   it('passSummary counts passing over total', () => {
     expect(passSummary(computeEnrollmentChecks(input()))).toEqual({ passed: 8, total: 8 });
   });

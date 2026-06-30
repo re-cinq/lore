@@ -11,6 +11,8 @@ export interface Check {
   action?: { kind: 'reonboard'; text: string } | { kind: 'setup-webhook'; text: string };
   /** A value to display verbatim with a copy button (e.g. the webhook URL to set by hand). */
   copy?: { value: string; label?: string };
+  /** A sensitive value (the webhook signing secret) — rendered masked with reveal + copy. */
+  secret?: { value: string; label?: string };
 }
 
 /** The repo's GitHub-webhook status, as classified by mcp-server (null = not fetched). */
@@ -21,6 +23,8 @@ export interface WebhookCheck {
   url?: string | null;
   lastCode?: number | null;
   reason?: string;
+  /** The HMAC signing secret — present only when fetched for manual setup. */
+  secret?: string;
 }
 
 export interface EnrollmentInput {
@@ -145,7 +149,11 @@ export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
     if (m.fixable) check.action = { kind: 'setup-webhook', text: 'set up' };
     // Show the URL to set by hand whenever it's known and not already in place —
     // covers manual setup and the App-lacks-permission case where the button can't help.
-    if (w.canonicalUrl && w.state !== 'configured') check.copy = { value: w.canonicalUrl, label: 'set this URL' };
+    // The signing secret rides alongside (fetched only in this not-configured case).
+    if (w.canonicalUrl && w.state !== 'configured') {
+      check.copy = { value: w.canonicalUrl, label: 'set this URL' };
+      if (w.secret) check.secret = { value: w.secret, label: 'and this secret' };
+    }
     checks.push(check);
   }
 
