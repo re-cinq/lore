@@ -60,8 +60,20 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
       --cleanup-on-fail 2>"$ERRLOG"; then
     cat "$ERRLOG" >&2 || true # surface any helm warnings
     echo "[lore] ${SUBCHART} deployed at ${TAG}; waiting for rollout"
-    kubectl rollout status "deployment/${DEPLOY}" -n "$NS" --timeout=5m
-    exit 0
+    if kubectl rollout status "deployment/${DEPLOY}" -n "$NS" --timeout=5m; then
+      exit 0
+    fi
+    echo "[lore] rollout FAILED for deployment/${DEPLOY} in ${NS} — dumping diagnostics"
+    kubectl -n "$NS" get pods -l "app=${DEPLOY}" -o wide || true
+    echo "----- describe pod -----"
+    kubectl -n "$NS" describe pod -l "app=${DEPLOY}" || true
+    echo "----- current logs -----"
+    kubectl -n "$NS" logs -l "app=${DEPLOY}" --all-containers --tail=150 --prefix || true
+    echo "----- previous logs (last crash, if any) -----"
+    kubectl -n "$NS" logs -l "app=${DEPLOY}" --all-containers --previous --tail=150 --prefix || true
+    echo "----- recent namespace events -----"
+    kubectl -n "$NS" get events --sort-by=.lastTimestamp | tail -60 || true
+    exit 1
   fi
   cat "$ERRLOG" >&2 # surface the failure in the CI log
   if grep -qiE 'another operation \(.*\) is in progress' "$ERRLOG"; then
