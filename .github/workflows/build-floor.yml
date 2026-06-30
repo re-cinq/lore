@@ -73,12 +73,6 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # All three service deploys upgrade the SAME umbrella release; serialize them
-    # across workflows so two helm upgrades never collide ("another operation in
-    # progress"). cancel-in-progress: false → queue, never drop a deploy.
-    concurrency:
-      group: helm-lore-platform-deploy
-      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -102,39 +96,11 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
 
-      - name: Recover wedged release
-        run: |
-          # An interrupted prior deploy can strand the umbrella release in a
-          # pending-* state that blocks the next upgrade ("another operation in
-          # progress"). Clear the stranded revision record (in the lore-floor
-          # home namespace) so the upgrade reconciles forward — live workloads
-          # are left untouched.
-          status=$(helm status lore-platform -n lore-floor -o json 2>/dev/null | jq -r '.info.status' || echo none)
-          echo "[lore] current release status: ${status}"
-          case "$status" in
-            pending-*)
-              echo "[lore] release wedged in ${status}; deleting stranded revision record."
-              kubectl delete secret -n lore-floor -l "owner=helm,name=lore-platform,status=${status}" ;;
-          esac
-
-      - name: Helm upgrade (floor subchart of the umbrella release)
-        run: |
-          # ONE umbrella release for the whole platform; bump ONLY this service's
-          # image tag. --reset-then-reuse-values (helm 3.14+) keeps the other
-          # subcharts' tags and the terraform-supplied config intact. No --wait
-          # (Autopilot wedges on it — see build-ui.yml); rollout gated below.
-          # Disable the lore-db ownership-reconciler hook: CI's deploy SA can't
-          # manage RBAC in the lore-db namespace, and an image bump never needs to
-          # reconcile DB ownership — that hook runs on the privileged terraform apply.
-          helm upgrade --install lore-platform ./infra/terraform/modules/gke-mcp/lore-platform \
-            --namespace lore-floor \
-            --set lore-floor.image.tag=${{ needs.build.outputs.image_tag }} \
-            --set lore-db-helm.ownershipReconciler.enabled=false \
-            --reset-then-reuse-values \
-            --cleanup-on-fail
-
-      - name: Wait for rollout
-        run: kubectl rollout status deployment/lore-floor -n lore-floor --timeout=5m
+      # Serialize on Helm's release lock (retry while another service's deploy
+      # holds it) instead of a GitHub concurrency group, which would cancel the
+      # middle of 3 simultaneous deploys. See the script header.
+      - name: Deploy floor into the umbrella release
+        run: bash scripts/ci/deploy-lore-platform.sh lore-floor "${{ needs.build.outputs.image_tag }}" lore-floor lore-floor
 
   smoke:
     needs: deploy
