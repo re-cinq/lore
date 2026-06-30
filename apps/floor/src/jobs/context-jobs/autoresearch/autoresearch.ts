@@ -3,7 +3,7 @@ import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
-import { query } from "../../../kernel/db.js";
+import { research, evalRuns, taskStore, settings } from "../../../kernel/queues.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../composition/project-boot.js";
 
@@ -198,11 +198,14 @@ async function processCluster(cluster: Cluster): Promise<"pr" | "task" | "skip">
       );
 
       // Log attempt to DB
-      await query(
-        `INSERT INTO pipeline.research_attempts (cluster_id, namespace, approach, content, eval_score, delta)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [cluster.key, cluster.namespace, approach, content, evalScore, delta],
-      );
+      await research().recordAttempt({
+        clusterId: cluster.key,
+        namespace: cluster.namespace,
+        approach,
+        content,
+        evalScore,
+        delta,
+      });
     } catch (err) {
       console.error(`[job] autoresearch: candidate generation failed for ${approach}:`, err);
     }
@@ -219,24 +222,21 @@ async function processCluster(cluster: Cluster): Promise<"pr" | "task" | "skip">
     return "pr";
   } else {
     // Create pipeline task for manual review
-    await query(
-      `INSERT INTO pipeline.tasks (description, task_type, status, target_repo, context_bundle)
-       VALUES ($1, 'gap-fill', 'pending', $2, $3)
-       ON CONFLICT DO NOTHING`,
-      [
-        `Autoresearch: manual review needed for "${cluster.key}" (best delta: ${(best.delta * 100).toFixed(1)}%)`,
-        cluster.namespace,
-        JSON.stringify({
-          cluster_key: cluster.key,
-          sample_queries: cluster.queries.slice(0, 5),
-          candidates: candidates.map((c) => ({
-            approach: c.approach,
-            delta: c.delta,
-            evalScore: c.evalScore,
-          })),
-        }),
-      ],
-    );
+    await taskStore().create({
+      description: `Autoresearch: manual review needed for "${cluster.key}" (best delta: ${(best.delta * 100).toFixed(1)}%)`,
+      taskType: "gap-fill",
+      targetRepo: cluster.namespace,
+      createdBy: "autoresearch",
+      contextBundle: {
+        cluster_key: cluster.key,
+        sample_queries: cluster.queries.slice(0, 5),
+        candidates: candidates.map((c) => ({
+          approach: c.approach,
+          delta: c.delta,
+          evalScore: c.evalScore,
+        })),
+      },
+    });
     return "task";
   }
 }
@@ -319,13 +319,7 @@ async function evaluateCandidate(
 }
 
 async function getBaselineScore(namespace: string): Promise<number> {
-  const rows = await query<{ pass_rate: number }>(
-    `SELECT pass_rate FROM pipeline.eval_runs
-     WHERE team = $1
-     ORDER BY run_at DESC
-     LIMIT 1`,
-    [namespace],
-  );
+  const rows = await evalRuns().recent(namespace, 1);
   return rows[0]?.pass_rate || 0;
 }
 
@@ -342,17 +336,12 @@ async function openResearchPR(
   const baseScore = await getBaselineScore(cluster.namespace);
 
   // Find target repo for this namespace
-  const repos = await query<{ full_name: string }>(
-    `SELECT full_name FROM lore.repos WHERE team = $1 LIMIT 1`,
-    [cluster.namespace],
-  );
+  const targetRepo = await settings().repoForTeam(cluster.namespace);
 
-  if (repos.length === 0) {
+  if (targetRepo === null) {
     console.error(`[job] autoresearch: no repo found for namespace ${cluster.namespace}`);
     return;
   }
-
-  const targetRepo = repos[0].full_name;
   const filePath = `context/${cluster.namespace}/${topicSlug}.md`;
 
   const alternatives = allCandidates

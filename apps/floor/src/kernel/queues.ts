@@ -11,22 +11,53 @@
 import { getPool } from "./db.js";
 import { PgEventQueue } from "@re-cinq/lore-shared/project/events/event-queue-pg.js";
 import { PgTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-pg.js";
+import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import {
   DbLeaseBackend,
   type LeasePool,
 } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 import { PgAudit } from "@re-cinq/lore-shared/project/audit/audit-pg.js";
+import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
+import { PgJobRuns } from "@re-cinq/lore-shared/project/job-runs/job-runs-pg.js";
+import { PgEvalRuns } from "@re-cinq/lore-shared/project/evals/evals-pg.js";
+import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
+import { PgContextCore } from "@re-cinq/lore-shared/project/context-core/context-core-pg.js";
+import { PgResearch } from "@re-cinq/lore-shared/project/research/research-pg.js";
+import { PgBaseline } from "@re-cinq/lore-shared/project/baseline/baseline-pg.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
+import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
+import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
 
 let eventQueueSingleton: PgEventQueue | undefined;
 let taskQueueSingleton: PgTaskQueue | undefined;
+let taskStoreSingleton: PgTaskStore | undefined;
 let leaseBackendSingleton: DbLeaseBackend | undefined;
 let auditLogSingleton: PgAudit | undefined;
+let usageSingleton: PgUsage | undefined;
+let jobRunsSingleton: PgJobRuns | undefined;
+let evalRunsSingleton: PgEvalRuns | undefined;
+let costSingleton: PgCost | undefined;
+let contextCoreSingleton: PgContextCore | undefined;
+let researchSingleton: PgResearch | undefined;
+let baselineSingleton: PgBaseline | undefined;
+let settingsSingleton: PgSettings | undefined;
+let chunksSingleton: PgChunks | undefined;
+let memoryLifecycleSingleton: PgMemoryLifecycle | undefined;
 
 export const eventQueue = (): PgEventQueue =>
   (eventQueueSingleton ??= new PgEventQueue(getPool()));
 
 export const taskQueue = (): PgTaskQueue =>
   (taskQueueSingleton ??= new PgTaskQueue(getPool()));
+
+/**
+ * Repo-agnostic task *record* surface (create / by-id reads + status writes /
+ * event recording), bound to the pool. The cross-repo cron jobs reach
+ * `pipeline.tasks` records through this instead of inline SQL; a job that holds
+ * a Project uses `project.tasks` instead.
+ */
+export const taskStore = (): PgTaskStore =>
+  (taskStoreSingleton ??= new PgTaskStore(getPool()));
 
 /** The cluster lease backend (its reap side feeds the lease-reaper). */
 export const leaseBackend = (): DbLeaseBackend =>
@@ -36,3 +67,51 @@ export const leaseBackend = (): DbLeaseBackend =>
 /** Append-only audit writer, repo-agnostic (used where no Project is in scope). */
 export const auditLog = (): PgAudit =>
   (auditLogSingleton ??= new PgAudit(getPool()));
+
+/** LLM-call accounting, repo-agnostic (the agent-events telemetry sink + health). */
+export const usage = (): PgUsage =>
+  (usageSingleton ??= new PgUsage(getPool()));
+
+/** Scheduled-job run ledger (pipeline.job_runs), bound by the scheduler. */
+export const jobRuns = (): PgJobRuns =>
+  (jobRunsSingleton ??= new PgJobRuns(getPool()));
+
+/** Eval-run results (pipeline.eval_runs), written by the eval-runner cron. */
+export const evalRuns = (): PgEvalRuns =>
+  (evalRunsSingleton ??= new PgEvalRuns(getPool()));
+
+/** Daily Anthropic cost rollup (pipeline.anthropic_cost_daily). */
+export const cost = (): PgCost =>
+  (costSingleton ??= new PgCost(getPool()));
+
+/** Context-core promotion history (pipeline.context_core_history). */
+export const contextCore = (): PgContextCore =>
+  (contextCoreSingleton ??= new PgContextCore(getPool()));
+
+/** Autoresearch attempt log (pipeline.research_attempts). */
+export const research = (): PgResearch =>
+  (researchSingleton ??= new PgResearch(getPool()));
+
+/** Dark-factory pre-feature baseline snapshots + stats (pipeline.dark_factory_baseline). */
+export const baseline = (): PgBaseline =>
+  (baselineSingleton ??= new PgBaseline(getPool()));
+
+/**
+ * Org-wide lore.repos record reads/writes (settings JSONB, team, onboarded set,
+ * ingest stamp). Read-only binding — repo var/secret writes go through a
+ * repo-scoped `project.settings` (which carries the GitHub writer).
+ */
+export const settings = (): PgSettings =>
+  (settingsSingleton ??= new PgSettings(getPool()));
+
+/** Vector-store chunk ops (schema-per-team {schema}.chunks + org_shared.chunks). */
+export const chunks = (): PgChunks =>
+  (chunksSingleton ??= new PgChunks(getPool()));
+
+/**
+ * Floor-side memory.* lifecycle (decay/eviction/consolidation, PR-outcome
+ * feedback, episode + memory writes). Distinct from the agent-facing memory
+ * tools — this is the cron/job write surface.
+ */
+export const memoryLifecycle = (): PgMemoryLifecycle =>
+  (memoryLifecycleSingleton ??= new PgMemoryLifecycle(getPool()));

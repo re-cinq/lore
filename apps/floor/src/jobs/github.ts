@@ -6,8 +6,9 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { createPipelineTask, parseTasks, inferPhaseDependencies, syncTasksToDb } from "@re-cinq/lore-shared";
-import { getPool, query } from "../kernel/db.js";
+import { parseTasks, inferPhaseDependencies, syncTasksToDb } from "@re-cinq/lore-shared";
+import { getPool } from "../kernel/db.js";
+import { settings, taskStore, taskQueue } from "../kernel/queues.js";
 import { GitHubPlatform } from "./platform/github.js";
 import { runReviewReactorForPR } from "./review/review-reactor.js";
 import { tryAutoMergeForCompletedTask } from "./merge/auto-merge-trigger.js";
@@ -15,11 +16,7 @@ import type { EventHandler } from "../main-loop/types.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */
 async function autoMergeForPR(repo: string, prNumber: number): Promise<void> {
-  const rows = await query<{ id: string }>(
-    `SELECT id FROM pipeline.tasks WHERE target_repo = $1 AND pr_number = $2 ORDER BY created_at DESC LIMIT 1`,
-    [repo, prNumber],
-  );
-  const taskId = rows[0]?.id;
+  const taskId = (await taskQueue().latestTaskByPr(repo, prNumber))?.id;
   if (!taskId) return;
   await tryAutoMergeForCompletedTask({ taskId });
 }
@@ -50,15 +47,16 @@ export const issuesLabeled: EventHandler = async (params) => {
     label: string;
     issue: { number: number; title: string; body: string; html_url: string; labels: string[] };
   };
-  const pool = getPool();
-
   let dispatchLabel = "lore";
   let dispatchDefaultType = "general";
-  const { rows } = await pool.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
-  if (rows.length > 0 && rows[0].settings) {
-    const settings = typeof rows[0].settings === "string" ? JSON.parse(rows[0].settings) : rows[0].settings;
-    if (settings.dispatch_label) dispatchLabel = settings.dispatch_label;
-    if (settings.dispatch_default_type) dispatchDefaultType = settings.dispatch_default_type;
+  const repoSettings = await settings().rawSettings(repo);
+  if (repoSettings) {
+    const parsed = (typeof repoSettings === "string" ? JSON.parse(repoSettings) : repoSettings) as {
+      dispatch_label?: string;
+      dispatch_default_type?: string;
+    };
+    if (parsed.dispatch_label) dispatchLabel = parsed.dispatch_label;
+    if (parsed.dispatch_default_type) dispatchDefaultType = parsed.dispatch_default_type;
   }
   if (label !== dispatchLabel) return; // not the dispatch label → no-op
 
@@ -68,17 +66,14 @@ export const issuesLabeled: EventHandler = async (params) => {
   else if (issue.labels.includes("lore:runbook")) taskType = "runbook";
 
   const gh = new GitHubPlatform();
-  const { rows: existing } = await pool.query(
-    `SELECT id FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND status NOT IN ('failed', 'cancelled')`,
-    [issue.number, repo],
-  );
-  if (existing.length > 0) {
-    await gh.commentOnIssue(repo, issue.number, `Already being worked on: task \`${existing[0].id}\``);
+  const existing = await taskQueue().activeTaskByIssue(repo, issue.number);
+  if (existing) {
+    await gh.commentOnIssue(repo, issue.number, `Already being worked on: task \`${existing.id}\``);
     return;
   }
 
   const description = `${issue.title}\n\n${issue.body}`.trim();
-  const task = await createPipelineTask(pool, {
+  const task = await taskStore().create({
     description,
     taskType,
     targetRepo: repo,
@@ -89,11 +84,7 @@ export const issuesLabeled: EventHandler = async (params) => {
       github_issue_body: issue.body,
     },
   });
-  await pool.query(`UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`, [
-    issue.number,
-    issue.html_url,
-    task.task_id,
-  ]);
+  await taskQueue().setColumns(task.task_id, { issue_number: issue.number, issue_url: issue.html_url });
   await Promise.allSettled([
     gh.commentOnIssue(repo, issue.number, `Lore agent is working on this. Task: \`${task.task_id}\``),
     gh.addIssueLabel(repo, issue.number, "lore-managed"),
@@ -112,13 +103,7 @@ export const specPrMerge: EventHandler = async (params) => {
   const specSlug = branch.replace("lore/feature-request/", "").replace(/-[a-f0-9]{8}$/, "");
   if (!specSlug) return;
 
-  const pool = getPool();
-  const { rows: existing } = await pool.query(
-    `SELECT id FROM pipeline.tasks
-      WHERE task_type = 'spec-task' AND target_repo = $1 AND context_bundle->>'spec_slug' = $2 LIMIT 1`,
-    [repo, specSlug],
-  );
-  if (existing.length > 0) return; // already synced
+  if (await taskQueue().hasSpecTasksForSlug(repo, specSlug)) return; // already synced
 
   const gh = new GitHubPlatform();
   const tasksContent = await gh.getFileContent(repo, `specs/${specSlug}/tasks.md`, merge_commit_sha ?? undefined);
@@ -126,15 +111,9 @@ export const specPrMerge: EventHandler = async (params) => {
 
   const withDeps = inferPhaseDependencies(parseTasks(tasksContent));
   const taskGroupId = randomUUID();
-  await syncTasksToDb(pool, repo, specSlug, withDeps, taskGroupId);
+  // syncTasksToDb is a shared, multi-app helper that takes the pool directly.
+  await syncTasksToDb(getPool(), repo, specSlug, withDeps, taskGroupId);
 
-  await pool
-    .query(
-      `UPDATE pipeline.tasks SET status = 'merged', updated_at = now()
-        WHERE task_type = 'feature-request' AND target_repo = $1 AND target_branch = $2
-          AND status IN ('pr-created', 'review')`,
-      [repo, branch],
-    )
-    .catch(() => {});
+  await taskQueue().markFeatureRequestMergedOnBranch(repo, branch).catch(() => {});
   console.log(`[events] spec PR merged: ${repo}/${specSlug} → spec-tasks (group ${taskGroupId})`);
 };

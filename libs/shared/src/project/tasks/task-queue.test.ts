@@ -69,6 +69,35 @@ describe("PgTaskQueue.claimSpecTask", () => {
   });
 });
 
+describe("PgTaskQueue org-wide reads", () => {
+  it("awaitingApproval selects approval-gated tasks carrying an issue", async () => {
+    const { pool, calls } = mockPool([{ rows: [{ id: "t1", target_repo: "a/b", issue_number: 7 }] }]);
+    const rows = await new PgTaskQueue(pool).awaitingApproval();
+    expect(rows).toEqual([{ id: "t1", target_repo: "a/b", issue_number: 7 }]);
+    expect(calls[0].sql).toContain("status = 'awaiting_approval'");
+    expect(calls[0].sql).toContain("issue_number IS NOT NULL");
+  });
+
+  it("distinctTargetRepos returns the ascending non-null repo set", async () => {
+    const { pool, calls } = mockPool([{ rows: [{ target_repo: "a/b" }, { target_repo: "c/d" }] }]);
+    expect(await new PgTaskQueue(pool).distinctTargetRepos()).toEqual(["a/b", "c/d"]);
+    expect(calls[0].sql).toContain("SELECT DISTINCT target_repo");
+    expect(calls[0].sql).toContain("target_repo IS NOT NULL");
+  });
+
+  it("prInfo returns the PR coordinates for one task id", async () => {
+    const { pool, calls } = mockPool([{ rows: [{ pr_number: 12, target_repo: "a/b", target_branch: "main" }] }]);
+    expect(await new PgTaskQueue(pool).prInfo("t1")).toEqual({ pr_number: 12, target_repo: "a/b", target_branch: "main" });
+    expect(calls[0].sql).toContain("pr_number, target_repo, target_branch");
+    expect(calls[0].values).toEqual(["t1"]);
+  });
+
+  it("prInfo returns null for an unknown task", async () => {
+    const { pool } = mockPool([{ rows: [] }]);
+    expect(await new PgTaskQueue(pool).prInfo("nope")).toBeNull();
+  });
+});
+
 // ── InMemoryTaskQueue: behavioral spec ─────────────────────────────────
 
 const at = (now: number, deltaSec: number) => new Date(now - deltaSec * 1000).toISOString();
@@ -144,6 +173,34 @@ describe("InMemoryTaskQueue.claimSpecTask", () => {
     const q = new InMemoryTaskQueue([{ id: "s", status: "pending", task_type: "spec-task" }]);
     expect(await q.claimSpecTask("s")).toBe(true);
     expect(await q.claimSpecTask("s")).toBe(false);
+  });
+});
+
+describe("InMemoryTaskQueue org-wide reads", () => {
+  it("awaitingApproval returns only approval-gated tasks with an issue", async () => {
+    const q = new InMemoryTaskQueue([
+      { id: "a", status: "awaiting_approval", target_repo: "a/b", issue_number: 3 },
+      { id: "b", status: "awaiting_approval", target_repo: "a/b", issue_number: null },
+      { id: "c", status: "pending", target_repo: "a/b", issue_number: 9 },
+    ]);
+    expect(await q.awaitingApproval()).toEqual([{ id: "a", target_repo: "a/b", issue_number: 3 }]);
+  });
+
+  it("distinctTargetRepos returns the ascending unique repo set", async () => {
+    const q = new InMemoryTaskQueue([
+      { id: "1", target_repo: "c/d" },
+      { id: "2", target_repo: "a/b" },
+      { id: "3", target_repo: "a/b" },
+    ]);
+    expect(await q.distinctTargetRepos()).toEqual(["a/b", "c/d"]);
+  });
+
+  it("prInfo returns PR coordinates or null", async () => {
+    const q = new InMemoryTaskQueue([
+      { id: "1", target_repo: "a/b", pr_number: 5, target_branch: "main" },
+    ]);
+    expect(await q.prInfo("1")).toEqual({ pr_number: 5, target_repo: "a/b", target_branch: "main" });
+    expect(await q.prInfo("missing")).toBeNull();
   });
 });
 

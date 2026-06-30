@@ -14,7 +14,7 @@
  */
 
 import { scoreImportance } from "@re-cinq/lore-shared";
-import { query } from "../../../kernel/db.js";
+import { memoryLifecycle } from "../../../kernel/queues.js";
 import { Llm } from "@re-cinq/lore-shared";
 
 // ── Config ──────────────────────────────────────────────────────────
@@ -29,14 +29,7 @@ const CONSOLIDATION_LOOKBACK_DAYS = 7;
 
 export async function importanceDecayJob(): Promise<string> {
   // Find agents with too many memories
-  const agents = await query<{ agent_id: string; cnt: number }>(
-    `SELECT agent_id, count(*)::int AS cnt
-     FROM memory.memories
-     WHERE is_deleted = FALSE
-     GROUP BY agent_id
-     HAVING count(*) > $1`,
-    [MAX_MEMORIES_PER_AGENT],
-  );
+  const agents = await memoryLifecycle().countMemoriesByAgentOverCap(MAX_MEMORIES_PER_AGENT);
 
   let totalEvicted = 0;
 
@@ -44,16 +37,8 @@ export async function importanceDecayJob(): Promise<string> {
     const excess = cnt - MAX_MEMORIES_PER_AGENT;
     if (excess <= 0) continue;
 
-    // Get old memories (older than DECAY_MIN_AGE_DAYS)
-    const candidates = await query<{ id: string; key: string; value: string; created_at: string; last_retrieved_at: string | null; half_life_days: number | null; retrieval_count: number | null }>(
-      `SELECT id, key, value, created_at, last_retrieved_at, half_life_days, retrieval_count
-       FROM memory.memories
-       WHERE agent_id = $1 AND is_deleted = FALSE
-         AND created_at < now() - interval '${DECAY_MIN_AGE_DAYS} days'
-       ORDER BY created_at ASC
-       LIMIT $2`,
-      [agent_id, excess * 2], // fetch double to have room for scoring
-    );
+    // Get old memories (older than DECAY_MIN_AGE_DAYS), fetch double to have room for scoring
+    const candidates = await memoryLifecycle().findDecayCandidates(agent_id, excess * 2, DECAY_MIN_AGE_DAYS);
 
     // Score and sort by importance (ascending = least important first)
     const scored = candidates
@@ -65,67 +50,36 @@ export async function importanceDecayJob(): Promise<string> {
     if (toEvict.length === 0) continue;
 
     const ids = toEvict.map((m) => m.id);
-    await query(
-      `UPDATE memory.memories SET is_deleted = TRUE
-       WHERE id = ANY($1::uuid[])`,
-      [ids],
-    );
+    await memoryLifecycle().softDeleteMemories(ids);
 
     // Audit log
-    await query(
-      `INSERT INTO memory.audit_log (agent_id, operation, metadata)
-       VALUES ($1, 'importance-decay', $2)`,
-      [agent_id, JSON.stringify({ evicted: ids.length, lowest_score: toEvict[0]?.importance })],
-    );
+    await memoryLifecycle().writeAuditLog({
+      agentId: agent_id,
+      operation: "importance-decay",
+      metadata: { evicted: ids.length, lowest_score: toEvict[0]?.importance },
+    });
 
     totalEvicted += toEvict.length;
   }
 
   // Also evict old invalidated facts beyond cap
-  const factAgents = await query<{ agent_id: string; cnt: number }>(
-    `SELECT COALESCE(m.agent_id, e.agent_id) AS agent_id, count(*)::int AS cnt
-     FROM memory.facts f
-     LEFT JOIN memory.memories m ON m.id = f.memory_id
-     LEFT JOIN memory.episodes e ON e.id = f.episode_id
-     WHERE f.valid_to IS NOT NULL
-       AND f.valid_to < now() - interval '${DECAY_MIN_AGE_DAYS} days'
-     GROUP BY COALESCE(m.agent_id, e.agent_id)
-     HAVING count(*) > $1`,
-    [MAX_FACTS_PER_AGENT],
+  const factAgents = await memoryLifecycle().countInvalidatedFactsByAgentOverCap(
+    MAX_FACTS_PER_AGENT,
+    DECAY_MIN_AGE_DAYS,
   );
 
   let factsEvicted = 0;
-  for (const { agent_id, cnt } of factAgents) {
+  for (const { cnt } of factAgents) {
     const excess = cnt - MAX_FACTS_PER_AGENT;
     if (excess <= 0) continue;
 
-    const result = await query<{ count: string }>(
-      `WITH oldest AS (
-         SELECT id FROM memory.facts
-         WHERE valid_to IS NOT NULL
-           AND valid_to < now() - interval '${DECAY_MIN_AGE_DAYS} days'
-         ORDER BY valid_to ASC
-         LIMIT $1
-       )
-       DELETE FROM memory.facts WHERE id IN (SELECT id FROM oldest)
-       RETURNING id`,
-      [excess],
-    );
-    factsEvicted += result.length;
+    factsEvicted += await memoryLifecycle().deleteOldestInvalidatedFacts(excess, DECAY_MIN_AGE_DAYS);
   }
 
   // Transition unretrieved facts to 'stale' after 30 days
   let staleTransitioned = 0;
   try {
-    const result = await query<{ id: string }>(
-      `UPDATE memory.facts
-       SET confidence = 'stale'
-       WHERE valid_to IS NULL
-         AND confidence NOT IN ('stale', 'verified')
-         AND COALESCE(last_retrieved_at, created_at) < now() - interval '30 days'
-       RETURNING id`,
-    );
-    staleTransitioned = result.length;
+    staleTransitioned = await memoryLifecycle().transitionStaleFacts();
   } catch {
     // Non-fatal
   }
@@ -145,15 +99,7 @@ export async function consolidationJob(): Promise<string> {
   }
 
   // Get recent facts from the last N days that haven't been consolidated
-  const recentFacts = await query<{ fact_text: string; repo: string }>(
-    `SELECT f.fact_text, COALESCE(e.ref, 'unknown') AS repo
-     FROM memory.facts f
-     LEFT JOIN memory.episodes e ON e.id = f.episode_id
-     WHERE f.valid_to IS NULL
-       AND f.created_at > now() - interval '${CONSOLIDATION_LOOKBACK_DAYS} days'
-     ORDER BY f.created_at DESC
-     LIMIT 50`,
-  );
+  const recentFacts = await memoryLifecycle().findRecentValidFacts(CONSOLIDATION_LOOKBACK_DAYS, 50);
 
   if (recentFacts.length < CONSOLIDATION_MIN_FACTS) {
     return `Skipped: only ${recentFacts.length} recent facts (need ${CONSOLIDATION_MIN_FACTS})`;
@@ -191,12 +137,7 @@ export async function consolidationJob(): Promise<string> {
       // Store each pattern as a memory
       for (const pattern of patterns) {
         const key = `consolidated/${repo.replace(/\//g, "-")}/${Date.now()}`;
-        await query(
-          `INSERT INTO memory.memories (agent_id, key, value, version)
-           VALUES ('consolidation', $1, $2, 1)
-           ON CONFLICT (agent_id, key, version) DO NOTHING`,
-          [key, pattern],
-        );
+        await memoryLifecycle().insertConsolidatedMemory(key, pattern);
         consolidated++;
       }
     } catch {

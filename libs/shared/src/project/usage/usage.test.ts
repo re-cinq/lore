@@ -37,4 +37,23 @@ describe("PgUsage adapter", () => {
       1500,
     ]);
   });
+
+  it("returns today and total llm_call counts", async () => {
+    const pool: PgPool = {
+      async query(text: string) {
+        if (text.includes("current_date")) return { rows: [{ today: 3 }] };
+        return { rows: [{ total: 42 }] };
+      },
+    };
+
+    const counts = await new PgUsage(pool).processedCounts();
+
+    expect(counts).toEqual({ today: 3, total: 42 });
+  });
+
+  it("defaults missing count rows to zero", async () => {
+    const pool: PgPool = { async query() { return { rows: [] }; } };
+
+    expect(await new PgUsage(pool).processedCounts()).toEqual({ today: 0, total: 0 });
+  });
 });

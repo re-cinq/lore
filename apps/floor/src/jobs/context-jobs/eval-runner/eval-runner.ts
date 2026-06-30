@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { query } from "../../../kernel/db.js";
+import { evalRuns, taskStore } from "../../../kernel/queues.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -88,20 +88,16 @@ export async function evalRunnerJob(): Promise<string> {
   let regressions = 0;
   for (const result of results) {
     // Store result
-    await query(
-      `INSERT INTO pipeline.eval_runs (team, pass_rate, total_tests, passed, failed)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [result.team, result.passRate, result.total, result.passed, result.failed],
-    );
+    await evalRuns().record({
+      team: result.team,
+      pass_rate: result.passRate,
+      total_tests: result.total,
+      passed: result.passed,
+      failed: result.failed,
+    });
 
     // Check for regression vs previous run
-    const prev = await query<{ pass_rate: number }>(
-      `SELECT pass_rate FROM pipeline.eval_runs
-       WHERE team = $1
-       ORDER BY run_at DESC
-       OFFSET 1 LIMIT 1`,
-      [result.team],
-    );
+    const prev = await evalRuns().recent(result.team, 1, 1);
 
     if (prev.length > 0) {
       const delta = result.passRate - prev[0].pass_rate;
@@ -111,15 +107,12 @@ export async function evalRunnerJob(): Promise<string> {
           `[job] eval-runner: REGRESSION in ${result.team}: ${(prev[0].pass_rate * 100).toFixed(1)}% → ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
         );
 
-        await query(
-          `INSERT INTO pipeline.tasks (description, task_type, status, target_repo)
-           VALUES ($1, 'gap-fill', 'pending', $2)
-           ON CONFLICT DO NOTHING`,
-          [
-            `Eval regression: ${result.team} dropped from ${(prev[0].pass_rate * 100).toFixed(1)}% to ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}% regression)`,
-            result.team,
-          ],
-        );
+        await taskStore().create({
+          description: `Eval regression: ${result.team} dropped from ${(prev[0].pass_rate * 100).toFixed(1)}% to ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}% regression)`,
+          taskType: "gap-fill",
+          targetRepo: result.team,
+          createdBy: "eval-runner",
+        });
       }
     }
   }

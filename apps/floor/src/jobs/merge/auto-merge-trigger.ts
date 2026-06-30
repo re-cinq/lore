@@ -22,7 +22,7 @@
  */
 import { Octokit } from "octokit";
 import { resolveDarkFactorySettings } from "@re-cinq/lore-shared";
-import { query } from "../../kernel/db.js";
+import { settings as settingsRepo, taskStore } from "../../kernel/queues.js";
 import { buildOctokit, resolvePrForTaskFromDb } from "../platform/pr-policy.js";
 import { evaluateAndMerge, type AutoMergeDecision } from "./auto-merge.js";
 
@@ -32,21 +32,13 @@ export async function tryAutoMergeForCompletedTask(opts: {
 }): Promise<AutoMergeDecision | null> {
   // Resolve the repo's dark-factory settings before paying the cost
   // of an Octokit handshake or a GitHub API round-trip.
-  const rows = await query<{
-    target_repo: string | null;
-    settings: { dark_factory?: unknown } | null;
-  }>(
-    `SELECT t.target_repo, r.settings
-       FROM pipeline.tasks t
-       LEFT JOIN lore.repos r ON r.full_name = t.target_repo
-      WHERE t.id = $1`,
-    [opts.taskId],
-  );
-  const row = rows[0];
-  if (!row?.target_repo) return null;
+  const task = await taskStore().getById(opts.taskId);
+  const targetRepo = task?.target_repo;
+  if (!targetRepo) return null;
 
+  const rawSettings = await settingsRepo().rawSettings(targetRepo);
   const settings = resolveDarkFactorySettings(
-    (row.settings?.dark_factory as Parameters<
+    (rawSettings?.dark_factory as Parameters<
       typeof resolveDarkFactorySettings
     >[0]) ?? null,
   );

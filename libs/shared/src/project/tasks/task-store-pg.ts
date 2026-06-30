@@ -6,6 +6,7 @@ import {
   getTask,
   listTasks,
   setTaskStatus,
+  setTaskStatusIf,
   updateTaskStatus,
   recordEvent,
   cancelTask,
@@ -77,6 +78,10 @@ export class PgTaskStore implements TaskStorePort {
 
   setStatus(id: string, status: string, extra?: Record<string, unknown>): Promise<void> {
     return setTaskStatus(this.pool, id, status, extra);
+  }
+
+  setStatusIf(id: string, expectedStatus: string, status: string, extra?: Record<string, unknown>): Promise<boolean> {
+    return setTaskStatusIf(this.pool, id, expectedStatus, status, extra);
   }
 
   updateStatus(id: string, status: string, meta?: unknown): Promise<void> {

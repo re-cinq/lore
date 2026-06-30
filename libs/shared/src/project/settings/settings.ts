@@ -26,4 +26,20 @@ export class Settings {
   setRepoSecret(name: string, value: string): Promise<void> {
     return this.settings.setRepoSecret(this.repo, name, value);
   }
+
+  rawSettings(): Promise<Record<string, unknown> | null> {
+    return this.settings.rawSettings(this.repo);
+  }
+
+  updateSettings(settings: Record<string, unknown>): Promise<void> {
+    return this.settings.updateSettings(this.repo, settings);
+  }
+
+  team(): Promise<string | null> {
+    return this.settings.team(this.repo);
+  }
+
+  markIngested(): Promise<void> {
+    return this.settings.markIngested(this.repo);
+  }
 }

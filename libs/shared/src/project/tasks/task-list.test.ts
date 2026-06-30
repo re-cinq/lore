@@ -42,6 +42,12 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
       const r = rows.find((x) => x.id === id);
       if (r) r.status = status;
     },
+    setStatusIf: async (id, expectedStatus, status) => {
+      const r = rows.find((x) => x.id === id);
+      if (!r || r.status !== expectedStatus) return false;
+      r.status = status;
+      return true;
+    },
     updateStatus: async (id, status) => {
       const r = rows.find((x) => x.id === id);
       if (r) r.status = status;

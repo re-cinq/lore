@@ -1,25 +1,33 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Octokit } from "octokit";
 import { resolveDarkFactorySettings } from "@re-cinq/lore-shared";
-import { buildOctokit, resolvePrForTaskFromDb, type PrPolicyDeps } from "./pr-policy.js";
+import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import {
-  InMemoryReposRepository,
-  InMemoryTasksRepository,
-  type TaskRecord,
-  type TrustLevel,
-} from "../../kernel/repositories/index.js";
+  buildOctokit,
+  resolvePrForTaskFromDb,
+  type PrPolicyDeps,
+  type PrInfoReader,
+  type RepoSettingsReader,
+} from "./pr-policy.js";
+
+type TrustLevel = "docs" | "tests" | "implementation" | "full";
 
 const settings = resolveDarkFactorySettings({ enabled: true });
-const NOW = new Date("2026-06-03T00:00:00Z");
 
-const task = (over: Partial<TaskRecord>): TaskRecord => ({
-  id: "t1",
+/** A seeded task's PR coordinates. pr_number=null means "no PR yet". */
+const task = (over: Partial<TaskPrInfo>): TaskPrInfo => ({
   target_repo: "re-cinq/lore",
   target_branch: "lore/x",
   pr_number: 7,
-  created_at: NOW,
-  updated_at: NOW,
   ...over,
+});
+
+const prInfoReader = (info: TaskPrInfo): PrInfoReader => ({
+  prInfo: async () => info,
+});
+
+const repoSettingsReader = (levels: Record<string, TrustLevel>): RepoSettingsReader => ({
+  rawSettings: async (repo) => (levels[repo] ? { trust: { level: levels[repo] } } : null),
 });
 
 interface OctokitStub {
@@ -49,9 +57,9 @@ function makeOctokit(stub: OctokitStub): Octokit {
   } as unknown as Octokit;
 }
 
-const deps = (tasks: TaskRecord[], levels: Record<string, TrustLevel> = {}): PrPolicyDeps => ({
-  tasks: new InMemoryTasksRepository(tasks),
-  repos: new InMemoryReposRepository(levels),
+const deps = (info: TaskPrInfo, levels: Record<string, TrustLevel> = {}): PrPolicyDeps => ({
+  tasks: prInfoReader(info),
+  repos: repoSettingsReader(levels),
 });
 
 describe("resolvePrForTaskFromDb", () => {
@@ -60,7 +68,7 @@ describe("resolvePrForTaskFromDb", () => {
       "t1",
       settings,
       makeOctokit({}),
-      deps([task({ pr_number: null })]),
+      deps(task({ pr_number: null })),
     );
     expect(result).toBeNull();
   });
@@ -74,7 +82,7 @@ describe("resolvePrForTaskFromDb", () => {
         checkRuns: [{ conclusion: "success" }, { conclusion: "skipped" }],
         reviews: [{ state: "APPROVED", user: { login: "lore-agent[bot]" } }],
       }),
-      deps([task({})], { "re-cinq/lore": "implementation" }),
+      deps(task({}), { "re-cinq/lore": "implementation" }),
     );
     expect(result?.policy).toMatchObject({
       changedPaths: ["docs/readme.md"],
@@ -90,7 +98,7 @@ describe("resolvePrForTaskFromDb", () => {
       "t1",
       settings,
       makeOctokit({ checkRuns: [] }),
-      deps([task({})]),
+      deps(task({})),
     );
     expect(result?.policy.ciSucceeded).toBe(false);
   });
@@ -100,7 +108,7 @@ describe("resolvePrForTaskFromDb", () => {
       "t1",
       settings,
       makeOctokit({ checkRuns: [{ conclusion: "success" }, { conclusion: "failure" }] }),
-      deps([task({})]),
+      deps(task({})),
     );
     expect(result?.policy.ciSucceeded).toBe(false);
   });
@@ -110,7 +118,7 @@ describe("resolvePrForTaskFromDb", () => {
       "t1",
       settings,
       makeOctokit({ reviews: [{ state: "APPROVED", user: { login: "dependabot[bot]" } }] }),
-      deps([task({})]),
+      deps(task({})),
     );
     expect(result?.policy.botApproved).toBe(false);
   });
@@ -120,7 +128,7 @@ describe("resolvePrForTaskFromDb", () => {
       "t1",
       settings,
       makeOctokit({ reviews: [{ state: "CHANGES_REQUESTED", user: { login: "some-bot[bot]" } }] }),
-      deps([task({})]),
+      deps(task({})),
     );
     expect(result?.policy.humanChangesRequested).toBe(false);
   });
@@ -130,7 +138,7 @@ describe("resolvePrForTaskFromDb", () => {
       "t1",
       settings,
       makeOctokit({ reviews: [{ state: "CHANGES_REQUESTED", user: { login: "alice" } }] }),
-      deps([task({})]),
+      deps(task({})),
     );
     expect(result?.policy.humanChangesRequested).toBe(true);
   });
@@ -140,7 +148,7 @@ describe("resolvePrForTaskFromDb", () => {
       "t1",
       settings,
       makeOctokit({ throws: true }),
-      deps([task({})]),
+      deps(task({})),
     );
     expect(result?.policy).toMatchObject({
       changedPaths: [],

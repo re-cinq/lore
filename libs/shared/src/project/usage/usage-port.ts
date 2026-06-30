@@ -13,7 +13,14 @@ export interface LlmCallRecord {
   durationMs: number;
 }
 
+/** Today's and all-time `pipeline.llm_calls` row counts (health readout). */
+export interface ProcessedCounts {
+  today: number;
+  total: number;
+}
+
 /** The LLM-usage accounting surface. */
 export interface UsagePort {
   logLlmCall(record: LlmCallRecord): Promise<void>;
+  processedCounts(): Promise<ProcessedCounts>;
 }
