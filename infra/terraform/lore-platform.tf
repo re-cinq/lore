@@ -112,6 +112,10 @@ resource "helm_release" "lore_platform" {
     # ---- lore-db ownership-reconciler add-on (lore-db namespace) ----
     "lore-db-helm" = {
       cluster = { name = "lore-db" }
+      # Terraform (privileged) always runs the ownership-reconciler hook; CI deploys
+      # disable it (their SA can't manage lore-db RBAC). reuse_values would otherwise
+      # carry CI's `false` forward, so set it true explicitly here.
+      ownershipReconciler = { enabled = true }
     }
 
     # ai-agents: 1 controller replica (leader-election still elects the sole pod);

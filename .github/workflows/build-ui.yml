@@ -157,9 +157,13 @@ jobs:
           # Pod readiness is gated by `kubectl rollout status` below, which honors
           # its timeout reliably. --reset-then-reuse-values (helm 3.14+) preserves
           # user --set overrides while picking up new chart defaults.
+          # Disable the lore-db ownership-reconciler hook (CI's SA can't manage
+          # lore-db RBAC; it runs on terraform applies). The ui migrate hook still
+          # runs — it's in lore-ui, which CI is authorized for.
           helm upgrade --install lore-platform ./infra/terraform/modules/gke-mcp/lore-platform \
             --namespace lore-floor \
             --set lore-ui.image.tag=${{ needs.build.outputs.image_tag }} \
+            --set lore-db-helm.ownershipReconciler.enabled=false \
             --reset-then-reuse-values \
             --cleanup-on-fail
 
