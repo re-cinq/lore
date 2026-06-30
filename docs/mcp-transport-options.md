@@ -41,7 +41,7 @@ Unused:  Claude Code ----------------- /mcp ----------------> GKE
   Every developer connects via local stdio → REST `/api/*`. No client registers
   the `/mcp` URL; no proxy helper targets it (they hit `/api/*`).
 - GKE **does** serve `/mcp` in production
-  ([mcp-helm/values.yaml:32](../infra/terraform/modules/gke-mcp/mcp-helm/values.yaml#L32):
+  ([mcp-helm/values.yaml:32](../infra/terraform/modules/gke-mcp/lore-platform/charts/mcp-helm/values.yaml#L32):
   `MCP_TRANSPORT: http`) — the endpoint is live but has no consumer.
 - It is **not** a random decision: it was a deliberate Phase 1 deliverable
   ([1-lore-platform/plan.md:34](../specs/1-lore-platform/plan.md#L34) HTTP-transport

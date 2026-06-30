@@ -19,6 +19,9 @@ const BASE_IMAGE = "node:22-bookworm";
 const SEED_LABELS = { "app.kubernetes.io/managed-by": "lore-catalog-seed" };
 // Placeholder for the per-cluster sink URL; catalogChartYaml swaps it for the helm value.
 const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
+// Placeholder for the subchart namespace (umbrella spans namespaces, so each CR needs
+// an explicit namespace); catalogChartYaml swaps it for the helm value.
+const NAMESPACE_SENTINEL = "__NAMESPACE__";
 
 export function buildAgentDefinition(taskType: string, cfg: TaskTypeConfig): AgentDefinition {
   return {
@@ -94,9 +97,15 @@ export function catalogChartYaml(taskTypes: Record<string, TaskTypeConfig>): str
   const docs = buildCatalog(taskTypes).map((cr) =>
     stringify({
       ...cr,
-      metadata: { ...cr.metadata, annotations: { "helm.sh/resource-policy": "keep" } },
+      metadata: {
+        ...cr.metadata,
+        namespace: NAMESPACE_SENTINEL,
+        annotations: { "helm.sh/resource-policy": "keep" },
+      },
     }),
   );
   const body = `${header}{{- if .Values.seedCatalog }}\n---\n${docs.join("---\n")}{{- end }}\n`;
-  return body.replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}");
+  return body
+    .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
+    .replaceAll(NAMESPACE_SENTINEL, "{{ .Values.namespace }}");
 }

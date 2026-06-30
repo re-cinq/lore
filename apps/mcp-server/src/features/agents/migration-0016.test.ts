@@ -11,7 +11,7 @@ import { resolve } from "node:path";
 const sql = readFileSync(
   resolve(
     process.cwd(),
-    "../../infra/terraform/modules/gke-mcp/ui-helm/migrations/0016_rename_agents_to_agent_definitions.sql",
+    "../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0016_rename_agents_to_agent_definitions.sql",
   ),
   "utf-8",
 );

@@ -1,0 +1,40 @@
+apiVersion: v2
+name: lore-platform
+description: |
+  The Lore platform as a single deployable Helm chart. Aggregates the five
+  application workloads as vendored subcharts (charts/): floor, mcp, ui,
+  lore-db add-ons, and the ai-agent subsystem.
+
+  Subcharts are vendored (physically present under charts/) rather than pulled
+  from a repository, so `helm template`/`helm install` work with no
+  `helm dependency build` step. Each subchart keeps its own templates, hooks,
+  and CRDs unchanged; the only cross-cutting edit is an explicit per-resource
+  `namespace:` so this one release can span the platform's namespaces
+  (lore-floor, mcp-servers, lore-ui, lore-db, ai-agents).
+
+  Values are nested under each subchart's chart name:
+    lore-floor: {...}
+    lore-mcp: {...}
+    lore-ui: {...}
+    lore-db-helm: {...}
+    ai-agents: {...}
+
+  Cluster, namespaces, ExternalSecrets, ingresses, the CNPG cluster CR, and the
+  Dgraph StatefulSet remain owned by Terraform (infra/terraform/*.tf).
+version: 0.1.0
+appVersion: "0.1.0"
+
+# Subcharts are vendored under charts/ (Helm maps each dependency to the
+# charts/<dir> whose Chart.yaml name matches). No repository field → no
+# `helm dependency build`/`update` step; the chart renders as-is.
+dependencies:
+  - name: lore-floor
+    version: "0.1.0"
+  - name: lore-mcp
+    version: "0.1.0"
+  - name: lore-ui
+    version: "0.1.0"
+  - name: lore-db-helm
+    version: "0.1.0"
+  - name: ai-agents
+    version: "0.1.0"

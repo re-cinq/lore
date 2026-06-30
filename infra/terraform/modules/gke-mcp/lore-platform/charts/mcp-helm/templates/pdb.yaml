@@ -1,0 +1,20 @@
+{{/*
+  Nil-safe access: CI uses `helm upgrade --reuse-values`, which skips
+  chart defaults from values.yaml. Without the `and` short-circuit
+  this template renders before the user re-runs terraform, then dies
+  with `nil pointer evaluating interface {}.enabled`.
+*/}}
+{{- if and .Values.podDisruptionBudget .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: lore-mcp
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      app: lore-mcp
+{{- end }}

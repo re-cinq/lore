@@ -12,7 +12,7 @@ const repoRoot = resolve(import.meta.dirname, "../../../..");
 const src = resolve(repoRoot, "scripts/task-types.yaml");
 const dest = resolve(
   repoRoot,
-  "infra/terraform/modules/gke-mcp/ai-agents-helm/templates/catalog.yaml",
+  "infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/catalog.yaml",
 );
 
 const parsed = parse(readFileSync(src, "utf8")) as {
