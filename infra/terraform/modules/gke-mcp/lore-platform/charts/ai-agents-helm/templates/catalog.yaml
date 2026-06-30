@@ -7,9 +7,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: general
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -35,9 +35,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: general
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -60,9 +60,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: runbook
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -89,9 +89,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: runbook
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -114,9 +114,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: implementation
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -154,9 +154,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: implementation
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -179,9 +179,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: gap-fill
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -208,9 +208,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: gap-fill
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -233,9 +233,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: review
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -268,9 +268,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: review
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -293,9 +293,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: feature-request
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -327,9 +327,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: feature-request
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -352,9 +352,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: feature-planning
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -409,9 +409,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: feature-planning
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -434,9 +434,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: feature-finalize
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -467,9 +467,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: feature-finalize
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -492,9 +492,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: feature-decompose
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -517,9 +517,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: feature-decompose
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -542,9 +542,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
   name: onboard
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
@@ -651,9 +651,9 @@ apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
   name: onboard
-  namespace: {{ $.Values.namespace }}
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:

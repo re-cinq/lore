@@ -11,7 +11,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'infra/terraform/modules/gke-mcp/ui-helm/migrations/**'
+      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/**'
       - 'scripts/infra/setup-*.sh'
       - '.github/workflows/migrations.yml'
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       LORE_PG_CONTAINER: lore-postgres
-      MIGRATIONS_DIR: infra/terraform/modules/gke-mcp/ui-helm/migrations
+      MIGRATIONS_DIR: infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations
     steps:
       - uses: actions/checkout@v5
 
