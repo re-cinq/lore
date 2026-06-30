@@ -38,6 +38,8 @@ export interface TaskStorePort {
   create(input: CreateTaskInput): Promise<any>;
   retry(id: string): Promise<any>;
   setStatus(id: string, status: string, extra?: Record<string, unknown>): Promise<void>;
+  /** CAS status flip: updates only while the row is still `expectedStatus`; true iff this caller won. */
+  setStatusIf(id: string, expectedStatus: string, status: string, extra?: Record<string, unknown>): Promise<boolean>;
   updateStatus(id: string, status: string, meta?: unknown): Promise<void>;
   recordEvent(id: string, fromStatus: string | null, toStatus: string | null, meta?: unknown): Promise<void>;
   cancel(id: string): Promise<{ task_id: string; status: string }>;

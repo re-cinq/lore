@@ -1,0 +1,52 @@
+/**
+ * A chunk row to insert into `{schema}.chunks`. `metadata` is an already
+ * JSON-serializable object — the adapter binds it via `JSON.stringify`, exactly
+ * as the reindex job does. The embedding column is set separately via
+ * {@link ChunksPort.setEmbedding} once the caller has formatted the vector.
+ */
+export interface ChunkInsert {
+  content: string;
+  contentType: string;
+  team: string;
+  repo: string;
+  filePath: string;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * The vector-store `chunks` surface. Two table families live behind it:
+ * schema-per-team `{schema}.chunks` (the `${schema}` name is interpolated, so
+ * the Pg adapter validates it against `SCHEMA_RE` first) and the fixed
+ * `org_shared.chunks` shared schema (no interpolation). Single-sourced out of
+ * the Floor reindex / context-core-builder jobs so the kernel never reaches a
+ * pg pool for chunk reads/writes directly.
+ */
+export interface ChunksPort {
+  /** `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1` */
+  schemaExists(schema: string): Promise<boolean>;
+
+  /** `SELECT count(*) FROM ${schema}.chunks WHERE repo = $1` */
+  countChunks(schema: string, repo: string): Promise<number>;
+
+  /** `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2` */
+  deleteChunksForFile(schema: string, filePath: string, repo: string): Promise<void>;
+
+  /**
+   * `INSERT INTO ${schema}.chunks (...) VALUES (...) RETURNING id`. Returns the
+   * new row's id, or `null` when the insert returned no row.
+   */
+  insertChunk(schema: string, chunk: ChunkInsert): Promise<string | null>;
+
+  /**
+   * `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`. The
+   * caller passes the already-formatted `"[0.1,0.2,...]"` string — the port
+   * does not format the vector.
+   */
+  setEmbedding(schema: string, chunkId: string, embedding: string): Promise<void>;
+
+  /** `SELECT DISTINCT team FROM org_shared.chunks WHERE team IS NOT NULL` */
+  distinctTeams(): Promise<string[]>;
+
+  /** `SELECT COUNT(*) FROM org_shared.chunks WHERE team = $1` */
+  countChunksByTeam(team: string): Promise<number>;
+}

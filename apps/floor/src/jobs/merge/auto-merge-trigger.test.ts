@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const queryMock = vi.fn();
+const getByIdMock = vi.fn();
+const rawSettingsMock = vi.fn();
 const buildOctokitMock = vi.fn();
 const resolvePrForTaskFromDbMock = vi.fn();
 
-vi.mock("../../kernel/db.js", () => ({
-  query: (...args: unknown[]) => queryMock(...args),
+vi.mock("../../kernel/queues.js", () => ({
+  taskStore: () => ({ getById: (...args: unknown[]) => getByIdMock(...args) }),
+  settings: () => ({ rawSettings: (...args: unknown[]) => rawSettingsMock(...args) }),
 }));
 
 vi.mock("../platform/pr-policy.js", () => ({
@@ -28,8 +30,16 @@ const { tryAutoMergeForCompletedTask } = await import(
   "./auto-merge-trigger.js"
 );
 
+/** Seed the task record + repo settings the trigger reads, mirroring the old
+ *  joined `{ target_repo, settings }` row shape per case. */
+function seedTask(targetRepo: string | null, settings: unknown): void {
+  getByIdMock.mockResolvedValueOnce(targetRepo ? { target_repo: targetRepo } : null);
+  rawSettingsMock.mockResolvedValueOnce(settings);
+}
+
 beforeEach(() => {
-  queryMock.mockReset();
+  getByIdMock.mockReset();
+  rawSettingsMock.mockReset();
   buildOctokitMock.mockReset();
   resolvePrForTaskFromDbMock.mockReset();
   evaluateAndMergeMock.mockReset();
@@ -37,16 +47,14 @@ beforeEach(() => {
 
 describe("tryAutoMergeForCompletedTask", () => {
   it("returns null when the task has no target_repo (orphaned task)", async () => {
-    queryMock.mockResolvedValueOnce([]);
+    seedTask(null, null);
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
     expect(result).toBeNull();
     expect(evaluateAndMergeMock).not.toHaveBeenCalled();
   });
 
   it("returns null when dark_factory.enabled is false (no audit row written)", async () => {
-    queryMock.mockResolvedValueOnce([
-      { target_repo: "owner/repo", settings: { dark_factory: { enabled: false } } },
-    ]);
+    seedTask("owner/repo", { dark_factory: { enabled: false } });
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
     expect(result).toBeNull();
     expect(buildOctokitMock).not.toHaveBeenCalled();
@@ -55,18 +63,14 @@ describe("tryAutoMergeForCompletedTask", () => {
   });
 
   it("returns null when settings is null (legacy repo without dark mode)", async () => {
-    queryMock.mockResolvedValueOnce([
-      { target_repo: "owner/repo", settings: null },
-    ]);
+    seedTask("owner/repo", null);
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
     expect(result).toBeNull();
     expect(evaluateAndMergeMock).not.toHaveBeenCalled();
   });
 
   it("returns null when pr-policy returns null (PR not yet created)", async () => {
-    queryMock.mockResolvedValueOnce([
-      { target_repo: "owner/repo", settings: { dark_factory: { enabled: true } } },
-    ]);
+    seedTask("owner/repo", { dark_factory: { enabled: true } });
     const fakeOctokit = { _id: "octo" } as never;
     buildOctokitMock.mockReturnValueOnce(fakeOctokit);
     resolvePrForTaskFromDbMock.mockResolvedValueOnce(null);
@@ -77,12 +81,7 @@ describe("tryAutoMergeForCompletedTask", () => {
   });
 
   it("calls evaluateAndMerge with the resolved policy when dark mode is on + PR exists", async () => {
-    queryMock.mockResolvedValueOnce([
-      {
-        target_repo: "owner/repo",
-        settings: { dark_factory: { enabled: true } },
-      },
-    ]);
+    seedTask("owner/repo", { dark_factory: { enabled: true } });
     const fakeOctokit = { _id: "octo" } as never;
     buildOctokitMock.mockReturnValueOnce(fakeOctokit);
 
@@ -129,12 +128,7 @@ describe("tryAutoMergeForCompletedTask", () => {
   });
 
   it("uses the supplied octokit instead of building one", async () => {
-    queryMock.mockResolvedValueOnce([
-      {
-        target_repo: "owner/repo",
-        settings: { dark_factory: { enabled: true } },
-      },
-    ]);
+    seedTask("owner/repo", { dark_factory: { enabled: true } });
     const supplied = { _id: "supplied" } as never;
     resolvePrForTaskFromDbMock.mockResolvedValueOnce(null);
     await tryAutoMergeForCompletedTask({ taskId: "t1", octokit: supplied });
@@ -152,12 +146,7 @@ describe("tryAutoMergeForCompletedTask", () => {
     // try/catch. This test locks in that contract — if anyone adds
     // an internal try/catch, this fails and forces them to update
     // the watcher's expectations too.
-    queryMock.mockResolvedValueOnce([
-      {
-        target_repo: "owner/repo",
-        settings: { dark_factory: { enabled: true } },
-      },
-    ]);
+    seedTask("owner/repo", { dark_factory: { enabled: true } });
     const fakeOctokit = { _id: "octo" } as never;
     buildOctokitMock.mockReturnValueOnce(fakeOctokit);
     resolvePrForTaskFromDbMock.mockResolvedValueOnce({

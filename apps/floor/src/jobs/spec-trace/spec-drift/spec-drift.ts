@@ -1,6 +1,7 @@
 import { query } from "../../../kernel/db.js";
 import { Llm, createDgraphClient } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../composition/project-boot.js";
+import { taskStore } from "../../../kernel/queues.js";
 import type { Project } from "@re-cinq/lore-shared";
 import {
   isAssertionSource,
@@ -363,11 +364,13 @@ async function createDriftTask(
     return "deferred";
   }
 
-  await query(
-    `INSERT INTO pipeline.tasks (description, task_type, status, target_repo, created_by, context_bundle)
-     VALUES ($1, 'gap-fill', 'pending', $2, 'spec-drift', $3)`,
-    [copy.title, repo, JSON.stringify(copy.bundle)],
-  );
+  await taskStore().create({
+    description: copy.title,
+    taskType: "gap-fill",
+    targetRepo: repo,
+    createdBy: "spec-drift",
+    contextBundle: copy.bundle,
+  });
 
   console.log(`[job] spec-drift: created gap-fill task for ${repo}:${specPath} (${copy.bundle.source})`);
   return "filed";

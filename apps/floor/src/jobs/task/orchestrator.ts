@@ -8,7 +8,7 @@ import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import { Llm } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../platform/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
-import { query } from "../../kernel/db.js";
+import { taskStore } from "../../kernel/queues.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
 import { evaluateAndMerge, type AutoMergeJobInputs } from "../merge/auto-merge.js";
 import {
@@ -360,11 +360,8 @@ async function pushAndOpenPr(opts: {
 
   // Look up issueNumber for the PR footer (it's null for dark-mode
   // tasks that didn't create an Issue).
-  const rows = await query<{ issue_number: number | null }>(
-    `SELECT issue_number FROM pipeline.tasks WHERE id = $1`,
-    [opts.task.id],
-  );
-  const issueNumber = rows[0]?.issue_number ?? null;
+  const taskRow = await taskStore().getById(opts.task.id);
+  const issueNumber = taskRow?.issue_number ?? null;
 
   const copy = await generateArtifactCopy({
     kind: "pr",
@@ -388,16 +385,11 @@ async function pushAndOpenPr(opts: {
   });
 
   // Update pipeline.tasks with PR info so resolvePrForTask can find it.
-  await query(
-    `UPDATE pipeline.tasks
-        SET status = 'pr-created',
-            pr_url = $1,
-            pr_number = $2,
-            target_branch = $3,
-            updated_at = now()
-      WHERE id = $4`,
-    [pr.data.html_url, pr.data.number, opts.branchName, opts.task.id],
-  );
+  await taskStore().setStatus(opts.task.id, "pr-created", {
+    pr_url: pr.data.html_url,
+    pr_number: pr.data.number,
+    target_branch: opts.branchName,
+  });
 
   return {
     outcome: "pr_created",

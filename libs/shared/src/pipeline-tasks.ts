@@ -165,6 +165,39 @@ export async function setTaskStatus(
   await pool.query(`UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`, params);
 }
 
+/**
+ * Compare-and-set status flip: only updates when the row is still in
+ * `expectedStatus`, returning true iff this caller won the race. The guard
+ * (`AND status = …`) is what the inline Floor writes carried to avoid
+ * double-processing; `setTaskStatus` (no guard) cannot replace those.
+ */
+export async function setTaskStatusIf(
+  pool: PgPool,
+  taskId: string,
+  expectedStatus: string,
+  status: string,
+  extra: Record<string, unknown> = {},
+): Promise<boolean> {
+  const setClauses = ["status = $1", "updated_at = now()"];
+  const params: unknown[] = [status];
+  let idx = 2;
+  for (const [key, value] of Object.entries(extra)) {
+    if (!ALLOWED_TASK_COLUMNS.has(key)) continue;
+    setClauses.push(`${key} = $${idx}`);
+    params.push(value);
+    idx++;
+  }
+  const idIdx = idx;
+  params.push(taskId);
+  const expectedIdx = idx + 1;
+  params.push(expectedStatus);
+  const { rows } = await pool.query(
+    `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idIdx} AND status = $${expectedIdx} RETURNING id`,
+    params,
+  );
+  return rows.length > 0;
+}
+
 export async function recordEvent(
   pool: PgPool,
   taskId: string,

@@ -1,9 +1,10 @@
-import {
-  pgBaseline,
-  pgTasks,
-  type BaselineRepository,
-  type TasksRepository,
-} from "../../kernel/repositories/index.js";
+import { baseline, taskQueue } from "../../kernel/queues.js";
+import type { BaselinePort } from "@re-cinq/lore-shared/project/baseline/baseline-port.js";
+
+/** The cross-repo repo scan the baseline job needs: the distinct target-repo set. */
+export interface BaselineRepoScan {
+  distinctTargetRepos(): Promise<string[]>;
+}
 
 interface RepoCounters {
   /**
@@ -26,9 +27,13 @@ interface RepoCounters {
 }
 
 export interface BaselineDeps {
-  tasks: TasksRepository;
-  baseline: BaselineRepository;
+  /** Reads the windowed counters from `pipeline.tasks` and writes the snapshot row. */
+  baseline: BaselinePort;
+  /** The distinct target-repo scan set (org-wide task-queue read). */
+  repoScan: BaselineRepoScan;
 }
+
+const defaultDeps = (): BaselineDeps => ({ baseline: baseline(), repoScan: taskQueue() });
 
 /**
  * Capture a `windowDays` baseline of pre-feature counters for one repo.
@@ -43,7 +48,7 @@ export interface BaselineDeps {
 export async function captureBaselineForRepo(
   repo: string,
   windowDays = 30,
-  deps: BaselineDeps = { tasks: pgTasks, baseline: pgBaseline },
+  deps: BaselineDeps = defaultDeps(),
   now: Date = new Date(),
 ): Promise<string> {
   const windowEnd = now;
@@ -51,7 +56,7 @@ export async function captureBaselineForRepo(
     windowEnd.getTime() - windowDays * 24 * 3600 * 1000,
   );
 
-  const stats = await deps.tasks.baselineStats(repo, windowStart, windowEnd);
+  const stats = await deps.baseline.baselineStats(repo, windowStart, windowEnd);
 
   const counters: RepoCounters = {
     job_pods_per_impl_task_p50: 4,
@@ -81,10 +86,10 @@ export async function captureBaselineForRepo(
  * Tolerates per-repo failures (logs and moves on).
  */
 export async function captureBaselineAllRepos(
-  deps: BaselineDeps = { tasks: pgTasks, baseline: pgBaseline },
+  deps: BaselineDeps = defaultDeps(),
   now: Date = new Date(),
 ): Promise<string> {
-  const repos = await deps.tasks.distinctTargetRepos();
+  const repos = await deps.repoScan.distinctTargetRepos();
   const summaries: string[] = [];
   for (const repo of repos) {
     try {

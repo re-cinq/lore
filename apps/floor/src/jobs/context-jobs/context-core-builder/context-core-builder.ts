@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { query } from "../../../kernel/db.js";
+import { chunks, contextCore, taskStore } from "../../../kernel/queues.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -19,9 +19,7 @@ const REGRESSION_THRESHOLD = 0.05; // 5% to reject
  */
 export async function contextCoreBuilderJob(): Promise<string> {
   // Get all namespaces (teams) that have chunks
-  const namespaces = await query<{ team: string }>(
-    `SELECT DISTINCT team FROM org_shared.chunks WHERE team IS NOT NULL`,
-  );
+  const namespaces = await chunks().distinctTeams();
 
   if (namespaces.length === 0) {
     console.log("[job] context-core: no namespaces found");
@@ -32,14 +30,14 @@ export async function contextCoreBuilderJob(): Promise<string> {
   let rejected = 0;
   let unchanged = 0;
 
-  for (const ns of namespaces) {
+  for (const team of namespaces) {
     try {
-      const result = await evaluateNamespace(ns.team);
+      const result = await evaluateNamespace(team);
       if (result === "promoted") promoted++;
       else if (result === "rejected") rejected++;
       else unchanged++;
     } catch (err) {
-      console.error(`[job] context-core: error evaluating ${ns.team}:`, err);
+      console.error(`[job] context-core: error evaluating ${team}:`, err);
     }
   }
 
@@ -52,12 +50,7 @@ async function evaluateNamespace(
   namespace: string,
 ): Promise<"promoted" | "rejected" | "unchanged"> {
   // Count promoted chunks
-  const chunkCount = await query<{ count: string }>(
-    `SELECT COUNT(*) AS count FROM org_shared.chunks WHERE team = $1`,
-    [namespace],
-  );
-
-  const count = parseInt(chunkCount[0]?.count || "0", 10);
+  const count = await chunks().countChunksByTeam(namespace);
   if (count === 0) {
     console.log(`[job] context-core: ${namespace} has 0 chunks, skipping`);
     return "unchanged";
@@ -86,15 +79,7 @@ async function evaluateNamespace(
   }
 
   // Get previous production score
-  const prevRows = await query<{ eval_score: number }>(
-    `SELECT eval_score FROM pipeline.context_core_history
-     WHERE namespace = $1 AND status = 'production'
-     ORDER BY promoted_at DESC
-     LIMIT 1`,
-    [namespace],
-  );
-
-  const prevScore = prevRows[0]?.eval_score ?? 0;
+  const prevScore = (await contextCore().latest(namespace)) ?? 0;
   const delta = currentScore - prevScore;
 
   const version = `v${new Date().toISOString().slice(0, 10)}-${namespace}`;
@@ -105,11 +90,7 @@ async function evaluateNamespace(
 
   if (delta >= IMPROVEMENT_THRESHOLD) {
     // Promote: mark as new production baseline
-    await query(
-      `INSERT INTO pipeline.context_core_history (version, namespace, eval_score, status)
-       VALUES ($1, $2, $3, 'production')`,
-      [version, namespace, currentScore],
-    );
+    await contextCore().insert({ version, namespace, evalScore: currentScore, status: "production" });
 
     console.log(
       `[job] context-core: PROMOTED ${namespace} ${version} (${(prevScore * 100).toFixed(1)}% → ${(currentScore * 100).toFixed(1)}%)`,
@@ -119,21 +100,14 @@ async function evaluateNamespace(
 
   if (delta < -REGRESSION_THRESHOLD) {
     // Reject: log regression and create alert task
-    await query(
-      `INSERT INTO pipeline.context_core_history (version, namespace, eval_score, status)
-       VALUES ($1, $2, $3, 'rejected-regression')`,
-      [version, namespace, currentScore],
-    );
+    await contextCore().insert({ version, namespace, evalScore: currentScore, status: "rejected-regression" });
 
-    await query(
-      `INSERT INTO pipeline.tasks (description, task_type, status, target_repo)
-       VALUES ($1, 'gap-fill', 'pending', $2)
-       ON CONFLICT DO NOTHING`,
-      [
-        `Context quality regression: ${namespace} dropped from ${(prevScore * 100).toFixed(1)}% to ${(currentScore * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
-        namespace,
-      ],
-    );
+    await taskStore().create({
+      description: `Context quality regression: ${namespace} dropped from ${(prevScore * 100).toFixed(1)}% to ${(currentScore * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
+      taskType: "gap-fill",
+      targetRepo: namespace,
+      createdBy: "context-core-builder",
+    });
 
     console.log(
       `[job] context-core: REJECTED ${namespace} ${version} — regression of ${(delta * 100).toFixed(1)}%`,
@@ -142,11 +116,7 @@ async function evaluateNamespace(
   }
 
   // No significant change
-  await query(
-    `INSERT INTO pipeline.context_core_history (version, namespace, eval_score, status)
-     VALUES ($1, $2, $3, 'no-change')`,
-    [version, namespace, currentScore],
-  );
+  await contextCore().insert({ version, namespace, evalScore: currentScore, status: "no-change" });
 
   return "unchanged";
 }

@@ -1,27 +1,34 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-
-const queryMock = vi.fn();
-vi.mock("../../../kernel/db.js", () => ({ query: (...args: unknown[]) => queryMock(...args) }));
-
+import { describe, it, expect } from "vitest";
+import { InMemoryMemoryLifecycle, type MemoryRow } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-memory.js";
 import { ttlCleanupJob } from "./ttl-cleanup.js";
 
+function expiredMemory(id: string): MemoryRow {
+  return {
+    id,
+    agent_id: "agent",
+    key: `k-${id}`,
+    value: "v",
+    version: 1,
+    is_deleted: false,
+    created_at: "2026-01-01T00:00:00Z",
+    last_retrieved_at: null,
+    half_life_days: null,
+    retrieval_count: null,
+    expires_at: "2026-01-02T00:00:00Z",
+  };
+}
+
 describe("ttlCleanupJob", () => {
-  beforeEach(() => {
-    queryMock.mockReset();
-    queryMock.mockResolvedValue([{ count: "3" }]);
+  it("soft-deletes expired memories and reports the count", async () => {
+    const memory = new InMemoryMemoryLifecycle({
+      memories: [expiredMemory("1"), expiredMemory("2"), expiredMemory("3")],
+    });
+
+    expect(await ttlCleanupJob(memory)).toBe("Cleaned up 3 expired memories");
+    expect(memory.memories.every((m) => m.is_deleted)).toBe(true);
   });
 
-  it("expires memories via the is_deleted column, not a non-existent deleted column", async () => {
-    await ttlCleanupJob();
-    const sql = queryMock.mock.calls[0][0] as string;
-    expect(sql).toContain("is_deleted = true");
-    expect(sql).toContain("is_deleted = false");
-    expect(sql).not.toMatch(/\bSET\s+deleted\b/);
-    expect(sql).not.toMatch(/\bAND\s+deleted\b/);
-    expect(sql).not.toContain("updated_at");
-  });
-
-  it("returns the count of expired memories", async () => {
-    expect(await ttlCleanupJob()).toBe("Cleaned up 3 expired memories");
+  it("reports zero when nothing is expired", async () => {
+    expect(await ttlCleanupJob(new InMemoryMemoryLifecycle())).toBe("Cleaned up 0 expired memories");
   });
 });

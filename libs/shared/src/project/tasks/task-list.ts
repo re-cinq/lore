@@ -53,6 +53,10 @@ export class TaskList {
     return this.store.setStatus(id, status, extra);
   }
 
+  setStatusIf(id: string, expectedStatus: string, status: string, extra?: Record<string, unknown>): Promise<boolean> {
+    return this.store.setStatusIf(id, expectedStatus, status, extra);
+  }
+
   updateStatus(id: string, status: string, meta?: unknown): Promise<void> {
     return this.store.updateStatus(id, status, meta);
   }

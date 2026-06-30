@@ -15,16 +15,22 @@
 import { Octokit } from "octokit";
 import { createAppAuth } from "@octokit/auth-app";
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
-import {
-  pgRepos,
-  pgTasks,
-  type ReposRepository,
-  type TasksRepository,
-} from "../../kernel/repositories/index.js";
+import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+import { taskQueue, settings } from "../../kernel/queues.js";
+
+/** PR coordinates for one task id (the auto-merge policy lookup). */
+export interface PrInfoReader {
+  prInfo(taskId: string): Promise<TaskPrInfo | null>;
+}
+
+/** The repo's raw settings JSONB (read for `trust.level`). */
+export interface RepoSettingsReader {
+  rawSettings(repo: string): Promise<Record<string, unknown> | null>;
+}
 
 export interface PrPolicyDeps {
-  tasks: TasksRepository;
-  repos: ReposRepository;
+  tasks: PrInfoReader;
+  repos: RepoSettingsReader;
 }
 
 export interface PrForAutoMerge {
@@ -65,6 +71,25 @@ export function buildOctokit(): Octokit {
   );
 }
 
+type TrustLevel = "docs" | "tests" | "implementation" | "full";
+
+/**
+ * The repo's configured trust level, read from `lore.repos.settings.trust.level`.
+ * Mirrors the former PgReposRepository.trustLevel: undefined on absence or a
+ * settings-read failure (so a DB hiccup leaves the conservative `docs` default).
+ */
+async function readTrustLevel(
+  repos: RepoSettingsReader,
+  repo: string,
+): Promise<TrustLevel | undefined> {
+  try {
+    const raw = (await repos.rawSettings(repo)) as { trust?: { level?: string } } | null;
+    return raw?.trust?.level as TrustLevel | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Look up everything `evaluateAndMerge` needs by task id. Returns
  * null if the task has no PR yet (auto-merge has nothing to act on).
@@ -77,9 +102,9 @@ export function buildOctokit(): Octokit {
  */
 export async function resolvePrForTaskFromDb(
   taskId: string,
-  settings: ResolvedDarkFactorySettings,
+  darkFactorySettings: ResolvedDarkFactorySettings,
   octokit: Octokit,
-  deps: PrPolicyDeps = { tasks: pgTasks, repos: pgRepos },
+  deps: PrPolicyDeps = { tasks: taskQueue(), repos: settings() },
 ): Promise<PrForAutoMerge | null> {
   const row = await deps.tasks.prInfo(taskId);
   if (!row?.pr_number || !row.target_repo) return null;
@@ -149,7 +174,7 @@ export async function resolvePrForTaskFromDb(
 
   let trustLevel: ResolvedDarkFactorySettings["auto_merge"]["min_trust"] =
     "docs";
-  const lvl = await deps.repos.trustLevel(row.target_repo);
+  const lvl = await readTrustLevel(deps.repos, row.target_repo);
   if (lvl) trustLevel = lvl;
 
   return {
@@ -157,12 +182,12 @@ export async function resolvePrForTaskFromDb(
     prNumber: row.pr_number,
     octokit,
     policy: {
-      darkFactoryEnabled: settings.enabled,
+      darkFactoryEnabled: darkFactorySettings.enabled,
       autoMerge: {
-        paths: settings.auto_merge.paths,
-        min_trust: settings.auto_merge.min_trust,
-        require_green_ci: settings.auto_merge.require_green_ci,
-        require_bot_approval: settings.auto_merge.require_bot_approval,
+        paths: darkFactorySettings.auto_merge.paths,
+        min_trust: darkFactorySettings.auto_merge.min_trust,
+        require_green_ci: darkFactorySettings.auto_merge.require_green_ci,
+        require_bot_approval: darkFactorySettings.auto_merge.require_bot_approval,
       },
       trustLevel,
       changedPaths,

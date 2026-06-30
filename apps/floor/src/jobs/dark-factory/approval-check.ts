@@ -1,18 +1,9 @@
-import { query } from "../../kernel/db.js";
+import { taskQueue } from "../../kernel/queues.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { getApprovalLabel } from "./approval.js";
 
-interface AwaitingTask {
-  id: string;
-  target_repo: string;
-  issue_number: number;
-}
-
 export async function approvalCheckJob(): Promise<string> {
-  const tasks = await query<AwaitingTask>(
-    `SELECT id, target_repo, issue_number FROM pipeline.tasks
-     WHERE status = 'awaiting_approval' AND issue_number IS NOT NULL`
-  );
+  const tasks = await taskQueue().awaitingApproval();
 
   if (tasks.length === 0) {
     console.log("[job] approval-check: no tasks awaiting approval");
@@ -29,15 +20,10 @@ export async function approvalCheckJob(): Promise<string> {
 
       if (labels.includes(approvalLabel)) {
         // Transition: awaiting_approval → pending
-        await query(
-          `UPDATE pipeline.tasks SET status = 'pending', updated_at = now() WHERE id = $1`,
-          [task.id]
-        );
-        await query(
-          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
-           VALUES ($1, $2, $3, $4)`,
-          [task.id, "awaiting_approval", "pending", JSON.stringify({ reason: "approved-via-label" })]
-        );
+        await project.tasks.setStatus(task.id, "pending");
+        await project.tasks.recordEvent(task.id, "awaiting_approval", "pending", {
+          reason: "approved-via-label",
+        });
 
         // Remove the awaiting-approval label and add approved
         await project.issues.removeLabel(task.issue_number, "awaiting-approval").catch(() => {});

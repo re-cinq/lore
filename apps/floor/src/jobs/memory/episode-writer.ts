@@ -2,27 +2,21 @@
  * Episode writer — shared utility for automatic episode capture
  * and optional LLM-driven curation (lesson extraction).
  *
- * Used by loretask-watcher (PR, no-changes, failure) and worker
+ * Used by the agent watcher (PR, no-changes, failure) and worker
  * (feature-request, onboard) to passively capture task outcomes
  * as searchable episodes with fact extraction.
  */
 
 import { createHash } from "node:crypto";
 import { redactSecrets, Llm } from "@re-cinq/lore-shared";
-import {
-  pgEpisodes,
-  pgMemories,
-  type EpisodeRepository,
-  type MemoryRepository,
-} from "../../kernel/repositories/index.js";
+import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
+import { memoryLifecycle } from "../../kernel/queues.js";
 
 export interface WriteEpisodeDeps {
-  episodes: EpisodeRepository;
+  memory: MemoryLifecyclePort;
 }
 
-export interface CurationDeps extends WriteEpisodeDeps {
-  memories: MemoryRepository;
-}
+export type CurationDeps = WriteEpisodeDeps;
 
 /**
  * Write an episode to memory.episodes. Fire-and-forget — never throws.
@@ -33,13 +27,13 @@ export async function writeEpisode(
   source: string,
   ref: string,
   agentId: string = "loretask-watcher",
-  deps: WriteEpisodeDeps = { episodes: pgEpisodes },
+  deps: WriteEpisodeDeps = { memory: memoryLifecycle() },
 ): Promise<string | null> {
   try {
     // Privacy filter: strip secrets/keys before storing in org-wide memory
     const safeContent = redactSecrets(content);
     const contentHash = createHash("sha256").update(safeContent).digest("hex");
-    return await deps.episodes.insert({
+    return await deps.memory.insertEpisode({
       agentId,
       content: safeContent,
       contentHash,
@@ -61,10 +55,7 @@ export async function writeEpisodeWithCuration(
   ref: string,
   agentId: string = "loretask-watcher",
   taskId?: string,
-  deps: CurationDeps = {
-    episodes: pgEpisodes,
-    memories: pgMemories,
-  },
+  deps: CurationDeps = { memory: memoryLifecycle() },
 ): Promise<void> {
   // Write the episode first (always)
   const episodeId = await writeEpisode(content, source, ref, agentId, deps);
@@ -87,7 +78,7 @@ export async function writeEpisodeWithCuration(
 
     // Store as a memory entry
     const key = `auto-curation/${ref.replace(/[^a-zA-Z0-9\-\/]/g, "_")}`;
-    await deps.memories.upsert({ agentId, key, value: lesson });
+    await deps.memory.upsertMemory({ agentId, key, value: lesson });
   } catch {
     // Curation is best-effort — never block task processing
   }

@@ -1,5 +1,5 @@
 import cronParser from "cron-parser";
-import { query } from "../../kernel/db.js";
+import { jobRuns } from "../../kernel/queues.js";
 import { startJobRun, completeJobRun, failJobRun } from "./job-run.js";
 
 export interface JobDef {
@@ -33,14 +33,8 @@ async function tick(): Promise<void> {
       const interval = cronParser.parseExpression(job.cron);
       const prev = interval.prev().toDate();
 
-      const rows = await query<{ started_at: Date }>(
-        `SELECT started_at FROM pipeline.job_runs
-         WHERE job_name = $1
-         ORDER BY started_at DESC LIMIT 1`,
-        [job.name],
-      );
-
-      const lastRun = rows[0]?.started_at ?? null;
+      const last = await jobRuns().lastRun(job.name);
+      const lastRun = last?.startedAt ?? null;
 
       if (!lastRun || lastRun < prev) {
         await runJob(job);
@@ -84,14 +78,8 @@ async function checkMissedRuns(): Promise<void> {
       const interval = cronParser.parseExpression(job.cron);
       const prev = interval.prev().toDate();
 
-      const rows = await query<{ started_at: Date }>(
-        `SELECT started_at FROM pipeline.job_runs
-         WHERE job_name = $1
-         ORDER BY started_at DESC LIMIT 1`,
-        [job.name],
-      );
-
-      const lastRun = rows[0]?.started_at ?? null;
+      const last = await jobRuns().lastRun(job.name);
+      const lastRun = last?.startedAt ?? null;
 
       if (!lastRun || lastRun < prev) {
         await runJob(job);

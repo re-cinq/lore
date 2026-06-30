@@ -1,4 +1,4 @@
-import { query } from "../../kernel/db.js";
+import { taskStore, taskQueue, settings, memoryLifecycle } from "../../kernel/queues.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeEpisodeWithCuration } from "../memory/episode-writer.js";
 import { parseTasks, inferPhaseDependencies } from "@re-cinq/lore-shared";
@@ -18,15 +18,7 @@ async function syncSpecTasksFromMerge(task: { id: string; target_repo: string; t
   if (!specSlug) return;
 
   // Idempotency: check if spec-tasks already synced (by webhook or previous run)
-  const existing = await query<{ id: string }>(
-    `SELECT id FROM pipeline.tasks
-     WHERE task_type = 'spec-task'
-       AND target_repo = $1
-       AND context_bundle->>'spec_slug' = $2
-     LIMIT 1`,
-    [task.target_repo, specSlug],
-  );
-  if (existing.length > 0) {
+  if (await taskQueue().hasSpecTasksForSlug(task.target_repo, specSlug)) {
     console.log(`[job] merge-check: spec-tasks already synced for ${specSlug}`);
     return;
   }
@@ -57,32 +49,32 @@ async function syncSpecTasksFromMerge(task: { id: string; target_repo: string; t
       file_path: t.filePath,
     };
     const status = t.completed ? "completed" : "pending";
-    const result = await query<{ id: string }>(
-      `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
-       VALUES ($1, 'spec-task', $2, $3, $4, 'merge-check', $5)
-       ON CONFLICT DO NOTHING
-       RETURNING id`,
-      [title, task.target_repo, status, JSON.stringify(metadata), taskGroupId],
-    );
-    if (result.length > 0) created++;
+    const inserted = await taskQueue().insertTask({
+      description: title,
+      taskType: "spec-task",
+      targetRepo: task.target_repo,
+      status,
+      contextBundle: metadata,
+      createdBy: "merge-check",
+      taskGroupId,
+    });
+    if (inserted) created++;
   }
 
   console.log(`[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`);
 }
 
-interface PendingRepo {
-  id: string;
-  full_name: string;
-  onboarding_pr_url: string;
+const TRUST_LEVELS = ["docs", "tests", "implementation", "full"];
+
+interface RepoTrust {
+  level?: string;
+  auto_promote_threshold?: number;
+  successful_tasks?: number;
+  [key: string]: unknown;
 }
 
 export async function mergeCheckJob(): Promise<string> {
-  const repos = await query<PendingRepo>(
-    `SELECT id, full_name, onboarding_pr_url
-     FROM lore.repos
-     WHERE onboarding_pr_merged = false
-       AND onboarding_pr_url IS NOT NULL`,
-  );
+  const repos = await settings().pendingOnboardingRepos();
 
   if (repos.length === 0) {
     console.log("[job] merge-check: no pending repos");
@@ -110,12 +102,7 @@ export async function mergeCheckJob(): Promise<string> {
       const merged = await projectFor(fullName).then((p) => p.pulls.isMerged(parseInt(prNumber, 10)));
 
       if (merged) {
-        await query(
-          `UPDATE lore.repos
-           SET onboarding_pr_merged = true, last_ingested_at = now()
-           WHERE id = $1`,
-          [repo.id],
-        );
+        await settings().markOnboardingMergedById(repo.id);
         mergedCount++;
         console.log(`[job] merge-check: ${repo.full_name} PR merged`);
       }
@@ -128,13 +115,7 @@ export async function mergeCheckJob(): Promise<string> {
   }
 
   // Also check pipeline tasks with PRs that might have been merged
-  const tasks = await query<{ id: string; target_repo: string; target_branch: string | null; pr_url: string; pr_number: number; issue_number: number | null; task_type: string; description: string; created_at: string; context_bundle: { feature_id?: string; slug?: string } | null }>(
-    `SELECT id, target_repo, target_branch, pr_url, pr_number, issue_number, task_type, description, created_at, context_bundle
-     FROM pipeline.tasks
-     WHERE status IN ('pr-created', 'review')
-       AND pr_number IS NOT NULL
-       AND pr_url IS NOT NULL`,
-  );
+  const tasks = await taskQueue().mergeableTasks();
 
   let tasksMerged = 0;
   let tasksClosed = 0;
@@ -143,14 +124,8 @@ export async function mergeCheckJob(): Promise<string> {
       const project = await projectFor(task.target_repo);
       const merged = await project.pulls.isMerged(task.pr_number);
       if (merged) {
-        await query(
-          `UPDATE pipeline.tasks SET status = 'merged', updated_at = now() WHERE id = $1`,
-          [task.id],
-        );
-        await query(
-          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'pr-created', 'merged', $2)`,
-          [task.id, JSON.stringify({ merged_by: "merge-check" })],
-        );
+        await taskStore().setStatus(task.id, "merged");
+        await taskStore().recordEvent(task.id, "pr-created", "merged", { merged_by: "merge-check" });
         // Close the GitHub Issue if still open
         if (task.issue_number) {
           try {
@@ -167,66 +142,41 @@ export async function mergeCheckJob(): Promise<string> {
           const episode = `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.\nFiles changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}\nReview comments: ${stats.comments}\nTime to merge: ${timeToMerge}h\nDescription: ${task.description.substring(0, 200)}`;
           await writeEpisodeWithCuration(episode, "ci", `${task.target_repo}/${task.id}`, "merge-check", task.id);
           // Update repo outcome_stats
-          await query(
-            `UPDATE lore.repos SET outcome_stats = jsonb_set(
-               jsonb_set(
-                 jsonb_set(COALESCE(outcome_stats, '{}'), '{merged_count}', to_jsonb(COALESCE((outcome_stats->>'merged_count')::int, 0) + 1)),
-                 '{total_files_changed}', to_jsonb(COALESCE((outcome_stats->>'total_files_changed')::int, 0) + $2)),
-               '{total_hours_to_merge}', to_jsonb(COALESCE((outcome_stats->>'total_hours_to_merge')::int, 0) + $3))
-             WHERE full_name = $1`,
-            [task.target_repo, stats.files_changed, timeToMerge || 0],
-          );
+          await settings().bumpOutcomeStats(task.target_repo, stats.files_changed, timeToMerge || 0);
         } catch { /* outcome capture is best-effort */ }
         // Outcome feedback: boost contributing facts/memories
         try {
-          const taskRows = await query<{ context_refs: any }>(
-            `SELECT context_refs FROM pipeline.tasks WHERE id = $1`, [task.id],
-          );
-          const refs = taskRows[0]?.context_refs;
+          const refs = await taskQueue().contextRefs(task.id);
           if (refs) {
-            if (refs.fact_ids?.length > 0) {
-              await query(
-                `UPDATE memory.facts SET half_life_days = LEAST(COALESCE(half_life_days, 30) + 5, 365) WHERE id = ANY($1::uuid[])`,
-                [refs.fact_ids],
-              );
-            }
-            if (refs.memory_ids?.length > 0) {
-              await query(
-                `UPDATE memory.memories SET half_life_days = LEAST(COALESCE(half_life_days, 60) + 5, 365) WHERE id = ANY($1::uuid[])`,
-                [refs.memory_ids],
-              );
-            }
-            await query(
-              `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ('merge-check', 'outcome-feedback', $1)`,
-              [JSON.stringify({ task_id: task.id, action: 'boost', fact_count: refs.fact_ids?.length || 0, memory_count: refs.memory_ids?.length || 0 })],
-            ).catch(() => {});
+            await memoryLifecycle().boostContributors(refs.fact_ids ?? [], refs.memory_ids ?? []);
+            await memoryLifecycle().writeAuditLog({
+              agentId: "merge-check",
+              operation: "outcome-feedback",
+              metadata: { task_id: task.id, action: "boost", fact_count: refs.fact_ids?.length || 0, memory_count: refs.memory_ids?.length || 0 },
+            }).catch(() => {});
           }
         } catch { /* outcome feedback is best-effort */ }
         // Progressive trust: auto-promote after N successful merges
         try {
-          const trustLevels = ["docs", "tests", "implementation", "full"];
-          const repoRows = await query<{ settings: any }>(
-            `SELECT settings FROM lore.repos WHERE full_name = $1`, [task.target_repo],
-          );
-          if (repoRows.length > 0) {
-            const settings = repoRows[0].settings || {};
-            const trust = settings.trust;
+          const repoSettings = await settings().rawSettings(task.target_repo);
+          if (repoSettings) {
+            const trust = repoSettings.trust as RepoTrust | undefined;
             if (trust?.level && trust.level !== "full") {
               const threshold = trust.auto_promote_threshold || 3;
               const count = (trust.successful_tasks || 0) + 1;
               if (count >= threshold) {
-                const nextIdx = Math.min(trustLevels.indexOf(trust.level) + 1, trustLevels.length - 1);
-                const nextLevel = trustLevels[nextIdx];
-                await query(
-                  `UPDATE lore.repos SET settings = jsonb_set(settings, '{trust}', $2::jsonb) WHERE full_name = $1`,
-                  [task.target_repo, JSON.stringify({ ...trust, level: nextLevel, successful_tasks: 0, promoted_at: new Date().toISOString() })],
-                );
+                const nextIdx = Math.min(TRUST_LEVELS.indexOf(trust.level) + 1, TRUST_LEVELS.length - 1);
+                const nextLevel = TRUST_LEVELS[nextIdx];
+                await settings().updateSettings(task.target_repo, {
+                  ...repoSettings,
+                  trust: { ...trust, level: nextLevel, successful_tasks: 0, promoted_at: new Date().toISOString() },
+                });
                 console.log(`[job] merge-check: ${task.target_repo} trust promoted to ${nextLevel}`);
               } else {
-                await query(
-                  `UPDATE lore.repos SET settings = jsonb_set(settings, '{trust,successful_tasks}', to_jsonb($2)) WHERE full_name = $1`,
-                  [task.target_repo, count],
-                );
+                await settings().updateSettings(task.target_repo, {
+                  ...repoSettings,
+                  trust: { ...trust, successful_tasks: count },
+                });
               }
             }
           }
@@ -244,15 +194,14 @@ export async function mergeCheckJob(): Promise<string> {
         const decompose = decideDecomposeKick(task);
         if (decompose.kick) {
           try {
-            await query(
-              `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by)
-               VALUES ($1, 'feature-decompose', $2, 'pending', $3, 'merge-check')`,
-              [
-                `Decompose feature: ${decompose.slug ?? decompose.featureId}`,
-                task.target_repo,
-                JSON.stringify({ feature_id: decompose.featureId, slug: decompose.slug }),
-              ],
-            );
+            await taskQueue().insertTask({
+              description: `Decompose feature: ${decompose.slug ?? decompose.featureId}`,
+              taskType: "feature-decompose",
+              targetRepo: task.target_repo,
+              status: "pending",
+              contextBundle: { feature_id: decompose.featureId, slug: decompose.slug },
+              createdBy: "merge-check",
+            });
             console.log(`[job] merge-check: kicked feature-decompose for ${decompose.slug ?? decompose.featureId}`);
           } catch (err: any) {
             console.error(`[job] merge-check: could not kick decompose for ${task.id}: ${err.message}`);
@@ -266,38 +215,22 @@ export async function mergeCheckJob(): Promise<string> {
       // Check for closed-without-merge (PR rejection)
       const closed = await projectFor(task.target_repo).then((p) => p.pulls.isClosed(task.pr_number));
       if (closed) {
-        await query(`UPDATE pipeline.tasks SET status = 'failed', failure_reason = 'PR closed without merge' WHERE id = $1`, [task.id]);
-        await query(
-          `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, 'pr-created', 'failed', $2)`,
-          [task.id, JSON.stringify({ reason: "pr-rejected", detected_by: "merge-check" })],
-        );
+        await taskStore().setStatus(task.id, "failed", { failure_reason: "PR closed without merge" });
+        await taskStore().recordEvent(task.id, "pr-created", "failed", { reason: "pr-rejected", detected_by: "merge-check" });
         await writeEpisodeWithCuration(
           `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} was closed without merge (rejected).\nDescription: ${task.description.substring(0, 200)}`,
           "ci", `${task.target_repo}/${task.id}`, "merge-check", task.id,
         );
         // Outcome feedback: penalize contributing facts/memories on rejection
         try {
-          const taskRows = await query<{ context_refs: any }>(
-            `SELECT context_refs FROM pipeline.tasks WHERE id = $1`, [task.id],
-          );
-          const refs = taskRows[0]?.context_refs;
+          const refs = await taskQueue().contextRefs(task.id);
           if (refs) {
-            if (refs.fact_ids?.length > 0) {
-              await query(
-                `UPDATE memory.facts SET half_life_days = GREATEST(7, COALESCE(half_life_days, 30) - 3) WHERE id = ANY($1::uuid[])`,
-                [refs.fact_ids],
-              );
-            }
-            if (refs.memory_ids?.length > 0) {
-              await query(
-                `UPDATE memory.memories SET half_life_days = GREATEST(7, COALESCE(half_life_days, 60) - 3) WHERE id = ANY($1::uuid[])`,
-                [refs.memory_ids],
-              );
-            }
-            await query(
-              `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ('merge-check', 'outcome-feedback', $1)`,
-              [JSON.stringify({ task_id: task.id, action: 'penalize', fact_count: refs.fact_ids?.length || 0, memory_count: refs.memory_ids?.length || 0 })],
-            ).catch(() => {});
+            await memoryLifecycle().penalizeContributors(refs.fact_ids ?? [], refs.memory_ids ?? []);
+            await memoryLifecycle().writeAuditLog({
+              agentId: "merge-check",
+              operation: "outcome-feedback",
+              metadata: { task_id: task.id, action: "penalize", fact_count: refs.fact_ids?.length || 0, memory_count: refs.memory_ids?.length || 0 },
+            }).catch(() => {});
           }
         } catch { /* best-effort */ }
         tasksClosed++;
