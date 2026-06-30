@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import CopyButton from './CopyButton';
 import styles from './EnrollmentSection.module.css';
+import buttonStyles from './CopyButton.module.css';
 
 /**
  * Renders a sensitive value (the webhook signing secret) masked by default with
@@ -15,7 +16,11 @@ export default function SecretReveal({ value, label }: { value: string; label?: 
     <span className={styles.copyUrl}>
       {label && <span className="meta">{label}:</span>}
       <code className={styles.copyUrlValue}>{shown ? value : '•'.repeat(Math.min(value.length, 32))}</code>
-      <button type="button" className="btn-secondary" onClick={() => setShown((s) => !s)}>
+      <button
+        type="button"
+        className={`btn-secondary ${buttonStyles.button}`}
+        onClick={() => setShown((s) => !s)}
+      >
         {shown ? 'Hide' : 'Reveal'}
       </button>
       <CopyButton text={value} />
