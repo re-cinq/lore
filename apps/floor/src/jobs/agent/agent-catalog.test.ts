@@ -79,6 +79,10 @@ describe("catalogChartYaml", () => {
     expect(out).toContain("url: {{ .Values.agentEventsUrl }}");
     expect(out).not.toContain("__AGENT_EVENTS_URL__");
   });
+  it("stamps each CR namespace with the helm value (umbrella spans namespaces)", () => {
+    expect(out).toContain("namespace: {{ .Values.namespace }}");
+    expect(out).not.toContain("__NAMESPACE__");
+  });
   it("renders both kinds for the task type", () => {
     expect(out).toContain("kind: AgentDefinition");
     expect(out).toContain("kind: Station");

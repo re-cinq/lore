@@ -1,0 +1,58 @@
+{{- if .Values.ownershipReconciler.enabled }}
+# ServiceAccount + Role + RoleBinding scoped to the lore-db namespace
+# (= {{ .Values.namespace }}). Grants the reconciler Job pod the
+# narrowest API surface that lets it `kubectl exec` into the CNPG
+# primary so it can run psql against the in-pod local socket
+# (peer-authenticated as `postgres`, no network superuser needed).
+#
+# Lifecycle: pre-install,pre-upgrade hook — created before the Job,
+# deleted with the Job on success. Restricting create-on-pods/exec to
+# this ServiceAccount only, not the default SA, means a compromised
+# UI pod cannot exec into the database pod.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lore-db-ownership-reconciler
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lore-db-ownership-reconciler
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  # List + get to discover the primary pod via the cnpg.io label
+  # selector; pods/exec to run psql against the local socket.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lore-db-ownership-reconciler
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+subjects:
+  - kind: ServiceAccount
+    name: lore-db-ownership-reconciler
+    namespace: {{ .Values.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lore-db-ownership-reconciler
+{{- end }}

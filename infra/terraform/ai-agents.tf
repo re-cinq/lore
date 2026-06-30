@@ -140,19 +140,8 @@ resource "kubectl_manifest" "es_ai_agents_events_auth" {
   ]
 }
 
-# The chart (CRDs + controller + RBAC + cross-namespace Floor binding + run-pod
-# NetworkPolicy). create_namespace=false: the namespace + ESO secrets exist first.
-# No --wait (Autopilot rollout-wait wedges releases — see the helm/terraform notes).
-resource "helm_release" "ai_agents" {
-  name             = "ai-agents"
-  chart            = "${path.module}/modules/gke-mcp/ai-agents-helm"
-  namespace        = "ai-agents"
-  create_namespace = false
-
-  depends_on = [
-    kubernetes_namespace.ai_agents,
-    kubectl_manifest.es_ai_agents_secrets,
-    kubectl_manifest.es_ai_agents_ghcr,
-    kubectl_manifest.es_ai_agents_events_auth,
-  ]
-}
+# The ai-agents chart (CRDs + controller + RBAC + cross-namespace Floor binding +
+# run-pod NetworkPolicy) is deployed by the umbrella Helm release
+# (`helm_release.lore_platform` in lore-platform.tf), under the `ai-agents`
+# subchart key. The namespace and the ESO-managed secrets above exist first
+# (the umbrella release depends_on them).

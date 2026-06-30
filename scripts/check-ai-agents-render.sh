@@ -3,12 +3,13 @@
 # A lightweight, cluster-free check (the infra equivalent of a unit test) for CI
 # and local dev. Regenerate/inspect locally with:
 #
-#   helm template ai-agents infra/terraform/modules/gke-mcp/ai-agents-helm \
+#   helm template ai-agents \
+#     infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm \
 #     --namespace ai-agents --include-crds
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-chart="$repo/infra/terraform/modules/gke-mcp/ai-agents-helm"
+chart="$repo/infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm"
 
 out="$(helm template ai-agents "$chart" --namespace ai-agents --include-crds)"
 

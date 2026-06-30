@@ -7,7 +7,10 @@ import { resolve } from "node:path";
 // index, or the task_overrides backfill.
 
 const sql = readFileSync(
-  resolve(process.cwd(), "../../infra/terraform/modules/gke-mcp/ui-helm/migrations/0015_agents_table.sql"),
+  resolve(
+    process.cwd(),
+    "../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0015_agents_table.sql",
+  ),
   "utf-8",
 );
 

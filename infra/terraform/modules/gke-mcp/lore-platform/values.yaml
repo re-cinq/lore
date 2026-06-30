@@ -1,0 +1,27 @@
+# Lore platform umbrella — values are nested under each subchart's chart name.
+#
+# Runtime config (env, secret refs) is supplied by Terraform's single
+# `helm_release.lore_platform` (infra/terraform/lore-platform.tf) via a nested
+# `values` block. Image tags are supplied by CI per push
+# (`helm upgrade --set <subchart>.image.tag=<sha> --reset-then-reuse-values`).
+#
+# The defaults that matter for standalone rendering (namespaces, image repos,
+# replica counts, resources, default env) live in each subchart's own
+# values.yaml under charts/. This file only documents the structure and pins
+# the per-subchart namespaces so the umbrella's multi-namespace layout is
+# explicit at the top level.
+
+lore-floor:
+  namespace: lore-floor
+
+lore-mcp:
+  namespace: mcp-servers
+
+lore-ui:
+  namespace: lore-ui
+
+lore-db-helm:
+  namespace: lore-db
+
+ai-agents:
+  namespace: ai-agents
