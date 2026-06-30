@@ -64,7 +64,6 @@ resource "helm_release" "lore_platform" {
       taskTypesConfig = file("${path.module}/../../scripts/task-types.yaml")
       replicaCount    = 1
       env = {
-        MCP_TRANSPORT    = "http"
         PORT             = "3000"
         CONTEXT_PATH     = "/context"
         TASK_TYPES_PATH  = "/config/task-types.yaml"
