@@ -3,7 +3,7 @@
 // "event":<the claude/codex stream-json line>}`. This pure mapper turns those lines into
 // pipeline.llm_calls rows for cost accounting: one row per run, taken from the terminal
 // `result` event (it carries total_cost_usd + the run's cumulative usage + duration). The
-// HTTP receipt + DB insert is the IO shell (delivery/health.ts).
+// HTTP receipt + DB insert is the IO shell (delivery/http/routes/agent-events.ts).
 
 export interface LlmCallRow {
   taskId: string;
