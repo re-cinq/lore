@@ -4,10 +4,13 @@ import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN }
 
 vi.mock("../../features/webhook/webhook-manage.js", () => ({
   listRepoWebhooks: vi.fn(),
-  ensureRepoWebhook: vi.fn(),
+}));
+vi.mock("../../features/webhook/webhook-ensure.js", () => ({
+  ensureFloorWebhook: vi.fn(),
 }));
 
-import { listRepoWebhooks, ensureRepoWebhook } from "../../features/webhook/webhook-manage.js";
+import { listRepoWebhooks } from "../../features/webhook/webhook-manage.js";
+import { ensureFloorWebhook } from "../../features/webhook/webhook-ensure.js";
 
 const URL = "https://lore-webhook.gcp.re-cinq.com/api/webhook/github";
 const originalEnv = { ...process.env };
@@ -66,23 +69,29 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
     vi.clearAllMocks();
   });
 
-  it("returns 503 when the HMAC secret is not configured", async () => {
+  it("maps a secret_not_configured skip to 503", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    delete process.env.LORE_WEBHOOK_SECRET;
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({ ok: false, reason: "secret_not_configured" });
     const res = makeRes();
     await handleApiRoute(makeReq({ url: "/api/repos/o/r/webhook/ensure", method: "POST", headers: AUTH }), res, makePool() as any);
     expect(res.statusCode).toBe(503);
-    expect(ensureRepoWebhook).not.toHaveBeenCalled();
+  });
+
+  it("maps an app_no_webhook_permission skip to 403", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({ ok: false, reason: "app_no_webhook_permission" });
+    const res = makeRes();
+    await handleApiRoute(makeReq({ url: "/api/repos/o/r/webhook/ensure", method: "POST", headers: AUTH }), res, makePool() as any);
+    expect(res.statusCode).toBe(403);
   });
 
   it("ensures the hook then returns the fresh status", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    process.env.LORE_WEBHOOK_SECRET = "s3cr3t";
-    vi.mocked(ensureRepoWebhook).mockResolvedValue({ hookId: 7, created: false });
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({ ok: true, hookId: 7, created: false });
     vi.mocked(listRepoWebhooks).mockResolvedValue([goodHook] as any);
     const res = makeRes();
     await handleApiRoute(makeReq({ url: "/api/repos/o/r/webhook/ensure", method: "POST", headers: AUTH }), res, makePool() as any);
-    expect(ensureRepoWebhook).toHaveBeenCalledWith("o/r", URL, "s3cr3t", expect.arrayContaining(["pull_request", "issues"]));
+    expect(ensureFloorWebhook).toHaveBeenCalledWith("o/r");
     expect(res.json).toMatchObject({ state: "configured" });
   });
 });
