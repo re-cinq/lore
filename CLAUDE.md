@@ -65,7 +65,7 @@ gcloud auth for local dev.
 - `mcp-server/src/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` for the privileged-field gate
 - `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
 - `agent/src/supervisor/lease.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
-- `agent/src/supervisor/graph-executor.ts` — `executeGraph()` walks workflow YAML, dispatches per-node-type handlers, emits stage commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers (allow-empty for non-file-changing nodes), refreshes lease per node, supports resume from last trailer on the branch
+- `libs/runner/src/assembly-line-executor.ts` — `executeAssemblyLine()` walks workflow YAML, dispatches per-node-type handlers, emits stage commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers (allow-empty for non-file-changing nodes), refreshes lease per node, supports resume from last trailer on the branch
 - `agent/src/workflow/loader.ts` — Zod schema for workflow YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check
 - `agent/src/workflows/*.yaml` — declarative workflow definitions (gap-fill, general, implementation; more extensible)
 - `agent/src/jobs/auto-merge.ts` — pure `evaluateAutoMerge()` decision + `evaluateAndMerge()` end-to-end with backoff. Outcome enum captures all 7 deferral reasons + `merged`. OTEL span `lore.auto_merge.decision` carries the rule trace

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { WorkflowNode } from "./loader.js";
-import type { NodeContext } from "./graph-executor.js";
+import type { NodeContext } from "./assembly-line-executor.js";
 import {
   ciOutcome,
   createGithubActionHandler,

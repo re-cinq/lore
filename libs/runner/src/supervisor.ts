@@ -1,11 +1,11 @@
 import * as os from "node:os";
 import type { LeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 import {
-  executeGraph,
+  executeAssemblyLine,
   IterationMaxExceededError,
   type ExecutionSummary,
   type NodeHandlers,
-} from "./graph-executor.js";
+} from "./assembly-line-executor.js";
 import type { Workflow } from "./loader.js";
 
 /**
@@ -26,7 +26,7 @@ export interface SupervisorOptions {
   workflowName: string;
   /**
    * Working directory for git operations. Required when `workflow` and
-   * `handlers` are provided (i.e. real graph execution). Optional when
+   * `handlers` are provided (i.e. real assembly line execution). Optional when
    * only the lease lifecycle is being exercised (tests).
    */
   gitDir?: string;
@@ -49,18 +49,18 @@ export interface SupervisorOptions {
   audit?: SupervisorAuditSink;
   /**
    * Pre-loaded workflow definition. When provided alongside `handlers`,
-   * the supervisor walks the graph instead of returning early with
+   * the supervisor walks the assembly line instead of returning early with
    * `executor_pending`. Production callers load the workflow via
    * `loadWorkflowDir` and pick by `workflowName`.
    */
   workflow?: Workflow;
   /**
-   * Per-node handlers. Required to walk the graph. Production callers
+   * Per-node handlers. Required to walk the assembly line. Production callers
    * use `createProductionHandlers()` from `./handlers.js`.
    */
   handlers?: NodeHandlers;
   /**
-   * Optional escalation hook fired when the graph aborts on iteration
+   * Optional escalation hook fired when the assembly line aborts on iteration
    * max. Wired by the orchestrator to call `escalate()` from
    * `lib/escalation.ts` so a stuck task produces a `needs-human-help`
    * Issue + Slack ping with full context (FR3.8).
@@ -95,7 +95,7 @@ function defaultHolder(): string {
 }
 
 /**
- * Walk a workflow graph for one task. **Skeleton.** The actual graph
+ * Walk a workflow assembly line for one task. **Skeleton.** The actual assembly line
  * executor lands in T014 (Phase 3). Today this validates the lease
  * lifecycle: acquire → (executor stub, no work) → release. A second
  * supervisor that finds the lease held exits cleanly with `lease_held`.
@@ -158,7 +158,7 @@ export async function runSupervisor(
 
   try {
     // When a caller supplies both a loaded workflow and a handler set,
-    // run the graph end-to-end. Otherwise return early — the lease
+    // run the assembly line end-to-end. Otherwise return early — the lease
     // lifecycle alone is exercised (used by tests of the lease side).
     if (!opts.workflow || !opts.handlers) {
       console.log(
@@ -177,7 +177,7 @@ export async function runSupervisor(
       `[supervisor] Walking workflow ${opts.workflowName} on ${opts.branchName} as ${holder}`,
     );
     try {
-      const summary = await executeGraph({
+      const summary = await executeAssemblyLine({
         workflow: opts.workflow,
         taskId: opts.taskId,
         branchName: opts.branchName,
@@ -197,7 +197,7 @@ export async function runSupervisor(
         };
       }
       console.error(
-        `[supervisor] executeGraph threw on ${opts.branchName}:`,
+        `[supervisor] executeAssemblyLine threw on ${opts.branchName}:`,
         (err as Error).message,
       );
       return {

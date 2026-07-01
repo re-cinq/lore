@@ -11,8 +11,8 @@ import { runSupervisor } from "./index.js";
  * verifies a fresh supervisor takes over after the lease expires —
  * without re-executing committed phases.
  *
- * The graph executor itself is the load-bearing piece for "no
- * re-execution"; that side is exercised by graph-executor.test.ts's
+ * The assembly line executor itself is the load-bearing piece for "no
+ * re-execution"; that side is exercised by assembly-line-executor.test.ts's
  * resumeFromTrailers cases. This test focuses on the lease side: a
  * supervisor that finds the branch held by an expired pod must report
  * the takeover.

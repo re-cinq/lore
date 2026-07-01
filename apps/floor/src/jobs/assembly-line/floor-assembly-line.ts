@@ -1,4 +1,4 @@
-// Floor-side workflow-graph driver — core (ADR-031 D4, #686 Wave 2). When the graph runs
+// Floor-side assembly-line driver — core (ADR-031 D4, #686 Wave 2). When the assembly line runs
 // Floor-side, each agent-node dispatches its OWN Agent CR (the workflow has several), and
 // the github_action nodes gate on CI. This module is the pure/assembly core: the per-node
 // dispatch spec + wiring the runner kernel's agent-node + github_action handlers to the
@@ -17,7 +17,7 @@ import {
 } from "@re-cinq/lore-runner";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 
-export interface FloorGraphTask {
+export interface FloorAssemblyLineTask {
   taskId: string;
   taskType: string;
   description: string;
@@ -34,7 +34,7 @@ export function nodeAgentName(taskId: string, nodeId: string): string {
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
   node: WorkflowNode,
-  task: FloorGraphTask,
+  task: FloorAssemblyLineTask,
   prompt: string,
 ): LoreTaskSpec {
   return {
@@ -49,11 +49,11 @@ export function nodeAgentSpec(
   };
 }
 
-export interface FloorGraphPorts {
+export interface FloorAssemblyLinePorts {
   /** Dispatch one node's Agent CR (e.g. AgentBackend.launch). */
   dispatchAgent: (spec: LoreTaskSpec) => Promise<void>;
   /** Resolve a node's prompt template for the task. */
-  resolvePrompt: (node: WorkflowNode, task: FloorGraphTask) => string;
+  resolvePrompt: (node: WorkflowNode, task: FloorAssemblyLineTask) => string;
   /** Read this node's Agent status (keyed by node id). */
   agentStatus: (taskId: string, nodeId: string) => Promise<AgentNodeStatus | null>;
   /** Aggregate CI conclusion for the branch's head. */
@@ -66,9 +66,9 @@ export interface FloorGraphPorts {
 /** Assemble the NodeHandlers for a Floor-side run: the agent slot dispatches one Agent CR
  *  per node and polls it; the github_action slot gates on CI; validate/gate/retrospective
  *  keep the kernel defaults. */
-export function buildFloorGraphHandlers(
-  task: FloorGraphTask,
-  ports: FloorGraphPorts,
+export function buildFloorAssemblyLineHandlers(
+  task: FloorAssemblyLineTask,
+  ports: FloorAssemblyLinePorts,
 ): NodeHandlers {
   return createProductionHandlers({
     episodeDeps: ports.episodeDeps,

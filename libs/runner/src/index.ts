@@ -1,6 +1,6 @@
 // @re-cinq/lore-runner — the portable execution kernel.
 //
-// The task-execution kernel (workflow graph executor, node handlers, workflow
+// The task-execution kernel (workflow assembly line executor, node handlers, workflow
 // loader, claude spawner, runSupervisor, pod entry) extracted from the agent so
 // it can run inside any container. It depends only on @re-cinq/lore-shared and
 // receives all repo I/O through injected ports (a Project facade's leases/audit/
@@ -15,7 +15,7 @@ export {
 } from "./supervisor.js";
 
 export {
-  executeGraph,
+  executeAssemblyLine,
   resumeFromTrailers,
   IterationMaxExceededError,
   type StageOutcome,
@@ -26,7 +26,7 @@ export {
   type IterationMaxExceededInfo,
   type ExecuteOptions,
   type ExecutionSummary,
-} from "./graph-executor.js";
+} from "./assembly-line-executor.js";
 
 export {
   createProductionHandlers,

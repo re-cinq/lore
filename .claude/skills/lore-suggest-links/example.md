@@ -33,7 +33,7 @@ specs/local-task-runner/spec.md.
   → 487 test files in this repo
 
   Pre-filtering by named-symbol overlap (claimNextTask, DbLeaseBackend,
-  FileLeaseBackend, executeGraph, claudeCodeHandler, prFooter)…
+  FileLeaseBackend, executeAssemblyLine, claudeCodeHandler, prFooter)…
   [Grep -l for each symbol in test glob]
 
   Pre-filtering by directory affinity (slug: local-task-runner;
@@ -42,7 +42,7 @@ specs/local-task-runner/spec.md.
   Narrowed to 22 candidates across 6 files:
     mcp-server/src/local-runner.test.ts
     agent/src/supervisor/lease.test.ts
-    agent/src/supervisor/graph-executor.test.ts
+    agent/src/supervisor/assembly-line-executor.test.ts
     agent/src/supervisor/claude-code-handler.test.ts
     agent/src/lib/pr-body.test.ts
     agent/src/supervisor/runner-cli.test.ts
@@ -63,7 +63,7 @@ specs/local-task-runner/spec.md.
        Confidence: 88%.
 
   Statement 11 ("Each stage commits with `Lore-Stage:` trailers.")
-    → agent/src/supervisor/graph-executor.test.ts:120
+    → agent/src/supervisor/assembly-line-executor.test.ts:120
        "emits Lore-Stage trailer per node" — asserts the trailer
        appears on every stage commit. Confidence: 90%.
 

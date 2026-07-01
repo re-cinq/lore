@@ -16,9 +16,9 @@ import {
   KubeCatalogApi,
 } from "../jobs/station/kube-token-provisioner.js";
 import { GitHubPlatform } from "../jobs/platform/github.js";
-import { GraphStationBackend } from "../jobs/assembly-line/graph-station-backend.js";
+import { AssemblyLineStationBackend } from "../jobs/assembly-line/assembly-line-station-backend.js";
 import { AgentCrStationBackend } from "../jobs/station/agent-cr-station-backend.js";
-import { floorGraphRuntime } from "../jobs/assembly-line/floor-graph-run.js";
+import { floorAssemblyLineRuntime } from "../jobs/assembly-line/floor-assembly-line-run.js";
 
 /**
  * Per-repo Project composition root for the agent. Builds from the agent's
@@ -35,7 +35,7 @@ const NO_OP_DGRAPH = {
 
 /**
  * The Station backend: the ai-agent-subsystem `Agent` path (ADR-031). Within it,
- * task types that have a workflow run the Floor-side graph (one Agent CR per
+ * task types that have a workflow run the Floor-side assembly line (one Agent CR per
  * node, #686); the rest run a single Agent. Both share the AgentBackend for CR
  * dispatch. (The legacy LoreTask + Docker backends were removed once agent-cr
  * became the sole path.)
@@ -53,13 +53,13 @@ export function stationBackend(
     ),
   );
   return new AgentCrStationBackend(
-    new GraphStationBackend(floorGraphRuntime(agentBackend)),
+    new AssemblyLineStationBackend(floorAssemblyLineRuntime(agentBackend)),
     agentBackend,
     workflows,
   );
 }
 
-/** The builtin workflow names (task types with a graph), loaded + cached once. */
+/** The builtin workflow names (task types with a assembly line), loaded + cached once. */
 let workflowNamesCache: Promise<ReadonlySet<string>> | undefined;
 function workflowNames(): Promise<ReadonlySet<string>> {
   return (workflowNamesCache ??= loadBuiltinWorkflows().then((m) => new Set(m.keys())));
@@ -68,5 +68,6 @@ function workflowNames(): Promise<ReadonlySet<string>> {
 export async function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
   const station = stationBackend(await workflowNames());
+
   return createProject(repo, getPool(), dgraph, process.env, { station });
 }

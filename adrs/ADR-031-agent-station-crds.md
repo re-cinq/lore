@@ -71,7 +71,7 @@ GitHub Actions** (a `github-action` workflow node), and the Floor-side graph gat
 **conclusion** — deterministic, because GitHub runs the repo's real toolchain. Repos without CI are
 covered by onboarding scaffolding `lore-tests.yml`.
 
-**D4 — The workflow graph runs Floor-side.** `libs/runner`'s `executeGraph` (pure orchestration, no
+**D4 — The assembly line runs Floor-side.** `libs/runner`'s `executeAssemblyLine` (pure orchestration, no
 Anthropic dependency) runs **in the Floor**; a new agent-node handler **dispatches one `Agent` CR per
 agent-node and awaits its terminal status**, heartbeating the branch lease while it waits. Lease,
 branch-as-state resume (commit trailers), and `iteration_max` are branch-centric and unchanged.
@@ -126,7 +126,7 @@ tasks during a graded, reversible cutover.
 - **Cost / migration.** A 10-ticket effort (epic [#690](https://github.com/re-cinq/lore/issues/690)):
   generate the code-API package + cut subsystem **v0.3.0**; deploy via Helm in the existing
   `terraform apply`; `AgentBackend` + router; `agent-watcher`; UI-authored catalog + hydration +
-  per-task token; observability sink; the Floor-side workflow graph; a graded cutover; and a docs
+  per-task token; observability sink; the Floor-side assembly line; a graded cutover; and a docs
   sweep. During migration the `loretask-controller` and `agent-controller` run in parallel (distinct
   groups/namespaces/pod-labels); `LoreTask`, the `claude-runner` image, and the cluster-wide
   `loretask-agent` RBAC are torn down only after a soak + rollback window.

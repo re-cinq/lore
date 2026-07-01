@@ -101,7 +101,7 @@ produces an Issue with full context attached.
 
 ### Session 2026-04-28
 
-- **Q1.** Workflow graph on-disk format → A: Pure YAML (matches `task-types.yaml`, single source of truth, web-ui renders directly)
+- **Q1.** Assembly line on-disk format → A: Pure YAML (matches `task-types.yaml`, single source of truth, web-ui renders directly)
 - **Q2.** Bot behavior on PRs outside the auto-merge path allowlist → A: Review-and-await-human (bot posts inline comments + verdict, PR sits open until a human merges; no time-based auto-merge fallback in v1)
 - **Q3.** Authorization required to change `dark_factory.*` settings → A: Two-key — `enabled` toggle and `auto_merge.paths` changes require admin-scope token + CODEOWNERS approval recorded in audit log; lighter sub-settings (`notify`, `create_issue`, `review`) need only admin scope
 - **Q4.** Concurrency control when two supervisors think they own the same task → A: DB row-level lease keyed on branch name; first action of any supervisor is `acquire_lease(branch_name)`; lease has a TTL that expires automatically for pod-death recovery
@@ -182,7 +182,7 @@ fewer PRs, each carrying genuine human-decision weight.
 1. Weekly gap-detection job identifies a missing runbook section.
 2. Pipeline creates a `gap-fill` task. Repo has `dark_factory.enabled = true`.
 3. No GitHub Issue is created for the task.
-4. Supervisor process runs the gap-fill workflow graph: draft → validate → commit → push → bot-review.
+4. Supervisor process runs the gap-fill assembly line: draft → validate → commit → push → bot-review.
 5. Each phase commits with `Lore-Stage:` trailer.
 6. Bot review approves; CI is green; path is in `auto_merge.paths` (e.g. `runbooks/`); repo trust ≥ docs.
 7. PR auto-merges.
@@ -296,17 +296,17 @@ fewer PRs, each carrying genuine human-decision weight.
 ### FR1 — Branch-as-state checkpoints
 
 - **FR1.1** Every workflow phase MUST end with a git commit containing a structured trailer block including at minimum `Lore-Stage:`, `Lore-Iteration:`, and `Lore-Task:`. Trailers are emitted unconditionally on every Lore-authored commit, regardless of the repo's `dark_factory.enabled` setting; they are the audit substrate for both dark-mode and opt-out repos. ([validated by `commit-trailers.test.ts:11`](libs/shared/src/commit-trailers.test.ts#L11); implemented by [`commit-trailers.ts:25`](libs/shared/src/commit-trailers.ts#L25))
-- **FR1.2** A supervisor process MUST be able to determine the next workflow node to execute by inspecting the branch's commit log alone, without reading the database or the CRD. ([validated by `graph-executor.test.ts:293`](libs/runner/src/graph-executor.test.ts#L293); implemented by [`graph-executor.ts:119`](libs/runner/src/graph-executor.ts#L119))
+- **FR1.2** A supervisor process MUST be able to determine the next workflow node to execute by inspecting the branch's commit log alone, without reading the database or the CRD. ([validated by `assembly-line-executor.test.ts:293`](libs/runner/src/assembly-line-executor.test.ts#L293); implemented by [`assembly-line-executor.ts:119`](libs/runner/src/assembly-line-executor.ts#L119))
 - **FR1.3** Phases that produce no file changes (e.g. a no-op review) MUST still produce a commit (empty commit allowed) so the trailer is captured.
 - **FR1.4** Branch history MUST NOT be rewritten by agents (no `--amend`, no force-push, no rebase) for any branch carrying stage trailers.
 - **FR1.5** The `Lore-Task: <uuid>` trailer MUST also appear in the final PR body, replacing the today's `Refs #<issue>` cross-reference. ([validated by `pr-body.test.ts:11`](libs/shared/src/pr-body.test.ts#L11); implemented by [`pr-body.ts:10`](libs/shared/src/pr-body.ts#L10))
 - **FR1.6** Concurrency control: a supervisor process MUST acquire a database row-level lease keyed on the branch name as its first action, before reading any state or executing any phase. The lease MUST have a TTL (default 10 minutes, refreshed on phase commit) that expires automatically so a successor pod can take over after pod death without operator intervention. A second supervisor that fails to acquire the lease MUST abort cleanly without writing to the branch or the database. Lease acquisition, refresh, and release MUST be observable via OpenTelemetry spans. ([validated by `lease-reaper.test.ts:23`](apps/floor/src/application/jobs/lease-reaper.test.ts#L23), [`leases.test.ts:13`](apps/floor/src/data/repositories/leases.test.ts#L13); implemented by [`lease-backends.ts:65`](libs/shared/src/project/leases/lease-backends.ts#L65), [`lease-reaper.ts:26`](apps/floor/src/application/jobs/lease-reaper.ts#L26))
 
-### FR2 — Workflow graph
+### FR2 — Assembly line
 
 - **FR2.1** Workflow definitions MUST live as YAML files outside of TypeScript code, in a directory parallel to `scripts/task-types.yaml`. No alternate formats (DOT, JSON, custom DSL) are introduced; web-ui renders the graph from YAML directly. ([validated by `loader.test.ts:35`](libs/runner/src/loader.test.ts#L35); implemented by [`loader.ts:63`](libs/runner/src/loader.ts#L63))
 - **FR2.2** A workflow definition MUST express: nodes (typed: agent stage, validation, gate, retrospective), edges (with conditions on commit / CI / review outcomes), and entry/exit nodes. ([validated by `loader.test.ts:144`](libs/runner/src/loader.test.ts#L144); implemented by [`loader.ts:63`](libs/runner/src/loader.ts#L63))
-- **FR2.3** The local runner and the GKE supervisor MUST interpret the same workflow definition file. ([validated by `graph-executor.test.ts:125`](libs/runner/src/graph-executor.test.ts#L125); implemented by [`graph-executor.ts:119`](libs/runner/src/graph-executor.ts#L119))
+- **FR2.3** The local runner and the GKE supervisor MUST interpret the same workflow definition file. ([validated by `assembly-line-executor.test.ts:125`](libs/runner/src/assembly-line-executor.test.ts#L125); implemented by [`assembly-line-executor.ts:119`](libs/runner/src/assembly-line-executor.ts#L119))
 - **FR2.4** Existing flows (implementation, gap-fill, runbook, review, feature-request, onboard, general) MUST be migratable to graph definitions without losing current behavior. ([validated by `loader.test.ts:226`](libs/runner/src/loader.test.ts#L226); implemented by [`loader.ts:96`](libs/runner/src/loader.ts#L96))
 - **FR2.5** Adding a new flow MUST require only a new graph definition + any new agent prompts referenced by it; no changes to supervisor / runner code.
 

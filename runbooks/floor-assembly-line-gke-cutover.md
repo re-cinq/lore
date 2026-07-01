@@ -1,7 +1,7 @@
 # Runbook: Floor → ai-agent-subsystem cutover on GKE (production)
 
 When to use this runbook: you're ready to run the ADR-031 cutover on the **real GKE
-cluster** (not the local minikube smoke in `floor-graph-minikube-smoke.md`). This is the
+cluster** (not the local minikube smoke in `floor-assembly-line-minikube-smoke.md`). This is the
 production path: the subsystem deploys via `terraform apply`, secrets come from External
 Secrets Operator (ESO) pulling GCP Secret Manager, and the Floor runs in-cluster. Every
 step before the teardown is **reversible** — the cutover is gated OFF by default, so
@@ -88,18 +88,18 @@ Both gates must be on for `agent-cr`; either off keeps the repo on legacy LoreTa
 ## 6. Verify the round-trip on GKE
 
 Kick a task on the pilot repo (UI / MCP / Slack). A task type **with a workflow**
-(implementation, general, gap-fill) runs the **graph** — one Agent CR per node; one
+(implementation, general, gap-fill) runs the **assembly line** — one Agent CR per node; one
 **without** (onboard, review, runbook) runs a **single** Agent.
 
 ```bash
-kubectl -n ai-agents get agents -w                    # CR(s) appear; graph → <id8>-<nodeId>
+kubectl -n ai-agents get agents -w                    # CR(s) appear; assembly line → <id8>-<nodeId>
 kubectl -n ai-agents get jobs,pods                    # a Job pod per Agent
 git -C <clone> log --format='%s%n%b' origin/<branch> | grep Lore-Stage   # branch-as-state
 psql "$LORE_DB_URL" -c "SELECT model, cost_usd FROM pipeline.llm_calls
                           WHERE task_id = '<task>' ORDER BY created_at DESC LIMIT 5;"
 ```
 
-Checklist mirrors `floor-graph-minikube-smoke.md` §Verification.
+Checklist mirrors `floor-assembly-line-minikube-smoke.md` §Verification.
 
 ## 7. Ramp
 
@@ -133,6 +133,6 @@ The legacy path is untouched until §8, so this fully reverts behavior.
 
 ## See also
 
-- `runbooks/floor-graph-minikube-smoke.md` — local verification before touching prod.
+- `runbooks/floor-assembly-line-minikube-smoke.md` — local verification before touching prod.
 - `runbooks/dark-factory-rollback.md` — disabling auto-merge across repos.
 - ADR-031, `specs/floor-on-ai-subsystem/`.

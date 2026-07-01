@@ -1,9 +1,9 @@
-# Runbook: Floor-graph driver — minikube smoke test
+# Runbook: Floor assembly-line driver — minikube smoke test
 
 When to use this runbook: you want to verify the **real Agent-CR round-trip** of the
-Floor-side workflow-graph driver (ADR-031 D4, `#686`) — the parts the local integration
-test (`apps/floor/src/application/floor-graph-run.test.ts`) deliberately fakes. That test
-already proves the orchestration (lease → graph walk → branch-as-state stage commits →
+Floor-side workflow-assembly line driver (ADR-031 D4, `#686`) — the parts the local integration
+test (`apps/floor/src/jobs/assembly-line/floor-assembly-line-run.test.ts`) deliberately fakes. That test
+already proves the orchestration (lease → assembly line walk → branch-as-state stage commits →
 resume → CI loop-back) on a temp git repo. What it does **not** exercise, and what this
 runbook does, is the cluster-shaped IO:
 
@@ -85,7 +85,7 @@ export LORE_AGENT_INTERNAL_TOKEN=smoke-token      # Bearer the /api/agent-events
 npm start                                        # or: npm run -w @re-cinq/lore-floor start
 ```
 
-## 4. Trigger a graph task + watch
+## 4. Trigger a assembly-line task + watch
 
 Create an `implementation` task against the throwaway repo (UI `/onboard` → task, MCP
 `lore_create_pipeline_task`, or `POST /api/tasks`). Then watch the round-trip:
