@@ -6,7 +6,6 @@
  * is parsed as JSON regardless of Content-Type, matching the old handler.
  */
 
-import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
 import { mapCiTests, type CiTestsBody } from "../../../listeners/ci-tests-map.js";
@@ -19,7 +18,7 @@ export const ciTestsRoute: ServerRoute = {
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
     const mapped = mapCiTests(parseJsonBody<CiTestsBody>(rawBody(request)));
-    enforceOk(mapped, (f) => new Boom.Boom(f.error, { statusCode: f.status }));
+    enforceOk(mapped, "invalid ci-tests request");
 
     for (const ev of mapped.events) {
       await insertEvent(ev).catch((err) =>

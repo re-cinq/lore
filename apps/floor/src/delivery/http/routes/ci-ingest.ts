@@ -6,7 +6,6 @@
  * the request's Content-Type, matching the old hand-rolled handler.
  */
 
-import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
 import { mapCiIngest, type CiIngestBody } from "../../../listeners/ci-ingest-map.js";
@@ -19,7 +18,7 @@ export const ciIngestRoute: ServerRoute = {
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
     const mapped = mapCiIngest(parseJsonBody<CiIngestBody>(rawBody(request)));
-    enforceOk(mapped, (f) => new Boom.Boom(f.error, { statusCode: f.status }));
+    enforceOk(mapped, "invalid ci-ingest request");
 
     // Each insert is idempotent only via dedupe_key, which doc projection omits on
     // purpose (force must re-run); the loop does the work — return 202 fast.
