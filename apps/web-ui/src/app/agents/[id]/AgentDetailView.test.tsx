@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import AgentDetailView, { MemoryRow } from './AgentDetailView';
+import AgentDetailView, { MemoryViewRow } from './AgentDetailView';
 
-const fullMemory: MemoryRow = {
+const fullMemory: MemoryViewRow = {
   id: 'mem-1',
   key: 'deployment-gotchas-2026',
   value: 'always set the env var',
@@ -22,7 +22,7 @@ const fullMemory: MemoryRow = {
   ],
 };
 
-const minimalMemory: MemoryRow = {
+const minimalMemory: MemoryViewRow = {
   id: 'mem-2',
   key: 'one-off-note',
   value: 'transient observation',

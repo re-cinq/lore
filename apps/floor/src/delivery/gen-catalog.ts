@@ -6,7 +6,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
-import { catalogChartYaml, type TaskTypeConfig } from "../jobs/agent/agent-catalog.js";
+import { catalogChartYaml, type AgentCatalogConfig } from "../jobs/agent/agent-catalog.js";
 
 const repoRoot = resolve(import.meta.dirname, "../../../..");
 const src = resolve(repoRoot, "scripts/task-types.yaml");
@@ -16,7 +16,7 @@ const dest = resolve(
 );
 
 const parsed = parse(readFileSync(src, "utf8")) as {
-  task_types: Record<string, TaskTypeConfig>;
+  task_types: Record<string, AgentCatalogConfig>;
 };
 writeFileSync(dest, catalogChartYaml(parsed.task_types));
 console.log(`[gen-catalog] wrote ${dest}`);

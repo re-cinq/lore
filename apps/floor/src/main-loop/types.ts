@@ -14,21 +14,9 @@ export interface EventInput {
   dedupeKey?: string;
 }
 
-export interface EventRow {
-  id: string; // bigint → string from pg
-  event_name: string;
-  source: string;
-  params: Record<string, unknown>;
-  repo: string | null; // denormalized from params.repo; NULL for cron/k8s events
-  dedupe_key: string | null;
-  status: string;
-  attempts: number;
-  error: string | null;
-  captured_at: string;
-  claimed_at: string | null;
-  next_attempt_at: string;
-  handled_at: string | null;
-}
+// The claimed-row shape is single-sourced from the shared event-queue port
+// (project.events); the loop/store here operate on exactly that row.
+export type { EventRow } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
 
 /** A layer-3 handler. Self-sources its own deps (DB pool, platform); params carry the event payload. */
 export type EventHandler = (params: Record<string, unknown>) => Promise<void>;

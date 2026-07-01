@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { query } from '@/lib/db';
-import AgentDetailView, { MemoryRow } from './AgentDetailView';
+import AgentDetailView, { MemoryViewRow } from './AgentDetailView';
 
 interface Memory {
   id: string;
@@ -38,7 +38,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
   `, [agentId]);
 
   // Get version histories and facts for each memory
-  const memoriesWithDetails: MemoryRow[] = await Promise.all(memories.map(async (m) => {
+  const memoriesWithDetails: MemoryViewRow[] = await Promise.all(memories.map(async (m) => {
     const versions = await query<Version>(`
       SELECT version, value, created_at FROM memory.memory_versions
       WHERE memory_id = $1 ORDER BY version DESC
