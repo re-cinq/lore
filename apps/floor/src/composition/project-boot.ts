@@ -52,6 +52,7 @@ export function stationBackend(
       new KubeCatalogApi(),
     ),
   );
+
   return new AgentCrStationBackend(
     new AssemblyLineStationBackend(floorAssemblyLineRuntime(agentBackend)),
     agentBackend,
