@@ -8,6 +8,7 @@
 
 import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
+import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
 import { mapCiTests, type CiTestsBody } from "../../../listeners/ci-tests-map.js";
 import { insertEvent } from "../../../main-loop/store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
@@ -18,7 +19,7 @@ export const ciTestsRoute: ServerRoute = {
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
     const mapped = mapCiTests(parseJsonBody<CiTestsBody>(rawBody(request)));
-    if (!mapped.ok) throw new Boom.Boom(mapped.error, { statusCode: mapped.status });
+    enforceOk(mapped, (f) => new Boom.Boom(f.error, { statusCode: f.status }));
 
     for (const ev of mapped.events) {
       await insertEvent(ev).catch((err) =>

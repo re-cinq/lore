@@ -27,3 +27,21 @@ export function enforceTrue(
       ? error()
       : error;
 }
+
+/**
+ * Enforce the `ok` branch of a discriminated `{ ok: true } | { ok: false }`
+ * result, building the thrown error from the **failure branch** — which an
+ * {@link enforceTrue} thunk cannot reach, since the failure fields only exist
+ * once the result is narrowed. Narrows `result` to its ok branch for the caller.
+ *
+ * @example
+ *   enforceOk(mapCiIngest(body), (f) => new Boom.Boom(f.error, { statusCode: f.status }));
+ *   // `mapped.events` is now accessible below this line.
+ */
+export function enforceOk<R extends { ok: boolean }>(
+  result: R,
+  toError: (failure: Extract<R, { ok: false }>) => Error,
+): asserts result is Extract<R, { ok: true }> {
+  if (result.ok) return;
+  throw toError(result as Extract<R, { ok: false }>);
+}
