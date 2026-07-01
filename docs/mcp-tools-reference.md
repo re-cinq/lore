@@ -11,7 +11,7 @@ For a non-engineer, plain-language overview of what these tools are for, read th
 **Dual transport.** The server (`@re-cinq/lore-mcp`) runs in one of two modes, selected by `MCP_TRANSPORT`:
 
 - **stdio (default) — local proxy.** Runs on the developer's machine via `scripts/install.sh`. It auto-detects the current repo from the git remote and proxies most operations to the shared GKE backend over `LORE_API_URL` (bearer `LORE_INGEST_TOKEN`). Proxied reads pass through a read-through cache (`platform/proxy-cache.ts`); writes invalidate the caches they affect.
-- **http (Streamable HTTP) — shared GKE server.** The cluster deployment in the `mcp-servers` namespace. When `LORE_DB_HOST` is set it talks to PostgreSQL + pgvector directly instead of proxying.
+- **http (Streamable HTTP) — shared GKE server.** The cluster deployment in the `lore-api` namespace. When `LORE_DB_HOST` is set it talks to PostgreSQL + pgvector directly instead of proxying.
 
 Most tools branch on `LORE_DB_HOST` (equivalently `isMemoryDbAvailable()`): present → direct DB; absent → proxy to `LORE_API_URL`, with a `~/.lore` file fallback only for a subset of memory tools and only when no API is configured at all.
 

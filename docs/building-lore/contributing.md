@@ -62,7 +62,7 @@ lore/
 │   ├── shared/                 # @re-cinq/lore-shared — chunker, redact, Project facade, types
 │   └── runner/                 # @re-cinq/lore-runner — execution kernel (supervisor, workflows)
 ├── infra/                      # deploy & runtime
-│   ├── terraform/modules/      # Helm charts (floor-helm, mcp-helm, ui-helm, lore-db-helm), LoreTask CRD
+│   ├── terraform/modules/      # Helm charts (floor-helm, lore-api-helm, ui-helm, lore-db-helm), LoreTask CRD
 │   ├── docker/claude-runner/   # Ephemeral container for Claude Code in K8s Jobs
 │   ├── k8s/                    # Ingress manifests, CronJobs
 │   └── compose.yaml            # Local Postgres/Dgraph for the dev stack
