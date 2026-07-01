@@ -1,5 +1,5 @@
 ---
-adr_number: 30
+adr_number: 32
 title: "Split the local MCP adapter from the remote HTTP API into two deployables"
 status: accepted
 date: 2026-06-23
@@ -7,7 +7,7 @@ domains: [mcp-server, api, infra, packaging, dx]
 relates: "specs/split-local-remote-api/spec.md"
 ---
 
-# ADR-030: Split the local MCP adapter from the remote HTTP API
+# ADR-032: Split the local MCP adapter from the remote HTTP API
 
 ## Context
 

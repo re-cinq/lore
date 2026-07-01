@@ -124,7 +124,7 @@ Why the split?
 So the laptop program is a **translator and a doorway**: Claude Code → local
 Lore program → Lore cloud. The cloud service itself is a plain authenticated
 web API — it is deliberately *not* a second MCP server (see
-[docs/mcp-transport-options.md](docs/mcp-transport-options.md) for why).
+[ADR-032](adrs/ADR-032-split-local-remote-api.md) for why).
 
 To keep this fast and resilient, the local program keeps a **short-lived cache**
 of recent lookups: repeat questions are answered instantly, and if the cloud is

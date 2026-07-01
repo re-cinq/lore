@@ -6,7 +6,7 @@
 | Status   | Implemented — merged to `main` 2026-06-30                      |
 | Created  | 2026-06-23                                                     |
 | Owner    | Platform Engineering                                          |
-| ADR      | [ADR-030](../../adrs/ADR-030-split-local-remote-api.md)        |
+| ADR      | [ADR-032](../../adrs/ADR-032-split-local-remote-api.md)        |
 
 ## Problem Statement
 

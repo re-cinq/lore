@@ -114,4 +114,4 @@ connection, so they're effectively backend-only. The ⚡ cache lives at
 `~/.lore/cache/` and can be turned off with `LORE_CACHE_ENABLED=false`; design
 in [specs/local-read-cache/](../specs/local-read-cache/spec.md). For how the
 local↔cloud split works, see
-[mcp-transport-options.md](mcp-transport-options.md).
+[ADR-032](../adrs/ADR-032-split-local-remote-api.md).

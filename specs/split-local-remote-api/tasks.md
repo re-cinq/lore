@@ -7,7 +7,7 @@ transitive via lore-shared, a tracked follow-up). Merged on top of the
 `lore-platform` umbrella-chart consolidation (#753) and the deploy-script
 serialization (#755); Phase 4 infra was reconciled onto the umbrella layout at
 merge time (see T019/T020/T021b). The infra-internal workload + namespace rename
-`lore-mcp`/`mcp-servers` → `lore-api`/`lore-api` (ADR-030 OQ-2, originally
+`lore-mcp`/`mcp-servers` → `lore-api`/`lore-api` (ADR-032 OQ-2, originally
 deferred) is **done as the Phase-8 follow-up** on branch
 `infra/rename-lore-api-workload` — pending only its namespace-cutover
 `terraform apply`. Manual deploy + test: Phase 7.
@@ -16,7 +16,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 0 — Decision recorded
 
-- [x] T001 Write `adrs/ADR-030-split-local-remote-api.md` (MADR): context (fused
+- [x] T001 Write `adrs/ADR-032-split-local-remote-api.md` (MADR): context (fused
   app forces remote deps onto local installs; `mcp` name on a non-MCP REST
   surface), decision (two apps + `libs/server-core`, drop `MCP_TRANSPORT`),
   consequences, alternatives (keep fused + tree-shake; split-within-app).

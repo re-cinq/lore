@@ -6,7 +6,7 @@ PR history, and task state.
 
 ## Architecture
 
-**Two deployables sharing a light core** (ADR-030):
+**Two deployables sharing a light core** (ADR-032):
 - **`apps/mcp-server`** (`src/index.ts`) — the local stdio MCP adapter. Speaks
   the MCP protocol to Claude Code and proxies every data operation to the remote
   Lore API (`LORE_API_URL`). Lean install: no pg/octokit/GCS/OTel-SDK. Three core
