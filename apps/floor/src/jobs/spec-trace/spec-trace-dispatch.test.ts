@@ -31,7 +31,7 @@ describe("dispatchSpecTrace", () => {
     expect(f.reposAskedFor).toEqual(["re-cinq/lore"]);
     expect(result.audit).toMatchObject({ event_type: "spec_trace_ingest", repo: "re-cinq/lore" });
     expect((result.audit.payload as { kind: string }).kind).toBe("specs");
-    expect(result.logLine).toContain("[agent] spec-trace specs re-cinq/lore");
+    expect(result.logLine).toContain("[floor] spec-trace specs re-cinq/lore");
   });
 
   it("routes an unrecognized kind to ingestSpecTrace, which rejects without reading the repo", async () => {

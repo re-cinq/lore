@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import type { Agent } from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
-  AgentBackend,
+  AgentCrBackend,
   specToAgent,
-  agentName,
+  agentCrName,
   TASK_ID_LABEL,
   type AgentApi,
   type ContextSource,
@@ -25,7 +25,7 @@ class FakeAgentApi implements AgentApi {
   readonly created: Agent[] = [];
   constructor(
     private readonly createResult: { name: string; created: boolean } = {
-      name: agentName(baseSpec.taskId),
+      name: agentCrName(baseSpec.taskId),
       created: true,
     },
     private readonly listResult: Agent[] | Error = [],
@@ -53,17 +53,17 @@ describe("context hydration (D5)", () => {
   });
   it("launch injects the assembled context into the Agent parameters", async () => {
     const api = new FakeAgentApi();
-    await new AgentBackend(api, ctx("assembled")).launch(baseSpec);
+    await new AgentCrBackend(api, ctx("assembled")).launch(baseSpec);
     expect(api.created[0].spec?.parameters?.context).toBe("assembled");
   });
   it("launch omits context when the source returns undefined", async () => {
     const api = new FakeAgentApi();
-    await new AgentBackend(api, ctx(undefined)).launch(baseSpec);
+    await new AgentCrBackend(api, ctx(undefined)).launch(baseSpec);
     expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
   });
   it("launch works with no context source (legacy)", async () => {
     const api = new FakeAgentApi();
-    await new AgentBackend(api).launch(baseSpec);
+    await new AgentCrBackend(api).launch(baseSpec);
     expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
   });
 });
@@ -101,24 +101,24 @@ describe("specToAgent", () => {
   });
 });
 
-describe("AgentBackend.launch", () => {
+describe("AgentCrBackend.launch", () => {
   it("creates the Agent and returns ref + launched, omitting completion", async () => {
     const api = new FakeAgentApi({ name: "agent-abcdef12", created: true });
-    const result = await new AgentBackend(api).launch(baseSpec);
+    const result = await new AgentCrBackend(api).launch(baseSpec);
     expect(result).toEqual({ ref: "agent-abcdef12", launched: true });
     expect(api.created[0].metadata?.labels?.[TASK_ID_LABEL]).toBe(baseSpec.taskId);
   });
 
   it("maps an already-existing CR (409) to launched:false", async () => {
     const api = new FakeAgentApi({ name: "agent-abcdef12", created: false });
-    expect(await new AgentBackend(api).launch(baseSpec)).toEqual({
+    expect(await new AgentCrBackend(api).launch(baseSpec)).toEqual({
       ref: "agent-abcdef12",
       launched: false,
     });
   });
 });
 
-describe("AgentBackend.launch — per-task token (#697)", () => {
+describe("AgentCrBackend.launch — per-task token (#697)", () => {
   // Records the spec it was asked to provision; replays a configured Station ref.
   class FakeProvisioner implements TokenProvisioner {
     readonly seen: LoreTaskSpec[] = [];
@@ -132,46 +132,46 @@ describe("AgentBackend.launch — per-task token (#697)", () => {
   it("runs the Agent on the per-task Station the provisioner returns", async () => {
     const api = new FakeAgentApi();
     const provisioner = new FakeProvisioner("pt-abcdef12");
-    await new AgentBackend(api, undefined, provisioner).launch(baseSpec);
+    await new AgentCrBackend(api, undefined, provisioner).launch(baseSpec);
     expect(provisioner.seen).toEqual([baseSpec]);
     expect(api.created[0].spec?.stationRef).toBe("pt-abcdef12");
   });
 
   it("falls back to the catalog Station when the provisioner returns undefined", async () => {
     const api = new FakeAgentApi();
-    await new AgentBackend(api, undefined, new FakeProvisioner(undefined)).launch(baseSpec);
+    await new AgentCrBackend(api, undefined, new FakeProvisioner(undefined)).launch(baseSpec);
     expect(api.created[0].spec?.stationRef).toBe("implementation");
   });
 
   it("skips provisioning for a task that targets no repo", async () => {
     const api = new FakeAgentApi();
     const provisioner = new FakeProvisioner("pt-abcdef12");
-    await new AgentBackend(api, undefined, provisioner).launch({ ...baseSpec, targetRepo: "" });
+    await new AgentCrBackend(api, undefined, provisioner).launch({ ...baseSpec, targetRepo: "" });
     expect(provisioner.seen).toEqual([]);
     expect(api.created[0].spec?.stationRef).toBe("implementation");
   });
 });
 
-describe("AgentBackend.isActive", () => {
+describe("AgentCrBackend.isActive", () => {
   const running: Agent = { status: { phase: "Running" } };
   const succeeded: Agent = { status: { phase: "Succeeded" } };
 
   it("returns false when no Agent carries the task-id label (orphaned)", async () => {
-    expect(await new AgentBackend(new FakeAgentApi(undefined, [])).isActive("t1")).toBe(false);
+    expect(await new AgentCrBackend(new FakeAgentApi(undefined, [])).isActive("t1")).toBe(false);
   });
 
   it("returns true when a matching Agent is not yet terminal", async () => {
     const api = new FakeAgentApi(undefined, [succeeded, running]);
-    expect(await new AgentBackend(api).isActive("t1")).toBe(true);
+    expect(await new AgentCrBackend(api).isActive("t1")).toBe(true);
   });
 
   it("returns false when every matching Agent is terminal", async () => {
     const api = new FakeAgentApi(undefined, [succeeded]);
-    expect(await new AgentBackend(api).isActive("t1")).toBe(false);
+    expect(await new AgentCrBackend(api).isActive("t1")).toBe(false);
   });
 
   it("returns true (conservative) when the probe fails", async () => {
     const api = new FakeAgentApi(undefined, new Error("kube unreachable"));
-    expect(await new AgentBackend(api).isActive("t1")).toBe(true);
+    expect(await new AgentCrBackend(api).isActive("t1")).toBe(true);
   });
 });

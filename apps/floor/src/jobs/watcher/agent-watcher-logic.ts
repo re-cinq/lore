@@ -4,16 +4,16 @@
 // repo's GitHub Actions conclusion (D3). The orchestration shell (agent-watcher.ts)
 // is IO-bound and untested, as loretask-watcher is; this is the testable core.
 
-import { isTerminal, type Agent } from "@re-cinq/agent-contracts";
+import { isTerminal, type Agent as AgentCr } from "@re-cinq/agent-contracts";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
 
-/** The task id / type from the Agent's labels (set by AgentBackend). */
-export function taskIdOf(agent: Agent): string | undefined {
+/** The task id / type from the Agent's labels (set by AgentCrBackend). */
+export function taskIdOf(agent: AgentCr): string | undefined {
   return agent.metadata?.labels?.[TASK_ID_LABEL];
 }
-export function taskTypeOf(agent: Agent): string | undefined {
+export function taskTypeOf(agent: AgentCr): string | undefined {
   return agent.metadata?.labels?.[TASK_TYPE_LABEL];
 }
 
@@ -67,6 +67,6 @@ export function decideAgentOutcome(args: {
 }
 
 /** True once an Agent reached a terminal phase (re-exported for the shell). */
-export function agentIsTerminal(agent: Agent): boolean {
+export function agentIsTerminal(agent: AgentCr): boolean {
   return isTerminal(agent);
 }

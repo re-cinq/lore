@@ -1,7 +1,7 @@
 // Catalog seed generator (ADR-031, #698 seed strand): maps the resolved task-type
 // recipes (scripts/task-types.yaml) to the `AgentDefinition` + `Station` CRs the
 // ai-agent-subsystem needs — one Station per task type, named by task type, so the
-// AgentBackend's `stationRef = <taskType>` resolves. Pure + deterministic; the file
+// AgentCrBackend's `stationRef = <taskType>` resolves. Pure + deterministic; the file
 // IO (read task-types.yaml, write the chart) is in the gen-catalog CLI.
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";

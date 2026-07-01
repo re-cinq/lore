@@ -1,4 +1,4 @@
-// AgentBackend (ADR-031): a StationBackend that runs a task as an `Agent` custom
+// AgentCrBackend (ADR-031): a StationBackend that runs a task as an `Agent` custom
 // resource on the ai-agent-subsystem (agents.re-cinq.com) instead of a LoreTask.
 // The Kubernetes IO is behind the AgentApi port so the mapping + isActive logic is
 // pure and deterministically testable; KubeAgentApi is the live implementation.
@@ -8,7 +8,7 @@
 // the Agent status later. A re-launch of the same task id is idempotent (the CR
 // already exists → launched:false).
 
-import { isTerminal, type Agent } from "@re-cinq/agent-contracts";
+import { isTerminal, type Agent as AgentCr } from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec, StationBackend, StationLaunchResult } from "@re-cinq/lore-shared";
 import { needsToken } from "./per-task-token.js";
 
@@ -19,13 +19,13 @@ export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
  *  409). The live implementation is KubeAgentApi; tests use an in-memory fake. */
 export interface AgentApi {
   /** Create the Agent; `created:false` when it already exists (409). */
-  create(agent: Agent): Promise<{ name: string; created: boolean }>;
+  create(agent: AgentCr): Promise<{ name: string; created: boolean }>;
   /** Agents matching a Kubernetes label selector. */
-  listByLabel(selector: string): Promise<Agent[]>;
+  listByLabel(selector: string): Promise<AgentCr[]>;
 }
 
 /** Deterministic per-task Agent name, so a re-launch is idempotent (409). */
-export function agentName(taskId: string): string {
+export function agentCrName(taskId: string): string {
   return `agent-${taskId.substring(0, 8)}`;
 }
 
@@ -49,7 +49,7 @@ export interface TokenProvisioner {
 /** Map a LoreTaskSpec to an `Agent` CR body. The recipe (model/prompt/tools) lives
  *  on the Station the task type resolves to; per-run carries only parameters —
  *  including the assembled `context` the recipe's `{context}` placeholder fills (D5). */
-export function specToAgent(spec: LoreTaskSpec, context?: string, stationRef?: string): Agent {
+export function specToAgent(spec: LoreTaskSpec, context?: string, stationRef?: string): AgentCr {
   const parameters: Record<string, string> = {
     description: spec.description,
     prompt: spec.prompt,
@@ -59,7 +59,7 @@ export function specToAgent(spec: LoreTaskSpec, context?: string, stationRef?: s
 
   return {
     metadata: {
-      name: spec.name ?? agentName(spec.taskId),
+      name: spec.name ?? agentCrName(spec.taskId),
       labels: {
         [TASK_ID_LABEL]: spec.taskId,
         [TASK_TYPE_LABEL]: spec.taskType,
@@ -78,7 +78,7 @@ export function specToAgent(spec: LoreTaskSpec, context?: string, stationRef?: s
   };
 }
 
-export class AgentBackend implements StationBackend {
+export class AgentCrBackend implements StationBackend {
   constructor(
     private readonly api: AgentApi,
     private readonly context?: ContextSource,

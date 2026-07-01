@@ -62,7 +62,7 @@ export function runFloorAssemblyLine(opts: RunFloorAssemblyLineOptions): Promise
 
 // ───────────────────────── composition root (IO shell) ─────────────────────────
 // Not in the coverage allowlist; verified by the minikube smoke test. Backs the ports
-// with real dispatch (AgentBackend), per-node Agent-status reads, project CI, and a
+// with real dispatch (AgentCrBackend), per-node Agent-status reads, project CI, and a
 // local clone of the branch for the stage-commit working tree.
 
 /** Reads one Agent CR's status by name (the per-node Agent, `<id8>-<nodeId>`). */
@@ -70,7 +70,7 @@ export interface AgentStatusReader {
   read: (name: string) => Promise<AgentNodeStatus | null>;
 }
 
-/** Dispatches one node's Agent CR (AgentBackend.launch). */
+/** Dispatches one node's Agent CR (AgentCrBackend.launch). */
 export interface AgentDispatcher {
   launch: (spec: LoreTaskSpec) => Promise<unknown>;
 }
