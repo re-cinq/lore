@@ -115,7 +115,7 @@ variable "log_retention_days" {
 }
 
 variable "lore_api_url" {
-  description = "External URL for the Lore MCP API server"
+  description = "External URL for the Lore API server (e.g. https://lore-api.example.com); also drives the lore-api ingress host"
   type        = string
   default     = ""
 }
