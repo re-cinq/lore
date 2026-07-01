@@ -35,7 +35,7 @@ merged before the next starts.
 7. **#687** — Observability: `POST /api/agent-events` NDJSON sink → `pipeline.llm_calls`/OTEL/GCS/UI.
 
 **Wave 2 — multi-node graph**
-8. **#686** — Floor-side `executeGraph`: `createAgentNodeHandler` + the `github-action` node type +
+8. **#686** — Floor-side `executeAssemblyLine`: `createAgentNodeHandler` + the `github-action` node type +
    lease heartbeat.
 
 **Finish**

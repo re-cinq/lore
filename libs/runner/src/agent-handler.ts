@@ -4,7 +4,7 @@ import type {
   NodeContext,
   NodeHandler,
   NodeResult,
-} from "./graph-executor.js";
+} from "./assembly-line-executor.js";
 import type { WorkflowNode } from "./loader.js";
 import type { LlmCompletion } from "@re-cinq/lore-shared/llm/llm-provider.js";
 

@@ -4,12 +4,12 @@ import type { WorkflowNode, NodeContext, ProductionHandlersDeps } from "@re-cinq
 import {
   nodeAgentName,
   nodeAgentSpec,
-  buildFloorGraphHandlers,
-  type FloorGraphTask,
-  type FloorGraphPorts,
-} from "./floor-graph.js";
+  buildFloorAssemblyLineHandlers,
+  type FloorAssemblyLineTask,
+  type FloorAssemblyLinePorts,
+} from "./floor-assembly-line.js";
 
-const task: FloorGraphTask = {
+const task: FloorAssemblyLineTask = {
   taskId: "abcdef1234567890",
   taskType: "implementation",
   description: "Implement the spec",
@@ -51,10 +51,10 @@ describe("nodeAgentSpec", () => {
   });
 });
 
-describe("buildFloorGraphHandlers", () => {
-  function ports(over: Partial<FloorGraphPorts> = {}) {
+describe("buildFloorAssemblyLineHandlers", () => {
+  function ports(over: Partial<FloorAssemblyLinePorts> = {}) {
     const dispatched: LoreTaskSpec[] = [];
-    const base: FloorGraphPorts = {
+    const base: FloorAssemblyLinePorts = {
       dispatchAgent: async (spec) => { dispatched.push(spec); },
       resolvePrompt: (node) => `prompt:${node.id}`,
       agentStatus: async () => ({ phase: "Succeeded" }),
@@ -69,7 +69,7 @@ describe("buildFloorGraphHandlers", () => {
 
   it("agent slot dispatches one Agent CR per node from the node's prompt", async () => {
     const { ports: p, dispatched } = ports();
-    const handlers = buildFloorGraphHandlers(task, p);
+    const handlers = buildFloorAssemblyLineHandlers(task, p);
     const result = await handlers.agent({ id: "implement", type: "agent" }, ctx);
     expect(result.outcome).toBe("success");
     expect(dispatched).toHaveLength(1);
@@ -78,7 +78,7 @@ describe("buildFloorGraphHandlers", () => {
 
   it("github_action slot gates on the branch CI conclusion", async () => {
     const { ports: p } = ports({ ciConclusion: async () => "failure" });
-    const handlers = buildFloorGraphHandlers(task, p);
+    const handlers = buildFloorAssemblyLineHandlers(task, p);
     const result = await handlers.github_action!({ id: "ci", type: "github_action" }, ctx);
     expect(result.outcome).toBe("failed");
   });

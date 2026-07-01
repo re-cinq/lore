@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createClaudeCodeAgentHandler } from "./claude-code-handler.js";
 import type { WorkflowNode } from "./loader.js";
-import type { NodeContext } from "./graph-executor.js";
+import type { NodeContext } from "./assembly-line-executor.js";
 import type { ClaudeCodeResult } from "./claude-code.js";
 
 const node: WorkflowNode = {

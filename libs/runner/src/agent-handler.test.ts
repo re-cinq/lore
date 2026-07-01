@@ -7,7 +7,7 @@ import {
   extractJsonFiles,
 } from "./agent-handler.js";
 import type { WorkflowNode } from "./loader.js";
-import type { NodeContext } from "./graph-executor.js";
+import type { NodeContext } from "./assembly-line-executor.js";
 import type { LlmCompletion } from "@re-cinq/lore-shared";
 
 const node: WorkflowNode = {

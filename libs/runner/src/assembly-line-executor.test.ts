@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-  executeGraph,
+  executeAssemblyLine,
   resumeFromTrailers,
   IterationMaxExceededError,
   type IterationMaxExceededInfo,
   type NodeHandlers,
   type NodeResult,
-} from "./graph-executor.js";
+} from "./assembly-line-executor.js";
 import { parseWorkflow, type Workflow } from "./loader.js";
 import type { LeaseBackend } from "@re-cinq/lore-shared";
 
@@ -101,11 +101,11 @@ function makeCapturingExecuteOpts(opts: {
   outcomes?: Partial<Record<string, NodeResult>>;
 }): {
   capture: RunCapture;
-  run: () => Promise<ReturnType<typeof executeGraph> extends Promise<infer R> ? R : never>;
+  run: () => Promise<ReturnType<typeof executeAssemblyLine> extends Promise<infer R> ? R : never>;
 } {
   const capture: RunCapture = { visited: [], commits: [] };
   const run = () =>
-    executeGraph({
+    executeAssemblyLine({
       workflow: opts.workflow,
       taskId: "task-1",
       branchName: "branch-x",
@@ -120,9 +120,9 @@ function makeCapturingExecuteOpts(opts: {
   return { capture, run };
 }
 
-// ── executeGraph ────────────────────────────────────────────────────────
+// ── executeAssemblyLine ────────────────────────────────────────────────────────
 
-describe("executeGraph (linear)", () => {
+describe("executeAssemblyLine (linear)", () => {
   it("walks entry → ... → exit", async () => {
     const { capture, run } = makeCapturingExecuteOpts({
       workflow: linearWorkflow,
@@ -157,7 +157,7 @@ describe("executeGraph (linear)", () => {
   });
 });
 
-describe("executeGraph (review loop)", () => {
+describe("executeAssemblyLine (review loop)", () => {
   it("loops back through implement on changes_requested", async () => {
     let reviewCalls = 0;
     const handlers = (() => {
@@ -176,7 +176,7 @@ describe("executeGraph (review loop)", () => {
       return { capture, handlerOf };
     })();
 
-    const summary = await executeGraph({
+    const summary = await executeAssemblyLine({
       workflow: reviewLoopWorkflow,
       taskId: "t",
       branchName: "b",
@@ -200,7 +200,7 @@ describe("executeGraph (review loop)", () => {
   it("aborts when iteration_max is exceeded with a typed error", async () => {
     let reviewCalls = 0;
     await expect(
-      executeGraph({
+      executeAssemblyLine({
         workflow: reviewLoopWorkflow,
         taskId: "t",
         branchName: "b",
@@ -227,7 +227,7 @@ describe("executeGraph (review loop)", () => {
   it("calls onIterationMaxExceeded hook before throwing (T040)", async () => {
     const escalations: IterationMaxExceededInfo[] = [];
     await expect(
-      executeGraph({
+      executeAssemblyLine({
         workflow: reviewLoopWorkflow,
         taskId: "task-x",
         branchName: "branch-y",
@@ -262,11 +262,11 @@ describe("executeGraph (review loop)", () => {
   });
 });
 
-describe("executeGraph (lease)", () => {
+describe("executeAssemblyLine (lease)", () => {
   it("refreshes the lease before each node", async () => {
     const backend = noopBackend();
     const refresh = backend.refresh as ReturnType<typeof vi.fn>;
-    await executeGraph({
+    await executeAssemblyLine({
       workflow: linearWorkflow,
       taskId: "t",
       branchName: "branch-x",

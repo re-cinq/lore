@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import { GraphStationBackend } from "./graph-station-backend.js";
-import type { runFloorGraphForTask, FloorGraphRuntime } from "./floor-graph-run.js";
-import type { FloorGraphTask } from "./floor-graph.js";
+import { AssemblyLineStationBackend } from "./assembly-line-station-backend.js";
+import type { runFloorAssemblyLineForTask, FloorAssemblyLineRuntime } from "./floor-assembly-line-run.js";
+import type { FloorAssemblyLineTask } from "./floor-assembly-line.js";
 
-const runtime = {} as FloorGraphRuntime;
+const runtime = {} as FloorAssemblyLineRuntime;
 const spec = (taskId: string): LoreTaskSpec => ({
   taskId,
   taskType: "implementation",
@@ -14,14 +14,14 @@ const spec = (taskId: string): LoreTaskSpec => ({
   branch: "lore/b",
 });
 
-describe("GraphStationBackend", () => {
-  it("fires the graph in the background and returns launched immediately", async () => {
-    const seen: FloorGraphTask[] = [];
-    const run = vi.fn<typeof runFloorGraphForTask>(async (task) => {
+describe("AssemblyLineStationBackend", () => {
+  it("fires the assembly line in the background and returns launched immediately", async () => {
+    const seen: FloorAssemblyLineTask[] = [];
+    const run = vi.fn<typeof runFloorAssemblyLineForTask>(async (task) => {
       seen.push(task);
       return { ranWork: true, reason: "completed" };
     });
-    const backend = new GraphStationBackend(runtime, run);
+    const backend = new AssemblyLineStationBackend(runtime, run);
 
     expect(await backend.launch(spec("t-1"))).toEqual({ ref: "t-1", launched: true });
     expect(run).toHaveBeenCalledTimes(1);
@@ -29,12 +29,12 @@ describe("GraphStationBackend", () => {
     expect(await backend.isActive()).toBe(true);
   });
 
-  it("swallows + logs a background graph failure without failing the launch", async () => {
+  it("swallows + logs a background assembly line failure without failing the launch", async () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    const run = vi.fn<typeof runFloorGraphForTask>(async () => {
+    const run = vi.fn<typeof runFloorAssemblyLineForTask>(async () => {
       throw new Error("boom");
     });
-    const backend = new GraphStationBackend(runtime, run);
+    const backend = new AssemblyLineStationBackend(runtime, run);
 
     expect(await backend.launch(spec("t-2"))).toEqual({ ref: "t-2", launched: true });
     await new Promise((resolve) => setTimeout(resolve, 0)); // flush the background rejection

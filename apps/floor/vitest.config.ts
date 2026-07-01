@@ -19,8 +19,8 @@ export default defineConfig({
       include: [
         "src/jobs/agent/agent-catalog.ts",
         "src/jobs/agent/agent-events.ts",
-        "src/jobs/assembly-line/floor-graph.ts",
-        "src/jobs/assembly-line/graph-station-backend.ts",
+        "src/jobs/assembly-line/floor-assembly-line.ts",
+        "src/jobs/assembly-line/assembly-line-station-backend.ts",
         "src/jobs/station/agent-backend.ts",
         "src/jobs/station/agent-cr-station-backend.ts",
         "src/jobs/station/per-task-token.ts",

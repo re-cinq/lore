@@ -4,7 +4,7 @@ import {
   createProductionHandlers,
 } from "./handlers.js";
 import type { WorkflowNode } from "./loader.js";
-import type { NodeContext } from "./graph-executor.js";
+import type { NodeContext } from "./assembly-line-executor.js";
 
 const node: WorkflowNode = {
   id: "retrospective",

@@ -7,14 +7,14 @@ import * as fs from "node:fs/promises";
 import { FileLeaseBackend } from "@re-cinq/lore-shared";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { Workflow } from "@re-cinq/lore-runner";
-import { runFloorGraph, checkoutBranch } from "./floor-graph-run.js";
-import type { FloorGraphTask, FloorGraphPorts } from "./floor-graph.js";
+import { runFloorAssemblyLine, checkoutBranch } from "./floor-assembly-line-run.js";
+import type { FloorAssemblyLineTask, FloorAssemblyLinePorts } from "./floor-assembly-line.js";
 
 const execFile = promisify(execFileCb);
 
 // agent → github_action → retrospective → done (CI red loops back to the agent once).
 const workflow: Workflow = {
-  name: "floor-graph-test",
+  name: "floor-assembly-line-test",
   description: "test",
   version: 1,
   entry: "implement",
@@ -33,7 +33,7 @@ const workflow: Workflow = {
   ],
 };
 
-const task: FloorGraphTask = {
+const task: FloorAssemblyLineTask = {
   taskId: "abcdef1234567890",
   taskType: "implementation",
   description: "Implement the spec",
@@ -41,16 +41,16 @@ const task: FloorGraphTask = {
   branch: "lore/impl-abcdef12",
 };
 
-// Local integration test: runFloorGraph drives the real supervisor (lease + graph walk +
+// Local integration test: runFloorAssemblyLine drives the real supervisor (lease + assembly line walk +
 // git stage-commits + resume) with a temp repo + FileLeaseBackend, and the cluster ports
 // faked — exactly what the minikube smoke test backs with real Agent CRs.
-describe("runFloorGraph (local integration — cluster ports faked)", () => {
+describe("runFloorAssemblyLine (local integration — cluster ports faked)", () => {
   let workDir: string;
   let repoDir: string;
   let leasesDir: string;
 
   beforeEach(async () => {
-    workDir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-floor-graph-"));
+    workDir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-floor-assembly-line-"));
     leasesDir = path.join(workDir, "leases");
     repoDir = path.join(workDir, "repo");
     await fs.mkdir(leasesDir, { recursive: true });
@@ -68,9 +68,9 @@ describe("runFloorGraph (local integration — cluster ports faked)", () => {
     await fs.rm(workDir, { recursive: true, force: true });
   });
 
-  function ports(over: Partial<FloorGraphPorts> = {}) {
+  function ports(over: Partial<FloorAssemblyLinePorts> = {}) {
     const dispatched: LoreTaskSpec[] = [];
-    const base: FloorGraphPorts = {
+    const base: FloorAssemblyLinePorts = {
       dispatchAgent: async (spec) => { dispatched.push(spec); },
       resolvePrompt: (node) => `prompt:${node.id}`,
       agentStatus: async () => ({ phase: "Succeeded" }),
@@ -89,7 +89,7 @@ describe("runFloorGraph (local integration — cluster ports faked)", () => {
 
   it("walks agent → github_action → retrospective, dispatching a per-node Agent + committing stages", async () => {
     const { ports: p, dispatched } = ports();
-    const result = await runFloorGraph({
+    const result = await runFloorAssemblyLine({
       task,
       workflow,
       gitDir: repoDir,
@@ -120,7 +120,7 @@ describe("runFloorGraph (local integration — cluster ports faked)", () => {
   it("loops back to the agent when CI is red, then proceeds once it goes green", async () => {
     let ci = 0;
     const { ports: p, dispatched } = ports({ ciConclusion: async () => (ci++ === 0 ? "failure" : "success") });
-    const result = await runFloorGraph({
+    const result = await runFloorAssemblyLine({
       task,
       workflow,
       gitDir: repoDir,

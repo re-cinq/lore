@@ -52,7 +52,7 @@ agent/
 │   ├── supervisor/
 │   │   ├── index.ts            # NEW: supervisor entry — acquire lease, walk graph, release lease
 │   │   ├── lease.ts            # NEW: acquire/refresh/release task_leases rows
-│   │   └── graph-executor.ts   # NEW: interpret workflow YAML, dispatch nodes, emit stage commits
+│   │   └── assembly-line-executor.ts   # NEW: interpret workflow YAML, dispatch nodes, emit stage commits
 │   ├── workflows/              # NEW: built-in workflow YAML definitions
 │   │   ├── implementation.yaml
 │   │   ├── gap-fill.yaml
@@ -140,7 +140,7 @@ specs/6-dark-factory/
 - `mcp-server/src/pipeline.ts` and `agent/src/jobs/loretask-watcher.ts`: when creating PRs, append `Lore-Task: <uuid>` line to PR body. Replace `Refs #<issue>` with `Lore-Task:` for dark-mode tasks; preserve `Refs #` for opt-out repos that still get an Issue.
 - The final commit on every branch carries `Lore-Task:` trailer (FR1.1). Trailers are unconditional per Q5 clarification.
 
-## Phase 2: Workflow graph (2 days)
+## Phase 2: Assembly line (2 days)
 
 ### Task 2.1: YAML schema + loader
 
@@ -152,9 +152,9 @@ specs/6-dark-factory/
 
 ### Task 2.2: Graph executor
 
-`agent/src/supervisor/graph-executor.ts`:
+`agent/src/supervisor/assembly-line-executor.ts`:
 
-- `executeGraph({graph, ctx})` walks from `entry`, dispatches each node by type:
+- `executeAssemblyLine({graph, ctx})` walks from `entry`, dispatches each node by type:
   - `agent`: render prompt, call LLM (or Claude Code headless), apply edits, commit with `Lore-Stage:<node-name>` trailer
   - `validate`: run lint/typecheck on changed files (existing `repo-validation.ts`), commit empty stage commit on success
   - `gate`: evaluate condition (e.g. `auto_merge_eligible`); branch follows on/off-edges
@@ -173,7 +173,7 @@ Convert each entry in `scripts/task-types.yaml` to a workflow YAML graph in `age
 
 ### Task 2.4: Local runner adopts the graph executor
 
-`mcp-server/src/local-runner.ts` reuses `graph-executor.ts` as a thin wrapper (T011a). Migration lands in Phase 2 so the MVP pilot has a single codepath across local + GKE (FR2.3). Lease is file-based (`~/.lore/leases/`) when no `LORE_DB_HOST` is configured. Legacy code paths superseded by this migration are deleted in Phase 10 (T058) once the new path has soaked.
+`mcp-server/src/local-runner.ts` reuses `assembly-line-executor.ts` as a thin wrapper (T011a). Migration lands in Phase 2 so the MVP pilot has a single codepath across local + GKE (FR2.3). Lease is file-based (`~/.lore/leases/`) when no `LORE_DB_HOST` is configured. Legacy code paths superseded by this migration are deleted in Phase 10 (T058) once the new path has soaked.
 
 ## Phase 3: Opt-out gates (1.5 days)
 
@@ -277,7 +277,7 @@ Stored in `pipeline.tasks.dark_factory_overrides` JSONB; merged with repo settin
 
 ### Task 5.4: Documentation
 
-- Update `CLAUDE.md` architecture section: "Workflow graph", "Branch-as-state", "Dark Factory mode"
+- Update `CLAUDE.md` architecture section: "Assembly line", "Branch-as-state", "Dark Factory mode"
 - Update `docs/onboarding.md` with the dark-factory opt-in path
 - Add a runbook: `runbooks/dark-factory-rollback.md` (how to flip `enabled = false` and reconcile in-flight tasks)
 
@@ -287,7 +287,7 @@ Stored in `pipeline.tasks.dark_factory_overrides` JSONB; merged with repo settin
 - Parallel red-team agents (security-review, perf-review, doc-coverage)
 - Removal of LoreTask CRD (CRD continues to spawn pods)
 - Multi-provider model routing
-- Workflow graph visualization beyond the basic timeline view (e.g. Mermaid renders, drag-and-drop editor)
+- Assembly line visualization beyond the basic timeline view (e.g. Mermaid renders, drag-and-drop editor)
 
 ## Quickstart (Verification Scenarios)
 
