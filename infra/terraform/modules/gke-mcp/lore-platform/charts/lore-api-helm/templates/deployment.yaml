@@ -4,16 +4,16 @@ metadata:
   name: {{ .Chart.Name }}
   namespace: {{ .Values.namespace }}
   labels:
-    app: lore-mcp
+    app: lore-api
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: lore-mcp
+      app: lore-api
   template:
     metadata:
       labels:
-        app: lore-mcp
+        app: lore-api
     spec:
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:

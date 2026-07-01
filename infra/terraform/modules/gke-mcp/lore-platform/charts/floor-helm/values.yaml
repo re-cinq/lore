@@ -45,7 +45,7 @@ env:
   LORE_INGEST_URL: ""
   LORE_LOG_BUCKET: ""
   # Web-UI base url. When set, task UUIDs in PR/issue bodies link to the
-  # pipeline page (mcp-server/agent linkify). Empty → UUIDs stay plain text.
+  # pipeline page (lore-api/agent linkify). Empty → UUIDs stay plain text.
   LORE_UI_URL: ""
   # Business-hours gate for review-reactor safety cron. Override at
   # deploy time if the team isn't CET / Mon-Fri 9-18.
@@ -89,7 +89,7 @@ githubAppSecret:
   privateKeyKey: private-key
   installationIdKey: installation-id
 
-# Shared secret with mcp-server used to authenticate
+# Shared secret with lore-api used to authenticate
 # POST /api/trigger/review-reactor (webhook → agent fan-out).
 internalTokenSecret:
   name: lore-agent-internal-token

@@ -5,7 +5,7 @@ import pg from "pg";
 import { handleApiRoute } from "../api/routes.js";
 import { proxyToApi, proxyGetApi } from "@re-cinq/lore-server-core/proxy.js";
 
-// Proxy seam introduced by the local/remote split (ADR-030). The lean
+// Proxy seam introduced by the local/remote split (ADR-032). The lean
 // mcp-server holds no database — every data operation leaves it through the
 // server-core proxy client (`proxyToApi` / `proxyGetApi`, the exact functions
 // mcp-server's tool modules import from "@re-cinq/lore-server-core/proxy.js")

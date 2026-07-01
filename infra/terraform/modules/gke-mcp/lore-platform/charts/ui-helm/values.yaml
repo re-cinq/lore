@@ -37,7 +37,7 @@ env:
   # In-cluster MCP server URL — the /api/pipeline/[id]/timeline route proxies
   # here for the commit-walk + trailer parsing. Stays inside the cluster
   # rather than hairpinning through the public ingress.
-  LORE_API_URL: http://lore-mcp.mcp-servers.svc.cluster.local:3000
+  LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
 
 # Schema migrations applied as a pre-install/pre-upgrade hook Job before the UI
 # rolls out. SQL lives in migrations/*.sql; tracked in lore.schema_migrations.

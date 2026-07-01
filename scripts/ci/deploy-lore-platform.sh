@@ -11,7 +11,7 @@
 #     active concurrent deploy's fresh lock.
 #
 # Usage: deploy-lore-platform.sh <subchart> <image_tag> <deployment> <namespace>
-#   e.g. deploy-lore-platform.sh lore-mcp 5d270e9 lore-mcp mcp-servers
+#   e.g. deploy-lore-platform.sh lore-api 5d270e9 lore-api lore-api
 set -euo pipefail
 
 SUBCHART="${1:?subchart values key, e.g. lore-floor}"

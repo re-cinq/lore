@@ -4,7 +4,7 @@ metadata:
   name: {{ .Chart.Name }}
   namespace: {{ .Values.namespace }}
   labels:
-    app: lore-mcp
+    app: lore-api
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -13,4 +13,4 @@ spec:
       targetPort: http
       protocol: TCP
   selector:
-    app: lore-mcp
+    app: lore-api

@@ -3,10 +3,10 @@
 | Field    | Value                                                          |
 |----------|----------------------------------------------------------------|
 | Feature  | Split Local MCP Adapter ↔ Remote HTTPS REST API                |
-| Status   | Draft                                                          |
+| Status   | Implemented — merged to `main` 2026-06-30                      |
 | Created  | 2026-06-23                                                     |
 | Owner    | Platform Engineering                                          |
-| ADR      | [ADR-030](../../adrs/ADR-030-split-local-remote-api.md) (to write) |
+| ADR      | [ADR-032](../../adrs/ADR-032-split-local-remote-api.md)        |
 
 ## Problem Statement
 
@@ -113,10 +113,14 @@ or naming-honesty goal).
   `@re-cinq/lore-mcp`.
 - Boot log: `MCP server (HTTP REST API) listening` → `Lore API listening`.
 - Env `MCP_TRANSPORT`: removed (no longer needed).
-- Docker image: retargeted/renamed to the `lore-api` app.
-- **Kept as-is** (deferred follow-up, needs `moved{}`/release cutover):
-  terraform module `gke-mcp`, Helm chart dir `mcp-helm`, `lore-mcp.tf` filename.
-  Their *contents* still change (drop `MCP_TRANSPORT`, retarget image).
+- Docker image: retargeted to the `lore-api` app (`ghcr.io/re-cinq/lore-api`).
+- **Infra identity** `lore-mcp` / `mcp-servers`: the split *kept* it (the code
+  merge changed only image + env), landing on the `lore-platform` umbrella
+  layout (#753) — chart at `lore-platform/charts/mcp-helm/`, config in
+  `lore-platform.tf` (the former `lore-mcp.tf` is gone). The deferred OQ-2
+  follow-up then **renamed it to `lore-api` / `lore-api`** (chart
+  `charts/lore-api-helm/`, namespace `lore-api`, DNS `lore-api.lore-api…:3000`) —
+  see tasks Phase 8.
 
 ## Functional Requirements
 
@@ -172,8 +176,10 @@ or naming-honesty goal).
 
 - **OQ-1 → folder-per-endpoint.** One folder per HTTP endpoint; multi-endpoint
   modules are split.
-- **OQ-2 → code/user-facing rename only.** Rename package/image/boot-log, remove
-  `MCP_TRANSPORT`; keep terraform module `gke-mcp` and Helm chart `mcp-helm`
-  names (deferred follow-up if ever wanted, with state-move scaffolding).
+- **OQ-2 → code/user-facing rename in the split; infra identity renamed as the
+  follow-up.** The split renamed package/image/boot-log and removed
+  `MCP_TRANSPORT`, keeping the K8s/Helm/terraform identity `lore-mcp`/`mcp-servers`.
+  The full identity rename to `lore-api`/`lore-api` then landed as the Phase-8
+  follow-up (branch `infra/rename-lore-api-workload`).
 - **OQ-3 → new `libs/server-core`** (`@re-cinq/lore-server-core`), distinct from
   the pure-helper `@re-cinq/lore-shared`.

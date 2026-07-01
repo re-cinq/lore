@@ -1,5 +1,5 @@
 {{/*
-  Nil-safe access — see mcp-helm/templates/pdb.yaml for rationale.
+  Nil-safe access — see lore-api-helm/templates/pdb.yaml for rationale.
   CI's `helm upgrade --reuse-values` skips chart defaults.
 */}}
 {{- if and .Values.podDisruptionBudget .Values.podDisruptionBudget.enabled }}

@@ -151,7 +151,7 @@ instance, not something you generate locally:
   page, or ask the platform team.
 - **`lore.ingest-token`** — the shared API token. Grab it from the same web UI settings
   page (it has a "Regenerate Token" button), or ask the platform team. With cluster
-  access: `kubectl get secret lore-ingest-token -n mcp-servers -o jsonpath='{.data.token}' | base64 -d`.
+  access: `kubectl get secret lore-ingest-token -n lore-api -o jsonpath='{.data.token}' | base64 -d`.
 
 If you run the **whole stack locally** instead (next section), these are set for you
 (`http://localhost:3001` and a fixed dev token), so you can skip this step.

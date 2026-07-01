@@ -4,7 +4,7 @@ metadata:
   name: {{ .Values.configMap.name }}
   namespace: {{ .Values.namespace }}
   labels:
-    app: lore-mcp
+    app: lore-api
 data:
   task-types.yaml: |
     {{- .Values.taskTypesConfig | default "" | nindent 4 }}

@@ -184,7 +184,7 @@ resource "kubectl_manifest" "es_agent_ghcr" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-# ===== mcp-servers namespace ================================================
+# ===== lore-api namespace ================================================
 
 resource "kubectl_manifest" "es_mcp_anthropic" {
   yaml_body = yamlencode({
@@ -192,7 +192,7 @@ resource "kubectl_manifest" "es_mcp_anthropic" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-anthropic-key"
-      namespace = "mcp-servers"
+      namespace = "lore-api"
     }
     spec = {
       refreshInterval = "1h"
@@ -223,7 +223,7 @@ resource "kubectl_manifest" "es_mcp_github_app" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "github-app-credentials"
-      namespace = "mcp-servers"
+      namespace = "lore-api"
     }
     spec = {
       refreshInterval = "1h"
@@ -265,8 +265,8 @@ resource "kubectl_manifest" "es_mcp_db_password" {
     apiVersion = "external-secrets.io/v1beta1"
     kind       = "ExternalSecret"
     metadata = {
-      name      = "lore-mcp-db-password"
-      namespace = "mcp-servers"
+      name      = "lore-api-db-password"
+      namespace = "lore-api"
     }
     spec = {
       refreshInterval = "1h"
@@ -275,7 +275,7 @@ resource "kubectl_manifest" "es_mcp_db_password" {
         kind = "ClusterSecretStore"
       }
       target = {
-        name = "lore-mcp-db-password"
+        name = "lore-api-db-password"
       }
       data = [
         {
@@ -297,7 +297,7 @@ resource "kubectl_manifest" "es_mcp_ingest_token" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-ingest-token"
-      namespace = "mcp-servers"
+      namespace = "lore-api"
     }
     spec = {
       refreshInterval = "1h"
@@ -359,7 +359,7 @@ resource "kubectl_manifest" "es_mcp_internal_token" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-agent-internal-token"
-      namespace = "mcp-servers"
+      namespace = "lore-api"
     }
     spec = {
       refreshInterval = "1h"
@@ -390,7 +390,7 @@ resource "kubectl_manifest" "es_mcp_webhook_secret" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-webhook-secret"
-      namespace = "mcp-servers"
+      namespace = "lore-api"
     }
     spec = {
       refreshInterval = "1h"
@@ -417,7 +417,7 @@ resource "kubectl_manifest" "es_mcp_webhook_secret" {
 
 # The GitHub webhook ingress moved into the Floor, so the same GCP secret must
 # also materialize into the lore-floor namespace. Same remoteRef key as the
-# mcp-servers ES above.
+# lore-api ES above.
 resource "kubectl_manifest" "es_floor_webhook_secret" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -455,7 +455,7 @@ resource "kubectl_manifest" "es_mcp_ghcr" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "ghcr-pull-secret"
-      namespace = "mcp-servers"
+      namespace = "lore-api"
     }
     spec = {
       refreshInterval = "1h"
@@ -486,14 +486,14 @@ resource "kubectl_manifest" "es_mcp_ghcr" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-# Slack credentials — shared by both mcp-servers and lore-floor namespaces
+# Slack credentials — shared by both lore-api and lore-floor namespaces
 resource "kubectl_manifest" "es_mcp_slack" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
     kind       = "ExternalSecret"
     metadata = {
       name      = "lore-slack-credentials"
-      namespace = "mcp-servers"
+      namespace = "lore-api"
     }
     spec = {
       refreshInterval = "1h"

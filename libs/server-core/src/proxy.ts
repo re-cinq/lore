@@ -196,7 +196,7 @@ export function unreachableError(op: string, detail: string): { content: [{ type
       type: "text" as const,
       text: `Lore API unreachable for ${op} after ${PROXY_RETRY_DELAYS_MS.length + 1} attempts: ${detail}. ` +
         `Refusing local-file fallback to prevent silent divergence from the org-wide DB. ` +
-        `Check the GKE service (lore-mcp pods) and retry.`,
+        `Check the GKE service (lore-api pods) and retry.`,
     }],
   };
 }

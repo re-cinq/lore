@@ -99,7 +99,7 @@ merge_settings() {
     if [ -z "$LORE_TOKEN" ]; then
       echo ""
       echo "[lore] To delegate tasks from Claude Code to agents, you need a token."
-      echo "  Get it from: kubectl get secret lore-ingest-token -n mcp-servers -o jsonpath='{.data.token}' | base64 -d"
+      echo "  Get it from: kubectl get secret lore-ingest-token -n lore-api -o jsonpath='{.data.token}' | base64 -d"
       echo "  Or ask the platform team."
       echo ""
       # Read from the terminal so this also works under `curl | bash` (where
