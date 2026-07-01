@@ -45,7 +45,7 @@ export async function fetchRepoContext(
     tree = await project.repo.list("");
   } catch (err: any) {
     console.error(
-      `[agent] Failed to fetch tree for ${fullName}: ${err.message}`,
+      `[floor] Failed to fetch tree for ${fullName}: ${err.message}`,
     );
   }
 
@@ -60,7 +60,7 @@ export async function fetchRepoContext(
         }
       } catch (err: any) {
         console.error(
-          `[agent] Error fetching ${fullName}/${path}: ${err.message}`,
+          `[floor] Error fetching ${fullName}/${path}: ${err.message}`,
         );
       }
     }),
@@ -76,7 +76,7 @@ export async function fetchRepoContext(
       entries = await project.repo.list(dir);
     } catch (err: any) {
       console.error(
-        `[agent] Error listing ${fullName}/${dir}: ${err.message}`,
+        `[floor] Error listing ${fullName}/${dir}: ${err.message}`,
       );
       continue;
     }
@@ -92,7 +92,7 @@ export async function fetchRepoContext(
         }
       } catch (err: any) {
         console.error(
-          `[agent] Error fetching sample ${fullName}/${entryPath}: ${err.message}`,
+          `[floor] Error fetching sample ${fullName}/${entryPath}: ${err.message}`,
         );
       }
     }

@@ -5,7 +5,7 @@
  * on the CR phase internally.
  */
 
-import type { Agent } from "@re-cinq/agent-contracts";
+import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { makeAgentsApi, processAgentCr } from "./watcher/agent-watcher.js";
 import type { EventHandler } from "../main-loop/types.js";
 
@@ -19,7 +19,7 @@ const handleAgent: EventHandler = async (params) => {
   const { k8sApi, namespace } = makeAgentsApi();
   const cr = (await k8sApi
     .getNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL, name: agentName })
-    .catch(() => null)) as Agent | null;
+    .catch(() => null)) as AgentCr | null;
   if (!cr) return; // CR already pruned — nothing to do
   await processAgentCr(cr, k8sApi);
 };

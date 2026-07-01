@@ -146,10 +146,10 @@ export async function handleOnboard(
 ): Promise<void> {
   const project = await projectFor(targetRepo);
   // 1. Pre-fetch repo context
-  console.log(`[agent] Onboard: fetching context for ${targetRepo}...`);
+  console.log(`[floor] Onboard: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
   const contextStr = JSON.stringify(context, null, 2);
-  console.log(`[agent] Onboard: ${context.tree.length} tree entries, ${Object.keys(context.files).length} files`);
+  console.log(`[floor] Onboard: ${context.tree.length} tree entries, ${Object.keys(context.files).length} files`);
 
   // 2. Determine which files already exist
   const existingFiles = new Set([
@@ -166,7 +166,7 @@ export async function handleOnboard(
 
   for (const f of ONBOARD_FILES) {
     if (existingFiles.has(f.path) || existingFiles.has(f.path.split("/").pop()!)) {
-      console.log(`[agent] Onboard: skipping ${f.path} (already exists)`);
+      console.log(`[floor] Onboard: skipping ${f.path} (already exists)`);
       continue;
     }
     toGenerate.push({ path: f.path, prompt: f.prompt });
@@ -184,14 +184,14 @@ export async function handleOnboard(
     const repoSettings = await settings().rawSettings(targetRepo);
     settingsTestCommands = (repoSettings as { test_commands?: unknown } | null)?.test_commands;
   } catch (err: any) {
-    console.warn(`[agent] Onboard: could not read repo settings for test-interface check: ${err.message}`);
+    console.warn(`[floor] Onboard: could not read repo settings for test-interface check: ${err.message}`);
   }
   const interfaceCheck = decideTestInterfaceCheck({
     manifestFileDeclared: existingFiles.has(".lore/test-commands.yml"),
     settingsTestCommands,
   });
   if (interfaceCheck.status === "configured") {
-    console.log("[agent] Onboard: test interface already configured — scaffolding nothing");
+    console.log("[floor] Onboard: test interface already configured — scaffolding nothing");
   } else {
     for (const scaffoldPath of interfaceCheck.files) {
       if (existingFiles.has(scaffoldPath)) continue;
@@ -216,14 +216,14 @@ export async function handleOnboard(
       adrNum++;
     }
   } else {
-    console.log(`[agent] Onboard: skipping ADRs (adrs/ or docs/ already exists)`);
+    console.log(`[floor] Onboard: skipping ADRs (adrs/ or docs/ already exists)`);
   }
 
   if (toGenerate.length === 0) {
     throw new Error("All onboarding files already exist — nothing to generate");
   }
 
-  console.log(`[agent] Onboard: generating ${toGenerate.length} files...`);
+  console.log(`[floor] Onboard: generating ${toGenerate.length} files...`);
 
   // 4. Create branch
   await project.repo.createBranch(branchName);
@@ -242,9 +242,9 @@ export async function handleOnboard(
       `lore: add ${LORE_INGEST_WORKFLOW_PATH}`,
     );
     committed.push(LORE_INGEST_WORKFLOW_PATH);
-    console.log(`[agent] Onboard: committed ${LORE_INGEST_WORKFLOW_PATH} (workflow)`);
+    console.log(`[floor] Onboard: committed ${LORE_INGEST_WORKFLOW_PATH} (workflow)`);
   } catch (err: any) {
-    console.error(`[agent] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${err.message}`);
+    console.error(`[floor] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${err.message}`);
     failures.push({ step: LORE_INGEST_WORKFLOW_PATH, error: err.message });
   }
 
@@ -259,9 +259,9 @@ export async function handleOnboard(
       `lore: add ${TRACE_IMPACT_WORKFLOW_PATH}`,
     );
     committed.push(TRACE_IMPACT_WORKFLOW_PATH);
-    console.log(`[agent] Onboard: committed ${TRACE_IMPACT_WORKFLOW_PATH} (workflow)`);
+    console.log(`[floor] Onboard: committed ${TRACE_IMPACT_WORKFLOW_PATH} (workflow)`);
   } catch (err: any) {
-    console.error(`[agent] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${err.message}`);
+    console.error(`[floor] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${err.message}`);
     failures.push({ step: TRACE_IMPACT_WORKFLOW_PATH, error: err.message });
   }
 
@@ -271,9 +271,9 @@ export async function handleOnboard(
       try {
         await project.repo.commitFile(branchName, sf.path, sf.content, `lore: add ${sf.path}`);
         committed.push(sf.path);
-        console.log(`[agent] Onboard: committed ${sf.path} (static)`);
+        console.log(`[floor] Onboard: committed ${sf.path} (static)`);
       } catch (err: any) {
-        console.error(`[agent] Onboard: failed ${sf.path}: ${err.message}`);
+        console.error(`[floor] Onboard: failed ${sf.path}: ${err.message}`);
         failures.push({ step: sf.path, error: err.message });
       }
     }
@@ -293,15 +293,15 @@ export async function handleOnboard(
       // Skip if model says to skip (e.g., no database detected)
       const text = result.text.trim();
       if (text === "SKIP" || text.length < 20) {
-        console.log(`[agent] Onboard: skipping ${file.path} (model returned SKIP)`);
+        console.log(`[floor] Onboard: skipping ${file.path} (model returned SKIP)`);
         continue;
       }
 
       await project.repo.commitFile(branchName, file.path, text, `lore: add ${file.path}`);
       committed.push(file.path);
-      console.log(`[agent] Onboard: committed ${file.path} (${text.length} chars)`);
+      console.log(`[floor] Onboard: committed ${file.path} (${text.length} chars)`);
     } catch (err: any) {
-      console.error(`[agent] Onboard: failed to generate ${file.path}: ${err.message}`);
+      console.error(`[floor] Onboard: failed to generate ${file.path}: ${err.message}`);
       failures.push({ step: file.path, error: err.message });
       // Continue with other files — don't fail the whole task
     }
@@ -341,9 +341,9 @@ export async function handleOnboard(
       { name: "lore:review", color: "1D76DB", description: "Lore: review task" },
       { name: "lore:runbook", color: "D93F0B", description: "Lore: runbook task" },
     ]);
-    console.log(`[agent] Created Lore dispatch labels on ${targetRepo}`);
+    console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);
   } catch (err: any) {
-    console.warn(`[agent] Failed to create labels on ${targetRepo}: ${err.message}`);
+    console.warn(`[floor] Failed to create labels on ${targetRepo}: ${err.message}`);
   }
 
   // Configure ingest secrets on the repo so lore-ingest.yml can call back
@@ -354,9 +354,9 @@ export async function handleOnboard(
     if (ingestToken) {
       await project.settings.setRepoSecret("LORE_INGEST_TOKEN", ingestToken);
     }
-    console.log(`[agent] Configured ingest secrets on ${targetRepo}`);
+    console.log(`[floor] Configured ingest secrets on ${targetRepo}`);
   } catch (err: any) {
-    console.error(`[agent] Failed to set ingest secrets on ${targetRepo}: ${err.message}`);
+    console.error(`[floor] Failed to set ingest secrets on ${targetRepo}: ${err.message}`);
     // Non-fatal — PR still created, secrets can be set manually
   }
 
@@ -374,5 +374,5 @@ export async function handleOnboard(
     `${targetRepo}/${task.id}`,
   ).catch(() => {});
 
-  console.log(`[agent] Task ${task.id} → PR ${pr.url} (${committed.length} files)`);
+  console.log(`[floor] Task ${task.id} → PR ${pr.url} (${committed.length} files)`);
 }

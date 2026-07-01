@@ -47,7 +47,7 @@ export async function handleFeatureFinalize(task: any, targetRepo: string): Prom
         issueNumber = issue.number;
         issueUrl = issue.url;
       } catch (err: any) {
-        console.warn(`[agent] feature-finalize: could not create user-story Issue: ${err.message}`);
+        console.warn(`[floor] feature-finalize: could not create user-story Issue: ${err.message}`);
       }
     }
 
@@ -69,11 +69,11 @@ export async function handleFeatureFinalize(task: any, targetRepo: string): Prom
 
     await setStatus(task.id, "pr-created", { pr_url: pr.url, pr_number: pr.number, target_branch: branch });
     await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url, feature_id: featureId });
-    console.log(`[agent] feature-finalize: feature ${featureId} → PR ${pr.url}`);
+    console.log(`[floor] feature-finalize: feature ${featureId} → PR ${pr.url}`);
   } catch (err: any) {
     await setStatus(task.id, "failed", { failure_reason: err.message });
     await insertEvent(task.id, "running", "failed", { reason: err.message });
-    console.error(`[agent] feature-finalize failed for feature ${featureId}: ${err.message}`);
+    console.error(`[floor] feature-finalize failed for feature ${featureId}: ${err.message}`);
     throw err;
   }
 }

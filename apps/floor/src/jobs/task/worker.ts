@@ -59,7 +59,7 @@ export async function recoverStaleTasks(
     // managed by the LoreTask CRD. The loretask-watcher handles completion.
     if (row.task_type === "implementation") {
       console.log(
-        `[agent] Skipping stale implementation task ${row.id} — managed by LoreTask CRD`,
+        `[floor] Skipping stale implementation task ${row.id} — managed by LoreTask CRD`,
       );
       continue;
     }
@@ -68,7 +68,7 @@ export async function recoverStaleTasks(
       reason: "crash-recovery",
     });
     console.log(
-      `[agent] Recovered stale task ${row.id} (${row.task_type}) → pending`,
+      `[floor] Recovered stale task ${row.id} (${row.task_type}) → pending`,
     );
     recovered++;
   }
@@ -83,7 +83,7 @@ export async function recoverStaleTasks(
  * task at a time.
  */
 export async function startWorker(): Promise<void> {
-  console.log("[agent] Worker started");
+  console.log("[floor] Worker started");
   setInterval(pollOnce, 10_000);
   await pollOnce();
 }
@@ -154,15 +154,15 @@ async function processTask(task: any): Promise<void> {
         issue_number: issue.number,
         issue_url: issue.url,
       });
-      console.log(`[agent] Created issue #${issue.number} on ${targetRepo}`);
+      console.log(`[floor] Created issue #${issue.number} on ${targetRepo}`);
     } catch (err: any) {
       // Non-fatal — proceed without issue if GitHub App lacks permission
-    console.warn(`[agent] Could not create issue on ${targetRepo}: ${err.message}`);
+    console.warn(`[floor] Could not create issue on ${targetRepo}: ${err.message}`);
     }
   } else if (issueNumber) {
-    console.log(`[agent] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`);
+    console.log(`[floor] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`);
   } else if (!issueGate.create && task.task_type !== "general") {
-    console.log(`[agent] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`);
+    console.log(`[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`);
   }
 
   // Check if this task requires approval
@@ -177,7 +177,7 @@ async function processTask(task: any): Promise<void> {
       await project.issues.addLabel(issueNumber, "awaiting-approval");
     }
 
-    console.log(`[agent] Task ${task.id} requires approval — waiting for label on issue #${issueNumber}`);
+    console.log(`[floor] Task ${task.id} requires approval — waiting for label on issue #${issueNumber}`);
     return; // Don't process yet
   }
 
@@ -245,7 +245,7 @@ async function processTask(task: any): Promise<void> {
       repoSettings?.dark_factory?.enabled === true;
     if (darkFactoryEnabled && isDarkFactoryEligible(task.task_type)) {
       console.log(
-        `[agent] Task ${task.id} routing through dark-factory supervisor (${task.task_type} on ${targetRepo})`,
+        `[floor] Task ${task.id} routing through dark-factory supervisor (${task.task_type} on ${targetRepo})`,
       );
       const { resolveDarkFactorySettings } = await import(
         "../dark-factory/dark-factory.js"
@@ -334,7 +334,7 @@ async function processTask(task: any): Promise<void> {
           darkFactoryBaseBranch = await project.repo.defaultBranch();
         } catch (err: any) {
           console.warn(
-            `[agent] default-branch lookup failed for ${targetRepo}: ${err.message}`,
+            `[floor] default-branch lookup failed for ${targetRepo}: ${err.message}`,
           );
         }
       }
@@ -372,6 +372,6 @@ async function processTask(task: any): Promise<void> {
       await project.issues.comment(issueNumber, `Task failed: \`${failureReason}\`${hint}`).catch(() => {});
       await project.issues.addLabel(issueNumber, "lore-failed").catch(() => {});
     }
-    console.error(`[agent] Task ${task.id} failed: ${failureReason}`);
+    console.error(`[floor] Task ${task.id} failed: ${failureReason}`);
   }
 }

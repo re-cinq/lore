@@ -67,5 +67,5 @@ export async function handleGenericOutput(
     pr_url: pr.url,
   });
 
-  console.log(`[agent] Task ${task.id} → PR ${pr.url}`);
+  console.log(`[floor] Task ${task.id} → PR ${pr.url}`);
 }

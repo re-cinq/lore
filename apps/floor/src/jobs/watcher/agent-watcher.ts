@@ -16,7 +16,7 @@
  */
 
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
-import type { Agent } from "@re-cinq/agent-contracts";
+import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { projectFor } from "../../composition/project-boot.js";
 import { taskStore, settings, taskQueue } from "../../kernel/queues.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
@@ -178,7 +178,7 @@ export function makeAgentsApi(): { k8sApi: CustomObjectsApi; namespace: string }
  * CR). The body is the former list-loop body verbatim, with `continue`→`return`;
  * the Slack flush runs in `finally` so an early return still delivers notifications.
  */
-export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Promise<void> {
+export async function processAgentCr(agent: AgentCr, k8sApi: CustomObjectsApi): Promise<void> {
   const namespace = agentsNamespace();
   try {
     const status = agent.status ?? {};
@@ -449,6 +449,6 @@ export async function processAgentCr(agent: Agent, k8sApi: CustomObjectsApi): Pr
 }
 
 /** A no-changes Agent we already closed out carries the prUrl sentinel "no-changes". */
-export function changedFilesIsZero(status: NonNullable<Agent["status"]>): boolean {
+export function changedFilesIsZero(status: NonNullable<AgentCr["status"]>): boolean {
   return status.prUrl === "no-changes";
 }

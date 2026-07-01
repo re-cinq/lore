@@ -75,8 +75,8 @@ export async function handleClaudeCodeTask(
 
   console.log(
     result.started
-      ? `[agent] Dispatched Agent CR for task ${task.id}`
-      : `[agent] Agent CR for task ${task.id} already exists, skipping`,
+      ? `[floor] Dispatched Agent CR for task ${task.id}`
+      : `[floor] Agent CR for task ${task.id} already exists, skipping`,
   );
   // Don't set pr-created — the agent-watcher will do that when the Agent completes.
 }

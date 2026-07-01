@@ -66,14 +66,14 @@ export function loadTaskTypes(configPath?: string): void {
         taskTypes.set(name, cfg);
       }
 
-      console.log(`[agent] Loaded ${taskTypes.size} task types from ${p}`);
+      console.log(`[floor] Loaded ${taskTypes.size} task types from ${p}`);
       return;
     } catch {
       // try next path
     }
   }
 
-  console.warn('[agent] No task-types.yaml found, using empty config');
+  console.warn('[floor] No task-types.yaml found, using empty config');
 }
 
 /** Return the config for a specific task type, or undefined. */

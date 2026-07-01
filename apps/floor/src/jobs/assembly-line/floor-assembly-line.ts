@@ -50,7 +50,7 @@ export function nodeAgentSpec(
 }
 
 export interface FloorAssemblyLinePorts {
-  /** Dispatch one node's Agent CR (e.g. AgentBackend.launch). */
+  /** Dispatch one node's Agent CR (e.g. AgentCrBackend.launch). */
   dispatchAgent: (spec: LoreTaskSpec) => Promise<void>;
   /** Resolve a node's prompt template for the task. */
   resolvePrompt: (node: WorkflowNode, task: FloorAssemblyLineTask) => string;

@@ -53,7 +53,7 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
     if (alreadyDecomposed) {
       await setStatus(task.id, "completed");
       await insertEvent(task.id, "running", "completed", { feature_id: featureId, skipped: "already-decomposed" });
-      console.log(`[agent] feature-decompose: ${specSlug} already has spec-tasks — skipping`);
+      console.log(`[floor] feature-decompose: ${specSlug} already has spec-tasks — skipping`);
       return;
     }
 
@@ -91,7 +91,7 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
           storyIssue = issue.number;
           storiesCreated++;
         } catch (err: any) {
-          console.warn(`[agent] feature-decompose: could not create Issue for story "${story.title}": ${err.message}`);
+          console.warn(`[floor] feature-decompose: could not create Issue for story "${story.title}": ${err.message}`);
         }
       }
 
@@ -117,12 +117,12 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
       task_group_id: taskGroupId,
     });
     console.log(
-      `[agent] feature-decompose: ${specSlug} → ${storiesCreated} stories, ${tasksCreated} spec-tasks (group ${taskGroupId})`,
+      `[floor] feature-decompose: ${specSlug} → ${storiesCreated} stories, ${tasksCreated} spec-tasks (group ${taskGroupId})`,
     );
   } catch (err: any) {
     await setStatus(task.id, "failed", { failure_reason: err.message });
     await insertEvent(task.id, "running", "failed", { reason: err.message });
-    console.error(`[agent] feature-decompose failed for feature ${featureId}: ${err.message}`);
+    console.error(`[floor] feature-decompose failed for feature ${featureId}: ${err.message}`);
     throw err;
   }
 }

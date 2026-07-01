@@ -46,15 +46,15 @@ export async function startHealthServer(port: number, getJobStatus: () => unknow
 
   try {
     await server.start();
-    console.log(`[agent] Health server on :${port}/healthz`);
+    console.log(`[floor] Health server on :${port}/healthz`);
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code === "EADDRINUSE") {
       console.error(
-        `[agent] Health server port ${port} already in use — another agent instance is running. Exiting.`,
+        `[floor] Health server port ${port} already in use — another agent instance is running. Exiting.`,
       );
     } else {
-      console.error("[agent] Health server error:", err);
+      console.error("[floor] Health server error:", err);
     }
     process.exit(1);
   }

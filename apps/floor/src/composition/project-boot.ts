@@ -6,7 +6,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { loadBuiltinWorkflows } from "@re-cinq/lore-runner";
 import { getPool } from "../kernel/db.js";
-import { AgentBackend } from "../jobs/station/agent-backend.js";
+import { AgentCrBackend } from "../jobs/station/agent-backend.js";
 import { KubeAgentApi } from "../jobs/station/kube-agent-api.js";
 import { HttpContextSource } from "../jobs/station/http-context-source.js";
 import {
@@ -36,14 +36,14 @@ const NO_OP_DGRAPH = {
 /**
  * The Station backend: the ai-agent-subsystem `Agent` path (ADR-031). Within it,
  * task types that have a workflow run the Floor-side assembly line (one Agent CR per
- * node, #686); the rest run a single Agent. Both share the AgentBackend for CR
+ * node, #686); the rest run a single Agent. Both share the AgentCrBackend for CR
  * dispatch. (The legacy LoreTask + Docker backends were removed once agent-cr
  * became the sole path.)
  */
 export function stationBackend(
   workflows: ReadonlySet<string> = new Set(),
 ): StationBackend {
-  const agentBackend = new AgentBackend(
+  const agentBackend = new AgentCrBackend(
     new KubeAgentApi(),
     new HttpContextSource(),
     new KubeTokenProvisioner(
