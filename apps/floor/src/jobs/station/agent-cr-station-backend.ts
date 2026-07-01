@@ -19,8 +19,11 @@ export class AgentCrStationBackend implements StationBackend {
   ) {}
 
   launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
-    const backend = shouldUseAssemblyLine(spec.taskType, this.workflowNames) ? this.assemblyLine : this.singleAgent;
-    return backend.launch(spec);
+    if(shouldUseAssemblyLine(spec.taskType, this.workflowNames)) {
+      return this.assemblyLine.launch(spec);
+    }
+
+    return this.singleAgent.launch(spec);
   }
 
   /** Probe the single-Agent backend, whose task-id label query finds both the single

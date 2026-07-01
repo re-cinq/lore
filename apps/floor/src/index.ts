@@ -1,3 +1,4 @@
+import { initOtel, shutdownOtel } from "./otel-init.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { initPool, getPool } from "./kernel/db.js";
 import { loadTaskTypes } from "./kernel/config.js";
@@ -18,6 +19,9 @@ import { startK8sWatch } from "./listeners/k8s-watch.js";
 
 async function main(): Promise<void> {
   console.log("[floor] Lore Floor Service starting...");
+
+  await initOtel();
+  process.on("SIGTERM", () => void shutdownOtel());
 
   initPool();
   Llm.configure({ costPool: getPool() });

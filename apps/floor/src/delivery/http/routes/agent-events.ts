@@ -7,54 +7,58 @@
  */
 
 import type { ServerRoute } from "@hapi/hapi";
-import { trace } from "@opentelemetry/api";
 import { usage } from "../../../kernel/queues.js";
-import { parseAgentEvents, agentEventsArchiveKey } from "../../../jobs/agent/agent-events.js";
+import {
+  parseAgentEvents,
+  agentEventsArchiveKey,
+  type LlmCallRow,
+} from "../../../jobs/agent/agent-events.js";
 import { archiveAgentEvents } from "../../../jobs/agent/agent-events-store.js";
 import { rawBody } from "../raw-body.js";
 
-const tracer = trace.getTracer("lore.agent_events");
+/**
+ * Persist one cost row per agent run. A row whose task_id isn't in pipeline.tasks
+ * (FK) is skipped — not failed — so one bad line never drops the batch. Returns
+ * how many rows were persisted.
+ */
+async function recordAgentCosts(rows: readonly LlmCallRow[]): Promise<number> {
+  let recorded = 0;
+  for (const row of rows) {
+    try {
+      await usage().logLlmCall({ ...row, jobName: "agent" });
+      recorded++;
+    } catch (err: any) {
+      console.warn(`[floor] llm_calls insert skipped for ${row.taskId}: ${err.message}`);
+    }
+  }
+  return recorded;
+}
+
+/**
+ * Archive the raw NDJSON for replay (redacted, dormant until a bucket is set).
+ * Fire-and-forget: a failed archive must never fail cost-row ingestion.
+ */
+function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
+  const key = agentEventsArchiveKey(new Date().toISOString(), rows.map((r) => r.taskId));
+  void archiveAgentEvents(body, key).catch((err: any) =>
+    console.warn(`[floor] events archive skipped: ${err.message}`),
+  );
+}
 
 export const agentEventsRoute: ServerRoute = {
   method: "POST",
   path: "/api/agent-events",
   options: { auth: "internal-token", payload: { parse: false } },
-  handler: (request, h) =>
-    tracer.startActiveSpan("ingest", async (span) => {
-      try {
-        const body = rawBody(request);
-        const rows = parseAgentEvents(body);
-        let recorded = 0;
-        for (const row of rows) {
-          try {
-            await usage().logLlmCall({
-              taskId: row.taskId,
-              jobName: "agent",
-              model: row.model,
-              inputTokens: row.inputTokens,
-              outputTokens: row.outputTokens,
-              costUsd: row.costUsd,
-              durationMs: row.durationMs,
-            });
-            recorded++;
-          } catch (err: any) {
-            console.warn(`[floor] llm_calls insert skipped for ${row.taskId}: ${err.message}`);
-          }
-        }
-        span.setAttribute("events", rows.length);
-        span.setAttribute("recorded", recorded);
-        // Archive the raw NDJSON for replay (redacted, dormant until a bucket is set).
-        // Fire-and-forget: a failed archive must never fail cost-row ingestion.
-        void archiveAgentEvents(
-          body,
-          agentEventsArchiveKey(new Date().toISOString(), rows.map((r) => r.taskId)),
-        ).catch((err: any) => console.warn(`[floor] events archive skipped: ${err.message}`));
-        return h.response({ status: "ok", events: rows.length, recorded }).code(200);
-      } catch (err: any) {
-        span.recordException(err);
-        return h.response({ error: err.message }).code(500);
-      } finally {
-        span.end();
-      }
-    }),
+  handler: async (request, h) => {
+    // A throw here becomes a 500 via hapi, and the request-tracing extension
+    // records the exception on the request span — no per-handler try/catch.
+    const rawNdjson = rawBody(request);
+    const rows = parseAgentEvents(rawNdjson);
+    const recorded = await recordAgentCosts(rows);
+
+    request.app.span?.setAttributes({ "agent_events.count": rows.length, "agent_events.recorded": recorded });
+    archiveRaw(rawNdjson, rows);
+
+    return h.response({ status: "ok", events: rows.length, recorded }).code(200);
+  },
 };
