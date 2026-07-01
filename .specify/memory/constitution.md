@@ -1,17 +1,15 @@
 <!--
 Sync Impact Report
-- Version: 2.2.0 (MINOR — Dark Factory mode (ADR-016) + Principle 12 added; P7/P11 task-tracking narrowed)
-- Modified: P7 decision table row "Task tracking" — narrows when GH Issues are created (now exception-surface only when dark-factory mode is enabled per repo)
-- Modified: Technology stack row "Task tracking" — same narrowing reflected
-- Added: ADR-016 reference (Dark Factory mode)
-- Modified: Principle 5 — complete MCP tool list (memory, graph, episode tools added)
-- Modified: Principle 7 — architecture decisions table updated to reflect ADR-015 and post-April-13 decisions
-- Modified: Principle 9 — jobs table updated (review reactor, prompt cache analysis)
-- Modified: Principle 11 — expanded with retrieval strengthening, PR outcome feedback, confidence tiers, conflict surfacing
-- Added: Principle 12 (Event-Driven Automation over Polling)
-- Updated: Technology stack — prompt caching, local runner, AgentDB, session tracker, token scopes
-- Updated: Phase 3 description — cross-repo context, progressive trust, task groups, production awareness, per-template budgets
-- Follow-up TODOs: pilot rollout against three trust-tiered repos (T059) before flipping dark-factory defaults
+- Version: 2.3.0 (MINOR — architecture refresh reflecting three accepted ADRs: ADR-032 local/remote split, ADR-031 ai-agent-subsystem execution substrate, and the lore-mcp→lore-api workload rename)
+- Modified: P7 decision table — "MCP deployment" row → local stdio adapter + remote lore-api REST split (ADR-032); "Task execution" row → Agent CRs on the ai-agent-subsystem, LoreTask CRD + claude-runner removed (ADR-031); "Multi-agent orchestration" row → Floor dispatch + agent-cr
+- Modified: Principle 9 — "Implementation" job now runs on the ai-agent-subsystem (agent-cr), not an ephemeral Job pod
+- Modified: Technology Stack — MCP-server row split into remote lore-api + local adapter; cluster-agents row → Floor; task-execution → ai-agent-subsystem; Infrastructure → lore-platform umbrella chart (LoreTask CRD dropped); corrected moved file paths (session-tracker, memory-lifecycle, local task runner)
+- Modified: Phase 1 deliverables — namespace list (lore-api / lore-floor / lore-ui / lore-db / ai-agents / lore-dgraph), lore-api image + REST transport, ai-agent-subsystem replaces the LoreTask CRD + claude-runner
+- Added: ADR-032 (split-local-remote-api) + ADR-031 (agent-station-crds) references
+- Follow-up TODOs: this refresh corrects the settled-architecture tables + Phase 1 record; a fuller Phase 4+ delivery section (Floor event bus, dark-factory) is still unwritten
+
+Previous (Version 2.2.0 — 2026-04-28, MINOR):
+- Dark Factory mode (ADR-016) + Principle 12 added; P7/P11 task-tracking narrowed; Principles 5/7/9/11 materially expanded
 
 Previous (Version 2.1.0 — 2026-04-20, MINOR):
 - Principle 12 added; Principles 5, 7, 9, 11 materially expanded
@@ -28,9 +26,9 @@ Previous (Version 2.0.0 — 2026-04-13, MAJOR):
 |---|---|
 | Project | Lore |
 | Subtitle | Shared context infrastructure for Claude Code |
-| Constitution Version | 2.2.0 |
+| Constitution Version | 2.3.0 |
 | Ratification Date | 2026-03-25 |
-| Last Amended Date | 2026-04-28 |
+| Last Amended Date | 2026-07-01 |
 
 ## Purpose
 
@@ -172,7 +170,7 @@ The following decisions have been made and MUST NOT be relitigated:
 |---|---|
 | Vector store | PostgreSQL + pgvector via CloudNativePG (CNPG) on GKE |
 | Namespace model | Schema per team in PostgreSQL (CNPG) |
-| MCP deployment | Single container in `mcp-servers` namespace on GKE |
+| Local ↔ remote split | Local stdio MCP adapter (`@re-cinq/lore-mcp`) proxies to the remote `lore-api` REST backend (`lore-api` namespace); light shared core in `@re-cinq/lore-server-core` (ADR-032) |
 | Ingestion trigger | On-push (fast) + nightly (full) via K8s CronJobs |
 | Observability | OpenTelemetry → Cloud Monitoring |
 | Scheduling | Lore Agent built-in scheduler with DB persistence |
@@ -180,8 +178,8 @@ The following decisions have been made and MUST NOT be relitigated:
 | Task tracking | Pipeline tasks via Lore MCP; GH Issues for exception surfaces (opt-out per ADR-016) |
 | Governance | Distributed ownership + CI eval gate |
 | Build sequence | DX-first: Phase 0 before infra |
-| Multi-agent orchestration | Lore Agent (direct API + headless Claude Code) on GKE |
-| Task execution | LoreTask CRD → ephemeral K8s Job pods (claude-runner image) |
+| Multi-agent orchestration | Floor dispatch: direct Anthropic API for simple tasks + agent-cr Agents for implementation/review on GKE |
+| Task execution | Agent custom resources on the ai-agent-subsystem (agent-cr, `ai-agents` namespace); LoreTask CRD + claude-runner removed (ADR-031) |
 | Knowledge graph | PostgreSQL `memory.entities` + `memory.edges` tables (incremental, live) |
 | Memory lifecycle | Importance decay (half-life model) + automatic fact consolidation (Haiku) |
 | Privacy | `sanitizeContent()` / `redactSecrets()` on all memory writes before DB storage |
@@ -246,7 +244,7 @@ Platform jobs running as Lore Agent tasks:
 | Spec drift check | Reads code + spec, writes the update needed |
 | Eval runner | Runs PromptFoo nightly, detects regressions, creates tasks |
 | Feature request | Generates spec.md, data-model.md, tasks.md from PM intent |
-| Implementation | Implements from spec in ephemeral Job pod with lint/typecheck gate |
+| Implementation | Implements from spec on the ai-agent-subsystem (agent-cr Agent) with lint/typecheck gate |
 | Review | Reviews PR against conventions, posts comments, iterates up to 2 rounds |
 | Memory decay | Scores and evicts low-importance memories (importance decay job, 5 AM) |
 | Memory consolidation | Synthesizes higher-level patterns from recent facts (consolidation job, 5:30 AM) |
@@ -368,23 +366,24 @@ tolerance without reinstating continuous polling. See ADR-015.
 | Embedding | Vertex AI `text-embedding-005` via application-level call |
 | Vector index | HNSW (pgvector) |
 | Search | Hybrid: HNSW vector + BM25 keyword, Reciprocal Rank Fusion |
-| MCP server | TypeScript, single container in `mcp-servers` namespace |
-| Cluster agents | Lore Agent (`lore-agent` namespace, @anthropic-ai/sdk + Claude Code CLI) |
-| Task execution | LoreTask CRD → ephemeral K8s Job pods (claude-runner image) |
+| Remote API | `lore-api` REST backend (`@re-cinq/lore-api`, `ghcr.io/re-cinq/lore-api`) in the `lore-api` namespace (ADR-032) |
+| Local MCP adapter | `apps/mcp-server` stdio adapter (`@re-cinq/lore-mcp`) — proxies to `lore-api`; shared light core in `@re-cinq/lore-server-core` |
+| Cluster workers | Floor (`ghcr.io/re-cinq/lore-floor`, `lore-floor` namespace) — event loop, schedulers, task dispatch |
+| Task execution | Agent CRs on the ai-agent-subsystem (agent-cr controller `ghcr.io/re-cinq/ai-agent-controller`, `ai-agents` namespace); LoreTask CRD + claude-runner removed (ADR-031) |
 | Task tracking | Pipeline tasks via Lore MCP; GitHub Issues for exception surfaces (opt-out per ADR-016) |
 | Feature workflow | Spec Kit (`specify-cli`) |
 | Observability | OpenTelemetry → Cloud Monitoring |
 | CI evals | PromptFoo |
-| Infrastructure | CNPG operator + K8s manifests + CronJobs + LoreTask CRD (on existing shared GKE cluster `your-gke-cluster`) |
+| Infrastructure | `lore-platform` umbrella Helm chart (floor / lore-api / ui / lore-db / ai-agents subcharts) + CNPG operator + CronJobs (on existing shared GKE cluster `your-gke-cluster`) |
 | Auth | Workload Identity (GKE), Workload Identity Federation (GHA) |
 | Code parsing | web-tree-sitter (TypeScript, Python, Go) |
 | Document parsing | LlamaIndex readers (GitHub, Confluence) + unstructured |
 | Knowledge graph | PostgreSQL `memory.entities` + `memory.edges` (incremental updates on `lore_write_episode`) |
-| Memory lifecycle | `agent/src/jobs/memory-lifecycle.ts` — importance decay (Ebbinghaus model) + Haiku-driven consolidation |
+| Memory lifecycle | `apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.ts` — importance decay (Ebbinghaus model) + Haiku-driven consolidation |
 | Privacy filtering | `@re-cinq/lore-shared` `redactSecrets()` — strips keys, JWTs, connection strings before memory writes |
 | Prompt caching | `agent/src/lib/prompt-cache.ts` — `getCacheControl(jobName)` returns ephemeral (5m) or 1h breakpoints; `analyzeCacheBreak` classifies hit / first-call / break |
-| Local task runner | `mcp-server/src/local-runner.ts` — worktree-based execution with `validateRepoMatch`; task state in `~/.lore/local-tasks.json` |
-| Session tracker | `mcp-server/src/session-tracker.ts` — passive tool-call ring buffer (500 entries); exit dump + Stop hook POST |
+| Local task runner | `apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts` — worktree-based execution with `validateRepoMatch`; task state in `~/.lore/local-tasks.json` |
+| Session tracker | `libs/server-core/src/platform/session-tracker.ts` — passive tool-call ring buffer (500 entries); exit dump + Stop hook POST |
 | Local read cache | AgentDB optional local read cache when MCP runs in stdio mode (proxies writes to GKE backend) |
 | API token scopes | `pipeline.api_tokens` — SHA-256 hashed per-client tokens; scopes: read / write / task / webhook / admin |
 | Rate limiting | In-memory sliding window: 30/min webhooks, 60/min task ops, 200/min other; 1 MB body limit |
@@ -413,16 +412,20 @@ Deliverables:
 - CNPG Cluster resource (namespace `lore-db`) + schema-per-team + HNSW indexes.
   Dedicated `lore` DB user (not `postgres`) for cross-namespace access.
 - Embeddings via Vertex AI `text-embedding-005` (768 dimensions).
-- Namespaces on shared cluster: `mcp-servers`, `lore-db`, `lore-agent`.
-- Lore Agent (`ghcr.io/re-cinq/lore-agent:latest`) in `lore-agent` namespace.
-- Lore MCP server (`ghcr.io/re-cinq/lore-mcp:latest`) in `mcp-servers`
-  namespace, HTTP transport on `:3000/mcp`.
-- LoreTask CRD + controller in `lore-agent` namespace. Ephemeral Job pods
-  run `ghcr.io/re-cinq/claude-runner:latest`.
+- Namespaces on shared cluster: `lore-api`, `lore-floor`, `lore-ui`,
+  `lore-db`, `ai-agents`, `lore-dgraph`.
+- Floor (`ghcr.io/re-cinq/lore-floor:latest`) in the `lore-floor` namespace —
+  event loop, schedulers, task dispatch.
+- Lore API (`ghcr.io/re-cinq/lore-api:latest`) in the `lore-api` namespace,
+  REST on `:3000/api`; the local stdio MCP adapter (`@re-cinq/lore-mcp`)
+  proxies to it (ADR-032).
+- ai-agent-subsystem: agent-cr controller
+  (`ghcr.io/re-cinq/ai-agent-controller`) in the `ai-agents` namespace runs
+  Agent CRs. The LoreTask CRD + `claude-runner` image were removed (ADR-031).
 - CronJobs: nightly reindex (2 AM), weekly gap detection (Mon 9 AM),
   weekly spec drift (Mon 10 AM), daily importance decay (5 AM),
   daily consolidation (5:30 AM).
-- OpenTelemetry instrumentation built into MCP server → Cloud Monitoring.
+- OpenTelemetry instrumentation built into lore-api → Cloud Monitoring.
 - PromptFoo eval suite + CI gate.
 
 ### Phase 2: Feedback Loop — IMPLEMENTED

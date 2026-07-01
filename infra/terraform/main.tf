@@ -61,8 +61,8 @@ provider "kubectl" {
 
 # --- Namespaces ---
 
-resource "kubernetes_namespace" "mcp_servers" {
-  metadata { name = "mcp-servers" }
+resource "kubernetes_namespace" "lore_api" {
+  metadata { name = "lore-api" }
 }
 
 resource "kubernetes_namespace" "lore_agent" {

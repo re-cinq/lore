@@ -10,11 +10,11 @@ description: |
   `helm dependency build` step. Each subchart keeps its own templates, hooks,
   and CRDs unchanged; the only cross-cutting edit is an explicit per-resource
   `namespace:` so this one release can span the platform's namespaces
-  (lore-floor, mcp-servers, lore-ui, lore-db, ai-agents).
+  (lore-floor, lore-api, lore-ui, lore-db, ai-agents).
 
   Values are nested under each subchart's chart name:
     lore-floor: {...}
-    lore-mcp: {...}
+    lore-api: {...}
     lore-ui: {...}
     lore-db-helm: {...}
     ai-agents: {...}
@@ -30,7 +30,7 @@ appVersion: "0.1.0"
 dependencies:
   - name: lore-floor
     version: "0.1.0"
-  - name: lore-mcp
+  - name: lore-api
     version: "0.1.0"
   - name: lore-ui
     version: "0.1.0"

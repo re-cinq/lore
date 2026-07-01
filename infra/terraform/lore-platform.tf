@@ -4,7 +4,7 @@
 # Replaces the former per-service releases (lore-floor, lore-mcp, lore-ui,
 # lore-db extras, ai-agents). The umbrella chart vendors them as subcharts and
 # stamps each resource with its own namespace, so this single release spans
-# lore-floor / mcp-servers / lore-ui / lore-db / ai-agents. The release record
+# lore-floor / lore-api / lore-ui / lore-db / ai-agents. The release record
 # lives in the `lore-floor` home namespace.
 #
 # Deploy ownership: Terraform owns config (the `values` below); CI owns image
@@ -14,7 +14,7 @@
 # <svc>.image.tag=<sha> --reset-then-reuse-values`).
 #
 # Values are nested under each subchart's chart name:
-#   lore-floor / lore-mcp / lore-ui / lore-db-helm / ai-agents
+#   lore-floor / lore-api / lore-ui / lore-db-helm / ai-agents
 # Cluster, namespaces, ESO ExternalSecrets, the 2 ingresses, the CNPG cluster
 # CR, and Dgraph remain Terraform-owned (see the other *.tf files).
 # --------------------------------------------------------------------------
@@ -59,8 +59,8 @@ resource "helm_release" "lore_platform" {
       webhookSecret       = { name = "lore-floor-webhook-secret", key = "secret" }
     }
 
-    # ---- MCP server (mcp-servers namespace) ----
-    "lore-mcp" = {
+    # ---- Lore API (lore-api namespace) ----
+    "lore-api" = {
       taskTypesConfig = file("${path.module}/../../scripts/task-types.yaml")
       replicaCount    = 1
       env = {
@@ -77,7 +77,7 @@ resource "helm_release" "lore_platform" {
         LORE_AGENT_URL   = "http://lore-floor.lore-floor.svc.cluster.local:8080"
         LORE_WEBHOOK_URL = var.lore_webhook_hostname != "" ? "https://${var.lore_webhook_hostname}/api/webhook/github" : ""
       }
-      dbPasswordSecret  = { name = "lore-mcp-db-password", key = "password" }
+      dbPasswordSecret  = { name = "lore-api-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }
       githubAppSecret = {
         name              = "github-app-credentials"
@@ -100,7 +100,7 @@ resource "helm_release" "lore_platform" {
         GITHUB_ALLOWED_ORG = var.github_org
         NEXTAUTH_URL       = var.lore_ui_url
         LORE_LOG_BUCKET    = "lore-task-logs-${var.project_id}"
-        LORE_API_URL       = "http://lore-mcp.mcp-servers.svc.cluster.local:3000"
+        LORE_API_URL       = "http://lore-api.lore-api.svc.cluster.local:3000"
       }
       dbPasswordSecret  = { name = "lore-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }
@@ -126,7 +126,7 @@ resource "helm_release" "lore_platform" {
 
   depends_on = [
     kubernetes_namespace.lore_agent,
-    kubernetes_namespace.mcp_servers,
+    kubernetes_namespace.lore_api,
     kubernetes_namespace.lore_ui,
     kubernetes_namespace.lore_db,
     kubernetes_namespace.ai_agents,

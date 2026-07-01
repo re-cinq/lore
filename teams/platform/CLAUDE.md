@@ -22,7 +22,7 @@ working on embedding pipeline and testing the full stack end-to-end.
 - Push to `1-lore-platform` branch, force-push to main for now
   (single developer, will switch to PRs when team grows)
 - Run `lore-doctor` after any install.sh changes
-- Rebuild and push container images via podman after MCP server changes:
-  `podman build --platform linux/amd64 -t ghcr.io/re-cinq/lore-mcp:latest .`
-  `podman push ghcr.io/re-cinq/lore-mcp:latest`
-  `kubectl rollout restart deployment/lore-mcp -n mcp-servers`
+- Rebuild and push the remote API image via podman after lore-api changes:
+  `podman build --platform linux/amd64 -t ghcr.io/re-cinq/lore-api:latest .`
+  `podman push ghcr.io/re-cinq/lore-api:latest`
+  `kubectl rollout restart deployment/lore-api -n lore-api`

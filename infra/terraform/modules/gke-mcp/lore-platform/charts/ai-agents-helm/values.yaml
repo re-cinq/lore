@@ -53,10 +53,10 @@ floor:
 
 # The cross-namespace MCP server allowed to manage the catalog recipes — the /agents
 # editor's saves apply AgentDefinition/Station CRDs here (re-cinq/lore#698). The
-# mcp-server pod runs under its namespace's default ServiceAccount.
+# lore-api pod runs under its namespace's default ServiceAccount.
 mcpServer:
   serviceAccount: default
-  namespace: mcp-servers
+  namespace: lore-api
 
 # The single ESO-managed Secret the run pods mount allowlisted keys from. The Floor
 # PATCHes short-lived per-task GitHub tokens into it (see re-cinq/lore#685).
