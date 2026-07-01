@@ -1,4 +1,5 @@
 import pg from "pg";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 let pool: pg.Pool | null = null;
 
@@ -15,7 +16,7 @@ export function initPool(): pg.Pool {
 }
 
 export function getPool(): pg.Pool {
-  if (!pool) throw new Error("DB pool not initialized — call initPool() first");
+  enforceTrue(pool, "DB pool not initialized — call initPool() first");
   return pool;
 }
 

@@ -14,6 +14,21 @@ export function insertEvent(input: EventInput): Promise<void> {
   return eventQueue().insert(input);
 }
 
+/**
+ * Insert many events concurrently. Each insert keeps its own catch — a failed
+ * row is logged (tagged with `source`) and skipped, so one bad row never drops
+ * the batch — and each is idempotent via its dedupe_key.
+ */
+export async function insertEventList(events: EventInput[], source: string): Promise<void> {
+  await Promise.all(
+    events.map((ev) =>
+      insertEvent(ev).catch((err) =>
+        console.error(`[events] ${source} insert failed (${ev.eventName}):`, err),
+      ),
+    ),
+  );
+}
+
 /** Atomically claim up to `limit` runnable rows: pending/failed past their backoff. */
 export function claimBatch(limit: number): Promise<EventRow[]> {
   return eventQueue().claimBatch(limit);

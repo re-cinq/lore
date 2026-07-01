@@ -11,6 +11,7 @@
  */
 
 import Boom from "@hapi/boom";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Server, ServerAuthScheme } from "@hapi/hapi";
 
 interface BearerOptions {
@@ -23,10 +24,10 @@ const bearerScheme: ServerAuthScheme = (_server, options) => {
   const { token, unconfiguredStatusCode, unconfiguredMessage } = options as BearerOptions;
   return {
     authenticate(request, h) {
-      if (!token) throw new Boom.Boom(unconfiguredMessage, { statusCode: unconfiguredStatusCode });
+      enforceTrue(token, () => new Boom.Boom(unconfiguredMessage, { statusCode: unconfiguredStatusCode }));
       const header = request.headers.authorization;
       const provided = (Array.isArray(header) ? header[0] : header)?.replace("Bearer ", "");
-      if (provided !== token) throw Boom.unauthorized("unauthorized");
+      enforceTrue(provided === token, () => Boom.unauthorized("unauthorized"));
       return h.authenticated({ credentials: {} });
     },
   };

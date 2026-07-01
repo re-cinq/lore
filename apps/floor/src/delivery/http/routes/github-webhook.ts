@@ -7,11 +7,12 @@
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
 import { mapGitHubEvent } from "../../../listeners/github-map.js";
-import { insertEvent } from "../../../main-loop/store.js";
-import { rawBody } from "../raw-body.js";
+import { insertEventList } from "../../../main-loop/store.js";
+import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export function verifyGitHubSignature(secret: string, signature: string, body: string): boolean {
   const expected = "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
@@ -31,26 +32,15 @@ export const githubWebhookRoute: ServerRoute = {
     const deliveryId = (request.headers["x-github-delivery"] as string | undefined) ?? "";
     const raw = rawBody(request);
 
-    if (!secret) throw Boom.serverUnavailable("webhook secret not configured");
-    if (!signature) throw Boom.unauthorized("missing signature");
-    if (!verifyGitHubSignature(secret, signature, raw)) throw Boom.unauthorized("invalid signature");
-    if (!eventType) throw Boom.badRequest("missing x-github-event header");
+    enforceTrue(secret, () => Boom.serverUnavailable("webhook secret not configured"));
+    enforceTrue(signature, () => Boom.unauthorized("missing signature"));
+    enforceTrue(verifyGitHubSignature(secret, signature, raw), () => Boom.unauthorized("invalid signature"));
+    enforceTrue(eventType, () => Boom.badRequest("missing x-github-event header"));
 
-    let payload: unknown;
-    try {
-      payload = JSON.parse(raw);
-    } catch {
-      throw Boom.badRequest("invalid JSON");
-    }
-
-    const events = mapGitHubEvent(eventType, payload, deliveryId);
-    // Insert sequentially; each is idempotent (ON CONFLICT on dedupe_key). The loop
-    // does the work — return 202 fast so GitHub's delivery doesn't time out.
-    for (const ev of events) {
-      await insertEvent(ev).catch((err) =>
-        console.error(`[events] github insert failed (${ev.eventName}):`, err),
-      );
-    }
+    const events = mapGitHubEvent(eventType, parseJsonBody(raw), deliveryId);
+    // Each insert is idempotent (ON CONFLICT on dedupe_key). The loop does the
+    // work — return 202 fast so GitHub's delivery doesn't time out.
+    await insertEventList(events, "github");
     return h.response({ captured: events.length, events: events.map((e) => e.eventName) }).code(202);
   },
 };

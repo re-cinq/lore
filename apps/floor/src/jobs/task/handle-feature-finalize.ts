@@ -8,14 +8,13 @@
  */
 
 import { prFooter } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
 export async function handleFeatureFinalize(task: any, targetRepo: string): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
-  if (!featureId) {
-    throw new Error("feature-finalize task is missing feature_id in context_bundle");
-  }
+  enforceTrue(featureId, "feature-finalize task is missing feature_id in context_bundle");
 
   const project = await projectFor(targetRepo);
   const features = project.features;
@@ -24,8 +23,8 @@ export async function handleFeatureFinalize(task: any, targetRepo: string): Prom
 
   try {
     const feature = await features.get(featureId);
-    if (!feature) throw new Error(`feature ${featureId} not found`);
-    if (!feature.draft_spec_md) throw new Error("feature has no draft spec to finalize");
+    enforceTrue(feature, `feature ${featureId} not found`);
+    enforceTrue(feature.draft_spec_md, "feature has no draft spec to finalize");
 
     const specPath = `specs/${feature.slug}/spec.md`;
     const branch = `lore/feature-planning/${feature.slug}-${task.id.substring(0, 8)}`;
