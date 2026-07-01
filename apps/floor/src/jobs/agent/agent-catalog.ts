@@ -7,7 +7,7 @@
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import { stringify } from "yaml";
 
-export interface TaskTypeConfig {
+export interface AgentCatalogConfig {
   prompt_template: string;
   model?: string;
   timeout_minutes?: number;
@@ -23,7 +23,7 @@ const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 // an explicit namespace); catalogChartYaml swaps it for the helm value.
 const NAMESPACE_SENTINEL = "__NAMESPACE__";
 
-export function buildAgentDefinition(taskType: string, cfg: TaskTypeConfig): AgentDefinition {
+export function buildAgentDefinition(taskType: string, cfg: AgentCatalogConfig): AgentDefinition {
   return {
     apiVersion: API_VERSION,
     kind: "AgentDefinition",
@@ -48,7 +48,7 @@ export function buildAgentDefinition(taskType: string, cfg: TaskTypeConfig): Age
   };
 }
 
-export function buildStation(taskType: string, cfg: TaskTypeConfig): Station {
+export function buildStation(taskType: string, cfg: AgentCatalogConfig): Station {
   return {
     apiVersion: API_VERSION,
     kind: "Station",
@@ -76,7 +76,7 @@ export function buildStation(taskType: string, cfg: TaskTypeConfig): Station {
 
 /** One AgentDefinition + Station per task type, in declaration order. */
 export function buildCatalog(
-  taskTypes: Record<string, TaskTypeConfig>,
+  taskTypes: Record<string, AgentCatalogConfig>,
 ): Array<AgentDefinition | Station> {
   const out: Array<AgentDefinition | Station> = [];
   for (const [taskType, cfg] of Object.entries(taskTypes)) {
@@ -89,7 +89,7 @@ export function buildCatalog(
  *  `.Values.seedCatalog` (operators set it false after first install so they stop
  *  re-seeding — the web UI owns the recipes thereafter) and each annotated to
  *  survive uninstall. */
-export function catalogChartYaml(taskTypes: Record<string, TaskTypeConfig>): string {
+export function catalogChartYaml(taskTypes: Record<string, AgentCatalogConfig>): string {
   const header =
     "# Code generated from scripts/task-types.yaml by gen-catalog. DO NOT EDIT.\n" +
     "# Seeded catalog (ADR-031, re-cinq/lore#698). Guarded by .Values.seedCatalog so\n" +

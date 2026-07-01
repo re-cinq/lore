@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryMemoryLifecycle, type MemoryRow } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-memory.js";
+import { InMemoryMemoryLifecycle, type MemoryLifecycleRow } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-memory.js";
 import { ttlCleanupJob } from "./ttl-cleanup.js";
 
-function expiredMemory(id: string): MemoryRow {
+function expiredMemory(id: string): MemoryLifecycleRow {
   return {
     id,
     agent_id: "agent",

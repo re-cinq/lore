@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PgMemoryLifecycle } from "./memory-lifecycle-pg.js";
 import {
   InMemoryMemoryLifecycle,
-  type MemoryRow,
+  type MemoryLifecycleRow,
   type FactRow,
 } from "./memory-lifecycle-memory.js";
 import type { PgPool } from "../../memory-store.js";
@@ -25,7 +25,7 @@ function fakePool(
 
 const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
 
-function memRow(over: Partial<MemoryRow>): MemoryRow {
+function memRow(over: Partial<MemoryLifecycleRow>): MemoryLifecycleRow {
   return {
     id: "mem-x",
     agent_id: "lore-agent",
