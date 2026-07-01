@@ -4,10 +4,10 @@ import {
   buildStation,
   buildCatalog,
   catalogChartYaml,
-  type TaskTypeConfig,
+  type AgentCatalogConfig,
 } from "./agent-catalog.js";
 
-const impl: TaskTypeConfig = {
+const impl: AgentCatalogConfig = {
   prompt_template: "Implement the spec.\n\nSpec: {description}\n",
   model: "claude-sonnet-4-6",
   timeout_minutes: 90,

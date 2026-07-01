@@ -24,7 +24,7 @@ export function isMemoryDbAvailable(): boolean {
 
 // ── Types ────────────────────────────────────────────────────────────
 
-export interface MemoryRow {
+export interface ServerMemoryRow {
   id: string;
   agent_id: string;
   key: string;

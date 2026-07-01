@@ -9,7 +9,7 @@ interface FactRow {
   created_at: string;
 }
 
-export interface MemoryRow {
+export interface MemoryViewRow {
   id: string;
   key: string;
   value: string;
@@ -24,7 +24,7 @@ export interface MemoryRow {
 export interface AgentDetailViewProps {
   agentId: string;
   memoryCount: number;
-  memories: MemoryRow[];
+  memories: MemoryViewRow[];
 }
 
 export default function AgentDetailView({ agentId, memoryCount, memories }: AgentDetailViewProps) {

@@ -11,7 +11,7 @@ import type {
 // ── In-memory row shapes (modelling the memory.* tables) ─────────────
 
 /** A `memory.memories` row the double tracks. Defaults match the table. */
-export interface MemoryRow {
+export interface MemoryLifecycleRow {
   id: string;
   agent_id: string;
   key: string;
@@ -66,13 +66,13 @@ function newerThanDays(iso: string, days: number): boolean {
  * constructor; the public arrays are inspected directly in tests.
  */
 export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
-  readonly memories: MemoryRow[];
+  readonly memories: MemoryLifecycleRow[];
   readonly facts: FactRow[];
   readonly episodes: EpisodeRow[];
   readonly auditLog: AuditLogInsert[] = [];
   private seq = 0;
 
-  constructor(seed: { memories?: MemoryRow[]; facts?: FactRow[]; episodes?: EpisodeRow[] } = {}) {
+  constructor(seed: { memories?: MemoryLifecycleRow[]; facts?: FactRow[]; episodes?: EpisodeRow[] } = {}) {
     this.memories = seed.memories ?? [];
     this.facts = seed.facts ?? [];
     this.episodes = seed.episodes ?? [];
@@ -268,7 +268,7 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
 
   // ── helpers ────────────────────────────────────────────────────────
 
-  private newMemoryRow(agentId: string, key: string, value: string, version: number): MemoryRow {
+  private newMemoryRow(agentId: string, key: string, value: string, version: number): MemoryLifecycleRow {
     return {
       id: `mem-${++this.seq}`,
       agent_id: agentId,
