@@ -108,7 +108,7 @@ export interface ExecutionSummary {
 const DEFAULT_MAX_NODES = 200;
 
 /**
- * Walk the workflow graph for one task. Each node is dispatched to its
+ * Walk the workflow assembly line for one task. Each node is dispatched to its
  * handler; the executor commits a stage commit with structured trailers
  * after the handler returns. Outcomes drive edge selection. The lease
  * is refreshed before every node.
@@ -118,7 +118,7 @@ const DEFAULT_MAX_NODES = 200;
  * in the workflow, follow the outcome-matching outgoing edge to find
  * the next node. Stages already committed are not re-executed (FR1.2).
  */
-export async function executeGraph(
+export async function executeAssemblyLine(
   opts: ExecuteOptions,
 ): Promise<ExecutionSummary> {
   const { workflow, branchName, holder, leaseBackend, handlers } = opts;
@@ -204,7 +204,7 @@ export async function executeGraph(
             await opts.onIterationMaxExceeded(info);
           } catch (err) {
             console.warn(
-              "[graph-executor] onIterationMaxExceeded hook failed:",
+              "[assembly-line-executor] onIterationMaxExceeded hook failed:",
               (err as Error).message,
             );
           }

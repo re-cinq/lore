@@ -40,7 +40,7 @@ of truth in the graph.**
 - **Planning/finalize are Stations, decoupled from dark-factory.** `feature-planning`
   and `feature-finalize` are `claude-code` task types that always take the LoreTask
   CRD → Job pod path, regardless of the dark-factory cluster gate. The pod runs the
-  workflow (graph-executor) via a task-type→workflow map in
+  workflow (assembly-line-executor) via a task-type→workflow map in
   [job-builder.ts](../apps/floor/src/application/loretask-controller/job-builder.ts)
   that sets the workflow env unconditionally for these two types — so they are full
   Stations rather than raw `claude --print`. Rationale: the planning agent must clone

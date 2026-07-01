@@ -2,7 +2,7 @@ import type {
   NodeContext,
   NodeHandler,
   NodeResult,
-} from "./graph-executor.js";
+} from "./assembly-line-executor.js";
 import type { WorkflowNode } from "./loader.js";
 import { runClaudeCode, type ClaudeCodeResult } from "./claude-code.js";
 

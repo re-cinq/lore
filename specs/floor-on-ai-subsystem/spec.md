@@ -15,7 +15,7 @@
 Lore executes coding tasks today via a bespoke `LoreTask` CRD → `loretask-controller` → a
 `lore-claude-runner` Job pod that does *everything* in-pod (context hydration, `claude --print`,
 lint/typecheck validation, commit/push with `Lore-*` trailers, and — for dark-factory repos — a
-multi-node workflow graph). A `loretask-watcher` then opens the PR, auto-reviews, auto-merges, and
+multi-node assembly line). A `loretask-watcher` then opens the PR, auto-reviews, auto-merges, and
 escalates. This substrate is Lore-specific, unsigned, and entangled with the rest of the platform.
 
 A clean-sheet operator — `ai-agent-subsystem` — already runs autonomous coding agents as
@@ -38,7 +38,7 @@ cluster. The Lore-specific glue is **relocated Floor-side** and stays determinis
   `LoreTask` CRs; a two-gate flag routes tasks during a graded, reversible cutover.
 - A Floor-side **`agent-watcher`** (replacing `loretask-watcher`) computes changed files, reads the
   **GitHub Actions** CI gate, opens the PR (`Lore-Task` footer), auto-merges, and escalates.
-- The **workflow graph** (`libs/runner` `executeGraph`) runs in the Floor; AI nodes dispatch `Agent`
+- The **assembly line** (`libs/runner` `executeAssemblyLine`) runs in the Floor; AI nodes dispatch `Agent`
   CRs, **non-AI nodes reference the repo's GitHub Actions**, and the lease is heartbeated while a
   node runs.
 - The recipe **schema + client are generated from the subsystem's D structs** into a published
@@ -56,7 +56,7 @@ The cutover is reversible (both controllers run in parallel behind a flag); `Lor
 | **D1** Substrate | Production runs on the **D standalone** `ai-agent-subsystem` (`agents.re-cinq.com` / `ai-agents`); the in-tree TS `k8s/` PoC is **deleted** | One signed, mature substrate; no two half-built copies |
 | **D2** Source of truth | The **CRDs are authoritative**; the web UI edits YAML → applies to k8s; ADR-030's Postgres recipe store retired; schema + client **generated from D** into `@re-cinq/agent-contracts` | The cluster object is the truth; the contract can't drift |
 | **D3** Validation | Non-AI workflow steps **reference GitHub Actions**; the Floor gates on the run **conclusion** | The engine runs `claude` directly; GitHub runs the repo's real toolchain — deterministic, no toolchain in the Floor |
-| **D4** Workflow graph | `executeGraph` runs **Floor-side**; an agent-node dispatches one `Agent` CR + awaits status; **lease heartbeated** while waiting | The graph engine is process-agnostic; lease/resume/`iteration_max` are branch-centric |
+| **D4** Assembly line | `executeAssemblyLine` runs **Floor-side**; an agent-node dispatches one `Agent` CR + awaits status; **lease heartbeated** while waiting | The assembly-line engine is process-agnostic; lease/resume/`iteration_max` are branch-centric |
 | **D5** Context hydration | Floor injects context into `Agent.spec.parameters`; code recipes also wire the Lore MCP server | Turn-1 context, deterministic, no in-pod network dependency |
 | **D6** Secrets | **Inherit** the existing GCP Secret Manager remoteRefs via ESO into `agent-secrets`; per-task GitHub App token PATCHed in and removed on terminal | No new secret material; short-lived, least-privilege; no org PAT |
 | **D7** Networking | Self-hydration + telemetry over the **public LB**; run pods **drop direct Postgres** | The run-pod NetworkPolicy blocks RFC1918/metadata; DB-less pods shrink blast radius |
@@ -65,7 +65,7 @@ The cutover is reversible (both controllers run in parallel behind a flag); `Lor
 ## Architecture (target data-flow, one `implementation` task)
 
 ```
-pending task ─► Floor coordinator (executeGraph in the Floor; branch lease)
+pending task ─► Floor coordinator (executeAssemblyLine in the Floor; branch lease)
   ├─ implement (AI node) ─► AgentBackend creates an Agent CR ─► ai-agent-subsystem controller
   │                          (init clones repo + installs claude) ─► supervisor runs claude --print
   │                          ─► edits + commits (Lore-* trailers) + pushes ─► status: Succeeded

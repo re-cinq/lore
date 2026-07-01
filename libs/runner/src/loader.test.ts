@@ -7,7 +7,7 @@ import {
   WorkflowLoadError,
 } from "./loader.js";
 
-const linearGraph = `
+const linearAssemblyLine = `
 name: gap-fill
 description: A linear flow
 version: 1
@@ -33,7 +33,7 @@ edges:
 
 describe("parseWorkflow", () => {
   it("accepts a valid linear workflow", () => {
-    const wf = parseWorkflow(linearGraph);
+    const wf = parseWorkflow(linearAssemblyLine);
     expect(wf.name).toBe("gap-fill");
     expect(wf.nodes).toHaveLength(3);
     expect(wf.entry).toBe("a");

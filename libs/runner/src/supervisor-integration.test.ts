@@ -14,7 +14,7 @@ import type { LlmCompletion } from "@re-cinq/lore-shared";
 
 const execFile = promisify(execFileCb);
 
-const linearGraph = parseWorkflow(`
+const linearAssemblyLine = parseWorkflow(`
 name: gap-fill-test
 description: test fixture
 version: 1
@@ -151,7 +151,7 @@ describe("supervisor integration (T058 vertical slice)", () => {
       gitDir: repoDir,
       holder: "test-pod",
       leaseBackend: new FileLeaseBackend(leasesDir),
-      workflow: linearGraph,
+      workflow: linearAssemblyLine,
       handlers,
     });
 

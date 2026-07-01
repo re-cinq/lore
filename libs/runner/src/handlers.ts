@@ -1,4 +1,4 @@
-import type { NodeHandler, NodeHandlers } from "./graph-executor.js";
+import type { NodeHandler, NodeHandlers } from "./assembly-line-executor.js";
 
 /** Writes one `memory.episodes` row. Injected by the agent bootstrap. */
 export type WriteEpisode = (
@@ -135,7 +135,7 @@ export function createProductionHandlers(opts: {
     agent: opts.agent,
     // Validate handler defaults to a no-op success — the deterministic
     // lint/typecheck integration (repo-validation) is invoked by the GKE
-    // Job pod's entrypoint.sh today; wiring it into the graph is a follow-up.
+    // Job pod's entrypoint.sh today; wiring it into the assembly line is a follow-up.
     validate: opts.validate ?? (async () => ({ outcome: "success" })),
     gate: opts.gate ?? (async () => ({ outcome: "success" })),
     retrospective:

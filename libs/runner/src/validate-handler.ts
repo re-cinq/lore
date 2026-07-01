@@ -5,7 +5,7 @@ import {
   type ValidationExec,
 } from "@re-cinq/lore-shared/repo-validation/repo-validation.js";
 import { RelayExecutor } from "./relay/relay-executor.js";
-import type { NodeHandler } from "./graph-executor.js";
+import type { NodeHandler } from "./assembly-line-executor.js";
 
 export interface ValidateHandlerDeps {
   /**

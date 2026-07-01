@@ -29,9 +29,9 @@ RUN npm run build --workspace=@re-cinq/lore-floor
 FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
-# The Floor-side AssemblyLine graph clones the task branch and reads/writes
-# stage-commit trailers via the git CLI (floor-graph-run.ts, runner graph-executor);
-# node:22-slim ships no git, so without this the graph dies on `spawn git ENOENT`.
+# The Floor-side AssemblyLine clones the task branch and reads/writes
+# stage-commit trailers via the git CLI (floor-assembly-line-run.ts, runner assembly-line-executor);
+# node:22-slim ships no git, so without this the run dies on `spawn git ENOENT`.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git ca-certificates \
   && rm -rf /var/lib/apt/lists/*

@@ -1,10 +1,10 @@
-// Floor-side workflow-graph driver — IO entrypoint (ADR-031 D4, #686 Wave 2). Runs the
-// workflow graph Floor-side: each agent-node dispatches its own Agent CR, github_action
+// Floor-side assembly-line driver — IO entrypoint (ADR-031 D4, #686 Wave 2). Runs the
+// assembly line Floor-side: each agent-node dispatches its own Agent CR, github_action
 // nodes gate on CI, and the branch-as-state stage commits + resume happen via local git
-// in `gitDir`. `runFloorGraph` is the orchestrator (driven locally by the integration
+// in `gitDir`. `runFloorAssemblyLine` is the orchestrator (driven locally by the integration
 // test with a temp git repo + FileLeaseBackend + fake ports); the composition root below
 // backs the ports with real dispatch/poll/CI/clone and is exercised by the minikube
-// smoke test (runbooks/floor-graph-minikube-smoke.md).
+// smoke test (runbooks/floor-assembly-line-minikube-smoke.md).
 
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
@@ -21,10 +21,10 @@ import {
 } from "@re-cinq/lore-runner";
 import type { LeaseBackend, LoreTaskSpec, StationBackend } from "@re-cinq/lore-shared";
 import {
-  buildFloorGraphHandlers,
-  type FloorGraphTask,
-  type FloorGraphPorts,
-} from "./floor-graph.js";
+  buildFloorAssemblyLineHandlers,
+  type FloorAssemblyLineTask,
+  type FloorAssemblyLinePorts,
+} from "./floor-assembly-line.js";
 import { KubeAgentApi } from "../station/kube-agent-api.js";
 import { GitHubPlatform } from "../platform/github.js";
 import { buildPrompt } from "../../kernel/config.js";
@@ -33,21 +33,21 @@ import { leaseBackendForEnv } from "../../main-loop/lease/lease-backend.js";
 
 const execFile = promisify(execFileCb);
 
-export interface RunFloorGraphOptions {
-  task: FloorGraphTask;
+export interface RunFloorAssemblyLineOptions {
+  task: FloorAssemblyLineTask;
   workflow: Workflow;
   /** A checked-out working tree on the task's branch (stage commits + resume land here). */
   gitDir: string;
   holder: string;
   leaseBackend: LeaseBackend;
-  ports: FloorGraphPorts;
+  ports: FloorAssemblyLinePorts;
 }
 
-/** Walk one task's workflow graph Floor-side. Thin by design: it wires the Floor handlers
- *  (buildFloorGraphHandlers) into runSupervisor, which owns the lease + branch-as-state +
+/** Walk one task's assembly line Floor-side. Thin by design: it wires the Floor handlers
+ *  (buildFloorAssemblyLineHandlers) into runSupervisor, which owns the lease + branch-as-state +
  *  resume. Everything cluster-shaped is in `ports`, so this runs unchanged in the local
  *  integration test (fake ports) and in production (real ports). */
-export function runFloorGraph(opts: RunFloorGraphOptions): Promise<SupervisorResult> {
+export function runFloorAssemblyLine(opts: RunFloorAssemblyLineOptions): Promise<SupervisorResult> {
   return runSupervisor({
     taskId: opts.task.taskId,
     branchName: opts.task.branch,
@@ -56,7 +56,7 @@ export function runFloorGraph(opts: RunFloorGraphOptions): Promise<SupervisorRes
     holder: opts.holder,
     leaseBackend: opts.leaseBackend,
     workflow: opts.workflow,
-    handlers: buildFloorGraphHandlers(opts.task, opts.ports),
+    handlers: buildFloorAssemblyLineHandlers(opts.task, opts.ports),
   });
 }
 
@@ -75,13 +75,13 @@ export interface AgentDispatcher {
   launch: (spec: LoreTaskSpec) => Promise<unknown>;
 }
 
-export interface FloorGraphRuntime {
+export interface FloorAssemblyLineRuntime {
   dispatcher: AgentDispatcher;
   status: AgentStatusReader;
   ciConclusion: (repo: string, branch: string) => Promise<CiConclusion>;
   resolvePrompt: (promptRef: string, description: string) => string;
   leaseBackend: LeaseBackend;
-  episodeDeps: FloorGraphPorts["episodeDeps"];
+  episodeDeps: FloorAssemblyLinePorts["episodeDeps"];
   /** GitHub token-bearing clone URL for the task's repo (the token is minted per call). */
   cloneUrl: (repo: string) => Promise<string>;
 }
@@ -90,7 +90,7 @@ export interface FloorGraphRuntime {
  *  already exists, otherwise bootstrap it off the default — a task's first run has no
  *  branch yet, so `clone --branch <missing>` would die with "Remote branch not found". */
 export async function checkoutBranch(repo: string, branch: string, cloneUrl: string): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), `lore-graph-${repo.replace("/", "-")}-`));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), `lore-assembly-line-${repo.replace("/", "-")}-`));
   await execFile("git", ["clone", cloneUrl, dir]);
   try {
     await execFile("git", ["-C", dir, "checkout", branch]);
@@ -100,11 +100,11 @@ export async function checkoutBranch(repo: string, branch: string, cloneUrl: str
   return dir;
 }
 
-/** Production entrypoint: clone the branch, build real ports, run the graph, clean up.
+/** Production entrypoint: clone the branch, build real ports, run the assembly line, clean up.
  *  Invocation is gated by the cutover rollout (#688); this is the wiring it flips on. */
-export async function runFloorGraphForTask(
-  task: FloorGraphTask,
-  rt: FloorGraphRuntime,
+export async function runFloorAssemblyLineForTask(
+  task: FloorAssemblyLineTask,
+  rt: FloorAssemblyLineRuntime,
 ): Promise<SupervisorResult> {
   const workflows = await loadBuiltinWorkflows();
   const workflow = workflows.get(task.taskType);
@@ -114,14 +114,14 @@ export async function runFloorGraphForTask(
   const holder = os.hostname();
   const gitDir = await checkoutBranch(task.targetRepo, task.branch, await rt.cloneUrl(task.targetRepo));
   try {
-    const ports: FloorGraphPorts = {
+    const ports: FloorAssemblyLinePorts = {
       dispatchAgent: async (spec) => {
         await rt.dispatcher.launch(spec);
       },
       resolvePrompt: (node, t) => rt.resolvePrompt(node.prompt_ref ?? node.type, t.description),
       agentStatus: (taskId, nodeId) => rt.status.read(`${taskId.substring(0, 8)}-${nodeId}`),
       ciConclusion: (branch) => rt.ciConclusion(task.targetRepo, branch),
-      // Extra heartbeat during a long node poll, between executeGraph's per-node refreshes
+      // Extra heartbeat during a long node poll, between executeAssemblyLine's per-node refreshes
       // — same (branch, holder, nodeId) the executor uses.
       heartbeat: async (branchName, nodeId) => {
         await rt.leaseBackend.refresh(branchName, holder, undefined, nodeId);
@@ -129,16 +129,16 @@ export async function runFloorGraphForTask(
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       episodeDeps: rt.episodeDeps,
     };
-    return await runFloorGraph({ task, workflow, gitDir, holder, leaseBackend: rt.leaseBackend, ports });
+    return await runFloorAssemblyLine({ task, workflow, gitDir, holder, leaseBackend: rt.leaseBackend, ports });
   } finally {
     await fs.rm(gitDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 
-/** Assemble the real ports for a Floor-side graph run: dispatch via the agent-cr backend,
+/** Assemble the real ports for a Floor-side assembly line run: dispatch via the agent-cr backend,
  *  per-node Agent-status reads, GitHub CI, prompt resolution, the DB lease, episode
  *  writers, and a token-bearing clone URL. IO shell — verified by the minikube smoke. */
-export function floorGraphRuntime(dispatcher: StationBackend): FloorGraphRuntime {
+export function floorAssemblyLineRuntime(dispatcher: StationBackend): FloorAssemblyLineRuntime {
   const kubeApi = new KubeAgentApi();
   const gh = new GitHubPlatform();
   return {

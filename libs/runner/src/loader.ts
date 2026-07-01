@@ -80,7 +80,7 @@ export function parseWorkflow(yamlSrc: string, source = "<inline>"): Workflow {
   }
 
   const wf = parsed.data;
-  validateGraph(wf, source);
+  validateAssemblyLine(wf, source);
   return wf;
 }
 
@@ -122,7 +122,7 @@ export async function loadWorkflowDir(
   return out;
 }
 
-function validateGraph(wf: Workflow, source: string): void {
+function validateAssemblyLine(wf: Workflow, source: string): void {
   const nodeIds = new Set(wf.nodes.map((n) => n.id));
 
   if (!nodeIds.has(wf.entry)) {
