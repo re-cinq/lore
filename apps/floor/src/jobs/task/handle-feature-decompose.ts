@@ -10,6 +10,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { parseDecomposition } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 import { specTaskRows, storyIssueBody } from "@re-cinq/lore-shared/feature-planning/decomposition-plan.js";
@@ -36,7 +37,7 @@ export function decideDecomposeKick(task: FinalizeTaskShape): { kick: boolean; f
 
 export async function handleFeatureDecompose(task: any, targetRepo: string): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
-  if (!featureId) throw new Error("feature-decompose task is missing feature_id in context_bundle");
+  enforceTrue(featureId, "feature-decompose task is missing feature_id in context_bundle");
 
   const project = await projectFor(targetRepo);
   await setStatus(task.id, "running");
@@ -44,7 +45,7 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
 
   try {
     const feature = await project.features.get(featureId);
-    if (!feature) throw new Error(`feature ${featureId} not found`);
+    enforceTrue(feature, `feature ${featureId} not found`);
     const specSlug = feature.slug;
 
     // Idempotency: a feature already broken into spec-tasks is left untouched
@@ -59,7 +60,7 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
 
     const specPath = `specs/${specSlug}/spec.md`;
     const specMd = (await project.repo.read(specPath).catch(() => null)) ?? feature.draft_spec_md;
-    if (!specMd) throw new Error(`no spec content at ${specPath} or in draft_spec_md`);
+    enforceTrue(specMd, `no spec content at ${specPath} or in draft_spec_md`);
 
     const agentDef = await project.agentDefs.resolve("feature-decompose").catch(() => null);
     const context = await fetchRepoContext(targetRepo);

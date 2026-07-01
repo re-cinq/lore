@@ -10,21 +10,14 @@ import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
 import { mapCiTests, type CiTestsBody } from "../../../listeners/ci-tests-map.js";
 import { insertEvent } from "../../../main-loop/store.js";
-import { rawBody } from "../raw-body.js";
+import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export const ciTestsRoute: ServerRoute = {
   method: "POST",
   path: "/api/webhook/ci-tests",
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
-    let body: CiTestsBody;
-    try {
-      body = JSON.parse(rawBody(request)) as CiTestsBody;
-    } catch {
-      throw Boom.badRequest("invalid JSON");
-    }
-
-    const mapped = mapCiTests(body);
+    const mapped = mapCiTests(parseJsonBody<CiTestsBody>(rawBody(request)));
     if (!mapped.ok) throw new Boom.Boom(mapped.error, { statusCode: mapped.status });
 
     for (const ev of mapped.events) {

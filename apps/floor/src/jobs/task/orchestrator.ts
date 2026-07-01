@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import * as os from "node:os";
 import * as path from "node:path";
 import { execFile as execFileCb } from "node:child_process";
@@ -299,7 +300,7 @@ async function pushBranch(
   const auth = await octokit.auth();
   const token =
     typeof auth === "string" ? auth : (auth as { token?: string })?.token;
-  if (!token) throw new Error("octokit.auth() did not yield a token for push");
+  enforceTrue(token, "octokit.auth() did not yield a token for push");
   const headerValue = `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}`;
   await execFile("git", [
     "-C",

@@ -1,0 +1,36 @@
+import { describe, it, expect } from "vitest";
+import { enforceTrue } from "./enforce.js";
+
+describe("enforceTrue", () => {
+  it("returns without throwing when the condition is truthy", () => {
+    expect(() => enforceTrue(1, "unused")).not.toThrow();
+  });
+
+  it("throws an Error with the message when given a string and the condition is false", () => {
+    expect(() => enforceTrue(false, "must be positive")).toThrow(new Error("must be positive"));
+  });
+
+  it("throws the provided Error instance when the condition is false", () => {
+    const boom = new RangeError("out of range");
+    expect(() => enforceTrue(0, boom)).toThrow(boom);
+  });
+
+  it("only invokes the thunk on failure, and throws its result", () => {
+    let built = 0;
+    const factory = (): Error => {
+      built++;
+      return new Error("lazy");
+    };
+    enforceTrue(true, factory);
+    expect(built).toBe(0);
+    expect(() => enforceTrue(null, factory)).toThrow(new Error("lazy"));
+    expect(built).toBe(1);
+  });
+
+  it("narrows the checked value for the happy path", () => {
+    const value: string | undefined = "x";
+    enforceTrue(value, "missing");
+    // Type-level: `value` is now `string`; this line would not compile if it stayed `string | undefined`.
+    expect(value.length).toBe(1);
+  });
+});

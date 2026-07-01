@@ -10,21 +10,14 @@ import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
 import { mapCiIngest, type CiIngestBody } from "../../../listeners/ci-ingest-map.js";
 import { insertEvent } from "../../../main-loop/store.js";
-import { rawBody } from "../raw-body.js";
+import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export const ciIngestRoute: ServerRoute = {
   method: "POST",
   path: "/api/webhook/ci-ingest",
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
-    let body: CiIngestBody;
-    try {
-      body = JSON.parse(rawBody(request)) as CiIngestBody;
-    } catch {
-      throw Boom.badRequest("invalid JSON");
-    }
-
-    const mapped = mapCiIngest(body);
+    const mapped = mapCiIngest(parseJsonBody<CiIngestBody>(rawBody(request)));
     if (!mapped.ok) throw new Boom.Boom(mapped.error, { statusCode: mapped.status });
 
     // Each insert is idempotent only via dedupe_key, which doc projection omits on
