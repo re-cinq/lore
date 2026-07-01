@@ -9,7 +9,7 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
 import { mapCiIngest, type CiIngestBody } from "../../../listeners/ci-ingest-map.js";
-import { insertEvent } from "../../../main-loop/store.js";
+import { insertEventList } from "../../../main-loop/store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export const ciIngestRoute: ServerRoute = {
@@ -22,11 +22,7 @@ export const ciIngestRoute: ServerRoute = {
 
     // Each insert is idempotent only via dedupe_key, which doc projection omits on
     // purpose (force must re-run); the loop does the work — return 202 fast.
-    for (const ev of mapped.events) {
-      await insertEvent(ev).catch((err) =>
-        console.error(`[events] ci-ingest insert failed (${ev.params?.kind}):`, err),
-      );
-    }
+    await insertEventList(mapped.events, "ci-ingest");
     return h.response({ triggered: mapped.events.map((e) => e.params?.kind) }).code(202);
   },
 };

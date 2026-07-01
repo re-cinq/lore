@@ -11,7 +11,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
 import { mapGitHubEvent } from "../../../listeners/github-map.js";
-import { insertEvent } from "../../../main-loop/store.js";
+import { insertEventList } from "../../../main-loop/store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export function verifyGitHubSignature(secret: string, signature: string, body: string): boolean {
@@ -38,13 +38,9 @@ export const githubWebhookRoute: ServerRoute = {
     enforceTrue(eventType, () => Boom.badRequest("missing x-github-event header"));
 
     const events = mapGitHubEvent(eventType, parseJsonBody(raw), deliveryId);
-    // Insert sequentially; each is idempotent (ON CONFLICT on dedupe_key). The loop
-    // does the work — return 202 fast so GitHub's delivery doesn't time out.
-    for (const ev of events) {
-      await insertEvent(ev).catch((err) =>
-        console.error(`[events] github insert failed (${ev.eventName}):`, err),
-      );
-    }
+    // Each insert is idempotent (ON CONFLICT on dedupe_key). The loop does the
+    // work — return 202 fast so GitHub's delivery doesn't time out.
+    await insertEventList(events, "github");
     return h.response({ captured: events.length, events: events.map((e) => e.eventName) }).code(202);
   },
 };

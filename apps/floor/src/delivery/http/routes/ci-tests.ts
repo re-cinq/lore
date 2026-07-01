@@ -9,7 +9,7 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
 import { mapCiTests, type CiTestsBody } from "../../../listeners/ci-tests-map.js";
-import { insertEvent } from "../../../main-loop/store.js";
+import { insertEventList } from "../../../main-loop/store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export const ciTestsRoute: ServerRoute = {
@@ -20,11 +20,7 @@ export const ciTestsRoute: ServerRoute = {
     const mapped = mapCiTests(parseJsonBody<CiTestsBody>(rawBody(request)));
     enforceOk(mapped, "invalid ci-tests request");
 
-    for (const ev of mapped.events) {
-      await insertEvent(ev).catch((err) =>
-        console.error("[events] ci-tests insert failed:", err),
-      );
-    }
+    await insertEventList(mapped.events, "ci-tests");
     return h.response({ ingested: mapped.events.length }).code(202);
   },
 };
