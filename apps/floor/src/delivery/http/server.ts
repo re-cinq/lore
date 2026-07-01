@@ -7,6 +7,7 @@
 
 import Hapi from "@hapi/hapi";
 import { registerBearerAuth } from "./auth.js";
+import { registerRequestTracing } from "./tracing.js";
 import { healthRoute } from "./routes/health.js";
 import { agentEventsRoute } from "./routes/agent-events.js";
 import { githubWebhookRoute } from "./routes/github-webhook.js";
@@ -25,6 +26,7 @@ export function buildServer(opts: { getJobStatus: () => unknown; port?: number }
     routes: { payload: { maxBytes: MAX_BODY_BYTES } },
   });
 
+  registerRequestTracing(server);
   registerBearerAuth(server);
   server.route([
     healthRoute(opts.getJobStatus),
