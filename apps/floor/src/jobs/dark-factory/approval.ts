@@ -30,7 +30,7 @@ export async function loadApprovalConfig(): Promise<void> {
   } catch {
     // Use defaults
   }
-  console.log(`[agent] Approval config: required=${config.required}, auto_approve=[${config.auto_approve.join(",")}], ${Object.keys(config.repos).length} repo overrides`);
+  console.log(`[floor] Approval config: required=${config.required}, auto_approve=[${config.auto_approve.join(",")}], ${Object.keys(config.repos).length} repo overrides`);
 }
 
 /**

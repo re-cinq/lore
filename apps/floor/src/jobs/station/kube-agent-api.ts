@@ -3,7 +3,7 @@
 // lives in agent-backend.ts and is covered there. Creates/lists `Agent` CRs in the
 // ai-agents namespace (agents.re-cinq.com); a 409 maps to created:false.
 
-import { GROUP, VERSION, type Agent } from "@re-cinq/agent-contracts";
+import { GROUP, VERSION, type Agent as AgentCr } from "@re-cinq/agent-contracts";
 import type { AgentNodeStatus } from "@re-cinq/lore-runner";
 import type { AgentApi } from "./agent-backend.js";
 
@@ -21,7 +21,7 @@ export class KubeAgentApi implements AgentApi {
     return kc.makeApiClient(CustomObjectsApi);
   }
 
-  async create(agent: Agent): Promise<{ name: string; created: boolean }> {
+  async create(agent: AgentCr): Promise<{ name: string; created: boolean }> {
     const api = await this.customObjects();
     const namespace = this.namespace();
     const name = agent.metadata?.name ?? "";
@@ -51,7 +51,7 @@ export class KubeAgentApi implements AgentApi {
         namespace: this.namespace(),
         plural: PLURAL,
         name,
-      })) as Agent;
+      })) as AgentCr;
       const status = obj.status;
       if (!status) return null;
       return { phase: status.phase, output: status.output, failureReason: status.failureReason };
@@ -62,7 +62,7 @@ export class KubeAgentApi implements AgentApi {
     }
   }
 
-  async listByLabel(selector: string): Promise<Agent[]> {
+  async listByLabel(selector: string): Promise<AgentCr[]> {
     const api = await this.customObjects();
     const res = (await api.listNamespacedCustomObject({
       group: GROUP,
@@ -70,7 +70,7 @@ export class KubeAgentApi implements AgentApi {
       namespace: this.namespace(),
       plural: PLURAL,
       labelSelector: selector,
-    })) as { items?: Agent[]; body?: { items?: Agent[] } };
+    })) as { items?: AgentCr[]; body?: { items?: AgentCr[] } };
     return res.items ?? res.body?.items ?? [];
   }
 }

@@ -38,7 +38,7 @@ export const agentEventsRoute: ServerRoute = {
             });
             recorded++;
           } catch (err: any) {
-            console.warn(`[agent] llm_calls insert skipped for ${row.taskId}: ${err.message}`);
+            console.warn(`[floor] llm_calls insert skipped for ${row.taskId}: ${err.message}`);
           }
         }
         span.setAttribute("events", rows.length);
@@ -48,7 +48,7 @@ export const agentEventsRoute: ServerRoute = {
         void archiveAgentEvents(
           body,
           agentEventsArchiveKey(new Date().toISOString(), rows.map((r) => r.taskId)),
-        ).catch((err: any) => console.warn(`[agent] events archive skipped: ${err.message}`));
+        ).catch((err: any) => console.warn(`[floor] events archive skipped: ${err.message}`));
         return h.response({ status: "ok", events: rows.length, recorded }).code(200);
       } catch (err: any) {
         span.recordException(err);

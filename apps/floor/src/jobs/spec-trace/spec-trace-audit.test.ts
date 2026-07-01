@@ -39,7 +39,7 @@ describe("specTraceAuditEntry", () => {
 describe("specTraceLogLine", () => {
   it("renders the counts in one line keyed by repo and kind", () => {
     expect(specTraceLogLine("re-cinq/lore", outcome)).toBe(
-      "[agent] spec-trace test-report re-cinq/lore: validated_by=102 violated=3 coverage_nodes=50 covers_edges=80 test_chunks=196",
+      "[floor] spec-trace test-report re-cinq/lore: validated_by=102 violated=3 coverage_nodes=50 covers_edges=80 test_chunks=196",
     );
   });
 });
@@ -57,7 +57,7 @@ describe("graphIngestAuditEntry", () => {
 describe("graphIngestLogLine", () => {
   it("renders projection counts in one line keyed by repo and kind", () => {
     expect(graphIngestLogLine("re-cinq/lore", summary)).toBe(
-      "[agent] spec-trace adrs re-cinq/lore: projected=4 skipped=2 failed=1 status=completed",
+      "[floor] spec-trace adrs re-cinq/lore: projected=4 skipped=2 failed=1 status=completed",
     );
   });
 });

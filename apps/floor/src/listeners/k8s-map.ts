@@ -9,7 +9,7 @@
 import type { EventInput } from "../main-loop/types.js";
 import { k8sDedupeKey } from "../main-loop/dedupe.js";
 
-/** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentBackend sets it on every CR). */
+/** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentCrBackend sets it on every CR). */
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 
 export interface AgentLike {

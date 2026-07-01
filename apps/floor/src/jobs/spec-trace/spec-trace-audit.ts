@@ -26,7 +26,7 @@ export function specTraceAuditEntry(repo: string, outcome: SpecTraceOutcome): Au
 
 export function specTraceLogLine(repo: string, outcome: SpecTraceOutcome): string {
   return (
-    `[agent] spec-trace ${outcome.kind} ${repo}: ` +
+    `[floor] spec-trace ${outcome.kind} ${repo}: ` +
     `validated_by=${outcome.validatedBy} violated=${outcome.violated} ` +
     `coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`
   );
@@ -48,7 +48,7 @@ export function graphIngestAuditEntry(repo: string, summary: IngestGraphSummary)
 
 export function graphIngestLogLine(repo: string, summary: IngestGraphSummary): string {
   return (
-    `[agent] spec-trace ${summary.kind} ${repo}: ` +
+    `[floor] spec-trace ${summary.kind} ${repo}: ` +
     `projected=${summary.projected} skipped=${summary.skipped} failed=${summary.failed} status=${summary.status}`
   );
 }

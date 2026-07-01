@@ -17,23 +17,23 @@ import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
 import { startK8sWatch } from "./listeners/k8s-watch.js";
 
 async function main(): Promise<void> {
-  console.log("[agent] Lore Agent Service starting...");
+  console.log("[floor] Lore Floor Service starting...");
 
   initPool();
   Llm.configure({ costPool: getPool() });
-  console.log("[agent] Platform: github (via project facade)");
+  console.log("[floor] Platform: github (via project facade)");
 
   try {
     loadTaskTypes();
   } catch (err) {
-    console.warn("[agent] Could not load task types:", err);
+    console.warn("[floor] Could not load task types:", err);
   }
 
   await loadApprovalConfig();
 
   const recovered = await recoverStaleTasks();
   if (recovered > 0) {
-    console.log(`[agent] Recovered ${recovered} stale tasks`);
+    console.log(`[floor] Recovered ${recovered} stale tasks`);
   }
 
   // ── Layer 2: the drain loop + reaper over pipeline.events ──
@@ -65,10 +65,10 @@ async function main(): Promise<void> {
   const port = parseInt(process.env.PORT || "8080", 10);
   startHealthServer(port, getJobStatus);
 
-  console.log("[agent] Lore Agent Service ready");
+  console.log("[floor] Lore Floor Service ready");
 }
 
 main().catch((err) => {
-  console.error("[agent] Fatal:", err);
+  console.error("[floor] Fatal:", err);
   process.exit(1);
 });

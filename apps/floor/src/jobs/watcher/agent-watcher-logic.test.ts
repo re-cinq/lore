@@ -10,7 +10,7 @@ import {
 } from "./agent-watcher-logic.js";
 
 describe("taskIdOf / taskTypeOf", () => {
-  it("reads the labels AgentBackend sets", () => {
+  it("reads the labels AgentCrBackend sets", () => {
     const agent: Agent = {
       metadata: {
         labels: {

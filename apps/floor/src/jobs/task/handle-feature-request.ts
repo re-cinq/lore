@@ -32,7 +32,7 @@ export async function handleFeatureRequest(
   issueNumber: number | null,
 ): Promise<void> {
   const project = await projectFor(targetRepo);
-  console.log(`[agent] Feature request: fetching context for ${targetRepo}...`);
+  console.log(`[floor] Feature request: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
   const contextStr = JSON.stringify(context, null, 2);
 
@@ -105,7 +105,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
     },
   ];
 
-  console.log(`[agent] Feature request: generating ${SPEC_FILES.length} artifacts for "${featureSlug}"...`);
+  console.log(`[floor] Feature request: generating ${SPEC_FILES.length} artifacts for "${featureSlug}"...`);
 
   await project.repo.createBranch(branchName);
 
@@ -122,15 +122,15 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
 
       const text = result.text.trim();
       if (text === "SKIP" || text.length < 20) {
-        console.log(`[agent] Feature request: skipping ${file.path} (not needed)`);
+        console.log(`[floor] Feature request: skipping ${file.path} (not needed)`);
         continue;
       }
 
       await project.repo.commitFile(branchName, file.path, text, `lore: add ${file.path}`);
       committed.push(file.path);
-      console.log(`[agent] Feature request: committed ${file.path} (${text.length} chars)`);
+      console.log(`[floor] Feature request: committed ${file.path} (${text.length} chars)`);
     } catch (err: any) {
-      console.error(`[agent] Feature request: failed ${file.path}: ${err.message}`);
+      console.error(`[floor] Feature request: failed ${file.path}: ${err.message}`);
     }
   }
 
@@ -162,5 +162,5 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
     `${targetRepo}/${task.id}`,
   ).catch(() => {});
 
-  console.log(`[agent] Task ${task.id} → PR ${pr.url} (${committed.length} spec artifacts)`);
+  console.log(`[floor] Task ${task.id} → PR ${pr.url} (${committed.length} spec artifacts)`);
 }
