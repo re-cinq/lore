@@ -12,6 +12,7 @@
     "./commit-trailers.js": { "types": "./dist/commit-trailers.d.ts", "default": "./dist/commit-trailers.js" },
     "./feature-planning/*.js": { "types": "./dist/feature-planning/*.d.ts", "default": "./dist/feature-planning/*.js" },
     "./llm/*.js": { "types": "./dist/llm/*.d.ts", "default": "./dist/llm/*.js" },
+    "./lib/*.js": { "types": "./dist/lib/*.d.ts", "default": "./dist/lib/*.js" },
     "./spec-link-parser.js": { "types": "./dist/spec-link-parser.d.ts", "default": "./dist/spec-link-parser.js" },
     "./spec-segment.js": { "types": "./dist/spec-segment.d.ts", "default": "./dist/spec-segment.js" },
     "./test-paths.js": { "types": "./dist/test-paths.d.ts", "default": "./dist/test-paths.js" },
