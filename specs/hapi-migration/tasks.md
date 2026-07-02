@@ -83,23 +83,33 @@ migrate the group's contract tests — all together.
 
 ## Phase 3 — Repos (read) group — first authed native group (PR)
 
-> The `bearer-scope` plugin lands here (moved from Phase 1): the first native
-> routes that need bearer auth. Rate limiting is already live (Phase 2) and
-> covers these routes via the ext (default bucket).
+> **DONE.** The `bearer-scope` plugin lands here (moved from Phase 1): the first
+> native routes that need bearer auth. Rate limiting is already live (Phase 2)
+> and covers these routes via the ext (default bucket). Full suite green (385).
 
-- [ ] T012a `apps/lore-api/src/server/plugins/bearer-scope.ts`: hapi auth
-  scheme/strategy wrapping `validateClientToken`. Authenticates the bearer once,
-  sets `credentials.scope` from `pipeline.api_tokens` (admin ⇒ all scopes);
-  preserves the `LORE_INGEST_TOKEN` full-access fallback. Registered as a named,
-  non-default strategy (the catch-all keeps `auth: false`); native routes opt in
-  via `options.auth`. Add `resolveTokenScopes()` to `routes/auth.ts` (additive;
-  leaves `getRequiredScope`/`validateClientToken` intact for the legacy path).
-  Reconcile the 401/403 response bodies to match the legacy `{ error }` shape.
-  Unit-test the scheme via a throwaway route.
-- [ ] T012 Native routes for `/api/repo-status`, `/api/repos`, `/api/pr-status`
-  (`routes/repos/`). `bearer-scope` with `read` scope. Delete legacy rows +
-  `getRequiredScope` entries. Migrate tests incl. the auth matrix (401/403/
-  `LORE_INGEST_TOKEN`). (FR4, FR5, SC-3)
+- [x] T012a `server/plugins/bearer-scope.ts`: hapi auth scheme + strategy. The
+  scheme authenticates the bearer once via the new `resolveTokenScopes()` and
+  sets `credentials.scope`; routes opt in with `bearerScope("read")` (sets
+  `options.auth` + a per-route required-scope). The scheme itself enforces the
+  scope and throws so the bodies match the legacy gate byte-for-byte — MISSING
+  bearer → 401 `{error:"unauthorized"}`; any present-but-invalid/under-scoped
+  token → 403 `{error:"insufficient scope"}` (Boom `output.payload` overridden).
+  `resolveTokenScopes()` added to `routes/auth.ts` (returns the token's scopes or
+  null; legacy `LORE_INGEST_TOKEN` ⇒ all scopes, no DB hit); `validateClientToken`
+  refactored to delegate to it (unchanged behavior, kept for the legacy
+  dispatcher). `bearer-scope.test.ts` proves the full auth matrix via throwaway
+  routes. (SC-3)
+- [x] T012 Native routes `repoStatusRoute`/`reposRoute`/`prStatusRoute`
+  (`routes/repos/`, `bearerScope("read")`), registered in `build-server.ts`.
+  Deleted the three legacy rows + the `/api/repo-status` `ROUTE_SCOPES` entry.
+  `repo-status.test.ts` migrated to `inject`. (FR4, FR5, SC-3)
+
+> **Debt (observability, not behavior):** native routes do not yet emit a
+> per-request OTel span — the bridge still calls `traceHttp` for legacy routes,
+> but native handlers return values and bypass it. Floor already has the pattern
+> (`registerRequestTracing`, onRequest/onPreResponse). Add a tracing ext for
+> native routes (skipping the `h.abandon` bridge to avoid double-tracing) before
+> teardown removes the bridge's manual `traceHttp`. Tracked for a later phase.
 
 ## Phase 4 — Context + graph group (PR)
 

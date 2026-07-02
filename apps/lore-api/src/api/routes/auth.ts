@@ -41,7 +41,6 @@ const ROUTE_SCOPES: Record<string, TokenScope> = {
   "/api/task/": "read",
   "/api/context": "read",
   "/api/graph": "read",
-  "/api/repo-status": "read",
   "/api/memory": "write",
   "/api/episode": "write",
   "/api/session-summary": "write",
@@ -128,22 +127,19 @@ export function getRequiredScope(url: string, method = "GET"): TokenScope {
   return "read";
 }
 
-/**
- * Validate a per-client token against the DB.
- * Returns the scopes if valid, null if invalid.
- * Falls back to LORE_INGEST_TOKEN (full access) for backward compatibility.
- */
-export async function validateClientToken(
-  pool: Pool | null,
-  bearerToken: string,
-  requiredScope: TokenScope,
-): Promise<boolean> {
-  // Legacy single-token: full access
-  const legacyToken = process.env.LORE_INGEST_TOKEN;
-  if (legacyToken && bearerToken === legacyToken) return true;
+const ALL_SCOPES: TokenScope[] = ["read", "write", "task", "webhook", "admin"];
 
-  // Per-client token: check DB
-  if (!pool) return false;
+/**
+ * Resolve a bearer token to its granted scopes, or null when it is
+ * missing/invalid/revoked/expired or the lookup fails. The legacy
+ * LORE_INGEST_TOKEN resolves to full access (all scopes) without a DB hit.
+ * The bearer-scope hapi strategy builds on this; `validateClientToken` wraps it.
+ */
+export async function resolveTokenScopes(pool: Pool | null, bearerToken: string): Promise<TokenScope[] | null> {
+  const legacyToken = process.env.LORE_INGEST_TOKEN;
+  if (legacyToken && bearerToken === legacyToken) return ALL_SCOPES;
+
+  if (!pool) return null;
   const tokenHash = createHash("sha256").update(bearerToken).digest("hex");
   try {
     const { rows } = await pool.query(
@@ -153,12 +149,23 @@ export async function validateClientToken(
        RETURNING scopes`,
       [tokenHash],
     );
-    if (rows.length === 0) return false;
-    const scopes: string[] = rows[0].scopes;
-    // admin scope grants everything
-    if (scopes.includes("admin")) return true;
-    return scopes.includes(requiredScope);
+    if (rows.length === 0) return null;
+    return rows[0].scopes as TokenScope[];
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Validate a per-client token against the DB for a required scope. Retained for
+ * the legacy dispatcher; native routes use the bearer-scope hapi strategy.
+ */
+export async function validateClientToken(
+  pool: Pool | null,
+  bearerToken: string,
+  requiredScope: TokenScope,
+): Promise<boolean> {
+  const scopes = await resolveTokenScopes(pool, bearerToken);
+  if (!scopes) return false;
+  return scopes.includes("admin") || scopes.includes(requiredScope);
 }

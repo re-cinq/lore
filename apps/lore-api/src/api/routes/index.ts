@@ -9,10 +9,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
-import { handleRepoStatus } from "./repos/repo-status.js";
 import { handleIngest } from "./ingest/ingest.js";
 import { handleOnboard } from "./repos/onboard.js";
-import { handleListRepos } from "./repos/repos.js";
 import { handleContext } from "./context/context.js";
 import { handleGraph } from "./graph/graph.js";
 import { handleGetTask } from "./tasks/get-task.js";
@@ -27,7 +25,6 @@ import { handleSlackWebhook } from "./webhooks/webhook-slack.js";
 import { handleIncidentWebhook } from "./webhooks/webhook-incident.js";
 import { handleTaskLogs, handleGetTaskLogs } from "./tasks/task-logs.js";
 import { handleGetJobRunLogs } from "./tasks/job-run-logs.js";
-import { handlePrStatus } from "./repos/pr-status.js";
 import { handleTokens } from "./tokens/tokens.js";
 import { handleDarkFactorySettingsRoute } from "./dark-factory/dark-factory.js";
 import { handleAgentsRoute } from "./agent-definitions/agents.js";
@@ -63,10 +60,8 @@ const path = (matcher: (url: string) => boolean): RouteMatcher =>
 // Order matters: specific regex routes precede the broad /api/tasks prefix.
 // /healthz and /dist/lore-code-trace/* are now native hapi routes (Phase 2).
 const API_ROUTES: ApiRoute[] = [
-  { match: prefix("/api/repo-status", "GET"), handle: handleRepoStatus },
   { match: exact("/api/ingest", "POST"), handle: handleIngest },
   { match: exact("/api/onboard", "POST"), handle: handleOnboard },
-  { match: exact("/api/repos", "GET"), handle: handleListRepos },
   { match: prefix("/api/context", "GET"), handle: handleContext },
   { match: prefix("/api/graph", "GET"), handle: handleGraph },
   { match: prefix("/api/task/", "GET"), handle: (req, res) => handleGetTask(req, res) },
@@ -81,7 +76,6 @@ const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/task-logs", "POST"), handle: (req, res) => handleTaskLogs(req, res) },
   { match: prefix("/api/task-logs", "GET"), handle: (req, res, pool) => handleGetTaskLogs(req, res, pool) },
   { match: prefix("/api/job-run-logs", "GET"), handle: (req, res) => handleGetJobRunLogs(req, res) },
-  { match: prefix("/api/pr-status", "GET"), handle: handlePrStatus },
   { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
   { match: path((url) => url === "/api/tokens"), handle: handleTokens },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
