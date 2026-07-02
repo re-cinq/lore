@@ -10,9 +10,18 @@
  * 401 for the internal sink. A wrong token is always 401.
  */
 
+import { timingSafeEqual } from "node:crypto";
 import Boom from "@hapi/boom";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Server, ServerAuthScheme } from "@hapi/hapi";
+
+/** Constant-time token comparison — mirrors the HMAC path's timingSafeEqual so a
+ *  bearer check can't leak the token via response-time differences. */
+function tokensMatch(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 interface BearerOptions {
   token: string | undefined;
@@ -27,7 +36,7 @@ const bearerScheme: ServerAuthScheme = (_server, options) => {
       enforceTrue(token, () => new Boom.Boom(unconfiguredMessage, { statusCode: unconfiguredStatusCode }));
       const header = request.headers.authorization;
       const provided = (Array.isArray(header) ? header[0] : header)?.replace("Bearer ", "");
-      enforceTrue(provided === token, () => Boom.unauthorized("unauthorized"));
+      enforceTrue(provided !== undefined && tokensMatch(provided, token), () => Boom.unauthorized("unauthorized"));
       return h.authenticated({ credentials: {} });
     },
   };

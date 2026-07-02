@@ -2,9 +2,9 @@
  * Spec-task executor job.
  *
  * Picks up ready spec-tasks (all dependencies satisfied, status=pending)
- * and creates LoreTask CRs to implement them via Claude Code in ephemeral pods.
- * Limits concurrent dispatches to 3 per task_group_id to avoid overwhelming
- * the cluster.
+ * and dispatches an Agent CR (ADR-031) to implement each via Claude Code in an
+ * ephemeral pod. Limits concurrent dispatches to 3 per task_group_id to avoid
+ * overwhelming the cluster.
  *
  * Runs every minute.
  */
@@ -88,7 +88,6 @@ export async function specTaskExecutorJob(): Promise<string> {
     const slug = specSlug || "spec-task";
     const branchName = `lore/spec-task/${slug}-${(specTaskId || "").toLowerCase()}-${task.id.substring(0, 8)}`;
 
-    const crName = `loretask-${task.id.substring(0, 8)}`;
     try {
       const project = await projectFor(task.target_repo);
       const result = await project.agents.run(task.id, {
@@ -118,14 +117,14 @@ export async function specTaskExecutorJob(): Promise<string> {
             (runningByGroup.get(task.task_group_id) || 0) + 1,
           );
         }
-        console.log(`[spec-task-executor] Dispatched ${specTaskId} (${task.id}) → LoreTask ${crName}`);
+        console.log(`[spec-task-executor] Dispatched ${specTaskId} (${task.id}) → Agent CR`);
       } else {
-        console.log(`[spec-task-executor] LoreTask ${crName} already exists, skipping`);
+        console.log(`[spec-task-executor] Agent CR for ${task.id} already exists, skipping`);
       }
-    } catch (err: any) {
+    } catch (err) {
       // Revert to pending on dispatch failure
       await setStatus(task.id, "pending");
-      console.error(`[spec-task-executor] Failed to create LoreTask for ${task.id}: ${err.message}`);
+      console.error(`[spec-task-executor] Failed to dispatch Agent for ${task.id}: ${(err as Error).message}`);
     }
   }
 

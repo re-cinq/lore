@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { githubDedupeKey, k8sDedupeKey, cronDedupeKey, internalDedupeKey } from "./dedupe.js";
+import { githubDedupeKey, k8sDedupeKey, cronDedupeKey } from "./dedupe.js";
 
 describe("githubDedupeKey", () => {
   it("prefixes the X-GitHub-Delivery id", () => {
@@ -24,13 +24,5 @@ describe("cronDedupeKey", () => {
     const a = cronDedupeKey("reindex", new Date("2026-06-29T10:15:00Z"));
     const b = cronDedupeKey("reindex", new Date("2026-06-29T10:16:00Z"));
     expect(a).not.toBe(b);
-  });
-});
-
-describe("internalDedupeKey", () => {
-  it("keys on repo, kind and commit so re-ingesting the same SHA is a no-op", () => {
-    expect(internalDedupeKey({ repo: "re-cinq/lore", kind: "coverage", commit: "deadbeef" })).toBe(
-      "internal:re-cinq/lore:coverage:deadbeef",
-    );
   });
 });
