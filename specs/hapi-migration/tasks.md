@@ -191,9 +191,19 @@ migrate the group's contract tests — all together.
 
 ## Phase 8 — Ingest group (PR)
 
-- [ ] T017 Native routes for `POST /api/ingest`, `/api/repos/:o/:r/ingest-graph`
-  (`routes/ingest/`). `write` scope; typed `:o/:r` params. Delete legacy rows +
-  scope entries. Migrate tests. (FR5, SC-3)
+> **DONE.** Full suite green (384 — one net drop, an obsolete scope test removed).
+
+- [x] T017 Native `ingestRoute` (`POST /api/ingest`) + `ingestGraphRoute`
+  (`POST /api/repos/{owner}/{repo}/ingest-graph`), `bearerScope("write")` +
+  `parse:false`. `ingest-graph` uses typed `{owner}/{repo}` params (the
+  `repoFromReposUrl` null branch is now dead — dropped) and preserves the
+  empty-body→`{}` behavior of the old `readJsonBody` (`raw ? JSON.parse(raw) :
+  {}`). Both fire their fire-and-forget triggers (`triggerAgentSpecCoverageValidate`
+  / `triggerAgentSpecTrace`) **before** the `return` — observably identical since
+  they never touch the response. Deleted the two legacy rows, the `/api/ingest`
+  `ROUTE_SCOPES` entry, **and the `ingest-graph` `SCOPE_OVERRIDE`**. Removed the
+  now-obsolete `auth.test.ts` `getRequiredScope("…/ingest-graph")` assertion (the
+  route's write scope is enforced declaratively via `bearerScope` now). (FR5, SC-3)
 
 ## Phase 9 — Repos (write) group (PR)
 

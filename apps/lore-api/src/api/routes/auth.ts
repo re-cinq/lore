@@ -37,7 +37,6 @@ export function rateLimit(bucket: RateBucket): boolean {
 export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 
 const ROUTE_SCOPES: Record<string, TokenScope> = {
-  "/api/ingest": "write",
   "/api/onboard": "admin",
   "/api/webhook/slack": "webhook",
   "/api/webhook/incident": "webhook",
@@ -67,10 +66,6 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[]
   },
   {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$|\/)/,
-    scope: "write",
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$|\/)/,
     scope: "write",
   },
   // Webhook: revealing the shared HMAC secret is admin — must precede the

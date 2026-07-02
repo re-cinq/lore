@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { handleApiRoute } from "../../routes.js";
-import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { buildServer } from "../../../server/build-server.js";
+import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
+
+const post = (body: unknown, pool: ReturnType<typeof makePool>) =>
+  buildServer(() => pool as any).inject({ method: "POST", url: "/api/repos/o/r/ingest-graph", headers: AUTH, payload: JSON.stringify(body) });
+const insertCalls = (pool: ReturnType<typeof makePool>) =>
+  pool.query.mock.calls.filter((c) => String(c[0]).includes("INSERT INTO pipeline.events"));
 
 /**
  * POST /api/repos/:owner/:repo/ingest-graph — the REST/curl/CI (re-)projection
@@ -22,34 +27,16 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
 
   it("inserts a spec-trace event for the specs kind and creates no task", async () => {
     const pool = makePool();
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({
-        url: "/api/repos/o/r/ingest-graph",
-        method: "POST",
-        headers: AUTH,
-        body: { kinds: ["specs"], commit: "abc123" },
-      }),
-      res,
-      pool as any,
-    );
-    const insert = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find((c) =>
-      String(c[0]).includes("INSERT INTO pipeline.events"),
-    );
-    expect(insert?.[1]?.[0]).toBe("internal.ingest.spec_trace");
+    const res = await post({ kinds: ["specs"], commit: "abc123" }, pool);
+    expect(insertCalls(pool)[0]?.[1]?.[0]).toBe("internal.ingest.spec_trace");
     expect(res.statusCode).toBe(200);
-    expect(res.json).toMatchObject({ triggered: ["specs"] });
+    expect(res.result).toMatchObject({ triggered: ["specs"] });
   });
 
   it("rejects the tests kind with 400 (test projection is CI-only)", async () => {
     const pool = makePool();
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({ url: "/api/repos/o/r/ingest-graph", method: "POST", headers: AUTH, body: { kinds: ["tests"] } }),
-      res,
-      pool as any,
-    );
+    const res = await post({ kinds: ["tests"] }, pool);
     expect(res.statusCode).toBe(400);
-    expect((pool.query as ReturnType<typeof vi.fn>).mock.calls.some((c) => String(c[0]).includes("INSERT INTO pipeline.events"))).toBe(false);
+    expect(insertCalls(pool)).toHaveLength(0);
   });
 });

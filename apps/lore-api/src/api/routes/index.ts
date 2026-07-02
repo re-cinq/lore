@@ -9,7 +9,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
-import { handleIngest } from "./ingest/ingest.js";
 import { handleOnboard } from "./repos/onboard.js";
 import { handleSlackWebhook } from "./webhooks/webhook-slack.js";
 import { handleIncidentWebhook } from "./webhooks/webhook-incident.js";
@@ -17,7 +16,6 @@ import { handleTokens } from "./tokens/tokens.js";
 import { handleDarkFactorySettingsRoute } from "./dark-factory/dark-factory.js";
 import { handleAgentsRoute } from "./agent-definitions/agents.js";
 import { handleImpactRoute } from "./impact/impact.js";
-import { handleIngestGraphRoute } from "./ingest/ingest-graph.js";
 import { handleWebhookStatus, handleWebhookEnsure, handleWebhookSecret } from "./webhooks/webhook.js";
 import { handleTraceRoute } from "./trace/trace.js";
 import { handleGlobalTraceSpecs } from "./trace/trace-specs.js";
@@ -48,7 +46,6 @@ const path = (matcher: (url: string) => boolean): RouteMatcher =>
 // Order matters: specific regex routes precede the broad /api/tasks prefix.
 // /healthz and /dist/lore-code-trace/* are now native hapi routes (Phase 2).
 const API_ROUTES: ApiRoute[] = [
-  { match: exact("/api/ingest", "POST"), handle: handleIngest },
   { match: exact("/api/onboard", "POST"), handle: handleOnboard },
   { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
   { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
@@ -56,7 +53,6 @@ const API_ROUTES: ApiRoute[] = [
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/.test(url)), handle: handleAgentsRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },
-  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$)/, "POST"), handle: handleIngestGraphRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook\/ensure(\?|$)/, "POST"), handle: handleWebhookEnsure },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook\/secret(\?|$)/, "GET"), handle: handleWebhookSecret },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook(\?|$)/, "GET"), handle: handleWebhookStatus },
