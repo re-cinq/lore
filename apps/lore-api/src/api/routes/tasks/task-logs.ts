@@ -1,26 +1,30 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { json, readBody } from "../http.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { rawBody } from "../../../server/raw-body.js";
 
-// POST /api/task-logs is still served by the legacy dispatcher (Phase 6).
-// Preserved legacy quirk: `getRequiredScope` matches by prefix, first-match-wins,
-// and "/api/task-logs".startsWith("/api/task") is true — so the "/api/task"→"task"
-// entry shadows the (dead) "/api/task-logs"→"write" entry. The real required scope
-// is therefore "task", which the native GET route below reproduces exactly.
-export async function handleTaskLogs(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const body = await readBody(req);
-  try {
-    const { task_id, repo, logs } = JSON.parse(body);
-    if (!task_id || !repo || !logs) { json(res, 400, { error: "missing fields" }); return; }
-    const { Storage } = await import("@google-cloud/storage");
-    const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
-    await bucket.file(`${repo}/${task_id}/output.log`).save(logs, { resumable: false, contentType: "text/plain" });
-    json(res, 200, { ok: true });
-  } catch (err: any) {
-    json(res, 500, { error: err.message });
-  }
+// Both verbs resolve to the "task" scope: `getRequiredScope` matches by prefix,
+// first-match-wins, and "/api/task-logs".startsWith("/api/task") is true, so the
+// "/api/task"→"task" entry shadowed the (dead) "/api/task-logs"→"write" one. The
+// native routes reproduce that exact scope.
+export function taskLogsPostRoute(): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/task-logs",
+    options: { ...bearerScope("task"), payload: { parse: false } },
+    handler: async (request, h) => {
+      try {
+        const { task_id, repo, logs } = JSON.parse(rawBody(request));
+        if (!task_id || !repo || !logs) return h.response({ error: "missing fields" }).code(400);
+        const { Storage } = await import("@google-cloud/storage");
+        const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
+        await bucket.file(`${repo}/${task_id}/output.log`).save(logs, { resumable: false, contentType: "text/plain" });
+        return h.response({ ok: true });
+      } catch (err: any) {
+        return h.response({ error: err.message }).code(500);
+      }
+    },
+  };
 }
 
 export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {

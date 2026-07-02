@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { buildServer } from "./build-server.js";
-import { useRateLimitSafeClock, makePool, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 // The strangler bridge (ADR-033): hapi hosts the server via `buildServer`, and
 // every not-yet-migrated request still flows through the legacy dispatcher
@@ -27,7 +27,7 @@ describe("buildServer strangler bridge", () => {
   });
 
   it("preserves the legacy 401 for a protected route without a bearer token", async () => {
-    const res = await build().inject({ method: "GET", url: "/api/repo-status?repo=o/r" });
+    const res = await build().inject({ method: "GET", url: "/api/nope" });
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.payload)).toEqual({ error: "unauthorized" });
   });
@@ -35,7 +35,7 @@ describe("buildServer strangler bridge", () => {
   it("preserves the 1 MB Content-Length gate (413) on POST", async () => {
     const res = await build().inject({
       method: "POST",
-      url: "/api/task",
+      url: "/api/nope",
       headers: { ...AUTH, "content-length": String(2 * 1_048_576) },
       payload: "{}",
     });
@@ -44,17 +44,16 @@ describe("buildServer strangler bridge", () => {
   });
 
   it("delivers the POST body to the legacy handler through the bridge", async () => {
-    // The shim carries the body across the seam: handleTaskPost parses it and
-    // echoes task_id/priority back, which can only come from the request body.
-    const pool = makePool();
-    pool.query.mockResolvedValue({ rows: [] });
-    const res = await buildServer(() => pool).inject({
+    // The shim carries the body across the seam: /api/memory (still bridged) reads
+    // the body before any pool use — a delivered `{action:"bogus"}` reaches the
+    // action switch and 400s, while an empty (undelivered) body would 500 on parse.
+    const res = await build().inject({
       method: "POST",
-      url: "/api/task",
+      url: "/api/memory",
       headers: AUTH,
-      payload: JSON.stringify({ action: "set-priority", task_id: "task-123", priority: "immediate" }),
+      payload: JSON.stringify({ action: "bogus" }),
     });
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toMatchObject({ ok: true, task_id: "task-123", priority: "immediate" });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.payload)).toEqual({ error: "action must be: write, read, search, delete, list" });
   });
 });

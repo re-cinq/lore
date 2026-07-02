@@ -11,13 +11,11 @@ import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
 import { handleIngest } from "./ingest/ingest.js";
 import { handleOnboard } from "./repos/onboard.js";
-import { handleTaskPost } from "./tasks/task-post.js";
 import { handleMemory } from "./memory/memory.js";
 import { handleEpisode } from "./memory/episode.js";
 import { handleSessionSummary } from "./memory/session-summary.js";
 import { handleSlackWebhook } from "./webhooks/webhook-slack.js";
 import { handleIncidentWebhook } from "./webhooks/webhook-incident.js";
-import { handleTaskLogs } from "./tasks/task-logs.js";
 import { handleTokens } from "./tokens/tokens.js";
 import { handleDarkFactorySettingsRoute } from "./dark-factory/dark-factory.js";
 import { handleAgentsRoute } from "./agent-definitions/agents.js";
@@ -55,12 +53,10 @@ const path = (matcher: (url: string) => boolean): RouteMatcher =>
 const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/ingest", "POST"), handle: handleIngest },
   { match: exact("/api/onboard", "POST"), handle: handleOnboard },
-  { match: exact("/api/task", "POST"), handle: handleTaskPost },
   { match: exact("/api/memory", "POST"), handle: handleMemory },
   { match: exact("/api/episode", "POST"), handle: handleEpisode },
   { match: exact("/api/session-summary", "POST"), handle: handleSessionSummary },
   { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
-  { match: exact("/api/task-logs", "POST"), handle: (req, res) => handleTaskLogs(req, res) },
   { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
   { match: path((url) => url === "/api/tokens"), handle: handleTokens },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },

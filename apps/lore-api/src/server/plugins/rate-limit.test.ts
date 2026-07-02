@@ -32,6 +32,14 @@ describe("rate-limit ext", () => {
     expect(last.headers["retry-after"]).toBe("60");
   });
 
+  it("trips the task bucket at the 61st POST to a native route (/api/task)", async () => {
+    const server = buildServer(() => null);
+    const hit = () => server.inject({ method: "POST", url: "/api/task", headers: AUTH, payload: "{}" });
+    for (let i = 0; i < 60; i++) await hit();
+    const last = await hit();
+    expect(last.statusCode).toBe(429);
+  });
+
   it("counts a bridged route once — the 200th passes and the 201st trips (no double-count)", async () => {
     const server = buildServer(() => null);
     const hit = () => server.inject({ method: "GET", url: "/api/repo-status?repo=o/r", headers: AUTH });

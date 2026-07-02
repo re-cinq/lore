@@ -40,11 +40,8 @@ const ROUTE_SCOPES: Record<string, TokenScope> = {
   "/api/memory": "write",
   "/api/episode": "write",
   "/api/session-summary": "write",
-  "/api/task": "task",
   "/api/ingest": "write",
   "/api/onboard": "admin",
-  // "/api/task-logs" (POST, still bridged) resolves to "task" via the "/api/task"
-  // prefix above — kept until the POST migrates in Phase 6.
   "/api/webhook/slack": "webhook",
   "/api/webhook/incident": "webhook",
   "/api/tokens": "admin",

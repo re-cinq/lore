@@ -151,10 +151,28 @@ migrate the group's contract tests — all together.
 
 ## Phase 6 — Tasks (write) group (PR)
 
-- [ ] T015 Native routes for `POST /api/task`, `POST /api/task-logs`
-  (`routes/tasks/`). `task` scope + `task` rate-limit bucket. Body cap via route
-  `payload.maxBytes`. Delete legacy rows + scope entries. Migrate tests incl.
-  the `task`-bucket 429 threshold. (FR5, SC-3, SC-4)
+> **DONE.** First write group. Full suite green (385).
+
+- [x] T015 Native `taskPostRoute` (`POST /api/task`) + `taskLogsPostRoute`
+  (`POST /api/task-logs`), both `bearerScope("task")` + `payload: { parse: false }`
+  so the handler JSON-parses the raw body itself (new `server/raw-body.ts`) —
+  matching the legacy `readBody`+`JSON.parse`, which **500s on invalid JSON**
+  (hapi's own parser would 400; the proxy sends `application/json`, so this
+  matters). Registered in `build-server.ts`; both legacy POST rows deleted, and
+  the last `/api/task`→`task` `ROUTE_SCOPES` entry removed. Rate-limit parity via
+  the ext: `/api/task` → `task` bucket, `/api/task-logs` → `default`.
+- [x] Tests migrated to `inject`: `task-post.test.ts` (incl. invalid-JSON 500),
+  `task-logs.test.ts` POST block off the bridge. `rate-limit.test.ts` gains the
+  **`task`-bucket 61st-request 429** assertion (SC-4). The `build-server.test.ts`
+  bridge tests were repointed to stably-bridged paths (`/api/nope` for
+  404/401/413; `/api/memory {action:"bogus"}` for the body-shim proof) since
+  `/api/task` is now native. (FR5, SC-3, SC-4)
+
+> **Intentional body change (spec-sanctioned):** an oversized (>1 MB) POST to a
+> **native** route now returns hapi's payload 413 body (`{statusCode,error,message}`)
+> rather than the bridge's legacy `{error:"request body too large"}`. This is the
+> spec's "body cap the hapi way" (`payload.maxBytes`) end state; the status (413)
+> is unchanged and the bridge keeps the legacy body for still-bridged routes.
 
 ## Phase 7 — Memory group (PR)
 
