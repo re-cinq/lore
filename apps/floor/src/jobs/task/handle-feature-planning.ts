@@ -17,6 +17,7 @@ import {
 } from "@re-cinq/lore-shared/feature-planning/gap-result.js";
 import { PLANNING_INSTRUCTIONS } from "@re-cinq/lore-shared/feature-planning/planning-instructions.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
@@ -24,9 +25,10 @@ import { setStatus, insertEvent } from "./task-helpers.js";
 export async function handleFeaturePlanning(task: any, targetRepo: string): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
   const iteration: number | undefined = task.context_bundle?.iteration;
-  if (!featureId || iteration == null) {
-    throw new Error("feature-planning task is missing feature_id/iteration in context_bundle");
-  }
+  enforceTrue(
+    featureId && iteration != null,
+    "feature-planning task is missing feature_id/iteration in context_bundle",
+  );
 
   const project = await projectFor(targetRepo);
   const features = project.features;

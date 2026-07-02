@@ -7,6 +7,7 @@
  */
 
 import type { EventInput } from "../main-loop/types.js";
+import { githubDedupeKey } from "../main-loop/dedupe.js";
 
 const PR_REVIEW_TRIGGER_ACTIONS = new Set(["synchronize", "opened", "reopened", "ready_for_review"]);
 
@@ -28,7 +29,7 @@ function labelNames(labels: unknown): string[] {
 export function mapGitHubEvent(eventType: string, payload: any, deliveryId: string): EventInput[] {
   const repo: string | undefined = payload?.repository?.full_name;
   if (!repo) return [];
-  const key = `github:${deliveryId}`;
+  const key = githubDedupeKey(deliveryId);
 
   if (eventType === "pull_request") {
     const pr = payload.pull_request;

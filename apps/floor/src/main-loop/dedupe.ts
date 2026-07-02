@@ -24,8 +24,3 @@ export function k8sDedupeKey(taskId: string, phase: string): string {
 export function cronDedupeKey(job: string, at: Date): string {
   return `cron:${job}:${flooredMinute(at)}`;
 }
-
-/** One projection per (repo, kind, commit) — re-ingesting the same SHA is a no-op. */
-export function internalDedupeKey(parts: { repo: string; kind: string; commit: string }): string {
-  return `internal:${parts.repo}:${parts.kind}:${parts.commit}`;
-}
