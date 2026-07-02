@@ -1,16 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { recoverStaleTasks } from "./worker.js";
+import { slugify } from "./task-helpers.js";
 import { InMemoryTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-memory.js";
-
-// ── slugify (copied from worker.ts — private function) ──────────────
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 30);
-}
 
 describe("slugify", () => {
   it("lowercases and replaces spaces with hyphens", () => {
@@ -36,6 +27,13 @@ describe("slugify", () => {
 
   it("collapses multiple non-alphanumeric chars into one hyphen", () => {
     expect(slugify("hello   ///   world")).toBe("hello-world");
+  });
+
+  it("does not leave a trailing hyphen when the 30-char cut lands on a dash", () => {
+    // 29 'a's, then a word boundary: the dash falls at index 29, inside the cut.
+    const slug = slugify(`${"a".repeat(29)} tail`);
+    expect(slug).toBe("a".repeat(29));
+    expect(slug.endsWith("-")).toBe(false);
   });
 });
 

@@ -1,4 +1,6 @@
+import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
 import { query } from "../../../kernel/db.js";
+import { taskStore } from "../../../kernel/queues.js";
 
 interface OnboardedRepo {
   id: string;
@@ -53,32 +55,31 @@ export async function gapDetectJob(): Promise<string> {
   // Langfuse-driven gap detection (if configured)
   await checkLangfuseGaps(gaps);
 
-  // Create pipeline tasks for each gap (skip if duplicate already exists)
+  // Create pipeline tasks for each gap (skip if a duplicate is already in flight).
+  // Goes through taskStore().create so the trust-level gate + created_by provenance
+  // apply — the old inline INSERT bypassed both. Dedup suppresses a refile while a
+  // matching task is open (the shared in-flight set) or already failed.
   let created = 0;
+  const dedupStatuses = [...OPEN_TASK_STATES, "failed"];
   for (const gap of gaps) {
     try {
       const desc = `Gap: ${gap.type} — ${gap.detail}`;
 
-      // Check for existing task with same description pattern for this repo
-      const existing = await query<{ id: string }>(
-        `SELECT id FROM pipeline.tasks
-         WHERE target_repo = $1
-           AND task_type = 'gap-fill'
-           AND description LIKE $2
-           AND status IN ('pending', 'running', 'queued', 'failed', 'pr-created')
-         LIMIT 1`,
-        [gap.repo, `Gap: ${gap.type}%`],
-      );
-
+      const existing = await taskStore().findOpenLike({
+        repo: gap.repo,
+        taskType: "gap-fill",
+        descriptionPrefix: `Gap: ${gap.type}`,
+        statuses: dedupStatuses,
+      });
       if (existing.length > 0) continue;
 
-      const result = await query<{ id: string }>(
-        `INSERT INTO pipeline.tasks (description, task_type, status, target_repo)
-         VALUES ($1, 'gap-fill', 'pending', $2)
-         RETURNING id`,
-        [desc, gap.repo],
-      );
-      if (result.length > 0) created++;
+      await taskStore().create({
+        description: desc,
+        taskType: "gap-fill",
+        targetRepo: gap.repo,
+        createdBy: "gap-detect",
+      });
+      created++;
     } catch (err) {
       console.error(`[job] gap-detect: error creating task for ${gap.repo}:`, err);
     }
@@ -161,8 +162,8 @@ async function checkStaleContent(
   const stale = await query<{ count: string }>(
     `SELECT COUNT(*) AS count FROM org_shared.chunks
      WHERE repo = $1
-       AND ingested_at < NOW() - INTERVAL '${STALE_DAYS} days'`,
-    [repo.full_name],
+       AND ingested_at < NOW() - ($2 || ' days')::interval`,
+    [repo.full_name, String(STALE_DAYS)],
   );
 
   const staleCount = parseInt(stale[0]?.count || "0", 10);

@@ -1,20 +1,19 @@
 import { taskStore, taskQueue, settings, memoryLifecycle } from "../../kernel/queues.js";
+import { getPool } from "../../kernel/db.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeEpisodeWithCuration } from "../memory/episode-writer.js";
-import { parseTasks, inferPhaseDependencies } from "@re-cinq/lore-shared";
+import { parseTasks, inferPhaseDependencies, syncTasksToDb, specSlugFromBranch } from "@re-cinq/lore-shared";
 import { decideDecomposeKick } from "../task/handle-feature-decompose.js";
 
 /**
  * Fallback: when a feature-request task's PR merges and the webhook was missed,
- * read tasks.md from the repo and sync spec-tasks into the pipeline.
+ * read tasks.md from the repo and sync spec-tasks into the pipeline. Goes through
+ * the same shared `syncTasksToDb` writer as the webhook path (jobs/github.ts) so
+ * both upsert identically — the fallback used to hand-roll an insert-only loop,
+ * which diverged (no update-on-existing, different created_by).
  */
 async function syncSpecTasksFromMerge(task: { id: string; target_repo: string; target_branch: string | null }): Promise<void> {
-  const branch = task.target_branch || "";
-  if (!branch.startsWith("lore/feature-request/")) return;
-
-  // Extract spec slug from branch: lore/feature-request/{slug}-{taskId8}
-  const branchSuffix = branch.replace("lore/feature-request/", "");
-  const specSlug = branchSuffix.replace(/-[a-f0-9]{8}$/, "");
+  const specSlug = specSlugFromBranch(task.target_branch || "");
   if (!specSlug) return;
 
   // Idempotency: check if spec-tasks already synced (by webhook or previous run)
@@ -31,35 +30,9 @@ async function syncSpecTasksFromMerge(task: { id: string; target_repo: string; t
     return;
   }
 
-  // Parse and infer dependencies
-  const parsed = parseTasks(content);
-  const withDeps = inferPhaseDependencies(parsed);
-
-  // Sync to DB
+  const withDeps = inferPhaseDependencies(parseTasks(content));
   const taskGroupId = crypto.randomUUID();
-  let created = 0;
-  for (const t of withDeps) {
-    const title = `${t.specTaskId}: ${t.description}`;
-    const metadata = {
-      spec_task_id: t.specTaskId,
-      depends_on: t.dependsOn,
-      spec_slug: specSlug,
-      parallelizable: t.parallelizable,
-      phase: t.phase,
-      file_path: t.filePath,
-    };
-    const status = t.completed ? "completed" : "pending";
-    const inserted = await taskQueue().insertTask({
-      description: title,
-      taskType: "spec-task",
-      targetRepo: task.target_repo,
-      status,
-      contextBundle: metadata,
-      createdBy: "merge-check",
-      taskGroupId,
-    });
-    if (inserted) created++;
-  }
+  const { created } = await syncTasksToDb(getPool(), task.target_repo, specSlug, withDeps, taskGroupId);
 
   console.log(`[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`);
 }

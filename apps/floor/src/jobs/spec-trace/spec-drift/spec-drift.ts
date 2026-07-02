@@ -1,5 +1,5 @@
 import { query } from "../../../kernel/db.js";
-import { Llm, createDgraphClient } from "@re-cinq/lore-shared";
+import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../composition/project-boot.js";
 import { taskStore } from "../../../kernel/queues.js";
 import type { Project } from "@re-cinq/lore-shared";
@@ -98,7 +98,8 @@ export async function specDriftJob(): Promise<string> {
 
   // Graph-primary detection is authoritative where the spec-trace graph is
   // populated; without it (LORE_DGRAPH_HTTP unset) every spec uses the heuristic.
-  const graphEnabled = !!createDgraphClient();
+  // Probe the env directly rather than build-and-discard a Dgraph client.
+  const graphEnabled = !!process.env.LORE_DGRAPH_HTTP;
 
   for (const [repo, repoSpecs] of byRepo) {
     if (!activeRepos.has(repo)) {

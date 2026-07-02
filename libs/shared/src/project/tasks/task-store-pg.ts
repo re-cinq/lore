@@ -19,6 +19,7 @@ import type {
   TaskTransitionMeta,
   TaskWithEvents,
   TaskListResult,
+  FindOpenLikeInput,
 } from "./task-store-port.js";
 
 /**
@@ -112,6 +113,15 @@ export class PgTaskStore implements TaskStorePort {
       [id, NEXT_STATUS[action], claimedBy],
     );
     return rows[0] as PipelineTask;
+  }
+
+  async findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]> {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM pipeline.tasks
+       WHERE target_repo = $1 AND task_type = $2 AND description LIKE $3 AND status = ANY($4)`,
+      [input.repo, input.taskType, `${input.descriptionPrefix}%`, [...input.statuses]],
+    );
+    return rows as PipelineTask[];
   }
 
   private async byStatus(repo: string, statuses: string[]): Promise<PipelineTask[]> {

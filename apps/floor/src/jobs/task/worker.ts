@@ -80,7 +80,7 @@ export async function recoverStaleTasks(
 
 /**
  * Start the polling worker. Polls every 10 seconds and processes one
- * task at a time.
+ * task at a time (a single-flight guard skips ticks while one is running).
  */
 export async function startWorker(): Promise<void> {
   console.log("[floor] Worker started");
@@ -88,14 +88,40 @@ export async function startWorker(): Promise<void> {
   await pollOnce();
 }
 
+/** True while a task is processing in this pod — the single-flight latch. */
+let processing = false;
+
+/**
+ * Claim-and-process at most one task, skipping the tick entirely if a task is
+ * already in flight. `processTask` runs a multi-minute in-process LLM loop for
+ * onboard/feature/dark-factory tasks, so without this the 10s `setInterval` would
+ * stack unbounded concurrent claims — contradicting the "one task at a time"
+ * contract. The latch is set before the claim so two overlapping ticks can't both
+ * claim. Injectable claim/process keep it unit-testable without a DB.
+ */
+export async function pollWithGuard<T>(deps: {
+  claim: () => Promise<T | null>;
+  process: (task: T) => Promise<void>;
+}): Promise<void> {
+  if (processing) return;
+  processing = true;
+  try {
+    const task = await deps.claim();
+    if (!task) return;
+    await deps.process(task);
+  } finally {
+    processing = false;
+  }
+}
+
 async function pollOnce(): Promise<void> {
   // Pick up the next runnable task: immediate first, otherwise the oldest task
   // past the 30-second grace that lets a local runner claim it first. The claim
   // SQL lives in the shared TaskQueue.
-  const task = await taskQueue().claimNextPending();
-  if (!task) return;
-
-  await processTask(task);
+  await pollWithGuard({
+    claim: () => taskQueue().claimNextPending(),
+    process: processTask,
+  });
 }
 
 // ── Task processing ───────────────────────────────────────────────────
