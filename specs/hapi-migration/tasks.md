@@ -1,11 +1,12 @@
 # Tasks: Migrate lore-api to the hapi HTTP Framework
 
-**Status: Draft — not started.** Strangler-fig migration (ADR-033): hapi hosts
-the server from Phase 1 (PR #1) via a `buildServer` factory + a catch-all bridge
-to the legacy dispatcher; route groups move to native hapi routes one PR at a
-time (Phases 2–12); the catch-all and legacy dispatcher are deleted at teardown
-(Phase 13). Every PR leaves the full lore-api suite green and the API
-behaviorally unchanged.
+**Status: COMPLETE — lore-api is pure hapi.** Strangler-fig migration (ADR-033):
+hapi hosted the server from Phase 1 (PR #1) via a `buildServer` factory + a
+catch-all bridge to the legacy dispatcher; all route groups moved to native hapi
+routes one PR at a time (Phases 2–12); the catch-all + legacy dispatcher +
+`node:http` `createServer` were deleted at teardown (Phase 13). Every PR left the
+full lore-api suite green and the API behaviorally unchanged (350 tests green;
+cross-cutting concerns are hapi plugins: tracing, rate-limit, bearer-scope).
 
 Legend: `[P]` = parallelizable with siblings in the same phase. Each group phase
 (2–12) is **one PR**: register the native routes, delete the group's legacy rows,
@@ -288,18 +289,41 @@ migrate the group's contract tests — all together.
 
 ## Phase 13 — Teardown (PR) (FR6)
 
-- [ ] T022 Delete the catch-all `/{any*}` bridge from `build-server.ts`,
-  `handleApiRoute` + the `API_ROUTES` table + the manual gates in
-  `routes/index.ts`, the `getRequiredScope`/`SCOPE_OVERRIDES` maps in
-  `routes/auth.ts`, and the second body cap in `routes/http.ts`. No `node:http`
-  `createServer` remains in application code. (SC-1)
+> **DONE.** lore-api is pure hapi. Full suite green (350 tests, 44 files).
+
+- [x] T022 Deleted the catch-all `/{any*}` bridge + `bridgeRequest` + the
+  bridge's `traceHttp` call from `build-server.ts`; deleted `routes/index.ts`
+  (the whole `handleApiRoute` dispatcher + `API_ROUTES` + manual
+  rate-limit/authExempt gates), `routes/http.ts` (its `json`/`readBody`/
+  `readJsonBody`/`repoFromReposUrl` were unused by native routes), and
+  `getRequiredScope` + the empty scope maps from `routes/auth.ts`. Trimmed the
+  `routes.ts` barrel to just the `triggerAgent*` re-exports. Deleted the two
+  bridge test suites (`dispatch.test.ts`, `build-server.test.ts`). Removed the
+  now-dead `/{any*}` guard from the rate-limit ext.
+- [x] **Kept** (still live): `rateLimit`/`RateBucket` (rate-limit ext),
+  `resolveTokenScopes`/`validateClientToken` (bearer-scope + healthz).
+- [x] **Added `server/plugins/tracing.ts`** — a native onRequest/onPreResponse
+  span ext (Floor's `registerRequestTracing` pattern) restoring per-request OTel
+  spans on every native route, replacing the bridge's manual `traceHttp` and
+  clearing the observability debt tracked since Phase 3. (SC-1, FR6)
 
 ## Phase 14 — Verify
 
-- [ ] T023 Full green: `apps/lore-api` builds + typechecks + tests; integration
-  suite (`proxy`/`pipeline`/`webhook`) drives the hapi server via `buildServer`
-  (SC-2); auth matrix preserved for every route — 401 missing, 403 under-scoped,
-  `LORE_INGEST_TOKEN` full (SC-3); rate-limit thresholds + `Retry-After: 60`
-  intact (SC-4); `grep -r "createServer" apps/lore-api/src` clean outside tests
-  and `@hapi/hapi` declared (SC-1); each migration PR was independently revertable
-  with no mid-migration 404s (SC-5).
+> **DONE.** All success criteria met.
+
+- [x] T023
+  - **SC-1** — `grep -r createServer apps/lore-api/src` returns nothing; no
+    `node:http` `createServer` in app code. `@hapi/hapi ^21.4.9` is a declared
+    dependency.
+  - **SC-2** — `integration-tests/proxy.test.ts` drives the hapi server via
+    `buildServer().start()` (typechecks; DB-gated in CI).
+  - **SC-3** — auth matrix preserved: `bearer-scope.test.ts` proves 401 (missing),
+    403 (under-scoped), and `LORE_INGEST_TOKEN` full access; each migrated group
+    kept its own auth assertions.
+  - **SC-4** — rate-limit thresholds intact: `rate-limit.test.ts` proves the
+    default bucket trips at 201, the task bucket at 61, `Retry-After: 60`, and
+    `/healthz` exempt.
+  - **SC-5** — one independently-revertable PR/commit per phase (68c0288 …
+    teardown), no mid-migration 404s (hapi hosted 100% from PR #1).
+  - `apps/lore-api` typechecks (`tsc --noEmit`) and the full suite is green
+    (350 tests).

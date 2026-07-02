@@ -40,7 +40,7 @@ describe("rate-limit ext", () => {
     expect(last.statusCode).toBe(429);
   });
 
-  it("counts a bridged route once — the 200th passes and the 201st trips (no double-count)", async () => {
+  it("counts each request once — the 200th passes and the 201st trips", async () => {
     const server = buildServer(() => null);
     const hit = () => server.inject({ method: "GET", url: "/api/repo-status?repo=o/r", headers: AUTH });
     let secondToLast;

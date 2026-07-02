@@ -1,7 +1,8 @@
 /**
- * Cross-cutting request gating: in-memory rate limiting and per-client
- * bearer-token scope auth. The dispatcher runs these before delegating
- * to any handler.
+ * Cross-cutting auth primitives: the in-memory sliding-window `rateLimit`
+ * (driven by the `rate-limit` hapi ext) and per-client token resolution
+ * (`resolveTokenScopes`, wrapped by `validateClientToken`), used by the
+ * `bearer-scope` auth strategy and the healthz handler's own bearer check.
  */
 
 import type { Pool } from "pg";
@@ -35,26 +36,6 @@ export function rateLimit(bucket: RateBucket): boolean {
 // ── Per-client token auth ───────────────────────────────────────────
 
 export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
-
-const ROUTE_SCOPES: Record<string, TokenScope> = {};
-
-// All route groups migrated to native hapi routes (Phase 12), which enforce
-// scope declaratively via bearerScope — so both maps are now empty and
-// getRequiredScope always returns the default. Kept only until the legacy
-// dispatcher is deleted at teardown (Phase 13).
-const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[] }> = [];
-
-export function getRequiredScope(url: string, method = "GET"): TokenScope {
-  for (const override of SCOPE_OVERRIDES) {
-    if (override.re.test(url) && (!override.methods || override.methods.includes(method))) {
-      return override.scope;
-    }
-  }
-  for (const [prefix, scope] of Object.entries(ROUTE_SCOPES)) {
-    if (url.startsWith(prefix)) return scope;
-  }
-  return "read";
-}
 
 const ALL_SCOPES: TokenScope[] = ["read", "write", "task", "webhook", "admin"];
 
