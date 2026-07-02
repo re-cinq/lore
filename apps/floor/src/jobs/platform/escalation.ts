@@ -1,6 +1,12 @@
-import type { Octokit } from "octokit";
 import { withBackoff } from "@re-cinq/lore-shared/lib/backoff.js";
+import { projectFor } from "../../composition/project-boot.js";
 import { writeAuditLog } from "../dark-factory/audit.js";
+
+/** The minimum issue-creation surface escalate needs — the Project facade's
+ *  `issues` satisfies it; injectable for tests. */
+export interface IssueCreator {
+  create(title: string, body: string, labels?: string[]): Promise<{ number: number; url?: string }>;
+}
 
 export type EscalationReason =
   | "validation_failed_twice"
@@ -28,7 +34,8 @@ export interface EscalateInput {
    * failing test output). Inlined into the Issue body verbatim.
    */
   failingPhaseOutput?: string;
-  octokit: Octokit;
+  /** Issue-creation surface — defaults to the Project facade for `repo`. */
+  issues?: IssueCreator;
   /**
    * Slack-style notifier. Wired by the caller to whatever notification
    * surface is configured. Called with `level=escalation`. Receives the
@@ -66,12 +73,8 @@ export async function escalate(input: EscalateInput): Promise<EscalateResult> {
   const body = renderEscalationBody(input);
   const title = `[lore] needs-human-help: ${input.reason} on ${input.branchName}`;
 
-  const issue = await createIssueWithBackoff({
-    octokit: input.octokit,
-    repo: input.repo,
-    title,
-    body,
-  });
+  const issues = input.issues ?? (await projectFor(input.repo)).issues;
+  const issue = await createIssueWithBackoff(issues, title, body);
 
   if (issue.success) {
     await writeAuditLogSafe({
@@ -179,29 +182,20 @@ interface CreateIssueFailure {
   error: Error;
 }
 
-async function createIssueWithBackoff(opts: {
-  octokit: Octokit;
-  repo: string;
-  title: string;
-  body: string;
-}): Promise<CreateIssueResult | CreateIssueFailure> {
-  const [owner, name] = opts.repo.split("/");
+async function createIssueWithBackoff(
+  issues: IssueCreator,
+  title: string,
+  body: string,
+): Promise<CreateIssueResult | CreateIssueFailure> {
   try {
-    const response = await withBackoff(
-      () =>
-        opts.octokit.rest.issues.create({
-          owner,
-          repo: name,
-          title: opts.title,
-          body: opts.body,
-          labels: ["needs-human-help", "lore-managed"],
-        }),
+    const issue = await withBackoff(
+      () => issues.create(title, body, ["needs-human-help", "lore-managed"]),
       { delaysMs: RETRY_DELAYS_MS },
     );
     return {
       success: true,
-      issueNumber: response.data.number,
-      issueUrl: response.data.html_url,
+      issueNumber: issue.number,
+      issueUrl: issue.url ?? "",
     };
   } catch (err) {
     return { success: false, error: err as Error };

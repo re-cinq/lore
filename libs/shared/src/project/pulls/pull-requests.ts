@@ -9,6 +9,7 @@ import type {
   PullCommit,
   PullStats,
   CiConclusion,
+  CheckRun,
 } from "./pull-requests-port.js";
 
 /**
@@ -87,5 +88,13 @@ export class PullRequests {
 
   ciConclusion(ref: string): Promise<CiConclusion> {
     return this.pulls.ciConclusion(this.repo, ref);
+  }
+
+  listFiles(number: number): Promise<string[]> {
+    return this.pulls.listFiles(this.repo, number);
+  }
+
+  listChecks(ref: string): Promise<CheckRun[]> {
+    return this.pulls.listChecks(this.repo, ref);
   }
 }

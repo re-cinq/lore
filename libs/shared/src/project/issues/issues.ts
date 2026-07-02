@@ -22,6 +22,10 @@ export class IssueCollection {
     return this.github.createIssue(this.repo, title, body, labels);
   }
 
+  createLabels(labels: Array<{ name: string; color?: string; description?: string }>): Promise<void> {
+    return this.github.createLabels(this.repo, labels);
+  }
+
   comment(number: number, body: string): Promise<void> {
     return this.github.commentOnIssue(this.repo, number, body);
   }

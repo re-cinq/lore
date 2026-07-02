@@ -24,6 +24,7 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
       issues.push(ref);
       return ref;
     },
+    createLabels: async () => {},
     commentOnIssue: async (_repo, number, body) => {
       calls.push(`comment:${number}:${body}`);
     },
