@@ -22,13 +22,15 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const body = rawBody(request);
       const slackSecret = process.env.LORE_SLACK_SIGNING_SECRET;
-      if (!slackSecret) return h.response("Slack signing secret not configured").code(503);
+      // Plain-string error bodies: pin text/plain (hapi would default a string to
+      // text/html) to match the legacy node:http `res.end("…")` responses.
+      if (!slackSecret) return h.response("Slack signing secret not configured").type("text/plain").code(503);
 
       const timestamp = request.headers["x-slack-request-timestamp"] as string;
       const slackSig = request.headers["x-slack-signature"] as string;
-      if (!timestamp || !slackSig) return h.response("Unauthorized").code(401);
-      if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return h.response("Request too old").code(401);
-      if (!verifySlackSignature(slackSecret, timestamp, slackSig, body)) return h.response("Invalid signature").code(401);
+      if (!timestamp || !slackSig) return h.response("Unauthorized").type("text/plain").code(401);
+      if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return h.response("Request too old").type("text/plain").code(401);
+      if (!verifySlackSignature(slackSecret, timestamp, slackSig, body)) return h.response("Invalid signature").type("text/plain").code(401);
 
       const params = new URLSearchParams(body);
 

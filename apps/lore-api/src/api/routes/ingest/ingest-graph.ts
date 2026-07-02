@@ -29,8 +29,13 @@ export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
     options: { ...bearerScope("write"), payload: { parse: false } },
     handler: async (request, h) => {
       const repo = `${request.params.owner}/${request.params.repo}`;
-      const raw = rawBody(request);
-      const body = (raw ? JSON.parse(raw) : {}) as IngestGraphBody;
+      let body: IngestGraphBody;
+      try {
+        const raw = rawBody(request);
+        body = (raw ? JSON.parse(raw) : {}) as IngestGraphBody;
+      } catch (err) {
+        return h.response({ error: "invalid_body", detail: (err as Error).message }).code(400);
+      }
 
       const requested = body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
       const unsupported = requested.filter((k) => !DOC_KINDS.has(k));

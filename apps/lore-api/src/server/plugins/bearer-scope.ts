@@ -9,8 +9,8 @@
  * 403 `{ error: "insufficient scope" }`. The LORE_INGEST_TOKEN full-access
  * fallback is preserved inside `resolveTokenScopes`.
  *
- * Routes opt in with `options: bearerScope("read")`; the catch-all bridge keeps
- * `auth: false` (the legacy dispatcher still gates its own requests).
+ * Routes opt in with `options: bearerScope("read")`; webhook routes (their own
+ * HMAC verification) and `/healthz` set `auth: false`.
  */
 
 import Boom from "@hapi/boom";

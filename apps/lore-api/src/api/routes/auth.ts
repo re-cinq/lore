@@ -67,8 +67,9 @@ export async function resolveTokenScopes(pool: Pool | null, bearerToken: string)
 }
 
 /**
- * Validate a per-client token against the DB for a required scope. Retained for
- * the legacy dispatcher; native routes use the bearer-scope hapi strategy.
+ * Validate a per-client token against the DB for a required scope. Used by the
+ * healthz handler's own optional bearer check; guarded routes use the
+ * bearer-scope hapi strategy (which shares `resolveTokenScopes`).
  */
 export async function validateClientToken(
   pool: Pool | null,

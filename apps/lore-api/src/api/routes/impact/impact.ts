@@ -39,7 +39,12 @@ export function impactRoute(): ServerRoute {
     options: { ...bearerScope("write"), payload: { parse: false, maxBytes: 2 * 1_048_576 } },
     handler: async (request, h) => {
       const repo = `${request.params.owner}/${request.params.repo}`;
-      const body = parseJsonBodyCapped(request) as ImpactBody;
+      let body: ImpactBody;
+      try {
+        body = parseJsonBodyCapped(request) as ImpactBody;
+      } catch (err) {
+        return h.response({ error: "invalid_body", detail: (err as Error).message }).code(400);
+      }
       const files = Array.isArray(body.files) ? body.files : [];
 
       const report = await safeComputeImpact(repo, files);

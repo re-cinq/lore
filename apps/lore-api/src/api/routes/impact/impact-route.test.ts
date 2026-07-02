@@ -34,4 +34,15 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
     const res = await impact({ files: [] }, { authorization: "Bearer not-a-real-token" });
     expect(res.statusCode).toBe(403);
   });
+
+  it("returns 400 on an unparseable body", async () => {
+    const res = await buildServer(() => makePool() as any).inject({
+      method: "POST",
+      url: "/api/repos/o/r/impact",
+      headers: AUTH,
+      payload: "{not json",
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toMatchObject({ error: "invalid_body" });
+  });
 });

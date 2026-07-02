@@ -35,6 +35,14 @@ describe("GET /api/tasks/by-pr/:owner/:repo/:n", () => {
     expect(res.statusCode).toBe(503);
   });
 
+  it("returns 400 for a non-numeric pr segment", async () => {
+    const pool = makePool();
+    const res = await buildServer(() => pool as any).inject({ method: "GET", url: "/api/tasks/by-pr/o/r/abc", headers: AUTH });
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toEqual({ error: "invalid pr number" });
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
   it("resolves via the DB fast path", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: "t1" }] });

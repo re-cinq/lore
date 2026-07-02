@@ -17,6 +17,10 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
 
       const owner = request.params.owner;
       const repoName = request.params.repo;
+      // The legacy matcher constrained the PR segment to `[0-9]+`; hapi's `{number}`
+      // does not, so reject a non-numeric segment here rather than let a `NaN`
+      // reach the DB/GitHub lookup (which would surface as a confusing 404/500).
+      if (!/^[0-9]+$/.test(request.params.number)) return h.response({ error: "invalid pr number" }).code(400);
       const prNumber = Number.parseInt(request.params.number, 10);
       const repo = `${owner}/${repoName}`;
 

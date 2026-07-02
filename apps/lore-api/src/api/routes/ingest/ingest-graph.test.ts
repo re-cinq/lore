@@ -39,4 +39,17 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
     expect(res.statusCode).toBe(400);
     expect(insertCalls(pool)).toHaveLength(0);
   });
+
+  it("returns 400 on an unparseable body", async () => {
+    const pool = makePool();
+    const res = await buildServer(() => pool as any).inject({
+      method: "POST",
+      url: "/api/repos/o/r/ingest-graph",
+      headers: AUTH,
+      payload: "{not json",
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toMatchObject({ error: "invalid_body" });
+    expect(insertCalls(pool)).toHaveLength(0);
+  });
 });
