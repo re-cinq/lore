@@ -26,6 +26,9 @@ export async function writeEpisode(
   content: string,
   source: string,
   ref: string,
+  // "loretask-watcher" is a preserved external identity (the memory.* agent_id
+  // episodes have always been written under) — kept for continuity, not stale
+  // vocabulary. Do not rename without migrating existing rows.
   agentId: string = "loretask-watcher",
   deps: WriteEpisodeDeps = { memory: memoryLifecycle() },
 ): Promise<string | null> {

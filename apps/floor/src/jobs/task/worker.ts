@@ -32,7 +32,6 @@ import { handleOnboard } from "./handle-onboard.js";
 export { handleFeatureRequest } from "./handle-feature-request.js";
 export { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 export { handleOnboard } from "./handle-onboard.js";
-export { handleGenericOutput } from "./handle-generic-output.js";
 
 // ── Crash recovery ────────────────────────────────────────────────────
 

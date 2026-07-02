@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../composition/project-boot.js";
 
 export interface RepoContext {
@@ -32,11 +33,7 @@ export async function fetchRepoContext(
   fullName: string,
 ): Promise<RepoContext> {
   const [owner, repo] = fullName.split("/");
-  if (!owner || !repo) {
-    throw new Error(
-      `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
-    );
-  }
+  enforceTrue(owner && repo, `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`);
   const project = await projectFor(fullName);
 
   // 1. Fetch top-level tree

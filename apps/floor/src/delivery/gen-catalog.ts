@@ -8,15 +8,24 @@ import { resolve } from "node:path";
 import { parse } from "yaml";
 import { catalogChartYaml, type AgentCatalogConfig } from "../jobs/agent/agent-catalog.js";
 
-const repoRoot = resolve(import.meta.dirname, "../../../..");
-const src = resolve(repoRoot, "scripts/task-types.yaml");
-const dest = resolve(
-  repoRoot,
-  "infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/catalog.yaml",
-);
+function generateCatalog(): void {
+  const repoRoot = resolve(import.meta.dirname, "../../../..");
+  const src = resolve(repoRoot, "scripts/task-types.yaml");
+  const dest = resolve(
+    repoRoot,
+    "infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/catalog.yaml",
+  );
 
-const parsed = parse(readFileSync(src, "utf8")) as {
-  task_types: Record<string, AgentCatalogConfig>;
-};
-writeFileSync(dest, catalogChartYaml(parsed.task_types));
-console.log(`[gen-catalog] wrote ${dest}`);
+  const parsed = parse(readFileSync(src, "utf8")) as {
+    task_types: Record<string, AgentCatalogConfig>;
+  };
+  writeFileSync(dest, catalogChartYaml(parsed.task_types));
+  console.log(`[gen-catalog] wrote ${dest}`);
+}
+
+// Only run the filesystem write when invoked as the CLI, not on import (a bare
+// `import` of this module used to read + write files as a side effect).
+const argv1 = process.argv[1] ?? "";
+if (argv1.endsWith("gen-catalog.js") || argv1.endsWith("gen-catalog.ts")) {
+  generateCatalog();
+}
