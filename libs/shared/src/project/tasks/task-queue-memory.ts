@@ -1,9 +1,11 @@
 import type { PipelineTask } from "../../types.js";
+import { unblockedBy } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
   RecoverableTask,
   StaleTask,
   ReadySpecTask,
+  CompletedSpecTask,
   SpecGroupCount,
   AwaitingApprovalTask,
   TaskPrInfo,
@@ -90,7 +92,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
       }));
   }
 
-  async findReadySpecTasks(): Promise<ReadySpecTask[]> {
+  async findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
     const specTasks = this.tasks.filter((t) => t.task_type === "spec-task");
     const depSatisfied = (task: SeedTask, depId: string): boolean =>
       specTasks.some(
@@ -103,6 +105,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     return specTasks
       .filter((t) => {
         if (t.status !== "pending") return false;
+        if (repo && t.target_repo !== repo) return false;
         const deps = (t.context_bundle?.depends_on as string[] | undefined) ?? [];
         return deps.every((depId) => depSatisfied(t, depId));
       })
@@ -133,12 +136,25 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     }));
   }
 
-  async claimSpecTask(id: string): Promise<boolean> {
+  async claimSpecTask(id: string, agentId = "spec-task-executor"): Promise<boolean> {
     const task = this.tasks.find((t) => t.id === id);
     if (!task || task.status !== "pending") return false;
     task.status = "running";
-    task.agent_id = "spec-task-executor";
+    task.agent_id = agentId;
     return true;
+  }
+
+  async completeSpecTask(id: string): Promise<CompletedSpecTask> {
+    const task = this.tasks.find((t) => t.id === id);
+    if (!task || task.status !== "running") return { completed: false, unblocked: [] };
+    task.status = "completed";
+
+    const specTaskId = task.context_bundle?.spec_task_id as string | undefined;
+    const specSlug = task.context_bundle?.spec_slug as string | undefined;
+    if (!specTaskId || !specSlug) return { completed: true, unblocked: [] };
+
+    const ready = await this.findReadySpecTasks(task.target_repo);
+    return { completed: true, unblocked: unblockedBy(ready, specSlug, specTaskId) };
   }
 
   async awaitingApproval(): Promise<AwaitingApprovalTask[]> {

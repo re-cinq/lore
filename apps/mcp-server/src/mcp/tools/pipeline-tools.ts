@@ -295,7 +295,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           return { content: [{ type: "text" as const, text: "No ready tasks. All tasks are either completed, claimed, or blocked by dependencies." }] };
         }
         const lines = tasks.map((t: any) =>
-          `- **${t.metadata?.spec_task_id}** (${t.id}): ${t.description}`
+          `- **${t.context_bundle?.spec_task_id}** (${t.id}): ${t.description}`
         );
         return { content: [{ type: "text" as const, text: `## Ready tasks\n\n${lines.join('\n')}` }] };
       } catch (err: any) {

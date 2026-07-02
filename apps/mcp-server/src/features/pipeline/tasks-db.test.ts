@@ -103,20 +103,22 @@ describe("syncTasksToDb", () => {
   });
 });
 
+// getReadyTasks / claimTask / completeTask delegate to the shared PgTaskQueue;
+// the queue SQL is covered in libs/shared/.../task-queue.test.ts. These assert
+// the delegation + the mcp-specific audit events.
+
 describe("getReadyTasks", () => {
-  it("returns the rows the dependency query produces", async () => {
+  it("returns the repo-scoped ready set the shared queue produces", async () => {
     const pool = makePool();
     const rows = [
-      { id: "uuid-1", description: "T001: A", status: "pending", context_bundle: { spec_task_id: "T001" }, agent_id: null },
+      { id: "uuid-1", description: "A", context_bundle: { spec_task_id: "T001" }, target_repo: "re-cinq/lore", task_group_id: null },
     ];
     pool.query.mockResolvedValueOnce({ rows });
 
     const result = await getReadyTasks(pool, "re-cinq/lore");
 
     expect(result).toEqual(rows);
-    const sql = pool.query.mock.calls[0][0];
-    expect(sql).toContain("status = 'pending'");
-    expect(sql).toContain("NOT EXISTS");
+    expect(pool.query.mock.calls[0][0]).toContain("t.target_repo = $1");
     expect(pool.query.mock.calls[0][1]).toEqual(["re-cinq/lore"]);
   });
 
@@ -128,55 +130,38 @@ describe("getReadyTasks", () => {
 });
 
 describe("claimTask", () => {
-  it("commits and returns true when a pending task is locked", async () => {
+  it("returns true and records the claim event when a pending task is claimed", async () => {
     const pool = makePool();
-    const client = pool.__client;
-    client.query
-      .mockResolvedValueOnce(undefined) // BEGIN
-      .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] }) // SELECT FOR UPDATE
-      .mockResolvedValueOnce(undefined) // UPDATE
-      .mockResolvedValueOnce(undefined) // INSERT event
-      .mockResolvedValueOnce(undefined); // COMMIT
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] }) // claim CAS wins
+      .mockResolvedValueOnce({ rows: [] }); // recordEvent INSERT
 
     const claimed = await claimTask(pool, "uuid-1", "agent-7");
 
     expect(claimed).toBe(true);
-    const updateCall = client.query.mock.calls[2];
-    expect(updateCall[0]).toContain("status = 'running'");
-    expect(updateCall[1]).toEqual(["uuid-1", "agent-7"]);
-    expect(client.query.mock.calls[4][0]).toBe("COMMIT");
-    expect(client.release).toHaveBeenCalled();
+    expect(pool.query.mock.calls[0][0]).toContain("status = 'running'");
+    expect(pool.query.mock.calls[0][1]).toEqual(["uuid-1", "agent-7"]);
+    expect(pool.query.mock.calls[1][0]).toContain("pipeline.task_events");
+    expect(pool.query.mock.calls[1][1][3]).toContain("lore_claim_task");
   });
 
-  it("rolls back and returns false when the row is already locked or absent", async () => {
+  it("returns false and records no event when the row is already claimed", async () => {
     const pool = makePool();
-    const client = pool.__client;
-    client.query
-      .mockResolvedValueOnce(undefined) // BEGIN
-      .mockResolvedValueOnce({ rows: [] }) // SELECT FOR UPDATE: nothing
-      .mockResolvedValueOnce(undefined); // ROLLBACK
+    pool.query.mockResolvedValueOnce({ rows: [] }); // claim CAS loses
 
     const claimed = await claimTask(pool, "uuid-1", "agent-7");
 
     expect(claimed).toBe(false);
-    expect(client.query.mock.calls[2][0]).toBe("ROLLBACK");
-    expect(client.release).toHaveBeenCalled();
+    expect(pool.query).toHaveBeenCalledTimes(1);
   });
 
-  it("still commits when the event-recording insert throws", async () => {
+  it("still returns true when the event-recording insert throws", async () => {
     const pool = makePool();
-    const client = pool.__client;
-    client.query
-      .mockResolvedValueOnce(undefined) // BEGIN
-      .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] }) // SELECT
-      .mockResolvedValueOnce(undefined) // UPDATE
-      .mockRejectedValueOnce(new Error("task_events missing")) // INSERT event fails
-      .mockResolvedValueOnce(undefined); // COMMIT
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] }) // claim wins
+      .mockRejectedValueOnce(new Error("task_events missing")); // event fails
 
-    const claimed = await claimTask(pool, "uuid-1", "agent-7");
-
-    expect(claimed).toBe(true);
-    expect(client.query.mock.calls[4][0]).toBe("COMMIT");
+    expect(await claimTask(pool, "uuid-1", "agent-7")).toBe(true);
   });
 });
 
@@ -185,68 +170,48 @@ describe("completeTask", () => {
     const pool = makePool();
     pool.query.mockResolvedValueOnce({ rows: [] });
 
-    const result = await completeTask(pool, "missing");
-    expect(result).toEqual({ completed: false, unblocked: [] });
+    expect(await completeTask(pool, "missing")).toEqual({ completed: false, unblocked: [] });
+    expect(pool.query).toHaveBeenCalledTimes(1);
   });
 
   it("returns completed false when the task is not running", async () => {
     const pool = makePool();
     pool.query.mockResolvedValueOnce({
-      rows: [{ id: "uuid-1", status: "pending", context_bundle: {}, target_repo: "re-cinq/lore" }],
+      rows: [{ status: "pending", context_bundle: {}, target_repo: "re-cinq/lore" }],
     });
 
-    const result = await completeTask(pool, "uuid-1");
-    expect(result).toEqual({ completed: false, unblocked: [] });
+    expect(await completeTask(pool, "uuid-1")).toEqual({ completed: false, unblocked: [] });
   });
 
-  it("marks a running task completed with no unblocked dependents", async () => {
+  it("marks a running task completed and records the transition, no slug scan", async () => {
     const pool = makePool();
     pool.query
-      .mockResolvedValueOnce({
-        rows: [{ id: "uuid-1", status: "running", context_bundle: { spec_task_id: "T001", spec_slug: "auth" }, target_repo: "re-cinq/lore" }],
-      }) // load
+      .mockResolvedValueOnce({ rows: [{ status: "running", context_bundle: {}, target_repo: "re-cinq/lore" }] }) // load
       .mockResolvedValueOnce({ rows: [] }) // UPDATE completed
-      .mockResolvedValueOnce({ rows: [] }) // INSERT event
-      .mockResolvedValueOnce({ rows: [] }); // dependents query: none
+      .mockResolvedValueOnce({ rows: [] }); // recordEvent INSERT
 
     const result = await completeTask(pool, "uuid-1");
+
     expect(result).toEqual({ completed: true, unblocked: [] });
     expect(pool.query.mock.calls[1][0]).toContain("status = 'completed'");
+    expect(pool.query).toHaveBeenCalledTimes(3);
   });
 
-  it("returns formatted descriptors for newly unblocked dependents", async () => {
+  it("returns formatted descriptors for newly unblocked same-spec dependents", async () => {
     const pool = makePool();
     pool.query
-      .mockResolvedValueOnce({
-        rows: [{ id: "uuid-1", status: "running", context_bundle: { spec_task_id: "T001", spec_slug: "auth" }, target_repo: "re-cinq/lore" }],
-      })
+      .mockResolvedValueOnce({ rows: [{ status: "running", context_bundle: { spec_task_id: "T001", spec_slug: "auth" }, target_repo: "re-cinq/lore" }] }) // load
       .mockResolvedValueOnce({ rows: [] }) // UPDATE
-      .mockResolvedValueOnce({ rows: [] }) // event
       .mockResolvedValueOnce({
         rows: [
-          { id: "uuid-2", description: "Build B", context_bundle: { spec_task_id: "T002" } },
-          { id: "uuid-3", description: "Build C", context_bundle: { spec_task_id: "T003" } },
+          { id: "uuid-2", description: "Build B", context_bundle: { spec_task_id: "T002", spec_slug: "auth", depends_on: ["T001"] } },
+          { id: "uuid-3", description: "Build C", context_bundle: { spec_task_id: "T003", spec_slug: "auth", depends_on: ["T001"] } },
         ],
-      });
+      }) // findReadySpecTasks
+      .mockResolvedValueOnce({ rows: [] }); // recordEvent INSERT
 
     const result = await completeTask(pool, "uuid-1");
-    expect(result).toEqual({
-      completed: true,
-      unblocked: ["T002: Build B", "T003: Build C"],
-    });
-  });
 
-  it("skips the dependents query when the completed task lacks slug metadata", async () => {
-    const pool = makePool();
-    pool.query
-      .mockResolvedValueOnce({
-        rows: [{ id: "uuid-1", status: "running", context_bundle: {}, target_repo: "re-cinq/lore" }],
-      })
-      .mockResolvedValueOnce({ rows: [] }) // UPDATE
-      .mockResolvedValueOnce({ rows: [] }); // event
-
-    const result = await completeTask(pool, "uuid-1");
-    expect(result).toEqual({ completed: true, unblocked: [] });
-    expect(pool.query).toHaveBeenCalledTimes(3);
+    expect(result).toEqual({ completed: true, unblocked: ["T002: Build B", "T003: Build C"] });
   });
 });
