@@ -8,8 +8,8 @@
 import { randomUUID } from "node:crypto";
 import { parseTasks, inferPhaseDependencies, syncTasksToDb, specSlugFromBranch } from "@re-cinq/lore-shared";
 import { getPool } from "../kernel/db.js";
+import { projectFor } from "../composition/project-boot.js";
 import { settings, taskStore, taskQueue } from "../kernel/queues.js";
-import { GitHubPlatform } from "./platform/github.js";
 import { runReviewReactorForPR } from "./review/review-reactor.js";
 import { tryAutoMergeForCompletedTask } from "./merge/auto-merge-trigger.js";
 import type { EventHandler } from "../main-loop/types.js";
@@ -65,10 +65,10 @@ export const issuesLabeled: EventHandler = async (params) => {
   else if (issue.labels.includes("lore:review")) taskType = "review";
   else if (issue.labels.includes("lore:runbook")) taskType = "runbook";
 
-  const gh = new GitHubPlatform();
+  const issues = (await projectFor(repo)).issues;
   const existing = await taskQueue().activeTaskByIssue(repo, issue.number);
   if (existing) {
-    await gh.commentOnIssue(repo, issue.number, `Already being worked on: task \`${existing.id}\``);
+    await issues.comment(issue.number, `Already being worked on: task \`${existing.id}\``);
     return;
   }
 
@@ -86,8 +86,8 @@ export const issuesLabeled: EventHandler = async (params) => {
   });
   await taskQueue().setColumns(task.task_id, { issue_number: issue.number, issue_url: issue.html_url });
   await Promise.allSettled([
-    gh.commentOnIssue(repo, issue.number, `Lore agent is working on this. Task: \`${task.task_id}\``),
-    gh.addIssueLabel(repo, issue.number, "lore-managed"),
+    issues.comment(issue.number, `Lore agent is working on this. Task: \`${task.task_id}\``),
+    issues.addLabel(issue.number, "lore-managed"),
   ]);
 };
 
@@ -105,8 +105,10 @@ export const specPrMerge: EventHandler = async (params) => {
 
   if (await taskQueue().hasSpecTasksForSlug(repo, specSlug)) return; // already synced
 
-  const gh = new GitHubPlatform();
-  const tasksContent = await gh.getFileContent(repo, `specs/${specSlug}/tasks.md`, merge_commit_sha ?? undefined);
+  const tasksContent = await (await projectFor(repo)).repo.read(
+    `specs/${specSlug}/tasks.md`,
+    merge_commit_sha ?? undefined,
+  );
   if (!tasksContent) return;
 
   const withDeps = inferPhaseDependencies(parseTasks(tasksContent));

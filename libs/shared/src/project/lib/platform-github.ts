@@ -11,6 +11,7 @@ import type {
   PullCommit,
   PullStats,
   CiConclusion,
+  CheckRun,
 } from "../pulls/pull-requests-port.js";
 
 /**
@@ -35,7 +36,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listIssues(repo: string, filter?: IssueFilter): Promise<IssueRef[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.issues.listForRepo({
+    const data = await ok.paginate(ok.rest.issues.listForRepo, {
       owner,
       repo: name,
       state: filter?.state ?? "open",
@@ -82,6 +83,8 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     const branch = ref ?? (await this.defaultBranch(repo));
+    // getTree is not a paginated endpoint (it returns the full recursive tree, truncated
+    // only past ~100k entries) — leave it as a single call.
     const { data } = await ok.rest.git.getTree({ owner, repo: name, tree_sha: branch, recursive: "true" });
     return (data.tree ?? [])
       .filter((e) => e.type === "blob" && typeof e.path === "string")
@@ -95,7 +98,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listCommitsSince(repo: string, since: string): Promise<Array<{ sha: string; files: string[] }>> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data: commits } = await ok.rest.repos.listCommits({ owner, repo: name, since, per_page: 100 });
+    const commits = await ok.paginate(ok.rest.repos.listCommits, { owner, repo: name, since, per_page: 100 });
     const result: Array<{ sha: string; files: string[] }> = [];
     for (const c of commits) {
       try {
@@ -138,6 +141,21 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
     const { data } = await ok.rest.issues.create({ owner, repo: name, title, body, labels });
     return { repo, number: data.number, title, state: "open", labels, url: data.html_url };
+  }
+
+  async createLabels(
+    repo: string,
+    labels: Array<{ name: string; color?: string; description?: string }>,
+  ): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    for (const label of labels) {
+      try {
+        await ok.rest.issues.createLabel({ owner, repo: name, name: label.name, color: label.color, description: label.description });
+      } catch (err) {
+        if ((err as { status?: number }).status !== 422) throw err; // 422 = already exists
+      }
+    }
   }
 
   async commentOnIssue(repo: string, number: number, body: string): Promise<void> {
@@ -215,7 +233,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async list(repo: string): Promise<PullRef[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.list({ owner, repo: name, state: "open", per_page: 100 });
+    const data = await ok.paginate(ok.rest.pulls.list, { owner, repo: name, state: "open", per_page: 100 });
     return data.map((pr) => toPullRef(repo, pr));
   }
 
@@ -293,7 +311,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listReviews(repo: string, number: number): Promise<PullReview[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.listReviews({ owner, repo: name, pull_number: number });
+    const data = await ok.paginate(ok.rest.pulls.listReviews, { owner, repo: name, pull_number: number });
     return data.map((r) => ({
       id: r.id,
       state: r.state,
@@ -306,7 +324,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listComments(repo: string, number: number): Promise<ReviewComment[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.listReviewComments({ owner, repo: name, pull_number: number });
+    const data = await ok.paginate(ok.rest.pulls.listReviewComments, { owner, repo: name, pull_number: number });
     return data.map((c) => ({
       id: c.id,
       path: c.path,
@@ -320,7 +338,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listIssueComments(repo: string, number: number): Promise<IssueComment[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.issues.listComments({ owner, repo: name, issue_number: number });
+    const data = await ok.paginate(ok.rest.issues.listComments, { owner, repo: name, issue_number: number });
     return data
       .filter((c) => !c.body?.startsWith("PR created:") && !c.body?.startsWith("Agent ") && !c.body?.startsWith("Task "))
       .map((c) => ({ body: c.body ?? "", user: c.user?.login ?? "unknown", created_at: c.created_at }));
@@ -329,7 +347,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listCommits(repo: string, number: number): Promise<PullCommit[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.listCommits({ owner, repo: name, pull_number: number });
+    const data = await ok.paginate(ok.rest.pulls.listCommits, { owner, repo: name, pull_number: number });
     return data.map((c) => ({ sha: c.sha, message: c.commit.message, date: c.commit.committer?.date ?? "" }));
   }
 
@@ -372,11 +390,28 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return data.files?.length ?? 0;
   }
 
-  async ciConclusion(repo: string, ref: string): Promise<CiConclusion> {
+  /** All check runs for a ref, paginated once — the source for both ciConclusion
+   *  and the raw listChecks the auto-merge gate reads. */
+  private async checkRuns(repo: string, ref: string): Promise<CheckRun[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.checks.listForRef({ owner, repo: name, ref });
-    const runs = data.check_runs ?? [];
+    const runs = await ok.paginate(ok.rest.checks.listForRef, { owner, repo: name, ref, per_page: 100 });
+    return runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion }));
+  }
+
+  listChecks(repo: string, ref: string): Promise<CheckRun[]> {
+    return this.checkRuns(repo, ref);
+  }
+
+  async listFiles(repo: string, number: number): Promise<string[]> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const files = await ok.paginate(ok.rest.pulls.listFiles, { owner, repo: name, pull_number: number, per_page: 100 });
+    return files.map((f) => f.filename);
+  }
+
+  async ciConclusion(repo: string, ref: string): Promise<CiConclusion> {
+    const runs = await this.checkRuns(repo, ref);
     if (runs.length === 0) return "none";
     if (runs.some((r) => r.status !== "completed")) return "pending";
     const failed = new Set(["failure", "cancelled", "timed_out", "action_required", "stale"]);
@@ -416,6 +451,18 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   }
 
   // ── auth ────────────────────────────────────────────────────────────
+
+  /**
+   * The GitHub App installation token, for the git-auth helper's clone/push
+   * credential. Not on GitHubPort — its consumers (GithubTokenMinter, the git-auth
+   * call sites) depend on the structural `{ getInstallationToken(): Promise<string> }`,
+   * which keeps the Project facade token-free.
+   */
+  async getInstallationToken(): Promise<string> {
+    const ok = await this.octo();
+    const auth = (await ok.auth({ type: "installation" })) as { token: string };
+    return auth.token;
+  }
 
   private octo(): Promise<Octokit> {
     if (!this.client) this.client = this.build();

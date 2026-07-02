@@ -26,7 +26,8 @@ import {
   type FloorAssemblyLinePorts,
 } from "./floor-assembly-line.js";
 import { KubeAgentApi } from "../station/kube-agent-api.js";
-import { GitHubPlatform } from "../platform/github.js";
+import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
+import { gitAuthArgs, repoCloneUrl } from "@re-cinq/lore-shared/project/workspace/git-auth.js";
 import { buildPrompt } from "../../kernel/config.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
 import { leaseBackendForEnv } from "../../main-loop/lease/lease-backend.js";
@@ -82,16 +83,24 @@ export interface FloorAssemblyLineRuntime {
   resolvePrompt: (promptRef: string, description: string) => string;
   leaseBackend: LeaseBackend;
   episodeDeps: FloorAssemblyLinePorts["episodeDeps"];
-  /** GitHub token-bearing clone URL for the task's repo (the token is minted per call). */
-  cloneUrl: (repo: string) => Promise<string>;
+  /** Credential-free clone URL + per-invocation git auth args (token via extraheader,
+   *  never in the URL or `.git/config`). The token is minted per call. */
+  cloneAuth: (repo: string) => Promise<{ url: string; authArgs: string[] }>;
 }
 
 /** Clone the task's working tree for the stage-commit state: resume the branch if it
  *  already exists, otherwise bootstrap it off the default — a task's first run has no
- *  branch yet, so `clone --branch <missing>` would die with "Remote branch not found". */
-export async function checkoutBranch(repo: string, branch: string, cloneUrl: string): Promise<string> {
+ *  branch yet, so `clone --branch <missing>` would die with "Remote branch not found".
+ *  `authArgs` carries the token as an http.extraheader override (empty for a local
+ *  bare-repo path in tests). */
+export async function checkoutBranch(
+  repo: string,
+  branch: string,
+  url: string,
+  authArgs: string[] = [],
+): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), `lore-assembly-line-${repo.replace("/", "-")}-`));
-  await execFile("git", ["clone", cloneUrl, dir]);
+  await execFile("git", [...authArgs, "clone", url, dir]);
   try {
     await execFile("git", ["-C", dir, "checkout", branch]);
   } catch {
@@ -112,7 +121,8 @@ export async function runFloorAssemblyLineForTask(
     throw new Error(`No workflow for task type "${task.taskType}"`);
   }
   const holder = os.hostname();
-  const gitDir = await checkoutBranch(task.targetRepo, task.branch, await rt.cloneUrl(task.targetRepo));
+  const { url, authArgs } = await rt.cloneAuth(task.targetRepo);
+  const gitDir = await checkoutBranch(task.targetRepo, task.branch, url, authArgs);
   try {
     const ports: FloorAssemblyLinePorts = {
       dispatchAgent: async (spec) => {
@@ -140,7 +150,7 @@ export async function runFloorAssemblyLineForTask(
  *  writers, and a token-bearing clone URL. IO shell — verified by the minikube smoke. */
 export function floorAssemblyLineRuntime(dispatcher: StationBackend): FloorAssemblyLineRuntime {
   const kubeApi = new KubeAgentApi();
-  const gh = new GitHubPlatform();
+  const gh = new PlatformGitHub(process.env);
   return {
     dispatcher: { launch: (spec) => dispatcher.launch(spec) },
     status: { read: (name) => kubeApi.getStatus(name) },
@@ -148,7 +158,10 @@ export function floorAssemblyLineRuntime(dispatcher: StationBackend): FloorAssem
     resolvePrompt: (promptRef, description) => buildPrompt(promptRef, description),
     leaseBackend: leaseBackendForEnv(),
     episodeDeps: { writeEpisode, writeEpisodeWithCuration, curate: true },
-    cloneUrl: async (repo) =>
-      `https://x-access-token:${await gh.getInstallationToken()}@github.com/${repo}.git`,
+    // Token rides in authArgs (extraheader), not the URL — no leak into .git/config.
+    cloneAuth: async (repo) => ({
+      url: repoCloneUrl(repo),
+      authArgs: gitAuthArgs(await gh.getInstallationToken()),
+    }),
   };
 }

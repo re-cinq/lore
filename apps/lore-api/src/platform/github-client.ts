@@ -138,21 +138,39 @@ export async function fetchPrStatus(repo: string, prNumber: number): Promise<Rec
     ? reviews.map((r: any) => ({ user: r.user?.login || "unknown", state: r.state, submitted_at: r.submitted_at || "" }))
     : [];
 
-  let computed_status: string;
-  if (pr.merged) computed_status = "merged";
-  else if (pr.state === "closed") computed_status = "closed";
-  else if (pr.draft) computed_status = "draft";
-  else if (checks.some((c: any) => c.conclusion === "failure" || c.conclusion === "timed_out")) computed_status = "checks-failing";
-  else if (reviewList.some((r: any) => r.state === "CHANGES_REQUESTED")) computed_status = "changes-requested";
-  else if (
-    reviewList.some((r: any) => r.state === "APPROVED") &&
-    checks.every((c: any) => c.conclusion === "success" || c.conclusion === "skipped" || c.conclusion === null)
-  ) computed_status = "approved";
-  else computed_status = "open";
+  const computed_status = deriveComputedStatus(pr, checks, reviewList);
 
   return {
     number: pr.number, title: pr.title, state: pr.state, draft: pr.draft ?? false,
     merged: pr.merged, mergeable: pr.mergeable ?? null, html_url: pr.html_url,
     checks, reviews: reviewList, computed_status,
   };
+}
+
+export interface PrCheck { name?: string; status?: string; conclusion: string | null }
+export interface PrReview { user: string; state: string; submitted_at: string }
+
+/**
+ * The badge state web-ui shows for a PR. Pure so the precedence is testable.
+ * "approved" requires every check to have *concluded* success/skipped — a check
+ * still running (conclusion === null) must NOT count as approved, or the badge
+ * flips green before CI finishes.
+ */
+export function deriveComputedStatus(
+  pr: { merged?: boolean; state?: string; draft?: boolean },
+  checks: PrCheck[],
+  reviews: PrReview[],
+): string {
+  if (pr.merged) return "merged";
+  if (pr.state === "closed") return "closed";
+  if (pr.draft) return "draft";
+  if (checks.some((c) => c.conclusion === "failure" || c.conclusion === "timed_out")) return "checks-failing";
+  if (reviews.some((r) => r.state === "CHANGES_REQUESTED")) return "changes-requested";
+  if (
+    reviews.some((r) => r.state === "APPROVED") &&
+    checks.every((c) => c.conclusion === "success" || c.conclusion === "skipped")
+  ) {
+    return "approved";
+  }
+  return "open";
 }

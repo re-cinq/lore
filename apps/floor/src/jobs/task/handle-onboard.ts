@@ -333,17 +333,15 @@ export async function handleOnboard(
 
   // Create Lore dispatch labels on the repo
   try {
-    const { GitHubPlatform } = await import("../platform/github.js");
-    const gh = new GitHubPlatform();
-    await gh.createLabels(targetRepo, [
+    await project.issues.createLabels([
       { name: "lore", color: "7B61FF", description: "Dispatch to Lore agent" },
       { name: "lore:implementation", color: "0E8A16", description: "Lore: implementation task" },
       { name: "lore:review", color: "1D76DB", description: "Lore: review task" },
       { name: "lore:runbook", color: "D93F0B", description: "Lore: runbook task" },
     ]);
     console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);
-  } catch (err: any) {
-    console.warn(`[floor] Failed to create labels on ${targetRepo}: ${err.message}`);
+  } catch (err) {
+    console.warn(`[floor] Failed to create labels on ${targetRepo}: ${(err as Error).message}`);
   }
 
   // Configure ingest secrets on the repo so lore-ingest.yml can call back

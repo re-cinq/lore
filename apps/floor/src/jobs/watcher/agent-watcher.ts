@@ -36,7 +36,7 @@ import {
   KubeSecretKeyWriter,
   KubeCatalogApi,
 } from "../station/kube-token-provisioner.js";
-import { GitHubPlatform } from "../platform/github.js";
+import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";
@@ -50,7 +50,7 @@ export function agentsNamespace(): string {
  *  triple (#697). Idempotent (404s ignored); co-located with Agent-CR deletion. */
 function cleanupPerTaskToken(taskId: string): Promise<void> {
   return new KubeTokenProvisioner(
-    new GithubTokenMinter(new GitHubPlatform()),
+    new GithubTokenMinter(new PlatformGitHub(process.env)),
     new KubeSecretKeyWriter(),
     new KubeCatalogApi(),
   )
