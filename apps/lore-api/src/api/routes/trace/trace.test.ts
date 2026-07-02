@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { handleApiRoute } from "../../routes.js";
-import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { buildServer } from "../../../server/build-server.js";
+import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
+const get = (url: string, headers?: Record<string, string>) =>
+  buildServer(() => makePool() as any).inject({ method: "GET", url, headers });
 
 /**
- * GET /api/repos/:o/:r/trace/{kind} and GET /api/trace/specs — the
- * spec-traceability read routes. With LORE_DGRAPH_HTTP unset (the shared-server
- * default) the global viewer fails soft to an empty list, and the per-repo
- * route's pre-graph validation (404 unknown kind, 400 missing path) is reachable
- * without a live backend. The graph-read branches need live Dgraph.
+ * GET /api/repos/:o/:r/trace/{kind} and GET /api/trace/specs — the read routes.
+ * With LORE_DGRAPH_HTTP unset the global viewer fails soft to an empty list, and
+ * the per-repo route's pre-graph validation (404 unknown kind) is reachable.
  */
 describe("GET /api/repos/:owner/:repo/trace/:kind", () => {
   useRateLimitSafeClock();
@@ -23,33 +23,18 @@ describe("GET /api/repos/:owner/:repo/trace/:kind", () => {
   });
 
   it("returns 404 for an unknown trace kind", async () => {
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({ url: "/api/repos/o/r/trace/bogus", method: "GET", headers: AUTH }),
-      res,
-      makePool() as any,
-    );
+    const res = await get("/api/repos/o/r/trace/bogus", AUTH);
     expect(res.statusCode).toBe(404);
-    expect(res.json).toEqual({ error: "not found" });
+    expect(res.result).toEqual({ error: "not found" });
   });
 
   it("returns 401 without a bearer token", async () => {
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({ url: "/api/repos/o/r/trace/specs", method: "GET" }),
-      res,
-      makePool() as any,
-    );
+    const res = await get("/api/repos/o/r/trace/specs");
     expect(res.statusCode).toBe(401);
   });
 
   it("passes read-scope auth for a matched kind (no 401/403 gate hit)", async () => {
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({ url: "/api/repos/o/r/trace/bogus", method: "GET", headers: AUTH }),
-      res,
-      makePool() as any,
-    );
+    const res = await get("/api/repos/o/r/trace/bogus", AUTH);
     expect(res.statusCode).not.toBe(401);
     expect(res.statusCode).not.toBe(403);
   });
@@ -67,23 +52,13 @@ describe("GET /api/trace/specs", () => {
   });
 
   it("returns 200 with an empty specs list when Dgraph is not configured", async () => {
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({ url: "/api/trace/specs", method: "GET", headers: AUTH }),
-      res,
-      makePool() as any,
-    );
+    const res = await get("/api/trace/specs", AUTH);
     expect(res.statusCode).toBe(200);
-    expect(res.json).toEqual({ specs: [] });
+    expect(res.result).toEqual({ specs: [] });
   });
 
   it("returns 401 without a bearer token", async () => {
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({ url: "/api/trace/specs", method: "GET" }),
-      res,
-      makePool() as any,
-    );
+    const res = await get("/api/trace/specs");
     expect(res.statusCode).toBe(401);
   });
 });

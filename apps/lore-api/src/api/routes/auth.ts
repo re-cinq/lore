@@ -38,28 +38,11 @@ export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 
 const ROUTE_SCOPES: Record<string, TokenScope> = {};
 
-// URL patterns that override the prefix-based scope mapping for routes
-// that need stronger scope than their generic prefix would imply. Keep
-// these explicit so future `/api/repos/:o/:r/...` routes don't silently
-// inherit admin scope.
-const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[] }> = [
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$|\/)/,
-    scope: "write",
-  },
-  // Feature planning: list/get are read; create/refine/finalize/split and the
-  // pod result POST are write. Method-specific so a read token can poll.
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/features(\/.*)?(\?|$)/,
-    scope: "read",
-    methods: ["GET"],
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/features(\/.*)?(\?|$)/,
-    scope: "write",
-    methods: ["POST", "PUT"],
-  },
-];
+// All route groups migrated to native hapi routes (Phase 12), which enforce
+// scope declaratively via bearerScope — so both maps are now empty and
+// getRequiredScope always returns the default. Kept only until the legacy
+// dispatcher is deleted at teardown (Phase 13).
+const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[] }> = [];
 
 export function getRequiredScope(url: string, method = "GET"): TokenScope {
   for (const override of SCOPE_OVERRIDES) {

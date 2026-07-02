@@ -123,32 +123,9 @@ describe("handleApiRoute dispatch — auth", () => {
     expect(pool.query).toHaveBeenCalledTimes(1);
   });
 
-  it("grants a higher scope access to a lower-scope route (admin token, write route)", async () => {
-    const pool = makePool();
-    pool.query.mockResolvedValue({ rows: [{ scopes: ["admin"] }] });
-    const res = makeRes();
-    // POST /api/repos/o/r/impact is a still-bridged write-scoped route; an admin
-    // token satisfies it, so auth passes (does not 403) and the route runs.
-    const handled = await handleApiRoute(
-      makeReq({ url: "/api/repos/o/r/impact", method: "POST", headers: { authorization: "Bearer db-admin" }, body: {} }),
-      res,
-      pool as any,
-    );
-    expect(handled).toBe(true);
-    expect(res.statusCode).not.toBe(403);
-  });
-
-  it("returns 403 when the DB token lacks the scope a route needs", async () => {
-    const pool = makePool();
-    pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({ url: "/api/repos/o/r/impact", method: "POST", headers: { authorization: "Bearer db-read" }, body: {} }),
-      res,
-      pool as any,
-    );
-    expect(res.statusCode).toBe(403);
-  });
+  // Per-route scope enforcement is now native (bearer-scope.test.ts); the legacy
+  // dispatcher's getRequiredScope map is empty (all routes migrated), so it only
+  // still gates the presence/validity of a token — covered by the cases above.
 
   it("returns 403 when the token lookup query throws", async () => {
     const pool = makePool();

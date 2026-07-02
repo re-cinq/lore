@@ -12,8 +12,7 @@
  * does not apply to a graph read.
  */
 
-import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Pool } from "pg";
+import type { ServerRoute } from "@hapi/hapi";
 import {
   createDgraphClient,
   computeImpact,
@@ -22,7 +21,8 @@ import {
   type ChangedRange,
   type ImpactReport,
 } from "@re-cinq/lore-shared";
-import { json, readJsonBody, repoFromReposUrl } from "../http.js";
+import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { parseJsonBodyCapped } from "../../../server/raw-body.js";
 
 interface ImpactBody {
   commit?: string;
@@ -32,32 +32,29 @@ interface ImpactBody {
 
 const UNAVAILABLE: ImpactReport = { status: "unavailable", statements: [], orphaned: [], testSelectors: [] };
 
-export async function handleImpactRoute(
-  req: IncomingMessage,
-  res: ServerResponse,
-  _pool: Pool | null,
-): Promise<void> {
-  const repo = repoFromReposUrl(req.url);
-  if (!repo) {
-    json(res, 400, { error: "could not resolve repo from url" });
-    return;
-  }
+export function impactRoute(): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/repos/{owner}/{repo}/impact",
+    options: { ...bearerScope("write"), payload: { parse: false, maxBytes: 2 * 1_048_576 } },
+    handler: async (request, h) => {
+      const repo = `${request.params.owner}/${request.params.repo}`;
+      const body = parseJsonBodyCapped(request) as ImpactBody;
+      const files = Array.isArray(body.files) ? body.files : [];
 
-  const body = (await readJsonBody(req)) as ImpactBody;
-  const files = Array.isArray(body.files) ? body.files : [];
-
-  const report = await safeComputeImpact(repo, files);
-  const annotations = report.status === "ok" ? buildImpactAnnotations(report, files) : [];
-  const comment = buildImpactComment(report);
-  json(res, 200, { ...report, annotations, comment });
+      const report = await safeComputeImpact(repo, files);
+      const annotations = report.status === "ok" ? buildImpactAnnotations(report, files) : [];
+      const comment = buildImpactComment(report);
+      return h.response({ ...report, annotations, comment });
+    },
+  };
 }
 
 /**
  * Never throws: a Dgraph outage degrades to `unavailable`, not a 500. But it is
  * NOT silent — a query error (reachable Dgraph, broken DQL / missing schema) is
- * logged with context so "unavailable" is debuggable instead of a black hole.
- * The null-client case (LORE_DGRAPH_HTTP unset) is the expected fail-soft and
- * needs no log.
+ * logged with context. The null-client case (LORE_DGRAPH_HTTP unset) is the
+ * expected fail-soft and needs no log.
  */
 async function safeComputeImpact(repo: string, files: ChangedRange[]): Promise<ImpactReport> {
   const dgraph = createDgraphClient(process.env);

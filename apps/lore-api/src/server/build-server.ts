@@ -45,6 +45,10 @@ import { webhookStatusRoute, webhookSecretRoute, webhookEnsureRoute } from "../a
 import { tokensRoute } from "../api/routes/tokens/tokens.js";
 import { darkFactoryRoute } from "../api/routes/dark-factory/dark-factory.js";
 import { agentsGetRoute, agentsPostRoute, agentsPutRoute, agentsDeleteRoute } from "../api/routes/agent-definitions/agents.js";
+import { impactRoute } from "../api/routes/impact/impact.js";
+import { traceRoute } from "../api/routes/trace/trace.js";
+import { traceSpecsRoute } from "../api/routes/trace/trace-specs.js";
+import { featuresRoutes } from "../api/routes/features/features.js";
 
 // 1 MB — the body cap for NATIVE routes (the hapi-native replacement for the
 // old manual gate). Native routes inherit it from the server payload default.
@@ -118,6 +122,10 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
     agentsPostRoute(getPool),
     agentsPutRoute(getPool),
     agentsDeleteRoute(getPool),
+    impactRoute(),
+    traceRoute(),
+    traceSpecsRoute(),
+    ...featuresRoutes(),
   ]);
 
   // The strangler bridge. Everything that is not yet a native hapi route falls

@@ -9,10 +9,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
-import { handleImpactRoute } from "./impact/impact.js";
-import { handleTraceRoute } from "./trace/trace.js";
-import { handleGlobalTraceSpecs } from "./trace/trace-specs.js";
-import { handleFeaturesRoute } from "./features/features.js";
 
 type RouteHandler = (
   req: IncomingMessage,
@@ -20,26 +16,15 @@ type RouteHandler = (
   pool: Pool | null,
 ) => Promise<void>;
 
-type RouteMatcher = (url: string, method: string) => boolean;
-
 interface ApiRoute {
-  match: RouteMatcher;
+  match: (url: string, method: string) => boolean;
   handle: RouteHandler;
 }
 
-const pattern = (re: RegExp, verb: string): RouteMatcher =>
-  (url, method) => re.test(url) && method === verb;
-const path = (matcher: (url: string) => boolean): RouteMatcher =>
-  (url) => matcher(url);
-
-// The remaining bridged routes (admin/settings, trace, features) all use regex
-// matchers; the `exact`/`prefix` helpers left with the last routes that used them.
-const API_ROUTES: ApiRoute[] = [
-  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },
-  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/trace\//, "GET"), handle: handleTraceRoute },
-  { match: pattern(/^\/api\/trace\/specs(\?|$)/, "GET"), handle: handleGlobalTraceSpecs },
-  { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/features(\/.*)?(\?|$)/.test(url)), handle: handleFeaturesRoute },
-];
+// Every route group has migrated to native hapi routes (Phase 12). The dispatcher
+// now only runs the cross-cutting gates and always misses (returns false → the
+// bridge 404s). The whole dispatcher is deleted at teardown (Phase 13).
+const API_ROUTES: ApiRoute[] = [];
 
 export async function handleApiRoute(
   req: IncomingMessage,

@@ -269,10 +269,22 @@ migrate the group's contract tests — all together.
 
 ## Phase 12 — Trace + impact + features group (PR)
 
-- [ ] T021 Native routes for `/api/repos/:o/:r/trace/*`, `/api/trace/specs`,
-  `/api/repos/:o/:r/impact`, `/api/repos/:o/:r/features/*` (`routes/trace/`,
-  `routes/impact/`). Correct scopes per current map. Delete legacy rows + scope
-  entries. Migrate tests. This empties `API_ROUTES`. (FR5, SC-3)
+> **DONE.** The last group — `API_ROUTES` is now empty. Full suite green (364).
+
+- [x] T021 Native routes: `impactRoute` (`POST …/impact`, write, `parseJsonBodyCapped`,
+  fail-soft 200 preserved); `traceRoute` (`GET …/trace/{kind}`, read, `{kind}`
+  validated against the allowlist → 404 else) + `traceSpecsRoute` (`GET
+  /api/trace/specs`, read); `featuresRoutes()` — **eight** native routes replacing
+  the internal `matchFeaturesRoute` mini-router (GET list/get = read, POST
+  create/iterations/result/finalize/split = write; each wrapped by `run()` for the
+  `ValidationError→400 / else→500` mapping). **Preserved quirk:** DELETE
+  `…/features/{id}` stays `read` (the old override only listed GET/POST/PUT) —
+  flagged in the file header as a hardening follow-up.
+- [x] Deleted the 4 legacy rows (`API_ROUTES = []`) + the impact/features
+  `SCOPE_OVERRIDE`s (`SCOPE_OVERRIDES = []`). Tests migrated to `inject`; dropped
+  the `matchFeaturesRoute` unit tests (routing is hapi's now). **Deleted
+  `auth.test.ts`** (empty scope maps → trivial `getRequiredScope`) and removed the
+  two `dispatch.test` scope tests (redundant with `bearer-scope.test`). (FR5, SC-3)
 
 ## Phase 13 — Teardown (PR) (FR6)
 

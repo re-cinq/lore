@@ -1,14 +1,15 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("../../../platform/project-boot.js", () => ({ projectFor: vi.fn() }));
-vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({ createTask: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
 
-import { handleFeaturesRoute, matchFeaturesRoute } from "./features.js";
+import { buildServer } from "../../../server/build-server.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { makeReq, makeRes } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const base = "/api/repos/octo/repo/features";
+const originalEnv = { ...process.env };
 
 function fakeFeatures(overrides: Record<string, unknown> = {}) {
   return {
@@ -42,78 +43,57 @@ const readyIteration = (gap: unknown) => ({
   updated_at: "2026-06-18T00:00:00Z",
 });
 
-describe("matchFeaturesRoute", () => {
-  it("routes the POST result path with iteration + feature id captured", () => {
-    const matched = matchFeaturesRoute(`${base}/f1/iterations/2/result`, "POST");
-    expect(matched?.m[3]).toBe("f1");
-    expect(matched?.m[4]).toBe("2");
-  });
+const req = (method: "GET" | "POST" | "DELETE", url: string, body?: unknown) =>
+  buildServer(() => null).inject({ method, url, headers: AUTH, payload: body === undefined ? undefined : JSON.stringify(body) });
 
-  it("returns null for a known path with an unsupported method", () => {
-    expect(matchFeaturesRoute(`${base}/f1`, "PUT")).toBeNull();
-    expect(matchFeaturesRoute(`${base}/f1/iterations/2/result`, "GET")).toBeNull();
+describe("features routes", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    vi.clearAllMocks();
   });
-
-  it("distinguishes GET one, DELETE one, GET list, and POST create", () => {
-    expect(matchFeaturesRoute(`${base}/f1`, "GET")?.m[3]).toBe("f1");
-    expect(matchFeaturesRoute(`${base}/f1`, "DELETE")?.m[3]).toBe("f1");
-    expect(matchFeaturesRoute(base, "GET")).not.toBeNull();
-    expect(matchFeaturesRoute(base, "POST")).not.toBeNull();
+  afterEach(() => {
+    process.env = { ...originalEnv };
   });
-
-  it("returns null for a path outside the feature surface", () => {
-    expect(matchFeaturesRoute("/api/repos/octo/repo/specs", "GET")).toBeNull();
-  });
-});
-
-describe("handleFeaturesRoute", () => {
-  beforeEach(() => vi.clearAllMocks());
 
   it("creates a draft and kicks planning round 1", async () => {
     const features = useProject(fakeFeatures({ create: vi.fn().mockResolvedValue({ id: "f1" }) }));
     vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
-    const res = makeRes();
-    await handleFeaturesRoute(makeReq({ url: base, method: "POST", body: { title: "Smart Planning", prompt: "do it" } }), res, null);
+    const res = await req("POST", base, { title: "Smart Planning", prompt: "do it" });
     expect(res.statusCode).toBe(201);
-    expect(res.json).toEqual({ id: "f1", task_id: "t1" });
+    expect(res.result).toEqual({ id: "f1", task_id: "t1" });
     expect(features.create).toHaveBeenCalledWith({ title: "Smart Planning", prompt: "do it", parentFeatureId: undefined });
   });
 
   it("rejects a create with a blank title as a 400 before touching the project", async () => {
     useProject(fakeFeatures());
-    const res = makeRes();
-    await handleFeaturesRoute(makeReq({ url: base, method: "POST", body: { title: "   ", prompt: "" } }), res, null);
+    const res = await req("POST", base, { title: "   ", prompt: "" });
     expect(res.statusCode).toBe(400);
-    expect(res.json).toEqual({ error: "title and prompt are required" });
+    expect(res.result).toEqual({ error: "title and prompt are required" });
     expect(projectFor).not.toHaveBeenCalled();
   });
 
   it("refuses to finalize a feature that is not in a settled planning state", async () => {
     useProject(fakeFeatures({ get: vi.fn().mockResolvedValue({ id: "f1", status: "draft", iterations: [] }) }));
-    const res = makeRes();
-    await handleFeaturesRoute(makeReq({ url: `${base}/f1/finalize`, method: "POST", body: {} }), res, null);
+    const res = await req("POST", `${base}/f1/finalize`, {});
     expect(res.statusCode).toBe(409);
-    expect(res.json.error).toMatch(/cannot finalize a feature in 'draft'/);
+    expect((res.result as { error: string }).error).toMatch(/cannot finalize a feature in 'draft'/);
     expect(createTask).not.toHaveBeenCalled();
   });
 
   it("kicks the finalize task from a spec-ready feature", async () => {
     useProject(fakeFeatures({ get: vi.fn().mockResolvedValue({ id: "f1", status: "spec-ready", title: "X", slug: "x", iterations: [] }) }));
     vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
-    const res = makeRes();
-    await handleFeaturesRoute(makeReq({ url: `${base}/f1/finalize`, method: "POST", body: {} }), res, null);
+    const res = await req("POST", `${base}/f1/finalize`, {});
     expect(res.statusCode).toBe(202);
-    expect(res.json).toEqual({ task_id: "fin" });
+    expect(res.result).toEqual({ task_id: "fin" });
   });
 
   it("refuses to split when the latest ready round has no split suggestion", async () => {
-    useProject(fakeFeatures({
-      get: vi.fn().mockResolvedValue({ id: "f1", iterations: [readyIteration({ sections: [], draft_spec_markdown: "x" })] }),
-    }));
-    const res = makeRes();
-    await handleFeaturesRoute(makeReq({ url: `${base}/f1/split`, method: "POST", body: { title: "Part A", prompt: "carve A" } }), res, null);
+    useProject(fakeFeatures({ get: vi.fn().mockResolvedValue({ id: "f1", iterations: [readyIteration({ sections: [], draft_spec_markdown: "x" })] }) }));
+    const res = await req("POST", `${base}/f1/split`, { title: "Part A", prompt: "carve A" });
     expect(res.statusCode).toBe(409);
-    expect(res.json.error).toMatch(/no split suggestion/);
+    expect((res.result as { error: string }).error).toMatch(/no split suggestion/);
   });
 
   it("creates a split child when the latest ready round suggests one", async () => {
@@ -122,46 +102,34 @@ describe("handleFeaturesRoute", () => {
       get: vi.fn().mockResolvedValue({ id: "f1", iterations: [readyIteration(gap)] }),
       createSplitChild: vi.fn().mockResolvedValue({ id: "child" }),
     }));
-    const res = makeRes();
-    await handleFeaturesRoute(makeReq({ url: `${base}/f1/split`, method: "POST", body: { title: "Part A", prompt: "carve A" } }), res, null);
+    const res = await req("POST", `${base}/f1/split`, { title: "Part A", prompt: "carve A" });
     expect(res.statusCode).toBe(201);
-    expect(res.json).toEqual({ id: "child" });
+    expect(res.result).toEqual({ id: "child" });
     expect(features.createSplitChild).toHaveBeenCalledWith("f1", { title: "Part A", prompt: "carve A" });
   });
 
   it("returns 404 for a missing feature on GET", async () => {
     useProject(fakeFeatures({ get: vi.fn().mockResolvedValue(null) }));
-    const res = makeRes();
-    await handleFeaturesRoute(makeReq({ url: `${base}/missing`, method: "GET" }), res, null);
+    const res = await req("GET", `${base}/missing`);
     expect(res.statusCode).toBe(404);
   });
 
   it("returns 200 on delete and 404 when nothing was removed", async () => {
     useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(true) }));
-    const ok = makeRes();
-    await handleFeaturesRoute(makeReq({ url: `${base}/f1`, method: "DELETE" }), ok, null);
+    const ok = await req("DELETE", `${base}/f1`);
     expect(ok.statusCode).toBe(200);
-    expect(ok.json).toEqual({ ok: true });
+    expect(ok.result).toEqual({ ok: true });
 
     useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(false) }));
-    const missing = makeRes();
-    await handleFeaturesRoute(makeReq({ url: `${base}/gone`, method: "DELETE" }), missing, null);
+    const missing = await req("DELETE", `${base}/gone`);
     expect(missing.statusCode).toBe(404);
   });
 
   it("rejects a concurrent planning round with 409", async () => {
     const recent = { ...readyIteration(null), status: "running", created_at: new Date().toISOString() };
     useProject(fakeFeatures({ get: vi.fn().mockResolvedValue({ id: "f1", title: "X", original_prompt: "p", iterations: [recent] }) }));
-    const res = makeRes();
-    await handleFeaturesRoute(makeReq({ url: `${base}/f1/iterations`, method: "POST", body: { user_answers: {} } }), res, null);
+    const res = await req("POST", `${base}/f1/iterations`, { user_answers: {} });
     expect(res.statusCode).toBe(409);
     expect(createTask).not.toHaveBeenCalled();
-  });
-
-  it("returns 404 for a path outside the feature surface", async () => {
-    const res = makeRes();
-    await handleFeaturesRoute(makeReq({ url: "/api/repos/octo/repo/specs", method: "GET" }), res, null);
-    expect(res.statusCode).toBe(404);
-    expect(res.json).toEqual({ error: "not found" });
   });
 });
