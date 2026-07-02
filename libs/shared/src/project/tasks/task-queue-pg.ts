@@ -1,10 +1,12 @@
 import type { PgPool } from "../../memory-store.js";
 import type { PipelineTask } from "../../types.js";
+import { unblockedBy } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
   RecoverableTask,
   StaleTask,
   ReadySpecTask,
+  CompletedSpecTask,
   SpecGroupCount,
   AwaitingApprovalTask,
   TaskPrInfo,
@@ -72,12 +74,13 @@ export class PgTaskQueue implements TaskQueueRepository {
     return rows as StaleTask[];
   }
 
-  async findReadySpecTasks(): Promise<ReadySpecTask[]> {
+  async findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
     const { rows } = await this.pool.query(
       `SELECT t.id, t.description, t.context_bundle, t.target_repo, t.task_group_id
          FROM pipeline.tasks t
         WHERE t.task_type = 'spec-task'
           AND t.status = 'pending'
+          ${repo ? "AND t.target_repo = $1" : ""}
           AND NOT EXISTS (
             SELECT 1
             FROM jsonb_array_elements_text(t.context_bundle->'depends_on') AS dep_id
@@ -91,6 +94,7 @@ export class PgTaskQueue implements TaskQueueRepository {
             )
           )
         ORDER BY t.context_bundle->>'spec_task_id'`,
+      repo ? [repo] : [],
     );
     return rows as ReadySpecTask[];
   }
@@ -107,15 +111,38 @@ export class PgTaskQueue implements TaskQueueRepository {
     return rows as SpecGroupCount[];
   }
 
-  async claimSpecTask(id: string): Promise<boolean> {
+  async claimSpecTask(id: string, agentId = "spec-task-executor"): Promise<boolean> {
     const { rows } = await this.pool.query(
       `UPDATE pipeline.tasks
-          SET status = 'running', agent_id = 'spec-task-executor', updated_at = now()
+          SET status = 'running', agent_id = $2, updated_at = now()
         WHERE id = $1 AND status = 'pending'
       RETURNING id`,
-      [id],
+      [id, agentId],
     );
     return rows.length > 0;
+  }
+
+  async completeSpecTask(id: string): Promise<CompletedSpecTask> {
+    const { rows } = await this.pool.query(
+      `SELECT context_bundle, target_repo, status FROM pipeline.tasks WHERE id = $1`,
+      [id],
+    );
+    const task = rows[0] as
+      | { context_bundle: Record<string, unknown> | null; target_repo: string; status: string }
+      | undefined;
+    if (!task || task.status !== "running") return { completed: false, unblocked: [] };
+
+    await this.pool.query(
+      `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`,
+      [id],
+    );
+
+    const specTaskId = task.context_bundle?.spec_task_id as string | undefined;
+    const specSlug = task.context_bundle?.spec_slug as string | undefined;
+    if (!specTaskId || !specSlug) return { completed: true, unblocked: [] };
+
+    const ready = await this.findReadySpecTasks(task.target_repo);
+    return { completed: true, unblocked: unblockedBy(ready, specSlug, specTaskId) };
   }
 
   async awaitingApproval(): Promise<AwaitingApprovalTask[]> {

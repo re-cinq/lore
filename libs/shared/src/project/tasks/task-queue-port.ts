@@ -76,6 +76,32 @@ export interface InsertTaskInput {
   taskGroupId?: string;
 }
 
+/** Outcome of completing a spec-task: whether it flipped, and its now-ready dependents. */
+export interface CompletedSpecTask {
+  completed: boolean;
+  /** `"<spec_task_id>: <description>"` for each dependent unblocked by this completion. */
+  unblocked: string[];
+}
+
+/**
+ * From an already-ready set, the dependents unblocked by completing
+ * `specTaskId` in `specSlug`: same-spec tasks that list it in `depends_on`.
+ * Shared by both queue adapters so the readiness predicate stays single-sourced.
+ */
+export function unblockedBy(
+  ready: ReadySpecTask[],
+  specSlug: string,
+  specTaskId: string,
+): string[] {
+  return ready
+    .filter((t) => {
+      const cb = t.context_bundle ?? {};
+      const deps = cb.depends_on;
+      return cb.spec_slug === specSlug && Array.isArray(deps) && deps.includes(specTaskId);
+    })
+    .map((t) => `${(t.context_bundle ?? {}).spec_task_id}: ${t.description}`);
+}
+
 /** A task with an open PR still eligible for the review-react loop. */
 export interface ReviewableTask {
   id: string;
@@ -110,14 +136,28 @@ export interface TaskQueueRepository {
   /** `running` tasks older than `thresholdHours` — the stale-task safety-net set. */
   findStaleRunning(thresholdHours: number): Promise<StaleTask[]>;
 
-  /** pending spec-tasks whose `depends_on` are all completed/merged in the same spec. */
-  findReadySpecTasks(): Promise<ReadySpecTask[]>;
+  /**
+   * pending spec-tasks whose `depends_on` are all completed/merged in the same
+   * spec. Org-wide by default; pass `repo` to scope to one target repo (the
+   * repo-scoped MCP `lore_ready_tasks` path).
+   */
+  findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]>;
 
   /** running/queued spec-task counts per group, for the concurrency gate. */
   countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]>;
 
-  /** Atomically flip a still-`pending` spec-task to `running`; true iff this caller won. */
-  claimSpecTask(id: string): Promise<boolean>;
+  /**
+   * Atomically flip a still-`pending` spec-task to `running`; true iff this
+   * caller won. `agentId` records the claimer (defaults to `spec-task-executor`).
+   */
+  claimSpecTask(id: string, agentId?: string): Promise<boolean>;
+
+  /**
+   * Flip a `running` spec-task to `completed` and report the dependents it
+   * unblocks (pending same-spec tasks whose deps are now all satisfied).
+   * `completed` is false when the task is unknown or not `running`.
+   */
+  completeSpecTask(id: string): Promise<CompletedSpecTask>;
 
   /** Tasks parked in `awaiting_approval` that carry an issue (the approval-label gate). */
   awaitingApproval(): Promise<AwaitingApprovalTask[]>;

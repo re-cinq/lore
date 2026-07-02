@@ -1,165 +1,43 @@
 /**
  * Spec-task syncing, claiming, and completion.
  *
- * Pipeline-backed MCP tools for task tracking.
- * Tasks live in pipeline.tasks with task_type = 'spec-task'.
- *
- * Parsing logic lives in @re-cinq/lore-shared so the agent can reuse it.
+ * Pipeline-backed MCP tools for task tracking. Tasks live in pipeline.tasks with
+ * task_type = 'spec-task'. The queue mechanics — DAG readiness, atomic claim,
+ * completion + unblocked dependents — are single-sourced in the shared
+ * TaskQueueRepository (PgTaskQueue). This module is a thin pool-binding delegate
+ * plus the mcp-specific audit events.
  */
+
+import { recordTaskEvent, type PgPool } from "@re-cinq/lore-shared";
+import { PgTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-pg.js";
 
 // Re-export parsing + spec-task syncing from the shared package (syncTasksToDb
 // now lives in @re-cinq/lore-shared so the Floor event handler shares it).
-export { parseTasks, inferPhaseDependencies, syncTasksToDb, type ParsedTask } from '@re-cinq/lore-shared';
+export { parseTasks, inferPhaseDependencies, syncTasksToDb, type ParsedTask } from "@re-cinq/lore-shared";
 
-// ── DB operations ───────────────────────────────────────────────────
-
-/**
- * Return tasks where all dependencies are satisfied
- * (i.e. every task in metadata->'depends_on' has status IN ('completed', 'merged')).
- */
-export async function getReadyTasks(pool: any, repo: string): Promise<any[]> {
-  const { rows } = await pool.query(
-    `SELECT t.id, t.description, t.status, t.context_bundle, t.agent_id
-     FROM pipeline.tasks t
-     WHERE t.task_type = 'spec-task'
-       AND t.target_repo = $1
-       AND t.status = 'pending'
-       AND NOT EXISTS (
-         SELECT 1
-         FROM jsonb_array_elements_text(t.context_bundle->'depends_on') AS dep_id
-         WHERE NOT EXISTS (
-           SELECT 1 FROM pipeline.tasks d
-           WHERE d.target_repo = $1
-             AND d.task_type = 'spec-task'
-             AND d.context_bundle->>'spec_task_id' = dep_id
-             AND d.context_bundle->>'spec_slug' = t.context_bundle->>'spec_slug'
-             AND d.status IN ('completed', 'merged')
-         )
-       )
-     ORDER BY t.context_bundle->>'spec_task_id'`,
-    [repo],
-  );
-  return rows;
+/** Spec-tasks in `repo` whose every dependency is completed/merged. */
+export function getReadyTasks(pool: PgPool, repo: string) {
+  return new PgTaskQueue(pool).findReadySpecTasks(repo);
 }
 
-/**
- * Atomically claim a task using SELECT ... FOR UPDATE SKIP LOCKED.
- * Returns true if claimed, false if already taken or not found.
- */
-export async function claimTask(
-  pool: any,
-  taskId: string,
-  agentId: string,
-): Promise<boolean> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const { rows } = await client.query(
-      `SELECT id FROM pipeline.tasks
-       WHERE id = $1 AND status = 'pending'
-       FOR UPDATE SKIP LOCKED`,
-      [taskId],
-    );
-
-    if (rows.length === 0) {
-      await client.query('ROLLBACK');
-      return false;
-    }
-
-    await client.query(
-      `UPDATE pipeline.tasks SET status = 'running', agent_id = $2, updated_at = now() WHERE id = $1`,
-      [taskId, agentId],
-    );
-
-    // Record event
+/** Atomically claim a pending spec-task; records the mcp claim audit event. */
+export async function claimTask(pool: PgPool, taskId: string, agentId: string): Promise<boolean> {
+  const claimed = await new PgTaskQueue(pool).claimSpecTask(taskId, agentId);
+  if (claimed) {
     try {
-      await client.query(
-        `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
-         VALUES ($1, 'pending', 'running', $2)`,
-        [taskId, JSON.stringify({ agent_id: agentId, claimed_by: 'lore_claim_task' })],
-      );
+      await recordTaskEvent(pool, taskId, "pending", "running", { agent_id: agentId, claimed_by: "lore_claim_task" });
     } catch { /* event recording must not block */ }
-
-    await client.query('COMMIT');
-    return true;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
   }
+  return claimed;
 }
 
-/**
- * Mark a task as completed and return any newly unblocked dependents.
- */
-export async function completeTask(
-  pool: any,
-  taskId: string,
-): Promise<{ completed: boolean; unblocked: string[] }> {
-  // Get the task to find its spec_task_id and spec_slug
-  const { rows: taskRows } = await pool.query(
-    `SELECT id, status, context_bundle, target_repo FROM pipeline.tasks WHERE id = $1`,
-    [taskId],
-  );
-
-  if (taskRows.length === 0) {
-    return { completed: false, unblocked: [] };
+/** Mark a running spec-task completed and return newly unblocked dependents. */
+export async function completeTask(pool: PgPool, taskId: string) {
+  const result = await new PgTaskQueue(pool).completeSpecTask(taskId);
+  if (result.completed) {
+    try {
+      await recordTaskEvent(pool, taskId, "running", "completed", {});
+    } catch { /* event recording must not block */ }
   }
-
-  const task = taskRows[0];
-  if (task.status !== 'running') {
-    return { completed: false, unblocked: [] };
-  }
-
-  // Mark as completed
-  await pool.query(
-    `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`,
-    [taskId],
-  );
-
-  // Record event
-  try {
-    await pool.query(
-      `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata)
-       VALUES ($1, 'running', 'completed', '{}')`,
-      [taskId],
-    );
-  } catch { /* event recording must not block */ }
-
-  // Find newly unblocked tasks: tasks that depend on this one
-  // and now have all dependencies satisfied
-  const specTaskId = task.context_bundle?.spec_task_id;
-  const specSlug = task.context_bundle?.spec_slug;
-  if (!specTaskId || !specSlug) {
-    return { completed: true, unblocked: [] };
-  }
-
-  // Get tasks that list this task in their depends_on
-  const { rows: dependents } = await pool.query(
-    `SELECT t.id, t.description, t.context_bundle
-     FROM pipeline.tasks t
-     WHERE t.task_type = 'spec-task'
-       AND t.target_repo = $1
-       AND t.context_bundle->>'spec_slug' = $2
-       AND t.status = 'pending'
-       AND t.context_bundle->'depends_on' ? $3
-       AND NOT EXISTS (
-         SELECT 1
-         FROM jsonb_array_elements_text(t.context_bundle->'depends_on') AS dep_id
-         WHERE NOT EXISTS (
-           SELECT 1 FROM pipeline.tasks d
-           WHERE d.target_repo = $1
-             AND d.task_type = 'spec-task'
-             AND d.context_bundle->>'spec_task_id' = dep_id
-             AND d.context_bundle->>'spec_slug' = $2
-             AND d.status IN ('completed', 'merged')
-         )
-       )`,
-    [task.target_repo, specSlug, specTaskId],
-  );
-
-  const unblocked = dependents.map((d: any) => `${d.context_bundle?.spec_task_id}: ${d.description}`);
-  return { completed: true, unblocked };
+  return result;
 }
