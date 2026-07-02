@@ -37,7 +37,6 @@ export function rateLimit(bucket: RateBucket): boolean {
 export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 
 const ROUTE_SCOPES: Record<string, TokenScope> = {
-  "/api/onboard": "admin",
   "/api/webhook/slack": "webhook",
   "/api/webhook/incident": "webhook",
   "/api/tokens": "admin",

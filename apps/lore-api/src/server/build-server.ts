@@ -38,6 +38,7 @@ import { episodeRoute } from "../api/routes/memory/episode.js";
 import { sessionSummaryRoute } from "../api/routes/memory/session-summary.js";
 import { ingestRoute } from "../api/routes/ingest/ingest.js";
 import { ingestGraphRoute } from "../api/routes/ingest/ingest-graph.js";
+import { onboardRoute } from "../api/routes/repos/onboard.js";
 
 // 1 MB — the body cap for NATIVE routes (the hapi-native replacement for the
 // old manual gate). Native routes inherit it from the server payload default.
@@ -99,6 +100,7 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
     sessionSummaryRoute(getPool),
     ingestRoute(getPool),
     ingestGraphRoute(getPool),
+    onboardRoute(getPool),
   ]);
 
   // The strangler bridge. Everything that is not yet a native hapi route falls

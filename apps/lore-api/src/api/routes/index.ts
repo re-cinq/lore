@@ -9,7 +9,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
-import { handleOnboard } from "./repos/onboard.js";
 import { handleSlackWebhook } from "./webhooks/webhook-slack.js";
 import { handleIncidentWebhook } from "./webhooks/webhook-incident.js";
 import { handleTokens } from "./tokens/tokens.js";
@@ -46,7 +45,6 @@ const path = (matcher: (url: string) => boolean): RouteMatcher =>
 // Order matters: specific regex routes precede the broad /api/tasks prefix.
 // /healthz and /dist/lore-code-trace/* are now native hapi routes (Phase 2).
 const API_ROUTES: ApiRoute[] = [
-  { match: exact("/api/onboard", "POST"), handle: handleOnboard },
   { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
   { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
   { match: path((url) => url === "/api/tokens"), handle: handleTokens },

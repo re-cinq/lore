@@ -44,16 +44,16 @@ describe("buildServer strangler bridge", () => {
   });
 
   it("delivers the POST body to the legacy handler through the bridge", async () => {
-    // The shim carries the body across the seam: /api/onboard (still bridged) reads
-    // the body after its pool check — a delivered body missing `repo` reaches the
+    // The shim carries the body across the seam: /api/tokens (still bridged) reads
+    // the body after its pool check — a delivered body missing `name` reaches the
     // 400, while an empty (undelivered) body would 500 on JSON.parse.
     const res = await buildServer(() => makePool()).inject({
       method: "POST",
-      url: "/api/onboard",
+      url: "/api/tokens",
       headers: AUTH,
-      payload: JSON.stringify({ not: "a repo" }),
+      payload: JSON.stringify({ not: "a name" }),
     });
     expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.payload)).toEqual({ error: "required: repo (owner/name format)" });
+    expect(JSON.parse(res.payload)).toEqual({ error: "name required" });
   });
 });

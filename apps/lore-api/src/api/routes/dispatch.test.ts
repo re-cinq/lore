@@ -128,12 +128,12 @@ describe("handleApiRoute dispatch — auth", () => {
     pool.query.mockResolvedValue({ rows: [{ scopes: ["admin"] }] });
     const res = makeRes();
     const handled = await handleApiRoute(
-      makeReq({ url: "/api/onboard", method: "POST", headers: { authorization: "Bearer db-admin" }, body: {} }),
+      makeReq({ url: "/api/tokens", method: "POST", headers: { authorization: "Bearer db-admin" }, body: {} }),
       res,
       pool as any,
     );
-    // admin passes auth; handleOnboard then 400s on the empty body — the point
-    // is auth did not 403.
+    // admin passes auth; handleTokens then 400s on the missing name — the point
+    // is auth did not 403. (/api/tokens is a still-bridged admin route.)
     expect(handled).toBe(true);
     expect(res.statusCode).toBe(400);
   });
@@ -143,7 +143,7 @@ describe("handleApiRoute dispatch — auth", () => {
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
     const res = makeRes();
     await handleApiRoute(
-      makeReq({ url: "/api/onboard", method: "POST", headers: { authorization: "Bearer db-read" }, body: {} }),
+      makeReq({ url: "/api/tokens", method: "POST", headers: { authorization: "Bearer db-read" }, body: {} }),
       res,
       pool as any,
     );

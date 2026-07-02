@@ -1,21 +1,25 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
+import type { ServerRoute } from "@hapi/hapi";
 import { onboardRepo } from "../../../features/repo/repo-onboard.js";
-import { json, readBody } from "../http.js";
+import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { rawBody } from "../../../server/raw-body.js";
 
-export async function handleOnboard(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!pool) { json(res, 503, { error: "database not available" }); return; }
-  const body = await readBody(req);
-  try {
-    const { repo } = JSON.parse(body);
-    if (!repo || !repo.includes("/")) {
-      json(res, 400, { error: "required: repo (owner/name format)" });
-      return;
-    }
-    const result = await onboardRepo(pool, repo);
-    json(res, 200, result);
-  } catch (err: any) {
-    console.error("[onboard] API error:", err.message);
-    json(res, 500, { error: err.message });
-  }
+export function onboardRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/onboard",
+    options: { ...bearerScope("admin"), payload: { parse: false } },
+    handler: async (request, h) => {
+      const pool = getPool();
+      if (!pool) return h.response({ error: "database not available" }).code(503);
+      try {
+        const { repo } = JSON.parse(rawBody(request));
+        if (!repo || !repo.includes("/")) return h.response({ error: "required: repo (owner/name format)" }).code(400);
+        return h.response(await onboardRepo(pool, repo));
+      } catch (err: any) {
+        console.error("[onboard] API error:", err.message);
+        return h.response({ error: err.message }).code(500);
+      }
+    },
+  };
 }

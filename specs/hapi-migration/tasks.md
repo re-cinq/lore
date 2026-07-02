@@ -207,8 +207,16 @@ migrate the group's contract tests — all together.
 
 ## Phase 9 — Repos (write) group (PR)
 
-- [ ] T018 Native route for `POST /api/onboard` (`routes/repos/`). `write` scope.
-  Delete legacy row + scope entry. Migrate tests. (FR5, SC-3)
+> **DONE.** Full suite green (383 — one net drop, an obsolete scope test removed).
+
+- [x] T018 Native `onboardRoute` (`POST /api/onboard`, `bearerScope("admin")` —
+  admin, not write; the legacy scope was admin). Deleted the legacy row + the
+  `/api/onboard` `ROUTE_SCOPES` entry; `onboard.test.ts` migrated to `inject`.
+  **Cross-test cleanup:** `/api/onboard` had been the sample admin route in
+  `dispatch.test.ts` (auth 400/403) and the body-shim proof in
+  `build-server.test.ts` — both repointed to the still-bridged admin route
+  `POST /api/tokens` (missing `name` → 400, empty → 500). Removed the obsolete
+  `auth.test.ts` `getRequiredScope("/api/onboard")` assertion. (FR5, SC-3)
 
 ## Phase 10 — Webhooks group (PR)
 

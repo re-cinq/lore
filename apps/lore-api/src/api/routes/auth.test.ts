@@ -6,9 +6,8 @@ describe("getRequiredScope", () => {
     expect(getRequiredScope("/api/tokens")).toBe("admin");
   });
 
-  it("returns admin for the onboard route", () => {
-    expect(getRequiredScope("/api/onboard")).toBe("admin");
-  });
+  // /api/onboard migrated to a native hapi route (Phase 9); its "admin" scope is
+  // now enforced declaratively via bearerScope, not getRequiredScope.
 
   it("returns admin for the dark-factory settings route via override", () => {
     expect(getRequiredScope("/api/repos/o/r/settings/dark-factory")).toBe("admin");
