@@ -1,5 +1,5 @@
 import { prFooter, type Project, type StationCompletion } from "@re-cinq/lore-shared";
-import { generateArtifactCopy } from "../platform/artifact-copy.js";
+import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
 /**

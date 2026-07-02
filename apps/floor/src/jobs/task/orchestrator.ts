@@ -7,12 +7,12 @@ import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import { Llm } from "@re-cinq/lore-shared";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import { gitAuthArgs, repoCloneUrl } from "@re-cinq/lore-shared/project/workspace/git-auth.js";
-import { generateArtifactCopy } from "../platform/artifact-copy.js";
+import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import { slugify } from "./task-helpers.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { taskStore } from "../../kernel/queues.js";
-import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
+import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { evaluateAndMerge, type AutoMergeJobInputs } from "../merge/auto-merge.js";
 import {
   resolvePrForTaskFromDb,
@@ -20,7 +20,7 @@ import {
 } from "../platform/pr-policy.js";
 import { prFooter } from "@re-cinq/lore-shared";
 import { escalate } from "../platform/escalation.js";
-import { writeAuditLog } from "../dark-factory/audit.js";
+import { writeAuditLog } from "../lib/audit.js";
 import { leaseBackendForEnv } from "../../main-loop/lease/lease-backend.js";
 import {
   runSupervisor,

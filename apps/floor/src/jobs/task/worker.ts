@@ -5,7 +5,7 @@
  * and creates branches + PRs with the results.
  */
 
-import { generateArtifactCopy } from "../platform/artifact-copy.js";
+import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
 import { agentPrompt } from "../../kernel/agent-invocation.js";

@@ -9,7 +9,7 @@ import { query } from "../../kernel/db.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../composition/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
-import { writeEpisode } from "../memory/episode-writer.js";
+import { writeEpisode } from "../lib/episode-writer.js";
 import { slugify, setStatus, insertEvent, issueRef, linkPrToIssue } from "./task-helpers.js";
 
 // ── Feature request handler ───────────────────────────────────────────

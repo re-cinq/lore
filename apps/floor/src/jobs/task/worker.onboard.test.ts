@@ -25,7 +25,7 @@ vi.mock("../../kernel/db.js", () => ({
   query: (...a: unknown[]) => query(...a),
   getPool: () => ({ query: async () => ({ rows: [] }) }),
 }));
-vi.mock("../memory/episode-writer.js", () => ({ writeEpisode: (...a: unknown[]) => writeEpisode(...a) }));
+vi.mock("../lib/episode-writer.js", () => ({ writeEpisode: (...a: unknown[]) => writeEpisode(...a) }));
 
 import { handleOnboard } from "./worker.js";
 

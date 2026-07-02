@@ -18,11 +18,11 @@ import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { projectFor } from "../../composition/project-boot.js";
 import { taskStore, settings, taskQueue } from "../../kernel/queues.js";
-import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
+import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import { isTransientInfraFailure, MAX_INFRA_RETRIES } from "../platform/infra-failure.js";
 import { buildReviewFixDescription, formatReviewFeedback, prFooter, linkifyMarkdown } from "@re-cinq/lore-shared";
-import { generateArtifactCopy } from "../platform/artifact-copy.js";
+import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import {
   taskIdOf,
   taskTypeOf,
