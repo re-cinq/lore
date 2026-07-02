@@ -9,7 +9,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
-import { handleHealthz } from "./healthz/healthz.js";
 import { handleRepoStatus } from "./repos/repo-status.js";
 import { handleIngest } from "./ingest/ingest.js";
 import { handleOnboard } from "./repos/onboard.js";
@@ -35,7 +34,6 @@ import { handleAgentsRoute } from "./agent-definitions/agents.js";
 import { handleImpactRoute } from "./impact/impact.js";
 import { handleIngestGraphRoute } from "./ingest/ingest-graph.js";
 import { handleWebhookStatus, handleWebhookEnsure, handleWebhookSecret } from "./webhooks/webhook.js";
-import { handleDistRoute } from "./dist/dist.js";
 import { handleTraceRoute } from "./trace/trace.js";
 import { handleGlobalTraceSpecs } from "./trace/trace-specs.js";
 import { handleFeaturesRoute } from "./features/features.js";
@@ -63,9 +61,8 @@ const path = (matcher: (url: string) => boolean): RouteMatcher =>
   (url) => matcher(url);
 
 // Order matters: specific regex routes precede the broad /api/tasks prefix.
+// /healthz and /dist/lore-code-trace/* are now native hapi routes (Phase 2).
 const API_ROUTES: ApiRoute[] = [
-  { match: path((url) => url === "/healthz"), handle: handleHealthz },
-  { match: prefix("/dist/lore-code-trace/", "GET"), handle: (req, res) => handleDistRoute(req, res) },
   { match: prefix("/api/repo-status", "GET"), handle: handleRepoStatus },
   { match: exact("/api/ingest", "POST"), handle: handleIngest },
   { match: exact("/api/onboard", "POST"), handle: handleOnboard },

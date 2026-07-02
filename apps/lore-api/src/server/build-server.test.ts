@@ -1,20 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { buildServer } from "./build-server.js";
 import { useRateLimitSafeClock, makePool, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 // The strangler bridge (ADR-033): hapi hosts the server via `buildServer`, and
-// every request still flows through the legacy dispatcher (`handleApiRoute`)
-// until its group migrates. These prove the seam — a request reaches the legacy
+// every not-yet-migrated request still flows through the legacy dispatcher
+// (`handleApiRoute`). These prove the seam — a request reaches the legacy
 // handler through hapi, the raw response it writes is returned via `h.abandon`,
-// and the legacy auth/404/body gates are preserved unchanged.
-//
-// /healthz is the one dispatch-reachable handler that touches a collaborator;
-// mock it exactly as the dispatch unit suite does.
-vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
-  getHealthStatus: vi.fn().mockResolvedValue({ connected: true }),
-  isDbAvailable: vi.fn(),
-  getQueryEmbedding: vi.fn(),
-}));
+// and the legacy auth/404/body gates are preserved unchanged. (Native routes
+// like /healthz and /dist have their own suites.)
 
 const originalEnv = { ...process.env };
 const build = () => buildServer(() => null);
@@ -26,12 +19,6 @@ describe("buildServer strangler bridge", () => {
   });
   afterEach(() => {
     process.env = { ...originalEnv };
-  });
-
-  it("serves a legacy GET through the bridge (healthz 200)", async () => {
-    const res = await build().inject({ method: "GET", url: "/healthz" });
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual({ status: "ok" });
   });
 
   it("returns 404 for a route the legacy dispatcher does not handle", async () => {

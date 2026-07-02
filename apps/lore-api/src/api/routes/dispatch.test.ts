@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { handleApiRoute } from "../routes.js";
 import {
   makeReq,
@@ -9,13 +9,9 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-// handleHealthz is the only dispatch-reachable handler here that touches a
-// collaborator module; everything else short-circuits on pool/secret guards.
-vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
-  getHealthStatus: vi.fn().mockResolvedValue({ connected: true }),
-  isDbAvailable: vi.fn(),
-  getQueryEmbedding: vi.fn(),
-}));
+// Every route the dispatcher still owns short-circuits on pool/secret guards, so
+// no collaborator module needs mocking here. (/healthz and /dist migrated to
+// native hapi routes in Phase 2 and carry their own suites.)
 
 const originalEnv = { ...process.env };
 

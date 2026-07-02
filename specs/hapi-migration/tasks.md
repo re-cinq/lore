@@ -28,10 +28,12 @@ migrate the group's contract tests — all together.
 > still served by the legacy dispatcher through one catch-all bridge. Zero
 > behavioral change — full suite green (375 tests). **Scope note:** the seam is
 > deliberately minimal. The `bearer-scope` and `rate-limit` plugins (former
-> T006/T007) are **inert until a native route needs them**, so they move to
-> Phase 3 (the first authed + rate-limited group) — building them dormant now is
-> speculative, and the rate-limit ext would risk double-counting against the
-> legacy limiter during the bridge window. The body cap (former T008) is a
+> T006/T007) are **inert until a native route needs them**, so each moves to its
+> first consumer: `rate-limit` lands in Phase 2 (with `/dist`, the first native
+> rate-limited route), `bearer-scope` in Phase 3 (with repos-read, the first
+> authed group). Building them dormant now is speculative, and the rate-limit ext
+> would risk double-counting against the legacy limiter during the bridge window.
+> The body cap (former T008) is a
 > one-liner folded into `build-server.ts` (server-level `payload.maxBytes`), no
 > separate file — matching floor's own precedent.
 
@@ -58,16 +60,32 @@ migrate the group's contract tests — all together.
   `buildServer` + `start()`/`stop()` (real-socket body round-trip, DB-gated).
   (SC-2, SC-5)
 
-## Phase 2 — Infra group (no auth, no DB) (PR)
+## Phase 2 — Infra group + rate-limit ext (PR)
 
-- [ ] T011 Native hapi routes for `/healthz` and `/dist/lore-code-trace/*`
-  (`routes/healthz/`, `routes/dist/`); `auth: false`. Delete their rows from
-  `API_ROUTES` in `routes/index.ts`. Migrate their tests. (SC-5)
+> **DONE.** `/healthz` and `/dist/lore-code-trace/*` are native hapi routes.
+> `/dist` is the first native **rate-limited** route (default bucket), so the
+> rate-limit ext lands here (moved from Phase 3); `/healthz` stays exempt from
+> both auth and rate limiting. Full suite green (377 tests).
 
-## Phase 3 — Repos (read) group — first authed + rate-limited native group (PR)
+- [x] T011 Native hapi routes: `healthzRoute(getPool)` (`routes/healthz/`) and
+  `distRoute()` (`routes/dist/`), both `auth: false`, returning values (hapi
+  serializes + sets headers). Registered in `build-server.ts`; rows deleted from
+  `API_ROUTES`. Tests migrated to `buildServer(...).inject`
+  (`healthz.test.ts`, `dist.test.ts`; `parseDistArtifact` unit tests kept); the
+  stale `handleHealthz` mock/comment removed from `dispatch.test.ts`. (SC-5)
+- [x] T011b `server/plugins/rate-limit.ts`: `onPreAuth` ext reusing the exact
+  `rateLimit()`/`RateBucket` from `routes/auth.ts` (single source). Skips the
+  catch-all bridge **and** `/healthz`, so each request is counted once (native
+  via the ext, bridged via the legacy dispatcher — never both). `429` +
+  `Retry-After: 60` + `{ error: "rate limit exceeded" }` match the legacy gate.
+  `rate-limit.test.ts` proves `/dist` trips at the 201st, a bridged route is not
+  double-counted, and `/healthz` is exempt. (SC-4)
 
-> This is where the two cross-cutting plugins land (moved from Phase 1): the
-> first native routes that need bearer auth **and** rate limiting.
+## Phase 3 — Repos (read) group — first authed native group (PR)
+
+> The `bearer-scope` plugin lands here (moved from Phase 1): the first native
+> routes that need bearer auth. Rate limiting is already live (Phase 2) and
+> covers these routes via the ext (default bucket).
 
 - [ ] T012a `apps/lore-api/src/server/plugins/bearer-scope.ts`: hapi auth
   scheme/strategy wrapping `validateClientToken`. Authenticates the bearer once,
@@ -78,13 +96,6 @@ migrate the group's contract tests — all together.
   leaves `getRequiredScope`/`validateClientToken` intact for the legacy path).
   Reconcile the 401/403 response bodies to match the legacy `{ error }` shape.
   Unit-test the scheme via a throwaway route.
-- [ ] T012b `apps/lore-api/src/server/plugins/rate-limit.ts`: `onPreAuth` server
-  ext reusing the exact `rateLimit()` + `RateBucket` from `routes/auth.ts`
-  (single source → identical thresholds). Selects `webhook`/`task`/`default` by
-  path; **skips the catch-all route and `/healthz`** so each request is counted
-  exactly once (native via the ext, legacy via the dispatcher — never both).
-  Same `429` + `Retry-After: 60`. Add a through-hapi integration assertion that
-  the default bucket still trips at the 201st request (proves no double-count).
 - [ ] T012 Native routes for `/api/repo-status`, `/api/repos`, `/api/pr-status`
   (`routes/repos/`). `bearer-scope` with `read` scope. Delete legacy rows +
   `getRequiredScope` entries. Migrate tests incl. the auth matrix (401/403/

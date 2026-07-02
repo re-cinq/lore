@@ -17,6 +17,9 @@ import { Readable } from "node:stream";
 import type { IncomingMessage } from "node:http";
 import { traceHttp } from "@re-cinq/lore-server-core/platform/otel.js";
 import { handleApiRoute } from "../api/routes.js";
+import { registerRateLimit } from "./plugins/rate-limit.js";
+import { healthzRoute } from "../api/routes/healthz/healthz.js";
+import { distRoute } from "../api/routes/dist/dist.js";
 
 // 1 MB — the body cap for NATIVE routes (the hapi-native replacement for the
 // old manual gate). Native routes inherit it from the server payload default.
@@ -51,6 +54,12 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
     host: "0.0.0.0",
     routes: { payload: { maxBytes: MAX_BODY_BYTES } },
   });
+
+  registerRateLimit(server);
+
+  // Native hapi routes, migrated one group per PR. They win over the catch-all
+  // bridge below by specificity, taking their group off the legacy dispatcher.
+  server.route([healthzRoute(getPool), distRoute()]);
 
   // The strangler bridge. Everything that is not yet a native hapi route falls
   // through here and is served by the legacy dispatcher, unchanged: it does its
