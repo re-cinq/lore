@@ -42,6 +42,9 @@ import { onboardRoute } from "../api/routes/repos/onboard.js";
 import { slackWebhookRoute } from "../api/routes/webhooks/webhook-slack.js";
 import { incidentWebhookRoute } from "../api/routes/webhooks/webhook-incident.js";
 import { webhookStatusRoute, webhookSecretRoute, webhookEnsureRoute } from "../api/routes/webhooks/webhook.js";
+import { tokensRoute } from "../api/routes/tokens/tokens.js";
+import { darkFactoryRoute } from "../api/routes/dark-factory/dark-factory.js";
+import { agentsGetRoute, agentsPostRoute, agentsPutRoute, agentsDeleteRoute } from "../api/routes/agent-definitions/agents.js";
 
 // 1 MB — the body cap for NATIVE routes (the hapi-native replacement for the
 // old manual gate). Native routes inherit it from the server payload default.
@@ -109,6 +112,12 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
     webhookStatusRoute(),
     webhookEnsureRoute(),
     webhookSecretRoute(),
+    tokensRoute(getPool),
+    darkFactoryRoute(getPool),
+    agentsGetRoute(getPool),
+    agentsPostRoute(getPool),
+    agentsPutRoute(getPool),
+    agentsDeleteRoute(getPool),
   ]);
 
   // The strangler bridge. Everything that is not yet a native hapi route falls

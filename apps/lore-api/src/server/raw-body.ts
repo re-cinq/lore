@@ -13,3 +13,16 @@ export function rawBody(request: Request): string {
   if (typeof payload === "string") return payload;
   return "";
 }
+
+/**
+ * Parse the raw body as JSON with the legacy `readJsonBody` semantics: an empty
+ * body is `{}`, a body over 1 MB throws `body too large`, and invalid JSON
+ * throws. Routes that used `readJsonBody` (which caps at 1 MB and 400s on
+ * failure) raise their `payload.maxBytes` above 1 MB and call this so the cap
+ * surfaces as their own 400 rather than hapi's 413.
+ */
+export function parseJsonBodyCapped(request: Request): unknown {
+  const raw = rawBody(request);
+  if (Buffer.byteLength(raw, "utf8") > 1_048_576) throw new Error("body too large");
+  return raw ? JSON.parse(raw) : {};
+}

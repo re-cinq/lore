@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { buildServer } from "./build-server.js";
-import { useRateLimitSafeClock, makePool, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 // The strangler bridge (ADR-033): hapi hosts the server via `buildServer`, and
 // every not-yet-migrated request still flows through the legacy dispatcher
@@ -43,17 +43,9 @@ describe("buildServer strangler bridge", () => {
     expect(JSON.parse(res.payload)).toEqual({ error: "request body too large" });
   });
 
-  it("delivers the POST body to the legacy handler through the bridge", async () => {
-    // The shim carries the body across the seam: /api/tokens (still bridged) reads
-    // the body after its pool check — a delivered body missing `name` reaches the
-    // 400, while an empty (undelivered) body would 500 on JSON.parse.
-    const res = await buildServer(() => makePool()).inject({
-      method: "POST",
-      url: "/api/tokens",
-      headers: AUTH,
-      payload: JSON.stringify({ not: "a name" }),
-    });
-    expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.payload)).toEqual({ error: "name required" });
-  });
+  // The shim's POST-body delivery to a bridged handler was proven against
+  // successive bridged body-readers (memory → onboard → tokens), all now native.
+  // The remaining bridged POST readers (impact/features) fail-soft or migrate
+  // next, so that assertion retired here; the bridge's core (delegation,
+  // raw.res write via h.abandon, 404/401/413 gates) stays covered above.
 });

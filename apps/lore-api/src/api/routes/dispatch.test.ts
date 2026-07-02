@@ -123,27 +123,27 @@ describe("handleApiRoute dispatch — auth", () => {
     expect(pool.query).toHaveBeenCalledTimes(1);
   });
 
-  it("grants any scope when the DB token has admin scope", async () => {
+  it("grants a higher scope access to a lower-scope route (admin token, write route)", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ scopes: ["admin"] }] });
     const res = makeRes();
+    // POST /api/repos/o/r/impact is a still-bridged write-scoped route; an admin
+    // token satisfies it, so auth passes (does not 403) and the route runs.
     const handled = await handleApiRoute(
-      makeReq({ url: "/api/tokens", method: "POST", headers: { authorization: "Bearer db-admin" }, body: {} }),
+      makeReq({ url: "/api/repos/o/r/impact", method: "POST", headers: { authorization: "Bearer db-admin" }, body: {} }),
       res,
       pool as any,
     );
-    // admin passes auth; handleTokens then 400s on the missing name — the point
-    // is auth did not 403. (/api/tokens is a still-bridged admin route.)
     expect(handled).toBe(true);
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).not.toBe(403);
   });
 
-  it("returns 403 when the DB token lacks the admin scope an admin route needs", async () => {
+  it("returns 403 when the DB token lacks the scope a route needs", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
     const res = makeRes();
     await handleApiRoute(
-      makeReq({ url: "/api/tokens", method: "POST", headers: { authorization: "Bearer db-read" }, body: {} }),
+      makeReq({ url: "/api/repos/o/r/impact", method: "POST", headers: { authorization: "Bearer db-read" }, body: {} }),
       res,
       pool as any,
     );
@@ -172,18 +172,6 @@ describe("handleApiRoute dispatch — auth", () => {
     );
     expect(handled).toBe(false);
     expect(pool.query).not.toHaveBeenCalled();
-  });
-
-  it("applies the dark-factory admin scope override (403 for a read token)", async () => {
-    const pool = makePool();
-    pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({ url: "/api/repos/o/r/settings/dark-factory", headers: { authorization: "Bearer db-read" } }),
-      res,
-      pool as any,
-    );
-    expect(res.statusCode).toBe(403);
   });
 
   it("returns false for an unknown route after auth passes", async () => {

@@ -36,31 +36,13 @@ export function rateLimit(bucket: RateBucket): boolean {
 
 export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 
-const ROUTE_SCOPES: Record<string, TokenScope> = {
-  "/api/tokens": "admin",
-};
+const ROUTE_SCOPES: Record<string, TokenScope> = {};
 
 // URL patterns that override the prefix-based scope mapping for routes
 // that need stronger scope than their generic prefix would imply. Keep
 // these explicit so future `/api/repos/:o/:r/...` routes don't silently
 // inherit admin scope.
 const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[] }> = [
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$|\/)/,
-    scope: "admin",
-  },
-  // Agent definitions: the runner reads the resolved def (GET → read); editing
-  // definitions is admin. Method-specific so a read-scoped task token can resolve.
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/,
-    scope: "read",
-    methods: ["GET"],
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/,
-    scope: "admin",
-    methods: ["POST", "PUT", "DELETE"],
-  },
   {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$|\/)/,
     scope: "write",

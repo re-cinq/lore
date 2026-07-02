@@ -242,11 +242,30 @@ migrate the group's contract tests — all together.
 
 ## Phase 11 — Admin / settings group (PR)
 
-- [ ] T020 Native routes for `/api/tokens`,
-  `/api/repos/:o/:r/settings/dark-factory`, `/api/repos/:o/:r/agent-definitions`
-  (`routes/tokens/`, `routes/dark-factory/`, `routes/agent-definitions/`).
-  `admin` scope; preserve the two-key authZ on privileged dark-factory fields.
-  Delete legacy rows + scope entries. Migrate tests. (FR5, SC-3)
+> **DONE.** The authZ-heaviest phase. Full suite green (374 — the obsolete
+> `getRequiredScope` assertions and two unreproducible-under-hapi tests dropped).
+
+- [x] T020a Shared helpers: `server/raw-body.ts` gains `parseJsonBodyCapped`
+  (empty→`{}`, >1 MB→throw, invalid→throw — the `readJsonBody` semantics, so its
+  cap surfaces as a route 400 not hapi's 413; routes raise `maxBytes` to 2 MB).
+  New `api/routes/two-key.ts` `checkApproval()` returns the CODEOWNERS-ceremony
+  outcome (evidence or a `{code, body}` denial) instead of writing `res`, shared
+  by dark-factory + agents; each shapes its own ceremony from the evidence.
+- [x] T020 Native routes: `tokensRoute` (`method:"*"` so PUT still 405s, admin,
+  GET list / POST create+revoke); `darkFactoryRoute` (`method:"*"`, admin,
+  GET resolve / PUT with the full two-key ceremony + JSONB txn + audit
+  preserved); agents as **per-method** routes — `agentsGetRoute`
+  (`{name?}`, read) + `agentsPostRoute`/`agentsPutRoute`/`agentsDeleteRoute`
+  (admin, the `image` two-key gate intact). Deleted the 3 legacy rows, the
+  `/api/tokens` `ROUTE_SCOPES` entry (now `{}`), and the dark-factory +
+  agent-definitions `SCOPE_OVERRIDE`s. (FR4, FR5, SC-3)
+- [x] Cross-test: rewrote `auth.test.ts` to cover only the still-bridged
+  `impact`/`features` scopes + default; repointed `dispatch.test`'s scope tests
+  to the write-scoped `impact` and dropped its dark-factory-override test;
+  **retired the `build-server.test` body-shim assertion** (its bridged
+  body-reader anchors are exhausted — the bridge core stays covered by the
+  `/api/nope` 404/401/413 tests). Dropped the tokens/dark-factory "method absent"
+  405 case (hapi `inject` requires a real method).
 
 ## Phase 12 — Trace + impact + features group (PR)
 

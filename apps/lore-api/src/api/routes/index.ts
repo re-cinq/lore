@@ -9,9 +9,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
-import { handleTokens } from "./tokens/tokens.js";
-import { handleDarkFactorySettingsRoute } from "./dark-factory/dark-factory.js";
-import { handleAgentsRoute } from "./agent-definitions/agents.js";
 import { handleImpactRoute } from "./impact/impact.js";
 import { handleTraceRoute } from "./trace/trace.js";
 import { handleGlobalTraceSpecs } from "./trace/trace-specs.js";
@@ -38,9 +35,6 @@ const path = (matcher: (url: string) => boolean): RouteMatcher =>
 // The remaining bridged routes (admin/settings, trace, features) all use regex
 // matchers; the `exact`/`prefix` helpers left with the last routes that used them.
 const API_ROUTES: ApiRoute[] = [
-  { match: path((url) => url === "/api/tokens"), handle: handleTokens },
-  { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
-  { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/.test(url)), handle: handleAgentsRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/trace\//, "GET"), handle: handleTraceRoute },
   { match: pattern(/^\/api\/trace\/specs(\?|$)/, "GET"), handle: handleGlobalTraceSpecs },
