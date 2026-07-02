@@ -125,11 +125,29 @@ migrate the group's contract tests — all together.
 
 ## Phase 5 — Tasks (read) group (PR)
 
-- [ ] T014 Native routes for `/api/task/:id`, `/api/tasks`,
-  `/api/tasks/:id/timeline`, `/api/tasks/by-pr/*`, `GET /api/task-logs`,
-  `/api/job-run-logs` (`routes/tasks/`). Typed path params replace the regex
-  ordering (`:id/timeline` before `:id`). `read` scope. Delete legacy rows +
-  scope entries. Migrate tests. (FR5, SC-3)
+> **DONE.** Six native routes; hapi's radix tree replaces the load-bearing regex
+> ordering. Full suite green (384 — one net drop, see the dropped test below).
+
+- [x] T014 Native routes `getTaskRoute`/`listTasksRoute`/`timelineRoute`/
+  `taskByPrRoute`/`taskLogsGetRoute`/`jobRunLogsRoute` (`routes/tasks/`), all
+  returning values. **Typed path params** replace the regex table:
+  `/api/task/{id}`, `/api/tasks/{id}/timeline`,
+  `/api/tasks/by-pr/{owner}/{repo}/{number}` — hapi resolves specificity
+  structurally, so the "specific regex before broad prefix" hand-ordering is
+  gone. Registered in `build-server.ts`; six legacy rows deleted.
+- [x] Scopes preserved exactly: task/list/timeline/by-pr/job-run-logs = `read`;
+  **`GET /api/task-logs` = `task`**, NOT write — the legacy `getRequiredScope`
+  matches `/api/task` (first-match-wins, `startsWith`) before the dead
+  `/api/task-logs`→`write` entry, so `task` is the real required scope. Deleted
+  the migrated `ROUTE_SCOPES` entries (`/api/tasks`, `/api/task/`,
+  `/api/job-run-logs`) + the dead `/api/task-logs`→`write`. Kept `/api/task`→`task`
+  (POST `/api/task` + POST `/api/task-logs`, both still bridged — Phase 6).
+- [x] `task-logs.ts` keeps the raw `handleTaskLogs` (POST, bridged) alongside the
+  native GET route. Tests migrated to `inject`; `task-logs.test.ts` POST block
+  still drives the bridge. **Dropped** the timeline "stricter handler regex" 404
+  test: `?` in the malformed path made it query-string under hapi, so that
+  internal defensive branch (and its `TIMELINE_RE`) is now unreachable — removed
+  as dead code. (FR5, SC-3)
 
 ## Phase 6 — Tasks (write) group (PR)
 

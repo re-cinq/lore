@@ -1,15 +1,21 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ServerRoute } from "@hapi/hapi";
 import { listTasks } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { json } from "../http.js";
+import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
-export async function handleListTasks(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const url = new URL(req.url!, `http://localhost`);
-  const status = url.searchParams.get("status") || undefined;
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "20"), 100);
-  try {
-    const result = await listTasks(status, limit);
-    json(res, 200, result);
-  } catch (err: any) {
-    json(res, 500, { error: err.message });
-  }
+export function listTasksRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/tasks",
+    options: bearerScope("read"),
+    handler: async (request, h) => {
+      const q = request.query as Record<string, string | undefined>;
+      const status = q.status || undefined;
+      const limit = Math.min(parseInt(q.limit || "20"), 100);
+      try {
+        return h.response(await listTasks(status, limit));
+      } catch (err: any) {
+        return h.response({ error: err.message }).code(500);
+      }
+    },
+  };
 }
