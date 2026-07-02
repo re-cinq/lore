@@ -37,8 +37,6 @@ export function rateLimit(bucket: RateBucket): boolean {
 export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 
 const ROUTE_SCOPES: Record<string, TokenScope> = {
-  "/api/webhook/slack": "webhook",
-  "/api/webhook/incident": "webhook",
   "/api/tokens": "admin",
 };
 
@@ -66,24 +64,6 @@ const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[]
   {
     re: /^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$|\/)/,
     scope: "write",
-  },
-  // Webhook: revealing the shared HMAC secret is admin — must precede the
-  // general GET-read rule (first match wins) so a read token can't read it.
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook\/secret(\?|$)/,
-    scope: "admin",
-    methods: ["GET"],
-  },
-  // GET status is read; POST .../webhook/ensure creates/repoints (write).
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook(\?|$|\/)/,
-    scope: "read",
-    methods: ["GET"],
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook\/ensure(\?|$|\/)/,
-    scope: "write",
-    methods: ["POST"],
   },
   // Feature planning: list/get are read; create/refine/finalize/split and the
   // pod result POST are write. Method-specific so a read token can poll.

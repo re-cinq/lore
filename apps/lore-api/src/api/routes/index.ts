@@ -9,13 +9,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
-import { handleSlackWebhook } from "./webhooks/webhook-slack.js";
-import { handleIncidentWebhook } from "./webhooks/webhook-incident.js";
 import { handleTokens } from "./tokens/tokens.js";
 import { handleDarkFactorySettingsRoute } from "./dark-factory/dark-factory.js";
 import { handleAgentsRoute } from "./agent-definitions/agents.js";
 import { handleImpactRoute } from "./impact/impact.js";
-import { handleWebhookStatus, handleWebhookEnsure, handleWebhookSecret } from "./webhooks/webhook.js";
 import { handleTraceRoute } from "./trace/trace.js";
 import { handleGlobalTraceSpecs } from "./trace/trace-specs.js";
 import { handleFeaturesRoute } from "./features/features.js";
@@ -33,27 +30,18 @@ interface ApiRoute {
   handle: RouteHandler;
 }
 
-const exact = (path: string, verb: string): RouteMatcher =>
-  (url, method) => url === path && method === verb;
-const prefix = (path: string, verb: string): RouteMatcher =>
-  (url, method) => url.startsWith(path) && method === verb;
 const pattern = (re: RegExp, verb: string): RouteMatcher =>
   (url, method) => re.test(url) && method === verb;
 const path = (matcher: (url: string) => boolean): RouteMatcher =>
   (url) => matcher(url);
 
-// Order matters: specific regex routes precede the broad /api/tasks prefix.
-// /healthz and /dist/lore-code-trace/* are now native hapi routes (Phase 2).
+// The remaining bridged routes (admin/settings, trace, features) all use regex
+// matchers; the `exact`/`prefix` helpers left with the last routes that used them.
 const API_ROUTES: ApiRoute[] = [
-  { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
-  { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
   { match: path((url) => url === "/api/tokens"), handle: handleTokens },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/.test(url)), handle: handleDarkFactorySettingsRoute },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/.test(url)), handle: handleAgentsRoute },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$)/, "POST"), handle: handleImpactRoute },
-  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook\/ensure(\?|$)/, "POST"), handle: handleWebhookEnsure },
-  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook\/secret(\?|$)/, "GET"), handle: handleWebhookSecret },
-  { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/webhook(\?|$)/, "GET"), handle: handleWebhookStatus },
   { match: pattern(/^\/api\/repos\/[^/]+\/[^/]+\/trace\//, "GET"), handle: handleTraceRoute },
   { match: pattern(/^\/api\/trace\/specs(\?|$)/, "GET"), handle: handleGlobalTraceSpecs },
   { match: path((url) => /^\/api\/repos\/[^/]+\/[^/]+\/features(\/.*)?(\?|$)/.test(url)), handle: handleFeaturesRoute },

@@ -220,11 +220,25 @@ migrate the group's contract tests — all together.
 
 ## Phase 10 — Webhooks group (PR)
 
-- [ ] T019 Native routes for `/api/webhook/slack`, `/api/webhook/incident`,
-  `/api/repos/:o/:r/webhook{,/ensure,/secret}` (`routes/webhooks/`).
-  `auth: false` — HMAC verification stays route-local; `webhook` rate-limit
-  bucket. Delete legacy rows. Migrate tests incl. the `webhook`-bucket 429
-  threshold + HMAC-reject cases. (FR4, SC-3, SC-4)
+> **DONE.** The mixed-auth group. Full suite green (382 — one net drop, an
+> obsolete scope test removed).
+
+- [x] T019 Two auth models in one PR:
+  - **Auth-exempt ingress** (`auth: false`): `slackWebhookRoute` (`POST
+    /api/webhook/slack`, keeps the exported `verifySlackSignature`, URL-encoded
+    body via `parse:false`+`rawBody`, text responses for 401/503) and
+    `incidentWebhookRoute` (`POST /api/webhook/incident`, JSON body). Slack still
+    verifies its own HMAC; the `webhook` rate-limit bucket comes from the ext.
+  - **Bearer-authed repo webhook mgmt**: `webhookStatusRoute` (`read`),
+    `webhookEnsureRoute` (`write`), `webhookSecretRoute` (`admin`), typed
+    `{owner}/{repo}` params (the `repoFromReposUrl` null branch dropped).
+  - Deleted the 5 legacy rows, the 2 **dead** `webhook`-scope `ROUTE_SCOPES`
+    entries (the `/api/webhook/*` prefix was already `authExempt`), and the 3
+    webhook `SCOPE_OVERRIDE`s. Removed the obsolete `auth.test` secret/status
+    assertion. Also removed the now-unused `exact`/`prefix` matcher helpers.
+  - **hapi 204 gotcha:** an empty-string response is 204, so the
+    `url_verification` challenge pins `.code(200)` (empty challenge must stay
+    200). (FR4, SC-3, SC-4)
 
 ## Phase 11 — Admin / settings group (PR)
 
