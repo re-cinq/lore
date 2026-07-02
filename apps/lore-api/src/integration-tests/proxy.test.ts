@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import type { Server } from "@hapi/hapi";
 import pg from "pg";
-import { handleApiRoute } from "../api/routes.js";
+import { buildServer } from "../server/build-server.js";
 import { proxyToApi, proxyGetApi } from "@re-cinq/lore-server-core/proxy.js";
 
 // Proxy seam introduced by the local/remote split (ADR-032). The lean
@@ -12,10 +11,11 @@ import { proxyToApi, proxyGetApi } from "@re-cinq/lore-server-core/proxy.js";
 // over HTTP to the remote lore-api, which authenticates the bearer and serves
 // from Postgres.
 //
-// These tests stand up the REAL lore-api router (handleApiRoute, wired exactly
-// like src/server/http-server.ts) against the test DB and drive the REAL proxy
-// client at it. That boundary is invisible to both unit suites: mcp-server's
-// has no server to talk to, lore-api's never goes through the proxy.
+// These tests stand up the REAL lore-api server (buildServer — the same factory
+// production boots, hapi in front of the legacy dispatcher) against the test DB
+// and drive the REAL proxy client at it. That boundary is invisible to both unit
+// suites: mcp-server's has no server to talk to, lore-api's never goes through
+// the proxy.
 
 const TOKEN = "test-proxy-token";
 const TEST_REPO = "test/proxy-repo";
@@ -25,7 +25,7 @@ type ProxyOk = { ok: true; body: string };
 describe("mcp-server proxy <-> lore-api round-trip", () => {
   let pool: pg.Pool;
   let server: Server;
-  let port: number;
+  let port: number | string;
   let taskId: string;
   const prevApiUrl = process.env.LORE_API_URL;
   const prevToken = process.env.LORE_INGEST_TOKEN;
@@ -40,12 +40,9 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
     });
     await pool.query("SELECT 1");
 
-    server = createServer(async (req, res) => {
-      const handled = await handleApiRoute(req, res, pool);
-      if (!handled) res.writeHead(404).end();
-    });
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    port = (server.address() as AddressInfo).port;
+    server = buildServer(() => pool);
+    await server.start();
+    port = server.info.port;
 
     // Point the proxy client at the real server, as install.sh configures the
     // local MCP adapter against the remote API.
@@ -70,7 +67,7 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
   afterAll(async () => {
     await pool.query("DELETE FROM pipeline.tasks WHERE created_by = 'integration-test-proxy'");
     await pool.query("DELETE FROM lore.repos WHERE full_name = $1", [TEST_REPO]);
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    await server.stop();
     await pool.end();
     if (prevApiUrl === undefined) delete process.env.LORE_API_URL;
     else process.env.LORE_API_URL = prevApiUrl;

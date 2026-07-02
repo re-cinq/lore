@@ -22,38 +22,41 @@ migrate the group's contract tests — all together.
 - [x] T002 Fix the spec's ADR reference (`ADR-032` → `ADR-033`; ADR-032 is
   `split-local-remote-api`) and commit spec + ADR + tasks.
 
-## Phase 1 — Strangler seam: hapi hosts 100% of traffic (PR #1) (FR1, FR3, FR4)
+## Phase 1 — Strangler seam: hapi hosts 100% of traffic (PR #1) (FR1, FR3)
 
-- [ ] T003 Add deps to `apps/lore-api/package.json`: `@hapi/hapi`, `@hapi/boom`,
-  `@types/hapi__hapi` — pin to floor's versions (`@hapi/hapi ^21.4.9`).
-- [ ] T004 Create `apps/lore-api/src/server/build-server.ts`:
-  `buildServer(getPool) -> Server`. Registers the plugins (T006–T008), the
-  catch-all bridge (T005), and (initially) no native routes. **One** construction
-  site, shared by prod boot and the integration tests.
-- [ ] T005 Add the catch-all bridge route in `build-server.ts`:
-  `method: "*", path: "/{any*}", options: { auth: false }`; handler calls
-  `handleApiRoute(request.raw.req, request.raw.res, getPool())`, returns
-  `h.response().code(404)` when unhandled else `h.abandon`. This delegates every
-  not-yet-migrated route to the existing dispatcher.
-- [ ] T006 `apps/lore-api/src/server/plugins/bearer-scope.ts`: hapi auth
-  scheme/strategy wrapping `validateClientToken`. Authenticates the bearer once,
-  sets `credentials.scope` from `pipeline.api_tokens` (admin ⇒ all); preserves
-  the `LORE_INGEST_TOKEN` full-access fallback. Register as the default strategy;
-  the catch-all opts out with `auth: false`.
-- [ ] T007 `apps/lore-api/src/server/plugins/rate-limit.ts`: `onPreAuth` server
-  ext reusing the exact sliding-window bucket logic; move `webhook`/`task`/
-  `default` bucket selection into the ext. Same thresholds + `429` +
-  `Retry-After: 60`.
-- [ ] T008 `apps/lore-api/src/server/plugins/body-cap.ts`: hapi `payload`
-  defaults (`maxBytes: 1_048_576`) applied via the server config. (Manual caps in
-  `index.ts`/`http.ts` stay until no legacy route depends on them — removed at
-  teardown.)
-- [ ] T009 Rewrite `apps/lore-api/src/server/http-server.ts` to a thin
-  `startHttpServer() -> buildServer(getPool).start()`; point `src/index.ts` at it.
-  No bare `createServer` in the boot path.
-- [ ] T010 Port the integration/proxy/pipeline/webhook harness to drive the hapi
-  server via `buildServer` (inject via `server.inject` or bind a port).
-  Full suite green through the catch-all bridge. (SC-2, SC-5)
+> **DONE.** hapi is in front of the whole API via `buildServer`; every route is
+> still served by the legacy dispatcher through one catch-all bridge. Zero
+> behavioral change — full suite green (375 tests). **Scope note:** the seam is
+> deliberately minimal. The `bearer-scope` and `rate-limit` plugins (former
+> T006/T007) are **inert until a native route needs them**, so they move to
+> Phase 3 (the first authed + rate-limited group) — building them dormant now is
+> speculative, and the rate-limit ext would risk double-counting against the
+> legacy limiter during the bridge window. The body cap (former T008) is a
+> one-liner folded into `build-server.ts` (server-level `payload.maxBytes`), no
+> separate file — matching floor's own precedent.
+
+- [x] T003 Add deps to `apps/lore-api/package.json`: `@hapi/hapi ^21.4.9`,
+  `@hapi/boom ^10.0.1`, `@types/hapi__hapi ^20.0.13` — pinned to floor's versions.
+- [x] T004 `apps/lore-api/src/server/build-server.ts`: `buildServer(getPool, port)`
+  → hapi `Server`. Server-level `payload.maxBytes = 1 MB` is the native-route
+  body-cap default (former T008, inlined). **One** construction site, shared by
+  prod boot and the tests.
+- [x] T005 Catch-all bridge in `build-server.ts`: `method: "*", path: "/{any*}"`,
+  `{ auth: false, payload: { parse: false } }`. A `Readable` shim carries the
+  buffered body + raw url (with query)/method/headers to `handleApiRoute`;
+  preserves the old 1 MB Content-Length `413` byte-for-byte; traces via
+  `traceHttp`; writes `request.raw.res` and returns `h.abandon` (or 404 when the
+  dispatcher declines). Legacy rate-limit + bearer auth stay owned by the
+  dispatcher for un-migrated routes.
+- [x] T009 `http-server.ts` reduced to a thin boot: `buildServer(getPool, PORT)`
+  → `.start()` + SIGTERM graceful `stop()`. `src/index.ts` unchanged
+  (`startHttpServer(getPool)`). No bare `createServer` in the boot path.
+- [x] T010 Tests: `src/server/build-server.test.ts` drives the hapi server via
+  `inject` (healthz 200 through the bridge, unknown → 404, protected-no-token →
+  401, POST Content-Length → 413, POST body reaches the handler via the shim).
+  Ported `integration-tests/proxy.test.ts` from raw `createServer` to
+  `buildServer` + `start()`/`stop()` (real-socket body round-trip, DB-gated).
+  (SC-2, SC-5)
 
 ## Phase 2 — Infra group (no auth, no DB) (PR)
 
@@ -61,12 +64,31 @@ migrate the group's contract tests — all together.
   (`routes/healthz/`, `routes/dist/`); `auth: false`. Delete their rows from
   `API_ROUTES` in `routes/index.ts`. Migrate their tests. (SC-5)
 
-## Phase 3 — Repos (read) group (PR)
+## Phase 3 — Repos (read) group — first authed + rate-limited native group (PR)
 
+> This is where the two cross-cutting plugins land (moved from Phase 1): the
+> first native routes that need bearer auth **and** rate limiting.
+
+- [ ] T012a `apps/lore-api/src/server/plugins/bearer-scope.ts`: hapi auth
+  scheme/strategy wrapping `validateClientToken`. Authenticates the bearer once,
+  sets `credentials.scope` from `pipeline.api_tokens` (admin ⇒ all scopes);
+  preserves the `LORE_INGEST_TOKEN` full-access fallback. Registered as a named,
+  non-default strategy (the catch-all keeps `auth: false`); native routes opt in
+  via `options.auth`. Add `resolveTokenScopes()` to `routes/auth.ts` (additive;
+  leaves `getRequiredScope`/`validateClientToken` intact for the legacy path).
+  Reconcile the 401/403 response bodies to match the legacy `{ error }` shape.
+  Unit-test the scheme via a throwaway route.
+- [ ] T012b `apps/lore-api/src/server/plugins/rate-limit.ts`: `onPreAuth` server
+  ext reusing the exact `rateLimit()` + `RateBucket` from `routes/auth.ts`
+  (single source → identical thresholds). Selects `webhook`/`task`/`default` by
+  path; **skips the catch-all route and `/healthz`** so each request is counted
+  exactly once (native via the ext, legacy via the dispatcher — never both).
+  Same `429` + `Retry-After: 60`. Add a through-hapi integration assertion that
+  the default bucket still trips at the 201st request (proves no double-count).
 - [ ] T012 Native routes for `/api/repo-status`, `/api/repos`, `/api/pr-status`
   (`routes/repos/`). `bearer-scope` with `read` scope. Delete legacy rows +
   `getRequiredScope` entries. Migrate tests incl. the auth matrix (401/403/
-  `LORE_INGEST_TOKEN`). (FR5, SC-3)
+  `LORE_INGEST_TOKEN`). (FR4, FR5, SC-3)
 
 ## Phase 4 — Context + graph group (PR)
 
