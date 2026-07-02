@@ -11,9 +11,6 @@ import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
 import { handleIngest } from "./ingest/ingest.js";
 import { handleOnboard } from "./repos/onboard.js";
-import { handleMemory } from "./memory/memory.js";
-import { handleEpisode } from "./memory/episode.js";
-import { handleSessionSummary } from "./memory/session-summary.js";
 import { handleSlackWebhook } from "./webhooks/webhook-slack.js";
 import { handleIncidentWebhook } from "./webhooks/webhook-incident.js";
 import { handleTokens } from "./tokens/tokens.js";
@@ -53,9 +50,6 @@ const path = (matcher: (url: string) => boolean): RouteMatcher =>
 const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/ingest", "POST"), handle: handleIngest },
   { match: exact("/api/onboard", "POST"), handle: handleOnboard },
-  { match: exact("/api/memory", "POST"), handle: handleMemory },
-  { match: exact("/api/episode", "POST"), handle: handleEpisode },
-  { match: exact("/api/session-summary", "POST"), handle: handleSessionSummary },
   { match: exact("/api/webhook/slack", "POST"), handle: handleSlackWebhook },
   { match: exact("/api/webhook/incident", "POST"), handle: handleIncidentWebhook },
   { match: path((url) => url === "/api/tokens"), handle: handleTokens },

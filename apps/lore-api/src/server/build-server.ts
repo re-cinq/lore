@@ -33,6 +33,9 @@ import { taskByPrRoute } from "../api/routes/tasks/task-by-pr.js";
 import { taskLogsGetRoute, taskLogsPostRoute } from "../api/routes/tasks/task-logs.js";
 import { jobRunLogsRoute } from "../api/routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "../api/routes/tasks/task-post.js";
+import { memoryRoute } from "../api/routes/memory/memory.js";
+import { episodeRoute } from "../api/routes/memory/episode.js";
+import { sessionSummaryRoute } from "../api/routes/memory/session-summary.js";
 
 // 1 MB — the body cap for NATIVE routes (the hapi-native replacement for the
 // old manual gate). Native routes inherit it from the server payload default.
@@ -89,6 +92,9 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
     jobRunLogsRoute(),
     taskPostRoute(getPool),
     taskLogsPostRoute(),
+    memoryRoute(getPool),
+    episodeRoute(getPool),
+    sessionSummaryRoute(getPool),
   ]);
 
   // The strangler bridge. Everything that is not yet a native hapi route falls

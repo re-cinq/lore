@@ -176,9 +176,18 @@ migrate the group's contract tests — all together.
 
 ## Phase 7 — Memory group (PR)
 
-- [ ] T016 Native routes for `POST /api/memory`, `/api/episode`,
-  `/api/session-summary` (`routes/memory/`). `write` scope. Delete legacy rows +
-  scope entries. Migrate tests. (FR5, SC-3)
+> **DONE.** Pure write-route pattern. Full suite green (385).
+
+- [x] T016 Native `memoryRoute`/`episodeRoute`/`sessionSummaryRoute`
+  (`routes/memory/`, `bearerScope("write")` + `payload: { parse: false }` +
+  `rawBody`). Preserved: the memory action switch (write/read/search/delete/list
+  + unknown→400), `episode`'s `pool!` (no guard → 500 on null pool via the throw),
+  `session-summary`'s ordering (short-summary skip before the 503 pool guard), and
+  the fire-and-forget `extractFactsFromEpisode`/`extractAndUpdateGraph` `.catch`.
+  Deleted the three legacy rows + `ROUTE_SCOPES` entries. Tests migrated to
+  `inject` (auth 401/403 + invalid-JSON 500 kept). The `build-server.test.ts`
+  body-shim test moved off `/api/memory` (now native) to `POST /api/onboard`
+  (still bridged; delivered body → 400, empty → 500). (FR5, SC-3)
 
 ## Phase 8 — Ingest group (PR)
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { buildServer } from "./build-server.js";
-import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { useRateLimitSafeClock, makePool, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 // The strangler bridge (ADR-033): hapi hosts the server via `buildServer`, and
 // every not-yet-migrated request still flows through the legacy dispatcher
@@ -44,16 +44,16 @@ describe("buildServer strangler bridge", () => {
   });
 
   it("delivers the POST body to the legacy handler through the bridge", async () => {
-    // The shim carries the body across the seam: /api/memory (still bridged) reads
-    // the body before any pool use — a delivered `{action:"bogus"}` reaches the
-    // action switch and 400s, while an empty (undelivered) body would 500 on parse.
-    const res = await build().inject({
+    // The shim carries the body across the seam: /api/onboard (still bridged) reads
+    // the body after its pool check — a delivered body missing `repo` reaches the
+    // 400, while an empty (undelivered) body would 500 on JSON.parse.
+    const res = await buildServer(() => makePool()).inject({
       method: "POST",
-      url: "/api/memory",
+      url: "/api/onboard",
       headers: AUTH,
-      payload: JSON.stringify({ action: "bogus" }),
+      payload: JSON.stringify({ not: "a repo" }),
     });
     expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.payload)).toEqual({ error: "action must be: write, read, search, delete, list" });
+    expect(JSON.parse(res.payload)).toEqual({ error: "required: repo (owner/name format)" });
   });
 });
