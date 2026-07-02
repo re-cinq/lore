@@ -29,6 +29,10 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["internal.ingest.spec_trace", internal.specTrace],
     ["internal.ingest.spec_coverage_validate", internal.specCoverageValidate],
 
+    // ── Kubernetes (the Agent-CR watch emits on terminal phase) ──
+    ["kubernetes.agent.succeeded", kubernetes.agentSucceeded],
+    ["kubernetes.agent.failed", kubernetes.agentFailed],
+
     // ── Cron (in-process scheduler emits the tick; loop runs it) ──
     ["cron.merge_check.tick", cron.mergeCheck],
     ["cron.approval_check.tick", cron.approvalCheck],
@@ -36,6 +40,8 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["cron.spec_task_executor.tick", cron.specTaskExecutor],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
     ["cron.feature_planning_reaper.tick", cron.featurePlanningReaper],
+    ["cron.agent_watcher_reconcile.tick", cron.agentWatcherReconcile],
+    ["cron.lease_reaper.tick", cron.leaseReaper],
     ["cron.events_prune.tick", cron.eventsPrune],
   ]);
 }
