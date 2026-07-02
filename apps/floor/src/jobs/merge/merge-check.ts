@@ -1,7 +1,7 @@
 import { taskStore, taskQueue, settings, memoryLifecycle } from "../../kernel/queues.js";
 import { getPool } from "../../kernel/db.js";
 import { projectFor } from "../../composition/project-boot.js";
-import { writeEpisodeWithCuration } from "../memory/episode-writer.js";
+import { writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { parseTasks, inferPhaseDependencies, syncTasksToDb, specSlugFromBranch } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";

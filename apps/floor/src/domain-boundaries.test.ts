@@ -87,4 +87,23 @@ describe("floor domain boundaries", () => {
     }
     expect(bad).toEqual([]);
   });
+
+  // jobs/lib/ holds the cross-cutting job services (episode-writer / artifact-copy /
+  // audit) that every job domain uses. Keeping it a LEAF — reaching only kernel/ and
+  // shared, never back into a sibling job domain — is what stops it becoming a second
+  // junk-drawer that re-tangles the domains it was meant to untangle.
+  const libPrefix = path.join(SRC, "jobs", "lib") + path.sep;
+  it("jobs/lib/ is a leaf — imports only kernel/ and shared, never a sibling job domain", () => {
+    const bad: string[] = [];
+    for (const f of files.filter((f) => f.startsWith(libPrefix))) {
+      for (const spec of relImports(readFileSync(f, "utf8"))) {
+        const rel = path.relative(SRC, path.resolve(path.dirname(f), spec)).split(path.sep);
+        const withinLib = rel[0] === "jobs" && rel[1] === "lib";
+        if (rel[0] !== "kernel" && !withinLib) {
+          bad.push(`${path.relative(SRC, f)} → ${spec} (${rel.slice(0, 2).join("/")})`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
 });

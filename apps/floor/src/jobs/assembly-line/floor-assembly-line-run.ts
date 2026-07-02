@@ -29,7 +29,7 @@ import { KubeAgentApi } from "../station/kube-agent-api.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import { gitAuthArgs, repoCloneUrl } from "@re-cinq/lore-shared/project/workspace/git-auth.js";
 import { buildPrompt } from "../../kernel/config.js";
-import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
+import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { leaseBackendForEnv } from "../../main-loop/lease/lease-backend.js";
 
 const execFile = promisify(execFileCb);

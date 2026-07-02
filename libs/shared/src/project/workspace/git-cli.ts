@@ -2,19 +2,20 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { GitPort, CloneOpts } from "./git-port.js";
+import { gitAuthArgs, repoCloneUrl } from "./git-auth.js";
 
 /**
  * GitPort over the local `git` binary — the same execSync idiom as
- * mcp-server/src/local-runner.ts, here behind the port. Clones with the
- * x-access-token auth the codebase already uses; a repo that already looks like
- * a URL or path is used as-is (lets integration tests clone a local bare repo
- * without auth).
+ * mcp-server/src/local-runner.ts, here behind the port. Auth rides in a
+ * per-invocation `http.extraheader` (shared gitAuthArgs), never baked into the
+ * clone URL or `.git/config`; a repo that already looks like a URL or path is
+ * used as-is (lets integration tests clone a local bare repo without auth).
  */
 export class GitCli implements GitPort {
   constructor(private readonly env: NodeJS.ProcessEnv = process.env) {}
 
   async clone(repo: string, destDir: string, opts?: CloneOpts): Promise<void> {
-    const args = ["clone"];
+    const args = [...this.authArgs(), "clone"];
     if (opts?.ref) args.push("--branch", opts.ref);
     args.push(this.remoteUrl(repo), destDir);
     this.git(args);
@@ -25,7 +26,7 @@ export class GitCli implements GitPort {
     // re-cloning, so a second run against the same cache dir is cheap and keeps
     // any local state. Only clone when the dir has no .git.
     if (existsSync(join(destDir, ".git"))) {
-      this.git(["fetch", "origin"], destDir);
+      this.git([...this.authArgs(), "fetch", "origin"], destDir);
       if (opts?.ref) this.git(["checkout", opts.ref], destDir);
       return;
     }
@@ -77,7 +78,7 @@ export class GitCli implements GitPort {
   }
 
   async push(dir: string, branch: string): Promise<void> {
-    this.git(["push", "origin", branch], dir);
+    this.git([...this.authArgs(), "push", "origin", branch], dir);
   }
 
   async remove(dir: string): Promise<void> {
@@ -99,12 +100,20 @@ export class GitCli implements GitPort {
     return execFileSync("git", args, { cwd, env, encoding: "utf8" });
   }
 
+  private host(): string {
+    return this.env.LORE_GIT_HOST ?? "github.com";
+  }
+
+  /** Per-invocation git auth args (http.extraheader) when a token is configured —
+   *  keeps the token off disk. Empty when no token is set; harmless for a local
+   *  bare-repo remote (the extraheader is scoped to the https host). */
+  private authArgs(): string[] {
+    const token = this.env.GITHUB_TOKEN ?? this.env.LORE_INGEST_TOKEN;
+    return token ? gitAuthArgs(token, this.host()) : [];
+  }
+
   private remoteUrl(repo: string): string {
     if (repo.includes("://") || repo.startsWith("/") || repo.startsWith(".")) return repo;
-    const token = this.env.GITHUB_TOKEN ?? this.env.LORE_INGEST_TOKEN;
-    const host = this.env.LORE_GIT_HOST ?? "github.com";
-    return token
-      ? `https://x-access-token:${token}@${host}/${repo}.git`
-      : `https://${host}/${repo}.git`;
+    return repoCloneUrl(repo, this.host());
   }
 }

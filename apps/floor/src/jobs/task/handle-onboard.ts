@@ -9,7 +9,7 @@ import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../composition/project-boot.js";
 import { settings } from "../../kernel/queues.js";
 import { fetchRepoContext } from "./repo-context.js";
-import { writeEpisode } from "../memory/episode-writer.js";
+import { writeEpisode } from "../lib/episode-writer.js";
 import {
   summarizeFailures,
   TaskFailure,
