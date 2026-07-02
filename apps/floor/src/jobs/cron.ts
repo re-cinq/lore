@@ -11,6 +11,7 @@ import { reviewReactorJob } from "./review/review-reactor.js";
 import { specTaskExecutorJob } from "./task/spec-task-executor.js";
 import { staleTaskCheckJob } from "./task/stale-task-check.js";
 import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
+import { leaseReaperJob } from "../main-loop/lease/lease-reaper.js";
 import { pruneHandled } from "../main-loop/store.js";
 import { reconcileAgents } from "../listeners/k8s-watch.js";
 import type { EventHandler } from "../main-loop/types.js";
@@ -26,6 +27,9 @@ export const reviewReactorCron = fromJob(reviewReactorJob);
 export const specTaskExecutor = fromJob(specTaskExecutorJob);
 export const staleTaskCheck = fromJob(staleTaskCheckJob);
 export const featurePlanningReaper = fromJob(featurePlanningReaperJob);
+
+/** Delete leases >5min past expiry, writing a `lease_expired` audit entry per row. */
+export const leaseReaper = fromJob(() => leaseReaperJob());
 
 /** Housekeeping: drop old terminal event rows so the claim index stays small. */
 export const eventsPrune: EventHandler = async () => {

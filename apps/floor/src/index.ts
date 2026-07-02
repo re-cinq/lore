@@ -15,6 +15,7 @@ import { buildRegistry, resolve } from "./main-loop/registry.js";
 import { startEventLoop } from "./main-loop/loop.js";
 import { startEventReaper } from "./main-loop/reaper.js";
 import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
+import { CRON_EMITTERS } from "./listeners/cron-emitters.js";
 import { startK8sWatch } from "./listeners/k8s-watch.js";
 
 async function main(): Promise<void> {
@@ -49,19 +50,12 @@ async function main(): Promise<void> {
   startK8sWatch();
 
   // ── Layer 1: cron emitters. Each scheduled tick INSERTs a cron.<name>.tick event;
-  // the loop runs the handler. Heavy batch jobs stay as K8s CronJob pods (ADR-019,
-  // carve-out) — they are NOT emitted here.
-  registerCronEmitter("merge_check", "*/1 * * * *");
-  registerCronEmitter("approval_check", "*/1 * * * *");
-  // Review-reactor safety net (the GitHub webhook is the primary trigger); the
-  // handler self-gates on business hours. Hourly Mon-Fri 07:07-17:07 UTC.
-  registerCronEmitter("review_reactor", "7 7-17 * * 1-5");
-  registerCronEmitter("spec_task_executor", "*/1 * * * *");
-  registerCronEmitter("stale_task_check", "17 * * * *"); // hourly at :17
-  registerCronEmitter("feature_planning_reaper", "*/1 * * * *");
-  // Safety net for dropped k8s watch events: re-emit terminal-unhandled CRs + prune.
-  registerCronEmitter("agent_watcher_reconcile", "*/1 * * * *");
-  registerCronEmitter("events_prune", "0 * * * *"); // hourly housekeeping
+  // the loop runs the handler. The set is single-sourced in cron-emitters.ts (the
+  // registry cross-check test derives handler coverage from it). Heavy batch jobs stay
+  // as K8s CronJob pods (ADR-019, carve-out) — they are NOT emitted here.
+  for (const { name, schedule } of CRON_EMITTERS) {
+    registerCronEmitter(name, schedule);
+  }
 
   startScheduler();
   startWorker();
