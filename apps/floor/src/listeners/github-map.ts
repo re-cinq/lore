@@ -10,6 +10,17 @@ import type { EventInput } from "../main-loop/types.js";
 
 const PR_REVIEW_TRIGGER_ACTIONS = new Set(["synchronize", "opened", "reopened", "ready_for_review"]);
 
+/** Every event name `mapGitHubEvent` can produce (the registry must cover each). */
+export const GITHUB_EVENT_NAMES: string[] = [
+  "github.pull_request.closed",
+  ...[...PR_REVIEW_TRIGGER_ACTIONS].map((action) => `github.pull_request.${action}`),
+  "github.pull_request_review.submitted",
+  "github.check_run.completed",
+  "github.check_suite.completed",
+  "github.issue_comment.created",
+  "github.issues.labeled",
+];
+
 function labelNames(labels: unknown): string[] {
   return Array.isArray(labels) ? labels.map((l: { name?: string }) => l?.name).filter(Boolean) as string[] : [];
 }

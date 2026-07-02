@@ -39,7 +39,15 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
 export async function drainOnce(deps: LoopDeps): Promise<number> {
   const batch = await deps.claim(deps.batchSize ?? 20);
   if (batch.length === 0) return 0;
-  await Promise.allSettled(batch.map((ev) => handleOne(ev, deps)));
+  const settled = await Promise.allSettled(batch.map((ev) => handleOne(ev, deps)));
+  // handleOne swallows handler errors into the row's state; a rejection here means a
+  // mark-op itself failed (e.g. DB down mid-drain) and the row is left mid-flight for
+  // the reaper — surface it rather than letting Promise.allSettled hide it.
+  settled.forEach((r, i) => {
+    if (r.status === "rejected") {
+      console.error(`[events] drain: transition failed for ${batch[i].event_name} (${batch[i].id}):`, r.reason);
+    }
+  });
   return batch.length;
 }
 

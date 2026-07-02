@@ -12,6 +12,15 @@ import { k8sDedupeKey } from "../main-loop/dedupe.js";
 /** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentCrBackend sets it on every CR). */
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 
+/** The terminal CR phases that produce an event, mapped to their event action. */
+const TERMINAL_ACTIONS = { Succeeded: "succeeded", Failed: "failed" } as const;
+type TerminalPhase = keyof typeof TERMINAL_ACTIONS;
+
+/** The `kubernetes.agent.*` event names this mapper can produce (the registry must cover each). */
+export const AGENT_EVENT_NAMES: string[] = Object.values(TERMINAL_ACTIONS).map(
+  (action) => `kubernetes.agent.${action}`,
+);
+
 export interface AgentLike {
   metadata?: { name?: string; labels?: Record<string, string> };
   status?: { phase?: string };
@@ -22,7 +31,7 @@ export function mapAgentToEvent(agent: AgentLike): EventInput | null {
   if (phase !== "Succeeded" && phase !== "Failed") return null;
   const taskId = agent.metadata?.labels?.[TASK_ID_LABEL];
   if (!taskId) return null;
-  const action = phase === "Succeeded" ? "succeeded" : "failed";
+  const action = TERMINAL_ACTIONS[phase as TerminalPhase];
   return {
     eventName: `kubernetes.agent.${action}`,
     source: "kubernetes",
