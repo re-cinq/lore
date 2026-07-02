@@ -164,6 +164,20 @@ export function inferPhaseDependencies(tasks: ParsedTask[]): ParsedTask[] {
   return result;
 }
 
+const FEATURE_REQUEST_BRANCH_PREFIX = "lore/feature-request/";
+
+/**
+ * Extract the spec slug from a feature-request branch of the form
+ * `lore/feature-request/{slug}-{taskId8}`. Returns null when the branch is not a
+ * feature-request branch or carries no slug. Single-sources the parse the webhook
+ * spec-PR-merge handler and the merge-check fallback both need.
+ */
+export function specSlugFromBranch(branch: string): string | null {
+  if (!branch.startsWith(FEATURE_REQUEST_BRANCH_PREFIX)) return null;
+  const slug = branch.slice(FEATURE_REQUEST_BRANCH_PREFIX.length).replace(/-[a-f0-9]{8}$/, "");
+  return slug || null;
+}
+
 /**
  * Upsert parsed spec-tasks into pipeline.tasks (task_type = 'spec-task'). Conflict
  * key is spec_task_id + spec_slug + target_repo. Relocated from mcp-server so the

@@ -4,6 +4,23 @@ import type { CreateTaskInput } from "../../pipeline-tasks.js";
 export type { CreateTaskInput };
 
 /**
+ * The task states where a task is still "in flight" — a new duplicate should be
+ * suppressed. Single source for the drift-dedup and gap-dedup jobs (which each
+ * used to hard-code their own, divergent, list). `failed` is deliberately NOT
+ * here: whether a failed task suppresses a refile is job-specific (spec-drift
+ * applies a cooldown; gap-detect suppresses outright), so those jobs add it
+ * explicitly when they want it.
+ */
+export const OPEN_TASK_STATES = [
+  "pending",
+  "queued",
+  "running",
+  "pr-created",
+  "review",
+  "retried",
+] as const;
+
+/**
  * Task records port. Backed by pipeline.tasks (cluster) or
  * ~/.lore/local-tasks.json (local) — same surface, two adapters. This is the
  * RECORD side; execution lives behind AgentRunnerPort. The SQL for the pg
@@ -11,6 +28,14 @@ export type { CreateTaskInput };
  */
 
 export type TaskAction = "claim" | "cancel" | "retry";
+
+/** Dedup lookup: open (per `statuses`) tasks of one type whose description starts with a prefix. */
+export interface FindOpenLikeInput {
+  repo: string;
+  taskType: string;
+  descriptionPrefix: string;
+  statuses: readonly string[];
+}
 
 export interface TaskTransitionMeta {
   agentId?: string;
@@ -34,6 +59,8 @@ export interface TaskStorePort {
   // by-id reads
   getById(id: string): Promise<PipelineTask | null>;
   getWithEvents(id: string): Promise<TaskWithEvents | null>;
+  /** Open (per `statuses`) tasks of one type whose description starts with the prefix — job dedup. */
+  findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]>;
   // writes
   create(input: CreateTaskInput): Promise<any>;
   retry(id: string): Promise<any>;

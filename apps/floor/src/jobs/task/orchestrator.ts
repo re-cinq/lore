@@ -9,6 +9,7 @@ import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import { Llm } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../platform/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
+import { slugify } from "./task-helpers.js";
 import { taskStore } from "../../kernel/queues.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
 import { evaluateAndMerge, type AutoMergeJobInputs } from "../merge/auto-merge.js";
@@ -95,13 +96,7 @@ export function buildBranchName(task: {
   description: string;
   task_type: string;
 }): string {
-  const slug = task.description
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 30)
-    .replace(/-+$/, "");
-  return `lore/${task.task_type}/${slug}-${task.id.slice(0, 8)}`;
+  return `lore/${task.task_type}/${slugify(task.description)}-${task.id.slice(0, 8)}`;
 }
 
 export async function processTaskViaSupervisor(

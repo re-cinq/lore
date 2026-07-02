@@ -170,8 +170,9 @@ describe("escalate — audit_only fallback (T041)", () => {
 
     expect(r.outcome).toBe("audit_only");
     expect(r.issueNumber).toBeUndefined();
-    // Reduced retry budget: 2 attempts (1s + 4s tail) instead of 3.
-    expect(createCalls).toHaveLength(2);
+    // 3 attempts (initial + 1s + 4s tail): the shared withBackoff runs
+    // delaysMs.length + 1 tries, so [1000, 4000] means three creates.
+    expect(createCalls).toHaveLength(3);
 
     // Slack message must carry the full body since the Issue surface
     // failed.

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PgTaskStore } from "./task-store-pg.js";
+import { OPEN_TASK_STATES } from "./task-store-port.js";
 import type { PgPool } from "../../memory-store.js";
 
 /**
@@ -62,5 +63,27 @@ describe("PgTaskStore", () => {
     expect(capture[1].text).toContain("UPDATE pipeline.tasks SET status = $1, updated_at = now()");
     expect(capture[2].text).toContain("INSERT INTO pipeline.task_events");
     expect(capture[2].params?.slice(1, 3)).toEqual(["pending", "queued"]);
+  });
+
+  it("findOpenLike filters by repo, type, description prefix, and the given statuses", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgTaskStore(fakePool(capture, [{ id: "g1" }]));
+
+    const statuses = [...OPEN_TASK_STATES, "failed"];
+    const found = await store.findOpenLike({
+      repo: "re-cinq/lore",
+      taskType: "gap-fill",
+      descriptionPrefix: "Gap: missing-adrs",
+      statuses,
+    });
+
+    expect(capture[0].text).toContain("description LIKE $3 AND status = ANY($4)");
+    expect(capture[0].params).toEqual([
+      "re-cinq/lore",
+      "gap-fill",
+      "Gap: missing-adrs%",
+      statuses,
+    ]);
+    expect(found).toEqual([{ id: "g1" }]);
   });
 });

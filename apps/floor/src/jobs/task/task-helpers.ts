@@ -16,7 +16,10 @@ export function slugify(text: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 30);
+    .slice(0, 30)
+    // The 30-char cut can land on a `-`; trim it so a slug (and the branch name
+    // built from it) never ends in a dash.
+    .replace(/-+$/, "");
 }
 
 // ── Status transition helpers ─────────────────────────────────────────

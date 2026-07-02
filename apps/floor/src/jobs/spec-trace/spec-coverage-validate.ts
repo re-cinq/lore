@@ -7,13 +7,13 @@
  * those links from every spec chunk and resolves each link's
  * `path#Lline` against the AST-chunked test metadata in
  * `{schema}.chunks`. Broken links are aggregated per repo and
- * reported via PR comment (when there's an open spec PR) or via
- * a `spec-link-rot` labelled issue (fallback).
+ * reported via a `spec-link-rot` labelled issue — but only when the
+ * repo has no open one already, since this job runs both daily and on
+ * every ingest and would otherwise file a fresh duplicate every run.
  *
  * Runs:
- *   1. on every successful `/api/ingest` (post-ingest fan-out via
- *      `POST /api/trigger/spec-coverage-validate`, replacing the v2
- *      `/api/trigger/spec-test-linker`)
+ *   1. on every successful `/api/ingest` (post-ingest fan-out via the
+ *      `internal.ingest.spec_coverage_validate` event)
  *   2. on a daily sweep schedule, as a fallback in case the post-
  *      ingest trigger missed an event
  *
@@ -21,6 +21,7 @@
  *   - resolveTestLink
  *   - collectBrokenLinks
  *   - formatBrokenLinksReport
+ *   - hasOpenLinkRotIssue
  */
 
 import {
@@ -124,6 +125,14 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
 
 function truncate(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+const LINK_ROT_LABEL = "spec-link-rot";
+
+/** True when the repo already has an open spec-link-rot issue, so we don't file a
+ *  duplicate on every daily + per-ingest run. */
+export function hasOpenLinkRotIssue(openIssues: { labels: string[] }[]): boolean {
+  return openIssues.some((i) => i.labels.includes(LINK_ROT_LABEL));
 }
 
 // ── Orchestration ──────────────────────────────────────────────────
@@ -234,10 +243,25 @@ export async function validateSpecCoverageJob(opts: ValidateOptions = {}): Promi
       const body = formatBrokenLinksReport(brokenForRepo);
       try {
         const project = await projectFor(repo);
+        // Dedup: skip filing when an open spec-link-rot issue already exists (this
+        // job runs daily AND on every ingest). A read failure leaves openIssues
+        // empty and we fall through to file — surfacing the rot beats silence.
+        const openIssues = await project.issues
+          .list({ state: "open" })
+          .catch((err) => {
+            console.error(`[job] spec-coverage-validate: open-issue read failed for ${repo}:`, err);
+            return [] as Awaited<ReturnType<typeof project.issues.list>>;
+          });
+        if (hasOpenLinkRotIssue(openIssues)) {
+          console.log(
+            `[job] spec-coverage-validate: ${repo} — ${brokenForRepo.length} broken links, open spec-link-rot issue exists, skipping`,
+          );
+          continue;
+        }
         const issue = await project.issues.create(
           "Broken test links in spec.md",
           body,
-          ["spec-link-rot", "lore-managed"],
+          [LINK_ROT_LABEL, "lore-managed"],
         );
         reportsOpened++;
         console.log(

@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { parseTasks, inferPhaseDependencies } from "./tasks.js";
+import { parseTasks, inferPhaseDependencies, specSlugFromBranch } from "./tasks.js";
+
+describe("specSlugFromBranch", () => {
+  it("extracts the slug from a feature-request branch, dropping the 8-hex task suffix", () => {
+    expect(specSlugFromBranch("lore/feature-request/dark-factory-a1b2c3d4")).toBe("dark-factory");
+  });
+
+  it("returns null for a non-feature-request branch", () => {
+    expect(specSlugFromBranch("lore/implementation/foo-a1b2c3d4")).toBeNull();
+  });
+
+  it("returns null when the branch has a prefix but no slug", () => {
+    expect(specSlugFromBranch("lore/feature-request/-a1b2c3d4")).toBeNull();
+  });
+});
 
 describe("parseTasks", () => {
   it("parses an open task line into id, description, and phase 0 defaults", () => {

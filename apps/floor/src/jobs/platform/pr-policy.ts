@@ -133,35 +133,42 @@ export async function resolvePrForTaskFromDb(
   // an external review bot) would satisfy require_bot_approval.
   const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
   try {
-    const filesRes = await octokit.rest.pulls.listFiles({
-      owner,
-      repo: repoName,
-      pull_number: row.pr_number,
-    });
-    changedPaths = filesRes.data.map((f) => f.filename);
+    // Paginate all three reads: a single REST call caps at one page (default 30),
+    // which would silently truncate the changed-file allowlist gate, the check-run
+    // set, and the review list on any larger PR. The three are independent — run
+    // them together.
+    const [files, checkRuns, reviews] = await Promise.all([
+      octokit.paginate(octokit.rest.pulls.listFiles, {
+        owner,
+        repo: repoName,
+        pull_number: row.pr_number,
+      }),
+      octokit.paginate(octokit.rest.checks.listForRef, {
+        owner,
+        repo: repoName,
+        ref: row.target_branch ?? `pull/${row.pr_number}/head`,
+      }),
+      octokit.paginate(octokit.rest.pulls.listReviews, {
+        owner,
+        repo: repoName,
+        pull_number: row.pr_number,
+      }),
+    ]);
 
-    const checks = await octokit.rest.checks.listForRef({
-      owner,
-      repo: repoName,
-      ref: row.target_branch ?? `pull/${row.pr_number}/head`,
-    });
+    changedPaths = files.map((f) => f.filename);
+
     // Vacuous truth on an empty array would let auto-merge fire when
     // CI hasn't reported yet. Require at least one passing check.
     ciSucceeded =
-      checks.data.check_runs.length > 0 &&
-      checks.data.check_runs.every(
+      checkRuns.length > 0 &&
+      checkRuns.every(
         (c) => c.conclusion === "success" || c.conclusion === "skipped",
       );
 
-    const reviews = await octokit.rest.pulls.listReviews({
-      owner,
-      repo: repoName,
-      pull_number: row.pr_number,
-    });
-    botApproved = reviews.data.some(
+    botApproved = reviews.some(
       (r) => r.state === "APPROVED" && r.user?.login === botLogin,
     );
-    humanChangesRequested = reviews.data.some(
+    humanChangesRequested = reviews.some(
       (r) =>
         r.state === "CHANGES_REQUESTED" && !r.user?.login?.endsWith("[bot]"),
     );
