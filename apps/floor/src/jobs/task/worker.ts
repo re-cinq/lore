@@ -15,6 +15,7 @@ import {
   resolveExecutionImage,
 } from "@re-cinq/lore-shared";
 import { linkifyMarkdown, selectStationBackend } from "@re-cinq/lore-shared";
+import type { Project } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
 import { taskQueue, taskStore, settings } from "../../kernel/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
@@ -25,6 +26,7 @@ import { handleFeaturePlanning } from "./handle-feature-planning.js";
 import { handleFeatureFinalize } from "./handle-feature-finalize.js";
 import { handleFeatureDecompose } from "./handle-feature-decompose.js";
 import { handleOnboard } from "./handle-onboard.js";
+import type { ProcessTaskViaSupervisorResult } from "./orchestrator.js";
 
 // Re-export the task handlers so existing import sites (e.g. the onboard
 // test importing `handleOnboard` from `./worker.js`) keep working after the
@@ -150,60 +152,10 @@ async function processTask(task: any): Promise<void> {
     return;
   }
 
-  // Create GitHub Issue on the target repo
-  // Skip upfront issue for general tasks — the watcher creates the issue with the result
-  let issueNumber: number | null = task.issue_number || null;
-  // Dark-factory gate (T019, FR3.2): when dark mode is enabled, defer
-  // Issue creation per the repo's `create_issue` setting and the task's
-  // approval requirement. `with_issue: true` per-task override forces
-  // creation regardless.
-  const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
-  const issueGate = await shouldCreateIssue(task);
-  if (!issueNumber && task.task_type !== "general" && !isFeaturePlanningType && issueGate.create) {
-    try {
-      const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
-      const copy = await generateArtifactCopy({
-        kind: "issue",
-        taskType: task.task_type,
-        description: task.description,
-        repo: targetRepo,
-      });
-      const issueBody = linkifyMarkdown(copy.body, { repo: targetRepo, uiUrl: process.env.LORE_UI_URL });
-      const issue = await project.issues.create(
-        copy.title,
-        composeIssueBody(issueBody, task, process.env.LORE_UI_URL),
-        ["lore-managed", taskTypeLabel],
-      );
-      issueNumber = issue.number;
-      await taskQueue().setColumns(task.id, {
-        issue_number: issue.number,
-        issue_url: issue.url,
-      });
-      console.log(`[floor] Created issue #${issue.number} on ${targetRepo}`);
-    } catch (err: any) {
-      // Non-fatal — proceed without issue if GitHub App lacks permission
-    console.warn(`[floor] Could not create issue on ${targetRepo}: ${err.message}`);
-    }
-  } else if (issueNumber) {
-    console.log(`[floor] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`);
-  } else if (!issueGate.create && task.task_type !== "general") {
-    console.log(`[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`);
-  }
+  const issueNumber = await ensureIssue(task, targetRepo, project, isFeaturePlanningType);
 
-  // Check if this task requires approval
-  const { requiresApproval, getApprovalLabel } = await import("../dark-factory/approval.js");
-  if (requiresApproval(task.task_type, targetRepo)) {
-    await setStatus(task.id, "awaiting_approval");
-    await insertEvent(task.id, "pending", "awaiting_approval", { reason: "approval-required" });
-
-    if (issueNumber) {
-      await project.issues.comment(issueNumber,
-        `This task requires approval before the agent can proceed.\n\nAdd the \`${getApprovalLabel()}\` label to this issue to approve.`);
-      await project.issues.addLabel(issueNumber, "awaiting-approval");
-    }
-
-    console.log(`[floor] Task ${task.id} requires approval — waiting for label on issue #${issueNumber}`);
-    return; // Don't process yet
+  if (await awaitApprovalIfRequired(task, targetRepo, project, issueNumber)) {
+    return; // Don't process yet — waiting on the approval label
   }
 
   // pending → queued
@@ -291,44 +243,7 @@ async function processTask(task: any): Promise<void> {
         // and the supervisor resumes from the prior stage commits.
         branchName,
       });
-      switch (result.outcome) {
-        case "error":
-          throw new Error(result.errorMessage ?? "supervisor failed");
-        case "no_changes":
-          await setStatus(task.id, "completed");
-          await insertEvent(task.id, "running", "completed", {
-            reason: "no_changes",
-          });
-          break;
-        case "pr_created":
-          // pushAndOpenPr already wrote pr-created status; record the
-          // event for completeness.
-          await insertEvent(task.id, "running", "pr-created", {
-            pr_url: result.prUrl,
-            pr_number: result.prNumber,
-            via: "dark-factory-supervisor",
-          });
-          break;
-        case "lease_held":
-          // Another supervisor (likely a parallel pod) has the branch;
-          // back off to queued so the next worker tick retries.
-          await setStatus(task.id, "queued", { agent_id: agentId });
-          await insertEvent(task.id, "running", "queued", {
-            reason: "lease_held",
-          });
-          break;
-        case "iteration_max":
-          // Escalation Issue + Slack already fired via
-          // onIterationMaxExceeded inside the orchestrator. Mark the
-          // task failed with the error message so it surfaces in the UI.
-          await setStatus(task.id, "failed", {
-            failure_reason: result.errorMessage ?? "iteration_max",
-          });
-          await insertEvent(task.id, "running", "failed", {
-            reason: "iteration_max_exceeded",
-          });
-          break;
-      }
+      await applySupervisorOutcome(task, agentId, result);
       return;
     }
 
@@ -398,5 +313,116 @@ async function processTask(task: any): Promise<void> {
       await project.issues.addLabel(issueNumber, "lore-failed").catch(() => {});
     }
     console.error(`[floor] Task ${task.id} failed: ${failureReason}`);
+  }
+}
+
+/**
+ * Resolve the GitHub Issue for a task: an existing one (webhook-dispatched), a
+ * newly created one, or none. Dark-factory gate (T019, FR3.2): when dark mode is
+ * enabled, Issue creation is deferred per the repo's `create_issue` setting and
+ * the task's approval requirement (a `with_issue: true` per-task override forces
+ * it). General tasks skip the upfront Issue (the watcher creates it with the
+ * result). Returns the resolved issue number (or null).
+ */
+async function ensureIssue(
+  task: any,
+  targetRepo: string,
+  project: Project,
+  isFeaturePlanningType: boolean,
+): Promise<number | null> {
+  let issueNumber: number | null = task.issue_number || null;
+  const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
+  const issueGate = await shouldCreateIssue(task);
+  if (!issueNumber && task.task_type !== "general" && !isFeaturePlanningType && issueGate.create) {
+    try {
+      const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
+      const copy = await generateArtifactCopy({
+        kind: "issue",
+        taskType: task.task_type,
+        description: task.description,
+        repo: targetRepo,
+      });
+      const issueBody = linkifyMarkdown(copy.body, { repo: targetRepo, uiUrl: process.env.LORE_UI_URL });
+      const issue = await project.issues.create(
+        copy.title,
+        composeIssueBody(issueBody, task, process.env.LORE_UI_URL),
+        ["lore-managed", taskTypeLabel],
+      );
+      issueNumber = issue.number;
+      await taskQueue().setColumns(task.id, {
+        issue_number: issue.number,
+        issue_url: issue.url,
+      });
+      console.log(`[floor] Created issue #${issue.number} on ${targetRepo}`);
+    } catch (err: any) {
+      // Non-fatal — proceed without issue if GitHub App lacks permission
+      console.warn(`[floor] Could not create issue on ${targetRepo}: ${err.message}`);
+    }
+  } else if (issueNumber) {
+    console.log(`[floor] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`);
+  } else if (!issueGate.create && task.task_type !== "general") {
+    console.log(`[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`);
+  }
+  return issueNumber;
+}
+
+/**
+ * Approval gate (FR3.2): when the repo requires approval for this task type, park
+ * the task at `awaiting_approval` and prompt on the Issue. Returns true if the task
+ * was parked (the caller must not proceed), false to continue processing.
+ */
+async function awaitApprovalIfRequired(
+  task: any,
+  targetRepo: string,
+  project: Project,
+  issueNumber: number | null,
+): Promise<boolean> {
+  const { requiresApproval, getApprovalLabel } = await import("../dark-factory/approval.js");
+  if (!requiresApproval(task.task_type, targetRepo)) return false;
+
+  await setStatus(task.id, "awaiting_approval");
+  await insertEvent(task.id, "pending", "awaiting_approval", { reason: "approval-required" });
+  if (issueNumber) {
+    await project.issues.comment(issueNumber,
+      `This task requires approval before the agent can proceed.\n\nAdd the \`${getApprovalLabel()}\` label to this issue to approve.`);
+    await project.issues.addLabel(issueNumber, "awaiting-approval");
+  }
+  console.log(`[floor] Task ${task.id} requires approval — waiting for label on issue #${issueNumber}`);
+  return true;
+}
+
+/** Apply the dark-factory supervisor's terminal outcome to the task record. */
+async function applySupervisorOutcome(
+  task: any,
+  agentId: string,
+  result: ProcessTaskViaSupervisorResult,
+): Promise<void> {
+  switch (result.outcome) {
+    case "error":
+      throw new Error(result.errorMessage ?? "supervisor failed");
+    case "no_changes":
+      await setStatus(task.id, "completed");
+      await insertEvent(task.id, "running", "completed", { reason: "no_changes" });
+      break;
+    case "pr_created":
+      // pushAndOpenPr already wrote pr-created status; record the event for completeness.
+      await insertEvent(task.id, "running", "pr-created", {
+        pr_url: result.prUrl,
+        pr_number: result.prNumber,
+        via: "dark-factory-supervisor",
+      });
+      break;
+    case "lease_held":
+      // Another supervisor (likely a parallel pod) has the branch; back off to
+      // queued so the next worker tick retries.
+      await setStatus(task.id, "queued", { agent_id: agentId });
+      await insertEvent(task.id, "running", "queued", { reason: "lease_held" });
+      break;
+    case "iteration_max":
+      // Escalation Issue + Slack already fired via onIterationMaxExceeded inside
+      // the orchestrator. Mark the task failed so it surfaces in the UI.
+      await setStatus(task.id, "failed", { failure_reason: result.errorMessage ?? "iteration_max" });
+      await insertEvent(task.id, "running", "failed", { reason: "iteration_max_exceeded" });
+      break;
   }
 }
