@@ -11,8 +11,6 @@ import { json } from "./http.js";
 import { rateLimit, getRequiredScope, validateClientToken, type RateBucket } from "./auth.js";
 import { handleIngest } from "./ingest/ingest.js";
 import { handleOnboard } from "./repos/onboard.js";
-import { handleContext } from "./context/context.js";
-import { handleGraph } from "./graph/graph.js";
 import { handleGetTask } from "./tasks/get-task.js";
 import { handleListTasks } from "./tasks/list-tasks.js";
 import { handleTaskPost } from "./tasks/task-post.js";
@@ -62,8 +60,6 @@ const path = (matcher: (url: string) => boolean): RouteMatcher =>
 const API_ROUTES: ApiRoute[] = [
   { match: exact("/api/ingest", "POST"), handle: handleIngest },
   { match: exact("/api/onboard", "POST"), handle: handleOnboard },
-  { match: prefix("/api/context", "GET"), handle: handleContext },
-  { match: prefix("/api/graph", "GET"), handle: handleGraph },
   { match: prefix("/api/task/", "GET"), handle: (req, res) => handleGetTask(req, res) },
   { match: pattern(/^\/api\/tasks\/[^/]+\/timeline(\?|$)/, "GET"), handle: handleTaskTimeline },
   { match: pattern(/^\/api\/tasks\/by-pr\/[^/]+\/[^/]+\/[0-9]+(\?|$)/, "GET"), handle: handleTaskByPr },

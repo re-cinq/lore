@@ -1,28 +1,33 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
+import type { ServerRoute } from "@hapi/hapi";
 import { queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
-import { json } from "../http.js";
+import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
 /**
  * GET /api/graph — read the live knowledge graph. The remote counterpart of the
  * `lore_query_graph` MCP tool, so a local stdio server (no Postgres) can proxy here
  * over LORE_API_URL instead of requiring a direct DB connection.
  */
-export async function handleGraph(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!pool) {
-    json(res, 503, { error: "knowledge graph requires PostgreSQL" });
-    return;
-  }
-  const url = new URL(req.url!, "http://localhost");
-  const entity = url.searchParams.get("entity") || undefined;
-  const relationType = url.searchParams.get("relation_type") || undefined;
-  const repo = url.searchParams.get("repo") || undefined;
-  const includeInvalidated =
-    url.searchParams.get("include_invalidated") === "true" || url.searchParams.get("include_invalidated") === "1";
-  try {
-    const results = await queryLiveGraph(pool, entity, relationType, repo, includeInvalidated);
-    json(res, 200, results);
-  } catch (err: any) {
-    json(res, 500, { error: err.message });
-  }
+export function graphRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/graph",
+    options: bearerScope("read"),
+    handler: async (request, h) => {
+      const pool = getPool();
+      if (!pool) return h.response({ error: "knowledge graph requires PostgreSQL" }).code(503);
+
+      const q = request.query as Record<string, string | undefined>;
+      const entity = q.entity || undefined;
+      const relationType = q.relation_type || undefined;
+      const repo = q.repo || undefined;
+      const includeInvalidated = q.include_invalidated === "true" || q.include_invalidated === "1";
+      try {
+        const results = await queryLiveGraph(pool, entity, relationType, repo, includeInvalidated);
+        return h.response(results);
+      } catch (err: any) {
+        return h.response({ error: err.message }).code(500);
+      }
+    },
+  };
 }

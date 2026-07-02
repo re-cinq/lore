@@ -39,8 +39,6 @@ export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 const ROUTE_SCOPES: Record<string, TokenScope> = {
   "/api/tasks": "read",
   "/api/task/": "read",
-  "/api/context": "read",
-  "/api/graph": "read",
   "/api/memory": "write",
   "/api/episode": "write",
   "/api/session-summary": "write",

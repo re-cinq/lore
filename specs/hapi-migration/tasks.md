@@ -113,9 +113,15 @@ migrate the group's contract tests — all together.
 
 ## Phase 4 — Context + graph group (PR)
 
-- [ ] T013 Native routes for `/api/context`, `/api/graph` (`routes/context/`,
-  `routes/graph/`), `read` scope. Delete legacy rows + scope entries. Migrate
-  tests. (FR5, SC-3)
+> **DONE.** Mechanical now that the machinery is in place. Full suite green (385).
+
+- [x] T013 Native routes `contextRoute`/`graphRoute` (`routes/context/`,
+  `routes/graph/`, `bearerScope("read")`), registered in `build-server.ts`.
+  `request.query` replaces the manual `URL` parsing; the exact `assembleContext`
+  arg order (incl. `resolveCrossRepo` + Dgraph fail-soft null) and the `graph`
+  503/500 paths are preserved. Deleted the two legacy rows + their `ROUTE_SCOPES`
+  entries. `context.test.ts` / `graph.test.ts` migrated to `inject` (collaborator
+  mocks + call-arg assertions intact). (FR5, SC-3)
 
 ## Phase 5 — Tasks (read) group (PR)
 
