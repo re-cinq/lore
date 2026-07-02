@@ -1,6 +1,6 @@
 import { withBackoff } from "@re-cinq/lore-shared/lib/backoff.js";
 import { projectFor } from "../../composition/project-boot.js";
-import { writeAuditLog } from "../dark-factory/audit.js";
+import { writeAuditLog } from "../lib/audit.js";
 
 /** The minimum issue-creation surface escalate needs — the Project facade's
  *  `issues` satisfies it; injectable for tests. */

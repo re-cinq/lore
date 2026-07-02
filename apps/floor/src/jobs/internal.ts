@@ -7,7 +7,7 @@
 import { createDgraphClient } from "@re-cinq/lore-shared";
 import { dispatchSpecTrace } from "./spec-trace/spec-trace-dispatch.js";
 import { projectFor } from "../composition/project-boot.js";
-import { writeAuditLog } from "./dark-factory/audit.js";
+import { writeAuditLog } from "./lib/audit.js";
 import { validateSpecCoverageJob } from "./spec-trace/spec-coverage-validate.js";
 import type { EventHandler } from "../main-loop/types.js";
 

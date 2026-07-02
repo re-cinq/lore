@@ -2,7 +2,7 @@ import { taskQueue, memoryLifecycle } from "../../kernel/queues.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { Llm } from "@re-cinq/lore-shared";
 import type { ReviewableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
-import { writeEpisode } from "../memory/episode-writer.js";
+import { writeEpisode } from "../lib/episode-writer.js";
 import { isBusinessHours } from "@re-cinq/lore-shared";
 
 type PendingTask = ReviewableTask;
