@@ -1,21 +1,19 @@
 /**
  * PR-state → AutoMergePolicyInputs lookup, shared between the in-agent
  * orchestrator (gap-fill / runbook retrospective handler) and the
- * loretask-watcher (cluster-path impl / general / review). Same
+ * watcher-side trigger (cluster-path impl / general / review). Same
  * function, two callers — keeping the policy build in one place
  * prevents drift in the gates that decide which dark-mode PRs
  * auto-merge.
  *
- * Also hosts `buildOctokit` because PR-state lookups need an Octokit
- * and there's no other shared spot for it. Mirrors github.ts's auth
- * pattern but accepts both the GitHub App triplet and a fallback
- * `GITHUB_TOKEN` so the watcher (which today doesn't always run with
- * the App env wired) can still authenticate.
+ * PR state is read through the Project facade's `pulls` (paginated inside the
+ * shared adapter), not a hand-built Octokit — the auto-merge gate must see every
+ * changed file / check / review, and the auth ladder lives once in PlatformGitHub.
  */
-import { Octokit } from "octokit";
-import { createAppAuth } from "@octokit/auth-app";
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
+import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
 import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+import { projectFor } from "../../composition/project-boot.js";
 import { taskQueue, settings } from "../../kernel/queues.js";
 
 /** PR coordinates for one task id (the auto-merge policy lookup). */
@@ -31,12 +29,13 @@ export interface RepoSettingsReader {
 export interface PrPolicyDeps {
   tasks: PrInfoReader;
   repos: RepoSettingsReader;
+  /** The PR facade for a repo — defaults to the Project facade; injectable for tests. */
+  pullsFor: (repo: string) => Promise<PullRequests>;
 }
 
 export interface PrForAutoMerge {
   repo: string;
   prNumber: number;
-  octokit: Octokit;
   policy: {
     darkFactoryEnabled: boolean;
     autoMerge: {
@@ -53,23 +52,8 @@ export interface PrForAutoMerge {
   };
 }
 
-export function buildOctokit(): Octokit {
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-  const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
-  if (appId && privateKey && installationId) {
-    return new Octokit({
-      authStrategy: createAppAuth,
-      auth: { appId, privateKey, installationId },
-    });
-  }
-  if (process.env.GITHUB_TOKEN) {
-    return new Octokit({ auth: process.env.GITHUB_TOKEN });
-  }
-  throw new Error(
-    "GitHub not configured: set GITHUB_APP_* or GITHUB_TOKEN to use auto-merge",
-  );
-}
+const defaultPullsFor = (repo: string): Promise<PullRequests> =>
+  projectFor(repo).then((p) => p.pulls);
 
 type TrustLevel = "docs" | "tests" | "implementation" | "full";
 
@@ -103,13 +87,11 @@ async function readTrustLevel(
 export async function resolvePrForTaskFromDb(
   taskId: string,
   darkFactorySettings: ResolvedDarkFactorySettings,
-  octokit: Octokit,
-  deps: PrPolicyDeps = { tasks: taskQueue(), repos: settings() },
+  deps: PrPolicyDeps = { tasks: taskQueue(), repos: settings(), pullsFor: defaultPullsFor },
 ): Promise<PrForAutoMerge | null> {
   const row = await deps.tasks.prInfo(taskId);
   if (!row?.pr_number || !row.target_repo) return null;
 
-  const [owner, repoName] = row.target_repo.split("/");
   let ciSucceeded = false;
   let botApproved = false;
   // Mixed-default note: `humanChangesRequested = false` is the
@@ -133,29 +115,18 @@ export async function resolvePrForTaskFromDb(
   // an external review bot) would satisfy require_bot_approval.
   const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
   try {
-    // Paginate all three reads: a single REST call caps at one page (default 30),
-    // which would silently truncate the changed-file allowlist gate, the check-run
-    // set, and the review list on any larger PR. The three are independent — run
-    // them together.
+    // All three reads are paginated inside the shared adapter (a single API page
+    // caps at 30 and would silently truncate the file allowlist gate / check set /
+    // review list). Independent — run them together.
+    const pulls = await deps.pullsFor(row.target_repo);
+    const ref = row.target_branch ?? `pull/${row.pr_number}/head`;
     const [files, checkRuns, reviews] = await Promise.all([
-      octokit.paginate(octokit.rest.pulls.listFiles, {
-        owner,
-        repo: repoName,
-        pull_number: row.pr_number,
-      }),
-      octokit.paginate(octokit.rest.checks.listForRef, {
-        owner,
-        repo: repoName,
-        ref: row.target_branch ?? `pull/${row.pr_number}/head`,
-      }),
-      octokit.paginate(octokit.rest.pulls.listReviews, {
-        owner,
-        repo: repoName,
-        pull_number: row.pr_number,
-      }),
+      pulls.listFiles(row.pr_number),
+      pulls.listChecks(ref),
+      pulls.listReviews(row.pr_number),
     ]);
 
-    changedPaths = files.map((f) => f.filename);
+    changedPaths = files;
 
     // Vacuous truth on an empty array would let auto-merge fire when
     // CI hasn't reported yet. Require at least one passing check.
@@ -165,12 +136,9 @@ export async function resolvePrForTaskFromDb(
         (c) => c.conclusion === "success" || c.conclusion === "skipped",
       );
 
-    botApproved = reviews.some(
-      (r) => r.state === "APPROVED" && r.user?.login === botLogin,
-    );
+    botApproved = reviews.some((r) => r.state === "APPROVED" && r.user === botLogin);
     humanChangesRequested = reviews.some(
-      (r) =>
-        r.state === "CHANGES_REQUESTED" && !r.user?.login?.endsWith("[bot]"),
+      (r) => r.state === "CHANGES_REQUESTED" && !r.user.endsWith("[bot]"),
     );
   } catch (err) {
     console.warn(
@@ -187,7 +155,6 @@ export async function resolvePrForTaskFromDb(
   return {
     repo: row.target_repo,
     prNumber: row.pr_number,
-    octokit,
     policy: {
       darkFactoryEnabled: darkFactorySettings.enabled,
       autoMerge: {

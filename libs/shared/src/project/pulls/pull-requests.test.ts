@@ -28,6 +28,8 @@ function fakePulls(pulls: PullRef[], merged: Array<{ number: number; method?: Me
     getStats: async () => ({ files_changed: 1, additions: 2, deletions: 0, comments: 0, merged_at: null, created_at: "t" }),
     changedFileCount: async () => 1,
     ciConclusion: async () => "none" as const,
+    listFiles: async () => [],
+    listChecks: async () => [],
   };
 }
 

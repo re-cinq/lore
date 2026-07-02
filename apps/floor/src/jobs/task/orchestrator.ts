@@ -1,20 +1,20 @@
 import * as fs from "node:fs/promises";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import * as os from "node:os";
 import * as path from "node:path";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
-import { Octokit } from "octokit";
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import { Llm } from "@re-cinq/lore-shared";
+import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
+import { gitAuthArgs, repoCloneUrl } from "@re-cinq/lore-shared/project/workspace/git-auth.js";
 import { generateArtifactCopy } from "../platform/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import { slugify } from "./task-helpers.js";
+import { projectFor } from "../../composition/project-boot.js";
 import { taskStore } from "../../kernel/queues.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../memory/episode-writer.js";
 import { evaluateAndMerge, type AutoMergeJobInputs } from "../merge/auto-merge.js";
 import {
-  buildOctokit,
   resolvePrForTaskFromDb,
   type PrForAutoMerge,
 } from "../platform/pr-policy.js";
@@ -61,11 +61,16 @@ export interface ProcessTaskViaSupervisorOptions {
   branchName?: string;
   /** Override for tests — defaults to the runner's bundled workflows. */
   loadWorkflows?: () => Promise<Map<string, Workflow>>;
-  /** Override for tests — defaults to constructing an Octokit. */
-  octokit?: Octokit;
+  /** Override for tests — mints the GitHub App installation token for clone/push.
+   *  Defaults to the shared PlatformGitHub. */
+  gitToken?: () => Promise<string>;
   /** Override for tests — defaults to using a tmpdir under `os.tmpdir()`. */
   workdir?: string;
 }
+
+/** Default clone/push credential: a fresh GitHub App installation token. */
+const defaultGitToken = (): Promise<string> =>
+  new PlatformGitHub(process.env).getInstallationToken();
 
 export interface ProcessTaskViaSupervisorResult {
   outcome:
@@ -114,7 +119,7 @@ export async function processTaskViaSupervisor(
     };
   }
 
-  const octokit = opts.octokit ?? buildOctokit();
+  const gitToken = opts.gitToken ?? defaultGitToken;
   const workdir =
     opts.workdir ??
     (await fs.mkdtemp(path.join(os.tmpdir(), `lore-supervisor-${task.id}-`)));
@@ -122,7 +127,7 @@ export async function processTaskViaSupervisor(
   const cleanupWorkdir = !opts.workdir; // only delete what we created
 
   try {
-    await cloneAndBranch(workdir, task.target_repo, branchName, octokit);
+    await cloneAndBranch(workdir, task.target_repo, branchName, gitToken);
 
     const agentHandler = createAgentHandler(
       {
@@ -156,7 +161,7 @@ export async function processTaskViaSupervisor(
         // AutoMergeJobInputs, so cast at this boundary.
         evaluateAndMerge: (i) => evaluateAndMerge(i as AutoMergeJobInputs),
         resolvePrForTask: async (taskId) =>
-          await resolvePrForTaskFromDb(taskId, settings, octokit),
+          await resolvePrForTaskFromDb(taskId, settings),
       },
     });
 
@@ -174,7 +179,6 @@ export async function processTaskViaSupervisor(
       // dark-factory dispatch path doesn't lose the escalation hook.
       onIterationMaxExceeded: async (info) => {
         await escalate({
-          octokit,
           taskId: info.taskId,
           repo: task.target_repo,
           branchName: info.branchName,
@@ -210,7 +214,7 @@ export async function processTaskViaSupervisor(
       repo: task.target_repo,
       branchName,
       task,
-      octokit,
+      gitToken,
     });
   } catch (err) {
     return {
@@ -236,31 +240,18 @@ async function cloneAndBranch(
   workdir: string,
   repo: string,
   branch: string,
-  octokit: Octokit,
+  getToken: () => Promise<string>,
 ): Promise<void> {
-  const auth = await octokit.auth();
-  const token =
-    typeof auth === "string" ? auth : (auth as { token?: string })?.token;
-  if (!token) {
-    throw new Error("octokit.auth() did not yield a token for clone");
-  }
-  // Avoid baking the token into `.git/config` (which would persist for
-  // the workdir's lifetime and risk leaking into logs that echo URLs).
-  // Pass the credential as a per-invocation `http.extraheader` config
-  // override; never stored on disk in cleartext.
-  const headerValue = `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}`;
-  const repoUrl = `https://github.com/${repo}.git`;
-  const authConfig = [
-    "-c",
-    `http.https://github.com/.extraheader=${headerValue}`,
-  ];
-
+  // The token rides in a per-invocation http.extraheader (shared gitAuthArgs),
+  // never baked into `.git/config` or the clone URL where it would persist for
+  // the workdir's lifetime and leak into logs that echo the remote.
+  const token = await getToken();
   await execFile("git", [
-    ...authConfig,
+    ...gitAuthArgs(token),
     "clone",
     "--depth",
     "1",
-    repoUrl,
+    repoCloneUrl(repo),
     workdir,
   ]);
   await execFile("git", ["-C", workdir, "checkout", "-b", branch]);
@@ -281,27 +272,21 @@ async function cloneAndBranch(
 }
 
 /**
- * Push helper — reuses the same `http.extraheader` pattern as
- * cloneAndBranch so the token never lives in `.git/config`. Token is
- * fetched fresh each time (App installation tokens have ~1h TTL but
- * are cheap to re-mint).
+ * Push helper — same gitAuthArgs extraheader as cloneAndBranch so the token
+ * never lives in `.git/config`. Token is fetched fresh each time (App
+ * installation tokens have ~1h TTL but are cheap to re-mint).
  */
 async function pushBranch(
   workdir: string,
   repo: string,
   branch: string,
-  octokit: Octokit,
+  getToken: () => Promise<string>,
 ): Promise<void> {
-  const auth = await octokit.auth();
-  const token =
-    typeof auth === "string" ? auth : (auth as { token?: string })?.token;
-  enforceTrue(token, "octokit.auth() did not yield a token for push");
-  const headerValue = `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}`;
+  const token = await getToken();
   await execFile("git", [
     "-C",
     workdir,
-    "-c",
-    `http.https://github.com/.extraheader=${headerValue}`,
+    ...gitAuthArgs(token),
     "push",
     "origin",
     branch,
@@ -313,18 +298,14 @@ async function pushAndOpenPr(opts: {
   repo: string;
   branchName: string;
   task: ProcessTaskViaSupervisorOptions["task"];
-  octokit: Octokit;
+  gitToken: () => Promise<string>;
 }): Promise<ProcessTaskViaSupervisorResult> {
-  const [owner, repoName] = opts.repo.split("/");
+  const project = await projectFor(opts.repo);
 
   // Look up the repo's actual default branch (master / main / develop /
   // trunk — varies). Used for the no-changes diff check and the PR
   // base. Hardcoding "main" 422'd on repos that hadn't switched.
-  const repoMeta = await opts.octokit.rest.repos.get({
-    owner,
-    repo: repoName,
-  });
-  const defaultBranch = repoMeta.data.default_branch;
+  const defaultBranch = await project.repo.defaultBranch();
 
   // Real change detection: compare HEAD to the upstream default branch
   // via diff, not commit count. Stage commits include intentional
@@ -352,7 +333,7 @@ async function pushAndOpenPr(opts: {
     return { outcome: "no_changes", branchName: opts.branchName };
   }
 
-  await pushBranch(opts.workdir, opts.repo, opts.branchName, opts.octokit);
+  await pushBranch(opts.workdir, opts.repo, opts.branchName, opts.gitToken);
 
   // Look up issueNumber for the PR footer (it's null for dark-mode
   // tasks that didn't create an Issue).
@@ -371,26 +352,27 @@ async function pushAndOpenPr(opts: {
     branch: opts.branchName,
     uiUrl: process.env.LORE_UI_URL,
   });
-  const pr = await opts.octokit.rest.pulls.create({
-    owner,
-    repo: repoName,
-    title: copy.title,
-    head: opts.branchName,
-    base: defaultBranch,
-    body: `${body}${prFooter({ issueNumber, taskId: opts.task.id })}`,
-  });
+  // Pass [] labels explicitly: the raw pulls.create added none, while the facade
+  // defaults to ["agent-generated"] — keep the historical behavior.
+  const pr = await project.pulls.open(
+    opts.branchName,
+    copy.title,
+    `${body}${prFooter({ issueNumber, taskId: opts.task.id })}`,
+    defaultBranch,
+    [],
+  );
 
   // Update pipeline.tasks with PR info so resolvePrForTask can find it.
   await taskStore().setStatus(opts.task.id, "pr-created", {
-    pr_url: pr.data.html_url,
-    pr_number: pr.data.number,
+    pr_url: pr.url,
+    pr_number: pr.number,
     target_branch: opts.branchName,
   });
 
   return {
     outcome: "pr_created",
-    prUrl: pr.data.html_url,
-    prNumber: pr.data.number,
+    prUrl: pr.url,
+    prNumber: pr.number,
     branchName: opts.branchName,
   };
 }

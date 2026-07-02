@@ -36,6 +36,8 @@ export interface GitHubPort {
   getIssueLabels(repo: string, number: number): Promise<string[]>;
   // issue writes
   createIssue(repo: string, title: string, body: string, labels?: string[]): Promise<IssueRef>;
+  /** Ensure a set of repo labels exists (create-or-ignore-existing) — onboarding. */
+  createLabels(repo: string, labels: Array<{ name: string; color?: string; description?: string }>): Promise<void>;
   commentOnIssue(repo: string, number: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;

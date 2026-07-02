@@ -20,18 +20,16 @@
  * can vi.mock evaluateAndMerge — vi.mock can't intercept an in-module
  * direct call, only cross-module imports.
  */
-import { Octokit } from "octokit";
 import { resolveDarkFactorySettings } from "@re-cinq/lore-shared";
 import { settings as settingsRepo, taskStore } from "../../kernel/queues.js";
-import { buildOctokit, resolvePrForTaskFromDb } from "../platform/pr-policy.js";
+import { resolvePrForTaskFromDb } from "../platform/pr-policy.js";
 import { evaluateAndMerge, type AutoMergeDecision } from "./auto-merge.js";
 
 export async function tryAutoMergeForCompletedTask(opts: {
   taskId: string;
-  octokit?: Octokit;
 }): Promise<AutoMergeDecision | null> {
   // Resolve the repo's dark-factory settings before paying the cost
-  // of an Octokit handshake or a GitHub API round-trip.
+  // of a GitHub API round-trip.
   const task = await taskStore().getById(opts.taskId);
   const targetRepo = task?.target_repo;
   if (!targetRepo) return null;
@@ -44,8 +42,7 @@ export async function tryAutoMergeForCompletedTask(opts: {
   );
   if (!settings.enabled) return null;
 
-  const octokit = opts.octokit ?? buildOctokit();
-  const pr = await resolvePrForTaskFromDb(opts.taskId, settings, octokit);
+  const pr = await resolvePrForTaskFromDb(opts.taskId, settings);
   if (!pr) return null;
 
   return evaluateAndMerge({

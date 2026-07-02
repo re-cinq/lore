@@ -12,13 +12,12 @@ const fakeRepo = {
 };
 const fakePulls = { open: vi.fn() };
 const fakeSettings = { setRepoVariable: vi.fn(), setRepoSecret: vi.fn() };
-const fakeIssues = { create: vi.fn(), comment: vi.fn(), addLabel: vi.fn(), close: vi.fn() };
+const fakeIssues = { create: vi.fn(), comment: vi.fn(), addLabel: vi.fn(), close: vi.fn(), createLabels: vi.fn() };
 const fakeProject = { repo: fakeRepo, pulls: fakePulls, settings: fakeSettings, issues: fakeIssues };
 
 const fetchRepoContext = vi.fn();
 const query = vi.fn();
 const writeEpisode = vi.fn();
-const createLabels = vi.fn();
 
 vi.mock("../../composition/project-boot.js", () => ({ projectFor: async () => fakeProject }));
 vi.mock("./repo-context.js", () => ({ fetchRepoContext: (...a: unknown[]) => fetchRepoContext(...a) }));
@@ -27,7 +26,6 @@ vi.mock("../../kernel/db.js", () => ({
   getPool: () => ({ query: async () => ({ rows: [] }) }),
 }));
 vi.mock("../memory/episode-writer.js", () => ({ writeEpisode: (...a: unknown[]) => writeEpisode(...a) }));
-vi.mock("../platform/github.js", () => ({ GitHubPlatform: class { createLabels = createLabels; } }));
 
 import { handleOnboard } from "./worker.js";
 
@@ -36,7 +34,6 @@ beforeEach(() => {
   fetchRepoContext.mockReset();
   query.mockReset();
   writeEpisode.mockReset();
-  createLabels.mockReset();
 
   // A repo that already has a .github/ directory — the case the old coarse
   // skip guard wrongly excluded the workflow from.
@@ -44,7 +41,7 @@ beforeEach(() => {
   Llm.setInstance(new FakeLlm({ text: "SKIP" }));
   query.mockResolvedValue({ rows: [] });
   writeEpisode.mockResolvedValue(undefined);
-  createLabels.mockResolvedValue(undefined);
+  fakeIssues.createLabels.mockResolvedValue(undefined);
   fakeRepo.createBranch.mockResolvedValue(undefined);
   fakeRepo.commitFile.mockResolvedValue(undefined);
   fakeRepo.isConfigured.mockReturnValue(true);

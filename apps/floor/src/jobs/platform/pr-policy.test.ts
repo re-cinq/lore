@@ -1,9 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { Octokit } from "octokit";
+import { describe, it, expect } from "vitest";
 import { resolveDarkFactorySettings } from "@re-cinq/lore-shared";
+import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
 import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import {
-  buildOctokit,
   resolvePrForTaskFromDb,
   type PrPolicyDeps,
   type PrInfoReader,
@@ -30,61 +29,56 @@ const repoSettingsReader = (levels: Record<string, TrustLevel>): RepoSettingsRea
   rawSettings: async (repo) => (levels[repo] ? { trust: { level: levels[repo] } } : null),
 });
 
-interface OctokitStub {
-  files?: { filename: string }[];
-  checkRuns?: { conclusion: string }[];
-  reviews?: { state: string; user: { login: string } | null }[];
+interface PullsStub {
+  files?: string[];
+  checkRuns?: Array<{ name: string; status: string; conclusion: string | null }>;
+  reviews?: Array<{ state: string; user: string }>;
   throws?: boolean;
 }
 
-// Models GitHub's single-page REST calls (capped at `per_page`, default 30) vs
-// octokit.paginate (all pages). The direct `rest.*` methods return only page 1;
-// `paginate` returns the full set — so a policy read that forgets to paginate
-// silently truncates the changed-file / check / review lists at 30.
-const PAGE_SIZE = 30;
-
-function makeOctokit(stub: OctokitStub): Octokit {
+// pr-policy reads PR state through project.pulls (paginated inside the shared
+// adapter — see platform-github.test.ts). Here we fake the facade to drive the
+// gate inputs; a thrown read must leave the conservative defaults.
+function pullsFor(stub: PullsStub): (repo: string) => Promise<PullRequests> {
   const guard = () => {
     if (stub.throws) throw new Error("GitHub API down");
   };
-  const listFiles = vi.fn(async () => {
-    guard();
-    return { data: (stub.files ?? []).slice(0, PAGE_SIZE) };
-  });
-  const listReviews = vi.fn(async () => {
-    guard();
-    return { data: (stub.reviews ?? []).slice(0, PAGE_SIZE) };
-  });
-  const listForRef = vi.fn(async () => {
-    guard();
-    return { data: { check_runs: (stub.checkRuns ?? []).slice(0, PAGE_SIZE) } };
-  });
-  const paginate = vi.fn(async (fn: unknown) => {
-    guard();
-    if (fn === listFiles) return stub.files ?? [];
-    if (fn === listReviews) return stub.reviews ?? [];
-    if (fn === listForRef) return stub.checkRuns ?? [];
-    return [];
-  });
-  return {
-    paginate,
-    rest: { pulls: { listFiles, listReviews }, checks: { listForRef } },
-  } as unknown as Octokit;
+  const facade = {
+    listFiles: async () => {
+      guard();
+      return stub.files ?? [];
+    },
+    listChecks: async () => {
+      guard();
+      return stub.checkRuns ?? [];
+    },
+    listReviews: async () => {
+      guard();
+      return (stub.reviews ?? []).map((r, i) => ({
+        id: i,
+        state: r.state,
+        body: "",
+        user: r.user,
+        submitted_at: "",
+      }));
+    },
+  } as unknown as PullRequests;
+  return async () => facade;
 }
 
-const deps = (info: TaskPrInfo, levels: Record<string, TrustLevel> = {}): PrPolicyDeps => ({
+const deps = (
+  info: TaskPrInfo,
+  stub: PullsStub,
+  levels: Record<string, TrustLevel> = {},
+): PrPolicyDeps => ({
   tasks: prInfoReader(info),
   repos: repoSettingsReader(levels),
+  pullsFor: pullsFor(stub),
 });
 
 describe("resolvePrForTaskFromDb", () => {
   it("returns null when the task has no PR yet", async () => {
-    const result = await resolvePrForTaskFromDb(
-      "t1",
-      settings,
-      makeOctokit({}),
-      deps(task({ pr_number: null })),
-    );
+    const result = await resolvePrForTaskFromDb("t1", settings, deps(task({ pr_number: null }), {}));
     expect(result).toBeNull();
   });
 
@@ -92,12 +86,18 @@ describe("resolvePrForTaskFromDb", () => {
     const result = await resolvePrForTaskFromDb(
       "t1",
       settings,
-      makeOctokit({
-        files: [{ filename: "docs/readme.md" }],
-        checkRuns: [{ conclusion: "success" }, { conclusion: "skipped" }],
-        reviews: [{ state: "APPROVED", user: { login: "lore-agent[bot]" } }],
-      }),
-      deps(task({}), { "re-cinq/lore": "implementation" }),
+      deps(
+        task({}),
+        {
+          files: ["docs/readme.md"],
+          checkRuns: [
+            { name: "a", status: "completed", conclusion: "success" },
+            { name: "b", status: "completed", conclusion: "skipped" },
+          ],
+          reviews: [{ state: "APPROVED", user: "lore-agent[bot]" }],
+        },
+        { "re-cinq/lore": "implementation" },
+      ),
     );
     expect(result?.policy).toMatchObject({
       changedPaths: ["docs/readme.md"],
@@ -108,25 +108,15 @@ describe("resolvePrForTaskFromDb", () => {
     });
   });
 
-  it("sees every changed file on a PR larger than one API page (auto-merge gate must not truncate)", async () => {
-    const files = Array.from({ length: 31 }, (_, i) => ({ filename: `src/f${i}.ts` }));
-    const result = await resolvePrForTaskFromDb(
-      "t1",
-      settings,
-      makeOctokit({ files }),
-      deps(task({})),
-    );
+  it("passes every changed path through from the (paginated) facade", async () => {
+    const files = Array.from({ length: 31 }, (_, i) => `src/f${i}.ts`);
+    const result = await resolvePrForTaskFromDb("t1", settings, deps(task({}), { files }));
     expect(result?.policy.changedPaths).toHaveLength(31);
     expect(result?.policy.changedPaths).toContain("src/f30.ts");
   });
 
   it("treats an empty check list as CI not succeeded", async () => {
-    const result = await resolvePrForTaskFromDb(
-      "t1",
-      settings,
-      makeOctokit({ checkRuns: [] }),
-      deps(task({})),
-    );
+    const result = await resolvePrForTaskFromDb("t1", settings, deps(task({}), { checkRuns: [] }));
     expect(result?.policy.ciSucceeded).toBe(false);
   });
 
@@ -134,8 +124,12 @@ describe("resolvePrForTaskFromDb", () => {
     const result = await resolvePrForTaskFromDb(
       "t1",
       settings,
-      makeOctokit({ checkRuns: [{ conclusion: "success" }, { conclusion: "failure" }] }),
-      deps(task({})),
+      deps(task({}), {
+        checkRuns: [
+          { name: "a", status: "completed", conclusion: "success" },
+          { name: "b", status: "completed", conclusion: "failure" },
+        ],
+      }),
     );
     expect(result?.policy.ciSucceeded).toBe(false);
   });
@@ -144,8 +138,7 @@ describe("resolvePrForTaskFromDb", () => {
     const result = await resolvePrForTaskFromDb(
       "t1",
       settings,
-      makeOctokit({ reviews: [{ state: "APPROVED", user: { login: "dependabot[bot]" } }] }),
-      deps(task({})),
+      deps(task({}), { reviews: [{ state: "APPROVED", user: "dependabot[bot]" }] }),
     );
     expect(result?.policy.botApproved).toBe(false);
   });
@@ -154,8 +147,7 @@ describe("resolvePrForTaskFromDb", () => {
     const result = await resolvePrForTaskFromDb(
       "t1",
       settings,
-      makeOctokit({ reviews: [{ state: "CHANGES_REQUESTED", user: { login: "some-bot[bot]" } }] }),
-      deps(task({})),
+      deps(task({}), { reviews: [{ state: "CHANGES_REQUESTED", user: "some-bot[bot]" }] }),
     );
     expect(result?.policy.humanChangesRequested).toBe(false);
   });
@@ -164,64 +156,18 @@ describe("resolvePrForTaskFromDb", () => {
     const result = await resolvePrForTaskFromDb(
       "t1",
       settings,
-      makeOctokit({ reviews: [{ state: "CHANGES_REQUESTED", user: { login: "alice" } }] }),
-      deps(task({})),
+      deps(task({}), { reviews: [{ state: "CHANGES_REQUESTED", user: "alice" }] }),
     );
     expect(result?.policy.humanChangesRequested).toBe(true);
   });
 
-  it("falls back to conservative defaults when the GitHub API throws", async () => {
-    const result = await resolvePrForTaskFromDb(
-      "t1",
-      settings,
-      makeOctokit({ throws: true }),
-      deps(task({})),
-    );
+  it("falls back to conservative defaults when the PR read throws", async () => {
+    const result = await resolvePrForTaskFromDb("t1", settings, deps(task({}), { throws: true }));
     expect(result?.policy).toMatchObject({
       changedPaths: [],
       ciSucceeded: false,
       botApproved: false,
       humanChangesRequested: false,
     });
-  });
-});
-
-describe("buildOctokit", () => {
-  const KEYS = [
-    "GITHUB_APP_ID",
-    "GITHUB_APP_PRIVATE_KEY",
-    "GITHUB_APP_INSTALLATION_ID",
-    "GITHUB_TOKEN",
-  ] as const;
-  const saved: Record<string, string | undefined> = {};
-
-  beforeEach(() => {
-    for (const k of KEYS) {
-      saved[k] = process.env[k];
-      delete process.env[k];
-    }
-  });
-
-  afterEach(() => {
-    for (const k of KEYS) {
-      if (saved[k] === undefined) delete process.env[k];
-      else process.env[k] = saved[k];
-    }
-  });
-
-  it("builds from the GitHub App triplet", () => {
-    process.env.GITHUB_APP_ID = "123";
-    process.env.GITHUB_APP_PRIVATE_KEY = "key";
-    process.env.GITHUB_APP_INSTALLATION_ID = "456";
-    expect(buildOctokit()).toBeInstanceOf(Octokit);
-  });
-
-  it("falls back to a personal access token", () => {
-    process.env.GITHUB_TOKEN = "ghp_token";
-    expect(buildOctokit()).toBeInstanceOf(Octokit);
-  });
-
-  it("throws when no GitHub credentials are configured", () => {
-    expect(() => buildOctokit()).toThrow(/GitHub not configured/);
   });
 });

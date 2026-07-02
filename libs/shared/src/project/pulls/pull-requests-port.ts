@@ -50,6 +50,13 @@ export interface PullCommit {
   date: string;
 }
 
+/** A raw GitHub Actions check run — the policy predicate lives in the caller. */
+export interface CheckRun {
+  name: string;
+  status: string;
+  conclusion: string | null;
+}
+
 export interface PullStats {
   files_changed: number;
   additions: number;
@@ -81,4 +88,10 @@ export interface PullRequestsPort {
   changedFileCount(repo: string, base: string, head: string): Promise<number>;
   /** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (D3). */
   ciConclusion(repo: string, ref: string): Promise<CiConclusion>;
+  /** Every changed filename on a PR — paginated so the auto-merge path gate can't
+   *  silently truncate a large PR at one API page. */
+  listFiles(repo: string, number: number): Promise<string[]>;
+  /** Every check run for a ref — paginated, raw. The gate predicate stays in the caller
+   *  (pr-policy needs `every(success|skipped)`, stricter than ciConclusion). */
+  listChecks(repo: string, ref: string): Promise<CheckRun[]>;
 }
