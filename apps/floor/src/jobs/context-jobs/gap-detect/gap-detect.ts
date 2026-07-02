@@ -14,9 +14,6 @@ interface GapReport {
   detail: string;
 }
 
-const LANGFUSE_PK = process.env.LANGFUSE_PK;
-const LANGFUSE_SK = process.env.LANGFUSE_SK;
-const LANGFUSE_HOST = process.env.LANGFUSE_HOST;
 const STALE_DAYS = 90;
 
 /**
@@ -27,7 +24,6 @@ const STALE_DAYS = 90;
  * 2. Missing ADRs (repos with 0 adr chunks)
  * 3. Missing specs (active repos with 0 spec chunks)
  * 4. Stale content (chunks not re-ingested in >90 days)
- * 5. Low-confidence Langfuse traces (if configured)
  */
 export async function gapDetectJob(): Promise<string> {
   const repos = await query<OnboardedRepo>(
@@ -51,9 +47,6 @@ export async function gapDetectJob(): Promise<string> {
       );
     }
   }
-
-  // Langfuse-driven gap detection (if configured)
-  await checkLangfuseGaps(gaps);
 
   // Create pipeline tasks for each gap (skip if a duplicate is already in flight).
   // Goes through taskStore().create so the trust-level gate + created_by provenance
@@ -179,67 +172,3 @@ async function checkStaleContent(
   }
 }
 
-async function checkLangfuseGaps(gaps: GapReport[]): Promise<void> {
-  if (!LANGFUSE_PK || !LANGFUSE_SK || !LANGFUSE_HOST) {
-    console.log("[job] gap-detect: Langfuse not configured, skipping trace analysis");
-    return;
-  }
-
-  try {
-    // Fetch recent low-confidence traces from Langfuse
-    const response = await fetch(`${LANGFUSE_HOST}/api/public/traces?tags=low-confidence&limit=100`, {
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${LANGFUSE_PK}:${LANGFUSE_SK}`).toString("base64")}`,
-      },
-    });
-
-    if (!response.ok) {
-      console.error(`[job] gap-detect: Langfuse API returned ${response.status}`);
-      return;
-    }
-
-    const data = (await response.json()) as {
-      data: Array<{
-        id: string;
-        metadata: { namespace?: string; query?: string; topScore?: number };
-      }>;
-    };
-
-    if (!data.data || data.data.length === 0) {
-      console.log("[job] gap-detect: no low-confidence traces found");
-      return;
-    }
-
-    // Cluster traces by query similarity (simple: group by namespace + first 50 chars)
-    const clusters = new Map<string, { count: number; queries: string[]; namespace: string }>();
-    for (const trace of data.data) {
-      const ns = trace.metadata?.namespace || "unknown";
-      const q = trace.metadata?.query || "";
-      const key = `${ns}:${q.substring(0, 50).toLowerCase().trim()}`;
-
-      const cluster = clusters.get(key) || { count: 0, queries: [], namespace: ns };
-      cluster.count++;
-      if (cluster.queries.length < 5) cluster.queries.push(q);
-      clusters.set(key, cluster);
-    }
-
-    // Create gap-fill tasks for clusters with 3+ occurrences
-    for (const [key, cluster] of clusters) {
-      if (cluster.count < 3) continue;
-
-      const sampleQueries = cluster.queries.slice(0, 3).join("; ");
-      console.log(
-        `[job] gap-detect: low-confidence cluster "${key}" (${cluster.count} occurrences)`,
-      );
-
-      gaps.push({
-        repo: cluster.namespace,
-        type: "low-confidence-cluster",
-        detail: `${cluster.count} low-confidence queries in namespace "${cluster.namespace}": ${sampleQueries}`,
-      });
-    }
-  } catch (err) {
-    console.error("[job] gap-detect: Langfuse trace analysis failed:", err);
-    // Non-fatal — continue without Langfuse data
-  }
-}

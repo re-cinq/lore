@@ -14,7 +14,6 @@ const EXPECTED_JOBS = [
   "context_core_builder",
   "importance_decay",
   "consolidation",
-  "autoresearch",
   "gap_detection",
   "spec_drift",
   "spec_coverage_backfill",

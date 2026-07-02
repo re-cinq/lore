@@ -34,6 +34,7 @@ import {
   type JudgeCandidate,
   type Judgment,
   type MatchKind,
+  extractAssertions,
 } from "@re-cinq/lore-shared";
 import { query } from "../../../kernel/db.js";
 import { Llm } from "@re-cinq/lore-shared";
@@ -391,42 +392,6 @@ async function classifyAllStatements(
   return out;
 }
 
-async function extractAssertions(specContent: string, filePath: string): Promise<Assertion[]> {
-  const result = await Llm.instance.completeWithTool<{ assertions: Assertion[] }>({
-    prompt: `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
-
-Only extract items that are explicitly named in the spec. Do not infer or guess.
-
-Spec file: ${filePath}
----
-${specContent.substring(0, 12000)}`,
-    systemPrompt:
-      "You extract testable code assertions from specifications. Return only explicitly named items.",
-    toolName: "extract_assertions",
-    toolDescription: "Extract testable assertions from a spec",
-    toolSchema: {
-      type: "object",
-      properties: {
-        assertions: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string", description: "The exact name of the function, class, type, or endpoint" },
-              kind: { type: "string", enum: ["function", "class", "interface", "type", "endpoint", "other"] },
-              description: { type: "string", description: "What this assertion checks for" },
-            },
-            required: ["name", "kind", "description"],
-          },
-        },
-      },
-      required: ["assertions"],
-    },
-    jobName: "spec_coverage_backfill",
-  });
-  return result.data.assertions || [];
-}
-
 // ── Orchestration ──────────────────────────────────────────────────
 
 const ACTIVITY_WINDOW_DAYS = 7;
@@ -642,7 +607,7 @@ async function runBackfillForSpec(
     return { suggestions: 0, prUrl: null };
   }
 
-  const assertions = await extractAssertions(content, specPath);
+  const assertions = await extractAssertions(content, specPath, { jobName: "spec_coverage_backfill" });
   const specEmbedding = parseEmbedding(chunks[0]?.embedding);
   const { candidates } = selectCandidates(
     { repo, file_path: specPath, content, embedding: specEmbedding },

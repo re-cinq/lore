@@ -1,32 +1,8 @@
 import { projectFor } from "../../../composition/project-boot.js";
 import { chunks, settings } from "../../../kernel/queues.js";
-import { chunkFile, classifyFile, buildIngestedChunkMetadata } from "@re-cinq/lore-shared";
+import { chunkFile, classifyFile, buildIngestedChunkMetadata, getQueryEmbedding } from "@re-cinq/lore-shared";
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
-
-const GCP_REGION = process.env.GCP_REGION || "europe-west1";
-const VERTEX_MODEL = "text-embedding-005";
-
-// The agent/CronJob env sets no project var (gcpProject defaults to ""), so an
-// empty project produced a malformed Vertex URL — `projects//locations` — and a
-// 400. Resolve from env, then fall back to the GKE metadata server (the same
-// source getAccessToken() already uses). Cached for the process lifetime.
-let cachedProject: string | null = null;
-async function getProjectId(): Promise<string> {
-  if (cachedProject !== null) return cachedProject;
-  const fromEnv = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
-  if (fromEnv) return (cachedProject = fromEnv);
-  try {
-    const res = await fetch(
-      "http://metadata.google.internal/computeMetadata/v1/project/project-id",
-      { headers: { "Metadata-Flavor": "Google" } },
-    );
-    if (res.ok) return (cachedProject = (await res.text()).trim());
-  } catch {
-    // fall through to empty
-  }
-  return (cachedProject = "");
-}
 
 /** Root-level files and directory prefixes seeded for repos with no prior
  *  ingestion. Prefixes match recursively, so nested specs (`specs/<feature>/
@@ -60,65 +36,6 @@ async function resolveSchema(repo: string): Promise<string> {
   return "org_shared";
 }
 
-// ── Vertex AI embedding ─────────────────────────────────────────────
-
-async function getAccessToken(): Promise<string | null> {
-  // Try GKE metadata server first (Workload Identity)
-  try {
-    const metaRes = await fetch(
-      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-      { headers: { "Metadata-Flavor": "Google" } },
-    );
-    const metaJson = (await metaRes.json()) as { access_token: string };
-    return metaJson.access_token;
-  } catch {
-    // Fall back to GOOGLE_ACCESS_TOKEN env var (local dev)
-    const token = process.env.GOOGLE_ACCESS_TOKEN || "";
-    return token || null;
-  }
-}
-
-async function generateEmbedding(text: string): Promise<number[] | null> {
-  const token = await getAccessToken();
-  if (!token) {
-    console.error("[job] No access token available for Vertex AI");
-    return null;
-  }
-  const project = await getProjectId();
-  if (!project) {
-    console.error("[job] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)");
-    return null;
-  }
-
-  try {
-    const res = await fetch(
-      `https://${GCP_REGION}-aiplatform.googleapis.com/v1/projects/${project}/locations/${GCP_REGION}/publishers/google/models/${VERTEX_MODEL}:predict`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          instances: [{ content: text.substring(0, 8000) }],
-        }),
-      },
-    );
-
-    if (!res.ok) {
-      console.error(`[job] Vertex AI embedding failed: ${res.status}`);
-      return null;
-    }
-
-    const json = (await res.json()) as {
-      predictions: Array<{ embeddings: { values: number[] } }>;
-    };
-    return json.predictions[0].embeddings.values;
-  } catch (err) {
-    console.error("[job] Vertex AI embedding error:", err);
-    return null;
-  }
-}
 
 // ── Collect changed files from commits ──────────────────────────────
 
@@ -183,8 +100,8 @@ async function ingestFile(
       metadata: buildIngestedChunkMetadata(chunk, { filePath, ingestedBy: "reindex-job" }),
     });
 
-    // Generate and store embedding per chunk (input already capped at 8k in generateEmbedding)
-    const embedding = await generateEmbedding(chunk.content);
+    // Generate and store embedding per chunk (input already capped at 8k in the service)
+    const embedding = await getQueryEmbedding(chunk.content);
     if (embedding && chunkId) {
       const embeddingStr = `[${embedding.join(",")}]`;
       await chunks().setEmbedding(schema, chunkId, embeddingStr);

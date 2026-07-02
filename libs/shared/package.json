@@ -15,6 +15,7 @@
     "./lib/*.js": { "types": "./dist/lib/*.d.ts", "default": "./dist/lib/*.js" },
     "./spec-link-parser.js": { "types": "./dist/spec-link-parser.d.ts", "default": "./dist/spec-link-parser.js" },
     "./spec-segment.js": { "types": "./dist/spec-segment.d.ts", "default": "./dist/spec-segment.js" },
+    "./spec-judge-llm.js": { "types": "./dist/spec-judge-llm.d.ts", "default": "./dist/spec-judge-llm.js" },
     "./test-paths.js": { "types": "./dist/test-paths.d.ts", "default": "./dist/test-paths.js" },
     "./repo-validation/repo-validation.js": { "types": "./dist/repo-validation/repo-validation.d.ts", "default": "./dist/repo-validation/repo-validation.js" }
   },
