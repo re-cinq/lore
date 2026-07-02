@@ -56,16 +56,79 @@ describe("PgTaskQueue.findRecoverable", () => {
 });
 
 describe("PgTaskQueue.claimSpecTask", () => {
-  it("returns true when the CAS updates a still-pending row", async () => {
+  it("returns true when the CAS updates a still-pending row, defaulting the claimer", async () => {
     const { pool, calls } = mockPool([{ rows: [{ id: "t1" }] }]);
     expect(await new PgTaskQueue(pool).claimSpecTask("t1")).toBe(true);
     expect(calls[0].sql).toContain("WHERE id = $1 AND status = 'pending'");
-    expect(calls[0].sql).toContain("agent_id = 'spec-task-executor'");
+    expect(calls[0].sql).toContain("agent_id = $2");
+    expect(calls[0].values).toEqual(["t1", "spec-task-executor"]);
+  });
+
+  it("records the caller-supplied claimer", async () => {
+    const { pool, calls } = mockPool([{ rows: [{ id: "t1" }] }]);
+    expect(await new PgTaskQueue(pool).claimSpecTask("t1", "agent-9")).toBe(true);
+    expect(calls[0].values).toEqual(["t1", "agent-9"]);
   });
 
   it("returns false when the row was already claimed", async () => {
     const { pool } = mockPool([{ rows: [] }]);
     expect(await new PgTaskQueue(pool).claimSpecTask("t1")).toBe(false);
+  });
+});
+
+describe("PgTaskQueue.findReadySpecTasks", () => {
+  it("stays org-wide with no params when no repo is given", async () => {
+    const { pool, calls } = mockPool([{ rows: [] }]);
+    await new PgTaskQueue(pool).findReadySpecTasks();
+    expect(calls[0].sql).not.toContain("t.target_repo = $1");
+    expect(calls[0].values).toEqual([]);
+  });
+
+  it("scopes to one repo when given", async () => {
+    const { pool, calls } = mockPool([{ rows: [] }]);
+    await new PgTaskQueue(pool).findReadySpecTasks("a/b");
+    expect(calls[0].sql).toContain("AND t.target_repo = $1");
+    expect(calls[0].values).toEqual(["a/b"]);
+  });
+});
+
+describe("PgTaskQueue.completeSpecTask", () => {
+  it("returns completed false for an unknown task", async () => {
+    const { pool } = mockPool([{ rows: [] }]);
+    expect(await new PgTaskQueue(pool).completeSpecTask("missing")).toEqual({ completed: false, unblocked: [] });
+  });
+
+  it("returns completed false when the task is not running", async () => {
+    const { pool } = mockPool([{ rows: [{ status: "pending", context_bundle: {}, target_repo: "a/b" }] }]);
+    expect(await new PgTaskQueue(pool).completeSpecTask("t1")).toEqual({ completed: false, unblocked: [] });
+  });
+
+  it("flips to completed and skips the readiness scan without slug metadata", async () => {
+    const { pool, calls } = mockPool([
+      { rows: [{ status: "running", context_bundle: {}, target_repo: "a/b" }] }, // load
+      { rows: [] }, // UPDATE completed
+    ]);
+    expect(await new PgTaskQueue(pool).completeSpecTask("t1")).toEqual({ completed: true, unblocked: [] });
+    expect(calls[1].sql).toContain("status = 'completed'");
+    expect(calls).toHaveLength(2);
+  });
+
+  it("reports same-spec dependents unblocked by the completion", async () => {
+    const { pool } = mockPool([
+      { rows: [{ status: "running", context_bundle: { spec_task_id: "T1", spec_slug: "x" }, target_repo: "a/b" }] }, // load
+      { rows: [] }, // UPDATE
+      {
+        rows: [
+          { id: "u2", description: "Build B", context_bundle: { spec_task_id: "T2", spec_slug: "x", depends_on: ["T1"] } },
+          { id: "u3", description: "Other slug", context_bundle: { spec_task_id: "T9", spec_slug: "y", depends_on: ["T1"] } },
+          { id: "u4", description: "Unrelated dep", context_bundle: { spec_task_id: "T4", spec_slug: "x", depends_on: ["T0"] } },
+        ],
+      }, // findReadySpecTasks
+    ]);
+    expect(await new PgTaskQueue(pool).completeSpecTask("t1")).toEqual({
+      completed: true,
+      unblocked: ["T2: Build B"],
+    });
   });
 });
 
@@ -174,6 +237,35 @@ describe("InMemoryTaskQueue.claimSpecTask", () => {
     expect(await q.claimSpecTask("s")).toBe(true);
     expect(await q.claimSpecTask("s")).toBe(false);
   });
+
+  it("records the claimer, defaulting to spec-task-executor", async () => {
+    const tasks: SeedTask[] = [
+      { id: "a", status: "pending", task_type: "spec-task" },
+      { id: "b", status: "pending", task_type: "spec-task" },
+    ];
+    const q = new InMemoryTaskQueue(tasks);
+    await q.claimSpecTask("a");
+    await q.claimSpecTask("b", "agent-9");
+    expect(tasks[0].agent_id).toBe("spec-task-executor");
+    expect(tasks[1].agent_id).toBe("agent-9");
+  });
+});
+
+describe("InMemoryTaskQueue.completeSpecTask", () => {
+  it("returns completed false when the task is not running", async () => {
+    const q = new InMemoryTaskQueue([{ id: "s", status: "pending", task_type: "spec-task" }]);
+    expect(await q.completeSpecTask("s")).toEqual({ completed: false, unblocked: [] });
+    expect(await q.completeSpecTask("missing")).toEqual({ completed: false, unblocked: [] });
+  });
+
+  it("flips to completed and reports only same-spec dependents it unblocks", async () => {
+    const q = new InMemoryTaskQueue([
+      { id: "done", status: "running", task_type: "spec-task", target_repo: "a/b", context_bundle: { spec_task_id: "T1", spec_slug: "x" } },
+      { id: "dep", status: "pending", task_type: "spec-task", target_repo: "a/b", description: "Build the thing", context_bundle: { spec_task_id: "T2", spec_slug: "x", depends_on: ["T1"] } },
+      { id: "other", status: "pending", task_type: "spec-task", target_repo: "a/b", context_bundle: { spec_task_id: "T3", spec_slug: "y", depends_on: ["T1"] } },
+    ]);
+    expect(await q.completeSpecTask("done")).toEqual({ completed: true, unblocked: ["T2: Build the thing"] });
+  });
 });
 
 describe("InMemoryTaskQueue org-wide reads", () => {
@@ -212,5 +304,15 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
       { id: "blocked", status: "pending", task_type: "spec-task", target_repo: "a/b", context_bundle: { spec_task_id: "T3", spec_slug: "x", depends_on: ["T9"] } },
     ]);
     expect((await q.findReadySpecTasks()).map((t) => t.id)).toEqual(["ready"]);
+  });
+
+  it("scopes the returned set to one repo, still resolving deps org-wide", async () => {
+    const q = new InMemoryTaskQueue([
+      { id: "dep-a", status: "completed", task_type: "spec-task", target_repo: "a/b", context_bundle: { spec_task_id: "T1", spec_slug: "x" } },
+      { id: "ready-a", status: "pending", task_type: "spec-task", target_repo: "a/b", context_bundle: { spec_task_id: "T2", spec_slug: "x", depends_on: ["T1"] } },
+      { id: "dep-c", status: "completed", task_type: "spec-task", target_repo: "c/d", context_bundle: { spec_task_id: "T1", spec_slug: "x" } },
+      { id: "ready-c", status: "pending", task_type: "spec-task", target_repo: "c/d", context_bundle: { spec_task_id: "T2", spec_slug: "x", depends_on: ["T1"] } },
+    ]);
+    expect((await q.findReadySpecTasks("a/b")).map((t) => t.id)).toEqual(["ready-a"]);
   });
 });
