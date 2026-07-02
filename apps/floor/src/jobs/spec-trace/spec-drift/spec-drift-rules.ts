@@ -5,6 +5,7 @@
  */
 
 import type { TraceDocument } from "@re-cinq/lore-shared";
+import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
 
 /** Speckit artifacts that are prose, not named-symbol sources — scanning them
  * for "missing code symbols" yields permanent 100% false drift. */
@@ -28,15 +29,9 @@ export const DRIFT_REFILE_COOLDOWN_DAYS = 14;
  */
 export const DRIFT_FAILED_REFILE_COOLDOWN_DAYS = 2;
 
-/** Task states where a drift loop is still in flight — always suppress a new task. */
-const OPEN_STATES = new Set([
-  "pending",
-  "queued",
-  "running",
-  "pr-created",
-  "review",
-  "retried",
-]);
+/** Task states where a drift loop is still in flight — always suppress a new task.
+ * Single-sourced with gap-detect via the shared OPEN_TASK_STATES. */
+const OPEN_STATES = new Set<string>(OPEN_TASK_STATES);
 
 interface ExistingDriftTask {
   status: string;

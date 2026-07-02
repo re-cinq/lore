@@ -1,4 +1,5 @@
 import type { Octokit } from "octokit";
+import { withBackoff } from "@re-cinq/lore-shared/lib/backoff.js";
 import { writeAuditLog } from "../dark-factory/audit.js";
 
 export type EscalationReason =
@@ -44,18 +45,17 @@ export interface EscalateResult {
   issueUrl?: string;
 }
 
-// Two attempts after the initial call: ~5s tail. The supervisor lease
-// is held while we wait, and the audit_only fallback already preserves
-// the diagnostic in Slack — burning 21s on retries doesn't buy
-// reliability proportional to the lease-hold cost.
+// Two retries after the initial call (3 attempts total, ~5s tail). The supervisor
+// lease is held while we wait, and the audit_only fallback already preserves the
+// diagnostic in Slack — a longer tail doesn't buy reliability proportional to the
+// lease-hold cost.
 const RETRY_DELAYS_MS = [1000, 4000];
 
 /**
  * Escalate a stuck task to humans. Per FR3.8 + research R3:
  *  1. Compose a structured Issue body with branch link, diagnostic,
  *     failing phase output, and contributing refs.
- *  2. Try to open a GitHub Issue (3 attempts, exponential backoff
- *     1s/4s/16s).
+ *  2. Try to open a GitHub Issue (3 attempts, backoff 1s/4s).
  *  3. On success: write `escalation_issued` audit entry naming the
  *     issue; fire a Slack-equivalent notification.
  *  4. On final failure: write the audit entry with `outcome:
@@ -186,33 +186,26 @@ async function createIssueWithBackoff(opts: {
   body: string;
 }): Promise<CreateIssueResult | CreateIssueFailure> {
   const [owner, name] = opts.repo.split("/");
-  let lastError: Error | undefined;
-
-  for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
-    try {
-      const response = await opts.octokit.rest.issues.create({
-        owner,
-        repo: name,
-        title: opts.title,
-        body: opts.body,
-        labels: ["needs-human-help", "lore-managed"],
-      });
-      return {
-        success: true,
-        issueNumber: response.data.number,
-        issueUrl: response.data.html_url,
-      };
-    } catch (err) {
-      lastError = err as Error;
-      if (attempt < RETRY_DELAYS_MS.length - 1) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, RETRY_DELAYS_MS[attempt]),
-        );
-      }
-    }
+  try {
+    const response = await withBackoff(
+      () =>
+        opts.octokit.rest.issues.create({
+          owner,
+          repo: name,
+          title: opts.title,
+          body: opts.body,
+          labels: ["needs-human-help", "lore-managed"],
+        }),
+      { delaysMs: RETRY_DELAYS_MS },
+    );
+    return {
+      success: true,
+      issueNumber: response.data.number,
+      issueUrl: response.data.html_url,
+    };
+  } catch (err) {
+    return { success: false, error: err as Error };
   }
-
-  return { success: false, error: lastError ?? new Error("unknown") };
 }
 
 async function writeAuditLogSafe(

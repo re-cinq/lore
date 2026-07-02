@@ -3,6 +3,7 @@ import {
   resolveTestLink,
   collectBrokenLinks,
   formatBrokenLinksReport,
+  hasOpenLinkRotIssue,
   type ChunkLineRange,
   type BrokenLink,
 } from "./spec-coverage-validate.js";
@@ -144,5 +145,19 @@ describe("formatBrokenLinksReport", () => {
 
   it("returns the empty string when there are no broken links", () => {
     expect(formatBrokenLinksReport([])).toBe("");
+  });
+});
+
+describe("hasOpenLinkRotIssue", () => {
+  it("returns true when an open issue carries the spec-link-rot label", () => {
+    expect(hasOpenLinkRotIssue([{ labels: ["lore-managed", "spec-link-rot"] }])).toBe(true);
+  });
+
+  it("returns false when no open issue carries the label", () => {
+    expect(hasOpenLinkRotIssue([{ labels: ["lore-managed"] }, { labels: [] }])).toBe(false);
+  });
+
+  it("returns false for an empty issue list", () => {
+    expect(hasOpenLinkRotIssue([])).toBe(false);
   });
 });

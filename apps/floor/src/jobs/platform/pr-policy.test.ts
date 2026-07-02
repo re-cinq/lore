@@ -37,23 +37,38 @@ interface OctokitStub {
   throws?: boolean;
 }
 
+// Models GitHub's single-page REST calls (capped at `per_page`, default 30) vs
+// octokit.paginate (all pages). The direct `rest.*` methods return only page 1;
+// `paginate` returns the full set — so a policy read that forgets to paginate
+// silently truncates the changed-file / check / review lists at 30.
+const PAGE_SIZE = 30;
+
 function makeOctokit(stub: OctokitStub): Octokit {
   const guard = () => {
     if (stub.throws) throw new Error("GitHub API down");
   };
+  const listFiles = vi.fn(async () => {
+    guard();
+    return { data: (stub.files ?? []).slice(0, PAGE_SIZE) };
+  });
+  const listReviews = vi.fn(async () => {
+    guard();
+    return { data: (stub.reviews ?? []).slice(0, PAGE_SIZE) };
+  });
+  const listForRef = vi.fn(async () => {
+    guard();
+    return { data: { check_runs: (stub.checkRuns ?? []).slice(0, PAGE_SIZE) } };
+  });
+  const paginate = vi.fn(async (fn: unknown) => {
+    guard();
+    if (fn === listFiles) return stub.files ?? [];
+    if (fn === listReviews) return stub.reviews ?? [];
+    if (fn === listForRef) return stub.checkRuns ?? [];
+    return [];
+  });
   return {
-    rest: {
-      pulls: {
-        listFiles: vi.fn(async () => {
-          guard();
-          return { data: stub.files ?? [] };
-        }),
-        listReviews: vi.fn(async () => ({ data: stub.reviews ?? [] })),
-      },
-      checks: {
-        listForRef: vi.fn(async () => ({ data: { check_runs: stub.checkRuns ?? [] } })),
-      },
-    },
+    paginate,
+    rest: { pulls: { listFiles, listReviews }, checks: { listForRef } },
   } as unknown as Octokit;
 }
 
@@ -91,6 +106,18 @@ describe("resolvePrForTaskFromDb", () => {
       humanChangesRequested: false,
       trustLevel: "implementation",
     });
+  });
+
+  it("sees every changed file on a PR larger than one API page (auto-merge gate must not truncate)", async () => {
+    const files = Array.from({ length: 31 }, (_, i) => ({ filename: `src/f${i}.ts` }));
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      makeOctokit({ files }),
+      deps(task({})),
+    );
+    expect(result?.policy.changedPaths).toHaveLength(31);
+    expect(result?.policy.changedPaths).toContain("src/f30.ts");
   });
 
   it("treats an empty check list as CI not succeeded", async () => {

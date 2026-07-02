@@ -1,5 +1,6 @@
 import { trace } from "@opentelemetry/api";
 import { allPathsMatch, matchingPatterns } from "@re-cinq/lore-shared";
+import { withBackoff } from "@re-cinq/lore-shared/lib/backoff.js";
 import { writeAuditLog } from "../dark-factory/audit.js";
 import { projectFor } from "../../composition/project-boot.js";
 
@@ -188,26 +189,19 @@ export async function evaluateAndMerge(
 }
 
 /**
- * Try to merge a PR with exponential backoff (per research R3).
- * Throws on final failure so the caller records the deferral.
+ * Try to merge a PR with backoff (per research R3): 3 attempts, 1s then 4s tail.
+ * Throws on final failure so the caller records `deferred:api_failure` and the PR
+ * sits open for a human merge.
  */
 async function mergeWithBackoff(opts: {
   repo: string;
   prNumber: number;
 }): Promise<void> {
-  // Same trade-off as escalation.ts: 5s tail beats 21s while holding
-  // the supervisor lease. On final failure, evaluateAndMerge degrades
-  // to deferred:api_failure and the PR sits open for a human merge.
-  const delays = [1000, 4000];
-
-  for (let attempt = 0; attempt < delays.length; attempt++) {
-    try {
+  await withBackoff(
+    async () => {
       const project = await projectFor(opts.repo);
       await project.pulls.merge(opts.prNumber, "squash");
-      return;
-    } catch (err) {
-      if (attempt === delays.length - 1) throw err;
-      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
-    }
-  }
+    },
+    { delaysMs: [1000, 4000] },
+  );
 }

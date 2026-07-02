@@ -9,6 +9,7 @@
  * Runs every minute.
  */
 
+import { anthropicCreditsExhausted } from "@re-cinq/lore-shared/llm/credit-probe.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
 import { taskQueue } from "../../kernel/queues.js";
@@ -25,48 +26,23 @@ export async function specTaskExecutorJob(): Promise<string> {
     return "No ready spec-tasks";
   }
 
-  // Count currently running spec-tasks per group to enforce concurrency limit.
-  // Also count LoreTask CRs in Running phase to catch tasks the DB hasn't
-  // caught up with yet (prevents over-dispatch across executor cycles).
+  // Count currently running spec-tasks per group to enforce the per-group
+  // concurrency limit. Also counts Agent CRs in Running phase to catch tasks the
+  // DB hasn't caught up with yet (prevents over-dispatch across executor cycles).
+  // The cap is applied per task_group_id in the dispatch loop below — one busy
+  // group must not starve another (the former global gate did exactly that).
   const runningByGroup = new Map<string, number>();
   const runningRows = await taskQueue().countRunningSpecTasksByGroup();
   for (const row of runningRows) {
     runningByGroup.set(row.task_group_id, parseInt(row.cnt, 10));
   }
 
-  // Hard limit: skip dispatch entirely if too many tasks are already running
-  const totalRunning = [...runningByGroup.values()].reduce((a, b) => a + b, 0);
-  if (totalRunning >= MAX_CONCURRENT_PER_GROUP) {
-    return `Waiting: ${totalRunning} spec-tasks already running (limit ${MAX_CONCURRENT_PER_GROUP})`;
+  // Pre-flight billing check: skip the whole batch when the account is out of
+  // credits (heuristic + model choice single-sourced in the shared llm module).
+  if (await anthropicCreditsExhausted()) {
+    console.warn("[spec-task-executor] API credits exhausted, skipping dispatch");
+    return "Skipped: API credits exhausted";
   }
-
-  // Pre-flight: check Anthropic API is reachable and credits are available
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (apiKey) {
-    try {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 1,
-          messages: [{ role: "user", content: "hi" }],
-        }),
-      });
-      if (resp.status === 429 || resp.status === 403) {
-        const body = await resp.text().catch(() => "");
-        if (body.includes("credit") || body.includes("balance") || body.includes("billing")) {
-          console.warn("[spec-task-executor] API credits exhausted, skipping dispatch");
-          return "Skipped: API credits exhausted";
-        }
-      }
-    } catch { /* network error — proceed and let individual tasks handle it */ }
-  }
-
 
   const implConfig = getTaskTypeConfig("implementation");
   const timeoutMinutes = implConfig?.timeout_minutes || 90;

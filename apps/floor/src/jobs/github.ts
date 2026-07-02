@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { parseTasks, inferPhaseDependencies, syncTasksToDb } from "@re-cinq/lore-shared";
+import { parseTasks, inferPhaseDependencies, syncTasksToDb, specSlugFromBranch } from "@re-cinq/lore-shared";
 import { getPool } from "../kernel/db.js";
 import { settings, taskStore, taskQueue } from "../kernel/queues.js";
 import { GitHubPlatform } from "./platform/github.js";
@@ -99,8 +99,8 @@ export const specPrMerge: EventHandler = async (params) => {
     merge_commit_sha: string | null;
     labels: string[];
   };
-  if (!branch.startsWith("lore/feature-request/") || !labels.includes("spec")) return;
-  const specSlug = branch.replace("lore/feature-request/", "").replace(/-[a-f0-9]{8}$/, "");
+  if (!labels.includes("spec")) return;
+  const specSlug = specSlugFromBranch(branch);
   if (!specSlug) return;
 
   if (await taskQueue().hasSpecTasksForSlug(repo, specSlug)) return; // already synced
