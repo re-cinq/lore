@@ -22,7 +22,6 @@ import { PgJobRuns } from "@re-cinq/lore-shared/project/job-runs/job-runs-pg.js"
 import { PgEvalRuns } from "@re-cinq/lore-shared/project/evals/evals-pg.js";
 import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
 import { PgContextCore } from "@re-cinq/lore-shared/project/context-core/context-core-pg.js";
-import { PgResearch } from "@re-cinq/lore-shared/project/research/research-pg.js";
 import { PgBaseline } from "@re-cinq/lore-shared/project/baseline/baseline-pg.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
@@ -38,7 +37,6 @@ let jobRunsSingleton: PgJobRuns | undefined;
 let evalRunsSingleton: PgEvalRuns | undefined;
 let costSingleton: PgCost | undefined;
 let contextCoreSingleton: PgContextCore | undefined;
-let researchSingleton: PgResearch | undefined;
 let baselineSingleton: PgBaseline | undefined;
 let settingsSingleton: PgSettings | undefined;
 let chunksSingleton: PgChunks | undefined;
@@ -87,10 +85,6 @@ export const cost = (): PgCost =>
 /** Context-core promotion history (pipeline.context_core_history). */
 export const contextCore = (): PgContextCore =>
   (contextCoreSingleton ??= new PgContextCore(getPool()));
-
-/** Autoresearch attempt log (pipeline.research_attempts). */
-export const research = (): PgResearch =>
-  (researchSingleton ??= new PgResearch(getPool()));
 
 /** Dark-factory pre-feature baseline snapshots + stats (pipeline.dark_factory_baseline). */
 export const baseline = (): PgBaseline =>

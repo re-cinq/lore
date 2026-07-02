@@ -1,9 +1,6 @@
-import { execFile } from "node:child_process";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { chunks, contextCore, taskStore } from "../../../kernel/queues.js";
-
-const execFileAsync = promisify(execFile);
+import { runPromptfooEval } from "../lib/promptfoo.js";
 
 const IMPROVEMENT_THRESHOLD = 0.02; // 2% to promote
 const REGRESSION_THRESHOLD = 0.05; // 5% to reject
@@ -58,25 +55,22 @@ async function evaluateNamespace(
 
   // Run PromptFoo eval for this namespace
   const configPath = join("evals", namespace, "promptfooconfig.yaml");
-  let currentScore: number;
-
-  try {
-    const { stdout } = await execFileAsync(
-      "npx",
-      ["promptfoo", "eval", "--config", configPath, "--output", "json", "--no-progress-bar"],
-      { timeout: 300_000, maxBuffer: 10 * 1024 * 1024 },
-    );
-
-    const output = JSON.parse(stdout) as {
-      stats?: { passRate: number };
-      results?: { stats?: { passRate: number } };
-    };
-
-    currentScore = output.stats?.passRate || output.results?.stats?.passRate || 0;
-  } catch {
-    console.log(`[job] context-core: no eval config for ${namespace}, skipping`);
+  const evalResult = await runPromptfooEval({ configPath });
+  if (!evalResult.ok) {
+    // Distinguish a genuinely-absent config from a crash/timeout — the old catch
+    // logged every failure (including real regressions the eval surfaced) as
+    // "no eval config, skipping".
+    if (evalResult.reason === "config-missing") {
+      console.log(`[job] context-core: no eval config for ${namespace}, skipping`);
+    } else {
+      console.error(
+        `[job] context-core: eval did not produce a score for ${namespace} (${evalResult.reason})`,
+        evalResult.reason === "exec-failed" ? evalResult.error : "",
+      );
+    }
     return "unchanged";
   }
+  const currentScore = evalResult.stats.passRate;
 
   // Get previous production score
   const prevScore = (await contextCore().latest(namespace)) ?? 0;

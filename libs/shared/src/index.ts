@@ -239,6 +239,8 @@ export {
   type Judgment,
 } from './spec-judge.js';
 
+export { extractAssertions, type LlmJobContext } from './spec-judge-llm.js';
+
 export {
   memoryStore,
   setMemoryStore,

@@ -11,7 +11,6 @@
 import { initPool, getPool } from "../kernel/db.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { anthropicCostSyncJob } from "../jobs/cost/anthropic-cost-sync/index.js";
-import { autoresearchJob } from "../jobs/context-jobs/autoresearch/index.js";
 import { contextCoreBuilderJob } from "../jobs/context-jobs/context-core-builder/index.js";
 import { evalRunnerJob } from "../jobs/context-jobs/eval-runner/index.js";
 import { gapDetectJob } from "../jobs/context-jobs/gap-detect/index.js";
@@ -39,7 +38,6 @@ export const dispatch: Record<string, JobHandler> = {
   context_core_builder: contextCoreBuilderJob,
   importance_decay: importanceDecayJob,
   consolidation: consolidationJob,
-  autoresearch: autoresearchJob,
   gap_detection: gapDetectJob,
   spec_drift: specDriftJob,
   spec_coverage_backfill: specCoverageBackfillJob,

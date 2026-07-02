@@ -1,17 +1,45 @@
 /**
- * Vertex AI text-embedding-005 query embeddings — a stateless, repo-agnostic
- * shared service (env-configured module singleton, not a Project port). Calls
- * the Vertex predict endpoint over plain fetch (no AlloyDB embedding() function
- * — we run CNPG, not managed AlloyDB) and degrades to null when no credential
- * or project is available, so callers fall back to keyword-only search.
+ * Vertex AI text-embedding-005 embeddings (queries and documents) — a stateless,
+ * repo-agnostic shared service (env-configured module singleton, not a Project
+ * port). Calls the Vertex predict endpoint over plain fetch (no AlloyDB
+ * embedding() function — we run CNPG, not managed AlloyDB) and degrades to null
+ * when no credential or project is available, so callers fall back to
+ * keyword-only search.
  */
 
-const VERTEX_PROJECT = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
 const VERTEX_REGION = process.env.GCP_REGION || "europe-west1";
 const VERTEX_MODEL = "text-embedding-005";
 
 export function buildVertexUrl(project: string, region: string): string {
   return `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models/${VERTEX_MODEL}:predict`;
+}
+
+// The agent/CronJob env sets no project var, so the project must be resolved at
+// call time: env first, then the GKE metadata server (Workload Identity). Reading
+// it once at module load (as before) left it "" in those pods, producing a
+// malformed `projects//locations` URL + a confusing 400 instead of degrading to
+// null. Cached for the process lifetime.
+let cachedProject: string | null = null;
+
+export async function resolveVertexProject(): Promise<string> {
+  if (cachedProject !== null) return cachedProject;
+  const fromEnv = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
+  if (fromEnv) return (cachedProject = fromEnv);
+  try {
+    const res = await fetch(
+      "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+      { headers: { "Metadata-Flavor": "Google" } },
+    );
+    if (res.ok) return (cachedProject = (await res.text()).trim());
+  } catch {
+    // fall through to empty
+  }
+  return (cachedProject = "");
+}
+
+/** Reset the process-cached project resolution — for tests. */
+export function resetVertexProjectCache(): void {
+  cachedProject = null;
 }
 
 export async function getQueryEmbedding(query: string): Promise<number[] | null> {
@@ -29,7 +57,13 @@ export async function getQueryEmbedding(query: string): Promise<number[] | null>
       if (!token) return null;
     }
 
-    const res = await fetch(buildVertexUrl(VERTEX_PROJECT, VERTEX_REGION), {
+    const project = await resolveVertexProject();
+    if (!project) {
+      console.error("[embeddings] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)");
+      return null;
+    }
+
+    const res = await fetch(buildVertexUrl(project, VERTEX_REGION), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

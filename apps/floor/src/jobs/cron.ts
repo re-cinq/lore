@@ -2,7 +2,7 @@
  * Layer-3 handlers for `cron.*.tick` events. The in-process scheduler no longer
  * runs these jobs directly — it emits a tick event and the loop dispatches here.
  * These are the light/operational jobs that are safe to run in the Floor pod;
- * heavy batch jobs (reindex/eval/autoresearch …) are handled separately.
+ * heavy batch jobs (reindex/eval/gap-detect …) are handled separately.
  */
 
 import { mergeCheckJob } from "./merge/merge-check.js";

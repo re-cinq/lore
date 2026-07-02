@@ -1,5 +1,5 @@
 import { query } from "../../../kernel/db.js";
-import { Llm } from "@re-cinq/lore-shared";
+import { extractAssertions } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../composition/project-boot.js";
 import { taskStore } from "../../../kernel/queues.js";
 import type { Project } from "@re-cinq/lore-shared";
@@ -23,12 +23,6 @@ interface CodeChunk {
   symbol_name: string;
   symbol_type: string;
   file_path: string;
-}
-
-interface Assertion {
-  name: string;
-  kind: "function" | "class" | "interface" | "type" | "endpoint" | "other";
-  description: string;
 }
 
 /** Look-back window for "has this repo shipped anything?". */
@@ -181,7 +175,7 @@ export async function specDriftJob(): Promise<string> {
 
         // Heuristic fallback (spec not projected / no graph): de-noised symbol
         // membership — only top-level symbol kinds, with an absolute miss floor.
-        const assertions = await extractAssertions(spec.content, spec.file_path);
+        const assertions = await extractAssertions(spec.content, spec.file_path, { jobName: "spec_drift" });
         if (assertions.length === 0) {
           console.log(`[job] spec-drift: ${repo}:${spec.file_path} — no assertions extracted`);
           continue;
@@ -207,58 +201,6 @@ export async function specDriftJob(): Promise<string> {
   const summary = `Checked ${totalChecked} specs across ${activeRepoCount} active repos (${totalDrift} drifted${deferredNote}); skipped ${skippedSpecs} specs from ${skippedRepos} quiet repos, ${filteredDocs} prose docs`;
   console.log(`[job] spec-drift: ${summary}`);
   return summary;
-}
-
-async function extractAssertions(
-  specContent: string,
-  filePath: string,
-): Promise<Assertion[]> {
-  // Truncate spec content to avoid token limits
-  const truncated = specContent.substring(0, 12000);
-
-  const result = await Llm.instance.completeWithTool<{ assertions: Assertion[] }>({
-    prompt: `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
-
-Only extract items that are explicitly named in the spec. Do not infer or guess.
-
-Spec file: ${filePath}
----
-${truncated}`,
-    systemPrompt:
-      "You extract testable code assertions from specifications. Return only explicitly named items.",
-    toolName: "extract_assertions",
-    toolDescription: "Extract testable assertions from a spec",
-    toolSchema: {
-      type: "object",
-      properties: {
-        assertions: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: {
-                type: "string",
-                description: "The exact name of the function, class, type, or endpoint",
-              },
-              kind: {
-                type: "string",
-                enum: ["function", "class", "interface", "type", "endpoint", "other"],
-              },
-              description: {
-                type: "string",
-                description: "What this assertion checks for",
-              },
-            },
-            required: ["name", "kind", "description"],
-          },
-        },
-      },
-      required: ["assertions"],
-    },
-    jobName: "spec_drift",
-  });
-
-  return result.data.assertions || [];
 }
 
 interface DriftTaskCopy {

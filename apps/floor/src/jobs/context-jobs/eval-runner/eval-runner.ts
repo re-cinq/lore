@@ -1,10 +1,7 @@
-import { execFile } from "node:child_process";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { evalRuns, taskStore } from "../../../kernel/queues.js";
-
-const execFileAsync = promisify(execFile);
+import { isPromptfooAvailable, runPromptfooEval } from "../lib/promptfoo.js";
 
 const EVALS_DIR = process.env.EVALS_DIR || "evals";
 const REGRESSION_THRESHOLD = 0.05; // 5% drop triggers alert
@@ -27,10 +24,7 @@ interface EvalResult {
  * 4. If pass rate drops >5% from previous run, create pipeline task
  */
 export async function evalRunnerJob(): Promise<string> {
-  // Check if promptfoo is available
-  try {
-    await execFileAsync("npx", ["promptfoo", "--version"], { timeout: 10_000 });
-  } catch {
+  if (!(await isPromptfooAvailable())) {
     console.log("[job] eval-runner: promptfoo not available, skipping");
     return "Skipped: promptfoo not installed";
   }
@@ -49,38 +43,32 @@ export async function evalRunnerJob(): Promise<string> {
   for (const team of teamDirs) {
     const configPath = join(EVALS_DIR, team, "promptfooconfig.yaml");
 
-    try {
-      const { stdout } = await execFileAsync(
-        "npx",
-        ["promptfoo", "eval", "--config", configPath, "--output", "json", "--no-progress-bar"],
-        { timeout: 300_000, maxBuffer: 10 * 1024 * 1024 },
-      );
-
-      const output = JSON.parse(stdout) as {
-        stats?: { passes: number; total: number; passRate: number };
-        results?: { stats?: { passes: number; total: number; passRate: number } };
-      };
-
-      const stats = output.stats || output.results?.stats;
-      if (!stats) {
-        console.error(`[job] eval-runner: no stats in output for team ${team}`);
-        continue;
+    const evalResult = await runPromptfooEval({ configPath });
+    if (!evalResult.ok) {
+      if (evalResult.reason === "exec-failed") {
+        console.error(`[job] eval-runner: eval failed for team ${team}:`, evalResult.error);
+      } else {
+        console.error(`[job] eval-runner: no usable stats for team ${team} (${evalResult.reason})`);
       }
+      continue;
+    }
 
+    {
+      const stats = evalResult.stats;
+      const total = stats.total ?? 0;
+      const passed = stats.passes ?? 0;
       const result: EvalResult = {
         team,
         passRate: stats.passRate,
-        total: stats.total,
-        passed: stats.passes,
-        failed: stats.total - stats.passes,
+        total,
+        passed,
+        failed: total - passed,
       };
 
       results.push(result);
       console.log(
         `[job] eval-runner: ${team} — ${result.passed}/${result.total} passed (${(result.passRate * 100).toFixed(1)}%)`,
       );
-    } catch (err) {
-      console.error(`[job] eval-runner: failed to eval team ${team}:`, err);
     }
   }
 
