@@ -23,10 +23,29 @@ export interface NodeResult {
 
 export interface NodeContext {
   taskId: string;
+  /** Per-attempt assembly line id — distinct across retries of one task. */
+  assemblyLineId: string;
   branchName: string;
   gitDir: string;
   iteration: number;
   assemblyLineName: string;
+}
+
+/**
+ * Observability sink for node executions (pipeline.assembly_line_nodes on the
+ * Floor). DB-free here — the Pg-backed adapter lives behind the shared
+ * AssemblyLinesPort and is injected by the composition root. Mirrors the
+ * SupervisorAuditSink posture: sink failures are caught + logged, never fail
+ * the walk.
+ */
+export interface AssemblyLineTrace {
+  /** Called before the node handler runs; returns an opaque ref passed to onNodeFinish. */
+  onNodeStart(input: {
+    assemblyLineId: string;
+    nodeId: string;
+    iteration: number;
+  }): Promise<string>;
+  onNodeFinish(nodeRef: string, outcome: StageOutcome, commitSha?: string): Promise<void>;
 }
 
 export type NodeHandler = (
@@ -69,6 +88,8 @@ export class IterationMaxExceededError extends Error {
 
 export interface ExecuteOptions {
   assemblyLine: AssemblyLine;
+  /** Per-attempt id from project.assemblyLines (pipeline.assembly_lines row). */
+  assemblyLineId: string;
   taskId: string;
   branchName: string;
   gitDir: string;
@@ -93,6 +114,8 @@ export interface ExecuteOptions {
    * Hook errors are caught + logged; the original throw still fires.
    */
   onIterationMaxExceeded?: (info: IterationMaxExceededInfo) => Promise<void>;
+  /** Per-node observability sink; failures are caught + logged, never fail the walk. */
+  trace?: AssemblyLineTrace;
 }
 
 export interface ExecutionSummary {
@@ -156,8 +179,15 @@ export async function executeAssemblyLine(
         `AssemblyLine ${assemblyLine.name}: no handler registered for node type "${node.type}" (node "${currentId}")`,
       );
     }
+    const nodeRef = await traceNodeStart(opts.trace, {
+      assemblyLineId: opts.assemblyLineId,
+      nodeId: currentId,
+      iteration,
+    });
+
     const result = await handler(node, {
       taskId: opts.taskId,
+      assemblyLineId: opts.assemblyLineId,
       branchName,
       gitDir: opts.gitDir,
       iteration,
@@ -168,9 +198,12 @@ export async function executeAssemblyLine(
       stage: currentId,
       iteration,
       taskId: opts.taskId,
+      assemblyLineId: opts.assemblyLineId,
       outcome: result.outcome,
       extras: result.extras,
     });
+
+    await traceNodeFinish(opts.trace, nodeRef, result.outcome, opts.gitDir);
 
     visited.push({ nodeId: currentId, outcome: result.outcome, iteration });
 
@@ -271,6 +304,7 @@ interface EmitArgs {
   stage: string;
   iteration: number;
   taskId: string;
+  assemblyLineId: string;
   outcome: StageOutcome;
   extras?: Record<string, string>;
 }
@@ -284,11 +318,56 @@ async function emitStageCommit(
     stage: args.stage,
     iteration: args.iteration,
     taskId: args.taskId,
+    assemblyLineId: args.assemblyLineId,
     extras: { "Lore-Outcome": args.outcome, ...(args.extras ?? {}) },
   });
   const subject = `[stage:${args.stage}] iter=${args.iteration}`;
   const body = `\n\n${trailerBlock}`;
   await commit(gitDir, subject, body);
+}
+
+async function traceNodeStart(
+  trace: AssemblyLineTrace | undefined,
+  input: { assemblyLineId: string; nodeId: string; iteration: number },
+): Promise<string | null> {
+  if (!trace) return null;
+  try {
+    return await trace.onNodeStart(input);
+  } catch (err) {
+    console.warn(
+      "[assembly-line-executor] trace.onNodeStart failed:",
+      (err as Error).message,
+    );
+    return null;
+  }
+}
+
+async function traceNodeFinish(
+  trace: AssemblyLineTrace | undefined,
+  nodeRef: string | null,
+  outcome: StageOutcome,
+  gitDir: string,
+): Promise<void> {
+  if (!trace || nodeRef === null) return;
+  try {
+    const commitSha = await headSha(gitDir);
+    await trace.onNodeFinish(nodeRef, outcome, commitSha);
+  } catch (err) {
+    console.warn(
+      "[assembly-line-executor] trace.onNodeFinish failed:",
+      (err as Error).message,
+    );
+  }
+}
+
+/** HEAD sha of the just-emitted stage commit; undefined when gitDir is not a repo (fake committers in tests). */
+async function headSha(gitDir: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFile("git", ["-C", gitDir, "rev-parse", "HEAD"]);
+    return stdout.trim();
+  } catch {
+    return undefined;
+  }
 }
 
 /**

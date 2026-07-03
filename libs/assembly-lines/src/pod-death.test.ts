@@ -39,6 +39,7 @@ describe("Pod-death takeover (T028)", () => {
     // Pod B starts.
     const result = await runSupervisor({
       taskId: "task-1",
+      assemblyLineId: "al-test-1",
       branchName: "lore/feature/x",
       assemblyLineName: "gap-fill",
       holder: "pod-B",
@@ -59,6 +60,7 @@ describe("Pod-death takeover (T028)", () => {
     // Pod B starts.
     const result = await runSupervisor({
       taskId: "task-1",
+      assemblyLineId: "al-test-1",
       branchName: "lore/feature/x",
       assemblyLineName: "gap-fill",
       holder: "pod-B",
@@ -84,6 +86,7 @@ describe("Pod-death takeover (T028)", () => {
     for (const holder of ["pod-A", "pod-B", "pod-C"]) {
       const r = await runSupervisor({
         taskId: "task-1",
+        assemblyLineId: "al-test-1",
         branchName: "lore/feature/x",
         assemblyLineName: "gap-fill",
         holder,

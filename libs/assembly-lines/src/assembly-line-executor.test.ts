@@ -4,8 +4,10 @@ import {
   resumeFromTrailers,
   IterationMaxExceededError,
   type IterationMaxExceededInfo,
+  type NodeContext,
   type NodeHandlers,
   type NodeResult,
+  type AssemblyLineTrace,
 } from "./assembly-line-executor.js";
 import { parseAssemblyLine, type AssemblyLine } from "./loader.js";
 import type { LeaseBackend } from "@re-cinq/lore-shared";
@@ -107,6 +109,7 @@ function makeCapturingExecuteOpts(opts: {
   const run = () =>
     executeAssemblyLine({
       assemblyLine: opts.assemblyLine,
+      assemblyLineId: "al-test-1",
       taskId: "task-1",
       branchName: "branch-x",
       gitDir: "/dev/null",
@@ -157,6 +160,115 @@ describe("executeAssemblyLine (linear)", () => {
   });
 });
 
+describe("executeAssemblyLine assemblyLineId threading", () => {
+  it("passes the assemblyLineId to every node handler via NodeContext", async () => {
+    const seenIds: string[] = [];
+    const capture: RunCapture = { visited: [], commits: [] };
+    const dispatch = async (node: { id: string }, ctx: NodeContext) => {
+      capture.visited.push(node.id);
+      seenIds.push(ctx.assemblyLineId);
+      return { outcome: "success" as const };
+    };
+    await executeAssemblyLine({
+      assemblyLine: linearAssemblyLine,
+      assemblyLineId: "al-42",
+      taskId: "task-1",
+      branchName: "branch-x",
+      gitDir: "/dev/null",
+      holder: "test",
+      leaseBackend: noopBackend(),
+      handlers: { agent: dispatch, validate: dispatch, gate: dispatch, retrospective: dispatch },
+      gitCommit: async (_dir, subject, body) => {
+        capture.commits.push({ subject, body });
+      },
+    });
+    expect(seenIds).toEqual(["al-42", "al-42"]);
+  });
+
+  it("emits the Lore-Assembly-Line trailer on every stage commit", async () => {
+    const { capture, run } = makeCapturingExecuteOpts({
+      assemblyLine: linearAssemblyLine,
+    });
+    await run();
+    for (const commit of capture.commits) {
+      expect(commit.body).toContain("Lore-Assembly-Line: al-test-1");
+    }
+  });
+
+  it("reports every visited node to the trace sink, including re-iterations", async () => {
+    const starts: Array<{ nodeId: string; iteration: number }> = [];
+    const finishes: Array<{ ref: string; outcome: string }> = [];
+    const trace: AssemblyLineTrace = {
+      onNodeStart: async (i) => {
+        starts.push({ nodeId: i.nodeId, iteration: i.iteration });
+        return `ref-${starts.length}`;
+      },
+      onNodeFinish: async (ref, outcome) => {
+        finishes.push({ ref, outcome });
+      },
+    };
+    let reviews = 0;
+    const capture: RunCapture = { visited: [], commits: [] };
+    const dispatch = async (node: { id: string }) => {
+      capture.visited.push(node.id);
+      if (node.id === "review" && reviews++ === 0) {
+        return { outcome: "changes_requested" as const };
+      }
+      return { outcome: "success" as const };
+    };
+    await executeAssemblyLine({
+      assemblyLine: reviewLoopAssemblyLine,
+      assemblyLineId: "al-42",
+      taskId: "task-1",
+      branchName: "branch-x",
+      gitDir: "/dev/null",
+      holder: "test",
+      leaseBackend: noopBackend(),
+      handlers: { agent: dispatch, validate: dispatch, gate: dispatch, retrospective: dispatch },
+      gitCommit: async () => {},
+      trace,
+    });
+    expect(capture.visited).toEqual([
+      "implement", "validate", "review", "implement", "validate", "review",
+    ]);
+    expect(starts.map((s) => s.nodeId)).toEqual(capture.visited);
+    expect(finishes).toEqual([
+      { ref: "ref-1", outcome: "success" },
+      { ref: "ref-2", outcome: "success" },
+      { ref: "ref-3", outcome: "changes_requested" },
+      { ref: "ref-4", outcome: "success" },
+      { ref: "ref-5", outcome: "success" },
+      { ref: "ref-6", outcome: "success" },
+    ]);
+  });
+
+  it("a throwing trace sink never fails the walk", async () => {
+    const trace: AssemblyLineTrace = {
+      onNodeStart: async () => {
+        throw new Error("trace db down");
+      },
+      onNodeFinish: async () => {
+        throw new Error("trace db down");
+      },
+    };
+    const capture: RunCapture = { visited: [], commits: [] };
+    const summary = await executeAssemblyLine({
+      assemblyLine: linearAssemblyLine,
+      assemblyLineId: "al-42",
+      taskId: "task-1",
+      branchName: "branch-x",
+      gitDir: "/dev/null",
+      holder: "test",
+      leaseBackend: noopBackend(),
+      handlers: makeHandlers({}, capture),
+      gitCommit: async () => {},
+      trace,
+    });
+    expect(summary.reachedExit).toBe(true);
+    expect(capture.visited).toEqual(["a", "b"]);
+  });
+});
+
 describe("executeAssemblyLine (review loop)", () => {
   it("loops back through implement on changes_requested", async () => {
     let reviewCalls = 0;
@@ -179,6 +291,7 @@ describe("executeAssemblyLine (review loop)", () => {
     const summary = await executeAssemblyLine({
       assemblyLine: reviewLoopAssemblyLine,
       taskId: "t",
+      assemblyLineId: "al-test-1",
       branchName: "b",
       gitDir: "/dev/null",
       holder: "test",
@@ -203,6 +316,7 @@ describe("executeAssemblyLine (review loop)", () => {
       executeAssemblyLine({
         assemblyLine: reviewLoopAssemblyLine,
         taskId: "t",
+        assemblyLineId: "al-test-1",
         branchName: "b",
         gitDir: "/dev/null",
         holder: "test",
@@ -230,6 +344,7 @@ describe("executeAssemblyLine (review loop)", () => {
       executeAssemblyLine({
         assemblyLine: reviewLoopAssemblyLine,
         taskId: "task-x",
+        assemblyLineId: "al-test-1",
         branchName: "branch-y",
         gitDir: "/dev/null",
         holder: "test",
@@ -269,6 +384,7 @@ describe("executeAssemblyLine (lease)", () => {
     await executeAssemblyLine({
       assemblyLine: linearAssemblyLine,
       taskId: "t",
+      assemblyLineId: "al-test-1",
       branchName: "branch-x",
       gitDir: "/dev/null",
       holder: "holder-1",

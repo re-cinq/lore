@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   buildBranchName,
   isDarkFactoryEligible,
+  processTaskViaSupervisor,
 } from "./orchestrator.js";
+import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { resolveDarkFactorySettings } from "../dark-factory/dark-factory.js";
 
 describe("isDarkFactoryEligible (worker dispatch gate)", () => {
   it("routes gap-fill through the supervisor", () => {
@@ -92,5 +95,23 @@ describe("buildBranchName", () => {
         task_type: "gap-fill",
       }),
     ).toBe("lore/gap-fill/test-01234567");
+  });
+});
+
+describe("processTaskViaSupervisor with an unknown definition", () => {
+  it("returns error without recording an assembly line row", async () => {
+    const port = new InMemoryAssemblyLines();
+    const result = await processTaskViaSupervisor({
+      task: { id: "t-1", description: "x", task_type: "no-such-type", target_repo: "o/r" },
+      settings: resolveDarkFactorySettings(undefined),
+      loadAssemblyLines: async () => new Map(),
+      assemblyLinesPort: port,
+    });
+
+    expect(result).toEqual({
+      outcome: "error",
+      errorMessage: 'no assembly line defined for task type "no-such-type"',
+    });
+    expect(port.rows).toEqual([]);
   });
 });

@@ -146,6 +146,7 @@ describe("supervisor integration (T058 vertical slice)", () => {
 
     const result = await runSupervisor({
       taskId: "t-1",
+      assemblyLineId: "al-test-1",
       branchName: "lore/gap-fill/test",
       assemblyLineName: "gap-fill-test",
       gitDir: repoDir,
@@ -200,6 +201,7 @@ describe("supervisor integration (T058 vertical slice)", () => {
   it("returns executor_pending when handlers are not provided (legacy / lease-only mode)", async () => {
     const result = await runSupervisor({
       taskId: "t-2",
+      assemblyLineId: "al-test-1",
       branchName: "lore/gap-fill/test",
       assemblyLineName: "gap-fill-test",
       holder: "test-pod",
