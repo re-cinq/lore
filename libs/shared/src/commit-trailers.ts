@@ -7,12 +7,15 @@ export interface Trailers {
   stage: string;
   iteration: number;
   taskId: string;
+  /** Per-attempt assembly line id — optional: commits from before migration 0025 lack it. */
+  assemblyLineId?: string;
   extras?: Record<string, string>;
 }
 
 const STAGE_KEY = "Lore-Stage";
 const ITERATION_KEY = "Lore-Iteration";
 const TASK_KEY = "Lore-Task";
+const ASSEMBLY_LINE_KEY = "Lore-Assembly-Line";
 const VALIDATES_KEY = "Lore-Validates";
 const REQUIRED_KEYS = [STAGE_KEY, ITERATION_KEY, TASK_KEY] as const;
 
@@ -28,6 +31,9 @@ export function formatTrailers(t: Trailers): string {
     `${ITERATION_KEY}: ${t.iteration}`,
     `${TASK_KEY}: ${t.taskId}`,
   ];
+  if (t.assemblyLineId) {
+    lines.push(`${ASSEMBLY_LINE_KEY}: ${t.assemblyLineId}`);
+  }
   if (t.extras) {
     for (const [k, v] of Object.entries(t.extras)) {
       lines.push(`${k}: ${v}`);
@@ -76,15 +82,17 @@ export function parseTrailers(message: string): Trailers | null {
 
   const extras: Record<string, string> = {};
   for (const [k, v] of map.entries()) {
-    if (!(REQUIRED_KEYS as readonly string[]).includes(k)) {
+    if (!(REQUIRED_KEYS as readonly string[]).includes(k) && k !== ASSEMBLY_LINE_KEY) {
       extras[k] = v;
     }
   }
 
+  const assemblyLineId = map.get(ASSEMBLY_LINE_KEY);
   return {
     stage: map.get(STAGE_KEY)!,
     iteration,
     taskId: map.get(TASK_KEY)!,
+    ...(assemblyLineId ? { assemblyLineId } : {}),
     ...(Object.keys(extras).length > 0 ? { extras } : {}),
   };
 }

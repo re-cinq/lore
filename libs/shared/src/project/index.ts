@@ -34,6 +34,14 @@ export type {
 export { TaskList } from "./tasks/task-list.js";
 export { Task } from "./tasks/task.js";
 
+export type {
+  AssemblyLinesPort,
+  AssemblyLineStartInput,
+  AssemblyLineNodeStartInput,
+  AssemblyLineRecord,
+} from "./assembly-lines/assembly-lines-port.js";
+export { AssemblyLines } from "./assembly-lines/assembly-lines.js";
+
 export type { NotifyPort, NotifyLevel, NotifyResult } from "./notify/notify-port.js";
 export { Notify } from "./notify/notify.js";
 export { decideNotify, type NotifySettings } from "./notify/notify-decision.js";

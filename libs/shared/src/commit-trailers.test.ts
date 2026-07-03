@@ -38,11 +38,49 @@ describe("formatTrailers", () => {
   });
 });
 
+describe("formatTrailers with an assemblyLineId", () => {
+  it("emits Lore-Assembly-Line after the required keys", () => {
+    const out = formatTrailers({
+      stage: "implement",
+      iteration: 1,
+      taskId: "abc-123",
+      assemblyLineId: "11111111-2222-4333-8444-555555555555",
+    });
+    expect(out).toBe(
+      "Lore-Stage: implement\nLore-Iteration: 1\nLore-Task: abc-123\n" +
+        "Lore-Assembly-Line: 11111111-2222-4333-8444-555555555555",
+    );
+  });
+
+  it("omits the Lore-Assembly-Line trailer when assemblyLineId is unset", () => {
+    const out = formatTrailers({ stage: "implement", iteration: 1, taskId: "abc-123" });
+    expect(out).not.toContain("Lore-Assembly-Line");
+  });
+});
+
 describe("parseTrailers", () => {
   it("round-trips a minimal trailer block", () => {
     const original = { stage: "implement", iteration: 1, taskId: "abc-123" };
     const parsed = parseTrailers(formatTrailers(original));
     expect(parsed).toEqual(original);
+  });
+
+  it("round-trips the assemblyLineId as a first-class field, not an extra", () => {
+    const original = {
+      stage: "implement",
+      iteration: 1,
+      taskId: "abc-123",
+      assemblyLineId: "11111111-2222-4333-8444-555555555555",
+    };
+    expect(parseTrailers(formatTrailers(original))).toEqual(original);
+  });
+
+  it("parses trailer blocks without Lore-Assembly-Line (pre-existing branches)", () => {
+    const parsed = parseTrailers(
+      "Lore-Stage: review\nLore-Iteration: 2\nLore-Task: abc-123",
+    );
+    expect(parsed).toEqual({ stage: "review", iteration: 2, taskId: "abc-123" });
+    expect(parsed?.assemblyLineId).toBeUndefined();
   });
 
   it("round-trips with extras", () => {
