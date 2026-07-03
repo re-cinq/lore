@@ -46,7 +46,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 3 — Ingest group
 
-- [ ] T005 [P] `routes/ingest/ingest.ts` + `routes/ingest/ingest-graph.ts`: payload
+- [x] T005 [P] `routes/ingest/ingest.ts` + `routes/ingest/ingest-graph.ts`: payload
   schemas (ingest-graph: `{ kinds[], commit, force? }`, `{owner}/{repo}` already
   typed params); drop `parse:false`; preserve empty-body → `{}` (schema default)
   and the fire-and-forget triggers firing before `return`. Tests migrated. (FR2, FR4)

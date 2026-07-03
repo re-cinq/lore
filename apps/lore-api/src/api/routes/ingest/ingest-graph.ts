@@ -9,33 +9,33 @@
 
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { triggerAgentSpecTrace } from "../helpers.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
 
 /** The only kinds this route projects — both read from repo markdown. */
 const DOC_KINDS = new Set(["specs", "adrs"]);
 
-interface IngestGraphBody {
-  kinds?: string[];
-  commit?: string;
-  force?: boolean;
-}
+// Empty body is valid (defaults to specs+adrs), so an absent payload coerces to {}.
+const IngestGraphBody = z.preprocess(
+  (v) => v ?? {},
+  z.object({
+    kinds: z.array(z.string()).optional(),
+    commit: z.string().optional(),
+    force: z.boolean().optional(),
+  }),
+);
+type IngestGraphBody = z.infer<typeof IngestGraphBody>;
 
 export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/ingest-graph",
-    options: { ...bearerScope("write"), payload: { parse: false } },
+    options: { ...bearerScope("write"), validate: { payload: zodValidate(IngestGraphBody) } },
     handler: async (request, h) => {
       const repo = `${request.params.owner}/${request.params.repo}`;
-      let body: IngestGraphBody;
-      try {
-        const raw = rawBody(request);
-        body = (raw ? JSON.parse(raw) : {}) as IngestGraphBody;
-      } catch (err) {
-        return h.response({ error: "invalid_body", detail: (err as Error).message }).code(400);
-      }
+      const body = request.payload as IngestGraphBody;
 
       const requested = body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
       const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
