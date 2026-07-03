@@ -59,21 +59,6 @@ describe("PgAssemblyLines adapter", () => {
     expect(calls[0]?.params).toEqual(["gap-fill", null, "re-cinq/lore", null, "{}"]);
   });
 
-  it("record inserts the row with the caller-minted id and writes no event", async () => {
-    const { pool, calls } = fakePool();
-
-    await new PgAssemblyLines(pool).record({
-      id: "11111111-2222-4333-8444-555555555555",
-      definitionName: "implementation",
-      repo: "re-cinq/lore",
-    });
-
-    expect(calls).toHaveLength(1);
-    const sql = calls[0]?.text ?? "";
-    expect(sql).toContain("INSERT INTO pipeline.assembly_lines");
-    expect(sql).not.toContain("pipeline.events");
-    expect(calls[0]?.params?.[0]).toBe("11111111-2222-4333-8444-555555555555");
-  });
 
   it("markRunning stamps status running and started_at", async () => {
     const { pool, calls } = fakePool();
@@ -257,20 +242,6 @@ describe("InMemoryAssemblyLines double", () => {
     ]);
   });
 
-  it("record seeds the row with the caller-minted id and no event", async () => {
-    const assemblyLines = new InMemoryAssemblyLines();
-
-    await assemblyLines.record({
-      id: "11111111-2222-4333-8444-555555555555",
-      definitionName: "gap-fill",
-      repo: "re-cinq/lore",
-    });
-
-    expect(assemblyLines.rows).toMatchObject([
-      { id: "11111111-2222-4333-8444-555555555555", status: "queued" },
-    ]);
-    expect(assemblyLines.events).toEqual([]);
-  });
 
   it("markRunning transitions the matching row to running with started_at", async () => {
     const assemblyLines = new InMemoryAssemblyLines();

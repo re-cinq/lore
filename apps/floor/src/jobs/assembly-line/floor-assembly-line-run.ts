@@ -8,7 +8,6 @@
 
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
-import { randomUUID } from "node:crypto";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
@@ -147,30 +146,18 @@ export async function checkoutBranch(
   return dir;
 }
 
-/** Production entrypoint: mint the per-attempt assemblyLineId, record the run, clone the
- *  branch, build real ports, run the assembly line, close the row, clean up.
- *  Invocation is gated by the cutover rollout (#688); this is the wiring it flips on. */
+/** Production entrypoint (invoked by the assembly_line.start handler, which owns the
+ *  pipeline.assembly_lines row lifecycle): clone the branch, build real ports, run the
+ *  assembly line with node tracing, clean up. */
 export async function runFloorAssemblyLineForTask(
-  taskInput: Omit<FloorAssemblyLineTask, "assemblyLineId">,
+  task: FloorAssemblyLineTask,
   rt: FloorAssemblyLineRuntime,
 ): Promise<SupervisorResult> {
   const definitions = await loadBuiltinAssemblyLines();
-  const assemblyLine = definitions.get(taskInput.taskType);
+  const assemblyLine = definitions.get(task.taskType);
   if (!assemblyLine) {
-    throw new Error(`No assembly line defined for task type "${taskInput.taskType}"`);
+    throw new Error(`No assembly line defined for task type "${task.taskType}"`);
   }
-  const task: FloorAssemblyLineTask = { ...taskInput, assemblyLineId: randomUUID() };
-  // Transitional inline-execution path: record the row directly (no start event) —
-  // the assembly_line.start handler becomes the sole entry in the producer-reroute PR.
-  await rt.assemblyLines.record({
-    id: task.assemblyLineId,
-    definitionName: assemblyLine.name,
-    repo: task.targetRepo,
-    branch: task.branch,
-    taskId: task.taskId,
-  });
-  await rt.assemblyLines.markRunning(task.assemblyLineId);
-
   const holder = os.hostname();
   const { url, authArgs } = await rt.cloneAuth(task.targetRepo);
   const gitDir = await checkoutBranch(task.targetRepo, task.branch, url, authArgs);
@@ -190,7 +177,7 @@ export async function runFloorAssemblyLineForTask(
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       episodeDeps: rt.episodeDeps,
     };
-    const result = await runFloorAssemblyLine({
+    return await runFloorAssemblyLine({
       task,
       assemblyLine,
       gitDir,
@@ -199,15 +186,6 @@ export async function runFloorAssemblyLineForTask(
       ports,
       trace: portTrace(rt.assemblyLines),
     });
-    await rt.assemblyLines
-      .finish(task.assemblyLineId, supervisorOutcome(result), result.errorMessage)
-      .catch((err) => console.warn("[floor-assembly-line] finish() failed:", (err as Error).message));
-    return result;
-  } catch (err) {
-    await rt.assemblyLines
-      .finish(task.assemblyLineId, "error", (err as Error).message)
-      .catch(() => {});
-    throw err;
   } finally {
     await fs.rm(gitDir, { recursive: true, force: true }).catch(() => {});
   }

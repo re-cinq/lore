@@ -17,8 +17,8 @@ import {
 } from "../jobs/station/kube-token-provisioner.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import { AssemblyLineStationBackend } from "../jobs/assembly-line/assembly-line-station-backend.js";
+import { assemblyLines } from "../kernel/queues.js";
 import { AgentCrStationBackend } from "../jobs/station/agent-cr-station-backend.js";
-import { floorAssemblyLineRuntime } from "../jobs/assembly-line/floor-assembly-line-run.js";
 
 /**
  * Per-repo Project composition root for the agent. Builds from the agent's
@@ -40,10 +40,8 @@ const NO_OP_DGRAPH = {
  * dispatch. (The legacy LoreTask + Docker backends were removed once agent-cr
  * became the sole path.)
  */
-export function stationBackend(
-  assemblyLines: ReadonlySet<string> = new Set(),
-): StationBackend {
-  const agentBackend = new AgentCrBackend(
+export function agentCrBackend(): AgentCrBackend {
+  return new AgentCrBackend(
     new KubeAgentApi(),
     new HttpContextSource(),
     new KubeTokenProvisioner(
@@ -52,11 +50,19 @@ export function stationBackend(
       new KubeCatalogApi(),
     ),
   );
+}
+
+export function stationBackend(
+  assemblyLineDefinitions: ReadonlySet<string> = new Set(),
+): StationBackend {
+  const agentBackend = agentCrBackend();
 
   return new AgentCrStationBackend(
-    new AssemblyLineStationBackend(floorAssemblyLineRuntime(agentBackend)),
+    // launch() = project.assemblyLines.start(); the assembly_line.start event
+    // handler runs the actual walk via floorAssemblyLineRuntime(agentCrBackend()).
+    new AssemblyLineStationBackend(assemblyLines()),
     agentBackend,
-    assemblyLines,
+    assemblyLineDefinitions,
   );
 }
 

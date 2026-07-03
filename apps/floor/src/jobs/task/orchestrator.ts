@@ -3,7 +3,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
-import { randomUUID } from "node:crypto";
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import { assemblyLines } from "../../kernel/queues.js";
@@ -62,9 +61,12 @@ export interface ProcessTaskViaSupervisorOptions {
    * when omitted (greenfield tasks).
    */
   branchName?: string;
+  /** The per-attempt id minted by project.assemblyLines.start(); the caller
+   *  (the assembly_line.start handler) owns the row lifecycle. */
+  assemblyLineId: string;
   /** Override for tests — defaults to the runner's bundled assembly lines. */
   loadAssemblyLines?: () => Promise<Map<string, AssemblyLine>>;
-  /** Override for tests — defaults to the pooled PgAssemblyLines singleton. */
+  /** Override for tests — node-trace sink target; defaults to the pooled PgAssemblyLines singleton. */
   assemblyLinesPort?: AssemblyLinesPort;
   /** Override for tests — mints the GitHub App installation token for clone/push.
    *  Defaults to the shared PlatformGitHub. */
@@ -131,22 +133,10 @@ export async function processTaskViaSupervisor(
 
   const cleanupWorkdir = !opts.workdir; // only delete what we created
 
-  // Per-attempt identity: record the run directly (transitional — the
-  // assembly_line.start handler becomes the sole entry in the producer-reroute PR).
+  // The assembly_line.start handler owns the pipeline.assembly_lines row
+  // lifecycle; this path only traces node executions into it.
   const assemblyLinesPort = opts.assemblyLinesPort ?? assemblyLines();
-  const assemblyLineId = randomUUID();
-  await assemblyLinesPort.record({
-    id: assemblyLineId,
-    definitionName: assemblyLine.name,
-    repo: task.target_repo,
-    branch: branchName,
-    taskId: task.id,
-  });
-  await assemblyLinesPort.markRunning(assemblyLineId);
-  const closeRow = (outcome: string, reason?: string) =>
-    assemblyLinesPort
-      .finish(assemblyLineId, outcome, reason)
-      .catch((err) => console.warn("[orchestrator] finish() failed:", (err as Error).message));
+  const assemblyLineId = opts.assemblyLineId;
 
   try {
     await cloneAndBranch(workdir, task.target_repo, branchName, gitToken);
@@ -218,11 +208,9 @@ export async function processTaskViaSupervisor(
     });
 
     if (result.reason === "lease_held") {
-      await closeRow("lease_held");
       return { outcome: "lease_held", branchName };
     }
     if (result.reason === "iteration_max_exceeded") {
-      await closeRow("iteration_max", result.errorMessage);
       return {
         outcome: "iteration_max",
         branchName,
@@ -230,7 +218,6 @@ export async function processTaskViaSupervisor(
       };
     }
     if (result.reason === "executor_error") {
-      await closeRow("error", result.errorMessage);
       return {
         outcome: "error",
         branchName,
@@ -239,17 +226,14 @@ export async function processTaskViaSupervisor(
     }
 
     // Push the branch and open the PR.
-    const prResult = await pushAndOpenPr({
+    return await pushAndOpenPr({
       workdir,
       repo: task.target_repo,
       branchName,
       task,
       gitToken,
     });
-    await closeRow(prResult.outcome, prResult.errorMessage);
-    return prResult;
   } catch (err) {
-    await closeRow("error", (err as Error).message);
     return {
       outcome: "error",
       branchName,
