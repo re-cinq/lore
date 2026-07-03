@@ -1,7 +1,8 @@
 /**
- * Cross-cutting request gating: in-memory rate limiting and per-client
- * bearer-token scope auth. The dispatcher runs these before delegating
- * to any handler.
+ * Cross-cutting auth primitives: the in-memory sliding-window `rateLimit`
+ * (driven by the `rate-limit` hapi ext) and per-client token resolution
+ * (`resolveTokenScopes`, wrapped by `validateClientToken`), used by the
+ * `bearer-scope` auth strategy and the healthz handler's own bearer check.
  */
 
 import type { Pool } from "pg";
@@ -36,114 +37,19 @@ export function rateLimit(bucket: RateBucket): boolean {
 
 export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 
-const ROUTE_SCOPES: Record<string, TokenScope> = {
-  "/api/tasks": "read",
-  "/api/task/": "read",
-  "/api/context": "read",
-  "/api/graph": "read",
-  "/api/repo-status": "read",
-  "/api/memory": "write",
-  "/api/episode": "write",
-  "/api/session-summary": "write",
-  "/api/task": "task",
-  "/api/ingest": "write",
-  "/api/onboard": "admin",
-  "/api/task-logs": "write",
-  "/api/job-run-logs": "read",
-  "/api/webhook/slack": "webhook",
-  "/api/webhook/incident": "webhook",
-  "/api/tokens": "admin",
-};
-
-// URL patterns that override the prefix-based scope mapping for routes
-// that need stronger scope than their generic prefix would imply. Keep
-// these explicit so future `/api/repos/:o/:r/...` routes don't silently
-// inherit admin scope.
-const SCOPE_OVERRIDES: Array<{ re: RegExp; scope: TokenScope; methods?: string[] }> = [
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$|\/)/,
-    scope: "admin",
-  },
-  // Agent definitions: the runner reads the resolved def (GET → read); editing
-  // definitions is admin. Method-specific so a read-scoped task token can resolve.
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/,
-    scope: "read",
-    methods: ["GET"],
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/agent-definitions(\/[^/?]+)?(\?|$)/,
-    scope: "admin",
-    methods: ["POST", "PUT", "DELETE"],
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/impact(\?|$|\/)/,
-    scope: "write",
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/ingest-graph(\?|$|\/)/,
-    scope: "write",
-  },
-  // Webhook: revealing the shared HMAC secret is admin — must precede the
-  // general GET-read rule (first match wins) so a read token can't read it.
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook\/secret(\?|$)/,
-    scope: "admin",
-    methods: ["GET"],
-  },
-  // GET status is read; POST .../webhook/ensure creates/repoints (write).
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook(\?|$|\/)/,
-    scope: "read",
-    methods: ["GET"],
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/webhook\/ensure(\?|$|\/)/,
-    scope: "write",
-    methods: ["POST"],
-  },
-  // Feature planning: list/get are read; create/refine/finalize/split and the
-  // pod result POST are write. Method-specific so a read token can poll.
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/features(\/.*)?(\?|$)/,
-    scope: "read",
-    methods: ["GET"],
-  },
-  {
-    re: /^\/api\/repos\/[^/]+\/[^/]+\/features(\/.*)?(\?|$)/,
-    scope: "write",
-    methods: ["POST", "PUT"],
-  },
-];
-
-export function getRequiredScope(url: string, method = "GET"): TokenScope {
-  for (const override of SCOPE_OVERRIDES) {
-    if (override.re.test(url) && (!override.methods || override.methods.includes(method))) {
-      return override.scope;
-    }
-  }
-  for (const [prefix, scope] of Object.entries(ROUTE_SCOPES)) {
-    if (url.startsWith(prefix)) return scope;
-  }
-  return "read";
-}
+const ALL_SCOPES: TokenScope[] = ["read", "write", "task", "webhook", "admin"];
 
 /**
- * Validate a per-client token against the DB.
- * Returns the scopes if valid, null if invalid.
- * Falls back to LORE_INGEST_TOKEN (full access) for backward compatibility.
+ * Resolve a bearer token to its granted scopes, or null when it is
+ * missing/invalid/revoked/expired or the lookup fails. The legacy
+ * LORE_INGEST_TOKEN resolves to full access (all scopes) without a DB hit.
+ * The bearer-scope hapi strategy builds on this; `validateClientToken` wraps it.
  */
-export async function validateClientToken(
-  pool: Pool | null,
-  bearerToken: string,
-  requiredScope: TokenScope,
-): Promise<boolean> {
-  // Legacy single-token: full access
+export async function resolveTokenScopes(pool: Pool | null, bearerToken: string): Promise<TokenScope[] | null> {
   const legacyToken = process.env.LORE_INGEST_TOKEN;
-  if (legacyToken && bearerToken === legacyToken) return true;
+  if (legacyToken && bearerToken === legacyToken) return ALL_SCOPES;
 
-  // Per-client token: check DB
-  if (!pool) return false;
+  if (!pool) return null;
   const tokenHash = createHash("sha256").update(bearerToken).digest("hex");
   try {
     const { rows } = await pool.query(
@@ -153,12 +59,24 @@ export async function validateClientToken(
        RETURNING scopes`,
       [tokenHash],
     );
-    if (rows.length === 0) return false;
-    const scopes: string[] = rows[0].scopes;
-    // admin scope grants everything
-    if (scopes.includes("admin")) return true;
-    return scopes.includes(requiredScope);
+    if (rows.length === 0) return null;
+    return rows[0].scopes as TokenScope[];
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Validate a per-client token against the DB for a required scope. Used by the
+ * healthz handler's own optional bearer check; guarded routes use the
+ * bearer-scope hapi strategy (which shares `resolveTokenScopes`).
+ */
+export async function validateClientToken(
+  pool: Pool | null,
+  bearerToken: string,
+  requiredScope: TokenScope,
+): Promise<boolean> {
+  const scopes = await resolveTokenScopes(pool, bearerToken);
+  if (!scopes) return false;
+  return scopes.includes("admin") || scopes.includes(requiredScope);
 }

@@ -7,10 +7,11 @@
  * ingress), so a non-doc kind is rejected.
  */
 
-import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
+import type { ServerRoute } from "@hapi/hapi";
 import { triggerAgentSpecTrace } from "../helpers.js";
-import { json, readJsonBody, repoFromReposUrl } from "../http.js";
+import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { rawBody } from "../../../server/raw-body.js";
 
 /** The only kinds this route projects — both read from repo markdown. */
 const DOC_KINDS = new Set(["specs", "adrs"]);
@@ -21,31 +22,36 @@ interface IngestGraphBody {
   force?: boolean;
 }
 
-export async function handleIngestGraphRoute(
-  req: IncomingMessage,
-  res: ServerResponse,
-  pool: Pool | null,
-): Promise<void> {
-  const repo = repoFromReposUrl(req.url);
-  if (!repo) {
-    json(res, 400, { error: "could not resolve repo from url" });
-    return;
-  }
+export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/repos/{owner}/{repo}/ingest-graph",
+    options: { ...bearerScope("write"), payload: { parse: false } },
+    handler: async (request, h) => {
+      const repo = `${request.params.owner}/${request.params.repo}`;
+      let body: IngestGraphBody;
+      try {
+        const raw = rawBody(request);
+        body = (raw ? JSON.parse(raw) : {}) as IngestGraphBody;
+      } catch (err) {
+        return h.response({ error: "invalid_body", detail: (err as Error).message }).code(400);
+      }
 
-  const body = (await readJsonBody(req)) as IngestGraphBody;
-  const requested = body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
-  const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
-  if (unsupported.length > 0) {
-    json(res, 400, {
-      error: `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
-    });
-    return;
-  }
+      const requested = body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
+      const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
+      if (unsupported.length > 0) {
+        return h.response({
+          error: `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
+        }).code(400);
+      }
 
-  // Each doc kind → fire-and-forget projection trigger.
-  for (const kind of requested) {
-    void triggerAgentSpecTrace(pool, repo, kind, { commit: body.commit, force: body.force });
-  }
+      // Each doc kind → fire-and-forget projection trigger.
+      const pool = getPool();
+      for (const kind of requested) {
+        void triggerAgentSpecTrace(pool, repo, kind, { commit: body.commit, force: body.force });
+      }
 
-  json(res, 200, { triggered: requested });
+      return h.response({ triggered: requested });
+    },
+  };
 }

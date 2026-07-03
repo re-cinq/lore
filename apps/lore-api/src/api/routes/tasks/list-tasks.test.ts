@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { handleApiRoute } from "../../routes.js";
-import { makeReq, makeRes, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { buildServer } from "../../../server/build-server.js";
+import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
 
 import { listTasks } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 
 const originalEnv = { ...process.env };
+const get = (url: string) => buildServer(() => null).inject({ method: "GET", url, headers: AUTH });
 
 describe("GET /api/tasks", () => {
   useRateLimitSafeClock();
@@ -20,22 +21,19 @@ describe("GET /api/tasks", () => {
 
   it("lists with status and limit", async () => {
     vi.mocked(listTasks).mockResolvedValue([{ id: 1 }] as any);
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks?status=pending&limit=5", headers: AUTH }), res, null);
+    await get("/api/tasks?status=pending&limit=5");
     expect(listTasks).toHaveBeenCalledWith("pending", 5);
   });
 
   it("caps limit at 100", async () => {
     vi.mocked(listTasks).mockResolvedValue([] as any);
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks?limit=999", headers: AUTH }), res, null);
+    await get("/api/tasks?limit=999");
     expect(listTasks).toHaveBeenCalledWith(undefined, 100);
   });
 
   it("returns 500 when listTasks throws", async () => {
     vi.mocked(listTasks).mockRejectedValue(new Error("fail"));
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks", headers: AUTH }), res, null);
+    const res = await get("/api/tasks");
     expect(res.statusCode).toBe(500);
   });
 });

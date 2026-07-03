@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { handleApiRoute } from "../../routes.js";
-import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { buildServer } from "../../../server/build-server.js";
+import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
+const get = (pool: unknown, url = "/api/repo-status?repo=o/r") =>
+  buildServer(() => pool as any).inject({ method: "GET", url, headers: AUTH });
 
+// Native hapi route (Phase 3), driven through buildServer.inject with the legacy
+// token (auth passes; the auth matrix itself lives in bearer-scope.test.ts).
 describe("GET /api/repo-status", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
@@ -15,24 +19,20 @@ describe("GET /api/repo-status", () => {
   });
 
   it("returns onboarded:false when pool is null", async () => {
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/repo-status?repo=o/r", headers: AUTH }), res, null);
-    expect(res.json).toEqual({ onboarded: false });
+    const res = await get(null);
+    expect(res.result).toEqual({ onboarded: false });
   });
 
   it("returns onboarded:false when no repo param", async () => {
-    const pool = makePool();
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/repo-status", headers: AUTH }), res, pool as any);
-    expect(res.json).toEqual({ onboarded: false });
+    const res = await get(makePool(), "/api/repo-status");
+    expect(res.result).toEqual({ onboarded: false });
   });
 
   it("returns onboarded:false with repo when repo not in DB", async () => {
     const pool = makePool();
     pool.query.mockResolvedValueOnce({ rows: [] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/repo-status?repo=o/r", headers: AUTH }), res, pool as any);
-    expect(res.json).toEqual({ onboarded: false, repo: "o/r" });
+    const res = await get(pool);
+    expect(res.result).toEqual({ onboarded: false, repo: "o/r" });
   });
 
   it("returns full stats with stale=false for a fresh repo", async () => {
@@ -42,9 +42,8 @@ describe("GET /api/repo-status", () => {
       .mockResolvedValueOnce({ rows: [{ c: "1" }] })
       .mockResolvedValueOnce({ rows: [{ c: "2" }] })
       .mockResolvedValueOnce({ rows: [{ c: "5" }] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/repo-status?repo=o/r", headers: AUTH }), res, pool as any);
-    expect(res.json).toMatchObject({
+    const res = await get(pool);
+    expect(res.result).toMatchObject({
       onboarded: true,
       repo: "o/r",
       running: 1,
@@ -62,9 +61,8 @@ describe("GET /api/repo-status", () => {
       .mockResolvedValueOnce({ rows: [{ c: "0" }] })
       .mockResolvedValueOnce({ rows: [{ c: "0" }] })
       .mockResolvedValueOnce({ rows: [{ c: "0" }] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/repo-status?repo=o/r", headers: AUTH }), res, pool as any);
-    expect(res.json).toMatchObject({ onboarded: true, stale: true, auto_review: false });
+    const res = await get(pool);
+    expect(res.result).toMatchObject({ onboarded: true, stale: true, auto_review: false });
   });
 
   it("handles null settings and count rows missing", async () => {
@@ -74,16 +72,14 @@ describe("GET /api/repo-status", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/repo-status?repo=o/r", headers: AUTH }), res, pool as any);
-    expect(res.json).toMatchObject({ onboarded: true, running: 0, pr_ready: 0, memories: 0, auto_review: false });
+    const res = await get(pool);
+    expect(res.result).toMatchObject({ onboarded: true, running: 0, pr_ready: 0, memories: 0, auto_review: false });
   });
 
   it("returns onboarded:false with error when a query throws", async () => {
     const pool = makePool();
     pool.query.mockRejectedValue(new Error("db gone"));
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/repo-status?repo=o/r", headers: AUTH }), res, pool as any);
-    expect(res.json).toEqual({ onboarded: false, error: "db gone" });
+    const res = await get(pool);
+    expect(res.result).toEqual({ onboarded: false, error: "db gone" });
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { handleApiRoute } from "../../routes.js";
-import { makeReq, makeRes, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { buildServer } from "../../../server/build-server.js";
+import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const storage = vi.hoisted(() => {
   const file = { save: vi.fn(), exists: vi.fn(), download: vi.fn() };
@@ -15,6 +15,7 @@ const storage = vi.hoisted(() => {
 vi.mock("@google-cloud/storage", () => ({ Storage: storage.Storage }));
 
 const originalEnv = { ...process.env };
+const get = (url: string) => buildServer(() => null).inject({ method: "GET", url, headers: AUTH });
 
 describe("GET /api/job-run-logs", () => {
   useRateLimitSafeClock();
@@ -27,27 +28,26 @@ describe("GET /api/job-run-logs", () => {
   });
 
   it("returns 400 when params missing", async () => {
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/job-run-logs?job_name=j", headers: AUTH }), res, null);
+    const res = await get("/api/job-run-logs?job_name=j");
     expect(res.statusCode).toBe(400);
   });
+
   it("returns empty and incomplete when the file does not exist", async () => {
     storage.file.exists.mockResolvedValue([false]);
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/job-run-logs?job_name=j&run_id=r", headers: AUTH }), res, null);
-    expect(res.json).toEqual({ logs: "", complete: false });
+    const res = await get("/api/job-run-logs?job_name=j&run_id=r");
+    expect(res.result).toEqual({ logs: "", complete: false });
   });
+
   it("returns the file content when it exists", async () => {
     storage.file.exists.mockResolvedValue([true]);
     storage.file.download.mockResolvedValue([Buffer.from("job output")]);
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/job-run-logs?job_name=j&run_id=r", headers: AUTH }), res, null);
-    expect(res.json).toEqual({ logs: "job output", complete: true });
+    const res = await get("/api/job-run-logs?job_name=j&run_id=r");
+    expect(res.result).toEqual({ logs: "job output", complete: true });
   });
+
   it("returns 500 when storage throws", async () => {
     storage.file.exists.mockRejectedValue(new Error("gcs"));
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/job-run-logs?job_name=j&run_id=r", headers: AUTH }), res, null);
+    const res = await get("/api/job-run-logs?job_name=j&run_id=r");
     expect(res.statusCode).toBe(500);
   });
 });
