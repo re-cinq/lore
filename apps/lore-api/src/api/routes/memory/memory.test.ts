@@ -176,9 +176,11 @@ describe("POST /api/memory", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("returns 500 on invalid JSON", async () => {
+  it("returns 400 on invalid JSON", async () => {
+    // ADR-034: hapi parses the payload natively, so malformed JSON is a 400
+    // (was 500 under the legacy hand-rolled parse).
     const res = await inject("{bad");
-    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).toBe(400);
   });
 
   it("returns 401 when the bearer token is absent", async () => {

@@ -1,22 +1,29 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
 import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { makeGraphLlmCall } from "../helpers.js";
+
+const SessionSummaryBody = z.object({
+  session_log: z.union([z.string().min(1), z.object({ summary: z.string().optional() }).passthrough()]),
+  repo: z.string().optional(),
+  agent_id: z.string().optional(),
+});
+type SessionSummaryBody = z.infer<typeof SessionSummaryBody>;
 
 export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/session-summary",
-    options: { ...bearerScope("write"), payload: { parse: false } },
+    options: { ...bearerScope("write"), validate: { payload: zodValidate(SessionSummaryBody) } },
     handler: async (request, h) => {
       const pool = getPool();
       try {
-        const { session_log, repo, agent_id } = JSON.parse(rawBody(request));
-        if (!session_log) return h.response({ error: "required: session_log" }).code(400);
+        const { session_log, repo, agent_id } = request.payload as SessionSummaryBody;
 
         const summary = typeof session_log === "string"
           ? session_log

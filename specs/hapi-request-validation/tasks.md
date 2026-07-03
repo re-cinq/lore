@@ -25,7 +25,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 1 — Memory group
 
-- [ ] T003 `routes/memory/*`: schemas `WriteMemoryBody`/`ReadMemoryBody`/... as a
+- [x] T003 `routes/memory/*`: schemas `WriteMemoryBody`/`ReadMemoryBody`/... as a
   zod **discriminated union** on `action` (FR6) for `memory.ts`; a flat schema for
   `episode.ts` and `session-summary.ts`. Drop `parse:false`; add
   `validate: { payload: zodValidate(...) }`; handlers read typed `request.payload`
