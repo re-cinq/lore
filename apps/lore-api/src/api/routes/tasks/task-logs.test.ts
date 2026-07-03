@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
 import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
+const TASK_SCOPED = { authorization: "Bearer task-only" };
+
 const storage = vi.hoisted(() => {
   const file = { save: vi.fn(), exists: vi.fn(), download: vi.fn() };
   const bucketObj = { file: vi.fn(() => file) };
@@ -15,8 +17,11 @@ const storage = vi.hoisted(() => {
 vi.mock("@google-cloud/storage", () => ({ Storage: storage.Storage }));
 
 const originalEnv = { ...process.env };
-const inject = (opts: { method: "GET" | "POST"; url: string; payload?: string }, pool: unknown = null) =>
-  buildServer(() => pool as any).inject({ ...opts, headers: AUTH });
+const inject = (
+  opts: { method: "GET" | "POST"; url: string; payload?: string },
+  pool: unknown = null,
+  headers: Record<string, string> = AUTH,
+) => buildServer(() => pool as any).inject({ ...opts, headers });
 
 describe("/api/task-logs", () => {
   useRateLimitSafeClock();
@@ -46,6 +51,17 @@ describe("/api/task-logs", () => {
       storage.file.save.mockRejectedValue(new Error("gcs"));
       const res = await post({ task_id: "t", repo: "o/r", logs: "x" });
       expect(res.statusCode).toBe(500);
+    });
+    it("returns 403 when the token has task scope but not write", async () => {
+      const pool = makePool();
+      pool.query.mockResolvedValue({ rows: [{ scopes: ["task"] }] });
+      const res = await inject(
+        { method: "POST", url: "/api/task-logs", payload: JSON.stringify({ task_id: "t", repo: "o/r", logs: "x" }) },
+        pool,
+        TASK_SCOPED,
+      );
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
     });
   });
 
@@ -80,6 +96,13 @@ describe("/api/task-logs", () => {
       storage.file.exists.mockRejectedValue(new Error("gcs"));
       const res = await inject({ method: "GET", url: "/api/task-logs?task_id=t&repo=o/r" });
       expect(res.statusCode).toBe(500);
+    });
+    it("returns 403 when the token has task scope but not write", async () => {
+      const pool = makePool();
+      pool.query.mockResolvedValue({ rows: [{ scopes: ["task"] }] });
+      const res = await inject({ method: "GET", url: "/api/task-logs?task_id=t&repo=o/r" }, pool, TASK_SCOPED);
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
     });
   });
 });
