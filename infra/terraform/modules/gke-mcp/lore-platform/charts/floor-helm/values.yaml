@@ -163,18 +163,9 @@ cronJobs:
   - name: consolidation
     job: consolidation
     schedule: "30 5 * * *"
-  - name: gap-detection
-    job: gap_detection
-    schedule: "0 9 * * 1"
-  - name: spec-drift
-    job: spec_drift
-    schedule: "0 10 * * 1"
-  - name: spec-coverage-backfill
-    job: spec_coverage_backfill
-    schedule: "0 11 * * 1"
-  - name: spec-coverage-validate
-    job: spec_coverage_validate
-    schedule: "0 6 * * *"
+  # The detection family (gap_detection / spec_drift / spec_coverage_*) is no
+  # longer here: their cron ticks are in-process emitters that fan out per-repo
+  # assembly-line runs (ADR-019 amendment).
   - name: context-core-builder
     job: context_core_builder
     schedule: "0 4 * * *"

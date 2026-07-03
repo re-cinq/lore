@@ -17,6 +17,7 @@ export {
 export {
   executeAssemblyLine,
   resumeFromTrailers,
+  builtinHandlers,
   IterationMaxExceededError,
   type StageOutcome,
   type NodeResult,
@@ -65,6 +66,13 @@ export {
   type CiConclusion,
   type GithubActionDeps,
 } from "./github-action-handler.js";
+
+export {
+  createDetectHandler,
+  DETECT_SUMMARY_MAX_CHARS,
+  type DetectorFn,
+  type DetectRun,
+} from "./detect-handler.js";
 
 export {
   runClaudeCode,

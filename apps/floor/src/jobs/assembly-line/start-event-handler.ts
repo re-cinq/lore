@@ -8,7 +8,7 @@
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import type { SupervisorResult } from "@re-cinq/lore-assembly-lines";
+import type { AssemblyLine, SupervisorResult } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 import type { FloorAssemblyLineTask } from "./floor-assembly-line.js";
 import { supervisorOutcome } from "./floor-assembly-line-run.js";
@@ -24,10 +24,19 @@ export interface InProcessRunInput {
   branch: string | null;
 }
 
+/** The repo-less detection run input — jobs/detect path. */
+export interface DetectRunInput {
+  assemblyLineId: string;
+  definitionName: string;
+  repo: string;
+}
+
 export interface StartEventHandlerDeps {
   assemblyLines: AssemblyLinesPort;
-  /** Definition names that exist (builtin assembly line YAMLs). */
-  knownDefinitions: () => Promise<ReadonlySet<string>>;
+  /** The loaded builtin assembly line YAMLs — routing reads definition shape. */
+  definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
+  /** Definitions with a `detect` node: the repo-less detection runner. */
+  runDetect: (input: DetectRunInput) => Promise<SupervisorResult>;
   /** gap-fill / runbook: the in-process JSON supervisor (orchestrator path). */
   runInProcess: (input: InProcessRunInput) => Promise<ProcessTaskViaSupervisorResult>;
   /** Everything else: the Floor AssemblyLine, one Agent CR per node. */
@@ -53,8 +62,9 @@ export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandl
     const args = (params.args ?? {}) as Record<string, unknown>;
     const description = typeof args.description === "string" ? args.description : "";
 
-    const known = await deps.knownDefinitions();
-    if (!known.has(definitionName)) {
+    const definitions = await deps.definitions();
+    const definition = definitions.get(definitionName);
+    if (!definition) {
       // Config error, not a transient failure — close the row and resolve so the
       // loop never retries an assembly line that can't exist.
       await deps.assemblyLines.finish(
@@ -73,6 +83,16 @@ export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandl
         .catch((err) =>
           console.warn(`[assembly-line-start] finish(${assemblyLineId}) failed:`, (err as Error).message),
         );
+
+    // Routing is by definition shape, not a name list: any definition carrying a
+    // detect node is a repo-less detection line — no task, no clone, no PR.
+    if (definition.nodes.some((n) => n.type === "detect")) {
+      void deps
+        .runDetect({ assemblyLineId, definitionName, repo })
+        .then((result) => finishRow(supervisorOutcome(result), result.errorMessage))
+        .catch((err) => finishRow("error", (err as Error).message));
+      return;
+    }
 
     if (IN_PROCESS_DEFINITIONS.has(definitionName)) {
       void deps
@@ -124,6 +144,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
     { settings },
     { runFloorAssemblyLineForTask, floorAssemblyLineRuntime },
     { agentCrBackend },
+    { runDetect },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
@@ -133,11 +154,13 @@ export const assemblyLineStart: EventHandler = async (params) => {
     import("../../kernel/queues.js"),
     import("./floor-assembly-line-run.js"),
     import("../../composition/project-boot.js"),
+    import("../detect/run-detect.js"),
   ]);
 
   const handler = createStartEventHandler({
     assemblyLines: assemblyLines(),
-    knownDefinitions: async () => new Set((await loadBuiltinAssemblyLines()).keys()),
+    definitions: loadBuiltinAssemblyLines,
+    runDetect,
     runInProcess: async (input) => {
       const repoSettings = await settings()
         .rawSettings(input.repo)

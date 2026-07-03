@@ -166,9 +166,11 @@ which ships first. Phasing in [`plan.md`](./plan.md).
 ### Drift detection job — the weekly consumer (ADR-026)
 
 The projection sets the per-statement `violated`/`drifted` flags above; the
-weekly `spec_drift` cron
-([spec-drift.ts](../../apps/floor/src/application/jobs/cron/spec-drift.ts),
-registered in [job-runner.ts](../../apps/floor/src/delivery/job-runner.ts)) is the
+weekly `spec_drift` detection
+([spec-drift.ts](../../apps/floor/src/jobs/spec-trace/spec-drift/spec-drift.ts),
+run per repo as the `detect` node of the `spec-drift` assembly line, fanned out
+by the `cron.spec_drift.tick` handler in
+[fan-out.ts](../../apps/floor/src/jobs/detect/fan-out.ts) — ADR-019 amendment) is the
 **consumer** that turns them into gap-fill tasks. It is the single detector of
 record; [ADR-026](../../adrs/ADR-026-spec-drift-graph-primary-detection.md) records
 the decision.

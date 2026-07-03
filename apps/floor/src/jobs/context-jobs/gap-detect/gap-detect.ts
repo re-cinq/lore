@@ -16,20 +16,28 @@ interface GapReport {
 
 const STALE_DAYS = 90;
 
+export interface GapDetectOptions {
+  /** The onboarded repo this run covers (per-repo assembly-line fan-out). */
+  repoFilter: string;
+}
+
 /**
- * Gap Detection Job
+ * Gap Detection Job — one repo per run.
  *
- * Checks onboarded repos for missing or stale context:
+ * Runs as the `detect` node of the `gap-detect` assembly line, fanned out
+ * weekly per onboarded repo by the `cron.gap_detection.tick` handler. Checks
+ * the repo for missing or stale context:
  * 1. Missing CLAUDE.md (fixed: query content_type='doc' + file_path LIKE)
  * 2. Missing ADRs (repos with 0 adr chunks)
  * 3. Missing specs (active repos with 0 spec chunks)
  * 4. Stale content (chunks not re-ingested in >90 days)
  */
-export async function gapDetectJob(): Promise<string> {
+export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
   const repos = await query<OnboardedRepo>(
     `SELECT id, full_name, last_ingested_at
      FROM lore.repos
-     WHERE onboarding_pr_merged = true`,
+     WHERE onboarding_pr_merged = true AND full_name = $1`,
+    [opts.repoFilter],
   );
 
   const gaps: GapReport[] = [];

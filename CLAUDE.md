@@ -109,7 +109,7 @@ gcloud auth for local dev.
 - **`spec-test-coverage` v3 (2026-06-02):** source of truth for spec→test links is markdown inside `spec.md` — `Statement. ([validated by name](path/to/test.ts#L42))` at end of each statement. The web UI parses + colors them at render time via `web-ui/src/lib/spec-coverage-derive.ts` (`segmentStatements` → `classifyByHeuristic` → `parseTestLinksInStatement`); no DB linker tables (`spec_statements` / `spec_test_links` / `spec_coverage_runs` dropped in migration 0008). Three write-paths:
   - **Authors hand-write the links** (free; just edit `spec.md`).
   - **`/lore-suggest-links`** (subscription-billed, on-demand, single-spec) — Claude Code skill that walks through the same judge pipeline locally and opens a PR against the spec's repo. See `specs/local-link-suggester/`. Subscription tokens, no API spend.
-  - **`spec-coverage-backfill` cron** (`ANTHROPIC_API_KEY`-billed, weekly Mon 11:00 UTC, org-wide sweep) — finds testable un-linked statements via the v2 judge pipeline, opens a PR per spec with `proposeLinkInsertions` adding the inline parentheticals.
+  - **`spec-coverage-backfill`** (`ANTHROPIC_API_KEY`-billed, weekly Mon 11:00 UTC via `cron.spec_coverage_backfill.tick` → one per-repo assembly line; ADR-019 amendment) — finds testable un-linked statements via the v2 judge pipeline, opens a PR per spec with `proposeLinkInsertions` adding the inline parentheticals.
 
   Plus the validate pass via `apps/floor/src/jobs/spec-trace/spec-coverage-validate.ts` (daily + post-ingest, resolves links, files `spec-link-rot` issues on broken links). See `specs/spec-test-coverage/`.
 - `mcp-server/src/context-assembly.ts` — context assembly with YAML templates
@@ -549,8 +549,20 @@ coverage, issue-dispatch, spec-PR-merge). The `review_reactor` business-hours
 safety cron (`7 7-17 * * 1-5` UTC, gated by `isBusinessHours()` reading
 `LORE_BUSINESS_HOURS_{TZ,START,END}` / `LORE_BUSINESS_DAYS`; default
 Europe/Berlin 9-18 Mon-Fri) becomes a `cron.review_reactor.tick` emitter
-that catches dropped webhook deliveries. **Carve-out:** heavy batch jobs
-stay as K8s CronJobs running their work directly (ADR-019).
+that catches dropped webhook deliveries. **Carve-out (ADR-019, amended
+2026-07):** heavy batch jobs (reindex/eval/core-builder/memory/cost-sync) stay
+as K8s CronJobs running their work directly. The detection family
+(`gap_detection`, `spec_drift`, `spec_coverage_validate`,
+`spec_coverage_backfill`) left the carve-out: each is an assembly-line
+definition with a deterministic `detect` node
+(`libs/assembly-lines/src/assembly-lines/*.yaml`); its `cron.<job>.tick`
+emitter's handler (`apps/floor/src/jobs/detect/fan-out.ts`) starts one
+per-repo assembly line via `assemblyLines().start()`, and the
+`assembly_line.start` handler routes detect-shaped definitions to the
+repo-less runner (`apps/floor/src/jobs/detect/run-detect.ts` — no clone,
+branch name is a lease key, `pipeline.job_runs` row per repo named
+`<job>:<repo>`). Manual trigger: insert the tick event with optional
+`{"repo": "..."}` params.
 
 **Prompt caching on agent LLM calls**: the Anthropic provider
 (`libs/shared/src/llm/anthropic-provider.ts`, behind the `Llm` abstraction) uses

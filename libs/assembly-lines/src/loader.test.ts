@@ -199,6 +199,51 @@ edges:
     expect(wf.edges.find((e) => e.from === "b" && e.to === "a")?.iteration_max).toBe(2);
   });
 
+  it("accepts a detect node carrying job_ref", () => {
+    const wf = parseAssemblyLine(`
+name: spec-drift
+description: d
+version: 1
+entry: detect
+exit: done
+nodes:
+  - id: detect
+    type: detect
+    job_ref: spec_drift
+  - id: done
+    type: retrospective
+edges:
+  - from: detect
+    to: done
+    on: success
+`);
+    expect(wf.nodes.find((n) => n.id === "detect")).toMatchObject({
+      type: "detect",
+      job_ref: "spec_drift",
+    });
+  });
+
+  it("rejects a detect node without job_ref", () => {
+    expect(() =>
+      parseAssemblyLine(`
+name: spec-drift
+description: d
+version: 1
+entry: detect
+exit: done
+nodes:
+  - id: detect
+    type: detect
+  - id: done
+    type: retrospective
+edges:
+  - from: detect
+    to: done
+    on: success
+`),
+    ).toThrow(/detect node "detect" requires job_ref/);
+  });
+
   it("rejects invalid node id format", () => {
     expect(() =>
       parseAssemblyLine(`
@@ -231,10 +276,33 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
     expect(names).toEqual([
       "feature-finalize",
       "feature-planning",
+      "gap-detect",
       "gap-fill",
       "general",
       "implementation",
+      "spec-coverage-backfill",
+      "spec-coverage-validate",
+      "spec-drift",
     ]);
+  });
+
+  it("detection lines are two-node detect → done graphs keyed to their historic job names", async () => {
+    const map = await loadAssemblyLineDir(assemblyLinesDir);
+    const expected: Record<string, string> = {
+      "spec-drift": "spec_drift",
+      "gap-detect": "gap_detection",
+      "spec-coverage-validate": "spec_coverage_validate",
+      "spec-coverage-backfill": "spec_coverage_backfill",
+    };
+    for (const [name, jobRef] of Object.entries(expected)) {
+      const wf = map.get(name);
+      expect(wf?.entry).toBe("detect");
+      expect(wf?.exit).toBe("done");
+      expect(wf?.nodes.find((n) => n.id === "detect")).toMatchObject({
+        type: "detect",
+        job_ref: jobRef,
+      });
+    }
   });
 
   it("gap-fill is a linear flow with retrospective + done as exit pair", async () => {

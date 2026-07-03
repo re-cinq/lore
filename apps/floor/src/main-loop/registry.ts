@@ -9,6 +9,7 @@ import type { EventHandler } from "./types.js";
 import * as github from "../jobs/github.js";
 import * as internal from "../jobs/internal.js";
 import * as cron from "../jobs/cron.js";
+import * as detect from "../jobs/detect/fan-out.js";
 import * as kubernetes from "../jobs/kubernetes.js";
 import { assemblyLineStart } from "../jobs/assembly-line/start-event-handler.js";
 
@@ -49,6 +50,12 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["cron.agent_watcher_reconcile.tick", cron.agentWatcherReconcile],
     ["cron.lease_reaper.tick", cron.leaseReaper],
     ["cron.events_prune.tick", cron.eventsPrune],
+
+    // ── Detection fan-out (tick → one per-repo assembly-line start each) ──
+    ["cron.gap_detection.tick", detect.gapDetectionTick],
+    ["cron.spec_drift.tick", detect.specDriftTick],
+    ["cron.spec_coverage_backfill.tick", detect.specCoverageBackfillTick],
+    ["cron.spec_coverage_validate.tick", detect.specCoverageValidateTick],
   ]);
 }
 

@@ -9,6 +9,8 @@ import { runSupervisor } from "./index.js";
 import { FileLeaseBackend } from "@re-cinq/lore-shared";
 import { parseAssemblyLine } from "./loader.js";
 import { createAgentHandler } from "./agent-handler.js";
+import { createDetectHandler } from "./detect-handler.js";
+import { builtinHandlers } from "./assembly-line-executor.js";
 import { createProductionHandlers } from "./handlers.js";
 import type { LlmCompletion } from "@re-cinq/lore-shared";
 
@@ -196,6 +198,67 @@ describe("supervisor integration (T058 vertical slice)", () => {
     expect(log.stdout).toContain("Lore-Task: t-1");
     expect(log.stdout).toContain("Lore-Outcome: success");
     expect(log.stdout).toContain("Lore-Files-Written: 1");
+  });
+
+  it("walks a repo-less detect line: empty non-git dir, no-op commit, lease released", async () => {
+    const detectLine = parseAssemblyLine(`
+name: spec-drift
+description: test fixture
+version: 1
+entry: detect
+exit: done
+nodes:
+  - id: detect
+    type: detect
+    job_ref: spec_drift
+  - id: done
+    type: retrospective
+edges:
+  - from: detect
+    to: done
+    on: success
+`);
+    const emptyDir = path.join(workDir, "empty");
+    await fs.mkdir(emptyDir);
+    const commits: string[] = [];
+    const detected: string[] = [];
+
+    const result = await runSupervisor({
+      taskId: "detect-1",
+      assemblyLineId: "al-detect-1",
+      branchName: "detect/spec-drift/owner/repo",
+      assemblyLineName: "spec-drift",
+      gitDir: emptyDir,
+      holder: "test-pod",
+      leaseBackend: new FileLeaseBackend(leasesDir),
+      assemblyLine: detectLine,
+      gitCommit: async (_dir, subject) => void commits.push(subject),
+      handlers: {
+        ...builtinHandlers,
+        agent: async () => {
+          throw new Error("detect lines have no agent nodes");
+        },
+        detect: createDetectHandler(
+          {
+            spec_drift: async ({ repo }) => {
+              detected.push(repo);
+              return "Checked 2 specs (0 drifted)";
+            },
+          },
+          { repo: "owner/repo" },
+        ),
+      },
+    });
+
+    expect(result).toMatchObject({ ranWork: true, reason: "completed" });
+    expect(result.summary?.reachedExit).toBe(true);
+    expect(result.summary?.visited).toEqual([
+      { nodeId: "detect", outcome: "success", iteration: 1 },
+    ]);
+    expect(detected).toEqual(["owner/repo"]);
+    expect(commits).toEqual(["[stage:detect] iter=1"]);
+    expect(await fs.readdir(leasesDir)).toHaveLength(0);
+    expect(await fs.readdir(emptyDir)).toHaveLength(0);
   });
 
   it("returns executor_pending when handlers are not provided (legacy / lease-only mode)", async () => {

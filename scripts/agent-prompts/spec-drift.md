@@ -1,14 +1,17 @@
 # Spec Drift Detection
 
 > **Reference doc, not a runtime prompt.** The live detector is the deterministic
-> cron `specDriftJob` (`apps/floor/src/application/jobs/cron/spec-drift.ts`,
-> registered in `apps/floor/src/delivery/job-runner.ts` as `spec_drift`). This
+> `specDriftJob` (`apps/floor/src/jobs/spec-trace/spec-drift/spec-drift.ts`),
+> run per repo as the `detect` node of the `spec-drift` assembly line, fanned
+> out weekly by the `cron.spec_drift.tick` handler
+> (`apps/floor/src/jobs/detect/fan-out.ts`; ADR-019 amendment). This
 > file documents how it decides drift so the two never diverge. There is no
 > separate LLM-agent drift path.
 
 ## How drift is decided
 
-For each spec in the chunk store (skipping prose artifacts and quiet repos):
+For each spec of the run's repo (skipping prose artifacts; quiet repos are
+filtered by the fan-out's activity window):
 
 1. **Graph-primary (authoritative when projected).** Read the spec's trace
    document and flag drift from per-statement signals: a binding test fails

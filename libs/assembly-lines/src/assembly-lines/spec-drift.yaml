@@ -1,0 +1,21 @@
+name: spec-drift
+description: Per-repo spec drift detection (graph-primary, heuristic fallback); files gap-fill tasks for drifted specs.
+version: 1
+entry: detect
+exit: done
+
+nodes:
+  - id: detect
+    type: detect
+    job_ref: spec_drift
+    description: Deterministic DB + trace-graph sweep of the repo's specs.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker (the executor halts on exit).
+
+edges:
+  - from: detect
+    to: done
+    on: success
+1
