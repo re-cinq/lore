@@ -6,7 +6,7 @@ vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({ crea
 import { buildServer } from "../../../server/build-server.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { useRateLimitSafeClock, makePool, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const base = "/api/repos/octo/repo/features";
 const originalEnv = { ...process.env };
@@ -45,6 +45,12 @@ const readyIteration = (gap: unknown) => ({
 
 const req = (method: "GET" | "POST" | "DELETE", url: string, body?: unknown) =>
   buildServer(() => null).inject({ method, url, headers: AUTH, payload: body === undefined ? undefined : JSON.stringify(body) });
+
+const reqAs = (scopes: string[], method: "GET" | "DELETE", url: string) => {
+  const pool = makePool();
+  pool.query.mockResolvedValue({ rows: [{ scopes }] });
+  return buildServer(() => pool).inject({ method, url, headers: { authorization: "Bearer scoped-token" } });
+};
 
 describe("features routes", () => {
   useRateLimitSafeClock();
@@ -123,6 +129,21 @@ describe("features routes", () => {
     useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(false) }));
     const missing = await req("DELETE", `${base}/gone`);
     expect(missing.statusCode).toBe(404);
+  });
+
+  it("refuses DELETE with a read-scoped token and never touches the project", async () => {
+    const features = useProject(fakeFeatures({ delete: vi.fn() }));
+    const res = await reqAs(["read"], "DELETE", `${base}/f1`);
+    expect(res.statusCode).toBe(403);
+    expect(res.result).toEqual({ error: "insufficient scope" });
+    expect(features.delete).not.toHaveBeenCalled();
+  });
+
+  it("allows DELETE with a write-scoped token", async () => {
+    useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(true) }));
+    const res = await reqAs(["write"], "DELETE", `${base}/f1`);
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({ ok: true });
   });
 
   it("rejects a concurrent planning round with 409", async () => {

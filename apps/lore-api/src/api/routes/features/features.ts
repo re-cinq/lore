@@ -21,10 +21,9 @@ import { parseJsonBodyCapped } from "../../../server/raw-body.js";
  * posts each round's GapResult back to .../iterations/:n/result. See
  * specs/7-feature-planning/ and ADR-027.
  *
- * Scope: GET read, POST write. NOTE (preserved legacy under-scoping): DELETE
- * resolved to `read` under the old scope map (the override only listed GET /
- * POST / PUT), so a read token could delete a feature. Kept for parity — a
- * separate hardening change should raise DELETE to `write`.
+ * Scope: GET read; POST and DELETE write. (DELETE was historically under-scoped
+ * to `read` — the old scope map only listed GET / POST / PUT, so a read token
+ * could delete a feature — now raised to `write`.)
  */
 
 const BASE = "/api/repos/{owner}/{repo}/features";
@@ -102,7 +101,7 @@ export function featuresRoutes(): ServerRoute[] {
     {
       method: "DELETE",
       path: `${BASE}/{id}`,
-      options: bearerScope("read"), // preserved legacy under-scoping (see file header)
+      options: bearerScope("write"),
       handler: (request, h) =>
         run(h, async () => {
           const deleted = await (await projectFor(repoOf(request.params))).features.delete(request.params.id);
