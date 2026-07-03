@@ -52,10 +52,15 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
     port,
     host: "0.0.0.0",
     routes: {
-      payload: { maxBytes: MAX_BODY_BYTES },
-      // ADR-034: zod schemas on native routes fail through this shared action,
-      // shaping every validation error into the { error } 400 body. Inert until
-      // a route declares `options.validate`.
+      // ADR-034: parse every request body as JSON regardless of the client's
+      // Content-Type. The pre-hapi handlers JSON.parsed the raw body content-type-
+      // agnostically; `override` preserves that so a JSON body with a missing or
+      // wrong Content-Type still parses (real clients send application/json).
+      // Webhook routes set `parse: false` and own their raw body — unaffected.
+      payload: { maxBytes: MAX_BODY_BYTES, override: "application/json" },
+      // zod schemas on native routes fail through this shared action, shaping
+      // every validation error into the { error } 400 body. Inert until a route
+      // declares `options.validate`.
       validate: { failAction: zodFailAction },
     },
   });

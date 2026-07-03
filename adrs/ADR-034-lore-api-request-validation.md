@@ -52,7 +52,12 @@ finish the job ADR-033 deferred.
    drop `parse: false`; handlers read a typed, validated `request.payload`
    instead of calling `JSON.parse` / `rawBody` / `parseJsonBodyCapped`. Those
    helpers are deleted when unused — except `rawBody`, which the webhook routes
-   still need.
+   still need. The server sets `routes.payload.override = "application/json"` so
+   the body is parsed as JSON **regardless of the client's `Content-Type`** —
+   the pre-hapi handlers `JSON.parse`d the raw buffer content-type-agnostically,
+   and this preserves that (a JSON body with a missing or wrong `Content-Type`
+   still parses). Webhook routes set `parse: false` and own their raw body, so
+   the override does not touch them.
 
 4. **Malformed JSON now returns `400`, not `500`.** This is the one intentional
    contract change. `400` is the correct code for malformed client input; the
