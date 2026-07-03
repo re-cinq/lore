@@ -8,6 +8,7 @@
 
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
+import { randomUUID } from "node:crypto";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
@@ -15,11 +16,14 @@ import {
   runSupervisor,
   loadBuiltinAssemblyLines,
   type AssemblyLine,
+  type AssemblyLineTrace,
   type SupervisorResult,
   type AgentNodeStatus,
   type CiConclusion,
 } from "@re-cinq/lore-assembly-lines";
 import type { LeaseBackend, LoreTaskSpec, StationBackend } from "@re-cinq/lore-shared";
+import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import { nodeAgentName } from "./floor-assembly-line.js";
 import {
   buildFloorAssemblyLineHandlers,
   type FloorAssemblyLineTask,
@@ -31,6 +35,7 @@ import { gitAuthArgs, repoCloneUrl } from "@re-cinq/lore-shared/project/workspac
 import { buildPrompt } from "../../kernel/config.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { leaseBackendForEnv } from "../../main-loop/lease/lease-backend.js";
+import { assemblyLines } from "../../kernel/queues.js";
 
 const execFile = promisify(execFileCb);
 
@@ -42,6 +47,8 @@ export interface RunFloorAssemblyLineOptions {
   holder: string;
   leaseBackend: LeaseBackend;
   ports: FloorAssemblyLinePorts;
+  /** Per-node observability sink (pipeline.assembly_line_nodes); optional in tests. */
+  trace?: AssemblyLineTrace;
 }
 
 /** Walk one task's assembly line Floor-side. Thin by design: it wires the Floor handlers
@@ -51,6 +58,7 @@ export interface RunFloorAssemblyLineOptions {
 export function runFloorAssemblyLine(opts: RunFloorAssemblyLineOptions): Promise<SupervisorResult> {
   return runSupervisor({
     taskId: opts.task.taskId,
+    assemblyLineId: opts.task.assemblyLineId,
     branchName: opts.task.branch,
     assemblyLineName: opts.assemblyLine.name,
     gitDir: opts.gitDir,
@@ -58,7 +66,35 @@ export function runFloorAssemblyLine(opts: RunFloorAssemblyLineOptions): Promise
     leaseBackend: opts.leaseBackend,
     assemblyLine: opts.assemblyLine,
     handlers: buildFloorAssemblyLineHandlers(opts.task, opts.ports),
+    trace: opts.trace,
   });
+}
+
+/** Adapt the shared AssemblyLinesPort as the executor's trace sink. The port's node rows
+ *  get the CR name pre-computed from the same (assemblyLineId, nodeId) keying dispatch uses. */
+export function portTrace(port: AssemblyLinesPort): AssemblyLineTrace {
+  return {
+    onNodeStart: (i) =>
+      port.recordNodeStart({ ...i, agentCrName: nodeAgentName(i.assemblyLineId, i.nodeId) }),
+    onNodeFinish: (nodeRef, outcome, commitSha) =>
+      port.recordNodeFinish(nodeRef, outcome, commitSha),
+  };
+}
+
+/** Map the supervisor's terminal reason onto the assembly line row's outcome vocabulary. */
+export function supervisorOutcome(result: SupervisorResult): string {
+  switch (result.reason) {
+    case "completed":
+      return "completed";
+    case "lease_held":
+      return "lease_held";
+    case "iteration_max_exceeded":
+      return "iteration_max";
+    case "executor_pending":
+      return "pending";
+    default:
+      return "error";
+  }
 }
 
 // ───────────────────────── composition root (IO shell) ─────────────────────────
@@ -83,6 +119,8 @@ export interface FloorAssemblyLineRuntime {
   resolvePrompt: (promptRef: string, description: string) => string;
   leaseBackend: LeaseBackend;
   episodeDeps: FloorAssemblyLinePorts["episodeDeps"];
+  /** pipeline.assembly_lines record + node trace (InMemoryAssemblyLines in tests). */
+  assemblyLines: AssemblyLinesPort;
   /** Credential-free clone URL + per-invocation git auth args (token via extraheader,
    *  never in the URL or `.git/config`). The token is minted per call. */
   cloneAuth: (repo: string) => Promise<{ url: string; authArgs: string[] }>;
@@ -109,17 +147,30 @@ export async function checkoutBranch(
   return dir;
 }
 
-/** Production entrypoint: clone the branch, build real ports, run the assembly line, clean up.
+/** Production entrypoint: mint the per-attempt assemblyLineId, record the run, clone the
+ *  branch, build real ports, run the assembly line, close the row, clean up.
  *  Invocation is gated by the cutover rollout (#688); this is the wiring it flips on. */
 export async function runFloorAssemblyLineForTask(
-  task: FloorAssemblyLineTask,
+  taskInput: Omit<FloorAssemblyLineTask, "assemblyLineId">,
   rt: FloorAssemblyLineRuntime,
 ): Promise<SupervisorResult> {
-  const assemblyLines = await loadBuiltinAssemblyLines();
-  const assemblyLine = assemblyLines.get(task.taskType);
+  const definitions = await loadBuiltinAssemblyLines();
+  const assemblyLine = definitions.get(taskInput.taskType);
   if (!assemblyLine) {
-    throw new Error(`No assembly line defined for task type "${task.taskType}"`);
+    throw new Error(`No assembly line defined for task type "${taskInput.taskType}"`);
   }
+  const task: FloorAssemblyLineTask = { ...taskInput, assemblyLineId: randomUUID() };
+  // Transitional inline-execution path: record the row directly (no start event) —
+  // the assembly_line.start handler becomes the sole entry in the producer-reroute PR.
+  await rt.assemblyLines.record({
+    id: task.assemblyLineId,
+    definitionName: assemblyLine.name,
+    repo: task.targetRepo,
+    branch: task.branch,
+    taskId: task.taskId,
+  });
+  await rt.assemblyLines.markRunning(task.assemblyLineId);
+
   const holder = os.hostname();
   const { url, authArgs } = await rt.cloneAuth(task.targetRepo);
   const gitDir = await checkoutBranch(task.targetRepo, task.branch, url, authArgs);
@@ -129,7 +180,7 @@ export async function runFloorAssemblyLineForTask(
         await rt.dispatcher.launch(spec);
       },
       resolvePrompt: (node, t) => rt.resolvePrompt(node.prompt_ref ?? node.type, t.description),
-      agentStatus: (taskId, nodeId) => rt.status.read(`${taskId.substring(0, 8)}-${nodeId}`),
+      agentStatus: (assemblyLineId, nodeId) => rt.status.read(nodeAgentName(assemblyLineId, nodeId)),
       ciConclusion: (branch) => rt.ciConclusion(task.targetRepo, branch),
       // Extra heartbeat during a long node poll, between executeAssemblyLine's per-node refreshes
       // — same (branch, holder, nodeId) the executor uses.
@@ -139,7 +190,24 @@ export async function runFloorAssemblyLineForTask(
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       episodeDeps: rt.episodeDeps,
     };
-    return await runFloorAssemblyLine({ task, assemblyLine, gitDir, holder, leaseBackend: rt.leaseBackend, ports });
+    const result = await runFloorAssemblyLine({
+      task,
+      assemblyLine,
+      gitDir,
+      holder,
+      leaseBackend: rt.leaseBackend,
+      ports,
+      trace: portTrace(rt.assemblyLines),
+    });
+    await rt.assemblyLines
+      .finish(task.assemblyLineId, supervisorOutcome(result), result.errorMessage)
+      .catch((err) => console.warn("[floor-assembly-line] finish() failed:", (err as Error).message));
+    return result;
+  } catch (err) {
+    await rt.assemblyLines
+      .finish(task.assemblyLineId, "error", (err as Error).message)
+      .catch(() => {});
+    throw err;
   } finally {
     await fs.rm(gitDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -158,6 +226,7 @@ export function floorAssemblyLineRuntime(dispatcher: StationBackend): FloorAssem
     resolvePrompt: (promptRef, description) => buildPrompt(promptRef, description),
     leaseBackend: leaseBackendForEnv(),
     episodeDeps: { writeEpisode, writeEpisodeWithCuration, curate: true },
+    assemblyLines: assemblyLines(),
     // Token rides in authArgs (extraheader), not the URL — no leak into .git/config.
     cloneAuth: async (repo) => ({
       url: repoCloneUrl(repo),

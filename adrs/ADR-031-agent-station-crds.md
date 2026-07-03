@@ -32,7 +32,7 @@ in D, statically linked, signed/SBOM'd images) — has matured to a releasable s
 execution engine**: given an `Agent` CR (→ a `Station` PodTemplate, → an `AgentDefinition` recipe) its
 controller stamps a Job whose pod clones the repo, runs `claude --print --output-format stream-json`,
 streams NDJSON to sinks, detects the terminal `result`, and patches `Agent.status`. It does **not**
-do context hydration, validation, commit/push, PR creation, retry, or multi-node workflows.
+do context hydration, validation, commit/push, PR creation, retry, or multi-node assembly lines.
 
 We now decide to make it Lore's production substrate. The incumbent `LoreTask` →
 `loretask-controller` → `lore-claude-runner` path (ADR-011) is retired; the **Floor becomes the
@@ -64,10 +64,10 @@ shapes (subsystem [#82](https://github.com/re-cinq/ai-agent-subsystem/issues/82)
 - **`Agent`** — one run: `{ stationRef, taskId, targetRepo, branch, parameters }` →
   `status { phase, jobName, exitCode, output, prUrl, failureReason }`.
 
-**D3 — Non-AI workflow steps reference GitHub Actions.** The engine runs `claude` directly, so Lore
-does not inject an in-pod lint/typecheck kernel. The workflow separates concerns: **AI nodes run as
+**D3 — Non-AI assembly line steps reference GitHub Actions.** The engine runs `claude` directly, so Lore
+does not inject an in-pod lint/typecheck kernel. The assembly line separates concerns: **AI nodes run as
 Agent CRs; non-AI deterministic steps (validate / build / lint / typecheck) reference the repo's
-GitHub Actions** (a `github-action` workflow node), and the Floor-side graph gates on the run
+GitHub Actions** (a `github-action` assembly line node), and the Floor-side graph gates on the run
 **conclusion** — deterministic, because GitHub runs the repo's real toolchain. Repos without CI are
 covered by onboarding scaffolding `lore-tests.yml`.
 
@@ -75,6 +75,9 @@ covered by onboarding scaffolding `lore-tests.yml`.
 Anthropic dependency) runs **in the Floor**; a new agent-node handler **dispatches one `Agent` CR per
 agent-node and awaits its terminal status**, heartbeating the branch lease while it waits. Lease,
 branch-as-state resume (commit trailers), and `iteration_max` are branch-centric and unchanged.
+CR names key on the per-attempt assemblyLineId (`<assemblyLineId:8>-<nodeId>`, FR6.5) so two attempts
+of one task never collide; the CR spec keeps `taskId` for the watcher/reaper label probes. Every node
+execution is traced into `pipeline.assembly_line_nodes` via the executor's trace sink (FR6.6).
 
 **D5 — Context hydration.** The Floor injects assembled context into `Agent.spec.parameters` at
 dispatch (deterministic, turn-1); code-editing recipes also declare the Lore MCP server for

@@ -3,7 +3,10 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
+import { randomUUID } from "node:crypto";
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
+import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import { assemblyLines } from "../../kernel/queues.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import { gitAuthArgs, repoCloneUrl } from "@re-cinq/lore-shared/project/workspace/git-auth.js";
@@ -61,6 +64,8 @@ export interface ProcessTaskViaSupervisorOptions {
   branchName?: string;
   /** Override for tests — defaults to the runner's bundled assembly lines. */
   loadAssemblyLines?: () => Promise<Map<string, AssemblyLine>>;
+  /** Override for tests — defaults to the pooled PgAssemblyLines singleton. */
+  assemblyLinesPort?: AssemblyLinesPort;
   /** Override for tests — mints the GitHub App installation token for clone/push.
    *  Defaults to the shared PlatformGitHub. */
   gitToken?: () => Promise<string>;
@@ -110,8 +115,8 @@ export async function processTaskViaSupervisor(
   const { task, settings } = opts;
   const branchName = opts.branchName ?? buildBranchName(task);
 
-  const assemblyLines = await (opts.loadAssemblyLines ?? loadBuiltinAssemblyLines)();
-  const assemblyLine = assemblyLines.get(task.task_type);
+  const definitions = await (opts.loadAssemblyLines ?? loadBuiltinAssemblyLines)();
+  const assemblyLine = definitions.get(task.task_type);
   if (!assemblyLine) {
     return {
       outcome: "error",
@@ -125,6 +130,23 @@ export async function processTaskViaSupervisor(
     (await fs.mkdtemp(path.join(os.tmpdir(), `lore-supervisor-${task.id}-`)));
 
   const cleanupWorkdir = !opts.workdir; // only delete what we created
+
+  // Per-attempt identity: record the run directly (transitional — the
+  // assembly_line.start handler becomes the sole entry in the producer-reroute PR).
+  const assemblyLinesPort = opts.assemblyLinesPort ?? assemblyLines();
+  const assemblyLineId = randomUUID();
+  await assemblyLinesPort.record({
+    id: assemblyLineId,
+    definitionName: assemblyLine.name,
+    repo: task.target_repo,
+    branch: branchName,
+    taskId: task.id,
+  });
+  await assemblyLinesPort.markRunning(assemblyLineId);
+  const closeRow = (outcome: string, reason?: string) =>
+    assemblyLinesPort
+      .finish(assemblyLineId, outcome, reason)
+      .catch((err) => console.warn("[orchestrator] finish() failed:", (err as Error).message));
 
   try {
     await cloneAndBranch(workdir, task.target_repo, branchName, gitToken);
@@ -167,11 +189,16 @@ export async function processTaskViaSupervisor(
 
     const result = await runSupervisor({
       taskId: task.id,
+      assemblyLineId,
       branchName,
       assemblyLineName: assemblyLine.name,
       gitDir: workdir,
       assemblyLine,
       handlers,
+      trace: {
+        onNodeStart: (i) => assemblyLinesPort.recordNodeStart(i),
+        onNodeFinish: (ref, outcome, sha) => assemblyLinesPort.recordNodeFinish(ref, outcome, sha),
+      },
       leaseBackend: leaseBackendForEnv(),
       audit: process.env.LORE_DB_HOST ? { write: writeAuditLog } : undefined,
       // FR3.8 / T040: a stuck task must produce a needs-human-help
@@ -191,9 +218,11 @@ export async function processTaskViaSupervisor(
     });
 
     if (result.reason === "lease_held") {
+      await closeRow("lease_held");
       return { outcome: "lease_held", branchName };
     }
     if (result.reason === "iteration_max_exceeded") {
+      await closeRow("iteration_max", result.errorMessage);
       return {
         outcome: "iteration_max",
         branchName,
@@ -201,6 +230,7 @@ export async function processTaskViaSupervisor(
       };
     }
     if (result.reason === "executor_error") {
+      await closeRow("error", result.errorMessage);
       return {
         outcome: "error",
         branchName,
@@ -209,14 +239,17 @@ export async function processTaskViaSupervisor(
     }
 
     // Push the branch and open the PR.
-    return await pushAndOpenPr({
+    const prResult = await pushAndOpenPr({
       workdir,
       repo: task.target_repo,
       branchName,
       task,
       gitToken,
     });
+    await closeRow(prResult.outcome, prResult.errorMessage);
+    return prResult;
   } catch (err) {
+    await closeRow("error", (err as Error).message);
     return {
       outcome: "error",
       branchName,

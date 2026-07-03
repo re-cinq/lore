@@ -13,6 +13,7 @@ const node: AssemblyLineNode = {
 
 const ctx: NodeContext = {
   taskId: "t-1",
+  assemblyLineId: "al-test-1",
   branchName: "lore/feature/x",
   gitDir: "/workspace/repo",
   iteration: 1,

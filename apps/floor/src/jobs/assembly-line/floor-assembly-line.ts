@@ -19,15 +19,18 @@ import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 
 export interface FloorAssemblyLineTask {
   taskId: string;
+  /** Per-attempt id (pipeline.assembly_lines) — CR names key on this, not the task. */
+  assemblyLineId: string;
   taskType: string;
   description: string;
   targetRepo: string;
   branch: string;
 }
 
-/** Distinct Agent CR name per agent-node, so a task's nodes don't collide on one CR. */
-export function nodeAgentName(taskId: string, nodeId: string): string {
-  return `${taskId.substring(0, 8)}-${nodeId}`;
+/** Distinct Agent CR name per (attempt, node): two runs of one task never collide on a CR.
+ *  The CR spec still carries the taskId — the watcher/reaper probe by task-id label. */
+export function nodeAgentName(assemblyLineId: string, nodeId: string): string {
+  return `${assemblyLineId.substring(0, 8)}-${nodeId}`;
 }
 
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
@@ -45,7 +48,7 @@ export function nodeAgentSpec(
     targetRepo: task.targetRepo,
     branch: task.branch,
     ...(node.model ? { model: node.model } : {}),
-    name: nodeAgentName(task.taskId, node.id),
+    name: nodeAgentName(task.assemblyLineId, node.id),
   };
 }
 
@@ -54,8 +57,8 @@ export interface FloorAssemblyLinePorts {
   dispatchAgent: (spec: LoreTaskSpec) => Promise<void>;
   /** Resolve a node's prompt template for the task. */
   resolvePrompt: (node: AssemblyLineNode, task: FloorAssemblyLineTask) => string;
-  /** Read this node's Agent status (keyed by node id). */
-  agentStatus: (taskId: string, nodeId: string) => Promise<AgentNodeStatus | null>;
+  /** Read this node's Agent status (keyed by assemblyLineId + node id). */
+  agentStatus: (assemblyLineId: string, nodeId: string) => Promise<AgentNodeStatus | null>;
   /** Aggregate CI conclusion for the branch's head. */
   ciConclusion: (branch: string) => Promise<CiConclusion>;
   heartbeat: (branchName: string, nodeId: string) => Promise<void>;

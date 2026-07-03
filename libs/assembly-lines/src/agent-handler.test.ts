@@ -20,6 +20,7 @@ const node: AssemblyLineNode = {
 function makeCtx(gitDir: string): NodeContext {
   return {
     taskId: "t-1",
+    assemblyLineId: "al-test-1",
     branchName: "lore/gap-fill/x",
     gitDir,
     iteration: 1,

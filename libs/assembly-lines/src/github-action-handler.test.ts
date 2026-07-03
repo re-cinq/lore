@@ -11,6 +11,7 @@ import {
 const node: AssemblyLineNode = { id: "ci", type: "github_action" };
 const ctx: NodeContext = {
   taskId: "task-1",
+  assemblyLineId: "al-test-1",
   branchName: "lore/impl-1",
   gitDir: "/work",
   iteration: 0,

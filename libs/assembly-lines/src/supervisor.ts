@@ -3,6 +3,7 @@ import type { LeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-bac
 import {
   executeAssemblyLine,
   IterationMaxExceededError,
+  type AssemblyLineTrace,
   type ExecutionSummary,
   type NodeHandlers,
 } from "./assembly-line-executor.js";
@@ -22,6 +23,8 @@ export interface SupervisorAuditSink {
 
 export interface SupervisorOptions {
   taskId: string;
+  /** Per-attempt id from project.assemblyLines (pipeline.assembly_lines row). */
+  assemblyLineId: string;
   branchName: string;
   assemblyLineName: string;
   /**
@@ -73,6 +76,8 @@ export interface SupervisorOptions {
     taskId: string;
     branchName: string;
   }) => Promise<void>;
+  /** Per-node observability sink threaded into the executor. */
+  trace?: AssemblyLineTrace;
 }
 
 export type SupervisorReason =
@@ -142,6 +147,7 @@ export async function runSupervisor(
           task_id: opts.taskId,
           payload: {
             branch_name: opts.branchName,
+            assembly_line_id: opts.assemblyLineId,
             previous_holder: lease.tookOverFrom,
             new_holder: holder,
             reason: "takeover_at_acquire",
@@ -179,6 +185,7 @@ export async function runSupervisor(
     try {
       const summary = await executeAssemblyLine({
         assemblyLine: opts.assemblyLine,
+        assemblyLineId: opts.assemblyLineId,
         taskId: opts.taskId,
         branchName: opts.branchName,
         gitDir: opts.gitDir,
@@ -186,6 +193,7 @@ export async function runSupervisor(
         leaseBackend: backend,
         handlers: opts.handlers,
         onIterationMaxExceeded: opts.onIterationMaxExceeded,
+        trace: opts.trace,
       });
       return { ranWork: true, reason: "completed", summary };
     } catch (err) {

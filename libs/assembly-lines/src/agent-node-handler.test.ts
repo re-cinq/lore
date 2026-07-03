@@ -12,6 +12,7 @@ import {
 const node: AssemblyLineNode = { id: "implement", type: "agent" };
 const ctx: NodeContext = {
   taskId: "task-1",
+  assemblyLineId: "al-test-1",
   branchName: "lore/impl-1",
   gitDir: "/work",
   iteration: 0,
@@ -50,7 +51,7 @@ function fakeDeps(pollQueue: Array<AgentNodeStatus | null>, over: Partial<AgentN
   const queue = [...pollQueue];
   const deps: AgentNodeDeps = {
     launch: async () => { calls.launch++; },
-    poll: async (_taskId, nodeId) => { calls.poll.push(nodeId); return queue.length ? queue.shift()! : null; },
+    poll: async (assemblyLineId, nodeId) => { calls.poll.push(`${assemblyLineId}/${nodeId}`); return queue.length ? queue.shift()! : null; },
     heartbeat: async (_b, nodeId) => { calls.heartbeat.push(nodeId); },
     sleep: async () => { calls.sleep++; },
     ...over,
@@ -64,7 +65,7 @@ describe("createAgentNodeHandler", () => {
     expect(await createAgentNodeHandler(deps)(node, ctx)).toEqual({ outcome: "success" });
     expect(calls.launch).toBe(1);
     expect(calls.heartbeat).toEqual(["implement", "implement"]);
-    expect(calls.poll).toEqual(["implement", "implement"]); // polls THIS node's Agent
+    expect(calls.poll).toEqual(["al-test-1/implement", "al-test-1/implement"]); // polls THIS node's Agent, keyed per attempt
     expect(calls.sleep).toBe(1);
   });
 
