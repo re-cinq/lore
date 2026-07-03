@@ -2,8 +2,9 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseDistArtifact, handleDistRoute } from "./dist.js";
-import { makeReq, makeRes } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { parseDistArtifact } from "./dist.js";
+import { buildServer } from "../../../server/build-server.js";
+import { useRateLimitSafeClock } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 describe("parseDistArtifact", () => {
   it("returns the artifact name for an allowed os-arch", () => {
@@ -31,8 +32,11 @@ describe("parseDistArtifact", () => {
   });
 });
 
-describe("handleDistRoute", () => {
+// The native /dist route (Phase 2), driven through buildServer.inject.
+describe("GET /dist/lore-code-trace", () => {
+  useRateLimitSafeClock();
   let dir: string | undefined;
+  const inject = (url: string) => buildServer(() => null).inject({ method: "GET", url });
   afterEach(async () => {
     delete process.env.LORE_DIST_DIR;
     if (dir) await rm(dir, { recursive: true, force: true });
@@ -44,26 +48,23 @@ describe("handleDistRoute", () => {
     await writeFile(join(dir, "linux-amd64"), Buffer.from("BINARY"));
     process.env.LORE_DIST_DIR = dir;
 
-    const res = makeRes();
-    await handleDistRoute(makeReq({ url: "/dist/lore-code-trace/linux-amd64" }), res);
-
+    const res = await inject("/dist/lore-code-trace/linux-amd64");
     expect(res.statusCode).toBe(200);
-    expect(res.headers["Content-Type"]).toBe("application/octet-stream");
-    expect(res.headers["Content-Length"]).toBe("6");
+    expect(res.headers["content-type"]).toBe("application/octet-stream");
+    expect(res.headers["content-length"]).toBe(6);
   });
 
   it("404s when the artifact is not baked into the image", async () => {
     dir = await mkdtemp(join(tmpdir(), "lore-dist-"));
     process.env.LORE_DIST_DIR = dir;
 
-    const res = makeRes();
-    await handleDistRoute(makeReq({ url: "/dist/lore-code-trace/linux-amd64" }), res);
+    const res = await inject("/dist/lore-code-trace/linux-amd64");
     expect(res.statusCode).toBe(404);
   });
 
   it("404s an unknown artifact name without touching the filesystem", async () => {
-    const res = makeRes();
-    await handleDistRoute(makeReq({ url: "/dist/lore-code-trace/../secret" }), res);
+    const res = await inject("/dist/lore-code-trace/windows-386");
     expect(res.statusCode).toBe(404);
+    expect(res.result).toEqual({ error: "unknown artifact" });
   });
 });

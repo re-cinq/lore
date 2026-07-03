@@ -1,37 +1,37 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
+import type { ServerRoute } from "@hapi/hapi";
 import { ingestFiles } from "../../../features/spec-trace/ingest.js";
-import { json, readBody } from "../http.js";
+import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { rawBody } from "../../../server/raw-body.js";
 import { triggerAgentSpecCoverageValidate } from "../helpers.js";
 
-export async function handleIngest(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  if (!pool) { json(res, 503, { error: "database not available" }); return; }
-  const body = await readBody(req);
-  try {
-    const { files, repo, commit } = JSON.parse(body);
-    if (!Array.isArray(files) || !repo) {
-      json(res, 400, { error: "required: files (array of paths or {path,content}), repo (string)" });
-      return;
-    }
-    const result = await ingestFiles(pool, files, repo, commit || "HEAD");
-    json(res, 200, result);
-    // Post-ingest fan-out: re-link tests against any changed specs (and let
-    // newly-ingested tests find a statement in unchanged specs). Fire-and-
-    // forget — the response has already been written; agent returns 202
-    // and the content-hash gate elides the work when nothing relevant
-    // changed. Gated on at least one file actually landing (no point
-    // firing for an all-skipped/all-error batch).
-    const landed = Array.isArray(result?.results)
-      ? result.results.some((r: { status?: string }) => r.status === "ingested" || r.status === "deleted")
-      : false;
-    if (landed) {
-      void triggerAgentSpecCoverageValidate(pool, repo);
-      // Spec/ADR graph (re-)projection is no longer fanned out from here — it is
-      // driven by the repo's `lore-ingest.yml` CI workflow (per-kind jobs POST
-      // to /api/repos/:o/:r/ingest-graph), which fires the spec-trace trigger.
-    }
-  } catch (err: any) {
-    console.error("[ingest] API error:", err.message);
-    json(res, 500, { error: err.message });
-  }
+export function ingestRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/ingest",
+    options: { ...bearerScope("write"), payload: { parse: false } },
+    handler: async (request, h) => {
+      const pool = getPool();
+      if (!pool) return h.response({ error: "database not available" }).code(503);
+      try {
+        const { files, repo, commit } = JSON.parse(rawBody(request));
+        if (!Array.isArray(files) || !repo) {
+          return h.response({ error: "required: files (array of paths or {path,content}), repo (string)" }).code(400);
+        }
+        const result = await ingestFiles(pool, files, repo, commit || "HEAD");
+        // Post-ingest fan-out: re-link tests against any changed specs. Fire-and-
+        // forget (fired before the response returns, but it never touches it) —
+        // the content-hash gate elides the work when nothing relevant changed.
+        // Gated on at least one file actually landing.
+        const landed = Array.isArray(result?.results)
+          ? result.results.some((r: { status?: string }) => r.status === "ingested" || r.status === "deleted")
+          : false;
+        if (landed) void triggerAgentSpecCoverageValidate(pool, repo);
+        return h.response(result);
+      } catch (err: any) {
+        console.error("[ingest] API error:", err.message);
+        return h.response({ error: err.message }).code(500);
+      }
+    },
+  };
 }

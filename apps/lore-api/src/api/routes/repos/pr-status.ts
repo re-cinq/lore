@@ -4,30 +4,33 @@
  * local `lore_get_pr_status` tool proxies here instead of carrying octokit.
  */
 
-import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Pool } from "pg";
+import type { ServerRoute } from "@hapi/hapi";
 import { fetchPrStatus } from "../../../platform/github-client.js";
-import { json } from "../http.js";
+import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
-export async function handlePrStatus(req: IncomingMessage, res: ServerResponse, _pool: Pool | null): Promise<void> {
-  const url = new URL(req.url || "", "http://localhost");
-  const repo = url.searchParams.get("repo");
-  const prNumber = Number(url.searchParams.get("pr_number"));
-  if (!repo || !repo.includes("/") || !Number.isInteger(prNumber)) {
-    json(res, 400, { error: "required: repo (owner/name), pr_number (integer)" });
-    return;
-  }
-  try {
-    const result = await fetchPrStatus(repo, prNumber);
-    if (!result) {
-      // 424 (not 502): a missing-GitHub-credentials config gap is deterministic,
-      // so the proxy must classify it non-retriable and not burn its retry budget
-      // or report it as a transient Lore-API outage.
-      json(res, 424, { error: "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN." });
-      return;
-    }
-    json(res, 200, result);
-  } catch (err: any) {
-    json(res, 500, { error: err.message });
-  }
+export function prStatusRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/pr-status",
+    options: bearerScope("read"),
+    handler: async (request, h) => {
+      const repo = request.query.repo as string | undefined;
+      const prNumber = Number((request.query.pr_number as string | undefined) ?? null);
+      if (!repo || !repo.includes("/") || !Number.isInteger(prNumber)) {
+        return h.response({ error: "required: repo (owner/name), pr_number (integer)" }).code(400);
+      }
+      try {
+        const result = await fetchPrStatus(repo, prNumber);
+        if (!result) {
+          // 424 (not 502): a missing-GitHub-credentials config gap is deterministic,
+          // so the proxy must classify it non-retriable and not burn its retry budget
+          // or report it as a transient Lore-API outage.
+          return h.response({ error: "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN." }).code(424);
+        }
+        return h.response(result);
+      } catch (err: any) {
+        return h.response({ error: err.message }).code(500);
+      }
+    },
+  };
 }

@@ -1,50 +1,52 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
+import type { ServerRoute } from "@hapi/hapi";
 import { createHash } from "node:crypto";
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
 import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
-import { json, readBody } from "../http.js";
+import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { rawBody } from "../../../server/raw-body.js";
 import { makeGraphLlmCall } from "../helpers.js";
 
-export async function handleSessionSummary(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  const body = await readBody(req);
-  try {
-    const { session_log, repo, agent_id } = JSON.parse(body);
-    if (!session_log) { json(res, 400, { error: "required: session_log" }); return; }
+export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/session-summary",
+    options: { ...bearerScope("write"), payload: { parse: false } },
+    handler: async (request, h) => {
+      const pool = getPool();
+      try {
+        const { session_log, repo, agent_id } = JSON.parse(rawBody(request));
+        if (!session_log) return h.response({ error: "required: session_log" }).code(400);
 
-    const summary = typeof session_log === "string"
-      ? session_log
-      : (session_log.summary || JSON.stringify(session_log));
+        const summary = typeof session_log === "string"
+          ? session_log
+          : (session_log.summary || JSON.stringify(session_log));
 
-    if (!summary || summary.length < 10) {
-      json(res, 200, { status: "skipped", reason: "empty session" });
-      return;
-    }
+        if (!summary || summary.length < 10) return h.response({ status: "skipped", reason: "empty session" });
 
-    const content = `Session in ${repo || "unknown"}\n\n${summary}`;
-    const agent = agent_id || "session-hook";
-    const contentHash = createHash("sha256").update(content).digest("hex");
+        const content = `Session in ${repo || "unknown"}\n\n${summary}`;
+        const agent = agent_id || "session-hook";
+        const contentHash = createHash("sha256").update(content).digest("hex");
 
-    if (!pool) { json(res, 503, { error: "database not available" }); return; }
+        if (!pool) return h.response({ error: "database not available" }).code(503);
 
-    const { rows } = await pool.query(
-      `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
-       VALUES ($1, $2, $3, 'session', $4)
-       ON CONFLICT (agent_id, content_hash) DO NOTHING
-       RETURNING id`,
-      [agent, content, contentHash, repo || null],
-    );
+        const { rows } = await pool.query(
+          `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
+           VALUES ($1, $2, $3, 'session', $4)
+           ON CONFLICT (agent_id, content_hash) DO NOTHING
+           RETURNING id`,
+          [agent, content, contentHash, repo || null],
+        );
 
-    if (rows.length === 0) {
-      json(res, 200, { status: "duplicate" });
-      return;
-    }
+        if (rows.length === 0) return h.response({ status: "duplicate" });
 
-    extractFactsFromEpisode(rows[0].id, content, agent, pool).catch(() => {});
-    const gLlm = makeGraphLlmCall(pool);
-    if (gLlm) extractAndUpdateGraph(pool, content, repo || null, rows[0].id, null, gLlm).catch(() => {});
-    json(res, 200, { status: "ok", episode_id: rows[0].id });
-  } catch (err: any) {
-    json(res, 500, { error: err.message });
-  }
+        extractFactsFromEpisode(rows[0].id, content, agent, pool).catch(() => {});
+        const gLlm = makeGraphLlmCall(pool);
+        if (gLlm) extractAndUpdateGraph(pool, content, repo || null, rows[0].id, null, gLlm).catch(() => {});
+        return h.response({ status: "ok", episode_id: rows[0].id });
+      } catch (err: any) {
+        return h.response({ error: err.message }).code(500);
+      }
+    },
+  };
 }

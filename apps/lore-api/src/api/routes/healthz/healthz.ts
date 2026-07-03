@@ -1,25 +1,42 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
+import type { ServerRoute } from "@hapi/hapi";
 import { getHealthStatus } from "@re-cinq/lore-server-core/platform/db.js";
-import { json } from "../http.js";
 import { validateClientToken } from "../auth.js";
 
-export async function handleHealthz(req: IncomingMessage, res: ServerResponse, pool: Pool | null): Promise<void> {
-  const health = await getHealthStatus();
-  const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
-  const code = status === "error" ? 503 : 200;
-  const bearer = req.headers.authorization?.replace("Bearer ", "");
-  const isAuthed = bearer ? await validateClientToken(pool, bearer, "read") : false;
-  if (isAuthed) {
-    let tasks = { processed_today: 0, pending: 0 };
-    if (health.connected && pool) {
-      try {
-        const taskStats = await pool.query(`SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`);
-        tasks = { processed_today: taskStats.rows[0]?.today || 0, pending: taskStats.rows[0]?.pending || 0 };
-      } catch { /* non-fatal */ }
-    }
-    json(res, code, { status, database: health, tasks });
-  } else {
-    json(res, code, { status });
-  }
+const TASK_STATS_SQL = `SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`;
+
+/**
+ * GET /healthz — liveness + readiness probe. 200 when the DB is reachable (or no
+ * DB is configured), 503 otherwise; the Helm probes key on the status code. An
+ * authenticated caller additionally gets database + task stats. Public (no auth):
+ * the stats are gated by the handler's own bearer check, not the route.
+ */
+export function healthzRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/healthz",
+    options: { auth: false },
+    handler: async (request, h) => {
+      const pool = getPool();
+      const health = await getHealthStatus();
+      const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
+      const code = status === "error" ? 503 : 200;
+
+      const authHeader = request.headers.authorization;
+      const bearer = (Array.isArray(authHeader) ? authHeader[0] : authHeader)?.replace("Bearer ", "");
+      const isAuthed = bearer ? await validateClientToken(pool, bearer, "read") : false;
+      if (!isAuthed) return h.response({ status }).code(code);
+
+      let tasks = { processed_today: 0, pending: 0 };
+      if (health.connected && pool) {
+        try {
+          const stats = await pool.query(TASK_STATS_SQL);
+          tasks = { processed_today: stats.rows[0]?.today || 0, pending: stats.rows[0]?.pending || 0 };
+        } catch {
+          /* non-fatal — fall back to zeroed stats */
+        }
+      }
+      return h.response({ status, database: health, tasks }).code(code);
+    },
+  };
 }

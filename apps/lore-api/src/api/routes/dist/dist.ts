@@ -7,9 +7,9 @@
  * joining of arbitrary input) makes traversal structurally impossible.
  */
 
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ServerRoute } from "@hapi/hapi";
 
 const DIST_PREFIX = "/dist/lore-code-trace/";
 const ALLOWED = new Set(["linux-amd64", "linux-arm64", "darwin-amd64", "darwin-arm64", "checksums.txt"]);
@@ -25,26 +25,27 @@ function distDir(): string {
   return process.env.LORE_DIST_DIR || "/app/dist-bin";
 }
 
-export async function handleDistRoute(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const artifact = parseDistArtifact(req.url || "");
-  if (!artifact) {
-    res.writeHead(404, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "unknown artifact" }));
-    return;
-  }
+export function distRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/dist/lore-code-trace/{artifact*}",
+    options: { auth: false },
+    handler: async (request, h) => {
+      const artifact = parseDistArtifact(request.path);
+      if (!artifact) return h.response({ error: "unknown artifact" }).code(404);
 
-  let data: Buffer;
-  try {
-    data = await readFile(join(distDir(), artifact));
-  } catch {
-    res.writeHead(404, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "artifact not built into this image" }));
-    return;
-  }
+      let data: Buffer;
+      try {
+        data = await readFile(join(distDir(), artifact));
+      } catch {
+        return h.response({ error: "artifact not built into this image" }).code(404);
+      }
 
-  const isText = artifact.endsWith(".txt");
-  res.writeHead(200, {
-    "Content-Type": isText ? "text/plain; charset=utf-8" : "application/octet-stream",
-    "Content-Length": String(data.length),
-    "Content-Disposition": `attachment; filename="${artifact === "checksums.txt" ? "checksums.txt" : "lore-code-trace"}"`,
-  });
-  res.end(data);
+      const isText = artifact.endsWith(".txt");
+      return h
+        .response(data)
+        .type(isText ? "text/plain; charset=utf-8" : "application/octet-stream")
+        .header("Content-Disposition", `attachment; filename="${artifact === "checksums.txt" ? "checksums.txt" : "lore-code-trace"}"`);
+    },
+  };
 }

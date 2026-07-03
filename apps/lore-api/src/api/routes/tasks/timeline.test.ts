@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { handleApiRoute } from "../../routes.js";
-import { makeReq, makeRes, makePool, makeOctokit, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { buildServer } from "../../../server/build-server.js";
+import { makePool, makeOctokit, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 vi.mock("../../../platform/github-client.js", () => ({ getOctokit: vi.fn(), getGitHubToken: vi.fn() }));
 vi.mock("@re-cinq/lore-shared", () => ({
@@ -16,7 +16,11 @@ vi.mock("@re-cinq/lore-shared", () => ({
 import { getOctokit } from "../../../platform/github-client.js";
 import { parseTrailers } from "@re-cinq/lore-shared";
 
+type TimelineBody = { commits: Array<{ duration_ms: number | null; outcome: string; extras?: Record<string, string> }> };
+
 const originalEnv = { ...process.env };
+const get = (pool: unknown) =>
+  buildServer(() => pool as any).inject({ method: "GET", url: "/api/tasks/t1/timeline", headers: AUTH });
 
 describe("GET /api/tasks/:id/timeline", () => {
   useRateLimitSafeClock();
@@ -47,35 +51,28 @@ describe("GET /api/tasks/:id/timeline", () => {
   }
 
   it("returns 503 when pool is null", async () => {
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, null);
+    const res = await get(null);
     expect(res.statusCode).toBe(503);
   });
-  it("returns 404 when the path fails the stricter handler regex", async () => {
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/a?b/timeline", headers: AUTH }), res, makePool() as any);
-    expect(res.statusCode).toBe(404);
-    expect(res.json).toEqual({ error: "not found" });
-  });
+
   it("returns 500 when the task lookup throws", async () => {
     const pool = makePool();
     pool.query.mockRejectedValue(new Error("db"));
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
+    const res = await get(pool);
     expect(res.statusCode).toBe(500);
   });
+
   it("returns 404 when the task does not exist", async () => {
-    const pool = timelinePool({ rows: [] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
-    expect(res.json).toEqual({ error: "task_not_found" });
+    const res = await get(timelinePool({ rows: [] }));
+    expect(res.result).toEqual({ error: "task_not_found" });
   });
+
   it("returns pending:no_branch when the task has no branch", async () => {
     const pool = timelinePool({ rows: [taskRow({ target_repo: null, target_branch: null })] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
-    expect(res.json).toMatchObject({ pending: "no_branch", commits: [] });
+    const res = await get(pool);
+    expect(res.result).toMatchObject({ pending: "no_branch", commits: [] });
   });
+
   it("builds the timeline with stage commits, merged PR, and held lease", async () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockResolvedValue({
@@ -93,16 +90,17 @@ describe("GET /api/tasks/:id/timeline", () => {
       { rows: [taskRow()] },
       { rows: [{ holder: "agent-1", expires_at: new Date(Date.now() + 60_000) }] },
     );
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
-    expect(res.json).toMatchObject({
+    const res = await get(pool);
+    expect(res.result).toMatchObject({
       pr_state: "merged",
       current_stage: "impl",
       lease: { held: true, holder: "agent-1" },
     });
-    expect(res.json.commits).toHaveLength(1);
-    expect(typeof res.json.commits[0].duration_ms).toBe("number");
+    const body = res.result as TimelineBody;
+    expect(body.commits).toHaveLength(1);
+    expect(typeof body.commits[0].duration_ms).toBe("number");
   });
+
   it("tolerates a failing PR fetch and empty lease, no trailers", async () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockResolvedValue({
@@ -112,20 +110,20 @@ describe("GET /api/tasks/:id/timeline", () => {
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     vi.mocked(parseTrailers).mockReturnValue(null as any);
     const pool = timelinePool({ rows: [taskRow()] }, { rows: [] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
-    expect(res.json).toMatchObject({ pr_state: null, current_stage: null, lease: { held: false } });
+    const res = await get(pool);
+    expect(res.result).toMatchObject({ pr_state: null, current_stage: null, lease: { held: false } });
   });
+
   it("skips the PR fetch when there is no pr_number", async () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockResolvedValue({ data: [] });
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = timelinePool({ rows: [taskRow({ pr_number: null })] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
+    const res = await get(pool);
     expect(oct.rest.pulls.get).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(200);
   });
+
   it("covers commit field fallbacks (null date, no extras, non-finite duration)", async () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockResolvedValue({
@@ -137,30 +135,31 @@ describe("GET /api/tasks/:id/timeline", () => {
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     vi.mocked(parseTrailers).mockReturnValue({ stage: "s", iteration: 0 } as any);
     const pool = timelinePool({ rows: [taskRow({ pr_number: null })] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
-    expect(res.json.commits).toHaveLength(2);
-    expect(res.json.commits.every((c: any) => c.outcome === "success" && c.extras === undefined)).toBe(true);
-    expect(res.json.commits.some((c: any) => c.duration_ms === null)).toBe(true);
+    const res = await get(pool);
+    const body = res.result as TimelineBody;
+    expect(body.commits).toHaveLength(2);
+    expect(body.commits.every((c) => c.outcome === "success" && c.extras === undefined)).toBe(true);
+    expect(body.commits.some((c) => c.duration_ms === null)).toBe(true);
   });
+
   it("returns branch_deleted when GitHub 404s", async () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockRejectedValue(Object.assign(new Error("gone"), { status: 404 }));
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = timelinePool({ rows: [taskRow()] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
-    expect(res.json).toMatchObject({ branch_deleted: true });
+    const res = await get(pool);
+    expect(res.result).toMatchObject({ branch_deleted: true });
   });
+
   it("returns 500 on a non-404 GitHub error", async () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockRejectedValue(Object.assign(new Error("boom"), { status: 500 }));
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = timelinePool({ rows: [taskRow()] });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
-    expect(res.json).toEqual({ error: "github_api" });
+    const res = await get(pool);
+    expect(res.result).toEqual({ error: "github_api" });
   });
+
   it("tolerates a failing lease query", async () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockResolvedValue({ data: [] });
@@ -171,8 +170,7 @@ describe("GET /api/tasks/:id/timeline", () => {
       if (sql.includes("task_leases")) return Promise.reject(new Error("no table"));
       return Promise.resolve({ rows: [taskRow()] });
     });
-    const res = makeRes();
-    await handleApiRoute(makeReq({ url: "/api/tasks/t1/timeline", headers: AUTH }), res, pool as any);
-    expect(res.json).toMatchObject({ pr_state: "open", lease: null });
+    const res = await get(pool);
+    expect(res.result).toMatchObject({ pr_state: "open", lease: null });
   });
 });

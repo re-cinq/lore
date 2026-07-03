@@ -1,14 +1,20 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ServerRoute } from "@hapi/hapi";
 import { getTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { json } from "../http.js";
+import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
-export async function handleGetTask(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const taskId = req.url!.replace("/api/task/", "");
-  try {
-    const task = await getTask(taskId);
-    if (!task) { json(res, 404, { error: "not found" }); return; }
-    json(res, 200, task);
-  } catch (err: any) {
-    json(res, 500, { error: err.message });
-  }
+export function getTaskRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/task/{id}",
+    options: bearerScope("read"),
+    handler: async (request, h) => {
+      try {
+        const task = await getTask(request.params.id);
+        if (!task) return h.response({ error: "not found" }).code(404);
+        return h.response(task);
+      } catch (err: any) {
+        return h.response({ error: err.message }).code(500);
+      }
+    },
+  };
 }

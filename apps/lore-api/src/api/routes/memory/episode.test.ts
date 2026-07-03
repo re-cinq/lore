@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { handleApiRoute } from "../../routes.js";
-import { makeReq, makeRes, makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { buildServer } from "../../../server/build-server.js";
+import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 vi.mock("@re-cinq/lore-server-core/features/memory/facts.js", () => ({ extractFactsFromEpisode: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({ extractAndUpdateGraph: vi.fn() }));
@@ -23,10 +23,8 @@ import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
 
-function post(body: unknown, pool: any = makePool()) {
-  const res = makeRes();
-  return handleApiRoute(makeReq({ url: "/api/episode", method: "POST", headers: AUTH, body }), res, pool).then(() => res);
-}
+const post = (body: unknown, pool: unknown = makePool(), headers: Record<string, string> = AUTH) =>
+  buildServer(() => pool as any).inject({ method: "POST", url: "/api/episode", headers, payload: JSON.stringify(body) });
 
 describe("POST /api/episode", () => {
   useRateLimitSafeClock();
@@ -48,20 +46,16 @@ describe("POST /api/episode", () => {
   it("returns 403 when the token lacks write scope", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
-    const res = makeRes();
-    await handleApiRoute(
-      makeReq({ url: "/api/episode", method: "POST", headers: { authorization: "Bearer read-only" }, body: { content: "x" } }),
-      res,
-      pool as any,
-    );
-    expect(res.json).toEqual({ error: "insufficient scope" });
+    const res = await post({ content: "x" }, pool, { authorization: "Bearer read-only" });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
   });
 
   it("returns duplicate when the insert conflicts", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [] });
-    const res = await post({ content: "hello" }, pool as any);
-    expect(res.json).toEqual({ status: "duplicate" });
+    const res = await post({ content: "hello" }, pool);
+    expect(res.result).toEqual({ status: "duplicate" });
   });
 
   it("stores a new episode and runs the graph LLM closure when key is set", async () => {
@@ -76,8 +70,8 @@ describe("POST /api/episode", () => {
     });
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: 99 }] });
-    const res = await post({ content: "a new observation", agent_id: "a1" }, pool as any);
-    expect(res.json).toEqual({ status: "ok", episode_id: 99 });
+    const res = await post({ content: "a new observation", agent_id: "a1" }, pool);
+    expect(res.result).toEqual({ status: "ok", episode_id: 99 });
     expect(extractFactsFromEpisode).toHaveBeenCalled();
     await vi.waitFor(() => expect(closureRan).toBe(true));
   });
@@ -85,15 +79,15 @@ describe("POST /api/episode", () => {
   it("skips graph extraction when ANTHROPIC_API_KEY is unset", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: 5 }] });
-    const res = await post({ content: "another observation" }, pool as any);
-    expect(res.json).toEqual({ status: "ok", episode_id: 5 });
+    const res = await post({ content: "another observation" }, pool);
+    expect(res.result).toEqual({ status: "ok", episode_id: 5 });
     expect(extractAndUpdateGraph).not.toHaveBeenCalled();
   });
 
   it("returns 500 when the episode insert throws", async () => {
     const pool = makePool();
     pool.query.mockRejectedValue(new Error("insert fail"));
-    const res = await post({ content: "boom" }, pool as any);
+    const res = await post({ content: "boom" }, pool);
     expect(res.statusCode).toBe(500);
   });
 
@@ -101,8 +95,8 @@ describe("POST /api/episode", () => {
     vi.mocked(extractFactsFromEpisode).mockRejectedValueOnce(new Error("facts fail"));
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: 11 }] });
-    const res = await post({ content: "obs for facts reject" }, pool as any);
-    expect(res.json).toEqual({ status: "ok", episode_id: 11 });
+    const res = await post({ content: "obs for facts reject" }, pool);
+    expect(res.result).toEqual({ status: "ok", episode_id: 11 });
     await new Promise((r) => setTimeout(r, 5));
   });
 
@@ -112,8 +106,8 @@ describe("POST /api/episode", () => {
     vi.mocked(extractAndUpdateGraph).mockRejectedValueOnce(new Error("graph fail"));
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: 12 }] });
-    const res = await post({ content: "obs for graph reject" }, pool as any);
-    expect(res.json).toEqual({ status: "ok", episode_id: 12 });
+    const res = await post({ content: "obs for graph reject" }, pool);
+    expect(res.result).toEqual({ status: "ok", episode_id: 12 });
     await new Promise((r) => setTimeout(r, 5));
   });
 });
