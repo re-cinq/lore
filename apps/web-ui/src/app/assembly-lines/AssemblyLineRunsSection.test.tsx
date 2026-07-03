@@ -47,4 +47,19 @@ describe('AssemblyLineRunsSection', () => {
     );
     expect(screen.getByText('iteration_max exceeded')).toBeTruthy();
   });
+
+  it('formats sub-minute durations in seconds', () => {
+    render(<AssemblyLineRunsSection runs={[run({ durationSeconds: 42 })]} />);
+    expect(screen.getByText('42s')).toBeTruthy();
+  });
+
+  it('renders a queued run (no styled status class, em-dash duration)', () => {
+    render(
+      <AssemblyLineRunsSection
+        runs={[run({ status: 'queued', outcome: null, durationSeconds: null, nodeCount: 0 })]}
+      />,
+    );
+    expect(screen.getByText('queued')).toBeTruthy();
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
+  });
 });
