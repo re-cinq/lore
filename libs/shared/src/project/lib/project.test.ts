@@ -47,4 +47,16 @@ describe("Project wiring", () => {
       new Error('Project port "tasks" is not wired yet (pending its live adapter)'),
     );
   });
+
+  it("starts an assembly line through the wired pg port with the repo filled in", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const project = await createProject("re-cinq/lore", fakePool(capture, [{ id: "al-1" }]), noDgraph, {});
+
+    const assemblyLineId = await project.assemblyLines.start("implementation", { taskId: "task-9" });
+
+    expect(assemblyLineId).toBe("al-1");
+    expect(capture[0].text).toContain("INSERT INTO pipeline.assembly_lines");
+    expect(capture[0].text).toContain("'assembly_line.start'");
+    expect(capture[0].params).toEqual(["implementation", "task-9", "re-cinq/lore", null, "{}"]);
+  });
 });

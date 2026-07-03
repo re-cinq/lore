@@ -335,6 +335,13 @@ fewer PRs, each carrying genuine human-decision weight.
 - **FR5.2** A repo dashboard view (web-ui) MUST surface: tasks run dark this week, tasks auto-merged, tasks escalated, current trust level, current `dark_factory` settings. ([validated by `RepoOverviewView.test.tsx:81`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L81))
 - **FR5.3** The web-ui task detail page MUST resolve `Lore-Task: <uuid>` from a PR URL and render the branch's stage timeline. ([validated by `Timeline.test.tsx:149`](apps/web-ui/src/app/pipeline/[id]/Timeline.test.tsx#L149); implemented by [`Timeline.tsx:61`](apps/web-ui/src/app/pipeline/[id]/Timeline.tsx#L61), [`task-timeline.ts:62`](apps/mcp-server/src/api/routes/task-timeline.ts#L62))
 
+### FR6 — Assembly line identity
+
+- **FR6.1** Every assembly line execution MUST have a first-class per-attempt identity: a `pipeline.assembly_lines` row with a fresh uuid, distinct across retries and resumes of the same task. The task id remains stable across attempts; the assemblyLineId does not. ([validated by `assembly-lines.test.ts:225`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L225); implemented by [`0025_assembly_lines.sql`](infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0025_assembly_lines.sql))
+- **FR6.2** `project.assemblyLines.start(definitionName, opts)` MUST mint the assemblyLineId, persist the row (status `queued`), and insert the `assembly_line.start` event (source `internal`, dedupe key `assembly_line.start:<assemblyLineId>`, denormalized `repo` column) in one atomic statement, returning the id immediately — execution is picked up by the Floor event loop, never awaited by the caller. ([validated by `assembly-lines.test.ts:23`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L23), [`project.test.ts:51`](libs/shared/src/project/lib/project.test.ts#L51); implemented by [`assembly-lines-pg.ts:19`](libs/shared/src/project/assembly-lines/assembly-lines-pg.ts#L19))
+- **FR6.3** Every node execution MUST be associated with its assemblyLineId: a `pipeline.assembly_line_nodes` row records the node id, iteration, outcome, Agent CR name, and stage-commit sha. ([validated by `assembly-lines.test.ts:308`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L308); implemented by [`assembly-lines-pg.ts:88`](libs/shared/src/project/assembly-lines/assembly-lines-pg.ts#L88))
+- **FR6.4** Stage commits MUST carry a `Lore-Assembly-Line: <id>` trailer alongside `Lore-Task`. The trailer is optional on parse: commits from before this feature still parse and resume. ([validated by `commit-trailers.test.ts:68`](libs/shared/src/commit-trailers.test.ts#L68), [`commit-trailers.test.ts:78`](libs/shared/src/commit-trailers.test.ts#L78); implemented by [`commit-trailers.ts:34`](libs/shared/src/commit-trailers.ts#L34))
+
 ## Requirement Traceability
 
 Each functional requirement maps to the user scenario(s) that exercise it and the
@@ -396,11 +403,11 @@ At least **three repos representing distinct trust tiers (`docs`, `tests`, `impl
 
 ## Key Entities
 
-### Workflow Graph
+### Assembly Line Graph
 A declarative description of a flow as nodes and edges. Stored in `assembly-lines/*.yaml` (or equivalent) and loaded by both the local runner and the GKE supervisor. ([implemented by `loader.ts:63`](libs/assembly-lines/src/loader.ts#L63))
 
 ### Stage Commit
-A git commit produced at the end of a workflow phase. Carries trailers identifying the stage, iteration, and originating task. The commit is the durable handover unit between phases. ([implemented by `commit-trailers.ts:25`](libs/shared/src/commit-trailers.ts#L25))
+A git commit produced at the end of an assembly line phase. Carries trailers identifying the stage, iteration, and originating task. The commit is the durable handover unit between phases. ([implemented by `commit-trailers.ts:25`](libs/shared/src/commit-trailers.ts#L25))
 
 ### Dark-Factory Policy
 The merged result of the per-repo `settings.dark_factory.*` block plus per-task overrides. Determines: whether to create an Issue, whether to auto-merge on success, who to notify, and how strict the review gate is. ([implemented by `dark-factory-settings.ts:63`](libs/shared/src/dark-factory-settings.ts#L63))
