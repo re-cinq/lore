@@ -12,6 +12,7 @@ import { getPool } from "./db.js";
 import { PgEventQueue } from "@re-cinq/lore-shared/project/events/event-queue-pg.js";
 import { PgTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-pg.js";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
+import { PgAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-pg.js";
 import {
   DbLeaseBackend,
   type LeasePool,
@@ -30,6 +31,7 @@ import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-li
 let eventQueueSingleton: PgEventQueue | undefined;
 let taskQueueSingleton: PgTaskQueue | undefined;
 let taskStoreSingleton: PgTaskStore | undefined;
+let assemblyLinesSingleton: PgAssemblyLines | undefined;
 let leaseBackendSingleton: DbLeaseBackend | undefined;
 let auditLogSingleton: PgAudit | undefined;
 let usageSingleton: PgUsage | undefined;
@@ -56,6 +58,14 @@ export const taskQueue = (): PgTaskQueue =>
  */
 export const taskStore = (): PgTaskStore =>
   (taskStoreSingleton ??= new PgTaskStore(getPool()));
+
+/**
+ * First-class assembly line runs (pipeline.assembly_lines + _nodes), repo-agnostic.
+ * The event-loop handler and watchers reach the rows through this; a job that
+ * holds a Project uses `project.assemblyLines` instead.
+ */
+export const assemblyLines = (): PgAssemblyLines =>
+  (assemblyLinesSingleton ??= new PgAssemblyLines(getPool()));
 
 /** The cluster lease backend (its reap side feeds the lease-reaper). */
 export const leaseBackend = (): DbLeaseBackend =>
