@@ -1,20 +1,25 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { onboardRepo } from "../../../features/repo/repo-onboard.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
+
+const OnboardBody = z.object({
+  repo: z.string().includes("/", { message: "required: repo (owner/name format)" }),
+});
+type OnboardBody = z.infer<typeof OnboardBody>;
 
 export function onboardRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/onboard",
-    options: { ...bearerScope("admin"), payload: { parse: false } },
+    options: { ...bearerScope("admin"), validate: { payload: zodValidate(OnboardBody) } },
     handler: async (request, h) => {
       const pool = getPool();
       if (!pool) return h.response({ error: "database not available" }).code(503);
       try {
-        const { repo } = JSON.parse(rawBody(request));
-        if (!repo || !repo.includes("/")) return h.response({ error: "required: repo (owner/name format)" }).code(400);
+        const { repo } = request.payload as OnboardBody;
         return h.response(await onboardRepo(pool, repo));
       } catch (err: any) {
         console.error("[onboard] API error:", err.message);

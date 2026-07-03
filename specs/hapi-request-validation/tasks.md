@@ -53,7 +53,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 4 — Repos-write + admin group
 
-- [ ] T006 `routes/repos/onboard.ts` (payload schema, admin scope unchanged);
+- [x] T006 `routes/repos/onboard.ts` (payload schema, admin scope unchanged);
   `routes/tokens/tokens.ts` (POST create/revoke union — `name` required, scopes
   enum); `routes/dark-factory/dark-factory.ts` (PUT body schema — the two-key
   ceremony + JSONB txn + audit stay in the handler; only the parse moves);
