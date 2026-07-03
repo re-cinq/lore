@@ -64,7 +64,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 5 — Features group
 
-- [ ] T007 `routes/features/features.ts`: hapi parses the payload (`parse:true`,
+- [x] T007 `routes/features/features.ts`: hapi parses the payload (`parse:true`,
   keep 2 MB `maxBytes`); handlers read `request.payload` instead of
   `parseJsonBodyCapped`. **Domain transforms stay** — `enforceFeatureInput`,
   `parseSectionAnswers`, `parseGapResult`/`sanitizeGapResult` are validation +
