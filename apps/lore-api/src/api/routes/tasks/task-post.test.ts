@@ -104,9 +104,10 @@ describe("POST /api/task", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("returns 500 on invalid JSON", async () => {
+  it("returns 400 on invalid JSON", async () => {
+    // ADR-034: hapi parses the payload, so malformed JSON is a 400 (was 500).
     const res = await post("{bad");
-    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).toBe(400);
   });
 
   it("cancel issues the guarded tasks UPDATE with the task_id", async () => {

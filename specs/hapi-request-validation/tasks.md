@@ -36,7 +36,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 2 — Tasks group
 
-- [ ] T004 `routes/tasks/task-post.ts`: model the create/retry/cancel/set-priority/
+- [x] T004 `routes/tasks/task-post.ts`: model the create/retry/cancel/set-priority/
   status-update variants as a zod discriminated union (or a permissive base schema
   + documented residual branching if the variants are too irregular — FR6). Drop
   `parse:false`; `validate` the payload; keep the `503`-no-pool guard and the

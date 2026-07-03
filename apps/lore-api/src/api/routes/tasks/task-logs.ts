@@ -1,7 +1,15 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
+
+const TaskLogsBody = z.object({
+  task_id: z.string().min(1),
+  repo: z.string().min(1),
+  logs: z.string().min(1),
+});
+type TaskLogsBody = z.infer<typeof TaskLogsBody>;
 
 // Both verbs require the "write" scope, matching the canonical route spec
 // (specs/api-routes/task-logs/spec.md) and the original method-agnostic
@@ -12,11 +20,10 @@ export function taskLogsPostRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/task-logs",
-    options: { ...bearerScope("write"), payload: { parse: false } },
+    options: { ...bearerScope("write"), validate: { payload: zodValidate(TaskLogsBody) } },
     handler: async (request, h) => {
       try {
-        const { task_id, repo, logs } = JSON.parse(rawBody(request));
-        if (!task_id || !repo || !logs) return h.response({ error: "missing fields" }).code(400);
+        const { task_id, repo, logs } = request.payload as TaskLogsBody;
         const { Storage } = await import("@google-cloud/storage");
         const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
         await bucket.file(`${repo}/${task_id}/output.log`).save(logs, { resumable: false, contentType: "text/plain" });
