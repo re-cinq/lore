@@ -15,6 +15,7 @@ function producibleEventNames(): string[] {
     ...GITHUB_EVENT_NAMES,
     ...AGENT_EVENT_NAMES,
     "internal.ingest.spec_trace", // ci-ingest-map + ci-tests-map
+    "assembly_line.start", // project.assemblyLines.start() — worker + station backend
     ...cronTickEventNames(),
   ];
 }

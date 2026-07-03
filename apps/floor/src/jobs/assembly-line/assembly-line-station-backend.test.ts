@@ -1,44 +1,51 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
+import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { AssemblyLineStationBackend } from "./assembly-line-station-backend.js";
-import type { runFloorAssemblyLineForTask, FloorAssemblyLineRuntime } from "./floor-assembly-line-run.js";
-import type { FloorAssemblyLineTask } from "./floor-assembly-line.js";
 
-const runtime = {} as FloorAssemblyLineRuntime;
-const spec = (taskId: string): LoreTaskSpec => ({
-  taskId,
-  taskType: "implementation",
-  description: "d",
-  prompt: "p",
-  targetRepo: "o/r",
-  branch: "lore/b",
-});
+function spec(taskId: string): LoreTaskSpec {
+  return {
+    taskId,
+    taskType: "implementation",
+    description: "implement the thing",
+    prompt: "p",
+    targetRepo: "o/r",
+    branch: "lore/b",
+  };
+}
 
 describe("AssemblyLineStationBackend", () => {
-  it("fires the assembly line in the background and returns launched immediately", async () => {
-    const seen: Array<Omit<FloorAssemblyLineTask, "assemblyLineId">> = [];
-    const run = vi.fn<typeof runFloorAssemblyLineForTask>(async (task) => {
-      seen.push(task);
-      return { ranWork: true, reason: "completed" };
-    });
-    const backend = new AssemblyLineStationBackend(runtime, run);
+  it("launch starts the assembly line (row + start event) and returns its id as the ref", async () => {
+    const port = new InMemoryAssemblyLines();
+    const backend = new AssemblyLineStationBackend(port);
 
-    expect(await backend.launch(spec("t-1"))).toEqual({ ref: "t-1", launched: true });
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(seen[0]).toMatchObject({ taskId: "t-1", taskType: "implementation", targetRepo: "o/r", branch: "lore/b" });
+    const result = await backend.launch(spec("t-1"));
+
+    expect(result.launched).toBe(true);
+    expect(port.rows).toMatchObject([
+      {
+        id: result.ref,
+        definitionName: "implementation",
+        repo: "o/r",
+        branch: "lore/b",
+        taskId: "t-1",
+        status: "queued",
+      },
+    ]);
+    expect(port.events).toMatchObject([
+      { eventName: "assembly_line.start", dedupeKey: `assembly_line.start:${result.ref}` },
+    ]);
     expect(await backend.isActive()).toBe(true);
   });
 
-  it("swallows + logs a background assembly line failure without failing the launch", async () => {
-    const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    const run = vi.fn<typeof runFloorAssemblyLineForTask>(async () => {
-      throw new Error("boom");
-    });
-    const backend = new AssemblyLineStationBackend(runtime, run);
+  it("two launches of the same task mint distinct assembly line ids", async () => {
+    const port = new InMemoryAssemblyLines();
+    const backend = new AssemblyLineStationBackend(port);
 
-    expect(await backend.launch(spec("t-2"))).toEqual({ ref: "t-2", launched: true });
-    await new Promise((resolve) => setTimeout(resolve, 0)); // flush the background rejection
-    expect(err).toHaveBeenCalledWith(expect.stringContaining("t-2"));
-    err.mockRestore();
+    const first = await backend.launch(spec("t-1"));
+    const second = await backend.launch(spec("t-1"));
+
+    expect(first.ref).not.toBe(second.ref);
+    expect(port.rows).toHaveLength(2);
   });
 });

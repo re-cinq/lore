@@ -10,6 +10,7 @@ import * as github from "../jobs/github.js";
 import * as internal from "../jobs/internal.js";
 import * as cron from "../jobs/cron.js";
 import * as kubernetes from "../jobs/kubernetes.js";
+import { assemblyLineStart } from "../jobs/assembly-line/start-event-handler.js";
 
 export function buildRegistry(): Map<string, EventHandler> {
   return new Map<string, EventHandler>([
@@ -28,6 +29,11 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Internal (mcp-server post-ingest) ──
     ["internal.ingest.spec_trace", internal.specTrace],
     ["internal.ingest.spec_coverage_validate", internal.specCoverageValidate],
+
+    // ── Assembly lines (project.assemblyLines.start() inserts row + event atomically;
+    //    a top-level family — the assembly line is a primary concept, its producer
+    //    spans shared/mcp/floor rather than one source) ──
+    ["assembly_line.start", assemblyLineStart],
 
     // ── Kubernetes (the Agent-CR watch emits on terminal phase) ──
     ["kubernetes.agent.succeeded", kubernetes.agentSucceeded],
