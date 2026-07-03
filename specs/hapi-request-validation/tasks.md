@@ -1,6 +1,6 @@
 # Tasks: Move lore-api request validation into hapi's `options.validate` (zod)
 
-**Status: Draft.** Follows ADR-033's end state (lore-api is pure hapi) by wiring
+**Status: COMPLETE — every JSON API route validates through zod.** Follows ADR-033's end state (lore-api is pure hapi) by wiring
 zod schemas into hapi's validation lifecycle. Each route-group phase is **one
 commit**: add the schemas + `validate` options, delete that group's `parse:false`
 + in-handler parsing, migrate its tests — together. The suite stays green after
@@ -81,10 +81,10 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 7 — Teardown + verify
 
-- [ ] T009 Delete `parseJsonBodyCapped` from `server/raw-body.ts` once no route
+- [x] T009 Delete `parseJsonBodyCapped` from `server/raw-body.ts` once no route
   imports it (`rawBody` **stays** — the webhook routes still use it, FR7). Remove
   any now-unused `WRITE_PAYLOAD`/`parse:false` remnants from converted routes.
-- [ ] T010 Verify all success criteria:
+- [x] T010 Verify all success criteria (all green — 368 tests, tsc clean, monorepo build exit 0):
   - **SC-1** `grep -rE "rawBody|parseJsonBodyCapped|JSON.parse" apps/lore-api/src/api/routes`
     returns nothing outside `routes/webhooks/` + tests.
   - **SC-2** malformed JSON → `400` on memory + task-post (tests cite ADR-034).
