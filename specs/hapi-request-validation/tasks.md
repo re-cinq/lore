@@ -10,13 +10,13 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 0 — Foundation (ADR + validator)
 
-- [ ] T001 Write `adrs/ADR-034-lore-api-request-validation.md` (MADR, amends
+- [x] T001 Write `adrs/ADR-034-lore-api-request-validation.md` (MADR, amends
   ADR-033): context (hand-rolled body parse + imperative field checks, `parse:false`
   purely to mimic the legacy `500`-on-bad-JSON), decision (zod → hapi
   `options.validate` via a shared adapter; `{ error }` 400 body; hapi parses
   payloads so **malformed JSON becomes `400`, not `500`**), consequences,
   alternatives (joi / keep-500 half-refactor / status quo).
-- [ ] T002 `apps/lore-api/src/server/plugins/zod-validate.ts`: `zodValidate(schema)`
+- [x] T002 `apps/lore-api/src/server/plugins/zod-validate.ts`: `zodValidate(schema)`
   → an async hapi validation function (`safeParse`, throw a Boom whose
   `output.payload` is pre-shaped to `{ error: <message> }` — the `bearer-scope.ts`
   pattern). `formatZodError(err)` renders a single message naming the first
