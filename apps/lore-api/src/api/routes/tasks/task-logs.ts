@@ -3,15 +3,16 @@ import type { ServerRoute } from "@hapi/hapi";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { rawBody } from "../../../server/raw-body.js";
 
-// Both verbs resolve to the "task" scope: `getRequiredScope` matches by prefix,
-// first-match-wins, and "/api/task-logs".startsWith("/api/task") is true, so the
-// "/api/task"→"task" entry shadowed the (dead) "/api/task-logs"→"write" one. The
-// native routes reproduce that exact scope.
+// Both verbs require the "write" scope, matching the canonical route spec
+// (specs/api-routes/task-logs/spec.md) and the original method-agnostic
+// "/api/task-logs"→"write" scope map. The legacy prefix matcher resolved
+// "/api/task-logs".startsWith("/api/task") first, silently shadowing that entry
+// with "task"; per-route declaration removes the collision.
 export function taskLogsPostRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/task-logs",
-    options: { ...bearerScope("task"), payload: { parse: false } },
+    options: { ...bearerScope("write"), payload: { parse: false } },
     handler: async (request, h) => {
       try {
         const { task_id, repo, logs } = JSON.parse(rawBody(request));
@@ -31,7 +32,7 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/task-logs",
-    options: bearerScope("task"),
+    options: bearerScope("write"),
     handler: async (request, h) => {
       const q = request.query as Record<string, string | undefined>;
       const taskId = q.task_id;

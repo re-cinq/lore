@@ -143,6 +143,12 @@ migrate the group's contract tests — all together.
   the migrated `ROUTE_SCOPES` entries (`/api/tasks`, `/api/task/`,
   `/api/job-run-logs`) + the dead `/api/task-logs`→`write`. Kept `/api/task`→`task`
   (POST `/api/task` + POST `/api/task-logs`, both still bridged — Phase 6).
+  > **Corrected (fix/task-logs-write-scope):** the migration reproduced the
+  > *shadowed* scope, not the intended one. Both verbs of `/api/task-logs` now
+  > declare `bearerScope("write")`, restoring the `/api/task-logs`→`write` entry
+  > that the `startsWith("/api/task")` prefix collision had smothered, and matching
+  > the canonical `specs/api-routes/task-logs/spec.md`. The `task`-scope text above
+  > records the point-in-time migration decision, not the current requirement.
 - [x] `task-logs.ts` keeps the raw `handleTaskLogs` (POST, bridged) alongside the
   native GET route. Tests migrated to `inject`; `task-logs.test.ts` POST block
   still drives the bridge. **Dropped** the timeline "stricter handler regex" 404
@@ -162,6 +168,9 @@ migrate the group's contract tests — all together.
   matters). Registered in `build-server.ts`; both legacy POST rows deleted, and
   the last `/api/task`→`task` `ROUTE_SCOPES` entry removed. Rate-limit parity via
   the ext: `/api/task` → `task` bucket, `/api/task-logs` → `default`.
+  > **Corrected (fix/task-logs-write-scope):** `taskLogsPostRoute` now uses
+  > `bearerScope("write")` (see the Phase 5 scopes note above). The `default`
+  > rate-limit bucket is unchanged — that axis is unrelated to auth scope.
 - [x] Tests migrated to `inject`: `task-post.test.ts` (incl. invalid-JSON 500),
   `task-logs.test.ts` POST block off the bridge. `rate-limit.test.ts` gains the
   **`task`-bucket 61st-request 429** assertion (SC-4). The `build-server.test.ts`
