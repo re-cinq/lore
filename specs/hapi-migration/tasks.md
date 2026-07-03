@@ -325,7 +325,10 @@ migrate the group's contract tests — all together.
     `node:http` `createServer` in app code. `@hapi/hapi ^21.4.9` is a declared
     dependency.
   - **SC-2** — `integration-tests/proxy.test.ts` drives the hapi server via
-    `buildServer().start()` (typechecks; DB-gated in CI).
+    `buildServer().start()`. Executed against a real Postgres (2026-07-03, an
+    isolated throwaway `lore_test` mirroring the CI service DB): the proxy suite
+    is 3/3 green (GET read round-trip, POST write persisted to the DB, the
+    `not_configured` path) and the full integration config is 19/19.
   - **SC-3** — auth matrix preserved: `bearer-scope.test.ts` proves 401 (missing),
     403 (under-scoped), and `LORE_INGEST_TOKEN` full access; each migrated group
     kept its own auth assertions.
@@ -335,4 +338,12 @@ migrate the group's contract tests — all together.
   - **SC-5** — one independently-revertable PR/commit per phase (68c0288 …
     teardown), no mid-migration 404s (hapi hosted 100% from PR #1).
   - `apps/lore-api` typechecks (`tsc --noEmit`) and the full suite is green
-    (350 tests).
+    (350 tests). The whole-monorepo build is green too — `npm run build` across
+    all six workspaces (shared/runner/server-core/api/mcp/floor) exits 0.
+  - **Tracing observed at runtime (2026-07-03), not just compiled:** with a real
+    OTel SDK + in-memory exporters registered, `buildServer` emits a per-request
+    span for a 401 (name `GET /api/repos`, `http.status_code=401`, ERROR status +
+    recorded `exception` event) and for an unmatched 404, and the `traceHttp`
+    metrics (`lore.http.requests`, `lore.http.duration_ms`) flow through a real
+    MeterProvider. Confirms the Phase 13 tracing ext in a running server,
+    closing the Phase 3 observability debt in fact, not just by inspection.
