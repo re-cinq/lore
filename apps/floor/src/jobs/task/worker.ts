@@ -209,9 +209,9 @@ async function processTask(task: any): Promise<void> {
       agentDef?.model || repoOverrides?.model || getTaskTypeConfig(task.task_type)?.model || undefined;
 
     // Dark-factory dispatch (T058 follow-up): when the repo has dark
-    // mode enabled AND the task type has a workflow definition, route
+    // mode enabled AND the task type has an assembly line definition, route
     // through the in-agent supervisor instead of the legacy code paths.
-    // Limited to JSON-output workflows (gap-fill, runbook); Claude
+    // Limited to JSON-output assembly lines (gap-fill, runbook); Claude
     // Code-driven types continue via the Job pod path until the
     // entrypoint.sh refactor lands.
     const { isDarkFactoryEligible } = await import("./orchestrator.js");
@@ -241,13 +241,13 @@ async function processTask(task: any): Promise<void> {
       await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
     } else {
       // All other task types dispatch an Agent CR (agent-cr / ai-agent-subsystem).
-      // For dark-mode repos with a workflow defined for the task type, pass the
-      // workflow name through so AgentCrStationBackend runs the Floor-side graph
+      // For dark-mode repos with an assembly line defined for the task type, pass the
+      // assembly line name through so AgentCrStationBackend runs the Floor-side graph
       // (one Agent CR per node) instead of a single Agent.
       //
-      // feature-planning/finalize always run their workflow in the Station
+      // feature-planning/finalize always run their assembly line in the Station
       // (ADR-028); other types need the repo's dark-factory mode enabled.
-      const darkFactoryWorkflow =
+      const darkFactoryAssemblyLine =
         isFeaturePlanningType || darkFactoryEnabled
           ? task.task_type
           : undefined;
@@ -257,7 +257,7 @@ async function processTask(task: any): Promise<void> {
       // master/develop. The pod uses this for `git diff origin/<base>`
       // to detect "did anything actually change?"
       let darkFactoryBaseBranch: string | undefined;
-      if (darkFactoryWorkflow) {
+      if (darkFactoryAssemblyLine) {
         try {
           darkFactoryBaseBranch = await project.repo.defaultBranch();
         } catch (err: any) {
@@ -278,7 +278,7 @@ async function processTask(task: any): Promise<void> {
         model,
         issueNumber,
         repoOverrides,
-        darkFactoryWorkflow,
+        darkFactoryAssemblyLine,
         darkFactoryBaseBranch,
         executionImage,
         agentDef,

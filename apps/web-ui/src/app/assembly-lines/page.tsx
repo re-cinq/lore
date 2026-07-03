@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 import { query } from '@/lib/db';
 import AssemblyLineListView from './AssemblyLineListView';
+import AssemblyLineRunsSection from './AssemblyLineRunsSection';
 import { groupTasksIntoAssemblyLines, type AssemblyLineTaskRow } from '@/lib/assembly-lines';
+import { fetchRecentAssemblyLineRuns } from '@/lib/assembly-line-runs';
 
 export default async function AssemblyLinesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { status } = await searchParams;
@@ -24,5 +26,14 @@ export default async function AssemblyLinesPage({ searchParams }: { searchParams
   const allRuns = groupTasksIntoAssemblyLines(tasks);
   const runs = status ? allRuns.filter(r => r.status === status) : allRuns;
 
-  return <AssemblyLineListView activeStatus={status} runs={runs} />;
+  // Per-attempt execution records (pipeline.assembly_lines, migration 0025);
+  // empty (section hidden) on databases that predate the migration.
+  const executionRuns = await fetchRecentAssemblyLineRuns();
+
+  return (
+    <>
+      <AssemblyLineListView activeStatus={status} runs={runs} />
+      <AssemblyLineRunsSection runs={executionRuns} />
+    </>
+  );
 }

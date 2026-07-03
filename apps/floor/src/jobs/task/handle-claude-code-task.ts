@@ -14,7 +14,7 @@ import { agentPrompt } from "../../kernel/agent-invocation.js";
 /**
  * Handle complex tasks (implementation, refactoring) by dispatching an Agent CR
  * to the ai-agent-subsystem. The agent-cr backend runs the Agent (or the
- * Floor-side workflow graph) and the agent-watcher job creates the PR when it
+ * Floor-side assembly line graph) and the agent-watcher job creates the PR when it
  * completes.
  */
 export async function handleClaudeCodeTask(
@@ -24,7 +24,7 @@ export async function handleClaudeCodeTask(
   model: string | undefined,
   _issueNumber: number | null,
   repoOverrides?: any,
-  darkFactoryWorkflow?: string,
+  darkFactoryAssemblyLine?: string,
   darkFactoryBaseBranch?: string,
   image?: string,
   agentDef?: { prompt?: string | null; timeout_minutes?: number | null } | null,
@@ -45,7 +45,7 @@ export async function handleClaudeCodeTask(
 
   // Dark-factory mode: the label marks the CR `lore.re-cinq.com/dark-factory=true`
   // and the spec.darkFactory block tells the agent-cr backend to run the
-  // Floor-side workflow graph for this task type.
+  // Floor-side assembly line graph for this task type.
   const project = await projectFor(targetRepo);
   const result = await project.agents.run(task.id, {
     mode: "cluster",
@@ -56,10 +56,11 @@ export async function handleClaudeCodeTask(
     model: model || "claude-sonnet-4-6",
     timeoutMinutes,
     ...(image ? { image } : {}),
-    ...(darkFactoryWorkflow
+    ...(darkFactoryAssemblyLine
       ? {
           extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
-          darkFactory: { workflowName: darkFactoryWorkflow, baseBranch: darkFactoryBaseBranch ?? "main" },
+          // `workflowName` is the CR-spec wire field (read by the pod via LORE_DARK_FACTORY_WORKFLOW) — renaming it needs both sides.
+          darkFactory: { workflowName: darkFactoryAssemblyLine, baseBranch: darkFactoryBaseBranch ?? "main" },
         }
       : {}),
   });
