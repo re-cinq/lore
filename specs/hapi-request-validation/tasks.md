@@ -75,7 +75,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 6 — Trace + impact group
 
-- [ ] T008 [P] `routes/impact/impact.ts` (payload schema; the fail-soft `200`
+- [x] T008 [P] `routes/impact/impact.ts` (payload schema; the fail-soft `200`
   preserved); `routes/trace/trace.ts` (`{kind}` param schema — the allowlist
   becomes a zod enum → `404`/`400` per current behavior). Tests migrated. (FR2, FR4)
 

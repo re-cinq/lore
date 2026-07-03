@@ -21,14 +21,18 @@ import {
   type ChangedRange,
   type ImpactReport,
 } from "@re-cinq/lore-shared";
+import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { parseJsonBodyCapped } from "../../../server/raw-body.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
 
-interface ImpactBody {
-  commit?: string;
-  base?: string;
-  files?: ChangedRange[];
-}
+// Fail-soft: `files` stays unknown so a malformed value degrades to [] in the
+// handler (not a 400); an absent body coerces to {}.
+const ImpactBody = z.preprocess((v) => v ?? {}, z.object({
+  commit: z.string().optional(),
+  base: z.string().optional(),
+  files: z.unknown().optional(),
+}));
+type ImpactBody = z.infer<typeof ImpactBody>;
 
 const UNAVAILABLE: ImpactReport = { status: "unavailable", statements: [], orphaned: [], testSelectors: [] };
 
@@ -36,15 +40,10 @@ export function impactRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/impact",
-    options: { ...bearerScope("write"), payload: { parse: false, maxBytes: 2 * 1_048_576 } },
+    options: { ...bearerScope("write"), payload: { maxBytes: 2 * 1_048_576 }, validate: { payload: zodValidate(ImpactBody) } },
     handler: async (request, h) => {
       const repo = `${request.params.owner}/${request.params.repo}`;
-      let body: ImpactBody;
-      try {
-        body = parseJsonBodyCapped(request) as ImpactBody;
-      } catch (err) {
-        return h.response({ error: "invalid_body", detail: (err as Error).message }).code(400);
-      }
+      const body = request.payload as ImpactBody;
       const files = Array.isArray(body.files) ? body.files : [];
 
       const report = await safeComputeImpact(repo, files);
