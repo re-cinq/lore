@@ -1,4 +1,4 @@
-// Agent-node assembly line handler (ADR-031 D4, #686 Wave 2). The cluster path runs the workflow
+// Agent-node assembly line handler (ADR-031 D4, #686 Wave 2). The cluster path runs the assembly line
 // assembly line Floor-side; an `agent` node no longer spawns claude in-pod (claude-code-handler)
 // but DISPATCHES one Agent custom resource, then polls its status to terminal while
 // heartbeating the branch lease (a run can take minutes — longer than executeAssemblyLine's
@@ -10,7 +10,7 @@ import type {
   NodeResult,
   NodeContext,
 } from "./assembly-line-executor.js";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 
 /** The slice of an Agent's status the handler reacts to. */
 export interface AgentNodeStatus {
@@ -21,7 +21,7 @@ export interface AgentNodeStatus {
 
 export interface AgentNodeDeps {
   /** Dispatch the Agent CR for this node (builds the spec from node + ctx). */
-  launch: (node: WorkflowNode, ctx: NodeContext) => Promise<void>;
+  launch: (node: AssemblyLineNode, ctx: NodeContext) => Promise<void>;
   /** Current status of THIS node's Agent, or null if not found yet. Keyed by node id
    *  because the Floor-side assembly line dispatches a separate Agent CR per agent-node (#686). */
   poll: (taskId: string, nodeId: string) => Promise<AgentNodeStatus | null>;
@@ -68,7 +68,7 @@ export function createAgentNodeHandler(deps: AgentNodeDeps): NodeHandler {
   const intervalMs = deps.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const maxPolls = deps.maxPolls ?? DEFAULT_MAX_POLLS;
 
-  return async (node: WorkflowNode, ctx: NodeContext): Promise<NodeResult> => {
+  return async (node: AssemblyLineNode, ctx: NodeContext): Promise<NodeResult> => {
     await deps.launch(node, ctx);
     for (let poll = 0; poll < maxPolls; poll++) {
       await deps.heartbeat(ctx.branchName, node.id);

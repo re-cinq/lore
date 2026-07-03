@@ -4,7 +4,7 @@ import {
   type Project,
   type StationBackend,
 } from "@re-cinq/lore-shared";
-import { loadBuiltinWorkflows } from "@re-cinq/lore-runner";
+import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { getPool } from "../kernel/db.js";
 import { AgentCrBackend } from "../jobs/station/agent-backend.js";
 import { KubeAgentApi } from "../jobs/station/kube-agent-api.js";
@@ -35,13 +35,13 @@ const NO_OP_DGRAPH = {
 
 /**
  * The Station backend: the ai-agent-subsystem `Agent` path (ADR-031). Within it,
- * task types that have a workflow run the Floor-side assembly line (one Agent CR per
+ * task types that have an assembly line run the Floor-side assembly line (one Agent CR per
  * node, #686); the rest run a single Agent. Both share the AgentCrBackend for CR
  * dispatch. (The legacy LoreTask + Docker backends were removed once agent-cr
  * became the sole path.)
  */
 export function stationBackend(
-  workflows: ReadonlySet<string> = new Set(),
+  assemblyLines: ReadonlySet<string> = new Set(),
 ): StationBackend {
   const agentBackend = new AgentCrBackend(
     new KubeAgentApi(),
@@ -56,19 +56,19 @@ export function stationBackend(
   return new AgentCrStationBackend(
     new AssemblyLineStationBackend(floorAssemblyLineRuntime(agentBackend)),
     agentBackend,
-    workflows,
+    assemblyLines,
   );
 }
 
-/** The builtin workflow names (task types with a assembly line), loaded + cached once. */
-let workflowNamesCache: Promise<ReadonlySet<string>> | undefined;
-function workflowNames(): Promise<ReadonlySet<string>> {
-  return (workflowNamesCache ??= loadBuiltinWorkflows().then((m) => new Set(m.keys())));
+/** The builtin assembly line names (task types with an assembly line), loaded + cached once. */
+let assemblyLineNamesCache: Promise<ReadonlySet<string>> | undefined;
+function assemblyLineNames(): Promise<ReadonlySet<string>> {
+  return (assemblyLineNamesCache ??= loadBuiltinAssemblyLines().then((m) => new Set(m.keys())));
 }
 
 export async function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
-  const station = stationBackend(await workflowNames());
+  const station = stationBackend(await assemblyLineNames());
 
   return createProject(repo, getPool(), dgraph, process.env, { station });
 }

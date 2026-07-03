@@ -1,6 +1,6 @@
 # Lore test-command interface. Discovery + per-test coverage come from this
 # repo's own vitest runner, spanning every traceability package (libs/shared,
-# libs/runner, libs/server-core, apps/floor, apps/lore-api, apps/mcp-server,
+# libs/assembly-lines, libs/server-core, apps/floor, apps/lore-api, apps/mcp-server,
 # apps/web-ui) so spec links to any package's tests get covered. The scripts run
 # vitest per-package internally, so cwd is the repo root.
 # Descriptors are per-`it` (the describe chain feeds spec-sentence acceptance

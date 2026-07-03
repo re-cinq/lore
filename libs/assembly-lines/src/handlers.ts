@@ -55,7 +55,7 @@ export interface ProductionHandlersDeps {
 }
 
 /**
- * Production retrospective handler. Closes FR1's loop: every workflow
+ * Production retrospective handler. Closes FR1's loop: every assembly line
  * ends with an episode capturing what happened on the branch, and an
  * auto-curated lesson stored as `auto-curation/<task-id>` for future
  * tasks to retrieve.
@@ -77,7 +77,7 @@ export function createProductionRetrospectiveHandler(
 
   return async (_node, ctx) => {
     const summary =
-      `Task ${ctx.taskId} completed workflow ${ctx.workflowName} ` +
+      `Task ${ctx.taskId} completed assemblyLine ${ctx.assemblyLineName} ` +
       `on branch ${ctx.branchName} (iteration ${ctx.iteration}).`;
     const ref = `dark-factory/${ctx.taskId}`;
 
@@ -88,10 +88,10 @@ export function createProductionRetrospectiveHandler(
     }
 
     // Auto-merge trigger. The retrospective node is the right place
-    // because the workflow has finished its real work — the PR is open,
+    // because the assembly line has finished its real work — the PR is open,
     // CI is running (or done), bot review has posted. Calling
     // evaluateAndMerge here keeps the auto-merge decision atomic with
-    // the workflow exit; no separate poll/webhook needed.
+    // the assembly line exit; no separate poll/webhook needed.
     const triggerAutoMerge = deps.evaluateAndMerge;
     const resolvePrForTask = deps.resolvePrForTask;
     if (triggerAutoMerge && resolvePrForTask) {
@@ -127,7 +127,7 @@ export function createProductionHandlers(opts: {
   validate?: NodeHandler;
   gate?: NodeHandler;
   retrospective?: NodeHandler;
-  /** Wired by the Floor-side driver for workflows with a `github_action` node (D3). */
+  /** Wired by the Floor-side driver for assembly lines with a `github_action` node (D3). */
   github_action?: NodeHandler;
   episodeDeps: ProductionHandlersDeps;
 }): NodeHandlers {

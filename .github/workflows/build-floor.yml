@@ -9,9 +9,9 @@ on:
       # change must rebuild + redeploy, or the cluster runs stale shared code
       # while main is green (rediscovered 2026-06-11).
       - 'libs/shared/**'
-      # The compiled `runner` kernel is bundled too (the agent imports
-      # @re-cinq/lore-runner) — a runner-only change must rebuild + redeploy.
-      - 'libs/runner/**'
+      # The compiled assembly-lines kernel is bundled too (the agent imports
+      # @re-cinq/lore-assembly-lines) — an assembly-lines-only change must rebuild + redeploy.
+      - 'libs/assembly-lines/**'
       # Chart or workflow changes need a redeploy too.
       - 'infra/terraform/modules/gke-mcp/lore-platform/charts/floor-helm/**'
       # Parent umbrella chart — a Chart.yaml/values.yaml change redeploys.

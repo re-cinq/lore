@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 import type { NodeContext } from "./assembly-line-executor.js";
 import {
   parseReviewVerdict,
@@ -9,13 +9,13 @@ import {
   type AgentNodeDeps,
 } from "./agent-node-handler.js";
 
-const node: WorkflowNode = { id: "implement", type: "agent" };
+const node: AssemblyLineNode = { id: "implement", type: "agent" };
 const ctx: NodeContext = {
   taskId: "task-1",
   branchName: "lore/impl-1",
   gitDir: "/work",
   iteration: 0,
-  workflowName: "implementation",
+  assemblyLineName: "implementation",
 };
 
 describe("parseReviewVerdict", () => {

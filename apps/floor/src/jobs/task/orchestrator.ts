@@ -24,11 +24,11 @@ import { writeAuditLog } from "../lib/audit.js";
 import { leaseBackendForEnv } from "../../main-loop/lease/lease-backend.js";
 import {
   runSupervisor,
-  loadBuiltinWorkflows,
+  loadBuiltinAssemblyLines,
   createAgentHandler,
   createProductionHandlers,
-  type Workflow,
-} from "@re-cinq/lore-runner";
+  type AssemblyLine,
+} from "@re-cinq/lore-assembly-lines";
 import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
 
 const execFile = promisify(execFileCb);
@@ -36,9 +36,9 @@ const execFile = promisify(execFileCb);
 /**
  * In-agent task processor for dark-mode tasks (T058 follow-up). When a
  * pipeline task lands on a repo with `dark_factory.enabled = true` and
- * a workflow exists for the task type, the worker dispatches here
+ * an assembly line exists for the task type, the worker dispatches here
  * instead of handing off to the LoreTask CRD path. Limited in scope
- * to JSON-output workflows (gap-fill, runbook); Claude-Code-driven
+ * to JSON-output assembly lines (gap-fill, runbook); Claude-Code-driven
  * task types (implementation, general) continue to run via the Job
  * pod path until the entrypoint.sh refactor lands.
  */
@@ -59,8 +59,8 @@ export interface ProcessTaskViaSupervisorOptions {
    * when omitted (greenfield tasks).
    */
   branchName?: string;
-  /** Override for tests — defaults to the runner's bundled workflows. */
-  loadWorkflows?: () => Promise<Map<string, Workflow>>;
+  /** Override for tests — defaults to the runner's bundled assembly lines. */
+  loadAssemblyLines?: () => Promise<Map<string, AssemblyLine>>;
   /** Override for tests — mints the GitHub App installation token for clone/push.
    *  Defaults to the shared PlatformGitHub. */
   gitToken?: () => Promise<string>;
@@ -86,7 +86,7 @@ export interface ProcessTaskViaSupervisorResult {
 }
 
 /**
- * Maps task_type → workflow name. The workflow YAML's `name` field is
+ * Maps task_type → assembly line name. The assembly line YAML's `name` field is
  * the resolution key. Today's dark-factory MVP only routes gap-fill +
  * runbook through here; other task types continue via the legacy path.
  */
@@ -110,12 +110,12 @@ export async function processTaskViaSupervisor(
   const { task, settings } = opts;
   const branchName = opts.branchName ?? buildBranchName(task);
 
-  const workflows = await (opts.loadWorkflows ?? loadBuiltinWorkflows)();
-  const workflow = workflows.get(task.task_type);
-  if (!workflow) {
+  const assemblyLines = await (opts.loadAssemblyLines ?? loadBuiltinAssemblyLines)();
+  const assemblyLine = assemblyLines.get(task.task_type);
+  if (!assemblyLine) {
     return {
       outcome: "error",
-      errorMessage: `no workflow defined for task type "${task.task_type}"`,
+      errorMessage: `no assembly line defined for task type "${task.task_type}"`,
     };
   }
 
@@ -168,9 +168,9 @@ export async function processTaskViaSupervisor(
     const result = await runSupervisor({
       taskId: task.id,
       branchName,
-      workflowName: workflow.name,
+      assemblyLineName: assemblyLine.name,
       gitDir: workdir,
-      workflow,
+      assemblyLine,
       handlers,
       leaseBackend: leaseBackendForEnv(),
       audit: process.env.LORE_DB_HOST ? { write: writeAuditLog } : undefined,
@@ -184,7 +184,7 @@ export async function processTaskViaSupervisor(
           branchName: info.branchName,
           reason: "iteration_max_exceeded",
           diagnostic:
-            `Workflow ${info.workflowName} exceeded iteration_max=${info.iterationMax} ` +
+            `AssemblyLine ${info.assemblyLineName} exceeded iteration_max=${info.iterationMax} ` +
             `on back-edge ${info.fromNode} → ${info.toNode}`,
         });
       },
@@ -310,7 +310,7 @@ async function pushAndOpenPr(opts: {
   // Real change detection: compare HEAD to the upstream default branch
   // via diff, not commit count. Stage commits include intentional
   // empty commits (validate / gate / retrospective per FR1.3), so a
-  // workflow that runs to completion without producing file changes
+  // assembly line that runs to completion without producing file changes
   // still has commitCount > 1. `git diff --shortstat` against the
   // default branch returns "" iff no real diff exists.
   await execFile("git", [

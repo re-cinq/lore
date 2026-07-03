@@ -71,7 +71,7 @@ GitHub Actions** (a `github-action` workflow node), and the Floor-side graph gat
 **conclusion** — deterministic, because GitHub runs the repo's real toolchain. Repos without CI are
 covered by onboarding scaffolding `lore-tests.yml`.
 
-**D4 — The assembly line runs Floor-side.** `libs/runner`'s `executeAssemblyLine` (pure orchestration, no
+**D4 — The assembly line runs Floor-side.** `libs/assembly-lines`'s `executeAssemblyLine` (pure orchestration, no
 Anthropic dependency) runs **in the Floor**; a new agent-node handler **dispatches one `Agent` CR per
 agent-node and awaits its terminal status**, heartbeating the branch lease while it waits. Lease,
 branch-as-state resume (commit trailers), and `iteration_max` are branch-centric and unchanged.

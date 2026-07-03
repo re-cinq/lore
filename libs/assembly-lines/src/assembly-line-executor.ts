@@ -5,7 +5,7 @@ import {
   lastStageOnBranch,
   type Trailers,
 } from "@re-cinq/lore-shared/commit-trailers.js";
-import type { Workflow, WorkflowNode } from "./loader.js";
+import type { AssemblyLine, AssemblyLineNode } from "./loader.js";
 import type { LeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 
 const execFile = promisify(execFileCb);
@@ -26,11 +26,11 @@ export interface NodeContext {
   branchName: string;
   gitDir: string;
   iteration: number;
-  workflowName: string;
+  assemblyLineName: string;
 }
 
 export type NodeHandler = (
-  node: WorkflowNode,
+  node: AssemblyLineNode,
   ctx: NodeContext,
 ) => Promise<NodeResult>;
 
@@ -39,12 +39,12 @@ export interface NodeHandlers {
   validate: NodeHandler;
   gate: NodeHandler;
   retrospective: NodeHandler;
-  /** Optional — only workflows with a `github_action` node need it (D3). */
+  /** Optional — only assembly lines with a `github_action` node need it (D3). */
   github_action?: NodeHandler;
 }
 
 export interface IterationMaxExceededInfo {
-  workflowName: string;
+  assemblyLineName: string;
   fromNode: string;
   toNode: string;
   iterationMax: number;
@@ -61,14 +61,14 @@ export interface IterationMaxExceededInfo {
 export class IterationMaxExceededError extends Error {
   constructor(public readonly info: IterationMaxExceededInfo) {
     super(
-      `Workflow ${info.workflowName}: back-edge ${info.fromNode} → ${info.toNode} exceeded iteration_max=${info.iterationMax}`,
+      `AssemblyLine ${info.assemblyLineName}: back-edge ${info.fromNode} → ${info.toNode} exceeded iteration_max=${info.iterationMax}`,
     );
     this.name = "IterationMaxExceededError";
   }
 }
 
 export interface ExecuteOptions {
-  workflow: Workflow;
+  assemblyLine: AssemblyLine;
   taskId: string;
   branchName: string;
   gitDir: string;
@@ -108,32 +108,32 @@ export interface ExecutionSummary {
 const DEFAULT_MAX_NODES = 200;
 
 /**
- * Walk the workflow assembly line for one task. Each node is dispatched to its
+ * Walk the assembly line for one task. Each node is dispatched to its
  * handler; the executor commits a stage commit with structured trailers
  * after the handler returns. Outcomes drive edge selection. The lease
  * is refreshed before every node.
  *
  * Resume semantics (T015): on entry, parse the most recent
  * `Lore-Stage:` trailer on the branch. If found and it maps to a node
- * in the workflow, follow the outcome-matching outgoing edge to find
+ * in the assembly line, follow the outcome-matching outgoing edge to find
  * the next node. Stages already committed are not re-executed (FR1.2).
  */
 export async function executeAssemblyLine(
   opts: ExecuteOptions,
 ): Promise<ExecutionSummary> {
-  const { workflow, branchName, holder, leaseBackend, handlers } = opts;
+  const { assemblyLine, branchName, holder, leaseBackend, handlers } = opts;
   const maxNodes = opts.maxNodes ?? DEFAULT_MAX_NODES;
   const commit = opts.gitCommit ?? defaultGitCommit;
 
-  const resume = await resumeFromBranch(workflow, branchName, opts.gitDir);
-  let currentId = resume?.nextNode ?? workflow.entry;
+  const resume = await resumeFromBranch(assemblyLine, branchName, opts.gitDir);
+  let currentId = resume?.nextNode ?? assemblyLine.entry;
   let iteration = resume?.iteration ?? 1;
 
   const visited: ExecutionSummary["visited"] = [];
   const backEdgeCounts = new Map<string, number>();
 
   for (let step = 0; step < maxNodes; step++) {
-    if (currentId === workflow.exit) {
+    if (currentId === assemblyLine.exit) {
       return {
         visited,
         resumedFromNode: resume?.nextNode,
@@ -141,10 +141,10 @@ export async function executeAssemblyLine(
       };
     }
 
-    const node = workflow.nodes.find((n) => n.id === currentId);
+    const node = assemblyLine.nodes.find((n) => n.id === currentId);
     if (!node) {
       throw new Error(
-        `Workflow ${workflow.name}: unknown node "${currentId}"`,
+        `AssemblyLine ${assemblyLine.name}: unknown node "${currentId}"`,
       );
     }
 
@@ -153,7 +153,7 @@ export async function executeAssemblyLine(
     const handler = handlers[node.type];
     if (!handler) {
       throw new Error(
-        `Workflow ${workflow.name}: no handler registered for node type "${node.type}" (node "${currentId}")`,
+        `AssemblyLine ${assemblyLine.name}: no handler registered for node type "${node.type}" (node "${currentId}")`,
       );
     }
     const result = await handler(node, {
@@ -161,7 +161,7 @@ export async function executeAssemblyLine(
       branchName,
       gitDir: opts.gitDir,
       iteration,
-      workflowName: workflow.name,
+      assemblyLineName: assemblyLine.name,
     });
 
     await emitStageCommit(commit, opts.gitDir, {
@@ -174,14 +174,14 @@ export async function executeAssemblyLine(
 
     visited.push({ nodeId: currentId, outcome: result.outcome, iteration });
 
-    const candidates = workflow.edges.filter(
+    const candidates = assemblyLine.edges.filter(
       (e) =>
         e.from === currentId &&
         (e.on === result.outcome || e.on === "always"),
     );
     if (candidates.length === 0) {
       throw new Error(
-        `Workflow ${workflow.name}: no edge from "${currentId}" for outcome "${result.outcome}"`,
+        `AssemblyLine ${assemblyLine.name}: no edge from "${currentId}" for outcome "${result.outcome}"`,
       );
     }
     const matchOutcome = candidates.find((e) => e.on === result.outcome);
@@ -192,7 +192,7 @@ export async function executeAssemblyLine(
       const count = (backEdgeCounts.get(key) ?? 0) + 1;
       if (count > chosen.iteration_max) {
         const info: IterationMaxExceededInfo = {
-          workflowName: workflow.name,
+          assemblyLineName: assemblyLine.name,
           fromNode: chosen.from,
           toNode: chosen.to,
           iterationMax: chosen.iteration_max,
@@ -219,7 +219,7 @@ export async function executeAssemblyLine(
   }
 
   throw new Error(
-    `Workflow ${workflow.name}: maxNodes (${maxNodes}) reached without hitting exit`,
+    `AssemblyLine ${assemblyLine.name}: maxNodes (${maxNodes}) reached without hitting exit`,
   );
 }
 
@@ -229,13 +229,13 @@ interface ResumePoint {
 }
 
 async function resumeFromBranch(
-  workflow: Workflow,
+  assemblyLine: AssemblyLine,
   branchName: string,
   gitDir: string,
 ): Promise<ResumePoint | null> {
   const trailers = await lastStageOnBranch(branchName, gitDir);
   if (!trailers) return null;
-  return resumeFromTrailers(workflow, trailers);
+  return resumeFromTrailers(assemblyLine, trailers);
 }
 
 /**
@@ -243,22 +243,22 @@ async function resumeFromBranch(
  * branch's most recent commit, find the node it represents and follow
  * the outcome-matching edge to the next node.
  *
- * Returns null when the trailer's stage isn't in this workflow (stale
- * branch / workflow rename — caller restarts from entry) or when no
+ * Returns null when the trailer's stage isn't in this assembly line (stale
+ * branch / assembly line rename — caller restarts from entry) or when no
  * matching outgoing edge exists.
  */
 export function resumeFromTrailers(
-  workflow: Workflow,
+  assemblyLine: AssemblyLine,
   trailers: Trailers,
 ): ResumePoint | null {
-  const stageNode = workflow.nodes.find((n) => n.id === trailers.stage);
+  const stageNode = assemblyLine.nodes.find((n) => n.id === trailers.stage);
   if (!stageNode) return null;
 
   const outcome =
     (trailers.extras?.["Lore-Outcome"] as StageOutcome | undefined) ??
     "success";
 
-  const edge = workflow.edges.find(
+  const edge = assemblyLine.edges.find(
     (e) =>
       e.from === trailers.stage && (e.on === outcome || e.on === "always"),
   );
