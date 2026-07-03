@@ -40,7 +40,7 @@ describe("Pod-death takeover (T028)", () => {
     const result = await runSupervisor({
       taskId: "task-1",
       branchName: "lore/feature/x",
-      workflowName: "gap-fill",
+      assemblyLineName: "gap-fill",
       holder: "pod-B",
       leaseBackend: backend,
     });
@@ -60,7 +60,7 @@ describe("Pod-death takeover (T028)", () => {
     const result = await runSupervisor({
       taskId: "task-1",
       branchName: "lore/feature/x",
-      workflowName: "gap-fill",
+      assemblyLineName: "gap-fill",
       holder: "pod-B",
       leaseBackend: backend,
     });
@@ -85,7 +85,7 @@ describe("Pod-death takeover (T028)", () => {
       const r = await runSupervisor({
         taskId: "task-1",
         branchName: "lore/feature/x",
-        workflowName: "gap-fill",
+        assemblyLineName: "gap-fill",
         holder,
         leaseBackend: backend,
       });

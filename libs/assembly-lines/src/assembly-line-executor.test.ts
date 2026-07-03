@@ -7,12 +7,12 @@ import {
   type NodeHandlers,
   type NodeResult,
 } from "./assembly-line-executor.js";
-import { parseWorkflow, type Workflow } from "./loader.js";
+import { parseAssemblyLine, type AssemblyLine } from "./loader.js";
 import type { LeaseBackend } from "@re-cinq/lore-shared";
 
 // ── Fixtures ────────────────────────────────────────────────────────────
 
-const linearWorkflow: Workflow = parseWorkflow(`
+const linearAssemblyLine: AssemblyLine = parseAssemblyLine(`
 name: linear
 description: a → b → c
 version: 1
@@ -34,7 +34,7 @@ edges:
     on: always
 `);
 
-const reviewLoopWorkflow: Workflow = parseWorkflow(`
+const reviewLoopAssemblyLine: AssemblyLine = parseAssemblyLine(`
 name: review-loop
 description: implement → validate → review → (changes → implement)
 version: 1
@@ -97,7 +97,7 @@ function makeHandlers(
 
 // Pure executor tests use a fake committer so no real git is required.
 function makeCapturingExecuteOpts(opts: {
-  workflow: Workflow;
+  assemblyLine: AssemblyLine;
   outcomes?: Partial<Record<string, NodeResult>>;
 }): {
   capture: RunCapture;
@@ -106,7 +106,7 @@ function makeCapturingExecuteOpts(opts: {
   const capture: RunCapture = { visited: [], commits: [] };
   const run = () =>
     executeAssemblyLine({
-      workflow: opts.workflow,
+      assemblyLine: opts.assemblyLine,
       taskId: "task-1",
       branchName: "branch-x",
       gitDir: "/dev/null",
@@ -125,7 +125,7 @@ function makeCapturingExecuteOpts(opts: {
 describe("executeAssemblyLine (linear)", () => {
   it("walks entry → ... → exit", async () => {
     const { capture, run } = makeCapturingExecuteOpts({
-      workflow: linearWorkflow,
+      assemblyLine: linearAssemblyLine,
     });
     const summary = await run();
     expect(summary.reachedExit).toBe(true);
@@ -136,7 +136,7 @@ describe("executeAssemblyLine (linear)", () => {
 
   it("emits Lore-Stage / Lore-Iteration / Lore-Task / Lore-Outcome trailers", async () => {
     const { capture, run } = makeCapturingExecuteOpts({
-      workflow: linearWorkflow,
+      assemblyLine: linearAssemblyLine,
     });
     await run();
     const body = capture.commits[0].body;
@@ -148,7 +148,7 @@ describe("executeAssemblyLine (linear)", () => {
 
   it("throws when no edge matches the outcome", async () => {
     const { run } = makeCapturingExecuteOpts({
-      workflow: linearWorkflow,
+      assemblyLine: linearAssemblyLine,
       outcomes: { a: { outcome: "failed" } },
     });
     await expect(run()).rejects.toThrow(
@@ -177,7 +177,7 @@ describe("executeAssemblyLine (review loop)", () => {
     })();
 
     const summary = await executeAssemblyLine({
-      workflow: reviewLoopWorkflow,
+      assemblyLine: reviewLoopAssemblyLine,
       taskId: "t",
       branchName: "b",
       gitDir: "/dev/null",
@@ -201,7 +201,7 @@ describe("executeAssemblyLine (review loop)", () => {
     let reviewCalls = 0;
     await expect(
       executeAssemblyLine({
-        workflow: reviewLoopWorkflow,
+        assemblyLine: reviewLoopAssemblyLine,
         taskId: "t",
         branchName: "b",
         gitDir: "/dev/null",
@@ -228,7 +228,7 @@ describe("executeAssemblyLine (review loop)", () => {
     const escalations: IterationMaxExceededInfo[] = [];
     await expect(
       executeAssemblyLine({
-        workflow: reviewLoopWorkflow,
+        assemblyLine: reviewLoopAssemblyLine,
         taskId: "task-x",
         branchName: "branch-y",
         gitDir: "/dev/null",
@@ -252,7 +252,7 @@ describe("executeAssemblyLine (review loop)", () => {
 
     expect(escalations).toHaveLength(1);
     expect(escalations[0]).toMatchObject({
-      workflowName: "review-loop",
+      assemblyLineName: "review-loop",
       iterationMax: 2,
       taskId: "task-x",
       branchName: "branch-y",
@@ -267,7 +267,7 @@ describe("executeAssemblyLine (lease)", () => {
     const backend = noopBackend();
     const refresh = backend.refresh as ReturnType<typeof vi.fn>;
     await executeAssemblyLine({
-      workflow: linearWorkflow,
+      assemblyLine: linearAssemblyLine,
       taskId: "t",
       branchName: "branch-x",
       gitDir: "/dev/null",
@@ -292,7 +292,7 @@ describe("executeAssemblyLine (lease)", () => {
 
 describe("resumeFromTrailers", () => {
   it("returns next node from a successful prior stage", () => {
-    const r = resumeFromTrailers(linearWorkflow, {
+    const r = resumeFromTrailers(linearAssemblyLine, {
       stage: "a",
       iteration: 1,
       taskId: "t",
@@ -302,7 +302,7 @@ describe("resumeFromTrailers", () => {
   });
 
   it("defaults outcome to success when no Lore-Outcome trailer", () => {
-    const r = resumeFromTrailers(linearWorkflow, {
+    const r = resumeFromTrailers(linearAssemblyLine, {
       stage: "a",
       iteration: 1,
       taskId: "t",
@@ -310,8 +310,8 @@ describe("resumeFromTrailers", () => {
     expect(r?.nextNode).toBe("b");
   });
 
-  it("returns null when stage isn't in this workflow (stale branch)", () => {
-    const r = resumeFromTrailers(linearWorkflow, {
+  it("returns null when stage isn't in this assembly line (stale branch)", () => {
+    const r = resumeFromTrailers(linearAssemblyLine, {
       stage: "ghost-stage",
       iteration: 1,
       taskId: "t",
@@ -320,7 +320,7 @@ describe("resumeFromTrailers", () => {
   });
 
   it("follows changes_requested back-edge", () => {
-    const r = resumeFromTrailers(reviewLoopWorkflow, {
+    const r = resumeFromTrailers(reviewLoopAssemblyLine, {
       stage: "review",
       iteration: 1,
       taskId: "t",
@@ -330,7 +330,7 @@ describe("resumeFromTrailers", () => {
   });
 
   it("returns null when no edge matches the outcome", () => {
-    const r = resumeFromTrailers(linearWorkflow, {
+    const r = resumeFromTrailers(linearAssemblyLine, {
       stage: "a",
       iteration: 1,
       taskId: "t",

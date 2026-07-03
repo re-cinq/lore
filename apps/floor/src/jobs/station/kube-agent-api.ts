@@ -4,7 +4,7 @@
 // ai-agents namespace (agents.re-cinq.com); a 409 maps to created:false.
 
 import { GROUP, VERSION, type Agent as AgentCr } from "@re-cinq/agent-contracts";
-import type { AgentNodeStatus } from "@re-cinq/lore-runner";
+import type { AgentNodeStatus } from "@re-cinq/lore-assembly-lines";
 import type { AgentApi } from "./agent-backend.js";
 
 const PLURAL = "agents";

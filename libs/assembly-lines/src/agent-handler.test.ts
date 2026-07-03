@@ -6,11 +6,11 @@ import {
   createAgentHandler,
   extractJsonFiles,
 } from "./agent-handler.js";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 import type { NodeContext } from "./assembly-line-executor.js";
 import type { LlmCompletion } from "@re-cinq/lore-shared";
 
-const node: WorkflowNode = {
+const node: AssemblyLineNode = {
   id: "draft",
   type: "agent",
   prompt_ref: "gap-fill",
@@ -23,7 +23,7 @@ function makeCtx(gitDir: string): NodeContext {
     branchName: "lore/gap-fill/x",
     gitDir,
     iteration: 1,
-    workflowName: "gap-fill",
+    assemblyLineName: "gap-fill",
   };
 }
 
@@ -215,7 +215,7 @@ describe("createAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "gap-fill" },
     );
     const r = await handler(
-      { id: "draft", type: "agent" } as WorkflowNode,
+      { id: "draft", type: "agent" } as AssemblyLineNode,
       makeCtx(tmpDir),
     );
     expect(r.outcome).toBe("failed");

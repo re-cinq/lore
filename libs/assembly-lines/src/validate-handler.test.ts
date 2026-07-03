@@ -6,15 +6,15 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createValidateHandler } from "./validate-handler.js";
 import { RELAY_SCRIPT } from "./relay/relay-script.js";
 import type { NodeContext } from "./assembly-line-executor.js";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 
-const node = { id: "validate", type: "validate" } as unknown as WorkflowNode;
+const node = { id: "validate", type: "validate" } as unknown as AssemblyLineNode;
 const ctx = (gitDir: string): NodeContext => ({
   taskId: "t1",
   branchName: "b",
   gitDir,
   iteration: 0,
-  workflowName: "wf",
+  assemblyLineName: "wf",
 });
 
 const dirs: string[] = [];

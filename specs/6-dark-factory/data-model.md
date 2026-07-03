@@ -213,7 +213,7 @@ The four dark-factory `event_type` values populate the `payload` JSONB:
 
 ## Workflow graph (new entity)
 
-Files at `agent/src/workflows/<name>.yaml` define the graph for a task type. Loaded at supervisor start. Schema in `contracts/workflow-yaml-schema.md`.
+Files at `libs/assembly-lines/src/assembly-lines/<name>.yaml` define the graph for a task type. Loaded at supervisor start. Schema in `contracts/workflow-yaml-schema.md`.
 
 Per-repo overrides in `settings.workflows[]` array can replace the default for any task type, validated against the same schema.
 

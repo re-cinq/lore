@@ -1,5 +1,5 @@
 // Floor-side assembly-line driver — core (ADR-031 D4, #686 Wave 2). When the assembly line runs
-// Floor-side, each agent-node dispatches its OWN Agent CR (the workflow has several), and
+// Floor-side, each agent-node dispatches its OWN Agent CR (the assembly line has several), and
 // the github_action nodes gate on CI. This module is the pure/assembly core: the per-node
 // dispatch spec + wiring the runner kernel's agent-node + github_action handlers to the
 // Floor's ports. The IO shell (clone the branch for stage-commit state, run the
@@ -10,11 +10,11 @@ import {
   createGithubActionHandler,
   createProductionHandlers,
   type NodeHandlers,
-  type WorkflowNode,
+  type AssemblyLineNode,
   type AgentNodeStatus,
   type CiConclusion,
   type ProductionHandlersDeps,
-} from "@re-cinq/lore-runner";
+} from "@re-cinq/lore-assembly-lines";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 
 export interface FloorAssemblyLineTask {
@@ -33,7 +33,7 @@ export function nodeAgentName(taskId: string, nodeId: string): string {
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
-  node: WorkflowNode,
+  node: AssemblyLineNode,
   task: FloorAssemblyLineTask,
   prompt: string,
 ): LoreTaskSpec {
@@ -53,7 +53,7 @@ export interface FloorAssemblyLinePorts {
   /** Dispatch one node's Agent CR (e.g. AgentCrBackend.launch). */
   dispatchAgent: (spec: LoreTaskSpec) => Promise<void>;
   /** Resolve a node's prompt template for the task. */
-  resolvePrompt: (node: WorkflowNode, task: FloorAssemblyLineTask) => string;
+  resolvePrompt: (node: AssemblyLineNode, task: FloorAssemblyLineTask) => string;
   /** Read this node's Agent status (keyed by node id). */
   agentStatus: (taskId: string, nodeId: string) => Promise<AgentNodeStatus | null>;
   /** Aggregate CI conclusion for the branch's head. */

@@ -28,7 +28,7 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 
 ```
 apps/        deployable services        floor · mcp-server · web-ui · vscode-extension
-libs/        shared libraries           shared (@re-cinq/lore-shared) · runner (@re-cinq/lore-runner)
+libs/        shared libraries           shared (@re-cinq/lore-shared) · assembly-lines (@re-cinq/lore-assembly-lines)
 infra/       deploy & runtime           terraform · docker · k8s · compose.yaml
 specs/       speckit specs (spec/plan/tasks/contracts) — first-class, links into code
 adrs/        architecture decision records (MADR)
@@ -97,7 +97,7 @@ Lore is modeled as an autonomous software **factory** ("Dark Factory" is a *mode
 |---|---|---|
 | **Factory** | the whole platform — Lore itself | 1 |
 | **Floor** | the long-running coordinator runtime: dispatches Agents onto Stations, runs the AssemblyLines, reaps leases | 1 → N (per team / cluster / trust tier) |
-| **AssemblyLine** | a workflow of Stations with distinct responsibilities that hand off / wait on each other | per task |
+| **AssemblyLine** | a graph of Stations with distinct responsibilities that hand off / wait on each other | per task |
 | **Station** | the unit that runs exactly one Agent — a Kubernetes Job pod, or a local sandbox/worktree | per task-run |
 | **Agent** | a single ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
 

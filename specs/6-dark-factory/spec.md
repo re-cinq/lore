@@ -296,7 +296,7 @@ fewer PRs, each carrying genuine human-decision weight.
 ### FR1 — Branch-as-state checkpoints
 
 - **FR1.1** Every workflow phase MUST end with a git commit containing a structured trailer block including at minimum `Lore-Stage:`, `Lore-Iteration:`, and `Lore-Task:`. Trailers are emitted unconditionally on every Lore-authored commit, regardless of the repo's `dark_factory.enabled` setting; they are the audit substrate for both dark-mode and opt-out repos. ([validated by `commit-trailers.test.ts:11`](libs/shared/src/commit-trailers.test.ts#L11); implemented by [`commit-trailers.ts:25`](libs/shared/src/commit-trailers.ts#L25))
-- **FR1.2** A supervisor process MUST be able to determine the next workflow node to execute by inspecting the branch's commit log alone, without reading the database or the CRD. ([validated by `assembly-line-executor.test.ts:293`](libs/runner/src/assembly-line-executor.test.ts#L293); implemented by [`assembly-line-executor.ts:119`](libs/runner/src/assembly-line-executor.ts#L119))
+- **FR1.2** A supervisor process MUST be able to determine the next assembly line node to execute by inspecting the branch's commit log alone, without reading the database or the CRD. ([validated by `assembly-line-executor.test.ts:293`](libs/assembly-lines/src/assembly-line-executor.test.ts#L293); implemented by [`assembly-line-executor.ts:119`](libs/assembly-lines/src/assembly-line-executor.ts#L119))
 - **FR1.3** Phases that produce no file changes (e.g. a no-op review) MUST still produce a commit (empty commit allowed) so the trailer is captured.
 - **FR1.4** Branch history MUST NOT be rewritten by agents (no `--amend`, no force-push, no rebase) for any branch carrying stage trailers.
 - **FR1.5** The `Lore-Task: <uuid>` trailer MUST also appear in the final PR body, replacing the today's `Refs #<issue>` cross-reference. ([validated by `pr-body.test.ts:11`](libs/shared/src/pr-body.test.ts#L11); implemented by [`pr-body.ts:10`](libs/shared/src/pr-body.ts#L10))
@@ -304,10 +304,10 @@ fewer PRs, each carrying genuine human-decision weight.
 
 ### FR2 — Assembly line
 
-- **FR2.1** Workflow definitions MUST live as YAML files outside of TypeScript code, in a directory parallel to `scripts/task-types.yaml`. No alternate formats (DOT, JSON, custom DSL) are introduced; web-ui renders the graph from YAML directly. ([validated by `loader.test.ts:35`](libs/runner/src/loader.test.ts#L35); implemented by [`loader.ts:63`](libs/runner/src/loader.ts#L63))
-- **FR2.2** A workflow definition MUST express: nodes (typed: agent stage, validation, gate, retrospective), edges (with conditions on commit / CI / review outcomes), and entry/exit nodes. ([validated by `loader.test.ts:144`](libs/runner/src/loader.test.ts#L144); implemented by [`loader.ts:63`](libs/runner/src/loader.ts#L63))
-- **FR2.3** The local runner and the GKE supervisor MUST interpret the same workflow definition file. ([validated by `assembly-line-executor.test.ts:125`](libs/runner/src/assembly-line-executor.test.ts#L125); implemented by [`assembly-line-executor.ts:119`](libs/runner/src/assembly-line-executor.ts#L119))
-- **FR2.4** Existing flows (implementation, gap-fill, runbook, review, feature-request, onboard, general) MUST be migratable to graph definitions without losing current behavior. ([validated by `loader.test.ts:226`](libs/runner/src/loader.test.ts#L226); implemented by [`loader.ts:96`](libs/runner/src/loader.ts#L96))
+- **FR2.1** Assembly line definitions MUST live as YAML files outside of TypeScript code, in a directory parallel to `scripts/task-types.yaml`. No alternate formats (DOT, JSON, custom DSL) are introduced; web-ui renders the graph from YAML directly. ([validated by `loader.test.ts:35`](libs/assembly-lines/src/loader.test.ts#L35); implemented by [`loader.ts:63`](libs/assembly-lines/src/loader.ts#L63))
+- **FR2.2** An assembly line definition MUST express: nodes (typed: agent stage, validation, gate, retrospective), edges (with conditions on commit / CI / review outcomes), and entry/exit nodes. ([validated by `loader.test.ts:144`](libs/assembly-lines/src/loader.test.ts#L144); implemented by [`loader.ts:63`](libs/assembly-lines/src/loader.ts#L63))
+- **FR2.3** The local runner and the GKE supervisor MUST interpret the same assembly line definition file. ([validated by `assembly-line-executor.test.ts:125`](libs/assembly-lines/src/assembly-line-executor.test.ts#L125); implemented by [`assembly-line-executor.ts:119`](libs/assembly-lines/src/assembly-line-executor.ts#L119))
+- **FR2.4** Existing flows (implementation, gap-fill, runbook, review, feature-request, onboard, general) MUST be migratable to graph definitions without losing current behavior. ([validated by `loader.test.ts:226`](libs/assembly-lines/src/loader.test.ts#L226); implemented by [`loader.ts:96`](libs/assembly-lines/src/loader.ts#L96))
 - **FR2.5** Adding a new flow MUST require only a new graph definition + any new agent prompts referenced by it; no changes to supervisor / runner code.
 
 ### FR3 — Opt-out human gates
@@ -397,7 +397,7 @@ At least **three repos representing distinct trust tiers (`docs`, `tests`, `impl
 ## Key Entities
 
 ### Workflow Graph
-A declarative description of a flow as nodes and edges. Stored in `workflows/*.yaml` (or equivalent) and loaded by both the local runner and the GKE supervisor. ([implemented by `loader.ts:63`](libs/runner/src/loader.ts#L63))
+A declarative description of a flow as nodes and edges. Stored in `assembly-lines/*.yaml` (or equivalent) and loaded by both the local runner and the GKE supervisor. ([implemented by `loader.ts:63`](libs/assembly-lines/src/loader.ts#L63))
 
 ### Stage Commit
 A git commit produced at the end of a workflow phase. Carries trailers identifying the stage, iteration, and originating task. The commit is the durable handover unit between phases. ([implemented by `commit-trailers.ts:25`](libs/shared/src/commit-trailers.ts#L25))

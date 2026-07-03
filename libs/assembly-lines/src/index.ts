@@ -1,6 +1,6 @@
-// @re-cinq/lore-runner — the portable execution kernel.
+// @re-cinq/lore-assembly-lines — the portable execution kernel.
 //
-// The task-execution kernel (workflow assembly line executor, node handlers, workflow
+// The task-execution kernel (assembly line executor, node handlers, assembly line
 // loader, claude spawner, runSupervisor, pod entry) extracted from the agent so
 // it can run inside any container. It depends only on @re-cinq/lore-shared and
 // receives all repo I/O through injected ports (a Project facade's leases/audit/
@@ -73,17 +73,16 @@ export {
 } from "./claude-code.js";
 
 export {
-  loadWorkflowDir,
-  loadWorkflowFile,
-  parseWorkflow,
-  WorkflowLoadError,
-  type Workflow,
-  type WorkflowNode,
-  type WorkflowEdge,
+  loadAssemblyLineDir,
+  parseAssemblyLine,
+  AssemblyLineLoadError,
+  type AssemblyLine,
+  type AssemblyLineNode,
+  type AssemblyLineEdge,
   type EdgeConditionValue,
 } from "./loader.js";
 
-export { loadBuiltinWorkflows } from "./builtin-workflows.js";
+export { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 
 export {
   RelayExecutor,
