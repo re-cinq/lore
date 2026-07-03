@@ -11,6 +11,7 @@ import type { AssemblyLineNode } from "./loader.js";
 const node = { id: "validate", type: "validate" } as unknown as AssemblyLineNode;
 const ctx = (gitDir: string): NodeContext => ({
   taskId: "t1",
+  assemblyLineId: "al-test-1",
   branchName: "b",
   gitDir,
   iteration: 0,

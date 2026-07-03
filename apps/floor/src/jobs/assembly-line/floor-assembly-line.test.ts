@@ -11,6 +11,7 @@ import {
 
 const task: FloorAssemblyLineTask = {
   taskId: "abcdef1234567890",
+  assemblyLineId: "a1b2c3d4e5f6a7b8",
   taskType: "implementation",
   description: "Implement the spec",
   targetRepo: "re-cinq/lore",
@@ -19,6 +20,7 @@ const task: FloorAssemblyLineTask = {
 
 const ctx: NodeContext = {
   taskId: task.taskId,
+  assemblyLineId: task.assemblyLineId,
   branchName: task.branch,
   gitDir: "/work",
   iteration: 0,
@@ -41,9 +43,9 @@ describe("nodeAgentSpec", () => {
       targetRepo: "re-cinq/lore",
       branch: "lore/impl-abcdef12",
       model: "claude-sonnet-4-6",
-      name: "abcdef12-implement",
+      name: "a1b2c3d4-implement",
     });
-    expect(nodeAgentName(task.taskId, "review")).toBe("abcdef12-review");
+    expect(nodeAgentName(task.assemblyLineId, "review")).toBe("a1b2c3d4-review");
   });
 
   it("omits model when the node inherits it", () => {
@@ -73,7 +75,9 @@ describe("buildFloorAssemblyLineHandlers", () => {
     const result = await handlers.agent({ id: "implement", type: "agent" }, ctx);
     expect(result.outcome).toBe("success");
     expect(dispatched).toHaveLength(1);
-    expect(dispatched[0]).toMatchObject({ name: "abcdef12-implement", prompt: "prompt:implement" });
+    expect(dispatched[0]).toMatchObject({ name: "a1b2c3d4-implement", prompt: "prompt:implement" });
+    // The CR spec keeps the taskId — the watcher/reaper probe Agent CRs by task-id label.
+    expect(dispatched[0]).toMatchObject({ taskId: "abcdef1234567890" });
   });
 
   it("github_action slot gates on the branch CI conclusion", async () => {

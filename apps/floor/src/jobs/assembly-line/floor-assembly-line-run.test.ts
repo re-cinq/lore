@@ -7,7 +7,8 @@ import * as fs from "node:fs/promises";
 import { FileLeaseBackend } from "@re-cinq/lore-shared";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
-import { runFloorAssemblyLine, checkoutBranch } from "./floor-assembly-line-run.js";
+import { runFloorAssemblyLine, checkoutBranch, portTrace, supervisorOutcome } from "./floor-assembly-line-run.js";
+import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
 import type { FloorAssemblyLineTask, FloorAssemblyLinePorts } from "./floor-assembly-line.js";
 
 const execFile = promisify(execFileCb);
@@ -35,6 +36,7 @@ const assemblyLine: AssemblyLine = {
 
 const task: FloorAssemblyLineTask = {
   taskId: "abcdef1234567890",
+  assemblyLineId: "a1b2c3d4e5f6a7b8",
   taskType: "implementation",
   description: "Implement the spec",
   targetRepo: "re-cinq/lore",
@@ -105,16 +107,52 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
 
     // The agent node dispatched exactly one per-node Agent CR with the node's prompt.
     expect(dispatched).toHaveLength(1);
-    expect(dispatched[0]).toMatchObject({ name: "abcdef12-implement", prompt: "prompt:implement" });
+    expect(dispatched[0]).toMatchObject({ name: "a1b2c3d4-implement", prompt: "prompt:implement" });
 
     // Branch-as-state: stage commits with trailers landed on the branch.
     const log = await execFile("git", ["-C", repoDir, "log", "--format=%B"]);
     expect(log.stdout).toContain("Lore-Stage: implement");
     expect(log.stdout).toContain("Lore-Stage: ci");
     expect(log.stdout).toContain("Lore-Task: abcdef1234567890");
+    expect(log.stdout).toContain("Lore-Assembly-Line: a1b2c3d4e5f6a7b8");
 
     // Lease released cleanly.
     expect(await fs.readdir(leasesDir)).toHaveLength(0);
+  });
+
+  it("traces every node into the assembly lines port with the CR name and stage-commit sha", async () => {
+    const { ports: p } = ports();
+    const port = new InMemoryAssemblyLines();
+    const result = await runFloorAssemblyLine({
+      task,
+      assemblyLine,
+      gitDir: repoDir,
+      holder: "test-floor",
+      leaseBackend: new FileLeaseBackend(leasesDir),
+      ports: p,
+      trace: portTrace(port),
+    });
+
+    expect(result.reason).toBe("completed");
+    expect(port.nodes.map((n) => n.nodeId)).toEqual(["implement", "ci", "wrap"]);
+    expect(port.nodes[0]).toMatchObject({
+      assemblyLineId: "a1b2c3d4e5f6a7b8",
+      agentCrName: "a1b2c3d4-implement",
+      outcome: "success",
+    });
+    // Every node row carries the sha of its stage commit on the real branch.
+    for (const node of port.nodes) {
+      expect(node.commitSha).toMatch(/^[0-9a-f]{40}$/);
+      expect(node.finishedAt).not.toBeNull();
+    }
+  });
+
+  it("supervisorOutcome maps supervisor reasons onto row outcomes", () => {
+    expect(supervisorOutcome({ ranWork: true, reason: "completed" })).toBe("completed");
+    expect(supervisorOutcome({ ranWork: false, reason: "lease_held" })).toBe("lease_held");
+    expect(supervisorOutcome({ ranWork: true, reason: "iteration_max_exceeded" })).toBe("iteration_max");
+    expect(supervisorOutcome({ ranWork: true, reason: "executor_pending" })).toBe("pending");
+    expect(supervisorOutcome({ ranWork: true, reason: "executor_error" })).toBe("error");
   });
 
   it("loops back to the agent when CI is red, then proceeds once it goes green", async () => {

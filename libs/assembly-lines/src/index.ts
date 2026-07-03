@@ -21,6 +21,7 @@ export {
   type StageOutcome,
   type NodeResult,
   type NodeContext,
+  type AssemblyLineTrace,
   type NodeHandler,
   type NodeHandlers,
   type IterationMaxExceededInfo,

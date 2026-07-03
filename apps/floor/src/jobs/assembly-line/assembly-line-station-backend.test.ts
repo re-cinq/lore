@@ -16,7 +16,7 @@ const spec = (taskId: string): LoreTaskSpec => ({
 
 describe("AssemblyLineStationBackend", () => {
   it("fires the assembly line in the background and returns launched immediately", async () => {
-    const seen: FloorAssemblyLineTask[] = [];
+    const seen: Array<Omit<FloorAssemblyLineTask, "assemblyLineId">> = [];
     const run = vi.fn<typeof runFloorAssemblyLineForTask>(async (task) => {
       seen.push(task);
       return { ranWork: true, reason: "completed" };
