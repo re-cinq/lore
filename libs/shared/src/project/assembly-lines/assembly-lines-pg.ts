@@ -48,20 +48,6 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     return rows[0].id;
   }
 
-  async record(input: AssemblyLineStartInput & { id: string }): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO pipeline.assembly_lines (id, definition_name, task_id, repo, branch, args)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
-      [
-        input.id,
-        input.definitionName,
-        input.taskId ?? null,
-        input.repo,
-        input.branch ?? null,
-        JSON.stringify(input.args ?? {}),
-      ],
-    );
-  }
 
   async markRunning(id: string): Promise<void> {
     await this.pool.query(

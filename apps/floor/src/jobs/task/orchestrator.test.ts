@@ -104,6 +104,7 @@ describe("processTaskViaSupervisor with an unknown definition", () => {
     const result = await processTaskViaSupervisor({
       task: { id: "t-1", description: "x", task_type: "no-such-type", target_repo: "o/r" },
       settings: resolveDarkFactorySettings(undefined),
+      assemblyLineId: "al-1",
       loadAssemblyLines: async () => new Map(),
       assemblyLinesPort: port,
     });

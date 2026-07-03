@@ -56,10 +56,6 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     return id;
   }
 
-  async record(input: AssemblyLineStartInput & { id: string }): Promise<void> {
-    this.rows.push(this.newRow(input.id, input));
-  }
-
   async markRunning(id: string): Promise<void> {
     const row = this.mustFind(id);
     row.status = "running";

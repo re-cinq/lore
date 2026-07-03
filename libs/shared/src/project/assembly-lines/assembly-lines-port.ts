@@ -40,12 +40,6 @@ export interface AssemblyLinesPort {
    * event loop picks the assembly line up. Returns the assemblyLineId.
    */
   start(input: AssemblyLineStartInput): Promise<string>;
-  /**
-   * Transitional: persist a row with a caller-minted id and NO event, for
-   * call sites that still execute inline. Removed once the event handler is
-   * the sole executor entry.
-   */
-  record(input: AssemblyLineStartInput & { id: string }): Promise<void>;
   markRunning(id: string): Promise<void>;
   /** `outcome: "error"` closes the row as `failed`; anything else as `finished`. */
   finish(id: string, outcome: string, reason?: string): Promise<void>;
