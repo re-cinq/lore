@@ -1,11 +1,11 @@
-// github_action node assembly line handler (ADR-031 D3, #686 Wave 2). Non-AI workflow steps gate
+// github_action node assembly line handler (ADR-031 D3, #686 Wave 2). Non-AI assembly line steps gate
 // on the repo's own GitHub Actions rather than an LLM: the node polls the branch's CI
 // conclusion to a terminal verdict (success/failure), heartbeating the branch lease while
 // it waits, and maps it to a node outcome. ciConclusion / heartbeat / sleep are injected
 // ports so the loop + mapping are deterministically testable.
 
 import type { NodeHandler, NodeResult, NodeContext, StageOutcome } from "./assembly-line-executor.js";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 
 /** Mirrors @re-cinq/lore-shared's CiConclusion (kept local to avoid a heavy import). */
 export type CiConclusion = "success" | "failure" | "pending" | "none";
@@ -42,7 +42,7 @@ export function createGithubActionHandler(deps: GithubActionDeps): NodeHandler {
   const intervalMs = deps.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const maxPolls = deps.maxPolls ?? DEFAULT_MAX_POLLS;
 
-  return async (node: WorkflowNode, ctx: NodeContext): Promise<NodeResult> => {
+  return async (node: AssemblyLineNode, ctx: NodeContext): Promise<NodeResult> => {
     for (let poll = 0; poll < maxPolls; poll++) {
       await deps.heartbeat(ctx.branchName, node.id);
       const conclusion = await deps.ciConclusion(ctx.branchName);

@@ -32,7 +32,7 @@ function relayValidationExec(relay: RelayExecutor): ValidationExec {
  * in the **BYO toolchain sidecar over the relay** when `relayDir` is set — so
  * `go vet` / `mypy` / `cargo check` execute in the repo's native toolchain
  * instead of the Node-only kernel image. A failing check yields `failed`, which
- * the workflow routes to its retry / escalation edge.
+ * the assembly line routes to its retry / escalation edge.
  */
 export function createValidateHandler(
   deps: ValidateHandlerDeps = {},

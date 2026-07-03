@@ -34,7 +34,7 @@ commits the platform to the manufacturing metaphor; this names the rest of it.
 |---|---|---|
 | **Factory** | the whole platform — Lore itself | 1 |
 | **Floor** | the coordinator runtime: dispatches Agents onto Stations, runs AssemblyLines, reaps leases | 1 → N |
-| **AssemblyLine** | a workflow of Stations with distinct responsibilities that hand off / wait on each other | per task |
+| **AssemblyLine** | a graph of Stations with distinct responsibilities that hand off / wait on each other | per task |
 | **Station** | the unit that runs exactly one Agent (a K8s Job pod, or a local sandbox/worktree) | per task-run |
 | **Agent** | one ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
 | **Agent definition** | the stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default → `task-types.yaml`) | per task-type (× repo) |
@@ -61,7 +61,7 @@ Current-code mapping:
 | Term | Today's code |
 |---|---|
 | Floor | `apps/floor` (the `lore-floor` deployment) |
-| AssemblyLine | the `workflow` YAML + supervisor graph (`@re-cinq/lore-runner`) |
+| AssemblyLine | the assembly line YAML + supervisor graph (`@re-cinq/lore-assembly-lines`) |
 | Station | the claude-runner Job pod / the local runner sandbox |
 | Agent | the `claude --print` / `Llm` invocation |
 | Agent definition | the `lore.agent_definitions` table, reached via `project.agentDefs` |
@@ -154,7 +154,7 @@ only through the Project facade port **`project.agentDefs`** (the config side;
 - **Workflows stay in the repo, not the DB.** An Agent definition is many-to-many
   with workflows, so the mapping lives only in the workflow YAML's `agent` nodes
   (referenced by name). Workflows change rarely and want PR review, so they
-  belong in `.lore/workflows/*.yaml` (built-in `libs/runner` workflows as the
+  belong in `.lore/workflows/*.yaml` (built-in `libs/assembly-lines` assembly lines as the
   fallback). What *starts* a run (the ingress event) is a property of the
   workflow (`on:`), not the definition — deferred to a follow-up (Phase 2) with
   the dispatch registry.

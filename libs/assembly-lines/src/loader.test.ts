@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import {
-  parseWorkflow,
-  loadWorkflowDir,
-  WorkflowLoadError,
+  parseAssemblyLine,
+  loadAssemblyLineDir,
+  AssemblyLineLoadError,
 } from "./loader.js";
 
 const linearAssemblyLine = `
@@ -31,9 +31,9 @@ edges:
     on: always
 `;
 
-describe("parseWorkflow", () => {
-  it("accepts a valid linear workflow", () => {
-    const wf = parseWorkflow(linearAssemblyLine);
+describe("parseAssemblyLine", () => {
+  it("accepts a valid linear assembly line", () => {
+    const wf = parseAssemblyLine(linearAssemblyLine);
     expect(wf.name).toBe("gap-fill");
     expect(wf.nodes).toHaveLength(3);
     expect(wf.entry).toBe("a");
@@ -41,14 +41,14 @@ describe("parseWorkflow", () => {
   });
 
   it("rejects malformed YAML", () => {
-    expect(() => parseWorkflow("name: x\n  - this: is: bad")).toThrow(
-      WorkflowLoadError,
+    expect(() => parseAssemblyLine("name: x\n  - this: is: bad")).toThrow(
+      AssemblyLineLoadError,
     );
   });
 
   it("rejects schema violations", () => {
     expect(() =>
-      parseWorkflow(`
+      parseAssemblyLine(`
 name: x
 description: d
 version: 1
@@ -64,7 +64,7 @@ edges: []
 
   it("rejects entry pointing to unknown node", () => {
     expect(() =>
-      parseWorkflow(`
+      parseAssemblyLine(`
 name: x
 description: d
 version: 1
@@ -80,7 +80,7 @@ edges: []
 
   it("rejects edges referencing unknown nodes", () => {
     expect(() =>
-      parseWorkflow(`
+      parseAssemblyLine(`
 name: x
 description: d
 version: 1
@@ -99,7 +99,7 @@ edges:
 
   it("rejects unreachable nodes", () => {
     expect(() =>
-      parseWorkflow(`
+      parseAssemblyLine(`
 name: x
 description: d
 version: 1
@@ -122,7 +122,7 @@ edges:
 
   it("rejects non-exit nodes with no outgoing edges", () => {
     expect(() =>
-      parseWorkflow(`
+      parseAssemblyLine(`
 name: x
 description: d
 version: 1
@@ -143,7 +143,7 @@ edges:
 
   it("requires iteration_max on cycles", () => {
     expect(() =>
-      parseWorkflow(`
+      parseAssemblyLine(`
 name: x
 description: d
 version: 1
@@ -171,7 +171,7 @@ edges:
   });
 
   it("accepts cycles with iteration_max set", () => {
-    const wf = parseWorkflow(`
+    const wf = parseAssemblyLine(`
 name: x
 description: d
 version: 1
@@ -201,7 +201,7 @@ edges:
 
   it("rejects invalid node id format", () => {
     expect(() =>
-      parseWorkflow(`
+      parseAssemblyLine(`
 name: x
 description: d
 version: 1
@@ -216,17 +216,17 @@ edges: []
   });
 });
 
-describe("loadWorkflowDir — bundled workflows", () => {
+describe("loadAssemblyLineDir — bundled assemblyLines", () => {
   // The bundled YAML files live next to the loader. Resolve the
-  // workflows directory relative to this test file so this works in
+  // assembly lines directory relative to this test file so this works in
   // both source-tree and dist-tree runs.
   const here = new URL(".", import.meta.url).pathname;
-  // The bundled YAMLs are a sibling of this file (src/workflows/), and the
-  // build copies them to dist/workflows/ — same relative position either way.
-  const workflowsDir = path.resolve(here, "workflows");
+  // The bundled YAMLs are a sibling of this file (src/assembly-lines/), and the
+  // build copies them to dist/assembly-lines/ — same relative position either way.
+  const assemblyLinesDir = path.resolve(here, "assembly-lines");
 
-  it("loads all bundled workflows without error", async () => {
-    const map = await loadWorkflowDir(workflowsDir);
+  it("loads all bundled assembly lines without error", async () => {
+    const map = await loadAssemblyLineDir(assemblyLinesDir);
     const names = Array.from(map.keys()).sort();
     expect(names).toEqual([
       "feature-finalize",
@@ -238,7 +238,7 @@ describe("loadWorkflowDir — bundled workflows", () => {
   });
 
   it("gap-fill is a linear flow with retrospective + done as exit pair", async () => {
-    const map = await loadWorkflowDir(workflowsDir);
+    const map = await loadAssemblyLineDir(assemblyLinesDir);
     const wf = map.get("gap-fill");
     expect(wf?.entry).toBe("draft");
     expect(wf?.exit).toBe("done");
@@ -246,7 +246,7 @@ describe("loadWorkflowDir — bundled workflows", () => {
   });
 
   it("implementation has a back-edge with iteration_max=2 (review→address)", async () => {
-    const map = await loadWorkflowDir(workflowsDir);
+    const map = await loadAssemblyLineDir(assemblyLinesDir);
     const wf = map.get("implementation");
     const reviewToAddress = wf?.edges.find(
       (e) => e.from === "review" && e.to === "address",
@@ -256,7 +256,7 @@ describe("loadWorkflowDir — bundled workflows", () => {
   });
 
   it("general has a single review node with success/changes/failed all routing to retrospective", async () => {
-    const map = await loadWorkflowDir(workflowsDir);
+    const map = await loadAssemblyLineDir(assemblyLinesDir);
     const wf = map.get("general");
     const reviewEdges = wf?.edges.filter((e) => e.from === "review") ?? [];
     const conditions = reviewEdges.map((e) => e.on).sort();
@@ -266,8 +266,8 @@ describe("loadWorkflowDir — bundled workflows", () => {
     }
   });
 
-  it("workflowsDir actually exists on disk (sanity check)", async () => {
-    const stat = await fs.stat(workflowsDir);
+  it("assemblyLinesDir actually exists on disk (sanity check)", async () => {
+    const stat = await fs.stat(assemblyLinesDir);
     expect(stat.isDirectory()).toBe(true);
   });
 });

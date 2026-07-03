@@ -13,12 +13,12 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import {
   runSupervisor,
-  loadBuiltinWorkflows,
-  type Workflow,
+  loadBuiltinAssemblyLines,
+  type AssemblyLine,
   type SupervisorResult,
   type AgentNodeStatus,
   type CiConclusion,
-} from "@re-cinq/lore-runner";
+} from "@re-cinq/lore-assembly-lines";
 import type { LeaseBackend, LoreTaskSpec, StationBackend } from "@re-cinq/lore-shared";
 import {
   buildFloorAssemblyLineHandlers,
@@ -36,7 +36,7 @@ const execFile = promisify(execFileCb);
 
 export interface RunFloorAssemblyLineOptions {
   task: FloorAssemblyLineTask;
-  workflow: Workflow;
+  assemblyLine: AssemblyLine;
   /** A checked-out working tree on the task's branch (stage commits + resume land here). */
   gitDir: string;
   holder: string;
@@ -52,11 +52,11 @@ export function runFloorAssemblyLine(opts: RunFloorAssemblyLineOptions): Promise
   return runSupervisor({
     taskId: opts.task.taskId,
     branchName: opts.task.branch,
-    workflowName: opts.workflow.name,
+    assemblyLineName: opts.assemblyLine.name,
     gitDir: opts.gitDir,
     holder: opts.holder,
     leaseBackend: opts.leaseBackend,
-    workflow: opts.workflow,
+    assemblyLine: opts.assemblyLine,
     handlers: buildFloorAssemblyLineHandlers(opts.task, opts.ports),
   });
 }
@@ -115,10 +115,10 @@ export async function runFloorAssemblyLineForTask(
   task: FloorAssemblyLineTask,
   rt: FloorAssemblyLineRuntime,
 ): Promise<SupervisorResult> {
-  const workflows = await loadBuiltinWorkflows();
-  const workflow = workflows.get(task.taskType);
-  if (!workflow) {
-    throw new Error(`No workflow for task type "${task.taskType}"`);
+  const assemblyLines = await loadBuiltinAssemblyLines();
+  const assemblyLine = assemblyLines.get(task.taskType);
+  if (!assemblyLine) {
+    throw new Error(`No assembly line defined for task type "${task.taskType}"`);
   }
   const holder = os.hostname();
   const { url, authArgs } = await rt.cloneAuth(task.targetRepo);
@@ -139,7 +139,7 @@ export async function runFloorAssemblyLineForTask(
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       episodeDeps: rt.episodeDeps,
     };
-    return await runFloorAssemblyLine({ task, workflow, gitDir, holder, leaseBackend: rt.leaseBackend, ports });
+    return await runFloorAssemblyLine({ task, assemblyLine, gitDir, holder, leaseBackend: rt.leaseBackend, ports });
   } finally {
     await fs.rm(gitDir, { recursive: true, force: true }).catch(() => {});
   }

@@ -6,20 +6,20 @@ WORKDIR /app
 # (node_modules/@re-cinq/lore-shared → ../../libs/shared) resolve at runtime.
 COPY package.json ./
 COPY libs/shared/package.json ./libs/shared/
-COPY libs/runner/package.json ./libs/runner/
+COPY libs/assembly-lines/package.json ./libs/assembly-lines/
 COPY apps/floor/package.json ./apps/floor/
-RUN npm install --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-runner --workspace=@re-cinq/lore-floor
+RUN npm install --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-floor
 
 # Build shared
 COPY libs/shared/tsconfig.json ./libs/shared/
 COPY libs/shared/src ./libs/shared/src
 RUN npm run build --workspace=@re-cinq/lore-shared
 
-# Build the runner kernel (the agent imports @re-cinq/lore-runner; its build
+# Build the assembly-lines kernel (the agent imports @re-cinq/lore-assembly-lines; its build
 # also copies the workflow YAMLs to dist/workflows for loadBuiltinWorkflows).
-COPY libs/runner/tsconfig.json ./libs/runner/
-COPY libs/runner/src ./libs/runner/src
-RUN npm run build --workspace=@re-cinq/lore-runner
+COPY libs/assembly-lines/tsconfig.json ./libs/assembly-lines/
+COPY libs/assembly-lines/src ./libs/assembly-lines/src
+RUN npm run build --workspace=@re-cinq/lore-assembly-lines
 
 # Build agent
 COPY apps/floor/tsconfig.json ./apps/floor/
@@ -35,7 +35,7 @@ ENV NODE_ENV=production
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git ca-certificates \
   && rm -rf /var/lib/apt/lists/*
-# /app/libs mirrors the repo so node_modules/@re-cinq/{lore-shared,lore-runner}
+# /app/libs mirrors the repo so node_modules/@re-cinq/{lore-shared,lore-assembly-lines}
 # → ../../libs/{shared,runner} resolve at runtime.
 COPY --from=builder /app/libs ./libs
 COPY --from=builder /app/apps/floor/dist ./dist

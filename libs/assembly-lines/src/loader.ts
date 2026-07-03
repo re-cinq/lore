@@ -28,7 +28,7 @@ const EdgeSchema = z.object({
   iteration_max: z.number().int().positive().optional(),
 });
 
-const WorkflowSchema = z.object({
+const AssemblyLineSchema = z.object({
   name: z.string(),
   description: z.string(),
   version: z.literal(1),
@@ -38,45 +38,45 @@ const WorkflowSchema = z.object({
   edges: z.array(EdgeSchema),
 });
 
-export type WorkflowNode = z.infer<typeof NodeSchema>;
-export type WorkflowEdge = z.infer<typeof EdgeSchema>;
-export type Workflow = z.infer<typeof WorkflowSchema>;
+export type AssemblyLineNode = z.infer<typeof NodeSchema>;
+export type AssemblyLineEdge = z.infer<typeof EdgeSchema>;
+export type AssemblyLine = z.infer<typeof AssemblyLineSchema>;
 export type EdgeConditionValue = z.infer<typeof EdgeCondition>;
 
-export class WorkflowLoadError extends Error {
+export class AssemblyLineLoadError extends Error {
   constructor(
     message: string,
     public readonly source?: string,
   ) {
     const where = source ? ` [${source}]` : "";
     super(`${message}${where}`);
-    this.name = "WorkflowLoadError";
+    this.name = "AssemblyLineLoadError";
   }
 }
 
 /**
- * Parse and fully validate a workflow definition. Throws
- * {@link WorkflowLoadError} on malformed YAML, schema violation,
+ * Parse and fully validate an assembly line definition. Throws
+ * {@link AssemblyLineLoadError} on malformed YAML, schema violation,
  * dangling node references, unreachable nodes, terminal-only-on-exit
  * violations, or back-edges without `iteration_max`.
  */
-export function parseWorkflow(yamlSrc: string, source = "<inline>"): Workflow {
+export function parseAssemblyLine(yamlSrc: string, source = "<inline>"): AssemblyLine {
   let raw: unknown;
   try {
     raw = parseYaml(yamlSrc);
   } catch (err) {
-    throw new WorkflowLoadError(
+    throw new AssemblyLineLoadError(
       `Invalid YAML: ${(err as Error).message}`,
       source,
     );
   }
 
-  const parsed = WorkflowSchema.safeParse(raw);
+  const parsed = AssemblyLineSchema.safeParse(raw);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
       .join("; ");
-    throw new WorkflowLoadError(`Schema violation: ${issues}`, source);
+    throw new AssemblyLineLoadError(`Schema violation: ${issues}`, source);
   }
 
   const wf = parsed.data;
@@ -84,18 +84,18 @@ export function parseWorkflow(yamlSrc: string, source = "<inline>"): Workflow {
   return wf;
 }
 
-export async function loadWorkflowFile(filepath: string): Promise<Workflow> {
+export async function loadAssemblyLineFile(filepath: string): Promise<AssemblyLine> {
   const yamlSrc = await fs.readFile(filepath, "utf-8");
-  return parseWorkflow(yamlSrc, filepath);
+  return parseAssemblyLine(yamlSrc, filepath);
 }
 
 /**
  * Load every `*.yaml` / `*.yml` file under `dir`. Returns a map keyed
- * by `workflow.name`. Fail-fast on any invalid file or duplicate name.
+ * by `assembly line.name`. Fail-fast on any invalid file or duplicate name.
  */
-export async function loadWorkflowDir(
+export async function loadAssemblyLineDir(
   dir: string,
-): Promise<Map<string, Workflow>> {
+): Promise<Map<string, AssemblyLine>> {
   let entries: string[];
   try {
     entries = await fs.readdir(dir);
@@ -108,12 +108,12 @@ export async function loadWorkflowDir(
   const yamls = entries.filter(
     (e) => e.endsWith(".yaml") || e.endsWith(".yml"),
   );
-  const out = new Map<string, Workflow>();
+  const out = new Map<string, AssemblyLine>();
   for (const f of yamls) {
-    const wf = await loadWorkflowFile(path.join(dir, f));
+    const wf = await loadAssemblyLineFile(path.join(dir, f));
     if (out.has(wf.name)) {
-      throw new WorkflowLoadError(
-        `Duplicate workflow name "${wf.name}"`,
+      throw new AssemblyLineLoadError(
+        `Duplicate assemblyLine name "${wf.name}"`,
         path.join(dir, f),
       );
     }
@@ -122,17 +122,17 @@ export async function loadWorkflowDir(
   return out;
 }
 
-function validateAssemblyLine(wf: Workflow, source: string): void {
+function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   const nodeIds = new Set(wf.nodes.map((n) => n.id));
 
   if (!nodeIds.has(wf.entry)) {
-    throw new WorkflowLoadError(
+    throw new AssemblyLineLoadError(
       `entry "${wf.entry}" is not a defined node id`,
       source,
     );
   }
   if (!nodeIds.has(wf.exit)) {
-    throw new WorkflowLoadError(
+    throw new AssemblyLineLoadError(
       `exit "${wf.exit}" is not a defined node id`,
       source,
     );
@@ -140,13 +140,13 @@ function validateAssemblyLine(wf: Workflow, source: string): void {
 
   for (const e of wf.edges) {
     if (!nodeIds.has(e.from)) {
-      throw new WorkflowLoadError(
+      throw new AssemblyLineLoadError(
         `edge from unknown node "${e.from}"`,
         source,
       );
     }
     if (!nodeIds.has(e.to)) {
-      throw new WorkflowLoadError(
+      throw new AssemblyLineLoadError(
         `edge to unknown node "${e.to}"`,
         source,
       );
@@ -167,7 +167,7 @@ function validateAssemblyLine(wf: Workflow, source: string): void {
   }
   for (const id of nodeIds) {
     if (!reachable.has(id)) {
-      throw new WorkflowLoadError(
+      throw new AssemblyLineLoadError(
         `node "${id}" is not reachable from entry`,
         source,
       );
@@ -179,7 +179,7 @@ function validateAssemblyLine(wf: Workflow, source: string): void {
     if (n.id === wf.exit) continue;
     const hasOut = wf.edges.some((e) => e.from === n.id);
     if (!hasOut) {
-      throw new WorkflowLoadError(
+      throw new AssemblyLineLoadError(
         `node "${n.id}" has no outgoing edges (only "${wf.exit}" may be terminal)`,
         source,
       );
@@ -190,8 +190,8 @@ function validateAssemblyLine(wf: Workflow, source: string): void {
   detectCycles(wf, source);
 }
 
-function detectCycles(wf: Workflow, source: string): void {
-  const adj = new Map<string, WorkflowEdge[]>();
+function detectCycles(wf: AssemblyLine, source: string): void {
+  const adj = new Map<string, AssemblyLineEdge[]>();
   for (const n of wf.nodes) adj.set(n.id, []);
   for (const e of wf.edges) adj.get(e.from)!.push(e);
 
@@ -225,7 +225,7 @@ function detectCycles(wf: Workflow, source: string): void {
       const c = color.get(e.to);
       if (c === GRAY) {
         if (!e.iteration_max) {
-          throw new WorkflowLoadError(
+          throw new AssemblyLineLoadError(
             `back-edge ${e.from} → ${e.to} requires iteration_max`,
             source,
           );

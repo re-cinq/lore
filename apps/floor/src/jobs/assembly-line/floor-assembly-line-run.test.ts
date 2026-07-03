@@ -6,14 +6,14 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { FileLeaseBackend } from "@re-cinq/lore-shared";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import type { Workflow } from "@re-cinq/lore-runner";
+import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
 import { runFloorAssemblyLine, checkoutBranch } from "./floor-assembly-line-run.js";
 import type { FloorAssemblyLineTask, FloorAssemblyLinePorts } from "./floor-assembly-line.js";
 
 const execFile = promisify(execFileCb);
 
 // agent → github_action → retrospective → done (CI red loops back to the agent once).
-const workflow: Workflow = {
+const assemblyLine: AssemblyLine = {
   name: "floor-assembly-line-test",
   description: "test",
   version: 1,
@@ -91,7 +91,7 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
     const { ports: p, dispatched } = ports();
     const result = await runFloorAssemblyLine({
       task,
-      workflow,
+      assemblyLine,
       gitDir: repoDir,
       holder: "test-floor",
       leaseBackend: new FileLeaseBackend(leasesDir),
@@ -122,7 +122,7 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
     const { ports: p, dispatched } = ports({ ciConclusion: async () => (ci++ === 0 ? "failure" : "success") });
     const result = await runFloorAssemblyLine({
       task,
-      workflow,
+      assemblyLine,
       gitDir: repoDir,
       holder: "test-floor",
       leaseBackend: new FileLeaseBackend(leasesDir),

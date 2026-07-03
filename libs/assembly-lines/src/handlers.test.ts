@@ -3,10 +3,10 @@ import {
   createProductionRetrospectiveHandler,
   createProductionHandlers,
 } from "./handlers.js";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 import type { NodeContext } from "./assembly-line-executor.js";
 
-const node: WorkflowNode = {
+const node: AssemblyLineNode = {
   id: "retrospective",
   type: "retrospective",
 };
@@ -16,7 +16,7 @@ const ctx: NodeContext = {
   branchName: "lore/feature/x",
   gitDir: "/tmp/foo",
   iteration: 1,
-  workflowName: "general",
+  assemblyLineName: "general",
 };
 
 describe("createProductionRetrospectiveHandler", () => {
@@ -54,7 +54,7 @@ describe("createProductionRetrospectiveHandler", () => {
     expect(writeEpisode).not.toHaveBeenCalled();
   });
 
-  it("includes workflow name + branch + iteration in the summary", async () => {
+  it("includes assembly line name + branch + iteration in the summary", async () => {
     const captured: string[] = [];
     const handler = createProductionRetrospectiveHandler({
       writeEpisode: async (content) => {

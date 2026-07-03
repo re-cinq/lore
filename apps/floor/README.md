@@ -73,7 +73,7 @@ npm test  -w @re-cinq/lore-floor
 ```
 
 Depends on the workspace libraries `@re-cinq/lore-shared` and
-`@re-cinq/lore-runner` — build those first, or use the root
+`@re-cinq/lore-assembly-lines` — build those first, or use the root
 `npm run build` which orders them.
 
 For a full local stack (Postgres + all four services with live reload), run

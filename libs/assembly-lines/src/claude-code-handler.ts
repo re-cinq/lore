@@ -3,7 +3,7 @@ import type {
   NodeHandler,
   NodeResult,
 } from "./assembly-line-executor.js";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 import { runClaudeCode, type ClaudeCodeResult } from "./claude-code.js";
 
 /**
@@ -57,7 +57,7 @@ export function createClaudeCodeAgentHandler(
   const runner = deps.runClaudeCode ?? runClaudeCode;
 
   return async (
-    node: WorkflowNode,
+    node: AssemblyLineNode,
     ctx: NodeContext,
   ): Promise<NodeResult> => {
     if (!node.prompt_ref) {

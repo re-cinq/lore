@@ -1,4 +1,4 @@
-// AssemblyLine StationBackend (ADR-031 D4, #688): the agent-cr execution path runs the workflow
+// AssemblyLine StationBackend (ADR-031 D4, #688): the agent-cr execution path runs the assembly line
 // assembly line Floor-side. launch() is fire-and-background — it kicks off runFloorAssemblyLineForTask
 // (which walks the assembly line, dispatching a per-node Agent CR) and returns immediately, like
 // the other async backends; the agent-watcher resolves completion (PR) from those Agents.

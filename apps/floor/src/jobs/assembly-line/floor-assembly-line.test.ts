@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import type { WorkflowNode, NodeContext, ProductionHandlersDeps } from "@re-cinq/lore-runner";
+import type { AssemblyLineNode, NodeContext, ProductionHandlersDeps } from "@re-cinq/lore-assembly-lines";
 import {
   nodeAgentName,
   nodeAgentSpec,
@@ -22,7 +22,7 @@ const ctx: NodeContext = {
   branchName: task.branch,
   gitDir: "/work",
   iteration: 0,
-  workflowName: "implementation",
+  assemblyLineName: "implementation",
 };
 
 const episodeDeps: ProductionHandlersDeps = {
@@ -32,7 +32,7 @@ const episodeDeps: ProductionHandlersDeps = {
 
 describe("nodeAgentSpec", () => {
   it("builds a per-node spec: distinct name, node prompt + model, task repo/branch", () => {
-    const node: WorkflowNode = { id: "implement", type: "agent", model: "claude-sonnet-4-6" };
+    const node: AssemblyLineNode = { id: "implement", type: "agent", model: "claude-sonnet-4-6" };
     expect(nodeAgentSpec(node, task, "do it")).toEqual({
       taskId: "abcdef1234567890",
       taskType: "implementation",

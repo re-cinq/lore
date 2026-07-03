@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { createClaudeCodeAgentHandler } from "./claude-code-handler.js";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 import type { NodeContext } from "./assembly-line-executor.js";
 import type { ClaudeCodeResult } from "./claude-code.js";
 
-const node: WorkflowNode = {
+const node: AssemblyLineNode = {
   id: "implement",
   type: "agent",
   prompt_ref: "implementation",
@@ -16,7 +16,7 @@ const ctx: NodeContext = {
   branchName: "lore/feature/x",
   gitDir: "/workspace/repo",
   iteration: 1,
-  workflowName: "implementation",
+  assemblyLineName: "implementation",
 };
 
 function ccResult(overrides: Partial<ClaudeCodeResult> = {}): ClaudeCodeResult {
@@ -80,7 +80,7 @@ describe("createClaudeCodeAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "implementation" },
     );
     const r = await handler(
-      { id: "implement", type: "agent" } as WorkflowNode,
+      { id: "implement", type: "agent" } as AssemblyLineNode,
       ctx,
     );
     expect(r.outcome).toBe("failed");

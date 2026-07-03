@@ -1,10 +1,10 @@
-# Contract: Workflow YAML schema
+# Contract: Assembly line YAML schema
 
-The on-disk format for workflow graphs. Loaded by both the GKE supervisor (`agent/src/workflow/loader.ts`) and the local runner. Per FR2.1, this is the only graph format.
+The on-disk format for assembly line graphs. Loaded by both the GKE supervisor (`libs/assembly-lines/src/loader.ts`) and the local runner. Per FR2.1, this is the only graph format.
 
 ## File location
 
-- Built-in: `agent/src/workflows/<task_type>.yaml`
+- Built-in: `libs/assembly-lines/src/assembly-lines/<task_type>.yaml`
 - Per-repo override: `lore.repos.settings.workflows[].definition` (inline YAML string)
 
 ## Schema (Zod)
@@ -31,7 +31,7 @@ const EdgeSchema = z.object({
   iteration_max: z.number().int().positive().optional()  // required if `from` and `to` form a loop
 });
 
-const WorkflowSchema = z.object({
+const AssemblyLineSchema = z.object({
   name: z.string(),
   description: z.string(),
   version: z.literal(1),
@@ -173,5 +173,5 @@ edges:
 ## Out-of-scope (today)
 
 - Parallel branches (a node firing two outgoing edges concurrently). Today: every node has exactly one active outgoing edge per execution.
-- Sub-workflows (calling another workflow as a node). Today: each task runs exactly one workflow.
+- Sub-assembly-lines (calling another assembly line as a node). Today: each task runs exactly one assembly line.
 - Inline expressions (CEL/expr) on edges. Today: only the four enum conditions.

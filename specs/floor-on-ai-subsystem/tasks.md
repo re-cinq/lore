@@ -29,7 +29,7 @@ One PR per task, in order, each merged before the next. Every PR: TDD, 100% cove
   *(vitest 100% scoped)* — **AC 10** — depends on #682
 
 ## Wave 2 — multi-node graph
-- [x] **#686** `feat/workflow-graph-agent-nodes` — `libs/runner/src/agent-node-handler.ts`,
+- [x] **#686** `feat/workflow-graph-agent-nodes` — `libs/assembly-lines/src/agent-node-handler.ts`,
   `github-action` node + loader, `apps/floor/orchestrator.ts`. *(vitest 100% scoped)* — **AC 11, 12**
   — depends on #684, #685
 

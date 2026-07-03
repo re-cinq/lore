@@ -12,7 +12,7 @@
 npm start
 ```
 
-This runs `scripts/dev-local.sh`, which brings up a Docker Postgres (pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds `libs/shared` → `libs/runner` → `apps/mcp-server` → `apps/floor`, then runs all four components under `concurrently` with live reload.
+This runs `scripts/dev-local.sh`, which brings up a Docker Postgres (pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds `libs/shared` → `libs/assembly-lines` → `apps/mcp-server` → `apps/floor`, then runs all four components under `concurrently` with live reload.
 
 Ports:
 
@@ -60,7 +60,7 @@ lore/
 │   └── vscode-extension/       # VS Code extension (spec ↔ code highlighting)
 ├── libs/                       # shared libraries (consumed by apps)
 │   ├── shared/                 # @re-cinq/lore-shared — chunker, redact, Project facade, types
-│   └── runner/                 # @re-cinq/lore-runner — execution kernel (supervisor, workflows)
+│   └── assembly-lines/         # @re-cinq/lore-assembly-lines — execution kernel (supervisor, assembly lines)
 ├── infra/                      # deploy & runtime
 │   ├── terraform/modules/      # Helm charts (floor-helm, lore-api-helm, ui-helm, lore-db-helm), LoreTask CRD
 │   ├── docker/claude-runner/   # Ephemeral container for Claude Code in K8s Jobs
@@ -72,7 +72,7 @@ lore/
 ├── runbooks/                   # Incident & operational runbooks
 ├── teams/                      # Per-team CLAUDE.md overrides
 ├── docs/                       # Guides (using-lore, building-lore)
-└── .github/workflows/          # CI: build + push containers for Floor, MCP, UI, runner
+└── .github/workflows/          # CI: build + push containers for Floor, MCP, UI
 ```
 
 npm workspaces live under `apps/*` + `libs/*`; `web-ui` is a standalone Next.js app (its own lockfile, not a workspace).

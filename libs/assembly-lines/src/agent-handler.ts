@@ -5,7 +5,7 @@ import type {
   NodeHandler,
   NodeResult,
 } from "./assembly-line-executor.js";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 import type { LlmCompletion } from "@re-cinq/lore-shared/llm/llm-provider.js";
 
 /**
@@ -58,7 +58,7 @@ interface JsonFileOutput {
 }
 
 /**
- * Build an agent NodeHandler. Each `agent` node in the workflow:
+ * Build an agent NodeHandler. Each `agent` node in the assembly line:
  *  1. Resolves its `prompt_ref` via `deps.resolvePrompt`.
  *  2. Calls `deps.callLLM`.
  *  3. If `parseJsonFiles` is true: parses the response as a `{ files
@@ -77,7 +77,7 @@ export function createAgentHandler(
   const parseJsonFiles = deps.parseJsonFiles ?? true;
 
   return async (
-    node: WorkflowNode,
+    node: AssemblyLineNode,
     ctx: NodeContext,
   ): Promise<NodeResult> => {
     if (!node.prompt_ref) {

@@ -1,17 +1,16 @@
 {
-  "name": "@re-cinq/lore-runner",
+  "name": "@re-cinq/lore-assembly-lines",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./cli.js": { "types": "./dist/cli.d.ts", "default": "./dist/cli.js" }
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
   },
   "scripts": {
-    "build": "tsc && npm run copy:workflows",
-    "copy:workflows": "mkdir -p dist/workflows && cp -f src/workflows/*.yaml dist/workflows/ 2>/dev/null || true",
+    "build": "tsc && npm run copy:assembly-lines",
+    "copy:assembly-lines": "mkdir -p dist/assembly-lines && cp -f src/assembly-lines/*.yaml dist/assembly-lines/ 2>/dev/null || true",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

@@ -6,7 +6,7 @@ import {
   type ExecutionSummary,
   type NodeHandlers,
 } from "./assembly-line-executor.js";
-import type { Workflow } from "./loader.js";
+import type { AssemblyLine } from "./loader.js";
 
 /**
  * Append-only audit sink (project.audit). Injected by the caller; the kernel
@@ -23,9 +23,9 @@ export interface SupervisorAuditSink {
 export interface SupervisorOptions {
   taskId: string;
   branchName: string;
-  workflowName: string;
+  assemblyLineName: string;
   /**
-   * Working directory for git operations. Required when `workflow` and
+   * Working directory for git operations. Required when `assembly line` and
    * `handlers` are provided (i.e. real assembly line execution). Optional when
    * only the lease lifecycle is being exercised (tests).
    */
@@ -48,12 +48,12 @@ export interface SupervisorOptions {
    */
   audit?: SupervisorAuditSink;
   /**
-   * Pre-loaded workflow definition. When provided alongside `handlers`,
+   * Pre-loaded assembly line definition. When provided alongside `handlers`,
    * the supervisor walks the assembly line instead of returning early with
-   * `executor_pending`. Production callers load the workflow via
-   * `loadWorkflowDir` and pick by `workflowName`.
+   * `executor_pending`. Production callers load the assembly line via
+   * `loadAssemblyLineDir` and pick by `assemblyLineName`.
    */
-  workflow?: Workflow;
+  assemblyLine?: AssemblyLine;
   /**
    * Per-node handlers. Required to walk the assembly line. Production callers
    * use `createProductionHandlers()` from `./handlers.js`.
@@ -66,7 +66,7 @@ export interface SupervisorOptions {
    * Issue + Slack ping with full context (FR3.8).
    */
   onIterationMaxExceeded?: (info: {
-    workflowName: string;
+    assemblyLineName: string;
     fromNode: string;
     toNode: string;
     iterationMax: number;
@@ -95,7 +95,7 @@ function defaultHolder(): string {
 }
 
 /**
- * Walk a workflow assembly line for one task. **Skeleton.** The actual assembly line
+ * Walk an assembly line for one task. **Skeleton.** The actual assembly line
  * executor lands in T014 (Phase 3). Today this validates the lease
  * lifecycle: acquire → (executor stub, no work) → release. A second
  * supervisor that finds the lease held exits cleanly with `lease_held`.
@@ -157,28 +157,28 @@ export async function runSupervisor(
   }
 
   try {
-    // When a caller supplies both a loaded workflow and a handler set,
+    // When a caller supplies both a loaded assembly line and a handler set,
     // run the assembly line end-to-end. Otherwise return early — the lease
     // lifecycle alone is exercised (used by tests of the lease side).
-    if (!opts.workflow || !opts.handlers) {
+    if (!opts.assemblyLine || !opts.handlers) {
       console.log(
         `[supervisor] Acquired lease on ${opts.branchName} as ${holder}; ` +
-          `workflow=${opts.workflowName} (executor not configured — lease lifecycle only)`,
+          `assemblyLine=${opts.assemblyLineName} (executor not configured — lease lifecycle only)`,
       );
       return { ranWork: true, reason: "executor_pending" };
     }
     if (!opts.gitDir) {
       throw new Error(
-        "[supervisor] gitDir required when workflow + handlers are provided",
+        "[supervisor] gitDir required when assemblyLine + handlers are provided",
       );
     }
 
     console.log(
-      `[supervisor] Walking workflow ${opts.workflowName} on ${opts.branchName} as ${holder}`,
+      `[supervisor] Walking assemblyLine ${opts.assemblyLineName} on ${opts.branchName} as ${holder}`,
     );
     try {
       const summary = await executeAssemblyLine({
-        workflow: opts.workflow,
+        assemblyLine: opts.assemblyLine,
         taskId: opts.taskId,
         branchName: opts.branchName,
         gitDir: opts.gitDir,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { WorkflowNode } from "./loader.js";
+import type { AssemblyLineNode } from "./loader.js";
 import type { NodeContext } from "./assembly-line-executor.js";
 import {
   ciOutcome,
@@ -8,13 +8,13 @@ import {
   type GithubActionDeps,
 } from "./github-action-handler.js";
 
-const node: WorkflowNode = { id: "ci", type: "github_action" };
+const node: AssemblyLineNode = { id: "ci", type: "github_action" };
 const ctx: NodeContext = {
   taskId: "task-1",
   branchName: "lore/impl-1",
   gitDir: "/work",
   iteration: 0,
-  workflowName: "implementation",
+  assemblyLineName: "implementation",
 };
 
 describe("ciOutcome", () => {

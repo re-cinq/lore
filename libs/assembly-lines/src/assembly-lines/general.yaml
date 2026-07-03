@@ -1,5 +1,5 @@
 name: general
-description: Linear flow for general tasks — implement, validate, push, review, retrospective. Used when no more specific workflow applies.
+description: Linear flow for general tasks — implement, validate, push, review, retrospective. Used when no more specific assembly line applies.
 version: 1
 entry: implement
 exit: done

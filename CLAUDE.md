@@ -65,9 +65,9 @@ gcloud auth for local dev.
 - `mcp-server/src/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` for the privileged-field gate
 - `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
 - `libs/shared/src/project/leases/lease-backends.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
-- `libs/runner/src/assembly-line-executor.ts` — `executeAssemblyLine()` walks workflow YAML, dispatches per-node-type handlers, emits stage commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers (allow-empty for non-file-changing nodes), refreshes lease per node, supports resume from last trailer on the branch
-- `libs/runner/src/loader.ts` — Zod schema for workflow YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check
-- `libs/runner/src/workflows/*.yaml` — declarative workflow definitions (gap-fill, general, implementation; more extensible)
+- `libs/assembly-lines/src/assembly-line-executor.ts` — `executeAssemblyLine()` walks the assembly line YAML, dispatches per-node-type handlers, emits stage commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers (allow-empty for non-file-changing nodes), refreshes lease per node, supports resume from last trailer on the branch
+- `libs/assembly-lines/src/loader.ts` — Zod schema for assembly line YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check
+- `libs/assembly-lines/src/assembly-lines/*.yaml` — declarative assembly line definitions (gap-fill, general, implementation; more extensible)
 - `apps/floor/src/jobs/merge/auto-merge.ts` — pure `evaluateAutoMerge()` decision + `evaluateAndMerge()` end-to-end with backoff. Outcome enum captures all 7 deferral reasons + `merged`. OTEL span `lore.auto_merge.decision` carries the rule trace
 - `apps/floor/src/main-loop/lease/lease-reaper.ts` — 60s tick deletes leases >5min past expiry, writes `lease_expired` audit entries
 - `apps/floor/src/jobs/dark-factory/dark-factory-baseline.ts` — pre-feature 30-day counter snapshot per repo, written to `pipeline.dark_factory_baseline` for SC1/SC4/SC6 deltas
@@ -582,6 +582,6 @@ MCP tool's `max_tokens` parameter default is also 8K.
 - **Enablement.** Per-repo `dark_factory.enabled = true` turns on dark mode for impl/general/review tasks. All tasks execute on the ai-agent-subsystem (agent-cr); the legacy LoreTask path and its cluster gate were removed (ADR-031).
 - Privileged changes (`enabled` toggle, `auto_merge.paths`, downgrade of `require_*` to false) need two-key authorization: admin scope + an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md` (`dark-factory-authz.ts`).
 - Branch-as-state: every workflow phase commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers; the supervisor reads `git log` to resume after pod death.
-- Workflow definitions live as YAML files at `libs/runner/src/workflows/*.yaml`. Local runner and GKE supervisor share definitions (FR2.3).
+- Assembly line definitions live as YAML files at `libs/assembly-lines/src/assembly-lines/*.yaml`. Local runner and GKE supervisor share definitions (FR2.3).
 - Auto-merge runs after `[stage:retrospective]` for in-agent tasks (gap-fill / runbook): green CI + bot APPROVED + path matches every changed file + repo trust ≥ `min_trust` → squash-merge. Decision and rule recorded in `pipeline.audit_log` as `auto_merge_decision`.
 - Rollout, rollback, pilot procedure, audit-log queries: `runbooks/dark-factory-rollback.md`.

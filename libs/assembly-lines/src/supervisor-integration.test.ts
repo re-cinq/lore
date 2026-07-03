@@ -7,14 +7,14 @@ import { promisify } from "node:util";
 import type { Octokit } from "octokit";
 import { runSupervisor } from "./index.js";
 import { FileLeaseBackend } from "@re-cinq/lore-shared";
-import { parseWorkflow } from "./loader.js";
+import { parseAssemblyLine } from "./loader.js";
 import { createAgentHandler } from "./agent-handler.js";
 import { createProductionHandlers } from "./handlers.js";
 import type { LlmCompletion } from "@re-cinq/lore-shared";
 
 const execFile = promisify(execFileCb);
 
-const linearAssemblyLine = parseWorkflow(`
+const linearAssemblyLine = parseAssemblyLine(`
 name: gap-fill-test
 description: test fixture
 version: 1
@@ -56,7 +56,7 @@ function llm(text: string): LlmCompletion {
 }
 
 /**
- * End-to-end test: runSupervisor walks a real workflow with mocked LLM
+ * End-to-end test: runSupervisor walks a real assembly line with mocked LLM
  * + episode-writer + git, demonstrates a full chain from lease acquire
  * through agent handler → file write → stage commit → retrospective
  * episode → lease release.
@@ -147,11 +147,11 @@ describe("supervisor integration (T058 vertical slice)", () => {
     const result = await runSupervisor({
       taskId: "t-1",
       branchName: "lore/gap-fill/test",
-      workflowName: "gap-fill-test",
+      assemblyLineName: "gap-fill-test",
       gitDir: repoDir,
       holder: "test-pod",
       leaseBackend: new FileLeaseBackend(leasesDir),
-      workflow: linearAssemblyLine,
+      assemblyLine: linearAssemblyLine,
       handlers,
     });
 
@@ -201,7 +201,7 @@ describe("supervisor integration (T058 vertical slice)", () => {
     const result = await runSupervisor({
       taskId: "t-2",
       branchName: "lore/gap-fill/test",
-      workflowName: "gap-fill-test",
+      assemblyLineName: "gap-fill-test",
       holder: "test-pod",
       leaseBackend: new FileLeaseBackend(leasesDir),
     });
