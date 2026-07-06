@@ -5,6 +5,7 @@ import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline
 import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 // POST /api/task multiplexes five shapes (retry / cancel / set-priority /
 // status-update / create) with irregular dispatch — status-update has no
@@ -33,7 +34,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
     options: { ...bearerScope("task"), validate: { payload: zodValidate(TaskBody) } },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database not available" }).code(503);
+      if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
       try {
         const parsed = request.payload as TaskBody;
 

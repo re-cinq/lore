@@ -48,4 +48,9 @@ describe("GET /api/graph", () => {
     const res = await get(makePool(), "/api/graph?entity=x");
     expect(res.statusCode).toBe(500);
   });
+
+  it("returns 400 when repo is not owner/name", async () => {
+    const res = await get(makePool(), "/api/graph?entity=x&repo=bad");
+    expect(res.statusCode).toBe(400);
+  });
 });
