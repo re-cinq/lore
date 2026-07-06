@@ -38,6 +38,11 @@ describe("GET /api/repos/:owner/:repo/trace/:kind", () => {
     expect(res.statusCode).not.toBe(401);
     expect(res.statusCode).not.toBe(403);
   });
+
+  it("returns 400 when the path query exceeds the length bound", async () => {
+    const res = await get(`/api/repos/o/r/trace/document?path=${"x".repeat(1025)}`, AUTH);
+    expect(res.statusCode).toBe(400);
+  });
 });
 
 describe("GET /api/trace/specs", () => {

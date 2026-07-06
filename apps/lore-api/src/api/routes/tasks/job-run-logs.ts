@@ -1,16 +1,21 @@
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
+
+const JobRunLogsQuery = z.object({
+  job_name: z.string().min(1).max(200),
+  run_id: z.string().min(1).max(200),
+});
+type JobRunLogsQuery = z.infer<typeof JobRunLogsQuery>;
 
 export function jobRunLogsRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/job-run-logs",
-    options: bearerScope("read"),
+    options: { ...bearerScope("read"), validate: { query: zodValidate(JobRunLogsQuery) } },
     handler: async (request, h) => {
-      const q = request.query as Record<string, string | undefined>;
-      const jobName = q.job_name;
-      const runId = q.run_id;
-      if (!jobName || !runId) return h.response({ error: "required: job_name, run_id" }).code(400);
+      const { job_name: jobName, run_id: runId } = request.query as JobRunLogsQuery;
       try {
         const { Storage } = await import("@google-cloud/storage");
         const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");

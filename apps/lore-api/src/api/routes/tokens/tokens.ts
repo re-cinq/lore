@@ -3,6 +3,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { createHash } from "node:crypto";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import type { TokenScope } from "../auth.js";
+import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 interface TokensPostBody {
   action?: string;
@@ -24,7 +25,7 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute {
     options: bearerScope("admin"),
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database not available" }).code(503);
+      if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
 
       if (request.method.toUpperCase() === "GET") {
         // List active tokens (never return the actual token)
