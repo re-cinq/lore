@@ -67,7 +67,7 @@ The cutover is reversible (both controllers run in parallel behind a flag); `Lor
 | **D6** Secrets | **Inherit** the existing GCP Secret Manager remoteRefs via ESO into `agent-secrets`; per-task GitHub App token PATCHed in and removed on terminal | No new secret material; short-lived, least-privilege; no org PAT |
 | **D7** Networking | Self-hydration + telemetry over the **public LB**; run pods **drop direct Postgres** | The run-pod NetworkPolicy blocks RFC1918/metadata; DB-less pods shrink blast radius |
 | **D8** Observability | NDJSON **http sink → Floor `/api/agent-events`** → `pipeline.llm_calls` + OTEL + GCS + UI logs | No telemetry capability lost; pod stays DB-less and GCS-less |
-| **D9** Station nodes | **Every** non-agent node (validate/gate/retrospective/`github_action`/detect/custom) dispatches its own `Agent` CR run by the `exec` vendor (`model: exec` → `tool_config.command`); outcome via the `LORE_NODE_RESULT` result line; per-type cutover via `LORE_STATION_NODES` | Uniform per-node isolation + timeouts; custom station images; no CRD change |
+| **D9** Station nodes | **Every** non-agent node (validate/gate/retrospective/`github_action`/detect/custom) dispatches its own `Agent` CR run by the `exec` vendor (`model: exec` → `tool_config.command`); outcome via the `LORE_NODE_RESULT` result line. Cutover complete — no per-type flag; detector cores relocated to `@re-cinq/lore-shared/detect` so the detect node dispatches a station too | Uniform per-node isolation + timeouts; custom station images; no CRD change |
 
 ## Architecture (target data-flow, one `implementation` task)
 
@@ -102,7 +102,9 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 | `libs/assembly-lines/src/station-node-handler.ts` | Generalize per-node dispatch to ALL node types + `parseNodeResult` (D9) |
 | NEW `apps/lore-station/` + Dockerfile + `build-lore-station.yml` | The `lore-station` station-pod image (validate; more node types phased in) |
 | `scripts/task-types.yaml` `stations:` + `gen-catalog` + migration `0027` | Seed `def-<type>` station recipes (D9) |
-| `apps/floor` `LORE_STATION_NODES` + `nodeStationSpec` | Per-node-type cutover flag + station dispatch spec (D9) |
+| `apps/floor` `nodeStationSpec` + always-station handlers | Station dispatch spec; every non-agent node dispatches a station (D9) |
+| `libs/shared/src/detect/*` (relocated) + `apps/lore-station/src/stations/*` | Detector cores moved to shared (facade-driven); one station module per node type |
+| `apps/lore-api` chunks + station-data endpoints + `createStationProject` | Pod-side HTTP surface: chunk reads, issues/tasks/pulls/settings, so a station never touches Postgres/App creds (D7) |
 
 ## Acceptance Criteria
 
@@ -153,13 +155,14 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 16. Node YAML accepts optional `station_ref` (custom station, default `def-<type>`) and
     `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](../../libs/assembly-lines/src/loader.test.ts#L226))
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
-    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L92))
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L84))
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
     success); CR Failed → `station-failed`; await expiry → `station-timeout`.
     ([validated by parseNodeResult tests](../../libs/assembly-lines/src/station-node-handler.test.ts#L24))
-19. `LORE_STATION_NODES` (comma-separated node types) gates per type; unlisted types keep the
-    in-process handlers; the flag is deleted when cutover completes. ([validated by unflagged node types keep the in-process kernel defaults](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L119))
+19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
+    (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
+    supervisor path (gap-fill/runbook) is untouched. ([validated by every non-agent node dispatches a station CR](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L84))
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
     default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`).
