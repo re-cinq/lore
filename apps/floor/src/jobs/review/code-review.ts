@@ -31,7 +31,7 @@ export function decideReviewOnOpen(input: { autoReview: boolean; pr: PullRef | n
 export function decideReviewOnReply(input: { autoReview: boolean; pr: PullRef | null; commentAuthor: string }): { start: boolean } {
   const { autoReview, pr, commentAuthor } = input;
   return {
-    start: autoReview && !!pr && pr.state === "open" && !isBotActor(commentAuthor),
+    start: autoReview && !!pr && pr.state === "open" && pr.draft !== true && !isBotActor(commentAuthor),
   };
 }
 

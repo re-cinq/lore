@@ -10,7 +10,7 @@ describe("mapGitHubEvent — pull_request", () => {
     ]);
   });
 
-  it("maps closed+merged to github.pull_request.closed carrying branch/sha/labels", () => {
+  it("maps closed+merged to github.pull_request.closed carrying merged/branch/sha/labels", () => {
     const payload = {
       ...REPO,
       action: "closed",
@@ -20,14 +20,22 @@ describe("mapGitHubEvent — pull_request", () => {
       {
         eventName: "github.pull_request.closed",
         source: "github",
-        params: { repo: "re-cinq/lore", pr_number: 9, branch: "lore/feature-request/auth-abcd1234", merge_commit_sha: "sha9", labels: ["spec"] },
+        params: { repo: "re-cinq/lore", pr_number: 9, merged: true, branch: "lore/feature-request/auth-abcd1234", merge_commit_sha: "sha9", labels: ["spec"] },
         dedupeKey: "github:d2",
       },
     ]);
   });
 
-  it("ignores closed-without-merge", () => {
-    expect(mapGitHubEvent("pull_request", { ...REPO, action: "closed", pull_request: { number: 9, merged: false } }, "d3")).toEqual([]);
+  it("maps closed-without-merge to the same event with merged:false (so code-review can finish its line)", () => {
+    const payload = { ...REPO, action: "closed", pull_request: { number: 9, merged: false, head: { ref: "feature/x" }, labels: [] } };
+    expect(mapGitHubEvent("pull_request", payload, "d3")).toEqual([
+      {
+        eventName: "github.pull_request.closed",
+        source: "github",
+        params: { repo: "re-cinq/lore", pr_number: 9, merged: false, branch: "feature/x", merge_commit_sha: null, labels: [] },
+        dedupeKey: "github:d3",
+      },
+    ]);
   });
 
   it("ignores edited", () => {

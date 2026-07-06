@@ -224,10 +224,14 @@ export async function processAgentCr(agent: AgentCr, k8sApi: CustomObjectsApi): 
   };
 
   try {
-    // DB-level re-entry guard (only act on tasks still running/queued).
+    // DB-level re-entry guard (only act on tasks still running/queued). A CR whose
+    // taskId has no backing pipeline task is a task-less assembly line (e.g.
+    // code-review, keyed on its assemblyLineId): the supervisor owns the run, so the
+    // watcher has nothing to reconcile — return before any PR/no-changes work.
     if (phase === "Succeeded" || phase === "Failed") {
-      const dbStatus = (await taskStore().getById(taskId))?.status;
-      if (dbStatus && !["running", "queued"].includes(dbStatus)) return;
+      const task = await taskStore().getById(taskId);
+      if (!task) return;
+      if (!["running", "queued"].includes(task.status)) return;
     }
 
     if (phase === "Succeeded" && !status.prUrl && ctx.taskType !== "review") {

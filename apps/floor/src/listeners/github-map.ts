@@ -45,13 +45,16 @@ export function mapGitHubEvent(eventType: string, payload: any, deliveryId: stri
     const pr = payload.pull_request;
     const prNumber: number | undefined = pr?.number;
     if (!prNumber) return [];
-    if (payload.action === "closed" && pr?.merged) {
+    if (payload.action === "closed") {
+      // Emit for merged AND unmerged closes: specPrMerge guards on `merged`, while
+      // code-review's onClose must finish its line on any close.
       return [{
         eventName: "github.pull_request.closed",
         source: "github",
         params: {
           repo,
           pr_number: prNumber,
+          merged: pr.merged === true,
           branch: pr.head?.ref ?? "",
           merge_commit_sha: pr.merge_commit_sha ?? null,
           labels: labelNames(pr.labels),

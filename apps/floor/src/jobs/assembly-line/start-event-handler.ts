@@ -118,10 +118,15 @@ export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandl
       return;
     }
 
+    // A task-less line (e.g. code-review) has no pipeline task; fall back to the
+    // per-attempt assemblyLineId so the per-task token + `task-id` label are unique
+    // per run. An empty taskId would key the token on "" → a single shared `pt-`
+    // triple that concurrent runs across repos race on (wrong-repo clone). The
+    // watcher's `processAgentCr` no-ops on a taskId with no backing task.
     void deps
       .runOnStation({
         assemblyLineId,
-        taskId: taskId ?? "",
+        taskId: taskId ?? assemblyLineId,
         taskType: definitionName,
         description,
         targetRepo: repo,

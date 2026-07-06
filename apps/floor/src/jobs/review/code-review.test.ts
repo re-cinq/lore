@@ -51,11 +51,12 @@ describe("code-review pure decisions", () => {
     expect(decideReviewOnOpen({ autoReview: true, pr: openPr({ author: "lore-app[bot]" }) }).start).toBe(false);
   });
 
-  it("decideReviewOnReply starts only for an open PR with a human comment and auto-review on", () => {
+  it("decideReviewOnReply starts only for an open, non-draft PR with a human comment and auto-review on", () => {
     expect(decideReviewOnReply({ autoReview: true, pr: openPr(), commentAuthor: "alice" }).start).toBe(true);
     expect(decideReviewOnReply({ autoReview: true, pr: openPr(), commentAuthor: "lore-app[bot]" }).start).toBe(false);
     expect(decideReviewOnReply({ autoReview: false, pr: openPr(), commentAuthor: "alice" }).start).toBe(false);
     expect(decideReviewOnReply({ autoReview: true, pr: openPr({ state: "closed" }), commentAuthor: "alice" }).start).toBe(false);
+    expect(decideReviewOnReply({ autoReview: true, pr: openPr({ draft: true }), commentAuthor: "alice" }).start).toBe(false);
   });
 });
 

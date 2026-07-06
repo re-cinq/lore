@@ -140,6 +140,18 @@ describe("createStartEventHandler", () => {
     expect(calls.taskOutcomes).toEqual([]);
   });
 
+  it("uses the assemblyLineId as the synthetic taskId for a task-less station line", async () => {
+    const { port, assemblyLineId } = await seededPort("implementation", null);
+    const { deps, calls } = makeDeps(port);
+
+    await createStartEventHandler(deps)(params(assemblyLineId, "implementation", null));
+    await flush();
+
+    // A task-less line (e.g. code-review) must not collapse to the empty-string taskId —
+    // that would key its per-task token/label on "" and race across concurrent runs.
+    expect(calls.station[0]).toMatchObject({ taskId: assemblyLineId });
+  });
+
   it("returns before the run completes and marks the row running meanwhile", async () => {
     const { port, assemblyLineId } = await seededPort("gap-fill");
     const gate = deferred<{ outcome: "no_changes" }>();
