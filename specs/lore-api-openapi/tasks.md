@@ -20,12 +20,12 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 1 — Schema reachability (least-invasive)
 
-- [ ] T002 `apps/lore-api/src/server/plugins/zod-validate.ts`: `zodValidate(schema)`
+- [x] T002 `apps/lore-api/src/server/plugins/zod-validate.ts`: `zodValidate(schema)`
   stamps `fn.zodSchema = schema` (typed `ZodValidateFn<T>`); add `getZodSchema(fn)`
   returning the schema or `undefined`. Behavior otherwise unchanged. Extend
   `zod-validate.test.ts`: the returned fn still validates, and `getZodSchema`
   recovers the exact schema. (FR1)
-- [ ] T003 Hoist the `server.route([...])` array out of `build-server.ts` into an
+- [x] T003 Hoist the `server.route([...])` array out of `build-server.ts` into an
   exported `routeList(getPool)`; `buildServer` registers `routeList(getPool)`. No
   route changes. Suite green (pure refactor). (FR2)
 
