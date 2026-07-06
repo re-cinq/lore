@@ -57,6 +57,20 @@ describe("POST /api/memory", () => {
     expect(res.result).toEqual({ id: "f" });
   });
 
+  it("parses a JSON body sent with a non-JSON Content-Type", async () => {
+    // ADR-034: routes.payload.override forces JSON parsing regardless of the
+    // client's Content-Type — the pre-hapi handlers JSON.parsed the raw buffer
+    // content-type-agnostically. Without the override hapi would form-parse this
+    // body and the discriminated union would see action=undefined -> 400.
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(writeMemory).mockResolvedValue({ id: 7 } as any);
+    const res = await inject(
+      JSON.stringify({ action: "write", key: "k", value: "v" }),
+      { ...AUTH, "content-type": "application/x-www-form-urlencoded" },
+    );
+    expect(res.result).toEqual({ id: 7 });
+  });
+
   it("returns 400 when write is missing value", async () => {
     const res = await post({ action: "write", key: "k" });
     expect(res.statusCode).toBe(400);
@@ -176,9 +190,11 @@ describe("POST /api/memory", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("returns 500 on invalid JSON", async () => {
+  it("returns 400 on invalid JSON", async () => {
+    // ADR-034: hapi parses the payload natively, so malformed JSON is a 400
+    // (was 500 under the legacy hand-rolled parse).
     const res = await inject("{bad");
-    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).toBe(400);
   });
 
   it("returns 401 when the bearer token is absent", async () => {

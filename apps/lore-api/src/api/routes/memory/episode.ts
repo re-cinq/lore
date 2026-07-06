@@ -1,23 +1,31 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { redactSecrets as sanitizeContent } from "@re-cinq/lore-shared";
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
 import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { makeGraphLlmCall } from "../helpers.js";
+
+const EpisodeBody = z.object({
+  content: z.string().min(1, "content required"),
+  source: z.string().optional(),
+  ref: z.string().optional(),
+  agent_id: z.string().optional(),
+});
+type EpisodeBody = z.infer<typeof EpisodeBody>;
 
 export function episodeRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/episode",
-    options: { ...bearerScope("write"), payload: { parse: false } },
+    options: { ...bearerScope("write"), validate: { payload: zodValidate(EpisodeBody) } },
     handler: async (request, h) => {
       const pool = getPool();
       try {
-        const { content, source, ref, agent_id } = JSON.parse(rawBody(request));
-        if (!content) return h.response({ error: "content required" }).code(400);
+        const { content, source, ref, agent_id } = request.payload as EpisodeBody;
         const agent = agent_id || "unknown";
         const safeContent = sanitizeContent(content);
         const contentHash = createHash("sha256").update(safeContent).digest("hex");

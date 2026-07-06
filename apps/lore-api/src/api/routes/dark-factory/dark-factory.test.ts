@@ -93,15 +93,16 @@ describe("routes — dark-factory settings", () => {
     }
 
     it("returns 400 on invalid JSON", async () => {
+      // ADR-034: hapi parses the payload, so malformed JSON is a 400 (hapi's
+      // native parse-error body) before the handler runs.
       const res = await put("{bad");
       expect(res.statusCode).toBe(400);
-      expect((res.result as { error: string }).error).toBe("invalid_body");
     });
 
-    it("returns 400 when the body exceeds the 1MB limit", async () => {
+    it("returns 413 when the body exceeds the 1MB limit", async () => {
+      // ADR-034: the body cap is hapi's native payload.maxBytes now → 413.
       const res = await put("x".repeat(1_048_577));
-      expect(res.statusCode).toBe(400);
-      expect((res.result as { error: string }).error).toBe("invalid_body");
+      expect(res.statusCode).toBe(413);
     });
 
     it("returns 400 with issues when schema validation fails", async () => {

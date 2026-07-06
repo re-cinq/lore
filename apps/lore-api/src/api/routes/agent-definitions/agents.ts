@@ -6,7 +6,6 @@ import { parseAgentInput, parseAgentPatch, imageFieldTouched } from "../../../fe
 import { agentDefToCrds } from "../../../features/agents/agent-crd.js";
 import { applyAgentCrds, deleteAgentCrds } from "../../../features/agents/agent-crd-k8s.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { parseJsonBodyCapped } from "../../../server/raw-body.js";
 import { checkApproval } from "../two-key.js";
 
 /**
@@ -19,7 +18,6 @@ import { checkApproval } from "../two-key.js";
 
 const BASE = "/api/repos/{owner}/{repo}/agent-definitions";
 const repoOf = (params: Record<string, string>) => `${params.owner}/${params.repo}`;
-const WRITE_PAYLOAD = { parse: false, maxBytes: 2 * 1_048_576 } as const;
 const IMAGE_DETAIL =
   "Changing an agent's execution image requires an X-Lore-Approval-PR header. " +
   "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.";
@@ -54,7 +52,7 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: BASE,
-    options: { ...bearerScope("admin"), payload: WRITE_PAYLOAD },
+    options: bearerScope("admin"),
     handler: async (request, h) => {
       const pool = getPool();
       if (!pool) return h.response({ error: "database unavailable" }).code(503);
@@ -62,12 +60,7 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
       try {
         const project = await projectFor(repo);
 
-        let body: unknown;
-        try {
-          body = parseJsonBodyCapped(request);
-        } catch (err) {
-          return h.response({ error: "invalid_body", detail: (err as Error).message }).code(400);
-        }
+        const body = request.payload ?? {};
         let create: ReturnType<typeof parseAgentInput>;
         try {
           create = parseAgentInput(body);
@@ -98,7 +91,7 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "PUT",
     path: `${BASE}/{name}`,
-    options: { ...bearerScope("admin"), payload: WRITE_PAYLOAD },
+    options: bearerScope("admin"),
     handler: async (request, h) => {
       const pool = getPool();
       if (!pool) return h.response({ error: "database unavailable" }).code(503);
@@ -107,12 +100,7 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
       try {
         const project = await projectFor(repo);
 
-        let body: unknown;
-        try {
-          body = parseJsonBodyCapped(request);
-        } catch (err) {
-          return h.response({ error: "invalid_body", detail: (err as Error).message }).code(400);
-        }
+        const body = request.payload ?? {};
         let patch: ReturnType<typeof parseAgentPatch>;
         try {
           patch = parseAgentPatch(body);
