@@ -7,7 +7,6 @@
 
 import {
   createStationNodeHandler,
-  createGithubActionHandler,
   createProductionHandlers,
   type NodeHandler,
   type NodeHandlers,
@@ -95,17 +94,6 @@ export function nodeStationSpec(node: AssemblyLineNode, task: FloorAssemblyLineT
   };
 }
 
-/** The LORE_STATION_NODES cutover flag: node types that dispatch station pods
- *  instead of running in-process. Temporary — deleted when the cutover completes. */
-export function stationNodesFromEnv(raw: string | undefined): ReadonlySet<string> {
-  return new Set(
-    (raw ?? "")
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0),
-  );
-}
-
 export interface FloorAssemblyLinePorts {
   /** Dispatch one node's Agent CR (e.g. AgentCrBackend.launch). */
   dispatchAgent: (spec: LoreTaskSpec) => Promise<void>;
@@ -120,45 +108,36 @@ export interface FloorAssemblyLinePorts {
   episodeDeps: ProductionHandlersDeps;
 }
 
-/** Assemble the NodeHandlers for a Floor-side run: the agent slot dispatches one Agent CR
- *  per node and polls it; the github_action slot gates on CI. Node types listed in
- *  `stationNodes` (the LORE_STATION_NODES cutover flag) dispatch a station pod the same
- *  way instead of running the in-process kernel defaults. */
+/** Assemble the NodeHandlers for a Floor-side run: EVERY node dispatches one Agent CR
+ *  and polls it — agent nodes run an LLM, non-agent nodes ("stations": validate / gate /
+ *  retrospective / github_action / detect) run the deterministic lore-station image via
+ *  the exec vendor (ADR-031 amendment). No in-process node handlers remain on this path. */
 export function buildFloorAssemblyLineHandlers(
   task: FloorAssemblyLineTask,
   ports: FloorAssemblyLinePorts,
-  stationNodes: ReadonlySet<string> = new Set(),
 ): NodeHandlers {
-  const stationHandler: NodeHandler = createStationNodeHandler({
+  const station: NodeHandler = createStationNodeHandler({
     launch: (node) => ports.dispatchAgent(nodeStationSpec(node, task)),
     poll: ports.agentStatus,
     heartbeat: ports.heartbeat,
     sleep: ports.sleep,
   });
-  const stationOr = (type: string, inProcess?: NodeHandler): NodeHandler | undefined =>
-    stationNodes.has(type) ? stationHandler : inProcess;
 
-  const handlers = createProductionHandlers({
-    episodeDeps: ports.episodeDeps,
-    agent: createStationNodeHandler({
-      launch: (node) =>
-        ports.dispatchAgent(nodeAgentSpec(node, task, ports.resolvePrompt(node, task))),
-      poll: ports.agentStatus,
-      heartbeat: ports.heartbeat,
-      sleep: ports.sleep,
-    }),
-    validate: stationOr("validate"),
-    gate: stationOr("gate"),
-    retrospective: stationOr("retrospective"),
-    github_action: stationOr(
-      "github_action",
-      createGithubActionHandler({
-        ciConclusion: ports.ciConclusion,
+  return {
+    ...createProductionHandlers({
+      episodeDeps: ports.episodeDeps,
+      agent: createStationNodeHandler({
+        launch: (node) =>
+          ports.dispatchAgent(nodeAgentSpec(node, task, ports.resolvePrompt(node, task))),
+        poll: ports.agentStatus,
         heartbeat: ports.heartbeat,
         sleep: ports.sleep,
       }),
-    ),
-  });
-  const detect = stationOr("detect");
-  return detect ? { ...handlers, detect } : handlers;
+      validate: station,
+      gate: station,
+      retrospective: station,
+      github_action: station,
+    }),
+    detect: station,
+  };
 }

@@ -5,7 +5,6 @@ import {
   nodeAgentName,
   nodeAgentSpec,
   nodeStationSpec,
-  stationNodesFromEnv,
   buildFloorAssemblyLineHandlers,
   type FloorAssemblyLineTask,
   type FloorAssemblyLinePorts,
@@ -82,17 +81,10 @@ describe("buildFloorAssemblyLineHandlers", () => {
     expect(dispatched[0]).toMatchObject({ taskId: "abcdef1234567890" });
   });
 
-  it("github_action slot gates on the branch CI conclusion", async () => {
-    const { ports: p } = ports({ ciConclusion: async () => "failure" });
-    const handlers = buildFloorAssemblyLineHandlers(task, p);
-    const result = await handlers.github_action!({ id: "ci", type: "github_action" }, ctx);
-    expect(result.outcome).toBe("failed");
-  });
-
-  it("station-flagged node types dispatch a station CR and parse the LORE_NODE_RESULT line", async () => {
+  it("every non-agent node dispatches a station CR and parses the LORE_NODE_RESULT line", async () => {
     const output = `logs\nLORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Validation-Failed":"lint"}}`;
     const { ports: p, dispatched } = ports({ agentStatus: async () => ({ phase: "Succeeded", output }) });
-    const handlers = buildFloorAssemblyLineHandlers(task, p, new Set(["validate"]));
+    const handlers = buildFloorAssemblyLineHandlers(task, p);
 
     const result = await handlers.validate({ id: "validate", type: "validate", validator: "all" }, ctx);
 
@@ -116,21 +108,17 @@ describe("buildFloorAssemblyLineHandlers", () => {
     ]);
   });
 
-  it("unflagged node types keep the in-process kernel defaults (no dispatch)", async () => {
-    const { ports: p, dispatched } = ports();
-    const handlers = buildFloorAssemblyLineHandlers(task, p, new Set());
-    const result = await handlers.gate({ id: "merge-gate", type: "gate" }, ctx);
-    expect(result.outcome).toBe("success");
-    expect(dispatched).toEqual([]);
-  });
+  it("gate, retrospective, github_action, and detect all resolve to station handlers", async () => {
+    const output = `LORE_NODE_RESULT: {"outcome":"success","extras":{}}`;
+    const { ports: p, dispatched } = ports({ agentStatus: async () => ({ phase: "Succeeded", output }) });
+    const handlers = buildFloorAssemblyLineHandlers(task, p);
 
-  it("a detect node flagged for station dispatch is exposed as a detect handler", () => {
-    const { ports: p } = ports();
-    const flagged = buildFloorAssemblyLineHandlers(task, p, new Set(["detect"]));
-    expect(flagged.detect).toBeTypeOf("function");
-    // Unflagged: no detect handler (the in-process kernel has no detect default).
-    const unflagged = buildFloorAssemblyLineHandlers(task, p, new Set());
-    expect(unflagged.detect).toBeUndefined();
+    for (const type of ["gate", "retrospective", "github_action", "detect"] as const) {
+      expect(handlers[type]).toBeTypeOf("function");
+    }
+    const result = await handlers.gate!({ id: "merge-gate", type: "gate" }, ctx);
+    expect(result.outcome).toBe("success");
+    expect(dispatched[0]).toMatchObject({ stationRef: "def-gate" });
   });
 });
 
@@ -151,10 +139,3 @@ describe("nodeStationSpec", () => {
   });
 });
 
-describe("stationNodesFromEnv", () => {
-  it("parses the comma-separated type list, trimming blanks", () => {
-    expect(stationNodesFromEnv("validate, detect,")).toEqual(new Set(["validate", "detect"]));
-    expect(stationNodesFromEnv(undefined)).toEqual(new Set());
-    expect(stationNodesFromEnv("")).toEqual(new Set());
-  });
-});
