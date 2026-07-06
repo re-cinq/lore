@@ -115,7 +115,7 @@ export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
       if ("error" in result) return h.response({ error: result.error }).code(400);
 
       const pool = getPool();
-      if (!pool) return h.response({ error: "database not available" }).code(503);
+      if (!pool) return h.response({ error: "database unavailable" }).code(503);
 
       try {
         await pool.query(

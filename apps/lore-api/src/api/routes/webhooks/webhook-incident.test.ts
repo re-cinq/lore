@@ -114,7 +114,7 @@ describe("POST /api/webhook/incident", () => {
   it("returns 503 when the pool is null", async () => {
     const res = await bearer({ repo: "o/r" }, null);
     expect(res.statusCode).toBe(503);
-    expect(res.result).toEqual({ error: "database not available" });
+    expect(res.result).toEqual({ error: "database unavailable" });
   });
 
   it("returns 500 when the upsert throws", async () => {
