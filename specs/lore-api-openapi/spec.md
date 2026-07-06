@@ -104,9 +104,10 @@ declared — and the drift guard cross-checks it. (Design fork 3.)
   documented once. (Design fork 4.)
 
 The document is **request-focused**: we have declarative schemas for request bodies
-and the error envelope, not for success bodies. Success responses are documented at
-`200`/`201`/`202` with a generic `object` schema — the doc does not invent response
-shapes it cannot derive. This is stated in `info.description`.
+and the error envelope, not for success bodies. Each operation carries a single
+`200` success entry with a description only (no `content` schema — the code returns
+2xx but the body shape is not declaratively known, so none is invented). This is
+stated in `info.description`.
 
 ### Surface
 
