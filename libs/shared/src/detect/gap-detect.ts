@@ -1,6 +1,5 @@
-import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
-import { projectFor } from "../../../composition/project-boot.js";
-import type { Project } from "@re-cinq/lore-shared";
+import { OPEN_TASK_STATES } from "../project/tasks/task-store-port.js";
+import type { Project } from "../index.js";
 
 interface GapReport {
   repo: string;
@@ -17,7 +16,7 @@ export interface GapDetectOptions {
   repoFilter: string;
   /** Data facade to read/write through — projectFor(repo) on the Floor,
    *  createStationProject(env) in a pod. Defaults to projectFor(repo). */
-  project?: Project;
+  project: Project;
 }
 
 /**
@@ -34,7 +33,7 @@ export interface GapDetectOptions {
  */
 export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
   const repo = opts.repoFilter;
-  const project = opts.project ?? (await projectFor(repo));
+  const project = opts.project;
 
   if (!(await project.settings.isOnboarded())) {
     console.log(`[job] gap-detect: ${repo} is not onboarded — skipping`);

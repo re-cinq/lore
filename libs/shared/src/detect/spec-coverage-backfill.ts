@@ -37,10 +37,9 @@ import {
   extractAssertions,
   type Project,
   type SpecChunkWithEmbedding,
-} from "@re-cinq/lore-shared";
-import { Llm } from "@re-cinq/lore-shared";
-import { projectFor } from "../../../composition/project-boot.js";
-import { isAssertionSource } from "../spec-drift/spec-drift-rules.js";
+} from "../index.js";
+import { Llm } from "../index.js";
+import { isAssertionSource } from "./spec-drift-rules.js";
 
 // ── Pure helper: which statements need backfill? ───────────────────
 
@@ -459,12 +458,12 @@ export interface BackfillOptions {
   specPathFilter?: string;
   /** Data facade — projectFor(repo) on the Floor, createStationProject(env) in
    *  a pod. Defaults to projectFor(repo). */
-  project?: Project;
+  project: Project;
 }
 
 export async function specCoverageBackfillJob(opts: BackfillOptions): Promise<string> {
   const repo = opts.repoFilter;
-  const project = opts.project ?? (await projectFor(repo));
+  const project = opts.project;
 
   const specRows = await project.chunks.specChunksForBackfill();
   const specs = opts.specPathFilter

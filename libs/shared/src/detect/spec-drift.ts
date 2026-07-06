@@ -1,6 +1,5 @@
-import { extractAssertions } from "@re-cinq/lore-shared";
-import { projectFor } from "../../../composition/project-boot.js";
-import type { Project } from "@re-cinq/lore-shared";
+import { extractAssertions } from "../index.js";
+import type { Project } from "../index.js";
 import {
   isAssertionSource,
   shouldSkipDrift,
@@ -20,7 +19,7 @@ export interface SpecDriftOptions {
   /** The data facade to read/write through. Floor-side this is projectFor(repo)
    *  (Postgres); in a station pod it is createStationProject(env) (HTTP, no DB).
    *  Defaults to projectFor(repo) so existing Floor callers are unchanged. */
-  project?: Project;
+  project: Project;
 }
 
 /**
@@ -39,7 +38,7 @@ export interface SpecDriftOptions {
  */
 export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
   const repo = opts.repoFilter;
-  const project = opts.project ?? (await projectFor(repo));
+  const project = opts.project;
   const specs = await project.chunks.specChunks();
 
   if (specs.length === 0) {

@@ -8,7 +8,7 @@ import { createDgraphClient } from "@re-cinq/lore-shared";
 import { dispatchSpecTrace } from "./spec-trace/spec-trace-dispatch.js";
 import { projectFor } from "../composition/project-boot.js";
 import { writeAuditLog } from "./lib/audit.js";
-import { validateSpecCoverageJob } from "./spec-trace/spec-coverage-validate.js";
+import { validateSpecCoverageJob } from "@re-cinq/lore-shared/detect/index.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 export const specTrace: EventHandler = async (params) => {
@@ -28,5 +28,5 @@ export const specTrace: EventHandler = async (params) => {
 
 export const specCoverageValidate: EventHandler = async (params) => {
   const { repo } = params as { repo: string };
-  await validateSpecCoverageJob({ repoFilter: repo });
+  await validateSpecCoverageJob({ repoFilter: repo, project: await projectFor(repo) });
 };

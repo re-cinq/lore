@@ -1,16 +1,23 @@
-// The detection-job registry the detect node handler dispatches on. Keys are
-// the workflow YAMLs' `job_ref` values (the historic ADR-019 job names); each
-// detector is the existing job function bound to one repo via repoFilter.
+// The detection-job registry the detect node handler dispatches on (Floor-side).
+// Keys are the workflow YAMLs' `job_ref` values (the historic ADR-019 job names).
+// The detector cores live in @re-cinq/lore-shared/detect so a station pod can
+// import them too; the Floor binds each to projectFor(repo) (Postgres), while a
+// pod binds createStationProject(repo) (HTTP).
 
 import type { DetectorFn } from "@re-cinq/lore-assembly-lines";
-import { gapDetectJob } from "../context-jobs/gap-detect/index.js";
-import { specDriftJob } from "../spec-trace/spec-drift/index.js";
-import { specCoverageBackfillJob } from "../spec-trace/spec-coverage-backfill/index.js";
-import { validateSpecCoverageJob } from "../spec-trace/spec-coverage-validate.js";
+import {
+  gapDetectJob,
+  specDriftJob,
+  validateSpecCoverageJob,
+  specCoverageBackfillJob,
+} from "@re-cinq/lore-shared/detect/index.js";
+import { projectFor } from "../../composition/project-boot.js";
 
 export const detectors: Record<string, DetectorFn> = {
-  spec_drift: ({ repo }) => specDriftJob({ repoFilter: repo }),
-  gap_detection: ({ repo }) => gapDetectJob({ repoFilter: repo }),
-  spec_coverage_validate: ({ repo }) => validateSpecCoverageJob({ repoFilter: repo }),
-  spec_coverage_backfill: ({ repo }) => specCoverageBackfillJob({ repoFilter: repo }),
+  spec_drift: async ({ repo }) => specDriftJob({ repoFilter: repo, project: await projectFor(repo) }),
+  gap_detection: async ({ repo }) => gapDetectJob({ repoFilter: repo, project: await projectFor(repo) }),
+  spec_coverage_validate: async ({ repo }) =>
+    validateSpecCoverageJob({ repoFilter: repo, project: await projectFor(repo) }),
+  spec_coverage_backfill: async ({ repo }) =>
+    specCoverageBackfillJob({ repoFilter: repo, project: await projectFor(repo) }),
 };

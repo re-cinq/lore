@@ -31,8 +31,7 @@ import {
   type TestLinkRef,
   type Project,
   type SpecChunkWithIngest,
-} from "@re-cinq/lore-shared";
-import { projectFor } from "../../composition/project-boot.js";
+} from "../index.js";
 
 export interface ChunkLineRange {
   file_path: string;
@@ -144,7 +143,7 @@ export interface ValidateOptions {
   repoFilter: string;
   /** Data facade — projectFor(repo) on the Floor, createStationProject(env) in
    *  a pod. Defaults to projectFor(repo). */
-  project?: Project;
+  project: Project;
 }
 
 /** Group a repo's spec chunks by file path so multi-chunk specs reassemble. */
@@ -160,7 +159,7 @@ function specsByPath(specs: SpecChunkWithIngest[]): Map<string, SpecChunkWithIng
 
 export async function validateSpecCoverageJob(opts: ValidateOptions): Promise<string> {
   const repo = opts.repoFilter;
-  const project = opts.project ?? (await projectFor(repo));
+  const project = opts.project;
 
   const specs = await project.chunks.specChunksWithIngest();
   if (specs.length === 0) {
