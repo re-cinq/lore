@@ -1,5 +1,12 @@
 import type { PipelineTask } from "../../types.js";
-import type { TaskStorePort, TaskWithEvents, TaskListResult, CreateTaskInput } from "./task-store-port.js";
+import type {
+  TaskStorePort,
+  TaskWithEvents,
+  TaskListResult,
+  CreateTaskInput,
+  DriftTaskRow,
+  FindOpenLikeInput,
+} from "./task-store-port.js";
 import { Task } from "./task.js";
 
 /**
@@ -39,6 +46,16 @@ export class TaskList {
 
   retry(id: string): Promise<any> {
     return this.store.retry(id);
+  }
+
+  /** Drift-dedup rows for a spec (keyed by context_bundle.spec_path). */
+  driftTasksForSpec(taskType: string, specPath: string): Promise<DriftTaskRow[]> {
+    return this.store.driftTasksForSpec(this.repo, taskType, specPath);
+  }
+
+  /** Open (per statuses) tasks of one type whose description starts with the prefix — job dedup. */
+  findOpenLike(input: Omit<FindOpenLikeInput, "repo"> & { repo?: string }): Promise<PipelineTask[]> {
+    return this.store.findOpenLike({ ...input, repo: input.repo ?? this.repo });
   }
 
   list(status?: string, limit?: number): Promise<TaskListResult> {
