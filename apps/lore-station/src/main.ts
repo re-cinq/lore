@@ -36,14 +36,23 @@ export async function runStation(
   }
 }
 
-const invokedDirectly = process.argv[1]?.endsWith("main.js");
-if (invokedDirectly) {
+async function main() {
   const [type, inputJson] = process.argv.slice(2);
   console.log(eventLine(`lore-station ${type ?? "<missing type>"} starting`));
-  runStation(type ?? "", inputJson ?? "{}", {
+
+  const { line, exitCode } = await runStation(type ?? "", inputJson ?? "{}", {
     workspaceDir: process.env.WORKSPACE_DIR ?? "/workspace",
-  }).then(({ line, exitCode }) => {
-    console.log(line);
-    process.exit(exitCode);
+  });
+
+  console.log(line);
+  process.exit(exitCode);
+}
+
+const invokedDirectly = process.argv[1]?.endsWith("main.js");
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error(eventLine(`lore-station main() failed: ${(err as Error).message}`));
+    console.error(err);
+    process.exit(1);
   });
 }
