@@ -82,4 +82,9 @@ describe("GET /api/repo-status", () => {
     const res = await get(pool);
     expect(res.result).toEqual({ onboarded: false, error: "db gone" });
   });
+
+  it("returns 400 when repo is not owner/name", async () => {
+    const res = await get(makePool(), "/api/repo-status?repo=notarepo");
+    expect(res.statusCode).toBe(400);
+  });
 });

@@ -5,20 +5,25 @@
  */
 
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { fetchPrStatus } from "../../../platform/github-client.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { repoFullName } from "../common-schemas.js";
+
+const PrStatusQuery = z.object({
+  repo: repoFullName,
+  pr_number: z.coerce.number().int().positive(),
+});
+type PrStatusQuery = z.infer<typeof PrStatusQuery>;
 
 export function prStatusRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/pr-status",
-    options: bearerScope("read"),
+    options: { ...bearerScope("read"), validate: { query: zodValidate(PrStatusQuery) } },
     handler: async (request, h) => {
-      const repo = request.query.repo as string | undefined;
-      const prNumber = Number((request.query.pr_number as string | undefined) ?? null);
-      if (!repo || !repo.includes("/") || !Number.isInteger(prNumber)) {
-        return h.response({ error: "required: repo (owner/name), pr_number (integer)" }).code(400);
-      }
+      const { repo, pr_number: prNumber } = request.query as unknown as PrStatusQuery;
       try {
         const result = await fetchPrStatus(repo, prNumber);
         if (!result) {

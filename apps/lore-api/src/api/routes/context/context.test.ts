@@ -87,4 +87,9 @@ describe("GET /api/context", () => {
     const res = await get(makePool(), "/api/context?query=hi");
     expect(res.statusCode).toBe(500);
   });
+
+  it("returns 400 for an unknown template", async () => {
+    const res = await get(makePool(), "/api/context?query=hi&template=bogus");
+    expect(res.statusCode).toBe(400);
+  });
 });

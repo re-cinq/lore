@@ -1,15 +1,21 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { repoFullName } from "../common-schemas.js";
+
+const RepoStatusQuery = z.object({ repo: repoFullName.optional() });
+type RepoStatusQuery = z.infer<typeof RepoStatusQuery>;
 
 export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repo-status",
-    options: bearerScope("read"),
+    options: { ...bearerScope("read"), validate: { query: zodValidate(RepoStatusQuery) } },
     handler: async (request, h) => {
       const pool = getPool();
-      const repo = (request.query.repo as string | undefined) ?? null;
+      const { repo } = request.query as RepoStatusQuery;
       if (!repo || !pool) return h.response({ onboarded: false });
 
       try {

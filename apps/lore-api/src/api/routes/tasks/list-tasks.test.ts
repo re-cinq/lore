@@ -36,4 +36,9 @@ describe("GET /api/tasks", () => {
     const res = await get("/api/tasks");
     expect(res.statusCode).toBe(500);
   });
+
+  it("returns 400 when status has an invalid shape", async () => {
+    const res = await get("/api/tasks?status=Broken!");
+    expect(res.statusCode).toBe(400);
+  });
 });

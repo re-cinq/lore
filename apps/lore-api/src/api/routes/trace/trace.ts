@@ -1,7 +1,14 @@
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { mergePersistentFeatures } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../platform/project-boot.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
+
+// `kind` keeps its Set check (404 unknown, not 400); only the free-form `path`
+// query is bounded here.
+const TraceQuery = z.object({ path: z.string().max(1024).optional() });
+type TraceQuery = z.infer<typeof TraceQuery>;
 
 /**
  * GET /api/repos/:owner/:repo/trace/{specs|adrs|document|source|graph|ring} —
@@ -20,11 +27,11 @@ export function traceRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/trace/{kind}",
-    options: bearerScope("read"),
+    options: { ...bearerScope("read"), validate: { query: zodValidate(TraceQuery) } },
     handler: async (request, h) => {
       const kind = request.params.kind;
       if (!TRACE_KINDS.has(kind)) return h.response({ error: "not found" }).code(404);
-      const filePath = (request.query.path as string | undefined) ?? "";
+      const { path: filePath = "" } = request.query as TraceQuery;
 
       try {
         const trace = (await projectFor(`${request.params.owner}/${request.params.repo}`)).trace;

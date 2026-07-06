@@ -7,6 +7,7 @@ import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { makeGraphLlmCall } from "../helpers.js";
+import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 const SessionSummaryBody = z.object({
   session_log: z.union([z.string().min(1), z.object({ summary: z.string().optional() }).passthrough()]),
@@ -35,7 +36,7 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
         const agent = agent_id || "session-hook";
         const contentHash = createHash("sha256").update(content).digest("hex");
 
-        if (!pool) return h.response({ error: "database not available" }).code(503);
+        if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
 
         const { rows } = await pool.query(
           `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)

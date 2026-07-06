@@ -5,6 +5,7 @@ import { ingestFiles } from "../../../features/spec-trace/ingest.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { triggerAgentSpecCoverageValidate } from "../helpers.js";
+import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 const IngestBody = z.object({
   files: z.array(z.union([z.string(), z.object({ path: z.string(), content: z.string() })])),
@@ -20,7 +21,7 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
     options: { ...bearerScope("write"), validate: { payload: zodValidate(IngestBody) } },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database not available" }).code(503);
+      if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
       try {
         const { files, repo, commit } = request.payload as IngestBody;
         const result = await ingestFiles(pool, files, repo, commit || "HEAD");
