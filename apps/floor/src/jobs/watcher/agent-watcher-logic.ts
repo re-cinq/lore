@@ -36,3 +36,12 @@ export function decideCiGate(conclusion: CiConclusion): "proceed" | "defer" {
   return conclusion === "failure" || conclusion === "pending" ? "defer" : "proceed";
 }
 
+/** Reclaim a single-agent task's per-task token when its CR goes terminal (#784). A
+ *  multi-node station line shares one `pt-<id>` token across its node CRs and reclaims
+ *  it at line completion, so skip when the task has an assembly-line row — else the token
+ *  would be deleted mid-line. Task-less lines never reach here (no backing task). */
+export function decideTokenReclaim(input: { phase: string | undefined; hasAssemblyLine: boolean }): boolean {
+  const terminal = input.phase === "Succeeded" || input.phase === "Failed";
+  return terminal && !input.hasAssemblyLine;
+}
+
