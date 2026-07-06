@@ -1,0 +1,36 @@
+name: code-review
+description: Review a PR — evaluate the diff (or an incoming reply), post line-level comments, then refine/act on the verdict.
+version: 1
+entry: review
+exit: done
+
+nodes:
+  - id: review
+    type: agent
+    prompt_ref: code-review
+    model: claude-sonnet-4-6
+    description: Evaluate the diff or an incoming reply; post line-level inline comments; emit a verdict.
+
+  - id: refine
+    type: agent
+    prompt_ref: code-review-refine
+    model: claude-sonnet-4-6
+    description: Act on the verdict — answer in-thread or commit a fix to the PR branch.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: review
+    to: refine
+    on: changes_requested
+  - from: review
+    to: done
+    on: success
+  - from: review
+    to: done
+    on: failed
+  - from: refine
+    to: done
+    on: always

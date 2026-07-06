@@ -23,6 +23,7 @@ import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import { isTransientInfraFailure, MAX_INFRA_RETRIES } from "../platform/infra-failure.js";
 import { buildReviewFixDescription, formatReviewFeedback, prFooter, linkifyMarkdown } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
+import { shouldAutoReview } from "../review/should-auto-review.js";
 import {
   taskIdOf,
   taskTypeOf,
@@ -141,10 +142,6 @@ async function notifySlack(taskId: string, repo: string, message: string): Promi
   } catch { /* best effort */ }
 }
 
-async function shouldAutoReview(repo: string): Promise<boolean> {
-  const repoSettings = (await settings().rawSettings(repo)) as { auto_review?: boolean } | null;
-  return repoSettings?.auto_review === true;
-}
 async function getIssueNumber(taskId: string): Promise<{ issue_number: number | null; target_repo: string }> {
   const task = await taskStore().getById(taskId);
   if (!task) return { issue_number: null, target_repo: "" };

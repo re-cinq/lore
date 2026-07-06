@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildRegistry } from "./registry.js";
+import { buildRegistry, withExtra } from "./registry.js";
 import { GITHUB_EVENT_NAMES } from "../listeners/github-map.js";
 import { AGENT_EVENT_NAMES } from "../listeners/k8s-map.js";
 import { cronTickEventNames } from "../listeners/cron-emitters.js";
@@ -31,5 +31,36 @@ describe("buildRegistry", () => {
     for (const [name, handler] of buildRegistry()) {
       expect(handler, `handler for ${name}`).toBeTypeOf("function");
     }
+  });
+});
+
+describe("withExtra", () => {
+  it("runs the primary then every secondary in order", async () => {
+    const seen: string[] = [];
+    const composed = withExtra(
+      async () => { seen.push("primary"); },
+      async () => { seen.push("extra-1"); },
+      async () => { seen.push("extra-2"); },
+    );
+
+    await composed({});
+
+    expect(seen).toEqual(["primary", "extra-1", "extra-2"]);
+  });
+
+  it("propagates a primary throw (keeps its retry semantics)", async () => {
+    const composed = withExtra(async () => { throw new Error("primary boom"); }, async () => {});
+    await expect(composed({})).rejects.toThrow("primary boom");
+  });
+
+  it("swallows a secondary throw so it never breaks the primary", async () => {
+    let primaryRan = false;
+    const composed = withExtra(
+      async () => { primaryRan = true; },
+      async () => { throw new Error("secondary boom"); },
+    );
+
+    await expect(composed({})).resolves.toBeUndefined();
+    expect(primaryRan).toBe(true);
   });
 });

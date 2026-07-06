@@ -104,6 +104,30 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async findOpenByPr(repo: string, prNumber: number): Promise<AssemblyLineRecord[]> {
+    return this.rows
+      .filter((r) => this.matchesOpenPr(r, repo, prNumber))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async finishOpenByPr(repo: string, prNumber: number, outcome: string): Promise<number> {
+    const open = this.rows.filter((r) => this.matchesOpenPr(r, repo, prNumber));
+    for (const row of open) {
+      row.status = "finished";
+      row.outcome = outcome;
+      row.finishedAt = this.clock();
+    }
+    return open.length;
+  }
+
+  private matchesOpenPr(row: AssemblyLineRecord, repo: string, prNumber: number): boolean {
+    return (
+      row.repo === repo &&
+      Number(row.args.pr_number) === prNumber &&
+      (row.status === "queued" || row.status === "running")
+    );
+  }
+
   private newRow(id: string, input: AssemblyLineStartInput): AssemblyLineRecord {
     return {
       id,

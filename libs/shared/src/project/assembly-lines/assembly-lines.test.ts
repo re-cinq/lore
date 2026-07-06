@@ -204,6 +204,30 @@ describe("PgAssemblyLines adapter", () => {
     expect(calls[0]?.text).toContain("ORDER BY created_at DESC");
     expect(calls[0]?.params).toEqual(["task-9"]);
   });
+
+  it("findOpenByPr matches repo + args pr_number and only open statuses", async () => {
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAssemblyLines(pool).findOpenByPr("re-cinq/lore", 42);
+
+    expect(calls[0]?.text).toContain("WHERE repo = $1");
+    expect(calls[0]?.text).toContain("(args->>'pr_number')::int = $2");
+    expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
+    expect(calls[0]?.params).toEqual(["re-cinq/lore", 42]);
+  });
+
+  it("finishOpenByPr closes matching open rows and returns the count", async () => {
+    const { pool, calls } = fakePool([[{ id: "al-1" }, { id: "al-2" }]]);
+
+    const count = await new PgAssemblyLines(pool).finishOpenByPr("re-cinq/lore", 42, "pr_closed");
+
+    expect(count).toBe(2);
+    expect(calls[0]?.text).toContain("UPDATE pipeline.assembly_lines");
+    expect(calls[0]?.text).toContain("WHERE repo = $2");
+    expect(calls[0]?.text).toContain("(args->>'pr_number')::int = $3");
+    expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
+    expect(calls[0]?.params).toEqual(["pr_closed", "re-cinq/lore", 42]);
+  });
 });
 
 describe("InMemoryAssemblyLines double", () => {
@@ -345,6 +369,31 @@ describe("InMemoryAssemblyLines double", () => {
 
     expect(forTask.map((r) => r.id)).toEqual([second, first]);
   });
+
+  it("findOpenByPr returns open rows for the repo+PR, excluding finished and other PRs", async () => {
+    const assemblyLines = new InMemoryAssemblyLines();
+    const open = await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 42 } });
+    const done = await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 42 } });
+    await assemblyLines.finish(done, "success");
+    await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 99 } });
+    await assemblyLines.start({ definitionName: "code-review", repo: "r/b", args: { pr_number: 42 } });
+
+    const found = await assemblyLines.findOpenByPr("r/a", 42);
+
+    expect(found.map((r) => r.id)).toEqual([open]);
+  });
+
+  it("finishOpenByPr closes only the open matching rows and returns the count", async () => {
+    const assemblyLines = new InMemoryAssemblyLines();
+    const a = await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 42 } });
+    const other = await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 99 } });
+
+    const count = await assemblyLines.finishOpenByPr("r/a", 42, "pr_closed");
+
+    expect(count).toBe(1);
+    expect(await assemblyLines.getById(a)).toMatchObject({ status: "finished", outcome: "pr_closed" });
+    expect(await assemblyLines.getById(other)).toMatchObject({ status: "queued" });
+  });
 });
 
 describe("AssemblyLines facade", () => {
@@ -369,5 +418,15 @@ describe("AssemblyLines facade", () => {
 
     expect(await facade.getById(id)).toMatchObject({ id });
     expect(await facade.listForTask("task-1")).toHaveLength(1);
+  });
+
+  it("findOpenByPr and finishOpenByPr fill the repo from the facade scope", async () => {
+    const port = new InMemoryAssemblyLines();
+    const facade = new AssemblyLines("re-cinq/lore", port);
+    const id = await facade.start("code-review", { args: { pr_number: 7 } });
+
+    expect((await facade.findOpenByPr(7)).map((r) => r.id)).toEqual([id]);
+    expect(await facade.finishOpenByPr(7, "pr_closed")).toBe(1);
+    expect(await facade.getById(id)).toMatchObject({ status: "finished", outcome: "pr_closed" });
   });
 });
