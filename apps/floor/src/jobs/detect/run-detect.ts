@@ -10,17 +10,25 @@ import * as os from "node:os";
 import * as path from "node:path";
 import {
   builtinHandlers,
-  createDetectHandler,
+  createStationNodeHandler,
   loadBuiltinAssemblyLines,
   runSupervisor,
   type AssemblyLine,
-  type DetectorFn,
+  type AgentNodeStatus,
   type SupervisorResult,
 } from "@re-cinq/lore-assembly-lines";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import type { JobRunsPort } from "@re-cinq/lore-shared/project/job-runs/job-runs-port.js";
 import type { LeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
+import { nodeAgentName, nodeStationSpec } from "../assembly-line/floor-assembly-line.js";
+
+/** Dispatches one node's Agent CR (AgentCrBackend.launch); reads its status by CR name. */
+export interface DetectStationDispatch {
+  launch: (spec: LoreTaskSpec) => Promise<unknown>;
+  status: (crName: string) => Promise<AgentNodeStatus | null>;
+}
 
 export interface RunDetectOptions {
   /** The pipeline.assembly_lines row minted by assemblyLines().start(). */
@@ -28,11 +36,12 @@ export interface RunDetectOptions {
   definitionName: string;
   repo: string;
   /** Overrides for tests; production defaults resolve lazily in runDetect. */
-  detectors?: Record<string, DetectorFn>;
   loadAssemblyLines?: () => Promise<Map<string, AssemblyLine>>;
   assemblyLinesPort?: AssemblyLinesPort;
   jobRunsPort?: JobRunsPort;
   leaseBackend?: LeaseBackend;
+  /** Station dispatch (Agent CR launch + status). Defaults to the agent-cr backend. */
+  dispatch?: DetectStationDispatch;
 }
 
 export function detectBranchName(definitionName: string, repo: string): string {
@@ -50,12 +59,12 @@ function jobRefOf(assemblyLine: AssemblyLine): string {
 }
 
 export async function runDetect(opts: RunDetectOptions): Promise<SupervisorResult> {
-  const [detectorRegistry, assemblyLinesPort, jobRunsPort, leaseBackend] = await Promise.all([
-    opts.detectors ?? import("./detectors.js").then((m) => m.detectors),
+  const [assemblyLinesPort, jobRunsPort, leaseBackend, dispatch] = await Promise.all([
     opts.assemblyLinesPort ?? import("../../kernel/queues.js").then((m) => m.assemblyLines()),
     opts.jobRunsPort ?? import("../../kernel/queues.js").then((m) => m.jobRuns()),
     opts.leaseBackend ??
       import("../../main-loop/lease/lease-backend.js").then((m) => m.leaseBackendForEnv()),
+    opts.dispatch ?? defaultDispatch(),
   ]);
 
   const definitions = await (opts.loadAssemblyLines ?? loadBuiltinAssemblyLines)();
@@ -65,16 +74,26 @@ export async function runDetect(opts: RunDetectOptions): Promise<SupervisorResul
   const jobRef = jobRefOf(assemblyLine);
   const runId = await jobRunsPort.start(`${jobRef}:${opts.repo}`);
 
-  // No checkout: an empty tmpdir satisfies the executor's gitDir, the no-op
-  // gitCommit skips stage commits, and resume-from-branch reads null (fresh run).
+  // No checkout: the detect station reads over HTTP, so an empty tmpdir satisfies
+  // the executor's gitDir and the no-op gitCommit skips stage commits. The detect
+  // node dispatches a station pod (createStationNodeHandler); the branch name is a
+  // pure lease key + the synthetic task id for the per-attempt CR (assemblyLineId).
   const workdir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-detect-"));
-  let summary = "";
+  const holder = os.hostname();
+  const branch = detectBranchName(opts.definitionName, opts.repo);
+  const stationTask = {
+    taskId: opts.assemblyLineId, // synthetic — detect has no pipeline task, but the CR label needs a stable id
+    assemblyLineId: opts.assemblyLineId,
+    taskType: opts.definitionName,
+    description: "",
+    targetRepo: opts.repo,
+    branch,
+  };
 
   try {
     const result = await runSupervisor({
-      // No pipeline task backs a detection run — the lease row carries NULL.
-      taskId: null,
-      branchName: detectBranchName(opts.definitionName, opts.repo),
+      taskId: null, // the lease row carries NULL — no pipeline task backs a detection run
+      branchName: branch,
       gitDir: workdir,
       leaseBackend,
       assemblyLine,
@@ -89,25 +108,22 @@ export async function runDetect(opts: RunDetectOptions): Promise<SupervisorResul
         agent: async () => {
           throw new Error("detect assembly lines have no agent nodes");
         },
-        detect: createDetectHandler(detectorRegistry, {
-          repo: opts.repo,
-          onSummary: (s) => void (summary = s),
+        detect: createStationNodeHandler({
+          launch: (node) => dispatch.launch(nodeStationSpec(node, stationTask)).then(() => {}),
+          poll: (assemblyLineId, nodeId) => dispatch.status(nodeAgentName(assemblyLineId, nodeId)),
+          heartbeat: (branchName, nodeId) => leaseBackend.refresh(branchName, holder, undefined, nodeId).then(() => {}),
+          sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
         }),
       },
     });
 
+    // The detailed detector summary rides the pod's LORE_NODE_RESULT extras +
+    // the stage-commit trailer; job_runs records the run's terminal reason.
     if (result.reason === "completed") {
-      await jobRunsPort.complete(runId, summary);
-    }
-
-    if (result.reason === "lease_held") {
-      await jobRunsPort.complete(
-        runId,
-        `skipped: lease held by ${result.currentHolder ?? "unknown"}`,
-      );
-    }
-
-    if(result.reason !== "completed" && result.reason !== "lease_held") {
+      await jobRunsPort.complete(runId, `station run: ${opts.definitionName}:${opts.repo} completed`);
+    } else if (result.reason === "lease_held") {
+      await jobRunsPort.complete(runId, `skipped: lease held by ${result.currentHolder ?? "unknown"}`);
+    } else {
       await jobRunsPort.fail(runId, result.errorMessage ?? result.reason);
     }
 
@@ -115,11 +131,25 @@ export async function runDetect(opts: RunDetectOptions): Promise<SupervisorResul
   } catch (err) {
     await jobRunsPort
       .fail(runId, (err as Error).message)
-      .catch((failErr) =>
+      .catch((failErr: unknown) =>
         console.error(`[detect] job_runs fail() failed for ${runId}:`, (failErr as Error).message),
       );
     throw err;
   } finally {
     await fs.rm(workdir, { recursive: true, force: true });
   }
+}
+
+/** Production station dispatch: the agent-cr backend + a Kubernetes status reader. */
+async function defaultDispatch(): Promise<DetectStationDispatch> {
+  const [{ agentCrBackend }, { KubeAgentApi }] = await Promise.all([
+    import("../../composition/project-boot.js"),
+    import("../station/kube-agent-api.js"),
+  ]);
+  const backend = agentCrBackend();
+  const kube = new KubeAgentApi();
+  return {
+    launch: (spec) => backend.launch(spec),
+    status: (crName) => kube.getStatus(crName),
+  };
 }
