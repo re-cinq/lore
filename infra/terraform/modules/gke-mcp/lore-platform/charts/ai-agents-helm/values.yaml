@@ -26,15 +26,17 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.3.0, resolved via
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.3.0
-    digest: "sha256:acda06e6ea6b08d557316eec6243409be019cc21e42cd1e3d5e8fcc16dd88e16"
+    # Pinned by digest (never a floating tag) — v0.4.0, which registers the `exec`
+    # vendor (station recipes run as plain commands). Resolved via
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.4.0
+    digest: "sha256:73a75fce24b5c5fdc0b5420427936bf918a972e2010dae1eef9d54d640b513e4"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.3.0
-  # digest, paired with the controller above. Resolve with (needs ghcr read on the
-  # ai-agent package — not public):
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.3.0
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:9ff260b7df6e5a2719522d6767cd45969b21585777fc90b555c3c4e0e8ead3f3"
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.4.0
+  # digest, paired with the controller above. v0.4.0's `exec` vendor also carries the
+  # no-op ExecSetup, so station pods skip the claude-CLI install. Resolve with (needs
+  # ghcr read on the ai-agent package — not public):
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.4.0
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:9a945eb8bbd08b2f583f7ab98cf5271982002882ec40469eb82120248102ab5c"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
