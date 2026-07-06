@@ -68,7 +68,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 4 — Drift guard
 
-- [ ] T009 `apps/lore-api/src/openapi/coverage.test.ts`: for every route in
+- [x] T009 `apps/lore-api/src/openapi/coverage.test.ts`: for every route in
   `routeList` with a body-bearing method, assert it has a `zodValidate` payload
   schema OR a sidecar allowlist entry — a fixture route with neither fails; assert
   the `paths` count equals the `/api/*` route count and the doc is a structurally

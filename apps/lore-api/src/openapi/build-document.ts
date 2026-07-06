@@ -97,7 +97,7 @@ function methodsOf(route: ServerRoute): string[] {
 }
 
 /** `{owner}` / `{name?}` / `{artifact*}` → OpenAPI `{owner}`; strip optional/wildcard markers. */
-function normalizePath(hapiPath: string): string {
+export function normalizePath(hapiPath: string): string {
   return hapiPath.replace(/\{(\w+)[?*]\}/g, "{$1}");
 }
 
