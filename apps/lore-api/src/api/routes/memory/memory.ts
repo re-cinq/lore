@@ -1,50 +1,58 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
 import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "@re-cinq/lore-server-core/features/memory/memory.js";
 import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
 import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
+
+const version = z.union([z.string(), z.number()]).optional();
+const MemoryBody = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("write"), key: z.string(), value: z.string(), agent_id: z.string().optional(), ttl: z.number().optional(), repo: z.string().optional() }),
+  z.object({ action: z.literal("read"), key: z.string(), agent_id: z.string().optional(), version }),
+  z.object({ action: z.literal("search"), query: z.string(), agent_id: z.string().optional(), pool_name: z.string().optional(), limit: z.number().optional() }),
+  z.object({ action: z.literal("delete"), key: z.string(), agent_id: z.string().optional() }),
+  z.object({ action: z.literal("list"), agent_id: z.string().optional(), limit: z.number().optional() }),
+]);
+type MemoryBody = z.infer<typeof MemoryBody>;
 
 export function memoryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/memory",
-    options: { ...bearerScope("write"), payload: { parse: false } },
+    options: { ...bearerScope("write"), validate: { payload: zodValidate(MemoryBody) } },
     handler: async (request, h) => {
       const pool = getPool();
+      const body = request.payload as MemoryBody;
       try {
-        const { action, key, value, agent_id, ttl, query: searchQuery, limit, version, pool_name, repo } = JSON.parse(rawBody(request));
-        const embedding = (action === "write" || action === "search") && (value || searchQuery) ? await getQueryEmbedding(value || searchQuery) : null;
+        const embedInput = body.action === "write" ? body.value : body.action === "search" ? body.query : undefined;
+        const embedding = embedInput ? await getQueryEmbedding(embedInput) : null;
 
-        switch (action) {
+        switch (body.action) {
           case "write":
-            if (!key || !value) return h.response({ error: "key and value required" }).code(400);
             return h.response(isMemoryDbAvailable()
-              ? await writeMemory(key, value, agent_id, ttl, embedding || undefined, repo)
-              : await writeMemoryFile(key, value, agent_id, ttl));
-          case "read":
-            if (!key) return h.response({ error: "key required" }).code(400);
+              ? await writeMemory(body.key, body.value, body.agent_id, body.ttl, embedding || undefined, body.repo)
+              : await writeMemoryFile(body.key, body.value, body.agent_id, body.ttl));
+          case "read": {
+            const v = body.version === "all" ? "all" : body.version ? Number(body.version) : undefined;
             return h.response(isMemoryDbAvailable()
-              ? await readMemory(key, agent_id, version === "all" ? "all" : version ? Number(version) : undefined)
-              : await readMemoryFile(key, agent_id, version === "all" ? "all" : version ? Number(version) : undefined));
+              ? await readMemory(body.key, body.agent_id, v)
+              : await readMemoryFile(body.key, body.agent_id, v));
+          }
           case "search":
-            if (!searchQuery) return h.response({ error: "query required" }).code(400);
             return h.response(isMemoryDbAvailable()
-              ? await searchMemories(pool!, searchQuery, agent_id, pool_name, limit || 10)
-              : await searchMemoryFile(searchQuery, agent_id, limit || 10));
+              ? await searchMemories(pool!, body.query, body.agent_id, body.pool_name, body.limit || 10)
+              : await searchMemoryFile(body.query, body.agent_id, body.limit || 10));
           case "delete":
-            if (!key) return h.response({ error: "key required" }).code(400);
             return h.response(isMemoryDbAvailable()
-              ? await deleteMemory(key, agent_id)
-              : await deleteMemoryFile(key, agent_id));
+              ? await deleteMemory(body.key, body.agent_id)
+              : await deleteMemoryFile(body.key, body.agent_id));
           case "list":
             return h.response(isMemoryDbAvailable()
-              ? await listMemories(agent_id, limit || 50, 0)
-              : await listMemoriesFile(agent_id, limit || 50, 0));
-          default:
-            return h.response({ error: "action must be: write, read, search, delete, list" }).code(400);
+              ? await listMemories(body.agent_id, body.limit || 50, 0)
+              : await listMemoriesFile(body.agent_id, body.limit || 50, 0));
         }
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

@@ -36,6 +36,7 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
   });
 
   it("returns 400 on an unparseable body", async () => {
+    // ADR-034: hapi parses the payload, so malformed JSON is a native 400.
     const res = await buildServer(() => makePool() as any).inject({
       method: "POST",
       url: "/api/repos/o/r/impact",
@@ -43,6 +44,5 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
       payload: "{not json",
     });
     expect(res.statusCode).toBe(400);
-    expect(res.result).toMatchObject({ error: "invalid_body" });
   });
 });

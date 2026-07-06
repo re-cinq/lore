@@ -2,16 +2,26 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { createHash } from "node:crypto";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { rawBody } from "../../../server/raw-body.js";
 import type { TokenScope } from "../auth.js";
+
+interface TokensPostBody {
+  action?: string;
+  name?: string;
+  scopes?: string[];
+  expires_in_days?: number;
+  token_id?: string;
+}
 
 export function tokensRoute(getPool: () => Pool | null): ServerRoute {
   return {
     // "*" so an unsupported verb still reaches the handler's 405 (rather than a
-    // 404 from an unmatched route).
+    // 404 from an unmatched route). Being multi-method, per-method payload
+    // validation doesn't fit hapi's per-route model (a payload schema would also
+    // run on the bodyless GET), so the POST branch keeps its residual checks; the
+    // body is hapi-parsed rather than hand-parsed (ADR-034 FR6).
     method: "*",
     path: "/api/tokens",
-    options: { ...bearerScope("admin"), payload: { parse: false } },
+    options: bearerScope("admin"),
     handler: async (request, h) => {
       const pool = getPool();
       if (!pool) return h.response({ error: "database not available" }).code(503);
@@ -27,7 +37,7 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute {
 
       if (request.method.toUpperCase() === "POST") {
         try {
-          const { action, name, scopes, expires_in_days, token_id } = JSON.parse(rawBody(request));
+          const { action, name, scopes, expires_in_days, token_id } = (request.payload ?? {}) as TokensPostBody;
 
           if (action === "revoke" && token_id) {
             await pool.query(`UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1`, [token_id]);

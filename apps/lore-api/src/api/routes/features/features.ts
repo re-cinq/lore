@@ -12,7 +12,6 @@ import { roundInFlight, canFinalize, latestReadyGap } from "@re-cinq/lore-shared
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { parseJsonBodyCapped } from "../../../server/raw-body.js";
 
 /**
  * /api/repos/:owner/:repo/features[...] — the smart feature-planning surface.
@@ -28,7 +27,8 @@ import { parseJsonBodyCapped } from "../../../server/raw-body.js";
 
 const BASE = "/api/repos/{owner}/{repo}/features";
 const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
-const WRITE_PAYLOAD = { parse: false, maxBytes: 2 * 1_048_576 } as const;
+// hapi parses the payload natively (ADR-034); the 2 MB cap surfaces as a 413.
+const WRITE_PAYLOAD = { maxBytes: 2 * 1_048_576 } as const;
 
 /** Map a handler throw to the legacy dispatcher's outcome: ValidationError → 400, else → 500. */
 async function run(h: ResponseToolkit, fn: () => Promise<ResponseObject>): Promise<ResponseObject> {
@@ -72,7 +72,7 @@ export function featuresRoutes(): ServerRoute[] {
       options: { ...bearerScope("write"), payload: WRITE_PAYLOAD },
       handler: (request, h) =>
         run(h, async () => {
-          const body = parseJsonBodyCapped(request) as { title?: unknown; prompt?: unknown; parent_feature_id?: string };
+          const body = request.payload as { title?: unknown; prompt?: unknown; parent_feature_id?: string };
           const { title, prompt } = enforceFeatureInput(body.title, body.prompt);
           const repo = repoOf(request.params);
           const features = (await projectFor(repo)).features;
@@ -119,7 +119,7 @@ export function featuresRoutes(): ServerRoute[] {
         run(h, async () => {
           const repo = repoOf(request.params);
           const id = request.params.id;
-          const body = parseJsonBodyCapped(request) as { user_answers?: unknown };
+          const body = request.payload as { user_answers?: unknown };
           const features = (await projectFor(repo)).features;
           const feature = await features.get(id);
           if (!feature) return h.response({ error: "feature not found" }).code(404);
@@ -172,7 +172,7 @@ export function featuresRoutes(): ServerRoute[] {
 
           let planningResult: GapResult;
           try {
-            planningResult = sanitizeGapResult(parseGapResult(parseJsonBodyCapped(request)));
+            planningResult = sanitizeGapResult(parseGapResult(request.payload));
           } catch (err) {
             await features.setIterationResult(id, iteration, null, "failed");
             return h.response({ error: err instanceof Error ? err.message : String(err) }).code(400);
@@ -223,7 +223,7 @@ export function featuresRoutes(): ServerRoute[] {
       handler: (request, h) =>
         run(h, async () => {
           const parentId = request.params.id;
-          const body = parseJsonBodyCapped(request) as { title?: unknown; prompt?: unknown };
+          const body = request.payload as { title?: unknown; prompt?: unknown };
           const { title, prompt } = enforceFeatureInput(body.title, body.prompt);
           const features = (await projectFor(repoOf(request.params))).features;
           const parent = await features.get(parentId);

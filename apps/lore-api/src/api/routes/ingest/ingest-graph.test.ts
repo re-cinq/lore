@@ -40,7 +40,25 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
     expect(insertCalls(pool)).toHaveLength(0);
   });
 
+  it("parses a JSON body sent with a non-JSON Content-Type", async () => {
+    // ADR-034: routes.payload.override forces JSON parsing regardless of the
+    // client's Content-Type. Without it hapi would form-parse this body, `kinds`
+    // would be undefined, and the request would default to specs+adrs and 200
+    // instead of the tests-kind 400 asserted here.
+    const pool = makePool();
+    const res = await buildServer(() => pool as any).inject({
+      method: "POST",
+      url: "/api/repos/o/r/ingest-graph",
+      headers: { ...AUTH, "content-type": "application/x-www-form-urlencoded" },
+      payload: JSON.stringify({ kinds: ["tests"] }),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(insertCalls(pool)).toHaveLength(0);
+  });
+
   it("returns 400 on an unparseable body", async () => {
+    // ADR-034: hapi parses the payload natively, so malformed JSON is a 400
+    // (hapi's default parse-error body) before the handler runs; no event inserted.
     const pool = makePool();
     const res = await buildServer(() => pool as any).inject({
       method: "POST",
@@ -49,7 +67,6 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
       payload: "{not json",
     });
     expect(res.statusCode).toBe(400);
-    expect(res.result).toMatchObject({ error: "invalid_body" });
     expect(insertCalls(pool)).toHaveLength(0);
   });
 });

@@ -1,20 +1,41 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
+
+// POST /api/task multiplexes five shapes (retry / cancel / set-priority /
+// status-update / create) with irregular dispatch — status-update has no
+// `action`, create is the fallback — so a discriminated union would contort
+// (ADR-034 FR6). The schema guards the object shape; the branch selection and
+// its conditional 400s (blank description, invalid status) stay in the handler.
+const TaskBody = z.object({
+  action: z.string().optional(),
+  task_id: z.string().optional(),
+  status: z.string().optional(),
+  priority: z.string().optional(),
+  pr_url: z.string().optional(),
+  error: z.string().optional(),
+  description: z.string().optional(),
+  task_type: z.string().optional(),
+  target_repo: z.string().optional(),
+  group_id: z.string().optional(),
+  context: z.unknown().optional(),
+});
+type TaskBody = z.infer<typeof TaskBody>;
 
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/task",
-    options: { ...bearerScope("task"), payload: { parse: false } },
+    options: { ...bearerScope("task"), validate: { payload: zodValidate(TaskBody) } },
     handler: async (request, h) => {
       const pool = getPool();
       if (!pool) return h.response({ error: "database not available" }).code(503);
       try {
-        const parsed = JSON.parse(rawBody(request));
+        const parsed = request.payload as TaskBody;
 
         // Retry action
         if (parsed.action === "retry" && parsed.task_id) {

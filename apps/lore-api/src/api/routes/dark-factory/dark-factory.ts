@@ -9,7 +9,6 @@ import {
 } from "../../../features/dark-factory/dark-factory-settings.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { parseJsonBodyCapped } from "../../../server/raw-body.js";
 import { checkApproval } from "../two-key.js";
 
 const DF_PATH = "/api/repos/{owner}/{repo}/settings/dark-factory";
@@ -23,7 +22,7 @@ export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "*",
     path: DF_PATH,
-    options: { ...bearerScope("admin"), payload: { parse: false, maxBytes: 2 * 1_048_576 } },
+    options: bearerScope("admin"),
     handler: async (request, h) => {
       const pool = getPool();
       if (!pool) return h.response({ error: "database unavailable" }).code(503);
@@ -49,12 +48,9 @@ async function handleGet(repo: string, h: ResponseToolkit): Promise<ResponseObje
 }
 
 async function handlePut(request: Request, h: ResponseToolkit, pool: Pool, repo: string): Promise<ResponseObject> {
-  let body: unknown;
-  try {
-    body = parseJsonBodyCapped(request);
-  } catch (err) {
-    return h.response({ error: "invalid_body", detail: (err as Error).message }).code(400);
-  }
+  // hapi parses the payload natively (ADR-034); malformed JSON is a 400 and an
+  // oversized body a 413 before we get here. Empty body → {} (no-op patch).
+  const body = request.payload ?? {};
 
   let patch: DarkFactorySettings;
   let toPatch: TaskOverridesPatch | undefined;
