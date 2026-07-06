@@ -19,6 +19,10 @@ domains: [agent, pipeline, infra, governance, web-ui]
 > (the `LoreTask` CRD) and the **storage** decision of
 > [ADR-030](./ADR-030-agent-definition-recipe-and-tool-seam.md).
 
+> **Revised 2026-07:** node execution was generalized so **every** assembly-line node — not just
+> agent nodes — runs as an `Agent` CR in its own pod. Non-LLM nodes are "stations" (ADR-024) run by
+> a new `exec` vendor. This is folded into D2–D4, D7, and D9 below.
+
 ## Context
 
 [ADR-030](./ADR-030-agent-definition-recipe-and-tool-seam.md) designed the **AgentDefinition** recipe
@@ -42,7 +46,7 @@ deterministic.
 ## Decision
 
 Run all Floor task execution on the `ai-agent-subsystem`. CRDs in group **`agents.re-cinq.com`**
-(`v1alpha1`), namespace **`ai-agents`**. The decision is recorded as D1–D8; the rollout is tracked by
+(`v1alpha1`), namespace **`ai-agents`**. The decision is recorded as D1–D9; the rollout is tracked by
 epic [#690](https://github.com/re-cinq/lore/issues/690).
 
 **D1 — Substrate: the D standalone subsystem is production.** Production runs on
@@ -58,23 +62,25 @@ runtime contract, **generated from the D structs** into a published code-API pac
 (`@re-cinq/agent-contracts`) that the Floor and the web UI both import — so no consumer re-derives the
 shapes (subsystem [#82](https://github.com/re-cinq/ai-agent-subsystem/issues/82)). The three CRDs:
 - **`AgentDefinition`** — the recipe (`model`, `prompt` template, `allowed_tools`, `disallowed_tools`,
-  `permission_mode`, `max_turns`, `resources`, `output`, `tool_config`). No image / no compute.
+  `permission_mode`, `max_turns`, `resources`, `output`, `tool_config`). No image / no compute. A
+  station recipe sets `model: exec` and carries its argv in `tool_config.command` (D9).
 - **`Station`** — the running context: `agentDefRef` + an embedded Kubernetes `PodTemplateSpec`
   (image, CPU/memory, volumes, security) + deadline + history limits + concurrency policy.
 - **`Agent`** — one run: `{ stationRef, taskId, targetRepo, branch, parameters }` →
   `status { phase, jobName, exitCode, output, prUrl, failureReason }`.
 
-**D3 — Non-AI assembly line steps reference GitHub Actions.** The engine runs `claude` directly, so Lore
-does not inject an in-pod lint/typecheck kernel. The assembly line separates concerns: **AI nodes run as
-Agent CRs; non-AI deterministic steps (validate / build / lint / typecheck) reference the repo's
-GitHub Actions** (a `github-action` assembly line node), and the Floor-side graph gates on the run
-**conclusion** — deterministic, because GitHub runs the repo's real toolchain. Repos without CI are
-covered by onboarding scaffolding `lore-tests.yml`.
+**D3 — Non-AI assembly line steps run as station pods; `github_action` nodes gate on CI.** The engine
+runs `claude` directly, so Lore injects no in-pod lint/typecheck kernel into *agent* pods. Deterministic
+work is separated out into its own pods: **non-agent nodes (`validate` / `gate` / `retrospective` /
+`detect`) run as station pods** — the `lore-station` image via the `exec` vendor (D9), not `claude`.
+The one CI-backed variant is the **`github-action`** node, which references the repo's real GitHub
+Actions with the Floor-side graph gating on the run **conclusion** — deterministic, because GitHub runs
+the repo's toolchain. Repos without CI are covered by onboarding scaffolding `lore-tests.yml`.
 
 **D4 — The assembly line runs Floor-side.** `libs/assembly-lines`'s `executeAssemblyLine` (pure orchestration, no
-Anthropic dependency) runs **in the Floor**; a new agent-node handler **dispatches one `Agent` CR per
-agent-node and awaits its terminal status**, heartbeating the branch lease while it waits. Lease,
-branch-as-state resume (commit trailers), and `iteration_max` are branch-centric and unchanged.
+Anthropic dependency) runs **in the Floor**; a station-node handler **dispatches one `Agent` CR per
+node — agent or station (D9) — and awaits its terminal status**, heartbeating the branch lease while it
+waits. Lease, branch-as-state resume (commit trailers), and `iteration_max` are branch-centric and unchanged.
 CR names key on the per-attempt assemblyLineId (`<assemblyLineId:8>-<nodeId>`, FR6.5) so two attempts
 of one task never collide; the CR spec keeps `taskId` for the watcher/reaper label probes. Every node
 execution is traced into `pipeline.assembly_line_nodes` via the executor's trace sink (FR6.6).
@@ -92,7 +98,8 @@ short-lived per-task key into `agent-secrets` and removes it on terminal status 
 
 **D7 — Networking.** Self-hydration and telemetry go over the **public LB** (port-443 egress is
 allowed by the run-pod NetworkPolicy, which blocks RFC1918/metadata). Run pods **drop direct Postgres
-access** — a security upgrade.
+access** — a security upgrade. **Station pods included** (D9): they reach data through the Project facade
+over HTTP-backed adapters against `LORE_API_URL`, never Postgres.
 
 **D8 — Observability.** `AgentDefinition.output.sinks = [stdout, http→Floor /api/agent-events]`; the
 Floor parses the NDJSON into `pipeline.llm_calls` (cost), OTEL spans, GCS archival, and the UI log
@@ -104,13 +111,46 @@ viewer. Terminal `Agent.status` drives lifecycle / PR / curation.
 auto-merges, and escalates. A two-gate flag (`settings.execution.backend` + a cluster env var) routes
 tasks during a graded, reversible cutover.
 
+**D9 — Non-agent nodes are stations.** Every non-agent node type (`validate`, `gate`, `retrospective`,
+`github_action`, `detect`, and custom types) dispatches its own `Agent` CR and runs in a pod,
+generalizing D4 from agent-only to all node types. No new CRD, no `@re-cinq/agent-contracts` change.
+- **The `exec` vendor** (ai-agent-subsystem `vendors/exec/`): the literal model id `exec` routes to a
+  non-LLM adapter that spawns the recipe's `tool_config.command` argv with the rendered prompt appended.
+  `tool_config` is an existing preserve-unknown-fields passthrough, so the contracts package is untouched.
+- **Station recipes** are `AgentDefinition` / `Station` pairs named `def-<node type>`, seeded from
+  `scripts/task-types.yaml` `stations:` by gen-catalog (org rows in `lore.agent_definitions` with
+  `execution_mode: 'station'`, image two-key gated). The prompt template is literally `{station_input}`;
+  the Floor's `nodeStationSpec` puts the node's JSON input in `Agent.spec.parameters.station_input`, so
+  the pod's argv ends with it. Builtins ship in ONE image (`ghcr.io/re-cinq/lore-station`,
+  `apps/lore-station/`, argv-selected); custom stations are any image honoring the contract, referenced
+  from node YAML via `station_ref` (default `def-<node type>`).
+- **Output contract** ([`station-contract.md`](../specs/6-dark-factory/contracts/station-contract.md)):
+  NDJSON on stdout ending with the claude-style
+  `{"type":"result","is_error":false,"result":"LORE_NODE_RESULT: {…}"}` line — the supervisor's existing
+  terminal detection (D8) and `Agent.status.output` capture carry it, and the Floor's `parseNodeResult`
+  maps it to the node outcome. `outcome:"failed"` is a NORMAL result (routes the assembly line's failed
+  edge); `is_error` / non-zero exit / deadline are infrastructure failures → CR `Failed` →
+  `station-failed`.
+- **Timeouts.** The Station's `deadlineMinutes` (validate 15) is the pod's hard stop; a node-level
+  `timeout_minutes` bounds the Floor's await (`maxPolls = timeout + 2min buffer`, so the deadline kill is
+  observed, not raced) → `station-timeout`.
+- **Data access (D7 holds).** Stations reach data through the Project facade over HTTP-backed adapters
+  against `LORE_API_URL` — no Postgres from pods. **Auto-merge stays Floor-side**: merge authority never
+  rides in a run pod; the Floor triggers it after a retrospective node succeeds.
+- **Cutover.** A temporary `LORE_STATION_NODES` Floor env flag lists which node types dispatch station
+  pods; unlisted types keep the in-process handlers, so each type soaks independently. Completion
+  detection stays the poll loop for now — detect runs carry no task-id label, so the
+  `kubernetes.agent.*` watch mapper skips them; labeling CRs with the assembly-line id and extending the
+  mapper is the noted follow-up.
+
 ## Alternatives rejected
 
 - **Keep the in-tree TS `k8s/` PoC** (D1) — duplicates the D subsystem with a less-mature, unsigned
   build; deleted.
 - **Postgres-only recipe store (ADR-030 storage)** — superseded; the CRD is the source of truth, the
   schema is generated into a code-API package so it can't drift.
-- **An in-pod validation kernel** — the engine runs `claude` directly; deterministic validation is
+- **An in-pod validation kernel injected into the agent pod** — the engine runs `claude` directly and
+  gets no lint/typecheck kernel; deterministic validation runs as its own station pod (D9) or references
   the repo's GitHub Actions, gated Floor-side (D3).
 - **A static org-wide PAT in `agent-secrets`** — long-lived, org-wide blast radius; rejected for
   short-lived per-task App tokens (D6).
@@ -118,6 +158,10 @@ tasks during a graded, reversible cutover.
   running in parallel; `LoreTask` is retired **last**.
 - **Trusting the LLM to self-validate / self-merge** — rejected; the deterministic glue (CI gate, PR,
   auto-merge, escalation) lives Floor-side.
+- **A structured `Agent.status` field for node outcomes** (D9) — rejected; the `LORE_NODE_RESULT` result
+  line reuses the existing terminal-detection + `status.output` path with no controller / contracts change.
+- **Keeping non-agent nodes in-process in the Floor** (D9) — rejected; running every node as its own pod
+  gives custom stations, per-node isolation, and per-node timeouts uniformly.
 
 ## Consequences
 
@@ -125,7 +169,9 @@ tasks during a graded, reversible cutover.
   validation, `kubectl` visibility, and RBAC-gated writes. Deterministic guarantees (validation gate,
   PR, auto-merge, escalation, audit) are preserved Floor-side. Secrets and observability reuse the
   existing setup; run pods lose their DB credential. The model→adapter seam (ADR-030) leaves room for
-  codex/cursor later.
+  codex/cursor later — and, via the `exec` vendor (D9), for non-LLM stations: every assembly-line node
+  now runs as its own isolated, timed pod, and third parties can supply custom station images against a
+  published contract.
 - **Cost / migration.** A 10-ticket effort (epic [#690](https://github.com/re-cinq/lore/issues/690)):
   generate the code-API package + cut subsystem **v0.3.0**; deploy via Helm in the existing
   `terraform apply`; `AgentBackend` + router; `agent-watcher`; UI-authored catalog + hydration +
@@ -136,5 +182,6 @@ tasks during a graded, reversible cutover.
 - **Supersedes.** ADR-011 (LoreTask CRD execution) and ADR-030's *storage* decision. ADR-030's recipe
   schema, AgentTool seam, output fan-out, and security gating are retained as the CRD schema /
   runtime contract. The full design + acceptance criteria live in
-  [`specs/floor-on-ai-subsystem/`](../specs/floor-on-ai-subsystem/spec.md); the glossary stays
-  [`specs/glossary.md`](../specs/glossary.md).
+  [`specs/floor-on-ai-subsystem/`](../specs/floor-on-ai-subsystem/spec.md); the station image / output
+  contract in [`specs/6-dark-factory/contracts/station-contract.md`](../specs/6-dark-factory/contracts/station-contract.md);
+  the glossary stays [`specs/glossary.md`](../specs/glossary.md).

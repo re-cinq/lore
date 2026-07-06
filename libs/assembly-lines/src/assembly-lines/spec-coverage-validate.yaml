@@ -1,0 +1,20 @@
+name: spec-coverage-validate
+description: Per-repo validation of inline spec→test links; files spec-link-rot issues for broken links.
+version: 1
+entry: detect
+exit: done
+
+nodes:
+  - id: detect
+    type: detect
+    job_ref: spec_coverage_validate
+    description: Resolve every ([validated by]) link in the repo's specs.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker (the executor halts on exit).
+
+edges:
+  - from: detect
+    to: done
+    on: success

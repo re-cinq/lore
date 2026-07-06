@@ -48,4 +48,12 @@ export interface AssemblyLinesPort {
   recordNodeFinish(nodeRowId: string, outcome: string, commitSha?: string): Promise<void>;
   getById(id: string): Promise<AssemblyLineRecord | null>;
   listForTask(taskId: string): Promise<AssemblyLineRecord[]>;
+  /**
+   * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
+   * PR-scoped lookup the code-review choreography uses. Only code-review lines
+   * carry `pr_number` in args, so this is naturally scoped to them.
+   */
+  findOpenByPr(repo: string, prNumber: number): Promise<AssemblyLineRecord[]>;
+  /** Close every open line for the repo+PR with `outcome`; returns the count closed. */
+  finishOpenByPr(repo: string, prNumber: number, outcome: string): Promise<number>;
 }

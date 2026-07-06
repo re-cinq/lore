@@ -6,8 +6,10 @@
  * without a handler fails the build (the class of bug that let
  * `cron.agent_watcher_reconcile.tick` dead-letter unnoticed).
  *
- * Carve-out: only light/operational jobs live here; heavy batch jobs stay as
- * Kubernetes CronJobs (ADR-019).
+ * Carve-out (ADR-019, amended): heavy batch jobs (reindex/eval/memory …) stay as
+ * Kubernetes CronJobs. The detection family (spec_drift/gap_detection/
+ * spec_coverage_*) moved here — their ticks fan out per-repo assembly-line runs
+ * rather than running the sweep inline.
  */
 
 export interface CronEmitter {
@@ -39,6 +41,26 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "delete leases >5min past expiry, writing a lease_expired audit entry each",
   },
   { name: "events_prune", schedule: "0 * * * *", note: "hourly housekeeping of handled event rows" },
+  {
+    name: "gap_detection",
+    schedule: "0 9 * * 1",
+    note: "detection fan-out: one gap-detect assembly line per onboarded repo",
+  },
+  {
+    name: "spec_drift",
+    schedule: "0 10 * * 1",
+    note: "detection fan-out: one spec-drift assembly line per active repo with specs",
+  },
+  {
+    name: "spec_coverage_backfill",
+    schedule: "0 11 * * 1",
+    note: "detection fan-out: one backfill assembly line per active repo with specs",
+  },
+  {
+    name: "spec_coverage_validate",
+    schedule: "0 6 * * *",
+    note: "detection fan-out: one link-validate assembly line per repo with specs",
+  },
 ];
 
 /** The `cron.<name>.tick` event names these emitters produce (the registry must cover each). */

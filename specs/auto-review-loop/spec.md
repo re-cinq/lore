@@ -5,6 +5,23 @@
 > workflow graph rather than chained `LoreTask` CRs — read the `LoreTask`-specific mechanics
 > here in the past tense.
 
+> **Widened to all open PRs — the `code-review` assembly line ([ADR-012](../../adrs/ADR-012-autonomous-review-loop.md)).**
+> The loop below closes on Lore's **own** implementation PRs. The `code-review` assembly
+> line (`review → refine → done`, `libs/assembly-lines/src/assembly-lines/code-review.yaml`)
+> extends the same `auto_review` opt-in to **any open PR, including human-authored**, driven
+> by PR-lifecycle webhooks on the event bus instead of the `pr-created` hook:
+> - **PR opened / reopened / ready_for_review** → start a review pass + post a "review has
+>   started" PR comment linking `${LORE_UI_URL}/assembly-lines/<id>`.
+> - **Review pass** → the `review` node posts **line-level** inline comments; a
+>   `changes_requested` verdict routes to `refine`, which acts on it.
+> - **Human reply** (`issue_comment.created` / `pull_request_review_comment.created`) →
+>   a fresh `mode: reply` pass that **decides per reply**: answer in-thread, or commit a fix.
+> - **PR closed** → finish any open code-review line for that PR.
+>
+> An assembly line runs once to completion, so "engaged as long as the PR is open" is the
+> **choreography re-invoking the line per webhook**, not one long-lived line. Bot-authored
+> PRs and bot comments are skipped (loop guard). Handlers: `apps/floor/src/jobs/review/code-review.ts`.
+
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Autonomous Review Loop                   |

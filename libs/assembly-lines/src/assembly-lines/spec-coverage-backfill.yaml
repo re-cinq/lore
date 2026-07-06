@@ -1,0 +1,20 @@
+name: spec-coverage-backfill
+description: Per-repo spec-coverage backfill; judges un-linked testable statements and opens link-suggestion PRs.
+version: 1
+entry: detect
+exit: done
+
+nodes:
+  - id: detect
+    type: detect
+    job_ref: spec_coverage_backfill
+    description: Judge pipeline over un-linked statements; opens a PR per spec.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker (the executor halts on exit).
+
+edges:
+  - from: detect
+    to: done
+    on: success

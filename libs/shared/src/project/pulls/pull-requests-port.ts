@@ -19,6 +19,10 @@ export interface PullRef {
   state: "open" | "closed" | "merged";
   labels: string[];
   url: string;
+  /** PR author login (`<slug>[bot]` for App-authored PRs). Absent on legacy doubles. */
+  author?: string;
+  /** Draft flag — the code-review gate skips drafts. Absent on legacy doubles. */
+  draft?: boolean;
 }
 
 export interface PullReview {

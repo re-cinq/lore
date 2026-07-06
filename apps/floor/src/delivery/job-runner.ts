@@ -13,15 +13,11 @@ import { Llm } from "@re-cinq/lore-shared";
 import { anthropicCostSyncJob } from "../jobs/cost/anthropic-cost-sync/index.js";
 import { contextCoreBuilderJob } from "../jobs/context-jobs/context-core-builder/index.js";
 import { evalRunnerJob } from "../jobs/context-jobs/eval-runner/index.js";
-import { gapDetectJob } from "../jobs/context-jobs/gap-detect/index.js";
 import {
   consolidationJob,
   importanceDecayJob,
 } from "../jobs/memory/memory-lifecycle/index.js";
 import { reindexJob } from "../jobs/context-jobs/reindex/index.js";
-import { specDriftJob } from "../jobs/spec-trace/spec-drift/index.js";
-import { specCoverageBackfillJob } from "../jobs/spec-trace/spec-coverage-backfill/index.js";
-import { validateSpecCoverageJob } from "../jobs/spec-trace/spec-coverage-validate.js";
 import { ttlCleanupJob } from "../jobs/memory/ttl-cleanup/index.js";
 import {
   startJobRun,
@@ -32,16 +28,14 @@ import { jobRunLogKey, writeJobRunLogs } from "../main-loop/scheduling/log-stora
 
 type JobHandler = () => Promise<string>;
 
+// The detection family (gap_detection / spec_drift / spec_coverage_*) left this
+// table: their cron ticks fan out per-repo assembly-line runs (ADR-019 amendment).
 export const dispatch: Record<string, JobHandler> = {
   context_reindex: reindexJob,
   eval_runner: evalRunnerJob,
   context_core_builder: contextCoreBuilderJob,
   importance_decay: importanceDecayJob,
   consolidation: consolidationJob,
-  gap_detection: gapDetectJob,
-  spec_drift: specDriftJob,
-  spec_coverage_backfill: specCoverageBackfillJob,
-  spec_coverage_validate: () => validateSpecCoverageJob(),
   memory_ttl: ttlCleanupJob,
   anthropic_cost_sync: anthropicCostSyncJob,
 };

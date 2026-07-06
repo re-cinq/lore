@@ -16,6 +16,7 @@ export const GITHUB_EVENT_NAMES: string[] = [
   "github.pull_request.closed",
   ...[...PR_REVIEW_TRIGGER_ACTIONS].map((action) => `github.pull_request.${action}`),
   "github.pull_request_review.submitted",
+  "github.pull_request_review_comment.created",
   "github.check_run.completed",
   "github.check_suite.completed",
   "github.issue_comment.created",
@@ -24,6 +25,15 @@ export const GITHUB_EVENT_NAMES: string[] = [
 
 function labelNames(labels: unknown): string[] {
   return Array.isArray(labels) ? labels.map((l: { name?: string }) => l?.name).filter(Boolean) as string[] : [];
+}
+
+/** Comment identity the code-review reply handler needs — author drives the bot-loop guard. */
+function commentParams(comment: any): { comment_id: number; comment_author: string; comment_body: string } {
+  return {
+    comment_id: comment?.id,
+    comment_author: comment?.user?.login ?? "",
+    comment_body: comment?.body ?? "",
+  };
 }
 
 export function mapGitHubEvent(eventType: string, payload: any, deliveryId: string): EventInput[] {
@@ -35,13 +45,16 @@ export function mapGitHubEvent(eventType: string, payload: any, deliveryId: stri
     const pr = payload.pull_request;
     const prNumber: number | undefined = pr?.number;
     if (!prNumber) return [];
-    if (payload.action === "closed" && pr?.merged) {
+    if (payload.action === "closed") {
+      // Emit for merged AND unmerged closes: specPrMerge guards on `merged`, while
+      // code-review's onClose must finish its line on any close.
       return [{
         eventName: "github.pull_request.closed",
         source: "github",
         params: {
           repo,
           pr_number: prNumber,
+          merged: pr.merged === true,
           branch: pr.head?.ref ?? "",
           merge_commit_sha: pr.merge_commit_sha ?? null,
           labels: labelNames(pr.labels),
@@ -93,7 +106,19 @@ export function mapGitHubEvent(eventType: string, payload: any, deliveryId: stri
     return [{
       eventName: "github.issue_comment.created",
       source: "github",
-      params: { repo, pr_number: prNumber },
+      params: { repo, pr_number: prNumber, ...commentParams(payload.comment) },
+      dedupeKey: key,
+    }];
+  }
+
+  if (eventType === "pull_request_review_comment") {
+    if (payload.action !== "created") return [];
+    const prNumber: number | undefined = payload.pull_request?.number;
+    if (!prNumber) return [];
+    return [{
+      eventName: "github.pull_request_review_comment.created",
+      source: "github",
+      params: { repo, pr_number: prNumber, ...commentParams(payload.comment) },
       dedupeKey: key,
     }];
   }

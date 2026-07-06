@@ -8,6 +8,15 @@ domains: [agent, pipeline, review, cost, observability]
 
 # ADR-015: Event-driven review reactor + cost optimizations
 
+> **Reused by the `code-review` assembly line ([ADR-012](./ADR-012-autonomous-review-loop.md)).**
+> The same webhook→event substrate now also drives PR review for *all* open PRs (not just
+> the review-reactor's Lore-managed ones). New: `pull_request_review_comment` is subscribed
+> and mapped to `github.pull_request_review_comment.created`, and the comment mappings carry
+> the author/id/body the code-review reply handler needs. The existing `pull_request.*` and
+> `issue_comment.created` handlers are composed with the code-review handlers via a registry
+> combinator (`withExtra`) that runs the added reaction best-effort without changing the
+> primary handler's retry semantics.
+
 ## Context
 
 Three compounding cost issues surfaced in production:

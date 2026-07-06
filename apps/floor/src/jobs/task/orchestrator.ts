@@ -181,7 +181,6 @@ export async function processTaskViaSupervisor(
       taskId: task.id,
       assemblyLineId,
       branchName,
-      assemblyLineName: assemblyLine.name,
       gitDir: workdir,
       assemblyLine,
       handlers,

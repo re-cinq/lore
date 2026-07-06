@@ -10,10 +10,11 @@ POD="lore-db-1"
 echo "[lore] Applying dark-factory schema migration..."
 
 kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
-  -- Branch-as-state lease (FR1.6, Q4 clarification).
+  -- Branch-as-state lease (FR1.6, Q4 clarification). task_id is NULL for
+  -- task-less runs (detection assembly lines; ADR-019 amendment).
   CREATE TABLE IF NOT EXISTS pipeline.task_leases (
     branch_name   TEXT        PRIMARY KEY,
-    task_id       UUID        NOT NULL,
+    task_id       UUID,
     holder        TEXT        NOT NULL,
     acquired_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at    TIMESTAMPTZ NOT NULL,

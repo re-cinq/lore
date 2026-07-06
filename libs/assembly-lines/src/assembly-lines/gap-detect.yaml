@@ -1,0 +1,20 @@
+name: gap-detect
+description: Per-repo documentation gap detection; files gap-fill tasks for missing context.
+version: 1
+entry: detect
+exit: done
+
+nodes:
+  - id: detect
+    type: detect
+    job_ref: gap_detection
+    description: Deterministic checks for missing CLAUDE.md / ADR / runbook coverage.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker (the executor halts on exit).
+
+edges:
+  - from: detect
+    to: done
+    on: success

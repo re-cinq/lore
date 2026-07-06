@@ -66,8 +66,10 @@ gcloud auth for local dev.
 - `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
 - `libs/shared/src/project/leases/lease-backends.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
 - `libs/assembly-lines/src/assembly-line-executor.ts` — `executeAssemblyLine()` walks the assembly line YAML, dispatches per-node-type handlers, emits stage commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers (allow-empty for non-file-changing nodes), refreshes lease per node, supports resume from last trailer on the branch
-- `libs/assembly-lines/src/loader.ts` — Zod schema for assembly line YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check
-- `libs/assembly-lines/src/assembly-lines/*.yaml` — declarative assembly line definitions (gap-fill, general, implementation; more extensible)
+- `libs/assembly-lines/src/loader.ts` — Zod schema for assembly line YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check; nodes carry optional `station_ref` (custom station image) + `timeout_minutes`, and detect nodes require `job_ref`
+- `libs/assembly-lines/src/assembly-lines/*.yaml` — declarative assembly line definitions (gap-fill, general, implementation, plus the detection lines spec-drift/gap-detect/spec-coverage-{validate,backfill}; more extensible). `code-review.yaml` (`review → refine → done`) is the PR-review line: started per PR-lifecycle webhook by the code-review choreography (`apps/floor/src/jobs/review/code-review.ts`), not by a task — opened→review-pass+started-comment, human reply→`mode:reply` pass (decide-per-reply: answer or commit), closed→finish; gated on `auto_review`, bot-authored PRs/comments skipped (loop guard)
+- `libs/assembly-lines/src/station-node-handler.ts` — `createStationNodeHandler()` (launch one Agent CR per node + poll to terminal, ANY node type; agent-node-handler is a back-compat shim) + `parseNodeResult()` for the station contract's `LORE_NODE_RESULT` output line; outcome precedence LORE_NODE_RESULT → REVIEW_RESULT → success, CR Failed → `station-failed`, await expiry → `station-timeout`
+- `apps/lore-station/` — the station pod entrypoint image (`ghcr.io/re-cinq/lore-station`, `lore-station <type> '<station_input json>'`): runs one non-agent node per pod via the subsystem's `exec` vendor, reusing the SAME libs/assembly-lines handlers with pod-side wiring; contract in `specs/6-dark-factory/contracts/station-contract.md`. Cutover per node type via the Floor's `LORE_STATION_NODES` env (ADR-031 amendment); builtin `def-<type>` recipes seeded from `scripts/task-types.yaml` `stations:` by gen-catalog + migration 0027
 - `apps/floor/src/jobs/merge/auto-merge.ts` — pure `evaluateAutoMerge()` decision + `evaluateAndMerge()` end-to-end with backoff. Outcome enum captures all 7 deferral reasons + `merged`. OTEL span `lore.auto_merge.decision` carries the rule trace
 - `apps/floor/src/main-loop/lease/lease-reaper.ts` — 60s tick deletes leases >5min past expiry, writes `lease_expired` audit entries
 - `apps/floor/src/jobs/dark-factory/dark-factory-baseline.ts` — pre-feature 30-day counter snapshot per repo, written to `pipeline.dark_factory_baseline` for SC1/SC4/SC6 deltas
@@ -109,7 +111,7 @@ gcloud auth for local dev.
 - **`spec-test-coverage` v3 (2026-06-02):** source of truth for spec→test links is markdown inside `spec.md` — `Statement. ([validated by name](path/to/test.ts#L42))` at end of each statement. The web UI parses + colors them at render time via `web-ui/src/lib/spec-coverage-derive.ts` (`segmentStatements` → `classifyByHeuristic` → `parseTestLinksInStatement`); no DB linker tables (`spec_statements` / `spec_test_links` / `spec_coverage_runs` dropped in migration 0008). Three write-paths:
   - **Authors hand-write the links** (free; just edit `spec.md`).
   - **`/lore-suggest-links`** (subscription-billed, on-demand, single-spec) — Claude Code skill that walks through the same judge pipeline locally and opens a PR against the spec's repo. See `specs/local-link-suggester/`. Subscription tokens, no API spend.
-  - **`spec-coverage-backfill` cron** (`ANTHROPIC_API_KEY`-billed, weekly Mon 11:00 UTC, org-wide sweep) — finds testable un-linked statements via the v2 judge pipeline, opens a PR per spec with `proposeLinkInsertions` adding the inline parentheticals.
+  - **`spec-coverage-backfill`** (`ANTHROPIC_API_KEY`-billed, weekly Mon 11:00 UTC via `cron.spec_coverage_backfill.tick` → one per-repo assembly line; ADR-019 amendment) — finds testable un-linked statements via the v2 judge pipeline, opens a PR per spec with `proposeLinkInsertions` adding the inline parentheticals.
 
   Plus the validate pass via `apps/floor/src/jobs/spec-trace/spec-coverage-validate.ts` (daily + post-ingest, resolves links, files `spec-link-rot` issues on broken links). See `specs/spec-test-coverage/`.
 - `mcp-server/src/context-assembly.ts` — context assembly with YAML templates
@@ -549,8 +551,20 @@ coverage, issue-dispatch, spec-PR-merge). The `review_reactor` business-hours
 safety cron (`7 7-17 * * 1-5` UTC, gated by `isBusinessHours()` reading
 `LORE_BUSINESS_HOURS_{TZ,START,END}` / `LORE_BUSINESS_DAYS`; default
 Europe/Berlin 9-18 Mon-Fri) becomes a `cron.review_reactor.tick` emitter
-that catches dropped webhook deliveries. **Carve-out:** heavy batch jobs
-stay as K8s CronJobs running their work directly (ADR-019).
+that catches dropped webhook deliveries. **Carve-out (ADR-019, amended
+2026-07):** heavy batch jobs (reindex/eval/core-builder/memory/cost-sync) stay
+as K8s CronJobs running their work directly. The detection family
+(`gap_detection`, `spec_drift`, `spec_coverage_validate`,
+`spec_coverage_backfill`) left the carve-out: each is an assembly-line
+definition with a deterministic `detect` node
+(`libs/assembly-lines/src/assembly-lines/*.yaml`); its `cron.<job>.tick`
+emitter's handler (`apps/floor/src/jobs/detect/fan-out.ts`) starts one
+per-repo assembly line via `assemblyLines().start()`, and the
+`assembly_line.start` handler routes detect-shaped definitions to the
+repo-less runner (`apps/floor/src/jobs/detect/run-detect.ts` — no clone,
+branch name is a lease key, `pipeline.job_runs` row per repo named
+`<job>:<repo>`). Manual trigger: insert the tick event with optional
+`{"repo": "..."}` params.
 
 **Prompt caching on agent LLM calls**: the Anthropic provider
 (`libs/shared/src/llm/anthropic-provider.ts`, behind the `Llm` abstraction) uses

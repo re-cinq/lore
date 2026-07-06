@@ -24,7 +24,8 @@ const tracer: Tracer = trace.getTracer("lore.lease");
  */
 export interface ExpiredLease {
   branch_name: string;
-  task_id: string;
+  /** Null for task-less runs (detection assembly lines). */
+  task_id: string | null;
   holder: string;
   expires_at: Date | string;
 }
@@ -56,9 +57,10 @@ export interface AcquireResult {
  * needs to know which is in use.
  */
 export interface LeaseBackend {
+  /** `taskId` is null for task-less runs (detection assembly lines). */
   acquire(
     branchName: string,
-    taskId: string,
+    taskId: string | null,
     holder: string,
     ttlSec?: number,
   ): Promise<AcquireResult>;
@@ -85,13 +87,13 @@ export class DbLeaseBackend implements LeaseBackend {
 
   async acquire(
     branchName: string,
-    taskId: string,
+    taskId: string | null,
     holder: string,
     ttlSec: number = DEFAULT_TTL_SEC,
   ): Promise<AcquireResult> {
     return await tracer.startActiveSpan("lore.lease.acquire", async (span) => {
       span.setAttribute("branch_name", branchName);
-      span.setAttribute("task_id", taskId);
+      span.setAttribute("task_id", taskId ?? "");
       span.setAttribute("holder", holder);
       span.setAttribute("ttl_sec", ttlSec);
       span.setAttribute("backend", "db");
@@ -215,7 +217,7 @@ export class DbLeaseBackend implements LeaseBackend {
 
 interface FileLeaseRecord {
   branch_name: string;
-  task_id: string;
+  task_id: string | null;
   holder: string;
   acquired_at: string; // ISO8601
   expires_at: string;  // ISO8601
@@ -251,13 +253,13 @@ export class FileLeaseBackend implements LeaseBackend {
 
   async acquire(
     branchName: string,
-    taskId: string,
+    taskId: string | null,
     holder: string,
     ttlSec: number = DEFAULT_TTL_SEC,
   ): Promise<AcquireResult> {
     return await tracer.startActiveSpan("lore.lease.acquire", async (span) => {
       span.setAttribute("branch_name", branchName);
-      span.setAttribute("task_id", taskId);
+      span.setAttribute("task_id", taskId ?? "");
       span.setAttribute("holder", holder);
       span.setAttribute("ttl_sec", ttlSec);
       span.setAttribute("backend", "file");

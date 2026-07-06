@@ -53,6 +53,7 @@ export function specToAgent(spec: LoreTaskSpec, context?: string, stationRef?: s
   const parameters: Record<string, string> = {
     description: spec.description,
     prompt: spec.prompt,
+    ...(spec.parameters ?? {}),
   };
   if (spec.prNumber !== undefined) parameters.pr_number = String(spec.prNumber);
   if (context) parameters.context = context;
@@ -67,9 +68,9 @@ export function specToAgent(spec: LoreTaskSpec, context?: string, stationRef?: s
       },
     },
     spec: {
-      // The catalog Station for the task type (#699), unless a per-task Station was
-      // materialised for the token provisioning (#697) and passed as the override.
-      stationRef: stationRef ?? spec.taskType,
+      // Per-task token Station override (#697) wins; then the spec's explicit
+      // Station (station nodes, `def-<type>`); else the task type's catalog Station.
+      stationRef: stationRef ?? spec.stationRef ?? spec.taskType,
       taskId: spec.taskId,
       targetRepo: spec.targetRepo,
       branch: spec.branch,

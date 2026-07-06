@@ -23,6 +23,7 @@ import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import { isTransientInfraFailure, MAX_INFRA_RETRIES } from "../platform/infra-failure.js";
 import { buildReviewFixDescription, formatReviewFeedback, prFooter, linkifyMarkdown } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
+import { shouldAutoReview } from "../review/should-auto-review.js";
 import {
   taskIdOf,
   taskTypeOf,
@@ -56,8 +57,10 @@ function tailOutput(output: string, limit = 60000): string {
 }
 
 /** Best-effort removal of a terminal task's per-task token key + AgentDefinition/Station
- *  triple (#697). Idempotent (404s ignored); co-located with Agent-CR deletion. */
-function cleanupPerTaskToken(taskId: string): Promise<void> {
+ *  triple (#697). Idempotent (404s ignored); co-located with Agent-CR deletion. Exported
+ *  so the assembly-line completion path reclaims a station line's token (its shared token
+ *  can only be freed once the whole line is done — no per-node cleanup is safe). */
+export function cleanupPerTaskToken(taskId: string): Promise<void> {
   return new KubeTokenProvisioner(
     new GithubTokenMinter(new PlatformGitHub(process.env)),
     new KubeSecretKeyWriter(),
@@ -141,10 +144,6 @@ async function notifySlack(taskId: string, repo: string, message: string): Promi
   } catch { /* best effort */ }
 }
 
-async function shouldAutoReview(repo: string): Promise<boolean> {
-  const repoSettings = (await settings().rawSettings(repo)) as { auto_review?: boolean } | null;
-  return repoSettings?.auto_review === true;
-}
 async function getIssueNumber(taskId: string): Promise<{ issue_number: number | null; target_repo: string }> {
   const task = await taskStore().getById(taskId);
   if (!task) return { issue_number: null, target_repo: "" };
@@ -227,10 +226,14 @@ export async function processAgentCr(agent: AgentCr, k8sApi: CustomObjectsApi): 
   };
 
   try {
-    // DB-level re-entry guard (only act on tasks still running/queued).
+    // DB-level re-entry guard (only act on tasks still running/queued). A CR whose
+    // taskId has no backing pipeline task is a task-less assembly line (e.g.
+    // code-review, keyed on its assemblyLineId): the supervisor owns the run, so the
+    // watcher has nothing to reconcile — return before any PR/no-changes work.
     if (phase === "Succeeded" || phase === "Failed") {
-      const dbStatus = (await taskStore().getById(taskId))?.status;
-      if (dbStatus && !["running", "queued"].includes(dbStatus)) return;
+      const task = await taskStore().getById(taskId);
+      if (!task) return;
+      if (!["running", "queued"].includes(task.status)) return;
     }
 
     if (phase === "Succeeded" && !status.prUrl && ctx.taskType !== "review") {

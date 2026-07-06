@@ -93,12 +93,14 @@ export const issuesLabeled: EventHandler = async (params) => {
 
 /** pull_request closed+merged: a merged spec PR → sync its tasks.md into spec-tasks. */
 export const specPrMerge: EventHandler = async (params) => {
-  const { repo, branch, merge_commit_sha, labels } = params as {
+  const { repo, branch, merged, merge_commit_sha, labels } = params as {
     repo: string;
     branch: string;
+    merged: boolean;
     merge_commit_sha: string | null;
     labels: string[];
   };
+  if (!merged) return; // closed-unmerged reaches here too now — only merges sync spec tasks
   if (!labels.includes("spec")) return;
   const specSlug = specSlugFromBranch(branch);
   if (!specSlug) return;

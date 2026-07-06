@@ -18,6 +18,10 @@ floorSink:
   namespace: lore-floor
   port: 8080
 
+# The image the seeded `def-*` station recipes run (non-LLM assembly-line nodes,
+# ADR-031 amendment). CI bumps the tag alongside the other service images.
+stationImage: ghcr.io/re-cinq/lore-station:latest
+
 controller:
   replicas: 1
   image:
