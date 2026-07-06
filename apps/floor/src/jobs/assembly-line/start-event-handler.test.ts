@@ -59,8 +59,12 @@ function makeDeps(port: InMemoryAssemblyLines, over: Partial<StartEventHandlerDe
     station: [] as Array<Record<string, unknown>>,
     detect: [] as Array<Record<string, unknown>>,
     taskOutcomes: [] as Array<{ taskId: string; outcome: string }>,
+    cleanedTokens: [] as string[],
   };
   const deps: StartEventHandlerDeps = {
+    cleanupToken: async (taskId) => {
+      calls.cleanedTokens.push(taskId);
+    },
     assemblyLines: port,
     definitions: async () => TEST_DEFINITIONS,
     runDetect: async (input) => {
@@ -150,6 +154,16 @@ describe("createStartEventHandler", () => {
     // A task-less line (e.g. code-review) must not collapse to the empty-string taskId —
     // that would key its per-task token/label on "" and race across concurrent runs.
     expect(calls.station[0]).toMatchObject({ taskId: assemblyLineId });
+  });
+
+  it("reclaims the station line's per-task token once the run finishes", async () => {
+    const { port, assemblyLineId } = await seededPort("implementation", null);
+    const { deps, calls } = makeDeps(port);
+
+    await createStartEventHandler(deps)(params(assemblyLineId, "implementation", null));
+    await flush();
+
+    expect(calls.cleanedTokens).toEqual([assemblyLineId]);
   });
 
   it("returns before the run completes and marks the row running meanwhile", async () => {

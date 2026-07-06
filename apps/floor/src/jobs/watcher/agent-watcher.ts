@@ -57,8 +57,10 @@ function tailOutput(output: string, limit = 60000): string {
 }
 
 /** Best-effort removal of a terminal task's per-task token key + AgentDefinition/Station
- *  triple (#697). Idempotent (404s ignored); co-located with Agent-CR deletion. */
-function cleanupPerTaskToken(taskId: string): Promise<void> {
+ *  triple (#697). Idempotent (404s ignored); co-located with Agent-CR deletion. Exported
+ *  so the assembly-line completion path reclaims a station line's token (its shared token
+ *  can only be freed once the whole line is done — no per-node cleanup is safe). */
+export function cleanupPerTaskToken(taskId: string): Promise<void> {
   return new KubeTokenProvisioner(
     new GithubTokenMinter(new PlatformGitHub(process.env)),
     new KubeSecretKeyWriter(),

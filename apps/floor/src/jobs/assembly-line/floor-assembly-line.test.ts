@@ -123,6 +123,15 @@ describe("buildFloorAssemblyLineHandlers", () => {
     expect(result.outcome).toBe("success");
     expect(dispatched).toEqual([]);
   });
+
+  it("a detect node flagged for station dispatch is exposed as a detect handler", () => {
+    const { ports: p } = ports();
+    const flagged = buildFloorAssemblyLineHandlers(task, p, new Set(["detect"]));
+    expect(flagged.detect).toBeTypeOf("function");
+    // Unflagged: no detect handler (the in-process kernel has no detect default).
+    const unflagged = buildFloorAssemblyLineHandlers(task, p, new Set());
+    expect(unflagged.detect).toBeUndefined();
+  });
 });
 
 describe("nodeStationSpec", () => {

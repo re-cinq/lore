@@ -43,6 +43,9 @@ export interface StartEventHandlerDeps {
   runOnStation: (task: FloorAssemblyLineTask) => Promise<SupervisorResult>;
   /** Task-status application for the in-process path (extracted from the worker). */
   applyTaskOutcome: (taskId: string, result: ProcessTaskViaSupervisorResult) => Promise<void>;
+  /** Reclaim the run's per-task token triple once the station line is fully done — the
+   *  only safe point, since the line's node CRs share one `pt-<id>` token. */
+  cleanupToken: (taskId: string) => Promise<void>;
 }
 
 /** Task types whose assembly line runs in-process (JSON-output; no per-node Agent CRs). */
@@ -123,17 +126,22 @@ export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandl
     // per run. An empty taskId would key the token on "" → a single shared `pt-`
     // triple that concurrent runs across repos race on (wrong-repo clone). The
     // watcher's `processAgentCr` no-ops on a taskId with no backing task.
+    const runTaskId = taskId ?? assemblyLineId;
     void deps
       .runOnStation({
         assemblyLineId,
-        taskId: taskId ?? assemblyLineId,
+        taskId: runTaskId,
         taskType: definitionName,
         description,
         targetRepo: repo,
         branch: branch ?? "",
       })
       .then((result) => finishRow(supervisorOutcome(result), result.errorMessage))
-      .catch((err) => finishRow("error", (err as Error).message));
+      .catch((err) => finishRow("error", (err as Error).message))
+      // The line is fully done here (all node CRs terminal) → reclaim its shared token.
+      .finally(() => {
+        void deps.cleanupToken(runTaskId);
+      });
   };
 }
 
@@ -150,6 +158,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
     { runFloorAssemblyLineForTask, floorAssemblyLineRuntime },
     { agentCrBackend },
     { runDetect },
+    { cleanupPerTaskToken },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
@@ -160,6 +169,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
     import("./floor-assembly-line-run.js"),
     import("../../composition/project-boot.js"),
     import("../detect/run-detect.js"),
+    import("../watcher/agent-watcher.js"),
   ]);
 
   const handler = createStartEventHandler({
@@ -188,6 +198,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
     runOnStation: (task) =>
       runFloorAssemblyLineForTask(task, floorAssemblyLineRuntime(agentCrBackend())),
     applyTaskOutcome: applySupervisorOutcome,
+    cleanupToken: cleanupPerTaskToken,
   });
   return handler(params);
 };

@@ -18,7 +18,7 @@ const originalEnv = { ...process.env };
 const goodHook = {
   id: 7,
   active: true,
-  events: ["pull_request", "pull_request_review", "check_run", "check_suite", "issue_comment", "issues"],
+  events: ["pull_request", "pull_request_review", "pull_request_review_comment", "check_run", "check_suite", "issue_comment", "issues"],
   config: { url: URL },
   last_response: { code: 200, status: "ok" },
 };
