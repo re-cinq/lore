@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/// <reference types="node" />
 // lore-station <type> '<station_input json>' — one assembly-line node per pod.
 // The subsystem's exec vendor spawns this argv from the station recipe's
 // tool_config.command with the rendered station_input appended. Exit 0 with the
