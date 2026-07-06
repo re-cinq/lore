@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
 import { makePool, makeOctokit, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("../../../features/dark-factory/dark-factory-settings.js", () => ({
+// Partial mock: spread the real module (so DarkFactorySettingsSchema and the other
+// re-exports the OpenAPI generator lifts stay defined) and override only the parse
+// functions this suite drives.
+vi.mock("../../../features/dark-factory/dark-factory-settings.js", async importActual => ({
+  ...(await importActual<typeof import("../../../features/dark-factory/dark-factory-settings.js")>()),
   parseDarkFactorySettings: vi.fn((b: unknown) => b),
   parseTaskOverrides: vi.fn((b: unknown) => b),
   resolveSettings: vi.fn((p: unknown) => ({ resolved: true, partial: p })),

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Request, ResponseToolkit } from "@hapi/hapi";
 import { z } from "zod";
-import { zodValidate, zodFailAction, formatZodError } from "./zod-validate.js";
+import { zodValidate, getZodSchema, zodFailAction, formatZodError } from "./zod-validate.js";
 
 const stubRequest = {} as Request;
 const stubToolkit = {} as ResponseToolkit;
@@ -16,6 +16,18 @@ describe("zodValidate", () => {
 
   it("throws with the offending field named for an invalid value", async () => {
     await expect(zodValidate(schema)({ count: "3" })).rejects.toThrow("name: Required");
+  });
+
+  it("stamps the source schema onto the returned fn for getZodSchema to recover", () => {
+    expect(getZodSchema(zodValidate(schema))).toBe(schema);
+  });
+});
+
+describe("getZodSchema", () => {
+  it("returns undefined for a validator not built by zodValidate", () => {
+    expect(getZodSchema(async (v: unknown) => v)).toBeUndefined();
+    expect(getZodSchema(true)).toBeUndefined();
+    expect(getZodSchema(undefined)).toBeUndefined();
   });
 });
 
