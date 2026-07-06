@@ -5,6 +5,7 @@ import {
   taskTypeOf,
   parseReviewResult,
   decideCiGate,
+  decideTokenReclaim,
 } from "./agent-watcher-logic.js";
 
 describe("taskIdOf / taskTypeOf", () => {
@@ -49,6 +50,20 @@ describe("decideCiGate", () => {
   it("proceeds on green, or when no CI is configured", () => {
     expect(decideCiGate("success")).toBe("proceed");
     expect(decideCiGate("none")).toBe("proceed");
+  });
+});
+
+describe("decideTokenReclaim", () => {
+  it("reclaims a single-agent task's token on a terminal phase", () => {
+    expect(decideTokenReclaim({ phase: "Succeeded", hasAssemblyLine: false })).toBe(true);
+    expect(decideTokenReclaim({ phase: "Failed", hasAssemblyLine: false })).toBe(true);
+  });
+  it("skips a task backed by a multi-node assembly line (freed at line completion)", () => {
+    expect(decideTokenReclaim({ phase: "Succeeded", hasAssemblyLine: true })).toBe(false);
+  });
+  it("skips a non-terminal phase", () => {
+    expect(decideTokenReclaim({ phase: "Running", hasAssemblyLine: false })).toBe(false);
+    expect(decideTokenReclaim({ phase: undefined, hasAssemblyLine: false })).toBe(false);
   });
 });
 
