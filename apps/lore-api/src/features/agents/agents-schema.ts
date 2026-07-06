@@ -17,7 +17,7 @@ export const AgentInputSchema = z.object({
   timeout_minutes: z.number().int().positive().max(1440).nullish(),
   prompt: z.string().max(20000).nullish(),
   image: z.string().max(512).nullish(),
-  execution_mode: z.enum(["claude-code", "graph-ingest"]).default("claude-code"),
+  execution_mode: z.enum(["claude-code", "graph-ingest", "station"]).default("claude-code"),
   review_required: z.boolean().default(false),
 });
 

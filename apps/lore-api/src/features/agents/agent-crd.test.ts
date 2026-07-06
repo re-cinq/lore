@@ -56,3 +56,27 @@ describe("agentDefToCrds", () => {
     expect(containers[0].image).toBe("node:22-bookworm");
   });
 });
+
+describe("agentDefToCrds — station mode", () => {
+  it("materialises an exec-vendor station: model exec, {station_input} prompt, lore-station command", () => {
+    const { agentDefinition, station } = agentDefToCrds({
+      name: "def-detect",
+      model: null,
+      timeout_minutes: 30,
+      prompt: null,
+      image: "ghcr.io/re-cinq/lore-station:latest",
+      execution_mode: "station",
+      review_required: false,
+      project_id: null,
+    });
+    expect(agentDefinition.spec).toMatchObject({
+      model: "exec",
+      prompt: "{station_input}",
+      max_turns: 1,
+      tool_config: { command: ["lore-station", "detect"] },
+    });
+    expect(station.spec?.deadlineMinutes).toBe(30);
+    const containers = (station.spec?.template as { spec: { containers: Array<{ image: string }> } }).spec.containers;
+    expect(containers[0].image).toBe("ghcr.io/re-cinq/lore-station:latest");
+  });
+});
