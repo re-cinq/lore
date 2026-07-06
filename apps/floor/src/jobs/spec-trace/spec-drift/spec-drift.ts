@@ -25,16 +25,21 @@ interface CodeChunk {
   file_path: string;
 }
 
-/** Look-back window for "has this repo shipped anything?". */
-const ACTIVITY_WINDOW_DAYS = 7;
+/** Cap on drift tasks filed per repo run — one repo must never dump a whole batch. */
+const MAX_DRIFT_TASKS_PER_REPO_RUN = 3;
 
-/** Cap on drift tasks filed per run — a sweep must never dump a whole batch. */
-const MAX_DRIFT_TASKS_PER_RUN = 10;
+export interface SpecDriftOptions {
+  /** The repo this run covers. The fan-out (jobs/detect) enumerates active
+   *  repos and starts one assembly-line run per repo. */
+  repoFilter: string;
+}
 
 /**
- * Spec Drift Detection Job
+ * Spec Drift Detection Job — one repo per run.
  *
- * Runs weekly. For each spec in the chunk store:
+ * Runs as the `detect` node of the `spec-drift` assembly line, fanned out
+ * weekly per active repo by the `cron.spec_drift.tick` handler (the activity
+ * pre-filter lives in that fan-out). For each spec of the repo:
  * 1. Graph-primary: when the spec is projected into the spec-trace graph, drift
  *    is decided from its per-statement violated/drifted flags (deterministic,
  *    statement-level — no symbol guessing). Authoritative when present.
@@ -42,50 +47,41 @@ const MAX_DRIFT_TASKS_PER_RUN = 10;
  *    assertions, match top-level symbol kinds against AST `symbol_name` chunks,
  *    flag drift past the divergence threshold AND the absolute miss floor.
  * 3. File a gap-fill task per drifted spec (stable-key dedup, per-run cap).
- *
- * Activity pre-filter (added 2026-04-17): skip specs in repos whose
- * code hasn't been re-ingested in the last ACTIVITY_WINDOW_DAYS days.
- * If a repo ships nothing, its code can't have drifted from its spec —
- * scanning it is pure LLM waste. The push-triggered lore-ingest.yml
- * workflow refreshes chunks.ingested_at on every merge to main, so
- * recent code-chunk activity is a reliable "something shipped" signal.
  */
-export async function specDriftJob(): Promise<string> {
-  // Get all spec chunks
+export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
+  const repo = opts.repoFilter;
   const specs = await query<SpecChunk>(
     `SELECT id, repo, file_path, content
      FROM org_shared.chunks
-     WHERE content_type = 'spec'
-     ORDER BY repo, file_path`,
+     WHERE content_type = 'spec' AND repo = $1
+     ORDER BY file_path`,
+    [repo],
   );
 
   if (specs.length === 0) {
-    console.log("[job] spec-drift: no specs found in chunks");
+    console.log(`[job] spec-drift: no specs found for ${repo}`);
     return "No specs found";
   }
 
-  // Pre-filter: which repos have had code chunk updates in the window?
-  const activeRepoRows = await query<{ repo: string }>(
-    `SELECT DISTINCT repo
+  // All code chunks for the repo with symbol metadata, for fast membership checks.
+  const codeChunks = await query<CodeChunk>(
+    `SELECT
+       metadata->>'symbol_name' AS symbol_name,
+       metadata->>'symbol_type' AS symbol_type,
+       file_path
      FROM org_shared.chunks
-     WHERE content_type = 'code'
-       AND ingested_at > now() - ($1 || ' days')::interval`,
-    [String(ACTIVITY_WINDOW_DAYS)],
+     WHERE repo = $1
+       AND content_type = 'code'
+       AND metadata->>'symbol_name' IS NOT NULL`,
+    [repo],
   );
-  const activeRepos = new Set(activeRepoRows.map((r) => r.repo));
+  const knownSymbols = new Set(codeChunks.map((c) => c.symbol_name.toLowerCase()));
 
-  // Group specs by repo
-  const byRepo = new Map<string, SpecChunk[]>();
-  for (const spec of specs) {
-    const list = byRepo.get(spec.repo) || [];
-    list.push(spec);
-    byRepo.set(spec.repo, list);
-  }
+  const project = await projectFor(repo);
+  const activeIssues = await fetchActiveIssues(project);
 
   let totalChecked = 0;
   let totalDrift = 0;
-  let skippedRepos = 0;
-  let skippedSpecs = 0;
   let filteredDocs = 0;
   let filed = 0;
   let deferred = 0;
@@ -95,110 +91,78 @@ export async function specDriftJob(): Promise<string> {
   // Probe the env directly rather than build-and-discard a Dgraph client.
   const graphEnabled = !!process.env.LORE_DGRAPH_HTTP;
 
-  for (const [repo, repoSpecs] of byRepo) {
-    if (!activeRepos.has(repo)) {
-      skippedRepos++;
-      skippedSpecs += repoSpecs.length;
+  for (const spec of specs) {
+    // Skip prose artifacts (research/plan/tasks/quickstart) — they name
+    // concepts, not code symbols, so they always read as 100% drifted.
+    if (!isAssertionSource(spec.file_path)) {
+      filteredDocs++;
       console.log(
-        `[job] spec-drift: skipping ${repo} — no code chunk updates in last ${ACTIVITY_WINDOW_DAYS}d (${repoSpecs.length} specs skipped)`,
+        `[job] spec-drift: skipping ${repo}:${spec.file_path} — prose doc, not an assertion source`,
       );
       continue;
     }
-    // Get all code chunks for this repo with symbol metadata
-    const codeChunks = await query<CodeChunk>(
-      `SELECT
-         metadata->>'symbol_name' AS symbol_name,
-         metadata->>'symbol_type' AS symbol_type,
-         file_path
-       FROM org_shared.chunks
-       WHERE repo = $1
-         AND content_type = 'code'
-         AND metadata->>'symbol_name' IS NOT NULL`,
-      [repo],
-    );
+    try {
+      totalChecked++;
 
-    // Build a set of known symbols for fast lookup
-    const knownSymbols = new Set(
-      codeChunks.map((c) => c.symbol_name.toLowerCase()),
-    );
-
-    const project = await projectFor(repo);
-    const activeIssues = await fetchActiveIssues(project);
-
-    for (const spec of repoSpecs) {
-      // Skip prose artifacts (research/plan/tasks/quickstart) — they name
-      // concepts, not code symbols, so they always read as 100% drifted.
-      if (!isAssertionSource(spec.file_path)) {
-        filteredDocs++;
-        console.log(
-          `[job] spec-drift: skipping ${repo}:${spec.file_path} — prose doc, not an assertion source`,
+      // File a drift task and fold the outcome into the run counters. The cap
+      // is enforced inside createDriftTask after dedup, so a deduped spec
+      // never burns the per-run budget or reads as deferred.
+      const fileDrift = async (copy: DriftTaskCopy): Promise<void> => {
+        const outcome = await createDriftTask(
+          repo,
+          spec.file_path,
+          copy,
+          filed >= MAX_DRIFT_TASKS_PER_REPO_RUN,
+          activeIssues,
         );
+        if (outcome === "filed") {
+          totalDrift++;
+          filed++;
+        } else if (outcome === "deferred") {
+          deferred++;
+        }
+      };
+
+      // Graph-primary: when the spec is projected into the trace graph, its
+      // per-statement violated/drifted flags are the authoritative signal —
+      // deterministic and free of the symbol-membership false positives.
+      if (graphEnabled) {
+        const graph = await detectGraphDrift(project, spec.file_path);
+        if (graph?.available) {
+          console.log(
+            `[job] spec-drift: ${repo}:${spec.file_path} — graph: ${graph.statements.length} drifted statement(s)`,
+          );
+          if (graph.drifted) {
+            await fileDrift(graphTaskCopy(spec.file_path, graph.statements));
+          }
+          continue; // graph is authoritative for this spec
+        }
+      }
+
+      // Heuristic fallback (spec not projected / no graph): de-noised symbol
+      // membership — only top-level symbol kinds, with an absolute miss floor.
+      const assertions = await extractAssertions(spec.content, spec.file_path, { jobName: "spec_drift" });
+      if (assertions.length === 0) {
+        console.log(`[job] spec-drift: ${repo}:${spec.file_path} — no assertions extracted`);
         continue;
       }
-      try {
-        totalChecked++;
-
-        // File a drift task and fold the outcome into the run counters. The cap
-        // is enforced inside createDriftTask after dedup, so a deduped spec
-        // never burns the per-run budget or reads as deferred.
-        const fileDrift = async (copy: DriftTaskCopy): Promise<void> => {
-          const outcome = await createDriftTask(
-            repo,
-            spec.file_path,
-            copy,
-            filed >= MAX_DRIFT_TASKS_PER_RUN,
-            activeIssues,
-          );
-          if (outcome === "filed") {
-            totalDrift++;
-            filed++;
-          } else if (outcome === "deferred") {
-            deferred++;
-          }
-        };
-
-        // Graph-primary: when the spec is projected into the trace graph, its
-        // per-statement violated/drifted flags are the authoritative signal —
-        // deterministic and free of the symbol-membership false positives.
-        if (graphEnabled) {
-          const graph = await detectGraphDrift(project, spec.file_path);
-          if (graph?.available) {
-            console.log(
-              `[job] spec-drift: ${repo}:${spec.file_path} — graph: ${graph.statements.length} drifted statement(s)`,
-            );
-            if (graph.drifted) {
-              await fileDrift(graphTaskCopy(spec.file_path, graph.statements));
-            }
-            continue; // graph is authoritative for this spec
-          }
-        }
-
-        // Heuristic fallback (spec not projected / no graph): de-noised symbol
-        // membership — only top-level symbol kinds, with an absolute miss floor.
-        const assertions = await extractAssertions(spec.content, spec.file_path, { jobName: "spec_drift" });
-        if (assertions.length === 0) {
-          console.log(`[job] spec-drift: ${repo}:${spec.file_path} — no assertions extracted`);
-          continue;
-        }
-        const decision = decideHeuristicDrift(assertions, knownSymbols);
-        console.log(
-          `[job] spec-drift: ${repo}:${spec.file_path} — ${decision.scored} scorable, ${decision.missing.length} missing (${(decision.divergence * 100).toFixed(0)}%)`,
-        );
-        if (decision.drifted) {
-          await fileDrift(heuristicTaskCopy(spec.file_path, decision));
-        }
-      } catch (err) {
-        console.error(
-          `[job] spec-drift: error processing ${repo}:${spec.file_path}:`,
-          err,
-        );
+      const decision = decideHeuristicDrift(assertions, knownSymbols);
+      console.log(
+        `[job] spec-drift: ${repo}:${spec.file_path} — ${decision.scored} scorable, ${decision.missing.length} missing (${(decision.divergence * 100).toFixed(0)}%)`,
+      );
+      if (decision.drifted) {
+        await fileDrift(heuristicTaskCopy(spec.file_path, decision));
       }
+    } catch (err) {
+      console.error(
+        `[job] spec-drift: error processing ${repo}:${spec.file_path}:`,
+        err,
+      );
     }
   }
 
-  const activeRepoCount = byRepo.size - skippedRepos;
-  const deferredNote = deferred > 0 ? `; deferred ${deferred} over the ${MAX_DRIFT_TASKS_PER_RUN}/run cap` : "";
-  const summary = `Checked ${totalChecked} specs across ${activeRepoCount} active repos (${totalDrift} drifted${deferredNote}); skipped ${skippedSpecs} specs from ${skippedRepos} quiet repos, ${filteredDocs} prose docs`;
+  const deferredNote = deferred > 0 ? `; deferred ${deferred} over the ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap` : "";
+  const summary = `Checked ${totalChecked} specs in ${repo} (${totalDrift} drifted${deferredNote}); skipped ${filteredDocs} prose docs`;
   console.log(`[job] spec-drift: ${summary}`);
   return summary;
 }
@@ -303,7 +267,7 @@ async function createDriftTask(
   // Cap is the last gate, after dedup: only specs that would genuinely be filed
   // count against the per-run budget, so a deduped spec never burns it.
   if (atCap) {
-    console.log(`[job] spec-drift: deferring ${repo}:${specPath} — ${MAX_DRIFT_TASKS_PER_RUN}/run cap reached`);
+    console.log(`[job] spec-drift: deferring ${repo}:${specPath} — ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap reached`);
     return "deferred";
   }
 

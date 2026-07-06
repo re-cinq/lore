@@ -6,9 +6,10 @@
 // supervisor, back the ports with real dispatch/poll/CI) lives in the driver entrypoint.
 
 import {
-  createAgentNodeHandler,
+  createStationNodeHandler,
   createGithubActionHandler,
   createProductionHandlers,
+  type NodeHandler,
   type NodeHandlers,
   type AssemblyLineNode,
   type AgentNodeStatus,
@@ -52,6 +53,59 @@ export function nodeAgentSpec(
   };
 }
 
+/** Node knobs a station receives as its `params` (everything execution-relevant
+ *  the YAML can say about the node, minus the routing fields). */
+const STATION_PARAM_FIELDS = ["validator", "job_ref", "condition_ref", "prompt_ref", "model"] as const;
+
+/** Pure: the Agent dispatch spec for one STATION node (validate/detect/…). The
+ *  recipe's prompt template is literally `{station_input}`, so the whole node
+ *  input rides one JSON parameter; the Station defaults to `def-<type>` unless
+ *  the node names a custom one via `station_ref`. */
+export function nodeStationSpec(node: AssemblyLineNode, task: FloorAssemblyLineTask): LoreTaskSpec {
+  const params: Record<string, string> = {};
+
+  for (const field of STATION_PARAM_FIELDS) {
+    const value = node[field];
+
+    if (typeof value === "string" && value.length > 0) {
+      params[field] = value;
+    }
+  }
+
+  return {
+    taskId: task.taskId,
+    taskType: task.taskType,
+    description: task.description,
+    prompt: "",
+    targetRepo: task.targetRepo,
+    branch: task.branch,
+    name: nodeAgentName(task.assemblyLineId, node.id),
+    stationRef: node.station_ref ?? `def-${node.type}`,
+    parameters: {
+      station_input: JSON.stringify({
+        assembly_line_id: task.assemblyLineId,
+        node_id: node.id,
+        node_type: node.type,
+        repo: task.targetRepo,
+        branch: task.branch,
+        task_id: task.taskId,
+        params,
+      }),
+    },
+  };
+}
+
+/** The LORE_STATION_NODES cutover flag: node types that dispatch station pods
+ *  instead of running in-process. Temporary — deleted when the cutover completes. */
+export function stationNodesFromEnv(raw: string | undefined): ReadonlySet<string> {
+  return new Set(
+    (raw ?? "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0),
+  );
+}
+
 export interface FloorAssemblyLinePorts {
   /** Dispatch one node's Agent CR (e.g. AgentCrBackend.launch). */
   dispatchAgent: (spec: LoreTaskSpec) => Promise<void>;
@@ -67,25 +121,44 @@ export interface FloorAssemblyLinePorts {
 }
 
 /** Assemble the NodeHandlers for a Floor-side run: the agent slot dispatches one Agent CR
- *  per node and polls it; the github_action slot gates on CI; validate/gate/retrospective
- *  keep the kernel defaults. */
+ *  per node and polls it; the github_action slot gates on CI. Node types listed in
+ *  `stationNodes` (the LORE_STATION_NODES cutover flag) dispatch a station pod the same
+ *  way instead of running the in-process kernel defaults. */
 export function buildFloorAssemblyLineHandlers(
   task: FloorAssemblyLineTask,
   ports: FloorAssemblyLinePorts,
+  stationNodes: ReadonlySet<string> = new Set(),
 ): NodeHandlers {
-  return createProductionHandlers({
+  const stationHandler: NodeHandler = createStationNodeHandler({
+    launch: (node) => ports.dispatchAgent(nodeStationSpec(node, task)),
+    poll: ports.agentStatus,
+    heartbeat: ports.heartbeat,
+    sleep: ports.sleep,
+  });
+  const stationOr = (type: string, inProcess?: NodeHandler): NodeHandler | undefined =>
+    stationNodes.has(type) ? stationHandler : inProcess;
+
+  const handlers = createProductionHandlers({
     episodeDeps: ports.episodeDeps,
-    agent: createAgentNodeHandler({
+    agent: createStationNodeHandler({
       launch: (node) =>
         ports.dispatchAgent(nodeAgentSpec(node, task, ports.resolvePrompt(node, task))),
       poll: ports.agentStatus,
       heartbeat: ports.heartbeat,
       sleep: ports.sleep,
     }),
-    github_action: createGithubActionHandler({
-      ciConclusion: ports.ciConclusion,
-      heartbeat: ports.heartbeat,
-      sleep: ports.sleep,
-    }),
+    validate: stationOr("validate"),
+    gate: stationOr("gate"),
+    retrospective: stationOr("retrospective"),
+    github_action: stationOr(
+      "github_action",
+      createGithubActionHandler({
+        ciConclusion: ports.ciConclusion,
+        heartbeat: ports.heartbeat,
+        sleep: ports.sleep,
+      }),
+    ),
   });
+  const detect = stationOr("detect");
+  return detect ? { ...handlers, detect } : handlers;
 }

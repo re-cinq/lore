@@ -6,7 +6,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
-import { catalogChartYaml, type AgentCatalogConfig } from "../jobs/agent/agent-catalog.js";
+import {
+  catalogChartYaml,
+  type AgentCatalogConfig,
+  type StationCatalogConfig,
+} from "../jobs/agent/agent-catalog.js";
 
 function generateCatalog(): void {
   const repoRoot = resolve(import.meta.dirname, "../../../..");
@@ -18,8 +22,9 @@ function generateCatalog(): void {
 
   const parsed = parse(readFileSync(src, "utf8")) as {
     task_types: Record<string, AgentCatalogConfig>;
+    stations?: Record<string, StationCatalogConfig>;
   };
-  writeFileSync(dest, catalogChartYaml(parsed.task_types));
+  writeFileSync(dest, catalogChartYaml(parsed.task_types, parsed.stations ?? {}));
   console.log(`[gen-catalog] wrote ${dest}`);
 }
 

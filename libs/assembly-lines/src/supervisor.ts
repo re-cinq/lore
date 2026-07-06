@@ -22,11 +22,12 @@ export interface SupervisorAuditSink {
 }
 
 export interface SupervisorOptions {
-  taskId: string;
+  /** Null for task-less runs (detection assembly lines) — the lease row
+   *  carries no task and stage trailers are moot (no commits). */
+  taskId: string | null;
   /** Per-attempt id from project.assemblyLines (pipeline.assembly_lines row). */
   assemblyLineId: string;
   branchName: string;
-  assemblyLineName: string;
   /**
    * Working directory for git operations. Required when `assembly line` and
    * `handlers` are provided (i.e. real assembly line execution). Optional when
@@ -78,6 +79,12 @@ export interface SupervisorOptions {
   }) => Promise<void>;
   /** Per-node observability sink threaded into the executor. */
   trace?: AssemblyLineTrace;
+  /**
+   * Override the executor's stage-commit writer. Repo-less runs (detect
+   * assembly lines — no checkout, branchName is a pure lease key) pass a
+   * no-op; omitted, the executor commits via git as usual.
+   */
+  gitCommit?: (gitDir: string, subject: string, body: string) => Promise<void>;
 }
 
 export type SupervisorReason =
@@ -169,7 +176,7 @@ export async function runSupervisor(
     if (!opts.assemblyLine || !opts.handlers) {
       console.log(
         `[supervisor] Acquired lease on ${opts.branchName} as ${holder}; ` +
-          `assemblyLine=${opts.assemblyLineName} (executor not configured — lease lifecycle only)`,
+          `assemblyLine=${opts.assemblyLine?.name ?? "(lease-only)"} (executor not configured — lease lifecycle only)`,
       );
       return { ranWork: true, reason: "executor_pending" };
     }
@@ -180,13 +187,13 @@ export async function runSupervisor(
     }
 
     console.log(
-      `[supervisor] Walking assemblyLine ${opts.assemblyLineName} on ${opts.branchName} as ${holder}`,
+      `[supervisor] Walking assemblyLine ${opts.assemblyLine.name} on ${opts.branchName} as ${holder}`,
     );
     try {
       const summary = await executeAssemblyLine({
         assemblyLine: opts.assemblyLine,
         assemblyLineId: opts.assemblyLineId,
-        taskId: opts.taskId,
+        taskId: opts.taskId ?? "",
         branchName: opts.branchName,
         gitDir: opts.gitDir,
         holder,
@@ -194,6 +201,7 @@ export async function runSupervisor(
         handlers: opts.handlers,
         onIterationMaxExceeded: opts.onIterationMaxExceeded,
         trace: opts.trace,
+        gitCommit: opts.gitCommit,
       });
       return { ranWork: true, reason: "completed", summary };
     } catch (err) {

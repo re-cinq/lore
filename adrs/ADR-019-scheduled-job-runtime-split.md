@@ -127,3 +127,50 @@ Full requirements, the job classification table, and acceptance criteria live in
   CronJobs" framing, FR-6's all-in-process scope, and SC#2's "without K8s CronJob
   configuration" now apply only to the in-process subset; the batch subset is
   CronJob-scheduled by design.
+
+## Amendment (2026-07): detection family returns in-process as event-driven assembly lines
+
+The four detection jobs — `gap_detection`, `spec_drift`, `spec_coverage_validate`,
+`spec_coverage_backfill` — left the K8s CronJob carve-out. Each is now **defined
+as an assembly line** (`libs/assembly-lines/src/assembly-lines/{gap-detect,
+spec-drift,spec-coverage-validate,spec-coverage-backfill}.yaml`, a two-node
+`detect → done` graph) and **started by an event**: an in-process cron emitter
+inserts `cron.<job>.tick` at the historic cadence, the tick handler
+(`apps/floor/src/jobs/detect/fan-out.ts`) enumerates target repos and calls
+`assemblyLines().start(<definition>, {repo})` per repo, and the
+`assembly_line.start` handler routes any definition containing a `detect` node
+to the repo-less runner (`apps/floor/src/jobs/detect/run-detect.ts`) — no
+clone, no PR; the branch name `detect/<definition>/<repo>` is a pure lease key.
+
+Why the original objections no longer bind this family:
+
+1. **Missed runs (objection #2).** The scheduler is no longer fire-and-forget
+   node-cron: it compares `cron-parser` `prev()` against DB-persisted
+   `jobRuns().lastRun()` every 30s plus `checkMissedRuns()` at boot, and tick
+   inserts dedupe per minute slot — DB-backed catch-up equivalent to
+   `startingDeadlineSeconds`.
+2. **Isolation (objection #3).** Accepted at the new granularity: one run
+   covers one repo, not the whole org, and the start handler
+   fire-and-backgrounds so the drain loop is never blocked. If a detect node
+   ever needs real isolation, the node-handler seam allows dispatching it to an
+   Agent CR without touching the YAML.
+3. **Independent controls (objection #4).** Event-bus retry/dead-letter (per
+   repo, since each start event is its own row), the per-run branch lease
+   (concurrency control, replacing `concurrencyPolicy: Forbid`), and
+   first-class `pipeline.assembly_lines` identity with per-node trace replace
+   the CronJob knobs.
+4. **On-demand trigger (objection #5).** Insert the tick event, optionally
+   scoped: `INSERT INTO pipeline.events (event_name, source, params) VALUES
+   ('cron.spec_drift.tick', 'cron', '{"repo":"owner/name"}')`.
+
+Run-tracking parity is kept: each per-repo run writes a `pipeline.job_runs` row
+named `<job>:<repo>` (suffixed so the emitter's bare-name row remains the
+missed-run catch-up marker). GCS log capture is deliberately dropped for these
+runs (console logs + the job_runs summary suffice at per-repo size); isolated
+in-process capture remains the noted follow-up.
+
+The heavy batch jobs (`context_reindex`, `eval_runner`, `context_core_builder`,
+`importance_decay`, `consolidation`, `memory_ttl`, `anthropic_cost_sync`) stay
+as K8s CronJobs — the carve-out still holds where runs are org-wide, memory-heavy,
+or hours long. The detection pattern (`detect` node + tick fan-out) is the
+intended porting path for any of them that can be made per-repo.

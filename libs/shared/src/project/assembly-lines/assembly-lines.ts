@@ -30,4 +30,12 @@ export class AssemblyLines {
   listForTask(taskId: string): Promise<AssemblyLineRecord[]> {
     return this.port.listForTask(taskId);
   }
+
+  findOpenByPr(prNumber: number): Promise<AssemblyLineRecord[]> {
+    return this.port.findOpenByPr(this.repo, prNumber);
+  }
+
+  finishOpenByPr(prNumber: number, outcome: string): Promise<number> {
+    return this.port.finishOpenByPr(this.repo, prNumber, outcome);
+  }
 }

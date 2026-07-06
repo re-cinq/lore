@@ -1,0 +1,52 @@
+name: Build and push Lore Station
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/lore-station/**'
+      # The compiled shared + assembly-lines packages are bundled into the image —
+      # a lib-only change must rebuild so station pods don't run stale kernel code.
+      - 'libs/shared/**'
+      - 'libs/assembly-lines/**'
+      - '.github/workflows/build-lore-station.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: build-lore-station-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: re-cinq/lore-station
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Short SHA
+        id: sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/lore-station/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.sha.outputs.short_sha }}

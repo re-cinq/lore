@@ -60,6 +60,8 @@ export interface NodeHandlers {
   retrospective: NodeHandler;
   /** Optional — only assembly lines with a `github_action` node need it (D3). */
   github_action?: NodeHandler;
+  /** Optional — only detection assembly lines (repo-scoped deterministic jobs) need it. */
+  detect?: NodeHandler;
 }
 
 export interface IterationMaxExceededInfo {

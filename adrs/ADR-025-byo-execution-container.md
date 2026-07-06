@@ -11,7 +11,12 @@ domains: [agent, pipeline, infra, security]
 > **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** The BYO-image knob
 > survives, but it no longer rides on the `LoreTask` CR's `image` field: a per-repo recipe
 > sets it on the catalog `Station`'s pod template (the `image` two-key gate is preserved on
-> the `/agent-definitions` endpoint). The substrate is the ai-agent-subsystem.
+> the `/agent-definitions` endpoint). The substrate is the ai-agent-subsystem. And for
+> Floor-driven assembly lines, `validate` nodes now run as their own **station pods** (the
+> `lore-station` image runs `createValidateHandler` against the pod's clone at
+> `$WORKSPACE_DIR/target`), so the station image *is* the toolchain container — superseding
+> the sidecar relay below for that path. The relay remains for the in-pod agent runs it was
+> built for.
 
 ## Context
 
@@ -83,7 +88,9 @@ plus a CODEOWNERS-approved PR — exactly like `dark_factory.enabled`
 - **Polyglot validation** runs by having `detectTooling`'s commands execute in
   the BYO container through the relay, so `go vet` / `mypy` / `cargo check` run in
   the native toolchain. (Same relay later carries a full agentic tool-use loop:
-  kernel = brain, BYO sidecar = hands.)
+  kernel = brain, BYO sidecar = hands.) For assembly-line `validate` nodes this is
+  superseded by the station-pod path (top note, ADR-031); the relay serves the
+  in-pod agent toolchain use it was built for.
 
 ## Alternatives rejected
 

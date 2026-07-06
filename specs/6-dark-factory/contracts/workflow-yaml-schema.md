@@ -10,7 +10,7 @@ The on-disk format for assembly line graphs. Loaded by both the GKE supervisor (
 ## Schema (Zod)
 
 ```ts
-const NodeType = z.enum(["agent", "validate", "gate", "retrospective"]);
+const NodeType = z.enum(["agent", "validate", "gate", "retrospective", "github_action", "detect"]);
 const EdgeCondition = z.enum(["success", "changes_requested", "failed", "always"]);
 
 const NodeSchema = z.object({
@@ -21,6 +21,9 @@ const NodeSchema = z.object({
   model: z.string().optional(),            // for agent nodes — overrides default
   validator: z.string().optional(),        // for validate nodes — "lint" | "typecheck" | "all"
   condition_ref: z.string().optional(),    // for gate nodes — "auto_merge_eligible" | "review_passed" | ...
+  job_ref: z.string().optional(),          // for detect nodes — REQUIRED; keys the Floor's detector registry
+  station_ref: z.string().optional(),      // custom station (agent-definitions name) overriding def-<type>
+  timeout_minutes: z.number().int().positive().optional(),  // per-node run timeout (station-contract.md)
   description: z.string().optional()
 });
 
@@ -48,6 +51,7 @@ const AssemblyLineSchema = z.object({
 - Every node except `exit` MUST have at least one outgoing edge.
 - Every node except `entry` MUST be reachable from `entry`.
 - Cycles MUST have `iteration_max` set on the back-edge; otherwise loader rejects the graph.
+- A `detect` node without `job_ref` MUST be rejected at load time.
 - Unknown `prompt_ref` / `condition_ref` / `validator` values MUST be rejected at load time, not at execution time.
 - Loader is fail-fast: malformed YAML or schema violation prevents supervisor startup.
 
@@ -160,6 +164,35 @@ edges:
   - from: retrospective
     to: done
     on: always
+```
+
+## Example: detection flow (repo-less, deterministic)
+
+A `detect` node runs a deterministic, repo-scoped detection job (DB + graph
+reads) inside the walk — no clone, no PR, no LLM prompting of its own. `job_ref`
+keys the Floor's injected detector registry
+(`apps/floor/src/jobs/detect/detectors.ts`); the run is started per repo by the
+`cron.<job>.tick` fan-out (ADR-019 amendment).
+
+```yaml
+name: spec-drift
+description: Per-repo spec drift detection; files gap-fill tasks for drifted specs.
+version: 1
+entry: detect
+exit: done
+
+nodes:
+  - id: detect
+    type: detect
+    job_ref: spec_drift
+  - id: done
+    type: retrospective
+    description: Terminal marker (the executor halts on exit).
+
+edges:
+  - from: detect
+    to: done
+    on: success
 ```
 
 ## Versioning

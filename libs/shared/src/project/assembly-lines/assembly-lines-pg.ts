@@ -110,6 +110,33 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     );
     return rows.map(toRecord);
   }
+
+  async findOpenByPr(repo: string, prNumber: number): Promise<AssemblyLineRecord[]> {
+    const { rows } = await this.pool.query(
+      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
+              created_at, started_at, finished_at
+         FROM pipeline.assembly_lines
+        WHERE repo = $1
+          AND (args->>'pr_number')::int = $2
+          AND status IN ('queued', 'running')
+        ORDER BY created_at DESC`,
+      [repo, prNumber],
+    );
+    return rows.map(toRecord);
+  }
+
+  async finishOpenByPr(repo: string, prNumber: number, outcome: string): Promise<number> {
+    const { rows } = await this.pool.query(
+      `UPDATE pipeline.assembly_lines
+          SET status = 'finished', outcome = $1, finished_at = now()
+        WHERE repo = $2
+          AND (args->>'pr_number')::int = $3
+          AND status IN ('queued', 'running')
+      RETURNING id`,
+      [outcome, repo, prNumber],
+    );
+    return rows.length;
+  }
 }
 
 function toRecord(row: {

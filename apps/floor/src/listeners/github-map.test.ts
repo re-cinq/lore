@@ -10,7 +10,7 @@ describe("mapGitHubEvent — pull_request", () => {
     ]);
   });
 
-  it("maps closed+merged to github.pull_request.closed carrying branch/sha/labels", () => {
+  it("maps closed+merged to github.pull_request.closed carrying merged/branch/sha/labels", () => {
     const payload = {
       ...REPO,
       action: "closed",
@@ -20,14 +20,22 @@ describe("mapGitHubEvent — pull_request", () => {
       {
         eventName: "github.pull_request.closed",
         source: "github",
-        params: { repo: "re-cinq/lore", pr_number: 9, branch: "lore/feature-request/auth-abcd1234", merge_commit_sha: "sha9", labels: ["spec"] },
+        params: { repo: "re-cinq/lore", pr_number: 9, merged: true, branch: "lore/feature-request/auth-abcd1234", merge_commit_sha: "sha9", labels: ["spec"] },
         dedupeKey: "github:d2",
       },
     ]);
   });
 
-  it("ignores closed-without-merge", () => {
-    expect(mapGitHubEvent("pull_request", { ...REPO, action: "closed", pull_request: { number: 9, merged: false } }, "d3")).toEqual([]);
+  it("maps closed-without-merge to the same event with merged:false (so code-review can finish its line)", () => {
+    const payload = { ...REPO, action: "closed", pull_request: { number: 9, merged: false, head: { ref: "feature/x" }, labels: [] } };
+    expect(mapGitHubEvent("pull_request", payload, "d3")).toEqual([
+      {
+        eventName: "github.pull_request.closed",
+        source: "github",
+        params: { repo: "re-cinq/lore", pr_number: 9, merged: false, branch: "feature/x", merge_commit_sha: null, labels: [] },
+        dedupeKey: "github:d3",
+      },
+    ]);
   });
 
   it("ignores edited", () => {
@@ -42,14 +50,26 @@ describe("mapGitHubEvent — review and comments", () => {
     ]);
   });
 
-  it("maps a PR issue_comment.created to review", () => {
-    expect(mapGitHubEvent("issue_comment", { ...REPO, action: "created", issue: { number: 5, pull_request: {} } }, "d6")).toEqual([
-      { eventName: "github.issue_comment.created", source: "github", params: { repo: "re-cinq/lore", pr_number: 5 }, dedupeKey: "github:d6" },
+  it("maps a PR issue_comment.created carrying the comment author/id/body", () => {
+    const payload = { ...REPO, action: "created", issue: { number: 5, pull_request: {} }, comment: { id: 111, body: "please fix", user: { login: "alice" } } };
+    expect(mapGitHubEvent("issue_comment", payload, "d6")).toEqual([
+      { eventName: "github.issue_comment.created", source: "github", params: { repo: "re-cinq/lore", pr_number: 5, comment_id: 111, comment_author: "alice", comment_body: "please fix" }, dedupeKey: "github:d6" },
     ]);
   });
 
   it("ignores an issue_comment that is not on a PR", () => {
     expect(mapGitHubEvent("issue_comment", { ...REPO, action: "created", issue: { number: 5 } }, "d7")).toEqual([]);
+  });
+
+  it("maps a created pull_request_review_comment carrying the comment author/id/body", () => {
+    const payload = { ...REPO, action: "created", pull_request: { number: 8 }, comment: { id: 222, body: "why here?", user: { login: "bob" } } };
+    expect(mapGitHubEvent("pull_request_review_comment", payload, "d8")).toEqual([
+      { eventName: "github.pull_request_review_comment.created", source: "github", params: { repo: "re-cinq/lore", pr_number: 8, comment_id: 222, comment_author: "bob", comment_body: "why here?" }, dedupeKey: "github:d8" },
+    ]);
+  });
+
+  it("ignores a non-created pull_request_review_comment", () => {
+    expect(mapGitHubEvent("pull_request_review_comment", { ...REPO, action: "edited", pull_request: { number: 8 }, comment: { id: 222 } }, "d9")).toEqual([]);
   });
 });
 

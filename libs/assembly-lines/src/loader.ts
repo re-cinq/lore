@@ -2,8 +2,9 @@ import { z } from "zod";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { parse as parseYaml } from "yaml";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
-const NodeType = z.enum(["agent", "validate", "gate", "retrospective", "github_action"]);
+const NodeType = z.enum(["agent", "validate", "gate", "retrospective", "github_action", "detect"]);
 const EdgeCondition = z.enum([
   "success",
   "changes_requested",
@@ -18,6 +19,11 @@ const NodeSchema = z.object({
   model: z.string().optional(),
   validator: z.string().optional(),
   condition_ref: z.string().optional(),
+  job_ref: z.string().optional(),
+  /** Custom station (agent-definitions name) overriding the default `def-<type>`. */
+  station_ref: z.string().optional(),
+  /** Per-node run timeout; falls back to the referenced Station's deadline. */
+  timeout_minutes: z.number().int().positive().optional(),
   description: z.string().optional(),
 });
 
@@ -184,6 +190,14 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
         source,
       );
     }
+  }
+
+  // A detect node without its job reference can't be dispatched — reject at load.
+  for (const n of wf.nodes) {
+    enforceTrue(
+      n.type !== "detect" || n.job_ref,
+      `detect node "${n.id}" requires job_ref`,
+    );
   }
 
   // Cycles must carry iteration_max on the back-edge (DFS coloring).

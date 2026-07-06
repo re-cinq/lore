@@ -92,9 +92,9 @@ resident process.
 | `importance_decay` | `0 5 * * *` | **CronJob** | `cron/` |
 | `consolidation` | `30 5 * * *` | **CronJob** | `cron/` |
 | `autoresearch` | `0 6 * * 1` | **CronJob** | `cron/` |
-| `gap_detection` | `0 9 * * 1` | **CronJob** | `cron/` |
-| `spec_drift` | `0 10 * * 1` | **CronJob** | `cron/` |
-| `spec_test_linker` | `0 11 * * 1` | **CronJob** | `cron/` |
+| `gap_detection` | `0 9 * * 1` | **event-driven assembly line** (2026-07 amendment) | `jobs/detect/` |
+| `spec_drift` | `0 10 * * 1` | **event-driven assembly line** (2026-07 amendment) | `jobs/detect/` |
+| `spec_test_linker` | `0 11 * * 1` | **event-driven assembly line** (2026-07 amendment; split into `spec_coverage_validate` daily + `spec_coverage_backfill` weekly by spec-test-coverage v3) | `jobs/detect/` |
 | `memory_ttl` | `0 * * * *` | **CronJob** | `cron/` |
 | `merge_check` | `*/1 * * * *` | in-process | `scheduled/` |
 | `approval_check` | `*/1 * * * *` | in-process | `scheduled/` |
@@ -102,6 +102,29 @@ resident process.
 | `spec_task_executor` | `*/1 * * * *` | in-process | `scheduled/` |
 | `review_reactor` | `7 7-17 * * 1-5` | in-process (webhook safety net) | `scheduled/` |
 | `stale_task_check` | `17 * * * *` | in-process | `scheduled/` |
+
+#### 2026-07 amendment — detection family as event-driven assembly lines
+
+The detection family (`gap_detection`, `spec_drift`, `spec_coverage_validate`,
+`spec_coverage_backfill`) no longer runs as K8s CronJobs. Each job is an
+assembly-line definition with a deterministic `detect` node
+(`libs/assembly-lines/src/assembly-lines/*.yaml`); an in-process cron emitter
+inserts `cron.<job>.tick` at the same cadence, and the tick handler
+(`apps/floor/src/jobs/detect/fan-out.ts`) starts one per-repo assembly line via
+`assemblyLines().start()`. Runs are repo-less (no clone; the branch name is a
+lease key) and each writes a `pipeline.job_runs` row named `<job>:<repo>`.
+Rationale and controls mapping: ADR-019 amendment.
+
+Manual trigger (replaces `kubectl create job` for these four):
+
+```sql
+-- full fan-out
+INSERT INTO pipeline.events (event_name, source, params)
+VALUES ('cron.spec_drift.tick', 'cron', '{}');
+-- single repo
+INSERT INTO pipeline.events (event_name, source, params)
+VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
+```
 
 ## Architecture
 

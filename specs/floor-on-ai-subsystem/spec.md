@@ -10,6 +10,10 @@
 | Epic           | [#690](https://github.com/re-cinq/lore/issues/690)                   |
 | Subsystem      | [`re-cinq/ai-agent-subsystem`](https://github.com/re-cinq/ai-agent-subsystem) (`agents.re-cinq.com` / `ai-agents`) |
 
+> **Revised 2026-07:** generalized so **every** assembly-line node — not just agent nodes — runs as an
+> `Agent` CR / pod; non-LLM "station" nodes (validate/gate/retrospective/`github_action`/detect/custom)
+> run via a new `exec` vendor. Folded into the Solution, D9, the architecture, File Changes, and AC15–21.
+
 ## Problem Statement
 
 Lore executes coding tasks today via a bespoke `LoreTask` CRD → `loretask-controller` → a
@@ -38,9 +42,11 @@ cluster. The Lore-specific glue is **relocated Floor-side** and stays determinis
   `LoreTask` CRs; a two-gate flag routes tasks during a graded, reversible cutover.
 - A Floor-side **`agent-watcher`** (replacing `loretask-watcher`) computes changed files, reads the
   **GitHub Actions** CI gate, opens the PR (`Lore-Task` footer), auto-merges, and escalates.
-- The **assembly line** (`libs/assembly-lines` `executeAssemblyLine`) runs in the Floor; AI nodes dispatch `Agent`
-  CRs, **non-AI nodes reference the repo's GitHub Actions**, and the lease is heartbeated while a
-  node runs.
+- The **assembly line** (`libs/assembly-lines` `executeAssemblyLine`) runs in the Floor; **every node
+  dispatches one `Agent` CR** — AI nodes run `claude`; non-AI **station** nodes
+  (validate/gate/retrospective/detect) run the deterministic `lore-station` image via the subsystem's
+  `exec` vendor; a `github-action` node references the repo's GitHub Actions — with the lease
+  heartbeated while a node runs.
 - The recipe **schema + client are generated from the subsystem's D structs** into a published
   code-API package (`@re-cinq/agent-contracts`, subsystem v0.3.0) that the Floor and UI import.
 - Secrets, context hydration, networking, and observability **reuse the existing setup** (ESO
@@ -49,7 +55,7 @@ cluster. The Lore-specific glue is **relocated Floor-side** and stays determinis
 The cutover is reversible (both controllers run in parallel behind a flag); `LoreTask`, the
 `claude-runner` image, and the cluster-wide `loretask-agent` RBAC are torn down only after a soak.
 
-### Design decisions (locked) — D1–D8 (see ADR-031)
+### Design decisions (locked) — D1–D9 (see ADR-031)
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
@@ -61,6 +67,7 @@ The cutover is reversible (both controllers run in parallel behind a flag); `Lor
 | **D6** Secrets | **Inherit** the existing GCP Secret Manager remoteRefs via ESO into `agent-secrets`; per-task GitHub App token PATCHed in and removed on terminal | No new secret material; short-lived, least-privilege; no org PAT |
 | **D7** Networking | Self-hydration + telemetry over the **public LB**; run pods **drop direct Postgres** | The run-pod NetworkPolicy blocks RFC1918/metadata; DB-less pods shrink blast radius |
 | **D8** Observability | NDJSON **http sink → Floor `/api/agent-events`** → `pipeline.llm_calls` + OTEL + GCS + UI logs | No telemetry capability lost; pod stays DB-less and GCS-less |
+| **D9** Station nodes | **Every** non-agent node (validate/gate/retrospective/`github_action`/detect/custom) dispatches its own `Agent` CR run by the `exec` vendor (`model: exec` → `tool_config.command`); outcome via the `LORE_NODE_RESULT` result line; per-type cutover via `LORE_STATION_NODES` | Uniform per-node isolation + timeouts; custom station images; no CRD change |
 
 ## Architecture (target data-flow, one `implementation` task)
 
@@ -69,7 +76,8 @@ pending task ─► Floor coordinator (executeAssemblyLine in the Floor; branch 
   ├─ implement (AI node) ─► AgentBackend creates an Agent CR ─► ai-agent-subsystem controller
   │                          (init clones repo + installs claude) ─► supervisor runs claude --print
   │                          ─► edits + commits (Lore-* trailers) + pushes ─► status: Succeeded
-  ├─ validate (non-AI node) ─► reference the repo's GitHub Actions ─► gate on conclusion
+  ├─ validate (station node) ─► AgentBackend creates an Agent CR (exec vendor, lore-station image)
+  │                          ─► runs createValidateHandler ─► LORE_NODE_RESULT line ─► gate on outcome
   ├─ review / address (AI nodes) ─► more Agent CRs, bounded by iteration_max
   └─ retrospective / merge ─► Floor-side handlers
 agent-watcher ─► changed files (compare-commits) ─► CI gate ─► open PR (Lore-Task footer)
@@ -90,6 +98,11 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 | `libs/assembly-lines/src/agent-node-handler.ts` + `github-action` node | NEW Floor-side graph nodes (#686) |
 | `apps/floor` flag + `terraform` | Graded cutover + LoreTask teardown (#688) |
 | `adrs/` + `specs/` | LoreTask references retired (#689) |
+| `re-cinq/ai-agent-subsystem` `vendors/exec/` | NEW `exec` vendor — runs `tool_config.command`, no CRD change (D9) |
+| `libs/assembly-lines/src/station-node-handler.ts` | Generalize per-node dispatch to ALL node types + `parseNodeResult` (D9) |
+| NEW `apps/lore-station/` + Dockerfile + `build-lore-station.yml` | The `lore-station` station-pod image (validate; more node types phased in) |
+| `scripts/task-types.yaml` `stations:` + `gen-catalog` + migration `0027` | Seed `def-<type>` station recipes (D9) |
+| `apps/floor` `LORE_STATION_NODES` + `nodeStationSpec` | Per-node-type cutover flag + station dispatch spec (D9) |
 
 ## Acceptance Criteria
 
@@ -97,7 +110,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 > `([validated by <name>](path/to/test.ts#Lnn))` link to the criterion it satisfies
 > (spec-test-coverage v3). Criteria are un-linked here until their PR lands.
 
-1. ADR-031 is rewritten to make the subsystem the production substrate, recording D1–D8, and
+1. ADR-031 is rewritten to make the subsystem the production substrate, recording D1–D9, and
    superseding ADR-011 + ADR-030's storage decision; ADR-030 carries a superseded-storage banner.
 2. The `AgentDefinition`/`Station`/`Agent` TypeScript types + client are **generated from the
    subsystem's D structs** (crdgen-style) and published as `@re-cinq/agent-contracts@0.3.0`; a CI
@@ -128,6 +141,30 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     no in-flight loss; after the soak, no new `LoreTask` CRs are created for any migrated task type.
 14. After teardown, the `loretask-crd` module, the `claude-runner` image build, and the cluster-wide
     `loretask-agent` RBAC are removed; `adrs/` + `specs/` present no LoreTask as the current path.
+
+### Station nodes (D9)
+
+> Phased: validate (this change) → detect (needs chunk/trace/task HTTP ports) →
+> gate/retrospective/`github_action` (auto-merge stays Floor-side) → custom stations +
+> in-process handler deletion. Criteria link as each phase's PR lands.
+
+15. `model: "exec"` routes to a non-LLM adapter spawning the recipe's `tool_config.command` with the
+    rendered prompt appended; no CRD schema change. ([validated by agentForModel exec routing test](../../../ai-agent-subsystem/packages/agentcore/source/agentcore/vendors/select.d))
+16. Node YAML accepts optional `station_ref` (custom station, default `def-<type>`) and
+    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](../../libs/assembly-lines/src/loader.test.ts#L226))
+17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L92))
+18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
+    extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
+    success); CR Failed → `station-failed`; await expiry → `station-timeout`.
+    ([validated by parseNodeResult tests](../../libs/assembly-lines/src/station-node-handler.test.ts#L24))
+19. `LORE_STATION_NODES` (comma-separated node types) gates per type; unlisted types keep the
+    in-process handlers; the flag is deleted when cutover completes. ([validated by unflagged node types keep the in-process kernel defaults](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L119))
+20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
+    model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
+    default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`).
+    ([validated by station catalog tests](../../apps/floor/src/jobs/agent/agent-catalog.test.ts#L96))
+21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
 ## Out of scope
 

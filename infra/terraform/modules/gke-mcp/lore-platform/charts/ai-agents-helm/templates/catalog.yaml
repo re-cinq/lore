@@ -292,6 +292,131 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
+  name: code-review
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore code-review task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    {description}
+
+    You are reviewing this pull request against the repo's conventions
+    (CLAUDE.md), ADRs in adrs/, and any spec in specs/. Check correctness,
+    type safety, security, and simplicity.
+
+    Post LINE-LEVEL inline comments — create one review carrying a comments
+    array, e.g.:
+      gh api repos/{owner}/{repo}/pulls/{pr}/reviews -f event=COMMENT \
+        -f 'comments[][path]=<file>' -F 'comments[][line]=<n>' \
+        -f 'comments[][body]=<comment>'
+    Keep each comment specific and actionable; do not restate the diff.
+
+    Then output exactly one of:
+    - REVIEW_RESULT:APPROVED
+    - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary>
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: code-review
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: code-review
+  deadlineMinutes: 15
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: code-review-refine
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore code-review-refine task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    {description}
+
+    Decide how to act on the outstanding review point:
+    - If it is a question or discussion, reply in the review thread via
+      `gh api` (reviews/comments replies) — do NOT change code.
+    - If it is an actionable fix request, edit the code and commit to the PR
+      branch (the branch is already checked out).
+
+    Then output exactly one of:
+    - REVIEW_RESULT:APPROVED
+    - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary of what remains>
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: code-review-refine
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: code-review-refine
+  deadlineMinutes: 20
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
   name: feature-request
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
@@ -664,6 +789,57 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: def-validate
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore validate station recipe (seeded).
+  model: exec
+  prompt: "{station_input}"
+  permission_mode: bypass
+  max_turns: 1
+  tool_config:
+    command:
+      - lore-station
+      - validate
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: def-validate
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: def-validate
+  deadlineMinutes: 15
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: {{ .Values.stationImage }}
           resources:
             requests:
               cpu: 250m
