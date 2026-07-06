@@ -29,8 +29,9 @@ import {
   findMisplacedCoverageLinks,
   reassembleSpec,
   type TestLinkRef,
+  type Project,
+  type SpecChunkWithIngest,
 } from "@re-cinq/lore-shared";
-import { query } from "../../kernel/db.js";
 import { projectFor } from "../../composition/project-boot.js";
 
 export interface ChunkLineRange {
@@ -135,145 +136,80 @@ export function hasOpenLinkRotIssue(openIssues: { labels: string[] }[]): boolean
   return openIssues.some((i) => i.labels.includes(LINK_ROT_LABEL));
 }
 
-// ── Orchestration ──────────────────────────────────────────────────
-
-interface SpecChunkRow {
-  repo: string;
-  file_path: string;
-  content: string;
-  ingested_at: string | Date;
-}
-
-interface CodeChunkRow {
-  file_path: string;
-  start_line: number | null;
-  end_line: number | null;
-}
-
-interface SchemaRow { schema: string }
-
-async function getSchemasWithSpecs(): Promise<string[]> {
-  // Same pg_catalog discovery the v2 linker used — any schema with a chunks table.
-  const rows = await query<SchemaRow>(
-    `SELECT n.nspname AS schema
-     FROM pg_catalog.pg_class c
-     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-     WHERE c.relname = 'chunks' AND c.relkind = 'r'
-     ORDER BY n.nspname`,
-  );
-  return rows.map((r) => r.schema);
-}
-
-async function loadTestChunks(schema: string, repo: string): Promise<ChunkLineRange[]> {
-  const rows = await query<{
-    file_path: string;
-    start_line: number | null;
-    end_line: number | null;
-  }>(
-    `SELECT file_path,
-            (metadata->>'start_line')::int AS start_line,
-            (metadata->>'end_line')::int   AS end_line
-     FROM ${schema}.chunks
-     WHERE repo = $1 AND content_type = 'code'`,
-    [repo],
-  );
-  return rows;
-}
+// ── Orchestration (per repo, via the Project facade) ────────────────
 
 export interface ValidateOptions {
-  /** When set, only specs in this repo are validated. The post-ingest
-   * webhook trigger sets this to the just-ingested repo. */
-  repoFilter?: string;
+  /** The repo whose specs are validated. Set by the detect fan-out and the
+   * post-ingest `internal.ingest.spec_coverage_validate` trigger. */
+  repoFilter: string;
+  /** Data facade — projectFor(repo) on the Floor, createStationProject(env) in
+   *  a pod. Defaults to projectFor(repo). */
+  project?: Project;
 }
 
-export async function validateSpecCoverageJob(opts: ValidateOptions = {}): Promise<string> {
-  const schemas = await getSchemasWithSpecs();
-  if (schemas.length === 0) {
-    console.log("[job] spec-coverage-validate: no chunks tables found");
-    return "No chunks tables found";
+/** Group a repo's spec chunks by file path so multi-chunk specs reassemble. */
+function specsByPath(specs: SpecChunkWithIngest[]): Map<string, SpecChunkWithIngest[]> {
+  const byPath = new Map<string, SpecChunkWithIngest[]>();
+  for (const s of specs) {
+    const list = byPath.get(s.filePath) ?? [];
+    list.push(s);
+    byPath.set(s.filePath, list);
+  }
+  return byPath;
+}
+
+export async function validateSpecCoverageJob(opts: ValidateOptions): Promise<string> {
+  const repo = opts.repoFilter;
+  const project = opts.project ?? (await projectFor(repo));
+
+  const specs = await project.chunks.specChunksWithIngest();
+  if (specs.length === 0) {
+    console.log(`[job] spec-coverage-validate: no specs for ${repo}`);
+    return "No specs found";
   }
 
-  let totalRepos = 0;
+  const testChunks: ChunkLineRange[] = (await project.chunks.testChunkRanges()).map((c) => ({
+    file_path: c.filePath,
+    start_line: c.startLine,
+    end_line: c.endLine,
+  }));
+
+  const broken: BrokenLink[] = [];
   let totalSpecs = 0;
-  let totalBroken = 0;
+  for (const [specPath, chunks] of specsByPath(specs)) {
+    totalSpecs++;
+    const content = reassembleSpec(chunks.map((c) => ({ content: c.content, ingested_at: c.ingestedAt })));
+    broken.push(...collectBrokenLinks(specPath, content, testChunks));
+  }
+
   let reportsOpened = 0;
-
-  for (const schema of schemas) {
-    const specs = opts.repoFilter
-      ? await query<SpecChunkRow>(
-          `SELECT repo, file_path, content, ingested_at
-           FROM ${schema}.chunks
-           WHERE content_type = 'spec' AND repo = $1
-           ORDER BY repo, file_path, ingested_at`,
-          [opts.repoFilter],
-        )
-      : await query<SpecChunkRow>(
-          `SELECT repo, file_path, content, ingested_at
-           FROM ${schema}.chunks
-           WHERE content_type = 'spec'
-           ORDER BY repo, file_path, ingested_at`,
-        );
-    if (specs.length === 0) continue;
-
-    // Group spec chunks by (repo, file_path) so we can reassemble multi-chunk specs.
-    const byRepoPath = new Map<string, Map<string, SpecChunkRow[]>>();
-    for (const s of specs) {
-      const byPath = byRepoPath.get(s.repo) ?? new Map<string, SpecChunkRow[]>();
-      const list = byPath.get(s.file_path) ?? [];
-      list.push(s);
-      byPath.set(s.file_path, list);
-      byRepoPath.set(s.repo, byPath);
-    }
-
-    for (const [repo, byPath] of byRepoPath) {
-      totalRepos++;
-      const codeChunks = await loadTestChunks(schema, repo);
-      const brokenForRepo: BrokenLink[] = [];
-
-      for (const [specPath, chunks] of byPath) {
-        totalSpecs++;
-        const content = reassembleSpec(chunks);
-        const broken = collectBrokenLinks(specPath, content, codeChunks);
-        brokenForRepo.push(...broken);
-      }
-
-      if (brokenForRepo.length === 0) continue;
-      totalBroken += brokenForRepo.length;
-
-      const body = formatBrokenLinksReport(brokenForRepo);
-      try {
-        const project = await projectFor(repo);
-        // Dedup: skip filing when an open spec-link-rot issue already exists (this
-        // job runs daily AND on every ingest). A read failure leaves openIssues
-        // empty and we fall through to file — surfacing the rot beats silence.
-        const openIssues = await project.issues
-          .list({ state: "open" })
-          .catch((err) => {
-            console.error(`[job] spec-coverage-validate: open-issue read failed for ${repo}:`, err);
-            return [] as Awaited<ReturnType<typeof project.issues.list>>;
-          });
-        if (hasOpenLinkRotIssue(openIssues)) {
-          console.log(
-            `[job] spec-coverage-validate: ${repo} — ${brokenForRepo.length} broken links, open spec-link-rot issue exists, skipping`,
-          );
-          continue;
-        }
-        const issue = await project.issues.create(
-          "Broken test links in spec.md",
-          body,
-          [LINK_ROT_LABEL, "lore-managed"],
-        );
-        reportsOpened++;
+  if (broken.length > 0) {
+    // Dedup: skip filing when an open spec-link-rot issue already exists (this
+    // job runs daily AND on every ingest). A read failure leaves openIssues empty
+    // and we fall through to file — surfacing the rot beats silence.
+    try {
+      const openIssues = await project.issues.list({ state: "open" }).catch((err) => {
+        console.error(`[job] spec-coverage-validate: open-issue read failed for ${repo}:`, err);
+        return [] as Awaited<ReturnType<typeof project.issues.list>>;
+      });
+      if (hasOpenLinkRotIssue(openIssues)) {
         console.log(
-          `[job] spec-coverage-validate: ${repo} — ${brokenForRepo.length} broken links → issue ${issue.url}`,
+          `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links, open spec-link-rot issue exists, skipping`,
         );
-      } catch (err) {
-        console.error(`[job] spec-coverage-validate: failed to file report for ${repo}:`, err);
+      } else {
+        const issue = await project.issues.create("Broken test links in spec.md", formatBrokenLinksReport(broken), [
+          LINK_ROT_LABEL,
+          "lore-managed",
+        ]);
+        reportsOpened++;
+        console.log(`[job] spec-coverage-validate: ${repo} — ${broken.length} broken links → issue ${issue.url}`);
       }
+    } catch (err) {
+      console.error(`[job] spec-coverage-validate: failed to file report for ${repo}:`, err);
     }
   }
 
-  const summary = `Checked ${totalSpecs} specs across ${totalRepos} repos — ${totalBroken} broken links, ${reportsOpened} reports opened`;
+  const summary = `Checked ${totalSpecs} specs in ${repo} — ${broken.length} broken links, ${reportsOpened} reports opened`;
   console.log(`[job] spec-coverage-validate: ${summary}`);
   return summary;
 }

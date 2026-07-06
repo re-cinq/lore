@@ -6,6 +6,16 @@
 
 export { Project } from "./lib/project.js";
 export { createProject, setProject, project } from "./lib/project-factory.js";
+export type {
+  ChunksPort,
+  ChunkInsert,
+  SpecChunkRow,
+  CodeSymbolRow,
+  SpecChunkWithIngest,
+  TestChunkRange,
+  SpecChunkWithEmbedding,
+  CodeChunkFull,
+} from "./chunks/chunks-port.js";
 export { executionRefusal, assertCanClone } from "./lib/trust.js";
 
 export type { GitHubPort, IssueRef, IssueFilter, IssueState } from "./lib/github-port.js";

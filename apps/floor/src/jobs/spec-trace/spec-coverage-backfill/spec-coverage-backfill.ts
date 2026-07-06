@@ -35,8 +35,9 @@ import {
   type Judgment,
   type MatchKind,
   extractAssertions,
+  type Project,
+  type SpecChunkWithEmbedding,
 } from "@re-cinq/lore-shared";
-import { query } from "../../../kernel/db.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../composition/project-boot.js";
 import { isAssertionSource } from "../spec-drift/spec-drift-rules.js";
@@ -392,38 +393,9 @@ async function classifyAllStatements(
   return out;
 }
 
-// ── Orchestration ──────────────────────────────────────────────────
+// ── Orchestration (per repo, via the Project facade) ────────────────
 
-const ACTIVITY_WINDOW_DAYS = 7;
 const PR_BRANCH_PREFIX = "lore/spec-coverage-backfill";
-
-interface SpecRow {
-  repo: string;
-  file_path: string;
-  content: string;
-  ingested_at: string | Date;
-  embedding: unknown;
-}
-
-interface CodeRow {
-  file_path: string;
-  content: string;
-  metadata: Record<string, unknown> | null;
-  embedding: unknown;
-}
-
-interface SchemaRow { schema: string }
-
-async function getSchemasWithSpecs(): Promise<string[]> {
-  const rows = await query<SchemaRow>(
-    `SELECT n.nspname AS schema
-     FROM pg_catalog.pg_class c
-     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-     WHERE c.relname = 'chunks' AND c.relkind = 'r'
-     ORDER BY n.nspname`,
-  );
-  return rows.map((r) => r.schema);
-}
 
 function toLine(metadata: Record<string, unknown> | null): number | null {
   const raw = metadata?.["start_line"];
@@ -481,104 +453,67 @@ function buildPrBody(
 }
 
 export interface BackfillOptions {
-  /** Limit to a single repo (e.g. for a manual run on a known spec). */
-  repoFilter?: string;
+  /** The repo this run covers (per-repo fan-out / manual single-repo run). */
+  repoFilter: string;
   /** Limit to a single spec path within the repo. */
   specPathFilter?: string;
+  /** Data facade — projectFor(repo) on the Floor, createStationProject(env) in
+   *  a pod. Defaults to projectFor(repo). */
+  project?: Project;
 }
 
-export async function specCoverageBackfillJob(opts: BackfillOptions = {}): Promise<string> {
-  const schemas = await getSchemasWithSpecs();
-  if (schemas.length === 0) {
-    console.log("[job] spec-coverage-backfill: no chunks tables found");
-    return "No chunks tables found";
+export async function specCoverageBackfillJob(opts: BackfillOptions): Promise<string> {
+  const repo = opts.repoFilter;
+  const project = opts.project ?? (await projectFor(repo));
+
+  const specRows = await project.chunks.specChunksForBackfill();
+  const specs = opts.specPathFilter
+    ? specRows.filter((s) => s.filePath === opts.specPathFilter)
+    : specRows;
+  if (specs.length === 0) {
+    console.log(`[job] spec-coverage-backfill: no specs for ${repo}`);
+    return "No specs found";
   }
 
-  let totalRepos = 0;
+  // Test chunks loaded once per repo and reused for every spec.
+  const codeChunks = await buildTestChunks(project);
+
+  // Group spec chunks by file_path for reassembly.
+  const byPath = new Map<string, SpecChunkWithEmbedding[]>();
+  for (const s of specs) {
+    const list = byPath.get(s.filePath) ?? [];
+    list.push(s);
+    byPath.set(s.filePath, list);
+  }
+
   let totalSpecs = 0;
   let totalSuggestions = 0;
   let totalPrsOpened = 0;
 
-  for (const schema of schemas) {
-    const specs = opts.repoFilter
-      ? await query<SpecRow>(
-          `SELECT repo, file_path, content, ingested_at, embedding
-           FROM ${schema}.chunks
-           WHERE content_type = 'spec' AND repo = $1
-             ${opts.specPathFilter ? "AND file_path = $2" : ""}
-           ORDER BY repo, file_path, ingested_at`,
-          opts.specPathFilter ? [opts.repoFilter, opts.specPathFilter] : [opts.repoFilter],
-        )
-      : await query<SpecRow>(
-          `SELECT repo, file_path, content, ingested_at, embedding
-           FROM ${schema}.chunks
-           WHERE content_type = 'spec'
-           ORDER BY repo, file_path, ingested_at`,
-        );
-    if (specs.length === 0) continue;
-
-    // Active-repo gate (mirrors the v2 linker's): if the repo hasn't
-    // re-ingested code in the last 7 days, there's no point running.
-    // Triggered runs (repoFilter set) bypass the gate.
-    let activeRepos: Set<string> | null = null;
-    if (!opts.repoFilter) {
-      const rows = await query<{ repo: string }>(
-        `SELECT DISTINCT repo FROM ${schema}.chunks
-         WHERE content_type = 'code'
-           AND ingested_at > now() - ($1 || ' days')::interval`,
-        [String(ACTIVITY_WINDOW_DAYS)],
-      );
-      activeRepos = new Set(rows.map((r) => r.repo));
-    }
-
-    // Group spec chunks by (repo, file_path) for reassembly.
-    const byRepoPath = new Map<string, Map<string, SpecRow[]>>();
-    for (const s of specs) {
-      const byPath = byRepoPath.get(s.repo) ?? new Map<string, SpecRow[]>();
-      const list = byPath.get(s.file_path) ?? [];
-      list.push(s);
-      byPath.set(s.file_path, list);
-      byRepoPath.set(s.repo, byPath);
-    }
-
-    for (const [repo, byPath] of byRepoPath) {
-      if (activeRepos && !activeRepos.has(repo)) continue;
-      totalRepos++;
-
-      // Test chunks loaded once per repo and reused for every spec.
-      const codeChunks = await loadTestChunks(schema, repo);
-
-      for (const [specPath, chunks] of byPath) {
-        if (!isAssertionSource(specPath)) continue;
-        try {
-          const summary = await runBackfillForSpec(repo, specPath, chunks, codeChunks);
-          totalSpecs++;
-          totalSuggestions += summary.suggestions;
-          if (summary.prUrl) totalPrsOpened++;
-          console.log(`[job] spec-coverage-backfill: ${repo}:${specPath} — ${summary.suggestions} suggestions, ${summary.prUrl ?? "no PR"}`);
-        } catch (err) {
-          console.error(`[job] spec-coverage-backfill: error on ${repo}:${specPath}:`, err);
-        }
-      }
+  for (const [specPath, chunks] of byPath) {
+    if (!isAssertionSource(specPath)) continue;
+    try {
+      const summary = await runBackfillForSpec(project, repo, specPath, chunks, codeChunks);
+      totalSpecs++;
+      totalSuggestions += summary.suggestions;
+      if (summary.prUrl) totalPrsOpened++;
+      console.log(`[job] spec-coverage-backfill: ${repo}:${specPath} — ${summary.suggestions} suggestions, ${summary.prUrl ?? "no PR"}`);
+    } catch (err) {
+      console.error(`[job] spec-coverage-backfill: error on ${repo}:${specPath}:`, err);
     }
   }
 
-  const out = `Backfill: ${totalSpecs} specs across ${totalRepos} repos — ${totalSuggestions} suggestions, ${totalPrsOpened} PRs opened`;
+  const out = `Backfill: ${totalSpecs} specs in ${repo} — ${totalSuggestions} suggestions, ${totalPrsOpened} PRs opened`;
   console.log(`[job] spec-coverage-backfill: ${out}`);
   return out;
 }
 
-async function loadTestChunks(schema: string, repo: string): Promise<TestChunk[]> {
-  const rows = await query<CodeRow>(
-    `SELECT file_path, content, metadata, embedding
-     FROM ${schema}.chunks
-     WHERE repo = $1 AND content_type = 'code'`,
-    [repo],
-  );
+async function buildTestChunks(project: Project): Promise<TestChunk[]> {
+  const rows = await project.chunks.codeChunksForBackfill();
   return rows
-    .filter((r) => isTestFile(r.file_path))
+    .filter((r) => isTestFile(r.filePath))
     .map((r) => ({
-      file_path: r.file_path,
+      file_path: r.filePath,
       content: r.content,
       test_name: deriveTestName(r.metadata) ?? "",
       test_line: toLine(r.metadata),
@@ -593,12 +528,13 @@ interface SpecBackfillSummary {
 }
 
 async function runBackfillForSpec(
+  project: Project,
   repo: string,
   specPath: string,
-  chunks: SpecRow[],
+  chunks: SpecChunkWithEmbedding[],
   codeChunks: TestChunk[],
 ): Promise<SpecBackfillSummary> {
-  const content = reassembleSpec(chunks);
+  const content = reassembleSpec(chunks.map((c) => ({ content: c.content, ingested_at: c.ingestedAt })));
   const statements = segmentStatements(content);
   const classifications = await classifyAllStatements(specPath, statements);
 
@@ -661,7 +597,6 @@ async function runBackfillForSpec(
   const title = `Suggested test links for ${specPath}`;
   const body = buildPrBody(specPath, applied, confirmed, diffPreview);
   try {
-    const project = await projectFor(repo);
     await project.repo.createBranch(branch);
     await project.repo.commitFile(branch, specPath, newContent, `lore: backfill suggested test links for ${specPath}`);
     const pr = await project.pulls.open(branch, title, body, undefined, ["lore-managed", "spec-coverage-backfill"]);

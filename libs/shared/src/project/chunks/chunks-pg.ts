@@ -1,5 +1,14 @@
 import type { PgPool } from "../../memory-store.js";
-import type { ChunksPort, ChunkInsert, SpecChunkRow, CodeSymbolRow } from "./chunks-port.js";
+import type {
+  ChunksPort,
+  ChunkInsert,
+  SpecChunkRow,
+  CodeSymbolRow,
+  SpecChunkWithIngest,
+  TestChunkRange,
+  SpecChunkWithEmbedding,
+  CodeChunkFull,
+} from "./chunks-port.js";
 
 /**
  * Schema names are string-interpolated into the table name, so they are an
@@ -141,5 +150,85 @@ export class PgChunks implements ChunksPort {
       [repo, String(olderThanDays)],
     );
     return parseInt(rows[0]?.count || "0", 10);
+  }
+
+  /** The schema reindex wrote this repo's chunks to: its team schema when one
+   *  exists, else `org_shared` (mirrors the reindex job's resolveSchema). */
+  private async resolveSchemaForRepo(repo: string): Promise<string> {
+    const { rows } = await this.pool.query(
+      "SELECT team FROM lore.repos WHERE full_name = $1",
+      [repo],
+    );
+    const team = rows[0]?.team as string | undefined;
+    if (team && SCHEMA_RE.test(team) && (await this.schemaExists(team))) return team;
+    return "org_shared";
+  }
+
+  async specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]> {
+    const schema = await this.resolveSchemaForRepo(repo);
+    const { rows } = await this.pool.query(
+      `SELECT repo, file_path, content, ingested_at
+       FROM ${schema}.chunks
+       WHERE content_type = 'spec' AND repo = $1
+       ORDER BY file_path, ingested_at`,
+      [repo],
+    );
+    return rows.map((r) => ({
+      repo: r.repo as string,
+      filePath: r.file_path as string,
+      content: r.content as string,
+      ingestedAt: r.ingested_at as string | Date,
+    }));
+  }
+
+  async testChunkRanges(repo: string): Promise<TestChunkRange[]> {
+    const schema = await this.resolveSchemaForRepo(repo);
+    const { rows } = await this.pool.query(
+      `SELECT file_path,
+              (metadata->>'start_line')::int AS start_line,
+              (metadata->>'end_line')::int   AS end_line
+       FROM ${schema}.chunks
+       WHERE repo = $1 AND content_type = 'code'`,
+      [repo],
+    );
+    return rows.map((r) => ({
+      filePath: r.file_path as string,
+      startLine: (r.start_line as number | null) ?? null,
+      endLine: (r.end_line as number | null) ?? null,
+    }));
+  }
+
+  async specChunksForBackfill(repo: string): Promise<SpecChunkWithEmbedding[]> {
+    const schema = await this.resolveSchemaForRepo(repo);
+    const { rows } = await this.pool.query(
+      `SELECT repo, file_path, content, ingested_at, embedding
+       FROM ${schema}.chunks
+       WHERE content_type = 'spec' AND repo = $1
+       ORDER BY file_path, ingested_at`,
+      [repo],
+    );
+    return rows.map((r) => ({
+      repo: r.repo as string,
+      filePath: r.file_path as string,
+      content: r.content as string,
+      ingestedAt: r.ingested_at as string | Date,
+      embedding: r.embedding,
+    }));
+  }
+
+  async codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
+    const schema = await this.resolveSchemaForRepo(repo);
+    const { rows } = await this.pool.query(
+      `SELECT file_path, content, metadata, embedding
+       FROM ${schema}.chunks
+       WHERE repo = $1 AND content_type = 'code'`,
+      [repo],
+    );
+    return rows.map((r) => ({
+      filePath: r.file_path as string,
+      content: r.content as string,
+      metadata: (r.metadata as Record<string, unknown> | null) ?? null,
+      embedding: r.embedding,
+    }));
   }
 }

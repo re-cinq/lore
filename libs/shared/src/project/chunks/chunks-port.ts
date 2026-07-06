@@ -28,6 +28,34 @@ export interface CodeSymbolRow {
   filePath: string;
 }
 
+/** A spec chunk with its ingest stamp (coverage jobs reassemble + resolve links). */
+export interface SpecChunkWithIngest {
+  repo: string;
+  filePath: string;
+  content: string;
+  ingestedAt: string | Date;
+}
+
+/** A test-code chunk's line range (`metadata.start_line`/`end_line`) for link resolution. */
+export interface TestChunkRange {
+  filePath: string;
+  startLine: number | null;
+  endLine: number | null;
+}
+
+/** A spec chunk carrying its raw embedding (backfill similarity selection). */
+export interface SpecChunkWithEmbedding extends SpecChunkWithIngest {
+  embedding: unknown;
+}
+
+/** A code chunk with full content + metadata + embedding (backfill candidate selection). */
+export interface CodeChunkFull {
+  filePath: string;
+  content: string;
+  metadata: Record<string, unknown> | null;
+  embedding: unknown;
+}
+
 /**
  * The vector-store `chunks` surface. Two table families live behind it:
  * schema-per-team `{schema}.chunks` (the `${schema}` name is interpolated, so
@@ -84,4 +112,20 @@ export interface ChunksPort {
 
   /** Count of the repo's chunks last ingested more than `olderThanDays` ago (stale-content gap). */
   staleChunkCount(repo: string, olderThanDays: number): Promise<number>;
+
+  // ── the coverage jobs read the repo's RESOLVED schema (team schema, else
+  //    org_shared — where reindex actually wrote the repo's chunks), so these
+  //    are repo-scoped and the adapter resolves the schema. ──
+
+  /** Spec chunks (with ingest stamp) for a repo, from its resolved schema. */
+  specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]>;
+
+  /** Test-code chunk line ranges for a repo, from its resolved schema. */
+  testChunkRanges(repo: string): Promise<TestChunkRange[]>;
+
+  /** Spec chunks with embeddings for a repo, from its resolved schema (backfill). */
+  specChunksForBackfill(repo: string): Promise<SpecChunkWithEmbedding[]>;
+
+  /** Code chunks (content + metadata + embedding) for a repo, from its resolved schema (backfill). */
+  codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]>;
 }

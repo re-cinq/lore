@@ -1,4 +1,13 @@
-import type { ChunksPort, ChunkInsert, SpecChunkRow, CodeSymbolRow } from "./chunks-port.js";
+import type {
+  ChunksPort,
+  ChunkInsert,
+  SpecChunkRow,
+  CodeSymbolRow,
+  SpecChunkWithIngest,
+  TestChunkRange,
+  SpecChunkWithEmbedding,
+  CodeChunkFull,
+} from "./chunks-port.js";
 
 /**
  * One stored chunk row in {@link InMemoryChunks}. Mirrors the columns the Pg
@@ -123,5 +132,57 @@ export class InMemoryChunks implements ChunksPort {
     const cutoff = Date.now() - olderThanDays * 86_400_000;
     return this.orgSharedForRepo(repo).filter((row) => new Date(row.ingestedAt).getTime() < cutoff)
       .length;
+  }
+
+  // The double stores a repo's chunks in one schema, so "resolved schema" reads
+  // are just repo-scoped reads across whatever schema the fixture used.
+  private forRepo(repo: string): ChunkRow[] {
+    return this.rows.filter((row) => row.repo === repo);
+  }
+
+  async specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]> {
+    return this.forRepo(repo)
+      .filter((row) => row.contentType === "spec")
+      .sort((a, b) => a.filePath.localeCompare(b.filePath))
+      .map((row) => ({
+        repo: row.repo,
+        filePath: row.filePath,
+        content: row.content,
+        ingestedAt: row.ingestedAt,
+      }));
+  }
+
+  async testChunkRanges(repo: string): Promise<TestChunkRange[]> {
+    return this.forRepo(repo)
+      .filter((row) => row.contentType === "code")
+      .map((row) => ({
+        filePath: row.filePath,
+        startLine: (row.metadata.start_line as number | undefined) ?? null,
+        endLine: (row.metadata.end_line as number | undefined) ?? null,
+      }));
+  }
+
+  async specChunksForBackfill(repo: string): Promise<SpecChunkWithEmbedding[]> {
+    return this.forRepo(repo)
+      .filter((row) => row.contentType === "spec")
+      .sort((a, b) => a.filePath.localeCompare(b.filePath))
+      .map((row) => ({
+        repo: row.repo,
+        filePath: row.filePath,
+        content: row.content,
+        ingestedAt: row.ingestedAt,
+        embedding: row.embedding,
+      }));
+  }
+
+  async codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
+    return this.forRepo(repo)
+      .filter((row) => row.contentType === "code")
+      .map((row) => ({
+        filePath: row.filePath,
+        content: row.content,
+        metadata: row.metadata,
+        embedding: row.embedding,
+      }));
   }
 }
