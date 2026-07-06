@@ -17,7 +17,7 @@
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { projectFor } from "../../composition/project-boot.js";
-import { taskStore, settings, taskQueue } from "../../kernel/queues.js";
+import { taskStore, settings, taskQueue, assemblyLines } from "../../kernel/queues.js";
 import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import { isTransientInfraFailure, MAX_INFRA_RETRIES } from "../platform/infra-failure.js";
@@ -29,6 +29,7 @@ import {
   taskTypeOf,
   parseReviewResult,
   decideCiGate,
+  decideTokenReclaim,
   type ReviewResult,
 } from "./agent-watcher-logic.js";
 import {
@@ -248,6 +249,15 @@ export async function processAgentCr(agent: AgentCr, k8sApi: CustomObjectsApi): 
     const reviewResult = phase === "Succeeded" && ctx.taskType === "review" ? parseReviewResult(ctx.output) : undefined;
     if (reviewResult) {
       await handleReviewVerdict(ctx, reviewResult);
+    }
+
+    // Reclaim the per-task token once a single-agent task's CR is terminal (#784).
+    // Multi-node station lines share one token across node CRs and reclaim it at line
+    // completion, so skip them here (an assembly-line row is the tell) to avoid mid-line
+    // deletion; task-less lines already returned above (no backing task).
+    if (phase === "Succeeded" || phase === "Failed") {
+      const hasAssemblyLine = (await assemblyLines().listForTask(taskId)).length > 0;
+      if (decideTokenReclaim({ phase, hasAssemblyLine })) await cleanupPerTaskToken(taskId);
     }
   } finally {
     await ctx.slack.flush();
