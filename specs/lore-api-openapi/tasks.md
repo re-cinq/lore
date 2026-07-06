@@ -31,13 +31,13 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 2 — The generator
 
-- [ ] T004 Declare `zod-to-json-schema` in `apps/lore-api/package.json` dependencies
+- [x] T004 Declare `zod-to-json-schema` in `apps/lore-api/package.json` dependencies
   (pin the lockfile-resolved `^3.25.1`). `apps/lore-api/src/openapi/domain-routes.ts`:
   the fork-3 sidecar — a table keyed by path listing, for each domain/`*` route, its
   verbs and either a lifted zod schema (import `AgentInputSchema`,
   `DarkFactorySettingsSchema`) or a `freeform` marker (features, tokens) + the
   webhook/excluded entries. (FR3, FR6, fork 3)
-- [ ] T005 `apps/lore-api/src/openapi/build-document.ts`: `buildOpenApiDocument(routes)`
+- [x] T005 `apps/lore-api/src/openapi/build-document.ts`: `buildOpenApiDocument(routes)`
   → OpenAPI 3.1 object. Per route: derive method(s) (expand `*` via the sidecar),
   convert hapi path params (`{p}`/`{p?}`/`{p*}`) to OpenAPI parameters with correct
   `required`, resolve scope from `options.plugins["bearer-scope"].scope`, resolve
@@ -46,7 +46,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
   `x-rate-limit-bucket` / shared error `$ref` responses. Assemble `info`, `servers`
   (from `LORE_API_URL` when set), `components.securitySchemes.bearerAuth`,
   `components.responses`. Exclude + log `/healthz`, `/dist/*` (FR7).
-- [ ] T006 `apps/lore-api/src/openapi/build-document.test.ts` (unit): covered route →
+- [x] T006 `apps/lore-api/src/openapi/build-document.test.ts` (unit): covered route →
   `requestBody` with required fields/enums; memory union → `oneOf`; agents/dark-factory
   → lifted schema present; features/tokens → freeform `object`; `*` routes expand to
   their verbs; every `/api/*` route appears once; scope + bucket extensions present;

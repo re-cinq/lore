@@ -14,6 +14,7 @@ import { registerRequestTracing } from "./plugins/tracing.js";
 import { registerRateLimit } from "./plugins/rate-limit.js";
 import { registerBearerScope } from "./plugins/bearer-scope.js";
 import { zodFailAction } from "./plugins/zod-validate.js";
+import { generateOpenApi, summarizeCoverage } from "../openapi/build-document.js";
 import { healthzRoute } from "../api/routes/healthz/healthz.js";
 import { distRoute } from "../api/routes/dist/dist.js";
 import { repoStatusRoute } from "../api/routes/repos/repo-status.js";
@@ -117,7 +118,19 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
   registerRateLimit(server);
   registerBearerScope(server, getPool);
 
-  server.route(routeList(getPool));
+  const routes = routeList(getPool);
+  server.route(routes);
+
+  // FR7: surface OpenAPI coverage once at boot so drops/uncovered routes are not
+  // silent. Quiet under vitest to keep test output clean; the drift-guard test is
+  // the CI enforcement.
+  if (!process.env.VITEST) {
+    const { coverage } = generateOpenApi(routes);
+    console.log(summarizeCoverage(coverage));
+    if (coverage.uncovered.length) {
+      console.warn(`[openapi] WARNING uncovered write routes: ${coverage.uncovered.join(", ")}`);
+    }
+  }
 
   return server;
 }
