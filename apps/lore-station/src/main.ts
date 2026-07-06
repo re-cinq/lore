@@ -9,12 +9,18 @@
 import { parseStationInput, type StationInput } from "./input.js";
 import { resultLine, eventLine } from "./output.js";
 import { runValidateStation, type StationEnv } from "./stations/validate.js";
+import { runGateStation } from "./stations/gate.js";
+import { runGithubActionStation } from "./stations/github-action.js";
+import { runRetrospectiveStation } from "./stations/retrospective.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
 type StationRunner = (input: StationInput, env: StationEnv) => Promise<NodeResult>;
 
 export const stations: Record<string, StationRunner> = {
   validate: runValidateStation,
+  gate: runGateStation,
+  github_action: runGithubActionStation,
+  retrospective: runRetrospectiveStation,
 };
 
 export async function runStation(
