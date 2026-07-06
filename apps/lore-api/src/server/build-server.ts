@@ -42,6 +42,7 @@ import { agentsGetRoute, agentsPostRoute, agentsPutRoute, agentsDeleteRoute } fr
 import { impactRoute } from "../api/routes/impact/impact.js";
 import { traceRoute } from "../api/routes/trace/trace.js";
 import { chunksRoute } from "../api/routes/repos/chunks.js";
+import { stationDataRoutes } from "../api/routes/repos/station-data.js";
 import { traceSpecsRoute } from "../api/routes/trace/trace-specs.js";
 import { featuresRoutes } from "../api/routes/features/features.js";
 
@@ -106,6 +107,7 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
     impactRoute(),
     traceRoute(),
     chunksRoute(),
+    ...stationDataRoutes(),
     traceSpecsRoute(),
     ...featuresRoutes(),
   ]);
