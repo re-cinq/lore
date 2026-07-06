@@ -76,7 +76,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 5 — Verification (SC-1)
 
-- [ ] T010 `npm run build` (root) + `cd apps/lore-api && npx tsc --noEmit && npx
+- [x] T010 `npm run build` (root) + `cd apps/lore-api && npx tsc --noEmit && npx
   vitest run`. Then boot standalone against Docker Postgres (`npm run db:up`;
   `LORE_DB_HOST=localhost … LORE_INGEST_TOKEN=lore-local-dev-token PORT=3001 node
   dist/index.js`), `curl -H "Authorization: Bearer lore-local-dev-token"

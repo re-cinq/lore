@@ -223,6 +223,9 @@ export function generateOpenApi(routes: ServerRoute[], opts: GenerateOptions = {
         "Per-route required scope is the `x-required-scope` extension (HTTP bearer has no " +
         "scope list); the rate-limit bucket is `x-rate-limit-bucket`.",
     },
+    // Always present (OpenAPI requires a non-empty servers list); defaults to the
+    // relative same-origin `/` when LORE_API_URL is unset.
+    servers: [{ url: opts.serverUrl ?? "/" }],
     paths,
     components: {
       securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
@@ -232,7 +235,6 @@ export function generateOpenApi(routes: ServerRoute[], opts: GenerateOptions = {
       responses: errorResponses(),
     },
   };
-  if (opts.serverUrl) document.servers = [{ url: opts.serverUrl }];
 
   return { document, coverage };
 }

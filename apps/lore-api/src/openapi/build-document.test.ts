@@ -17,6 +17,10 @@ describe("generateOpenApi — envelope", () => {
   it("buildOpenApiDocument returns just the document", () => {
     expect(buildOpenApiDocument(routeList(() => null)).openapi).toBe("3.1.0");
   });
+
+  it("defaults servers to the relative root when no serverUrl is given", () => {
+    expect(buildOpenApiDocument(routeList(() => null)).servers).toEqual([{ url: "/" }]);
+  });
 });
 
 describe("generateOpenApi — coverage", () => {
