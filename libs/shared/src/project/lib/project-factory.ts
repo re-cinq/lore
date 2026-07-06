@@ -32,6 +32,9 @@ export async function createProject(
   const { PgTaskStore } = await import("../tasks/task-store-pg.js");
   ports.set("tasks", new PgTaskStore(pgPool));
 
+  const { PgChunks } = await import("../chunks/chunks-pg.js");
+  ports.set("chunks", new PgChunks(pgPool));
+
   const { PgAssemblyLines } = await import("../assembly-lines/assembly-lines-pg.js");
   ports.set("assemblyLines", new PgAssemblyLines(pgPool));
 

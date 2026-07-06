@@ -80,6 +80,10 @@ export class InMemorySettings implements SettingsPort {
       .map((r) => ({ full_name: r.full_name, last_ingested_at: r.last_ingested_at ?? null }));
   }
 
+  async isOnboarded(repo: string): Promise<boolean> {
+    return this.repos.some((r) => r.full_name === repo && r.onboarding_pr_merged === true);
+  }
+
   async markIngested(repo: string): Promise<void> {
     const row = this.row(repo);
     if (row) row.last_ingested_at = new Date();

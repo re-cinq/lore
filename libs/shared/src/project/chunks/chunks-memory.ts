@@ -1,4 +1,4 @@
-import type { ChunksPort, ChunkInsert } from "./chunks-port.js";
+import type { ChunksPort, ChunkInsert, SpecChunkRow, CodeSymbolRow } from "./chunks-port.js";
 
 /**
  * One stored chunk row in {@link InMemoryChunks}. Mirrors the columns the Pg
@@ -14,6 +14,8 @@ export interface ChunkRow {
   filePath: string;
   metadata: Record<string, unknown>;
   embedding: string | null;
+  /** Seedable ISO timestamp for the staleChunkCount age check (defaults to now). */
+  ingestedAt: string;
 }
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
@@ -67,6 +69,7 @@ export class InMemoryChunks implements ChunksPort {
       filePath: chunk.filePath,
       metadata: chunk.metadata,
       embedding: null,
+      ingestedAt: new Date().toISOString(),
     });
     return id;
   }
@@ -87,5 +90,38 @@ export class InMemoryChunks implements ChunksPort {
 
   async countChunksByTeam(team: string): Promise<number> {
     return this.rows.filter((row) => row.schema === "org_shared" && row.team === team).length;
+  }
+
+  private orgSharedForRepo(repo: string): ChunkRow[] {
+    return this.rows.filter((row) => row.schema === "org_shared" && row.repo === repo);
+  }
+
+  async specChunks(repo: string): Promise<SpecChunkRow[]> {
+    return this.orgSharedForRepo(repo)
+      .filter((row) => row.contentType === "spec")
+      .sort((a, b) => a.filePath.localeCompare(b.filePath))
+      .map((row) => ({ id: row.id, repo: row.repo, filePath: row.filePath, content: row.content }));
+  }
+
+  async codeSymbols(repo: string): Promise<CodeSymbolRow[]> {
+    return this.orgSharedForRepo(repo)
+      .filter((row) => row.contentType === "code" && typeof row.metadata.symbol_name === "string")
+      .map((row) => ({
+        symbolName: row.metadata.symbol_name as string,
+        symbolType: (row.metadata.symbol_type as string | undefined) ?? null,
+        filePath: row.filePath,
+      }));
+  }
+
+  async hasChunk(repo: string, contentType: string, fileSuffix?: string): Promise<boolean> {
+    return this.orgSharedForRepo(repo).some(
+      (row) => row.contentType === contentType && (!fileSuffix || row.filePath.endsWith(fileSuffix)),
+    );
+  }
+
+  async staleChunkCount(repo: string, olderThanDays: number): Promise<number> {
+    const cutoff = Date.now() - olderThanDays * 86_400_000;
+    return this.orgSharedForRepo(repo).filter((row) => new Date(row.ingestedAt).getTime() < cutoff)
+      .length;
   }
 }
