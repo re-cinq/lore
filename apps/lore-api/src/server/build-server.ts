@@ -41,6 +41,7 @@ import { darkFactoryRoute } from "../api/routes/dark-factory/dark-factory.js";
 import { agentsGetRoute, agentsPostRoute, agentsPutRoute, agentsDeleteRoute } from "../api/routes/agent-definitions/agents.js";
 import { impactRoute } from "../api/routes/impact/impact.js";
 import { traceRoute } from "../api/routes/trace/trace.js";
+import { chunksRoute } from "../api/routes/repos/chunks.js";
 import { traceSpecsRoute } from "../api/routes/trace/trace-specs.js";
 import { featuresRoutes } from "../api/routes/features/features.js";
 
@@ -104,6 +105,7 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
     agentsDeleteRoute(getPool),
     impactRoute(),
     traceRoute(),
+    chunksRoute(),
     traceSpecsRoute(),
     ...featuresRoutes(),
   ]);
