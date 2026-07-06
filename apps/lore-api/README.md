@@ -29,6 +29,27 @@ plugins rather than per-handler plumbing:
 Body validation stays on **zod** (no joi). The server-default body cap is 1 MB
 (`payload.maxBytes`); write routes read the raw body via `server/raw-body.ts`.
 
+## API reference (OpenAPI)
+
+The full `/api/*` surface is generated as an OpenAPI 3.1 document from the route
+zod schemas ([ADR-035](../../adrs/ADR-035-lore-api-openapi.md)) — never hand-synced,
+guarded against drift by a test that fails the build if a route escapes the
+document. The generator walks the same `routeList` the server registers, so the
+spec describes exactly what runs.
+
+- **`GET /api/openapi.json`** (read scope) — the document, generated from the live
+  route list at request time.
+- **`GET /api/docs`** (read scope) — a Redoc reference page with the document
+  inlined, operations grouped into sidebar categories by resource (Context, Memory,
+  Tasks, Repositories, Features, Agents, Ingestion, Traceability, Dark Factory,
+  Webhooks, Tokens, Meta).
+
+Both routes require a `read`-scoped bearer, so a browser cannot load `/api/docs`
+directly — fetch with the `Authorization` header, or reach it via authenticating
+tooling. The generator (`src/openapi/`) owns the OpenAPI envelope; request bodies
+come from each route's zod schema, with a small `domain-routes.ts` sidecar for the
+four routes that validate through domain validators.
+
 ## Layout
 
 ```
@@ -42,7 +63,7 @@ src/
                        infra (healthz, dist) · repos · context · graph
                        tasks (get/list/by-pr/timeline/logs/post) · memory
                        ingest · webhooks · tokens · dark-factory
-                       agent-definitions · impact · trace · features
+                       agent-definitions · impact · trace · features · openapi
   features/          domain logic (webhook, dark-factory, agents, ...)
   platform/          otel, db, github-client, project-boot
   integration-tests/ real-server + real-proxy round-trip (Postgres-backed)

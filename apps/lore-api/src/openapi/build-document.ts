@@ -22,6 +22,7 @@ type JsonSchema = Record<string, unknown>;
 interface Operation {
   operationId: string;
   summary: string;
+  tags: string[];
   description?: string;
   parameters?: JsonSchema[];
   requestBody?: JsonSchema;
@@ -35,6 +36,7 @@ export interface OpenApiDocument {
   openapi: "3.1.0";
   info: { title: string; version: string; description: string };
   servers?: Array<{ url: string }>;
+  tags: Array<{ name: string; description: string }>;
   paths: Record<string, Record<string, Operation>>;
   components: {
     securitySchemes: Record<string, JsonSchema>;
@@ -99,6 +101,51 @@ function methodsOf(route: ServerRoute): string[] {
 /** `{owner}` / `{name?}` / `{artifact*}` → OpenAPI `{owner}`; strip optional/wildcard markers. */
 export function normalizePath(hapiPath: string): string {
   return hapiPath.replace(/\{(\w+)[?*]\}/g, "{$1}");
+}
+
+/**
+ * Sidebar categories in display order — Redoc renders groups in the order of the
+ * document's root `tags` array. Each operation is tagged by its path via `tagFor`;
+ * the drift guard asserts every operation lands in a real category (never the
+ * `UNCATEGORIZED` fallback), so a new route surfaces as an untagged failure.
+ */
+const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
+  { name: "Context", description: "Context assembly and the knowledge graph." },
+  { name: "Memory", description: "Agent memory: entries, episodes, and session summaries." },
+  { name: "Tasks", description: "Pipeline task lifecycle, timelines, and logs." },
+  { name: "Repositories", description: "Onboarded repositories and their status." },
+  { name: "Features", description: "Feature-planning iterations." },
+  { name: "Agents", description: "Per-repo agent definitions." },
+  { name: "Ingestion", description: "Content and graph ingestion." },
+  { name: "Traceability", description: "Spec-traceability queries and change impact." },
+  { name: "Dark Factory", description: "Autonomous-mode (dark factory) settings." },
+  { name: "Webhooks", description: "Inbound webhooks and per-repo webhook configuration." },
+  { name: "Tokens", description: "Scoped API token management." },
+  { name: "Meta", description: "The OpenAPI document and its reference UI." },
+];
+
+const UNCATEGORIZED = "Other";
+
+/** Path→category rules, first match wins; ordered specific → general. */
+const TAG_RULES: Array<[RegExp, string]> = [
+  [/^\/api\/(openapi\.json|docs)$/, "Meta"],
+  [/^\/api\/(context|graph)\b/, "Context"],
+  [/^\/api\/(memory|episode|session-summary)\b/, "Memory"],
+  [/^\/api\/(task|tasks|task-logs|job-run-logs)\b/, "Tasks"],
+  [/\/features\b/, "Features"],
+  [/\/agent-definitions\b/, "Agents"],
+  [/\/settings\/dark-factory\b/, "Dark Factory"],
+  [/\/(trace|impact)\b/, "Traceability"],
+  [/\/ingest/, "Ingestion"],
+  [/\/webhook/, "Webhooks"],
+  [/^\/api\/tokens\b/, "Tokens"],
+  [/^\/api\/(repos|repo-status|pr-status|onboard)\b/, "Repositories"],
+];
+
+/** The sidebar category for a normalized path. */
+export function tagFor(normPath: string): string {
+  for (const [re, tag] of TAG_RULES) if (re.test(normPath)) return tag;
+  return UNCATEGORIZED;
 }
 
 function pathParameters(hapiPath: string): { params: JsonSchema[]; hasOptional: boolean } {
@@ -173,6 +220,7 @@ function buildOperation(route: ServerRoute, method: string, normPath: string, co
   const op: Operation = {
     operationId: operationId(method, normPath),
     summary: `${method} ${normPath}`,
+    tags: [tagFor(normPath)],
     security: publicOp ? [] : [{ bearerAuth: [] }],
     "x-rate-limit-bucket": bucketFor(route.path),
     responses: responsesFor(publicOp, hasBody),
@@ -211,6 +259,9 @@ export function generateOpenApi(routes: ServerRoute[], opts: GenerateOptions = {
     }
   }
 
+  const usedTags = new Set<string>();
+  for (const item of Object.values(paths)) for (const op of Object.values(item)) usedTags.add(op.tags[0]);
+
   const document: OpenApiDocument = {
     openapi: "3.1.0",
     info: {
@@ -226,6 +277,8 @@ export function generateOpenApi(routes: ServerRoute[], opts: GenerateOptions = {
     // Always present (OpenAPI requires a non-empty servers list); defaults to the
     // relative same-origin `/` when LORE_API_URL is unset.
     servers: [{ url: opts.serverUrl ?? "/" }],
+    // Only categories actually in use, in canonical sidebar order.
+    tags: CATEGORY_ORDER.filter(c => usedTags.has(c.name)),
     paths,
     components: {
       securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },

@@ -111,6 +111,31 @@ describe("generateOpenApi — methods, scope, security", () => {
   });
 });
 
+describe("generateOpenApi — tag grouping", () => {
+  it("declares the sidebar categories in canonical order, only those in use", () => {
+    expect(document.tags.map(t => t.name)).toEqual([
+      "Context", "Memory", "Tasks", "Repositories", "Features", "Agents",
+      "Ingestion", "Traceability", "Dark Factory", "Webhooks", "Tokens", "Meta",
+    ]);
+    expect(document.tags.every(t => t.description.length > 0)).toBe(true);
+  });
+
+  it("tags a representative operation from each resource", () => {
+    expect(document.paths["/api/task"].post.tags).toEqual(["Tasks"]);
+    expect(document.paths["/api/memory"].post.tags).toEqual(["Memory"]);
+    expect(document.paths["/api/context"].get.tags).toEqual(["Context"]);
+    expect(document.paths["/api/repos"].get.tags).toEqual(["Repositories"]);
+    expect(document.paths["/api/repos/{owner}/{repo}/features"].post.tags).toEqual(["Features"]);
+    expect(document.paths["/api/repos/{owner}/{repo}/agent-definitions"].post.tags).toEqual(["Agents"]);
+    expect(document.paths["/api/repos/{owner}/{repo}/settings/dark-factory"].get.tags).toEqual(["Dark Factory"]);
+    expect(document.paths["/api/repos/{owner}/{repo}/ingest-graph"].post.tags).toEqual(["Ingestion"]);
+    expect(document.paths["/api/repos/{owner}/{repo}/impact"].post.tags).toEqual(["Traceability"]);
+    expect(document.paths["/api/webhook/slack"].post.tags).toEqual(["Webhooks"]);
+    expect(document.paths["/api/tokens"].post.tags).toEqual(["Tokens"]);
+    expect(document.paths["/api/openapi.json"].get.tags).toEqual(["Meta"]);
+  });
+});
+
 describe("generateOpenApi — responses", () => {
   it("references the shared error envelope for a write route", () => {
     const responses = document.paths["/api/memory"].post.responses;

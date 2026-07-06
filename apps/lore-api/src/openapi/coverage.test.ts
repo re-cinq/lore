@@ -34,6 +34,16 @@ describe("OpenAPI coverage drift guard", () => {
     expect(coverage.excluded.every(p => !p.startsWith("/api/"))).toBe(true);
     expect(Object.keys(document.paths).every(p => p.startsWith("/api/"))).toBe(true);
   });
+
+  it("assigns every operation exactly one declared category, none uncategorized", () => {
+    const declared = new Set(document.tags.map(t => t.name));
+    for (const [path, item] of Object.entries(document.paths)) {
+      for (const [method, op] of Object.entries(item)) {
+        expect(op.tags, `${method} ${path} tags`).toHaveLength(1);
+        expect(declared.has(op.tags[0]), `${method} ${path} -> ${op.tags[0]}`).toBe(true);
+      }
+    }
+  });
 });
 
 describe("OpenAPI document is structurally valid 3.1", () => {
