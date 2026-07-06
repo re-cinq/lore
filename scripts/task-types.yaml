@@ -239,3 +239,13 @@ task_types:
   # project via lore-ingest.yml → /api/repos/:o/:r/ingest-graph (fire-and-forget
   # trigger), and tests via lore-tests.yml → /test-report + /coverage. No task type
   # here (ADR-023). The deterministic projection core is runIngestGraph.
+
+# Builtin stations (ADR-031 amendment): non-LLM assembly-line nodes run as pods
+# via the exec vendor. Each entry seeds a `def-<name>` AgentDefinition/Station
+# pair; the Floor's nodeStationSpec resolves `def-<node type>` unless the node
+# YAML names a custom station via station_ref. Phase 1 ships validate; the other
+# node types join as their phases cut over.
+stations:
+  validate:
+    command: ["lore-station", "validate"]
+    timeout_minutes: 15

@@ -22,6 +22,11 @@ export interface LoreTaskSpec {
   darkFactory?: { workflowName: string; baseBranch: string };
   /** BYO execution container (ADR-025); omitted → CR/controller default. */
   image?: string;
+  /** Explicit Station to run on (station nodes: `def-<type>` or the node's
+   *  station_ref); omitted → the task type's catalog Station. */
+  stationRef?: string;
+  /** Extra per-run parameters merged into the CR spec (e.g. `station_input`). */
+  parameters?: Record<string, string>;
 }
 
 export interface K8sPort {

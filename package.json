@@ -4,12 +4,13 @@
     "libs/*",
     "apps/floor",
     "apps/lore-api",
+    "apps/lore-station",
     "apps/mcp-server",
     "apps/vscode-extension"
   ],
   "scripts": {
     "start": "bash scripts/dev-local.sh",
-    "build": "npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-api && npm run build -w @re-cinq/lore-mcp && npm run build -w @re-cinq/lore-floor",
+    "build": "npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-api && npm run build -w @re-cinq/lore-mcp && npm run build -w @re-cinq/lore-floor && npm run build -w @re-cinq/lore-station",
     "typecheck:drift": "tsc -p scripts/type-drift/tsconfig.drift.json",
     "db:up": "docker start lore-postgres 2>/dev/null || (mkdir -p .lore-pgdata && docker run --name lore-postgres -e POSTGRES_PASSWORD=lore -e POSTGRES_DB=lore -v \"$PWD/.lore-pgdata:/var/lib/postgresql/data\" -p 5432:5432 -d pgvector/pgvector:pg16)",
     "db:down": "docker rm -f lore-postgres",

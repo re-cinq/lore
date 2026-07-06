@@ -5,6 +5,9 @@ import {
   buildCatalog,
   catalogChartYaml,
   type AgentCatalogConfig,
+  buildStationDefinition,
+  buildStationStation,
+  type StationCatalogConfig,
 } from "./agent-catalog.js";
 
 const impl: AgentCatalogConfig = {
@@ -87,5 +90,54 @@ describe("catalogChartYaml", () => {
     expect(out).toContain("kind: AgentDefinition");
     expect(out).toContain("kind: Station");
     expect(out).toContain("name: implementation");
+  });
+});
+
+describe("station catalog (exec vendor recipes)", () => {
+  const validate: StationCatalogConfig = { command: ["lore-station", "validate"], timeout_minutes: 15 };
+
+  it("buildStationDefinition maps a station recipe: exec model, {station_input} prompt, tool_config.command", () => {
+    expect(buildStationDefinition("validate", validate)).toEqual({
+      apiVersion: "agents.re-cinq.com/v1alpha1",
+      kind: "AgentDefinition",
+      metadata: { name: "def-validate", labels: { "app.kubernetes.io/managed-by": "lore-catalog-seed" } },
+      spec: {
+        description: "Lore validate station recipe (seeded).",
+        model: "exec",
+        prompt: "{station_input}",
+        permission_mode: "bypass",
+        max_turns: 1,
+        tool_config: { command: ["lore-station", "validate"] },
+        output: {
+          sinks: [
+            { type: "stdout" },
+            { type: "http", url: "__AGENT_EVENTS_URL__", headers_secret: "agent-events-auth" },
+          ],
+        },
+      },
+    });
+  });
+
+  it("buildStationStation pins the station image and the recipe's deadline (default 15)", () => {
+    const station = buildStationStation("validate", validate);
+    expect(station.metadata?.name).toBe("def-validate");
+    expect(station.spec?.agentDefRef).toBe("def-validate");
+    expect(station.spec?.deadlineMinutes).toBe(15);
+    const containers = (station.spec?.template as { spec: { containers: Array<{ image: string }> } }).spec.containers;
+    expect(containers[0].image).toBe("__STATION_IMAGE__");
+    expect(buildStationStation("gate", { command: ["lore-station", "gate"] }).spec?.deadlineMinutes).toBe(15);
+  });
+
+  it("buildCatalog appends def-<name> pairs for stations and catalogChartYaml templates the image", () => {
+    const cat = buildCatalog({ implementation: impl }, { validate });
+    expect(cat.map((c) => `${c.kind}/${c.metadata?.name}`)).toEqual([
+      "AgentDefinition/implementation",
+      "Station/implementation",
+      "AgentDefinition/def-validate",
+      "Station/def-validate",
+    ]);
+    const out = catalogChartYaml({ implementation: impl }, { validate });
+    expect(out).toContain("image: {{ .Values.stationImage }}");
+    expect(out).not.toContain("__STATION_IMAGE__");
   });
 });

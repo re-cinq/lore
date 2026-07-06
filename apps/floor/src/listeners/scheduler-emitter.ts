@@ -18,6 +18,7 @@ export function registerCronEmitter(name: string, cron: string): void {
       source: "cron",
       dedupeKey: cronDedupeKey(name, new Date()),
     });
+
     return `emitted cron.${name}.tick`;
   });
 }

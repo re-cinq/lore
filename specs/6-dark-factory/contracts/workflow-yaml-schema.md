@@ -22,6 +22,8 @@ const NodeSchema = z.object({
   validator: z.string().optional(),        // for validate nodes — "lint" | "typecheck" | "all"
   condition_ref: z.string().optional(),    // for gate nodes — "auto_merge_eligible" | "review_passed" | ...
   job_ref: z.string().optional(),          // for detect nodes — REQUIRED; keys the Floor's detector registry
+  station_ref: z.string().optional(),      // custom station (agent-definitions name) overriding def-<type>
+  timeout_minutes: z.number().int().positive().optional(),  // per-node run timeout (station-contract.md)
   description: z.string().optional()
 });
 

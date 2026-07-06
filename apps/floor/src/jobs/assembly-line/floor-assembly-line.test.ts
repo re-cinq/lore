@@ -4,6 +4,8 @@ import type { AssemblyLineNode, NodeContext, ProductionHandlersDeps } from "@re-
 import {
   nodeAgentName,
   nodeAgentSpec,
+  nodeStationSpec,
+  stationNodesFromEnv,
   buildFloorAssemblyLineHandlers,
   type FloorAssemblyLineTask,
   type FloorAssemblyLinePorts,
@@ -85,5 +87,65 @@ describe("buildFloorAssemblyLineHandlers", () => {
     const handlers = buildFloorAssemblyLineHandlers(task, p);
     const result = await handlers.github_action!({ id: "ci", type: "github_action" }, ctx);
     expect(result.outcome).toBe("failed");
+  });
+
+  it("station-flagged node types dispatch a station CR and parse the LORE_NODE_RESULT line", async () => {
+    const output = `logs\nLORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Validation-Failed":"lint"}}`;
+    const { ports: p, dispatched } = ports({ agentStatus: async () => ({ phase: "Succeeded", output }) });
+    const handlers = buildFloorAssemblyLineHandlers(task, p, new Set(["validate"]));
+
+    const result = await handlers.validate({ id: "validate", type: "validate", validator: "all" }, ctx);
+
+    expect(result).toEqual({ outcome: "failed", extras: { "Lore-Validation-Failed": "lint" } });
+    expect(dispatched).toEqual([
+      expect.objectContaining({
+        name: "a1b2c3d4-validate",
+        stationRef: "def-validate",
+        parameters: {
+          station_input: JSON.stringify({
+            assembly_line_id: task.assemblyLineId,
+            node_id: "validate",
+            node_type: "validate",
+            repo: "re-cinq/lore",
+            branch: "lore/impl-abcdef12",
+            task_id: task.taskId,
+            params: { validator: "all" },
+          }),
+        },
+      }),
+    ]);
+  });
+
+  it("unflagged node types keep the in-process kernel defaults (no dispatch)", async () => {
+    const { ports: p, dispatched } = ports();
+    const handlers = buildFloorAssemblyLineHandlers(task, p, new Set());
+    const result = await handlers.gate({ id: "merge-gate", type: "gate" }, ctx);
+    expect(result.outcome).toBe("success");
+    expect(dispatched).toEqual([]);
+  });
+});
+
+describe("nodeStationSpec", () => {
+  it("station_ref overrides the def-<type> default and job_ref rides in params", () => {
+    const node: AssemblyLineNode = {
+      id: "detect",
+      type: "detect",
+      job_ref: "spec_drift",
+      station_ref: "acme-scanner",
+    };
+    const spec = nodeStationSpec(node, task);
+    expect(spec).toMatchObject({ stationRef: "acme-scanner", name: "a1b2c3d4-detect" });
+    expect(JSON.parse(spec.parameters!.station_input)).toMatchObject({
+      node_type: "detect",
+      params: { job_ref: "spec_drift" },
+    });
+  });
+});
+
+describe("stationNodesFromEnv", () => {
+  it("parses the comma-separated type list, trimming blanks", () => {
+    expect(stationNodesFromEnv("validate, detect,")).toEqual(new Set(["validate", "detect"]));
+    expect(stationNodesFromEnv(undefined)).toEqual(new Set());
+    expect(stationNodesFromEnv("")).toEqual(new Set());
   });
 });

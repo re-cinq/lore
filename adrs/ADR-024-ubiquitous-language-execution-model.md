@@ -35,14 +35,17 @@ commits the platform to the manufacturing metaphor; this names the rest of it.
 | **Factory** | the whole platform — Lore itself | 1 |
 | **Floor** | the coordinator runtime: dispatches Agents onto Stations, runs AssemblyLines, reaps leases | 1 → N |
 | **AssemblyLine** | a graph of Stations with distinct responsibilities that hand off / wait on each other | per task |
-| **Station** | the unit that runs exactly one Agent (a K8s Job pod, or a local sandbox/worktree) | per task-run |
+| **Station** | the unit that runs exactly one node's work (a K8s Job pod, or a local sandbox/worktree) — an LLM Agent *or* a deterministic station run (validate/detect/…, ADR-031 amendment) | per node-run |
 | **Agent** | one ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
 | **Agent definition** | the stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default → `task-types.yaml`) | per task-type (× repo) |
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents.**
 
 - **"Agent" is reserved** for sense #1 (the Claude-plus-prompt run). It is never
-  the pod, the coordinator, or the workflow.
+  the pod, the coordinator, or the workflow. Nuance since the ADR-031 amendment:
+  the Agent *CR* is the work-order for **one run at a Station** — when the
+  station is deterministic (exec vendor, no LLM), that run is a "station run",
+  not an Agent, even though the CR kind says `Agent`.
 - An **Agent definition** is *config, not a run* — the recipe a Station
   instantiates into an Agent; one definition, many Agents. It is never called
   "an Agent". The runtime/operator identity (`agent_id` on tasks and memories) is

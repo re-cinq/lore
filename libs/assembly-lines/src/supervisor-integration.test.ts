@@ -150,7 +150,6 @@ describe("supervisor integration (T058 vertical slice)", () => {
       taskId: "t-1",
       assemblyLineId: "al-test-1",
       branchName: "lore/gap-fill/test",
-      assemblyLineName: "gap-fill-test",
       gitDir: repoDir,
       holder: "test-pod",
       leaseBackend: new FileLeaseBackend(leasesDir),
@@ -227,7 +226,6 @@ edges:
       taskId: "detect-1",
       assemblyLineId: "al-detect-1",
       branchName: "detect/spec-drift/owner/repo",
-      assemblyLineName: "spec-drift",
       gitDir: emptyDir,
       holder: "test-pod",
       leaseBackend: new FileLeaseBackend(leasesDir),
@@ -266,7 +264,6 @@ edges:
       taskId: "t-2",
       assemblyLineId: "al-test-1",
       branchName: "lore/gap-fill/test",
-      assemblyLineName: "gap-fill-test",
       holder: "test-pod",
       leaseBackend: new FileLeaseBackend(leasesDir),
     });

@@ -74,12 +74,11 @@ export async function runDetect(opts: RunDetectOptions): Promise<SupervisorResul
     const result = await runSupervisor({
       // No pipeline task backs a detection run — the lease row carries NULL.
       taskId: null,
-      assemblyLineId: opts.assemblyLineId,
       branchName: detectBranchName(opts.definitionName, opts.repo),
-      assemblyLineName: assemblyLine.name,
       gitDir: workdir,
       leaseBackend,
       assemblyLine,
+      assemblyLineId: opts.assemblyLineId,
       gitCommit: async () => {},
       trace: {
         onNodeStart: (i) => assemblyLinesPort.recordNodeStart(i),
@@ -99,14 +98,19 @@ export async function runDetect(opts: RunDetectOptions): Promise<SupervisorResul
 
     if (result.reason === "completed") {
       await jobRunsPort.complete(runId, summary);
-    } else if (result.reason === "lease_held") {
+    }
+
+    if (result.reason === "lease_held") {
       await jobRunsPort.complete(
         runId,
         `skipped: lease held by ${result.currentHolder ?? "unknown"}`,
       );
-    } else {
+    }
+
+    if(result.reason !== "completed" && result.reason !== "lease_held") {
       await jobRunsPort.fail(runId, result.errorMessage ?? result.reason);
     }
+
     return result;
   } catch (err) {
     await jobRunsPort

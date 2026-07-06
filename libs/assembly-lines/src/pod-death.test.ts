@@ -41,7 +41,6 @@ describe("Pod-death takeover (T028)", () => {
       taskId: "task-1",
       assemblyLineId: "al-test-1",
       branchName: "lore/feature/x",
-      assemblyLineName: "gap-fill",
       holder: "pod-B",
       leaseBackend: backend,
     });
@@ -62,7 +61,6 @@ describe("Pod-death takeover (T028)", () => {
       taskId: "task-1",
       assemblyLineId: "al-test-1",
       branchName: "lore/feature/x",
-      assemblyLineName: "gap-fill",
       holder: "pod-B",
       leaseBackend: backend,
     });
@@ -88,7 +86,6 @@ describe("Pod-death takeover (T028)", () => {
         taskId: "task-1",
         assemblyLineId: "al-test-1",
         branchName: "lore/feature/x",
-        assemblyLineName: "gap-fill",
         holder,
         leaseBackend: backend,
       });

@@ -671,4 +671,55 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: def-validate
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore validate station recipe (seeded).
+  model: exec
+  prompt: "{station_input}"
+  permission_mode: bypass
+  max_turns: 1
+  tool_config:
+    command:
+      - lore-station
+      - validate
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: def-validate
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: def-validate
+  deadlineMinutes: 15
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: {{ .Values.stationImage }}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
 {{- end }}

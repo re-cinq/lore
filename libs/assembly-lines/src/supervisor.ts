@@ -28,7 +28,6 @@ export interface SupervisorOptions {
   /** Per-attempt id from project.assemblyLines (pipeline.assembly_lines row). */
   assemblyLineId: string;
   branchName: string;
-  assemblyLineName: string;
   /**
    * Working directory for git operations. Required when `assembly line` and
    * `handlers` are provided (i.e. real assembly line execution). Optional when
@@ -177,7 +176,7 @@ export async function runSupervisor(
     if (!opts.assemblyLine || !opts.handlers) {
       console.log(
         `[supervisor] Acquired lease on ${opts.branchName} as ${holder}; ` +
-          `assemblyLine=${opts.assemblyLineName} (executor not configured — lease lifecycle only)`,
+          `assemblyLine=${opts.assemblyLine?.name ?? "(lease-only)"} (executor not configured — lease lifecycle only)`,
       );
       return { ranWork: true, reason: "executor_pending" };
     }
@@ -188,7 +187,7 @@ export async function runSupervisor(
     }
 
     console.log(
-      `[supervisor] Walking assemblyLine ${opts.assemblyLineName} on ${opts.branchName} as ${holder}`,
+      `[supervisor] Walking assemblyLine ${opts.assemblyLine.name} on ${opts.branchName} as ${holder}`,
     );
     try {
       const summary = await executeAssemblyLine({

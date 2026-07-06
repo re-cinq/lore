@@ -223,6 +223,49 @@ edges:
     });
   });
 
+  it("accepts station_ref and timeout_minutes on a node", () => {
+    const wf = parseAssemblyLine(`
+name: custom-line
+description: d
+version: 1
+entry: check
+exit: done
+nodes:
+  - id: check
+    type: detect
+    job_ref: my_check
+    station_ref: acme-scanner
+    timeout_minutes: 45
+  - id: done
+    type: retrospective
+edges:
+  - from: check
+    to: done
+    on: success
+`);
+    expect(wf.nodes.find((n) => n.id === "check")).toMatchObject({
+      station_ref: "acme-scanner",
+      timeout_minutes: 45,
+    });
+  });
+
+  it("rejects a non-positive timeout_minutes", () => {
+    expect(() =>
+      parseAssemblyLine(`
+name: x
+description: d
+version: 1
+entry: a
+exit: a
+nodes:
+  - id: a
+    type: validate
+    timeout_minutes: 0
+edges: []
+`),
+    ).toThrow(/Schema violation/);
+  });
+
   it("rejects a detect node without job_ref", () => {
     expect(() =>
       parseAssemblyLine(`

@@ -18,4 +18,3 @@ edges:
   - from: detect
     to: done
     on: success
-1

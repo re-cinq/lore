@@ -20,6 +20,10 @@ const NodeSchema = z.object({
   validator: z.string().optional(),
   condition_ref: z.string().optional(),
   job_ref: z.string().optional(),
+  /** Custom station (agent-definitions name) overriding the default `def-<type>`. */
+  station_ref: z.string().optional(),
+  /** Per-node run timeout; falls back to the referenced Station's deadline. */
+  timeout_minutes: z.number().int().positive().optional(),
   description: z.string().optional(),
 });
 
