@@ -45,6 +45,7 @@ import { impactRoute } from "../api/routes/impact/impact.js";
 import { traceRoute } from "../api/routes/trace/trace.js";
 import { traceSpecsRoute } from "../api/routes/trace/trace-specs.js";
 import { featuresRoutes } from "../api/routes/features/features.js";
+import { openApiJsonRoute, docsRoute } from "../api/routes/openapi/openapi.js";
 
 // 1 MB body cap applied to every native route via the server payload default.
 const MAX_BODY_BYTES = 1_048_576;
@@ -92,6 +93,8 @@ export function routeList(getPool: () => any): ServerRoute[] {
     impactRoute(),
     traceRoute(),
     traceSpecsRoute(),
+    openApiJsonRoute(getPool),
+    docsRoute(getPool),
     ...featuresRoutes(),
   ];
 }

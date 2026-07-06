@@ -54,13 +54,13 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 3 — Serving surface
 
-- [ ] T007 `apps/lore-api/src/api/routes/openapi/openapi.ts`: `openApiJsonRoute(getPool)`
+- [x] T007 `apps/lore-api/src/api/routes/openapi/openapi.ts`: `openApiJsonRoute(getPool)`
   (`GET /api/openapi.json`, `bearerScope("read")`) returns `buildOpenApiDocument(routeList(getPool))`;
   `docsRoute(getPool)` (`GET /api/docs`, `bearerScope("read")`) returns an HTML page
   that inlines the document and calls `Redoc.init`. Register both in `routeList`
   (so the doc self-describes). Guard against build-time recursion (build the doc
   from the route array, not by re-invoking the serving routes' handlers). (FR5)
-- [ ] T008 `apps/lore-api/src/api/routes/openapi/openapi.test.ts` (inject): `GET
+- [x] T008 `apps/lore-api/src/api/routes/openapi/openapi.test.ts` (inject): `GET
   /api/openapi.json` with a read token → `200`, `openapi: "3.1.0"`, `paths` non-empty;
   missing token → `401`; a write-only... i.e. under-scoped token still `403` before
   the handler; `GET /api/docs` → `200 text/html` containing the inlined spec + Redoc
