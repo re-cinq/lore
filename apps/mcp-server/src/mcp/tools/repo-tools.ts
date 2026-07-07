@@ -9,20 +9,32 @@ const NOT_CONFIGURED = "Repo management requires LORE_API_URL + LORE_INGEST_TOKE
 export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
   server.tool(
     "lore_list_repos",
-    `Lists every repo onboarded into Lore, returning a JSON array with per-repo metadata and pipeline task count. Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,
+    `Lists every repo onboarded into Lore as JSON ({ repos, total }) with per-repo metadata and pipeline task count. Pages through all repos automatically. Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,
     {},
     async () => {
-      const proxied = await proxyGetApi("/api/repos");
-      if (proxied.ok) {
-        const repos = JSON.parse(proxied.body);
-        if (!Array.isArray(repos) || repos.length === 0) {
-          return { content: [{ type: "text" as const, text: "No repos onboarded yet. Use lore_onboard_repo to add one." }] };
+      // The API caps a single response at 100, so walk the offset until every
+      // onboarded repo is collected — an org with >100 repos would otherwise
+      // silently see only the first page.
+      const pageSize = 100;
+      const repos: unknown[] = [];
+      let total = 0;
+      for (let offset = 0; ; offset += pageSize) {
+        const proxied = await proxyGetApi(`/api/repos?limit=${pageSize}&offset=${offset}`);
+        if (!proxied.ok) {
+          if (proxied.reason === "not_configured") return { content: [{ type: "text" as const, text: NOT_CONFIGURED }] };
+          if (proxied.reason === "denied") return deniedError("lore_list_repos", proxied.detail);
+          return unreachableError("lore_list_repos", proxied.detail);
         }
-        return { content: [{ type: "text" as const, text: JSON.stringify(repos, null, 2) }] };
+        const body = JSON.parse(proxied.body) as { repos?: unknown[]; total?: number };
+        const page = Array.isArray(body.repos) ? body.repos : [];
+        repos.push(...page);
+        total = typeof body.total === "number" ? body.total : repos.length;
+        if (page.length < pageSize || repos.length >= total) break;
       }
-      if (proxied.reason === "not_configured") return { content: [{ type: "text" as const, text: NOT_CONFIGURED }] };
-      if (proxied.reason === "denied") return deniedError("lore_list_repos", proxied.detail);
-      return unreachableError("lore_list_repos", proxied.detail);
+      if (repos.length === 0) {
+        return { content: [{ type: "text" as const, text: "No repos onboarded yet. Use lore_onboard_repo to add one." }] };
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify({ repos, total }, null, 2) }] };
     }
   );
 

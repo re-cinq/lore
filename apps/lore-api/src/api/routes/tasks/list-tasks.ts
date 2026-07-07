@@ -3,13 +3,14 @@ import { z } from "zod";
 import { listTasks } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { clampedLimit, offsetParam } from "../common-schemas.js";
 
 // pipeline.tasks.status is free-form TEXT (no DB enum, open vocabulary), so this
-// bounds the shape rather than fixing a value set. limit preserves the historical
-// clamp-to-100 (not reject) so an over-max request degrades, matching prior behavior.
+// bounds the shape rather than fixing a value set.
 const ListTasksQuery = z.object({
   status: z.string().regex(/^[a-z-]+$/).max(40).optional(),
-  limit: z.coerce.number().int().positive().transform(n => Math.min(n, 100)).default(20),
+  limit: clampedLimit.default(20),
+  offset: offsetParam,
 });
 type ListTasksQuery = z.infer<typeof ListTasksQuery>;
 
@@ -19,9 +20,10 @@ export function listTasksRoute(): ServerRoute {
     path: "/api/tasks",
     options: { ...bearerScope("read"), validate: { query: zodValidate(ListTasksQuery) } },
     handler: async (request, h) => {
-      const { status, limit } = request.query as unknown as ListTasksQuery;
+      const { status, limit, offset } = request.query as unknown as ListTasksQuery;
       try {
-        return h.response(await listTasks(status, limit));
+        const result = await listTasks(status, limit, offset);
+        return h.response({ ...result, limit, offset });
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);
       }

@@ -33,7 +33,7 @@ export function setPipelinePool(p: Pool): void { pool = p; }
 
 // ── Relocated CRUD (single source in shared; thin pool-binding wrappers) ──
 export const getTask = (taskId: string) => getPipelineTask(getPool(), taskId);
-export const listTasks = (status?: string, limit = 50) => listPipelineTasks(getPool(), status, limit);
+export const listTasks = (status?: string, limit = 50, offset = 0) => listPipelineTasks(getPool(), status, limit, offset);
 export const recordEvent = (taskId: string, fromStatus: string | null, toStatus: string | null, meta?: any) =>
   recordTaskEvent(getPool(), taskId, fromStatus, toStatus, meta);
 export const updateTaskStatus = (taskId: string, newStatus: string, meta?: any) =>

@@ -4,9 +4,9 @@ import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lo
 
 const originalEnv = { ...process.env };
 
-function req(opts: { method: "GET" | "POST" | "PUT"; body?: unknown }, pool: unknown = makePool()) {
+function req(opts: { method: "GET" | "POST" | "PUT"; body?: unknown; query?: string }, pool: unknown = makePool()) {
   const payload = opts.body === undefined ? undefined : typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
-  return buildServer(() => pool as any).inject({ method: opts.method, url: "/api/tokens", headers: AUTH, payload });
+  return buildServer(() => pool as any).inject({ method: opts.method, url: "/api/tokens" + (opts.query ?? ""), headers: AUTH, payload });
 }
 
 describe("/api/tokens", () => {
@@ -24,11 +24,26 @@ describe("/api/tokens", () => {
     expect(res.statusCode).toBe(503);
   });
 
-  it("lists active tokens on GET", async () => {
+  it("lists active tokens on GET with paging metadata", async () => {
     const pool = makePool();
-    pool.query.mockResolvedValue({ rows: [{ id: 1, name: "ci" }] });
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ id: 1, name: "ci" }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
     const res = await req({ method: "GET" }, pool);
-    expect(res.result).toEqual({ tokens: [{ id: 1, name: "ci" }] });
+    expect(res.result).toEqual({ tokens: [{ id: 1, name: "ci" }], total: 1, limit: 20, offset: 0 });
+    expect(pool.query.mock.calls[0][1]).toEqual([20, 0]);
+  });
+
+  it("clamps over-max limit and applies offset on GET", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ total: 0 }] });
+    await req({ method: "GET", query: "?limit=999&offset=5" }, pool);
+    expect(pool.query.mock.calls[0][1]).toEqual([100, 5]);
+  });
+
+  it("returns 400 for a negative offset on GET", async () => {
+    const res = await req({ method: "GET", query: "?offset=-1" }, makePool());
+    expect(res.statusCode).toBe(400);
   });
 
   it("revokes a token on POST", async () => {

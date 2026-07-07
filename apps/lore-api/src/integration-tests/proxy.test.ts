@@ -76,11 +76,12 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
   });
 
   it("proxies a GET read to lore-api and parses the DB response", async () => {
-    // Identical to mcp-server's repo-list tool: proxyGetApi("/api/repos").
+    // Like mcp-server's repo-list tool: proxyGetApi("/api/repos") then read the
+    // paged { repos, total } envelope.
     const result = await proxyGetApi("/api/repos");
     expect(result.ok).toBe(true);
-    const repos = JSON.parse((result as ProxyOk).body) as Array<{ full_name: string }>;
-    expect(repos.map(r => r.full_name)).toContain(TEST_REPO);
+    const body = JSON.parse((result as ProxyOk).body) as { repos: Array<{ full_name: string }> };
+    expect(body.repos.map(r => r.full_name)).toContain(TEST_REPO);
   });
 
   it("proxies a POST write to lore-api and the change persists in the DB", async () => {
