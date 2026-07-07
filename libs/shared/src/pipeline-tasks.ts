@@ -114,14 +114,21 @@ export async function getTask(pool: PgPool, taskId: string): Promise<any> {
   return { ...tasks[0], events };
 }
 
-export async function listTasks(pool: PgPool, status?: string, limit = 50): Promise<any> {
+export async function listTasks(
+  pool: PgPool,
+  status?: string,
+  limit = 50,
+  offset = 0,
+): Promise<{ tasks: any[]; total: number }> {
   const where = status ? "WHERE status = $1" : "";
-  const params = status ? [status, limit] : [limit];
+  const params: any[] = status ? [status] : [];
+  const limitIdx = params.push(limit);
+  const offsetIdx = params.push(offset);
   const { rows } = await pool.query(
     `SELECT id, description, task_type, status, target_repo, agent_id, pr_url, created_by, created_at, updated_at
      FROM pipeline.tasks ${where}
      ORDER BY created_at DESC
-     LIMIT $${status ? "2" : "1"}`,
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
     params,
   );
   const { rows: countRows } = await pool.query(

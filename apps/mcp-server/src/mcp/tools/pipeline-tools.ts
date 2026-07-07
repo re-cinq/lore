@@ -149,8 +149,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     {
       status: z.string().optional().describe("Filter by status: pending | queued | running | pr-created | review | merged | failed | cancelled. Omit for all."),
       limit: z.number().default(20),
+      offset: z.number().int().min(0).default(0).describe("Skip this many newest-first rows for paging. Response carries total so you know if more remain."),
     },
-    async ({ status, limit }) => {
+    async ({ status, limit, offset }) => {
       try {
         if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
@@ -159,6 +160,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           const params = new URLSearchParams();
           if (status) params.set("status", status);
           params.set("limit", String(Math.min(limit, 100)));
+          params.set("offset", String(offset));
           const res = await fetch(`${apiUrl}/api/tasks?${params}`, { headers: { "Authorization": `Bearer ${apiToken}` } });
           if (!res.ok) return { content: [{ type: "text" as const, text: `Remote error: ${res.statusText}` }] };
           return { content: [{ type: "text" as const, text: JSON.stringify(await res.json(), null, 2) }] };
@@ -167,7 +169,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         if (status && !validStatuses.includes(status)) {
           return { content: [{ type: "text" as const, text: `invalid status: ${status}. Valid values: ${validStatuses.join(", ")}` }] };
         }
-        const result = await listTasks(status, Math.min(limit, 100));
+        const result = await listTasks(status, Math.min(limit, 100), offset);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       } catch (err: any) {
         return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
