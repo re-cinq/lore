@@ -1,9 +1,11 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { createHash } from "node:crypto";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import type { TokenScope } from "../auth.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { DB_UNAVAILABLE, clampedLimit, offsetParam } from "../common-schemas.js";
 
 interface TokensPostBody {
   action?: string;
@@ -12,6 +14,11 @@ interface TokensPostBody {
   expires_in_days?: number;
   token_id?: string;
 }
+
+// Paging for the GET list. On a "*" route this also validates the bodyless POST's
+// (empty) query, which harmlessly resolves to the defaults.
+const TokensQuery = z.object({ limit: clampedLimit.default(20), offset: offsetParam });
+type TokensQuery = z.infer<typeof TokensQuery>;
 
 export function tokensRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -22,18 +29,24 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute {
     // body is hapi-parsed rather than hand-parsed (ADR-034 FR6).
     method: "*",
     path: "/api/tokens",
-    options: bearerScope("admin"),
+    options: { ...bearerScope("admin"), validate: { query: zodValidate(TokensQuery) } },
     handler: async (request, h) => {
       const pool = getPool();
       if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
 
       if (request.method.toUpperCase() === "GET") {
         // List active tokens (never return the actual token)
+        const { limit, offset } = request.query as unknown as TokensQuery;
         const { rows } = await pool.query(
           `SELECT id, name, scopes, created_by, expires_at, last_used, created_at
-           FROM pipeline.api_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC`,
+           FROM pipeline.api_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC
+           LIMIT $1 OFFSET $2`,
+          [limit, offset],
         );
-        return h.response({ tokens: rows });
+        const { rows: countRows } = await pool.query(
+          `SELECT count(*)::int as total FROM pipeline.api_tokens WHERE revoked_at IS NULL`,
+        );
+        return h.response({ tokens: rows, total: countRows[0].total, limit, offset });
       }
 
       if (request.method.toUpperCase() === "POST") {

@@ -7,14 +7,19 @@ import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, se
 import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { MAX_PAGE_LIMIT } from "../common-schemas.js";
 
 const version = z.union([z.string(), z.number()]).optional();
+// Non-coerced (unlike common-schemas' clampedLimit/offsetParam): this is a JSON
+// body, so a stringy limit/offset is malformed and rejected rather than parsed.
+const listLimit = z.number().int().positive().transform(n => Math.min(n, MAX_PAGE_LIMIT)).default(50);
+const listOffset = z.number().int().min(0).default(0);
 const MemoryBody = z.discriminatedUnion("action", [
   z.object({ action: z.literal("write"), key: z.string(), value: z.string(), agent_id: z.string().optional(), ttl: z.number().optional(), repo: z.string().optional() }),
   z.object({ action: z.literal("read"), key: z.string(), agent_id: z.string().optional(), version }),
   z.object({ action: z.literal("search"), query: z.string(), agent_id: z.string().optional(), pool_name: z.string().optional(), limit: z.number().optional() }),
   z.object({ action: z.literal("delete"), key: z.string(), agent_id: z.string().optional() }),
-  z.object({ action: z.literal("list"), agent_id: z.string().optional(), limit: z.number().optional() }),
+  z.object({ action: z.literal("list"), agent_id: z.string().optional(), limit: listLimit, offset: listOffset }),
 ]);
 type MemoryBody = z.infer<typeof MemoryBody>;
 
@@ -49,10 +54,12 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
             return h.response(isMemoryDbAvailable()
               ? await deleteMemory(body.key, body.agent_id)
               : await deleteMemoryFile(body.key, body.agent_id));
-          case "list":
-            return h.response(isMemoryDbAvailable()
-              ? await listMemories(body.agent_id, body.limit || 50, 0)
-              : await listMemoriesFile(body.agent_id, body.limit || 50, 0));
+          case "list": {
+            const result = isMemoryDbAvailable()
+              ? await listMemories(body.agent_id, body.limit, body.offset)
+              : await listMemoriesFile(body.agent_id, body.limit, body.offset);
+            return h.response({ ...result, limit: body.limit, offset: body.offset });
+          }
         }
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

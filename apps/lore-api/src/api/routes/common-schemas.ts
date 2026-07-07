@@ -4,6 +4,13 @@ export const DB_UNAVAILABLE = "database unavailable";
 
 export const repoFullName = z.string().regex(/^[^/\s]+\/[^/\s]+$/, "expected owner/name");
 
+export const MAX_PAGE_LIMIT = 100;
+
+// Clamp-not-reject over-max (matches list-tasks' historical behavior); coerce
+// because query params arrive as strings. Callers pick the default page size.
+export const clampedLimit = z.coerce.number().int().positive().transform(n => Math.min(n, MAX_PAGE_LIMIT));
+export const offsetParam = z.coerce.number().int().min(0).default(0);
+
 export const boolFlag = z
   .union([z.string(), z.boolean()])
   .optional()

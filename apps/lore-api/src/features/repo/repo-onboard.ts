@@ -76,9 +76,13 @@ export async function getOnboardedRepos(pool: any): Promise<OnboardedRepo[]> {
 }
 
 /**
- * Returns repos with pipeline task counts.
+ * Returns a page of repos with pipeline task counts plus the unpaged total.
  */
-export async function getOnboardedReposWithCounts(pool: any): Promise<any[]> {
+export async function getOnboardedReposWithCounts(
+  pool: any,
+  limit = 100,
+  offset = 0,
+): Promise<{ repos: any[]; total: number }> {
   const { rows } = await pool.query(
     `SELECT r.id, r.owner, r.name, r.full_name, r.team,
             r.onboarded_at, r.last_ingested_at,
@@ -90,9 +94,12 @@ export async function getOnboardedReposWithCounts(pool: any): Promise<any[]> {
        FROM pipeline.tasks
        GROUP BY target_repo
      ) tc ON tc.target_repo = r.full_name
-     ORDER BY r.onboarded_at DESC`
+     ORDER BY r.onboarded_at DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset],
   );
-  return rows;
+  const { rows: countRows } = await pool.query(`SELECT count(*)::int as total FROM lore.repos`);
+  return { repos: rows, total: countRows[0].total };
 }
 
 /**

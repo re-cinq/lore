@@ -171,18 +171,33 @@ describe("POST /api/memory", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("lists via DB", async () => {
+  it("lists via DB with default limit 50 offset 0", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
-    vi.mocked(listMemories).mockResolvedValue([{ k: 1 }] as any);
+    vi.mocked(listMemories).mockResolvedValue({ memories: [{ k: 1 }], total: 1 } as any);
     await post({ action: "list" });
     expect(listMemories).toHaveBeenCalledWith(undefined, 50, 0);
   });
 
+  it("threads offset through and echoes paging metadata", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(listMemories).mockResolvedValue({ memories: [{ k: 2 }], total: 9 } as any);
+    const res = await post({ action: "list", limit: 5, offset: 5 });
+    expect(listMemories).toHaveBeenCalledWith(undefined, 5, 5);
+    expect(res.result).toEqual({ memories: [{ k: 2 }], total: 9, limit: 5, offset: 5 });
+  });
+
+  it("caps the list limit at 100", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(listMemories).mockResolvedValue({ memories: [], total: 0 } as any);
+    await post({ action: "list", limit: 999 });
+    expect(listMemories).toHaveBeenCalledWith(undefined, 100, 0);
+  });
+
   it("lists via file fallback", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
-    vi.mocked(listMemoriesFile).mockResolvedValue([] as any);
-    await post({ action: "list" });
-    expect(listMemoriesFile).toHaveBeenCalled();
+    vi.mocked(listMemoriesFile).mockResolvedValue({ memories: [], total: 0 } as any);
+    await post({ action: "list", offset: 3 });
+    expect(listMemoriesFile).toHaveBeenCalledWith(undefined, 50, 3);
   });
 
   it("returns 400 for an unknown action", async () => {
