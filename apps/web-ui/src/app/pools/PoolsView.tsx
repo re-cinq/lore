@@ -18,6 +18,9 @@ export default function PoolsView({ pools }: PoolsViewProps) {
   return (
     <div>
       <h1>Shared Memory Pools</h1>
+      <p className="meta" style={{ marginBottom: 16 }}>
+        Namespaces where multiple agents contribute shared facts. Created programmatically via the shared-memory MCP tools.
+      </p>
       <table>
         <thead>
           <tr>

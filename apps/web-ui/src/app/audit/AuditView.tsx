@@ -65,6 +65,9 @@ export default function AuditView({
   return (
     <div>
       <h1>Audit Trail</h1>
+      <p className="meta" style={{ marginBottom: 16 }}>
+        Every memory read and write across the org, in time order. Filter by agent or operation.
+      </p>
       <form method="get" className="filter-form">
         <input
           type="text"

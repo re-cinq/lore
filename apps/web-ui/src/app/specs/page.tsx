@@ -9,7 +9,7 @@ export default async function SpecsPage() {
 
   return (
     <div>
-      <h1>Specifications</h1>
+      <h1>Specs</h1>
       <p className="meta" style={{ marginBottom: 16 }}>
         Spec documents in the traceability graph across all repos (
         {specs.length}).

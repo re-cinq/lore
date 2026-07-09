@@ -37,7 +37,7 @@ export default function ContextView({
 }: ContextViewProps) {
   return (
     <div>
-      <h1>Organization Context</h1>
+      <h1>Context</h1>
       <div className={styles.notice}>
         <p className={`meta ${styles.noticeText}`}>
           This is the global view across all repos. For repo-specific context,

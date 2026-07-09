@@ -95,6 +95,9 @@ option {
   flex-direction: column;
   gap: 2px;
   padding: 0 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .sidebar nav a {
@@ -1184,4 +1187,4 @@ textarea:focus-visible,
 .md-popover :not(pre) > code { font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--bg-hover); }
 
 /* Deployed build SHA at the foot of the sidebar — visibility into what's live. */
-.sidebar-version { margin-top: auto; padding: 8px 12px; font-size: 11px; opacity: 0.6; font-family: var(--font-mono, monospace); }
+.sidebar-version { padding: 8px 12px; font-size: 11px; opacity: 0.6; font-family: var(--font-mono, monospace); }
