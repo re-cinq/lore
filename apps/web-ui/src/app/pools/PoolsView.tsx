@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { TimeAgo } from '@/components/TimeAgo';
+import { EmptyState } from '@/components/EmptyState';
 import styles from './PoolsView.module.css';
 
 export interface PoolRow {
@@ -41,7 +42,12 @@ export default function PoolsView({ pools }: PoolsViewProps) {
             </tr>
           ))}
           {pools.length === 0 && (
-            <tr><td colSpan={5} className={styles.emptyCell}>No shared pools yet</td></tr>
+            <tr><td colSpan={5}>
+              <EmptyState
+                title="No shared pools yet"
+                description="Pools are created programmatically by agents via the shared-memory MCP tools."
+              />
+            </td></tr>
           )}
         </tbody>
       </table>

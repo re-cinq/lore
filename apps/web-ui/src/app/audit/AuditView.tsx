@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { TimeAgo } from '@/components/TimeAgo';
 import { humanizeEnum } from '@/lib/humanize';
 import { displayAgentId } from '@/lib/agent-id';
+import { EmptyState } from '@/components/EmptyState';
 import styles from './AuditView.module.css';
 
 export interface AuditEntryRow {
@@ -55,6 +56,19 @@ export default function AuditView({
     return `/audit${qs ? `?${qs}` : ''}`;
   }
 
+  const emptyState = agent || op ? (
+    <EmptyState
+      title="No entries match these filters"
+      description="Try a different agent or operation."
+      action={{ href: '/audit', label: 'Clear filters' }}
+    />
+  ) : (
+    <EmptyState
+      title="No activity recorded yet"
+      description="Entries appear here as agents read and write memory."
+    />
+  );
+
   return (
     <div>
       <h1>Audit Trail</h1>
@@ -86,7 +100,7 @@ export default function AuditView({
             </tr>
           ))}
           {entries.length === 0 && (
-            <tr><td colSpan={6} className={styles.emptyCell}>No audit entries found</td></tr>
+            <tr><td colSpan={6}>{emptyState}</td></tr>
           )}
         </tbody>
       </table>

@@ -102,7 +102,7 @@ describe('AuditView', () => {
         hasNext={false}
       />,
     );
-    expect(screen.getByText('No audit entries found')).toBeInTheDocument();
+    expect(screen.getByText('No activity recorded yet')).toBeInTheDocument();
     expect(container.querySelector('td[colspan="6"]')).toBeInTheDocument();
   });
 
