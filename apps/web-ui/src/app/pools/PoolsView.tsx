@@ -1,5 +1,6 @@
-import Link from "next/link";
-import styles from "./PoolsView.module.css";
+import Link from 'next/link';
+import { TimeAgo } from '@/components/TimeAgo';
+import styles from './PoolsView.module.css';
 
 export interface PoolRow {
   id: string;
@@ -23,16 +24,10 @@ export default function PoolsView({ pools }: PoolsViewProps) {
       </p>
       <table>
         <thead>
-          <tr>
-            <th>Pool Name</th>
-            <th>Entries</th>
-            <th>Contributing Agents</th>
-            <th>Created By</th>
-            <th>Created</th>
-          </tr>
+          <tr><th>Pool Name</th><th>Entries</th><th>Contributing Agents</th><th>Created By</th><th>Created</th></tr>
         </thead>
         <tbody>
-          {pools.map((p) => (
+          {pools.map(p => (
             <tr key={p.id}>
               <td>
                 <Link href={`/pools/${encodeURIComponent(p.name)}`}>
@@ -42,15 +37,11 @@ export default function PoolsView({ pools }: PoolsViewProps) {
               <td>{p.entry_count}</td>
               <td>{p.agent_count}</td>
               <td title={p.created_by}>{p.created_by.substring(0, 8)}...</td>
-              <td>{new Date(p.created_at).toLocaleString()}</td>
+              <td><TimeAgo date={p.created_at} /></td>
             </tr>
           ))}
           {pools.length === 0 && (
-            <tr>
-              <td colSpan={5} className={styles.emptyCell}>
-                No shared pools yet
-              </td>
-            </tr>
+            <tr><td colSpan={5} className={styles.emptyCell}>No shared pools yet</td></tr>
           )}
         </tbody>
       </table>

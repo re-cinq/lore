@@ -1,4 +1,6 @@
-import { type RepoEvent } from "./pagination";
+import { TimeAgo } from '@/components/TimeAgo';
+import { humanizeEnum } from '@/lib/humanize';
+import { type RepoEvent } from './pagination';
 
 /**
  * One row of the repo events table. Shared by the Overview "Latest Events"
@@ -8,12 +10,10 @@ import { type RepoEvent } from "./pagination";
 export default function EventRow({ event }: { event: RepoEvent }) {
   return (
     <tr>
-      <td className="meta">{new Date(event.captured_at).toLocaleString()}</td>
+      <td className="meta"><TimeAgo date={event.captured_at} /></td>
       <td>{event.event_name}</td>
       <td>{event.source}</td>
-      <td>
-        <span className={`op-badge op-${event.status}`}>{event.status}</span>
-      </td>
+      <td><span className={`op-badge op-${event.status}`}>{humanizeEnum(event.status)}</span></td>
     </tr>
   );
 }

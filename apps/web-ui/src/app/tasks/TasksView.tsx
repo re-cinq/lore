@@ -1,4 +1,6 @@
-import styles from "./TasksView.module.css";
+import { TimeAgo } from '@/components/TimeAgo';
+import { humanizeEnum } from '@/lib/humanize';
+import styles from './TasksView.module.css';
 
 interface Task {
   id: string;
@@ -22,18 +24,14 @@ export interface TasksViewProps {
   createTask: (formData: FormData) => void | Promise<void>;
 }
 
-export default function TasksView({
-  tasks,
-  recentActivity,
-  createTask,
-}: TasksViewProps) {
+export default function TasksView({ tasks, recentActivity, createTask }: TasksViewProps) {
   return (
     <div>
       <h1>Tasks</h1>
       <div className={styles.banner}>
         <p className={`meta ${styles.bannerText}`}>
-          This is the global view across all repos. For repo-specific tasks,
-          visit <a href="/">Repositories</a> and select a repo.
+          This is the global view across all repos. For repo-specific tasks, visit{' '}
+          <a href="/">Repositories</a> and select a repo.
         </p>
       </div>
 
@@ -57,19 +55,12 @@ export default function TasksView({
           <p className="meta">No tasks found. Create one above.</p>
         ) : (
           tasks.map((task) => {
-            const status = task.metadata?.status || "unknown";
-
+            const status = task.metadata?.status || 'unknown';
             return (
               <div key={task.id} className="spec-card">
                 <div className={styles.cardHead}>
-                  <span
-                    className={`badge ${status === "open" ? "badge-open" : ""}`}
-                  >
-                    {status}
-                  </span>
-                  <span className="meta">
-                    {new Date(task.ingested_at).toLocaleString()}
-                  </span>
+                  <span className={`badge ${status === 'open' ? 'badge-open' : ''}`}>{humanizeEnum(status)}</span>
+                  <span className="meta"><TimeAgo date={task.ingested_at} /></span>
                 </div>
                 <p>{task.content}</p>
               </div>
@@ -97,11 +88,11 @@ export default function TasksView({
                 <tr key={i}>
                   <td className={styles.td}>{entry.agent_id}</td>
                   <td className={styles.td}>
-                    <span className="badge">{entry.operation}</span>
+                    <span className="badge">{humanizeEnum(entry.operation)}</span>
                   </td>
                   <td className={styles.td}>{entry.memory_key}</td>
                   <td className={`meta ${styles.td}`}>
-                    {new Date(entry.created_at).toLocaleString()}
+                    <TimeAgo date={entry.created_at} />
                   </td>
                 </tr>
               ))}

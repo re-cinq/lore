@@ -1,5 +1,7 @@
-import Link from "next/link";
-import styles from "./AuditView.module.css";
+import Link from 'next/link';
+import { TimeAgo } from '@/components/TimeAgo';
+import { humanizeEnum } from '@/lib/humanize';
+import styles from './AuditView.module.css';
 
 export interface AuditEntryRow {
   id: string;
@@ -7,7 +9,7 @@ export interface AuditEntryRow {
   operation: string;
   memory_key: string | null;
   pool_name: string | null;
-  metadata: Record<string, unknown> | null;
+  metadata: any;
   created_at: string;
 }
 
@@ -45,21 +47,11 @@ export default function AuditView({
 }: AuditViewProps) {
   function buildUrl(newOffset: number): string {
     const p = new URLSearchParams();
-
-    if (agent) {
-      p.set("agent", agent);
-    }
-
-    if (op) {
-      p.set("op", op);
-    }
-
-    if (newOffset > 0) {
-      p.set("offset", String(newOffset));
-    }
+    if (agent) p.set('agent', agent);
+    if (op) p.set('op', op);
+    if (newOffset > 0) p.set('offset', String(newOffset));
     const qs = p.toString();
-
-    return `/audit${qs ? `?${qs}` : ""}`;
+    return `/audit${qs ? `?${qs}` : ''}`;
   }
 
   return (
@@ -69,75 +61,42 @@ export default function AuditView({
         Every memory read and write across the org, in time order. Filter by agent or operation.
       </p>
       <form method="get" className="filter-form">
-        <input
-          type="text"
-          name="agent"
-          defaultValue={agent || ""}
-          placeholder="Filter by agent ID..."
-        />
-        <select name="op" defaultValue={op || ""}>
+        <input type="text" name="agent" defaultValue={agent || ''} placeholder="Filter by agent ID..." />
+        <select name="op" defaultValue={op || ''}>
           <option value="">All operations</option>
-          {operations.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
+          {operations.map(o => <option key={o} value={o}>{humanizeEnum(o)}</option>)}
         </select>
         <button type="submit">Filter</button>
       </form>
       <p className={`meta ${styles.count}`}>{totalCount} total entries</p>
       <table>
         <thead>
-          <tr>
-            <th>Time</th>
-            <th>Agent</th>
-            <th>Operation</th>
-            <th>Key</th>
-            <th>Pool</th>
-            <th>Details</th>
-          </tr>
+          <tr><th>Time</th><th>Agent</th><th>Operation</th><th>Key</th><th>Pool</th><th>Details</th></tr>
         </thead>
         <tbody>
-          {entries.map((e) => (
+          {entries.map(e => (
             <tr key={e.id}>
-              <td>{new Date(e.created_at).toLocaleString()}</td>
+              <td><TimeAgo date={e.created_at} /></td>
               <td title={e.agent_id}>{e.agent_id.substring(0, 8)}...</td>
-              <td>
-                <span className={`op-badge op-${e.operation}`}>
-                  {e.operation}
-                </span>
-              </td>
-              <td>{e.memory_key || "—"}</td>
-              <td>{e.pool_name || "—"}</td>
-              <td>
-                {e.metadata ? JSON.stringify(e.metadata).substring(0, 50) : "—"}
-              </td>
+              <td><span className={`op-badge op-${e.operation}`}>{humanizeEnum(e.operation)}</span></td>
+              <td>{e.memory_key || '—'}</td>
+              <td>{e.pool_name || '—'}</td>
+              <td>{e.metadata ? JSON.stringify(e.metadata).substring(0, 50) : '—'}</td>
             </tr>
           ))}
           {entries.length === 0 && (
-            <tr>
-              <td colSpan={6} className={styles.emptyCell}>
-                No audit entries found
-              </td>
-            </tr>
+            <tr><td colSpan={6} className={styles.emptyCell}>No audit entries found</td></tr>
           )}
         </tbody>
       </table>
       <div className="pagination">
-        <Link
-          href={buildUrl(offset - pageSize)}
-          className={hasPrev ? "" : "disabled"}
-        >
+        <Link href={buildUrl(offset - pageSize)} className={hasPrev ? '' : 'disabled'}>
           &larr; Previous
         </Link>
         <span className="page-info">
-          {offset + 1}&ndash;{Math.min(offset + pageSize, totalCount)} of{" "}
-          {totalCount}
+          {offset + 1}&ndash;{Math.min(offset + pageSize, totalCount)} of {totalCount}
         </span>
-        <Link
-          href={buildUrl(offset + pageSize)}
-          className={hasNext ? "" : "disabled"}
-        >
+        <Link href={buildUrl(offset + pageSize)} className={hasNext ? '' : 'disabled'}>
           Next &rarr;
         </Link>
       </div>
