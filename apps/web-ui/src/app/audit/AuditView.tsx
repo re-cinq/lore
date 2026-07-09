@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { TimeAgo } from '@/components/TimeAgo';
 import { humanizeEnum } from '@/lib/humanize';
+import { displayAgentId } from '@/lib/agent-id';
 import styles from './AuditView.module.css';
 
 export interface AuditEntryRow {
@@ -77,7 +78,7 @@ export default function AuditView({
           {entries.map(e => (
             <tr key={e.id}>
               <td><TimeAgo date={e.created_at} /></td>
-              <td title={e.agent_id}>{e.agent_id.substring(0, 8)}...</td>
+              <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
               <td><span className={`op-badge op-${e.operation}`}>{humanizeEnum(e.operation)}</span></td>
               <td>{e.memory_key || '—'}</td>
               <td>{e.pool_name || '—'}</td>

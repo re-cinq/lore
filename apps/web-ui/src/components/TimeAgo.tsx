@@ -6,7 +6,9 @@ export function TimeAgo({ date, nowMs = Date.now() }: { date: string | Date; now
   const iso = parsed.toISOString();
   return (
     <time dateTime={iso} suppressHydrationWarning>
-      {parsed.toLocaleString()} <span className="meta">({formatRelativeTime(iso, nowMs)})</span>
+      {parsed.toLocaleString()}
+      <br />
+      <span className="meta" style={{ fontSize: '0.85em' }}>({formatRelativeTime(iso, nowMs)})</span>
     </time>
   );
 }
