@@ -1,5 +1,6 @@
 import { TimeAgo } from '@/components/TimeAgo';
 import { humanizeEnum } from '@/lib/humanize';
+import { SubmitButton } from '@/components/SubmitButton';
 import styles from './TasksView.module.css';
 
 interface Task {
@@ -45,7 +46,7 @@ export default function TasksView({ tasks, recentActivity, createTask }: TasksVi
             rows={3}
             className={styles.textarea}
           />
-          <button type="submit">Create Task</button>
+          <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>
         </form>
       </section>
 

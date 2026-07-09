@@ -1,4 +1,5 @@
 import PRStatusCard from './PRStatusCard';
+import { CancelTaskButton } from './CancelTaskButton';
 import TaskLogs from './TaskLogs';
 import Timeline from './Timeline';
 import FailurePanel from './FailurePanel';
@@ -90,13 +91,7 @@ export default function TaskDetailView({
               </button>
             </form>
           )}
-          {isCancellable(task.status) && (
-            <form action={`/api/assembly-lines/${task.id}/cancel`} method="POST">
-              <button type="submit" className={styles.cancelBtn}>
-                Cancel Task
-              </button>
-            </form>
-          )}
+          {isCancellable(task.status) && <CancelTaskButton taskId={task.id} />}
         </div>
       </div>
 

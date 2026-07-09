@@ -1,4 +1,5 @@
-import styles from "./RepoTaskCreateView.module.css";
+import { SubmitButton } from '@/components/SubmitButton';
+import styles from './RepoTaskCreateView.module.css';
 
 export interface RepoTaskCreateViewProps {
   fullName: string;
@@ -12,10 +13,7 @@ export interface RepoTaskCreateViewProps {
  * hands in the create action which the form fires back up, keeping this
  * component free of data access.
  */
-export default function RepoTaskCreateView({
-  fullName,
-  createTaskAction,
-}: RepoTaskCreateViewProps) {
+export default function RepoTaskCreateView({ fullName, createTaskAction }: RepoTaskCreateViewProps) {
   return (
     <div>
       <h2>New Task for {fullName}</h2>
@@ -24,9 +22,7 @@ export default function RepoTaskCreateView({
 
         <label>Task Type</label>
         <select name="task_type" id="task_type">
-          <option value="feature-request">
-            Feature Request (PM intent → spec)
-          </option>
+          <option value="feature-request">Feature Request (PM intent → spec)</option>
           <option value="general">General</option>
           <option value="runbook">Runbook</option>
           <option value="implementation">Implementation</option>
@@ -34,22 +30,15 @@ export default function RepoTaskCreateView({
         </select>
 
         <label>Description</label>
-        <textarea
-          name="description"
-          rows={5}
-          required
-          placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions."
-        />
+        <textarea name="description" rows={5} required placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions." />
 
         <label className={styles.checkboxLabel}>
           <input type="checkbox" name="priority" value="immediate" />
           <span>Execute immediately</span>
-          <span className={`meta ${styles.hint}`}>
-            — runs on GKE now instead of waiting for local pickup
-          </span>
+          <span className={`meta ${styles.hint}`}>— runs on GKE now instead of waiting for local pickup</span>
         </label>
 
-        <button type="submit">Create Task</button>
+        <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>
       </form>
     </div>
   );
