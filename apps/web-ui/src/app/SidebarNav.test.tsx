@@ -216,29 +216,27 @@ describe("SidebarNav active-link highlighting", () => {
 });
 
 describe("SidebarNav pending navigation state", () => {
-  it("renders the loading spinner on links while navigation is pending", () => {
-    // useLinkStatus pending=true exercises the NavLabel spinner branch SidebarNav
-    // composes for every link, and the matching item still highlights.
+  it("highlights every link label as pending while navigation is in flight", () => {
+    // useLinkStatus pending=true drives the NavLabel `pending` class on every
+    // link SidebarNav composes; the loading animation now lives on-screen
+    // (app/loading.tsx), so there is no spinner icon in the nav.
     pathname.mockReturnValue("/search");
     linkStatus.mockReturnValue({ pending: true });
     const { container } = render(<SidebarNav />);
 
-    // One spinner per rendered link (NavLabelLive reads useLinkStatus each time).
-    expect(screen.getAllByRole("status", { name: "loading" })).toHaveLength(
+    expect(container.querySelectorAll(".nav-label.pending")).toHaveLength(
       ALL_LINKS.length,
     );
-    // The spinner's aria-label folds into each link's accessible name, so match
-    // the active item by href + aria-current rather than by label here.
-    const search = container.querySelector(
-      'a[href="/search"]',
-    ) as HTMLAnchorElement;
+    // With no spinner folding into the accessible name, the label matches cleanly.
+    const search = linkByLabel("Search");
     expect(search.className).toContain("active");
     expect(search).toHaveAttribute("aria-current", "page");
   });
 
-  it("renders no spinner when no navigation is pending", () => {
+  it("applies no pending highlight and renders no spinner when navigation is idle", () => {
     linkStatus.mockReturnValue({ pending: false });
-    render(<SidebarNav />);
+    const { container } = render(<SidebarNav />);
+    expect(container.querySelectorAll(".nav-label.pending")).toHaveLength(0);
     expect(screen.queryByRole("status", { name: "loading" })).toBeNull();
   });
 });

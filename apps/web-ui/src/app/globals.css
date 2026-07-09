@@ -897,34 +897,38 @@ pre {
   border-bottom-color: var(--accent);
 }
 
-/* Pending nav link (NavLink): immediate feedback while the target page loads.
-   The label partially highlights to the accent (color change = no reflow) and a
-   spinner appears, so a click never looks dead during the server component
-   fetch. The spinner is absolutely positioned in the link's existing padding so
-   showing/hiding it never changes the tab/link size. */
+/* Pending nav link (NavLink): the clicked label highlights to the accent
+   (color change = no reflow) so the click registers instantly. The actual
+   loading animation is the route-level spinner in the content area below,
+   not an icon in the nav. */
 .nav-label {
-  position: relative;
   display: inline-flex;
   align-items: center;
 }
 .nav-label.pending {
   color: var(--accent);
 }
-.nav-spinner {
-  position: absolute;
-  left: calc(100% + 5px);
-  top: 50%;
-  margin-top: -5.5px;
-  width: 11px;
-  height: 11px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
+
+/* Route-level loading fallback (app/loading.tsx): a centered spinner shown in
+   the content area while the navigated-to page's server components stream in. */
+.route-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50vh;
+  padding: 60px 20px;
+}
+.route-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
-  animation: nav-spin 0.6s linear infinite;
+  animation: nav-spin 0.7s linear infinite;
 }
 @keyframes nav-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .nav-spinner { animation-duration: 1.5s; }
+  .route-loading-spinner { animation-duration: 1.6s; }
 }
 
 /* --- Repo grid --- */
