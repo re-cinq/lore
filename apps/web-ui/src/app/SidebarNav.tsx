@@ -25,7 +25,11 @@ const groups: NavGroup[] = [
     label: "Knowledge",
     links: [
       { href: "/context", label: "Context" },
+      { href: "/specs", label: "Specs" },
+      { href: "/gaps", label: "Gaps" },
+      { href: "/pools", label: "Pools" },
       { href: "/graph", label: "Graph" },
+      { href: "/episodes", label: "Episodes" },
     ],
   },
   {

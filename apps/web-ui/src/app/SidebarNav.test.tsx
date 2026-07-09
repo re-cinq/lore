@@ -36,7 +36,11 @@ const PRIMARY_LINKS = [
   { href: "/assembly-lines", label: "Assembly Lines" },
   { href: "/tasks", label: "Tasks" },
   { href: "/context", label: "Context" },
+  { href: "/specs", label: "Specs" },
+  { href: "/gaps", label: "Gaps" },
+  { href: "/pools", label: "Pools" },
   { href: "/graph", label: "Graph" },
+  { href: "/episodes", label: "Episodes" },
   { href: "/analytics", label: "Analytics" },
   { href: "/spend", label: "Spend" },
   { href: "/search", label: "Search" },
@@ -278,7 +282,7 @@ describe("SidebarNav accordion groups", () => {
 
     expect(knowledge).toHaveAttribute("aria-expanded", "false");
     // Every Knowledge link is gone…
-    for (const label of ["Context", "Graph"]) {
+    for (const label of ["Context", "Specs", "Gaps", "Pools", "Graph", "Episodes"]) {
       expect(screen.queryByRole("link", { name: label })).toBeNull();
     }
     // …while a sibling group and the always-on links stay put.
