@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { TimeAgo } from '@/components/TimeAgo';
 import { EmptyState } from '@/components/EmptyState';
-import styles from './PoolsView.module.css';
 
 export interface PoolRow {
   id: string;

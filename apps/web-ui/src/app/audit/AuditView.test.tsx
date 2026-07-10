@@ -41,7 +41,7 @@ describe('AuditView', () => {
   });
 
   it('renders the key, pool and stringified metadata cells when present', () => {
-    render(
+    const { container } = render(
       <AuditView
         entries={[row({ memory_key: 'deploy-notes', pool_name: 'team-pool', metadata: { ttl: 3600 } })]}
         totalCount={1}
@@ -54,7 +54,8 @@ describe('AuditView', () => {
     );
     expect(screen.getByText('deploy-notes')).toBeInTheDocument();
     expect(screen.getByText('team-pool')).toBeInTheDocument();
-    expect(screen.getByText(JSON.stringify({ ttl: 3600 }))).toBeInTheDocument();
+    expect(screen.getByText('view')).toBeInTheDocument();
+    expect(container.querySelector('details pre')?.textContent).toContain('"ttl": 3600');
   });
 
   it('falls back to an em-dash for null key, null pool and null metadata', () => {
@@ -72,9 +73,9 @@ describe('AuditView', () => {
     expect(screen.getAllByText('—')).toHaveLength(3);
   });
 
-  it('truncates metadata longer than 50 characters', () => {
+  it('renders full metadata as collapsible pretty-printed JSON', () => {
     const big = { description: 'x'.repeat(200) };
-    render(
+    const { container } = render(
       <AuditView
         entries={[row({ metadata: big })]}
         totalCount={1}
@@ -85,9 +86,10 @@ describe('AuditView', () => {
         hasNext={false}
       />,
     );
-    const expected = JSON.stringify(big).substring(0, 50);
-    expect(screen.getByText(expected)).toBeInTheDocument();
-    expect(expected).toHaveLength(50);
+    expect(screen.getByText('view')).toBeInTheDocument();
+    const pre = container.querySelector('details pre');
+    expect(pre?.textContent).toContain('"description"');
+    expect(pre?.textContent).toContain('x'.repeat(200));
   });
 
   it('shows the empty state when there are no entries', () => {

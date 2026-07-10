@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import EventRow from "./EventRow";
-import { EVENTS_PAGE_SIZE, type RepoEvent } from "./pagination";
+import { useEffect, useRef, useState } from 'react';
+import EventRow from './EventRow';
+import { EVENTS_PAGE_SIZE, type RepoEvent } from './pagination';
 
 export interface InfiniteEventsProps {
   owner: string;
@@ -25,12 +25,7 @@ interface EventsPage {
  * every offset change, so a sentinel still in view after a fetch pulls the next
  * page automatically until the stream is exhausted.
  */
-export default function InfiniteEvents({
-  owner,
-  repo,
-  initialOffset,
-  hasMore,
-}: InfiniteEventsProps) {
+export default function InfiniteEvents({ owner, repo, initialOffset, hasMore }: InfiniteEventsProps) {
   const [events, setEvents] = useState<RepoEvent[]>([]);
   const [offset, setOffset] = useState(initialOffset);
   const [more, setMore] = useState(hasMore);
@@ -39,28 +34,15 @@ export default function InfiniteEvents({
 
   useEffect(() => {
     const node = sentinel.current;
+    if (!node || !more || loading) return;
 
-    if (!node || !more || loading) {
-      return;
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- async observer callback; state updates handled inside
     const observer = new IntersectionObserver(async (entries) => {
-      if (!entries[0]?.isIntersecting) {
-        return;
-      }
+      if (!entries[0]?.isIntersecting) return;
       setLoading(true);
-
       try {
-        const res = await fetch(
-          `/api/repos/${owner}/${repo}/events?offset=${offset}`,
-        );
-
-        if (!res.ok) {
-          return;
-        }
+        const res = await fetch(`/api/repos/${owner}/${repo}/events?offset=${offset}`);
+        if (!res.ok) return;
         const data = (await res.json()) as EventsPage;
-
         setEvents((prev) => [...prev, ...data.events]);
         setOffset((prev) => prev + EVENTS_PAGE_SIZE);
         setMore(data.hasMore);
@@ -68,9 +50,7 @@ export default function InfiniteEvents({
         setLoading(false);
       }
     });
-
     observer.observe(node);
-
     return () => observer.disconnect();
   }, [owner, repo, offset, more, loading]);
 
@@ -81,9 +61,20 @@ export default function InfiniteEvents({
       ))}
       {more && (
         <tr ref={sentinel}>
-          <td colSpan={4} className="meta">
-            {loading ? "Loading…" : ""}
+          <td colSpan={4} className="meta" style={{ textAlign: 'center' }}>
+            {loading && (
+              <span
+                className="route-loading-spinner"
+                style={{ width: 14, height: 14, borderWidth: 2, display: 'inline-block', verticalAlign: 'middle', marginRight: 6 }}
+              />
+            )}
+            {loading ? 'Loading more…' : ''}
           </td>
+        </tr>
+      )}
+      {!more && events.length > 0 && (
+        <tr>
+          <td colSpan={4} className="meta" style={{ textAlign: 'center' }}>You&apos;ve reached the end.</td>
         </tr>
       )}
     </>

@@ -96,7 +96,16 @@ export default function AuditView({
               <td><span className={`op-badge op-${e.operation}`}>{humanizeEnum(e.operation)}</span></td>
               <td>{e.memory_key || '—'}</td>
               <td>{e.pool_name || '—'}</td>
-              <td>{e.metadata ? JSON.stringify(e.metadata).substring(0, 50) : '—'}</td>
+              <td>
+                {e.metadata ? (
+                  <details>
+                    <summary className="meta">view</summary>
+                    <pre style={{ margin: '4px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', maxWidth: 420, overflowX: 'auto' }}>
+                      {JSON.stringify(e.metadata, null, 2)}
+                    </pre>
+                  </details>
+                ) : '—'}
+              </td>
             </tr>
           ))}
           {entries.length === 0 && (

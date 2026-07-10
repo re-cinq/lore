@@ -1,4 +1,5 @@
 import { SubmitButton } from '@/components/SubmitButton';
+import { TaskTypeSelect } from '@/components/TaskTypeSelect';
 import styles from './AssemblyLineCreateView.module.css';
 
 export interface AssemblyLineCreateViewProps {
@@ -23,12 +24,14 @@ export default function AssemblyLineCreateView({ onboardedRepos, createTaskActio
         <textarea name="description" rows={4} required placeholder="What should the agent do? Be specific..." />
 
         <label>Task Type</label>
-        <select name="task_type">
-          <option value="general">General</option>
-          <option value="runbook">Runbook</option>
-          <option value="implementation">Implementation</option>
-          <option value="gap-fill">Gap Fill</option>
-        </select>
+        <TaskTypeSelect
+          options={[
+            { value: 'general', label: 'General' },
+            { value: 'runbook', label: 'Runbook' },
+            { value: 'implementation', label: 'Implementation' },
+            { value: 'gap-fill', label: 'Gap Fill' },
+          ]}
+        />
 
         <label>Target Repository</label>
         {onboardedRepos.length > 0 ? (
