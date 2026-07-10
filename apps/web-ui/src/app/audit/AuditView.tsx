@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { TimeAgo } from '@/components/TimeAgo';
-import { humanizeEnum } from '@/lib/humanize';
+import { formatEnumLabel } from '@/lib/enum-label';
 import { displayAgentId } from '@/lib/agent-id';
 import { EmptyState } from '@/components/EmptyState';
 import styles from './AuditView.module.css';
@@ -79,7 +79,7 @@ export default function AuditView({
         <input type="text" name="agent" defaultValue={agent || ''} placeholder="Filter by agent ID..." />
         <select name="op" defaultValue={op || ''}>
           <option value="">All operations</option>
-          {operations.map(o => <option key={o} value={o}>{humanizeEnum(o)}</option>)}
+          {operations.map(o => <option key={o} value={o}>{formatEnumLabel(o)}</option>)}
         </select>
         <button type="submit">Filter</button>
       </form>
@@ -93,7 +93,7 @@ export default function AuditView({
             <tr key={e.id}>
               <td><TimeAgo date={e.created_at} /></td>
               <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
-              <td><span className={`op-badge op-${e.operation}`}>{humanizeEnum(e.operation)}</span></td>
+              <td><span className={`op-badge op-${e.operation}`}>{formatEnumLabel(e.operation)}</span></td>
               <td>{e.memory_key || '—'}</td>
               <td>{e.pool_name || '—'}</td>
               <td>

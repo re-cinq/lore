@@ -1,5 +1,5 @@
 import { TimeAgo } from '@/components/TimeAgo';
-import { humanizeEnum } from '@/lib/humanize';
+import { formatEnumLabel } from '@/lib/enum-label';
 import styles from './EpisodesView.module.css';
 
 export interface EpisodeRow {
@@ -56,7 +56,7 @@ export default function EpisodesView({
       <form method="get" className="filter-form">
         <select name="source" defaultValue={source || ''}>
           <option value="">All sources</option>
-          {sources.map(s => <option key={s} value={s}>{humanizeEnum(s)}</option>)}
+          {sources.map(s => <option key={s} value={s}>{formatEnumLabel(s)}</option>)}
         </select>
         <button type="submit">Filter</button>
       </form>
@@ -70,7 +70,7 @@ export default function EpisodesView({
             <tr key={e.id}>
               <td><TimeAgo date={e.created_at} /></td>
               <td title={e.agent_id}>{e.agent_id.substring(0, 8)}...</td>
-              <td><span className={`op-badge op-${e.source}`}>{humanizeEnum(e.source)}</span></td>
+              <td><span className={`op-badge op-${e.source}`}>{formatEnumLabel(e.source)}</span></td>
               <td>{e.ref || '—'}</td>
               <td>{e.fact_count}</td>
               <td><pre className={styles.contentPre}>{e.content_preview}{e.content_preview.length >= 300 ? '...' : ''}</pre></td>

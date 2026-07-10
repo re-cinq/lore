@@ -5,7 +5,7 @@ import EventRow from './events/EventRow';
 import { type RepoEvent } from './events/pagination';
 import { type Check } from '@/lib/enrollment';
 import { TimeAgo } from '@/components/TimeAgo';
-import { humanizeEnum } from '@/lib/humanize';
+import { formatEnumLabel } from '@/lib/enum-label';
 import styles from './RepoOverviewView.module.css';
 
 export interface RepoReadme {
@@ -110,7 +110,7 @@ export default function RepoOverviewView({
             {recentTasks.map((t) => (
               <tr key={t.id}>
                 <td><Link href={`/assembly-lines/${t.id}`}>{t.description.substring(0, 60)}...</Link></td>
-                <td><span className={`op-badge op-${t.status}`}>{humanizeEnum(t.status)}</span></td>
+                <td><span className={`op-badge op-${t.status}`}>{formatEnumLabel(t.status)}</span></td>
                 <td>{t.pr_url ? <a href={t.pr_url} target="_blank">PR</a> : '—'}</td>
                 <td className="meta"><TimeAgo date={t.created_at} /></td>
               </tr>

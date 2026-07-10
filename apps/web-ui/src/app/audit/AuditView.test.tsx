@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import AuditView, { type AuditEntryRow } from './AuditView';
-import { humanizeEnum } from '@/lib/humanize';
+import { formatEnumLabel } from '@/lib/enum-label';
 
 const OPERATIONS = ['write', 'read', 'search', 'delete', 'snapshot', 'restore', 'shared_write', 'shared_read', 'list'];
 
@@ -122,7 +122,7 @@ describe('AuditView', () => {
     );
     expect(screen.getByRole('option', { name: 'All operations' })).toBeInTheDocument();
     OPERATIONS.forEach(o => {
-      expect(screen.getByRole('option', { name: humanizeEnum(o) })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: formatEnumLabel(o) })).toBeInTheDocument();
     });
   });
 

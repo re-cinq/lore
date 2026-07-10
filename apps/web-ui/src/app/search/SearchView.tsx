@@ -1,4 +1,4 @@
-import { humanizeEnum } from '@/lib/humanize';
+import { formatEnumLabel } from '@/lib/enum-label';
 import styles from './SearchView.module.css';
 
 export interface SearchResult {
@@ -67,7 +67,7 @@ export default function SearchView({ q, repo, repos, results }: SearchViewProps)
           </div>
           <pre>{r.value}</pre>
           <div className="result-source">
-            source: <span className={`op-badge ${sourceBadgeClass(r.source)}`}>{humanizeEnum(r.source)}</span>
+            source: <span className={`op-badge ${sourceBadgeClass(r.source)}`}>{formatEnumLabel(r.source)}</span>
             {r.repo && <span className={`badge ${styles.repoBadge}`}>{r.repo}</span>}
           </div>
         </div>

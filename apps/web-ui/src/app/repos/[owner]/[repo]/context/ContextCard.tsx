@@ -2,7 +2,7 @@ import Link from 'next/link';
 import ChunkBody from './ChunkBody';
 import { badgeClassForType } from '@/lib/content-types';
 import { chunkHeader, type ChunkMeta } from '@/lib/chunk-presenter';
-import { humanizeEnum } from '@/lib/humanize';
+import { formatEnumLabel } from '@/lib/enum-label';
 import { TimeAgo } from '@/components/TimeAgo';
 import styles from './ContextCard.module.css';
 
@@ -36,7 +36,7 @@ export default function ContextCard({ chunk, detailHref, repo, repoLabel }: Cont
   return (
     <div className={styles.card}>
       <div className={styles.head}>
-        <span className={badgeClassForType(chunk.content_type)}>{humanizeEnum(chunk.content_type)}</span>
+        <span className={badgeClassForType(chunk.content_type)}>{formatEnumLabel(chunk.content_type)}</span>
         <Link href={detailHref} className={styles.path}>
           {chunk.file_path}
         </Link>

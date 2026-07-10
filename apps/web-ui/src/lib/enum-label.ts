@@ -16,7 +16,7 @@ const ACRONYMS = new Set([
   'sql',
 ]);
 
-export function humanizeEnum(value: string): string {
+export function formatEnumLabel(value: string): string {
   const words = value.split(/[_-]+/).filter(Boolean);
   if (words.length === 0) return value;
   return words

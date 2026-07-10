@@ -1,5 +1,5 @@
 import { TimeAgo } from '@/components/TimeAgo';
-import { humanizeEnum } from '@/lib/humanize';
+import { formatEnumLabel } from '@/lib/enum-label';
 import { type RepoEvent } from './pagination';
 
 /**
@@ -13,7 +13,7 @@ export default function EventRow({ event }: { event: RepoEvent }) {
       <td className="meta"><TimeAgo date={event.captured_at} /></td>
       <td>{event.event_name}</td>
       <td>{event.source}</td>
-      <td><span className={`op-badge op-${event.status}`}>{humanizeEnum(event.status)}</span></td>
+      <td><span className={`op-badge op-${event.status}`}>{formatEnumLabel(event.status)}</span></td>
     </tr>
   );
 }
