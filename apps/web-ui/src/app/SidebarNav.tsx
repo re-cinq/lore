@@ -12,24 +12,17 @@ interface NavGroup {
   links: { href: string; label: string }[];
 }
 
+// Repo-centric nav (spec 4-ux-repo-onboarding, FR-3.8): everything about a repo
+// lives in its own tabs under /repos/[owner]/[repo]; only genuinely cross-repo
+// views stay at the top level. Repos (home), plus global Search / Audit / Pools,
+// plus the cross-repo Insights.
 const groups: NavGroup[] = [
-  { links: [{ href: "/", label: "Repos" }] },
   {
-    label: "Pipeline",
     links: [
-      { href: "/assembly-lines", label: "Assembly Lines" },
-      { href: "/tasks", label: "Tasks" },
-    ],
-  },
-  {
-    label: "Knowledge",
-    links: [
-      { href: "/context", label: "Context" },
-      { href: "/specs", label: "Specs" },
-      { href: "/gaps", label: "Gaps" },
+      { href: "/", label: "Repos" },
+      { href: "/search", label: "Search" },
+      { href: "/audit", label: "Audit" },
       { href: "/pools", label: "Pools" },
-      { href: "/graph", label: "Graph" },
-      { href: "/episodes", label: "Episodes" },
     ],
   },
   {
@@ -37,15 +30,9 @@ const groups: NavGroup[] = [
     links: [
       { href: "/analytics", label: "Analytics" },
       { href: "/spend", label: "Spend" },
-      { href: "/search", label: "Search" },
-      { href: "/audit", label: "Audit" },
-    ],
-  },
-  {
-    label: "Config",
-    links: [
-      { href: "/agents", label: "Agents" },
-      { href: "/settings", label: "Settings" },
+      { href: "/gaps", label: "Gaps" },
+      { href: "/episodes", label: "Episodes" },
+      { href: "/graph", label: "Graph" },
     ],
   },
 ];
@@ -101,12 +88,20 @@ export default function SidebarNav() {
           );
         })}
       </nav>
-      <NavLink
-        href="/onboard"
-        label="+ Add Repo"
-        active={isNavActive(pathname, "/onboard", "/")}
-        className={styles.addRepo}
-      />
+      <div className={styles.footer}>
+        <NavLink
+          href="/settings"
+          label="Settings"
+          active={isNavActive(pathname, "/settings", "/")}
+          className={styles.footerLink}
+        />
+        <NavLink
+          href="/onboard"
+          label="+ Add Repo"
+          active={isNavActive(pathname, "/onboard", "/")}
+          className={styles.addRepo}
+        />
+      </div>
     </>
   );
 }

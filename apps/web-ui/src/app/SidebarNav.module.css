@@ -44,11 +44,42 @@
   transform: rotate(-90deg);
 }
 
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 8px;
+}
+
+.footerLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.footerLink:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+  text-decoration: none;
+}
+
+.footerLink:global(.active) {
+  color: var(--accent);
+  background: var(--bg-hover);
+}
+
 .addRepo {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 10px 8px;
   padding: 8px 12px;
   background: var(--bg-hover);
   border-radius: var(--radius-sm);

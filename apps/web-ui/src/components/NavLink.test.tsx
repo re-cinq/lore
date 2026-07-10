@@ -12,15 +12,15 @@ vi.mock('next/link', async (importOriginal) => {
 import NavLink, { NavLabel } from './NavLink';
 
 describe('NavLabel', () => {
-  it('applies the pending highlight class when pending', () => {
+  it('shows a loading spinner when pending', () => {
     render(<NavLabel label="Specs" pending={true} />);
-    expect(screen.getByText('Specs')).toHaveClass('nav-label', 'pending');
+    expect(screen.getByText('Specs')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'loading' })).toBeInTheDocument();
   });
 
-  it('omits the pending class and renders no spinner icon when not pending', () => {
+  it('shows no spinner when not pending', () => {
     render(<NavLabel label="Specs" pending={false} />);
-    expect(screen.getByText('Specs')).toHaveClass('nav-label');
-    expect(screen.getByText('Specs')).not.toHaveClass('pending');
+    expect(screen.getByText('Specs')).toBeInTheDocument();
     expect(screen.queryByRole('status')).toBeNull();
   });
 });
@@ -41,9 +41,9 @@ describe('NavLink', () => {
     expect(link).not.toHaveAttribute('aria-current');
   });
 
-  it('applies the pending highlight while the link navigation is pending', () => {
+  it('renders the pending spinner while the link navigation is pending', () => {
     linkStatus.mockReturnValueOnce({ pending: true });
     render(<NavLink href="/x" label="X" active={false} className="tab-link" />);
-    expect(screen.getByText('X')).toHaveClass('nav-label', 'pending');
+    expect(screen.getByRole('status', { name: 'loading' })).toBeInTheDocument();
   });
 });

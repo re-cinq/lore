@@ -143,3 +143,11 @@ describe("UserMenu sign out interaction", () => {
     expect(signOutSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('UserMenu settings link', () => {
+  it('renders no settings link (settings lives in the sidebar nav now)', () => {
+    session = { user: { name: 'Ada' } };
+    render(<UserMenu />);
+    expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull();
+  });
+});

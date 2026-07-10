@@ -5,13 +5,18 @@ import type { CSSProperties } from 'react';
 
 /**
  * Label for a nav link with a pending state. While the link's navigation is in
- * flight (server component still fetching), it takes a `pending` class so the
- * clicked item highlights to the accent immediately (color-only, no reflow).
- * The loading animation itself is the route-level spinner in the content area
- * (app/loading.tsx), not an icon in the nav. Pure on `pending` for unit testing.
+ * flight (server component still fetching), it shows a spinner and a `pending`
+ * class so the clicked item highlights immediately instead of looking dead for
+ * the seconds the page takes to load. Presentational + pure on `pending` so it
+ * is unit-testable without the Link runtime.
  */
 export function NavLabel({ label, pending }: { label: string; pending: boolean }) {
-  return <span className={pending ? 'nav-label pending' : 'nav-label'}>{label}</span>;
+  return (
+    <span className={pending ? 'nav-label pending' : 'nav-label'}>
+      {label}
+      {pending && <span className="nav-spinner" role="status" aria-label="loading" />}
+    </span>
+  );
 }
 
 /** Reads the pending state of its ancestor Link (Next's useLinkStatus). */
