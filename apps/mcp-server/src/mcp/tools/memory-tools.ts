@@ -424,7 +424,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
       try {
         if (isMemoryDbAvailable()) {
           const results = await searchMemories(
-            getPool(),
+            getPool()!,
             query,
             agent_id,
             pool,

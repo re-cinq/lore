@@ -67,7 +67,7 @@ const reqAs = (scopes: string[], method: "GET" | "DELETE", url: string) => {
 
   pool.query.mockResolvedValue({ rows: [{ scopes }] });
 
-  return buildServer(() => pool).inject({
+  return buildServer(() => pool as never).inject({
     method,
     url,
     headers: { authorization: "Bearer scoped-token" },

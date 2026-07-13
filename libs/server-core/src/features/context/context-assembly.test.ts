@@ -78,7 +78,7 @@ describe("assembleContext", () => {
     };
 
     const result = await assembleContext(
-      mockPool,
+      mockPool as unknown as Parameters<typeof assembleContext>[0],
       "test query",
       "default",
       8000,
@@ -110,7 +110,7 @@ describe("assembleContext", () => {
     };
 
     const result = await assembleContext(
-      mockPool,
+      mockPool as unknown as Parameters<typeof assembleContext>[0],
       "test query",
       "default",
       8000,
@@ -135,7 +135,7 @@ describe("assembleContext", () => {
     };
 
     const result = await assembleContext(
-      mockPool,
+      mockPool as unknown as Parameters<typeof assembleContext>[0],
       "test",
       "default",
       2000,
@@ -172,7 +172,7 @@ describe("assembleContext — traceable XML output", () => {
       },
     };
     const result = await assembleContext(
-      mockPool,
+      mockPool as unknown as Parameters<typeof assembleContext>[0],
       "dark factory",
       "implementation",
       8000,
@@ -203,7 +203,7 @@ describe("assembleContext — traceable XML output", () => {
     };
 
     await assembleContext(
-      mockPool,
+      mockPool as unknown as Parameters<typeof assembleContext>[0],
       "auth middleware",
       "implementation",
       8000,
@@ -227,7 +227,7 @@ describe("assembleContext — traceable XML output", () => {
       },
     };
 
-    await assembleContext(mockPool, "x", "implementation", 8000, "o/r");
+    await assembleContext(mockPool as unknown as Parameters<typeof assembleContext>[0], "x", "implementation", 8000, "o/r");
     expect(repoTypes).toEqual(["doc", "spec"]);
     expect(repoTypes).not.toContain("adr");
   });
@@ -257,7 +257,7 @@ describe("assembleContext — traceable XML output", () => {
       },
     };
     const result = await assembleContext(
-      mockPool,
+      mockPool as unknown as Parameters<typeof assembleContext>[0],
       "settings form",
       "implementation",
       8000,
@@ -272,7 +272,7 @@ describe("assembleContext — traceable XML output", () => {
   it("debug trace reports per-section status and omit reason for empty sources", async () => {
     const mockPool = { query: async () => ({ rows: [] }) };
     const result = await assembleContext(
-      mockPool,
+      mockPool as unknown as Parameters<typeof assembleContext>[0],
       "x",
       "implementation",
       8000,

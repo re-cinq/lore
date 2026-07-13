@@ -30,7 +30,10 @@ describe("GET /api/tasks", () => {
   });
 
   it("lists with status and limit", async () => {
-    vi.mocked(listTasks).mockResolvedValue({ tasks: [{ id: 1 }], total: 1 });
+    vi.mocked(listTasks).mockResolvedValue({
+      tasks: [{ id: 1 }],
+      total: 1,
+    } as never);
     await get("/api/tasks?status=pending&limit=5");
     expect(listTasks).toHaveBeenCalledWith("pending", 5, 0);
   });
@@ -50,7 +53,10 @@ describe("GET /api/tasks", () => {
   });
 
   it("passes offset through and returns paging metadata alongside rows", async () => {
-    vi.mocked(listTasks).mockResolvedValue({ tasks: [{ id: 2 }], total: 7 });
+    vi.mocked(listTasks).mockResolvedValue({
+      tasks: [{ id: 2 }],
+      total: 7,
+    } as never);
     const res = await get("/api/tasks?limit=5&offset=10");
 
     expect(listTasks).toHaveBeenCalledWith(undefined, 5, 10);

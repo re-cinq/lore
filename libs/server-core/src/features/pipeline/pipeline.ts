@@ -17,6 +17,8 @@ import {
   updateTaskStatus as sharedUpdateTaskStatus,
   cancelPipelineTask,
   markTaskMerged as sharedMarkTaskMerged,
+  type PipelineTaskRow,
+  type TaskListRow,
 } from "@re-cinq/lore-shared";
 
 // ── Pool management ──────────────────────────────────────────────────
@@ -36,8 +38,15 @@ export function setPipelinePool(p: Pool): void {
 }
 
 // ── Relocated CRUD (single source in shared; thin pool-binding wrappers) ──
-export const getTask = (taskId: string) => getPipelineTask(getPool(), taskId);
-export const listTasks = (status?: string, limit = 50, offset = 0) =>
+export const getTask = (
+  taskId: string,
+): Promise<(PipelineTaskRow & { events: Record<string, unknown>[] }) | null> =>
+  getPipelineTask(getPool(), taskId);
+export const listTasks = (
+  status?: string,
+  limit = 50,
+  offset = 0,
+): Promise<{ tasks: TaskListRow[]; total: number }> =>
   listPipelineTasks(getPool(), status, limit, offset);
 export const recordEvent = (
   taskId: string,
@@ -108,7 +117,7 @@ export async function handleReviewResult(
     // Agent approval logged but human still needs to approve
   } else {
     // Check iteration count
-    const iteration = (task.review_iteration || 0) + 1;
+    const iteration = ((task.review_iteration as number) || 0) + 1;
 
     await getPool().query(
       `UPDATE pipeline.tasks SET review_iteration = $1 WHERE id = $2`,
@@ -126,8 +135,8 @@ export async function handleReviewResult(
       // Re-trigger implementation agent with review feedback (immediate — active feedback loop)
       await createTask(
         `Address review feedback on PR: ${comments.substring(0, 200)}`,
-        task.task_type,
-        task.target_repo,
+        task.task_type as string,
+        task.target_repo ?? undefined,
         "review-agent",
         { branch: task.target_branch, review_comments: comments },
         "immediate",

@@ -10,6 +10,10 @@ export {
   cancelTask as cancelPipelineTask,
   markTaskMerged,
   type CreateTaskInput,
+  type CreatedTask,
+  type RetriedTask,
+  type PipelineTaskRow,
+  type TaskListRow,
 } from "./pipeline-tasks.js";
 export {
   chunkFile,
