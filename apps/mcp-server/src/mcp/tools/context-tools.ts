@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { readFileSync, existsSync } from "node:fs";
@@ -84,9 +85,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
           };
         }
         const text = results
-          .map(
-            (r: any) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`,
-          )
+          .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
           .join("\n\n---\n\n");
 
         return { content: [{ type: "text" as const, text }] };
@@ -209,7 +208,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
     async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
       return trackLatency("lore_assemble_context", async () => {
         try {
-          const dbPoolRef = getPool();
+          const dbPoolRef = getPool()!;
 
           if (!isMemoryDbAvailable()) {
             // Local stdio mode: proxy to GKE through the read-through cache.
@@ -298,7 +297,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
             };
           }
           const enableCrossRepo = await resolveCrossRepo(
-            dbPoolRef,
+            dbPoolRef as Parameters<typeof resolveCrossRepo>[0],
             repo,
             cross_repo,
           );
@@ -327,12 +326,12 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
           return {
             content: [{ type: "text" as const, text: meta + result.text }],
           };
-        } catch (err: any) {
+        } catch (err) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Error assembling context: ${err.message}`,
+                text: `Error assembling context: ${errorMessage(err)}`,
               },
             ],
           };

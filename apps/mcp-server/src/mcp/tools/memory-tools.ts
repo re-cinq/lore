@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createHash } from "node:crypto";
@@ -106,10 +107,10 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
                 const p = getMemoryPool();
 
                 if (p) {
-                  p.query(
+                  p.query<{ id: string }>(
                     `SELECT id FROM memory.memories WHERE key = $1 AND (repo = $2 OR agent_id = $3) ORDER BY version DESC LIMIT 1`,
                     [key, repo || "", resolveAgentId(agent_id)],
-                  ).then((r: any) => {
+                  ).then((r) => {
                     if (r.rows[0]?.id) {
                       extractFacts(r.rows[0].id, value, p).catch(() => {});
                     }
@@ -151,12 +152,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error writing memory: ${err.message}`,
+              text: `Error writing memory: ${errorMessage(err)}`,
             },
           ],
         };
@@ -241,12 +242,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error reading memory: ${err.message}`,
+              text: `Error reading memory: ${errorMessage(err)}`,
             },
           ],
         };
@@ -295,12 +296,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error deleting memory: ${err.message}`,
+              text: `Error deleting memory: ${errorMessage(err)}`,
             },
           ],
         };
@@ -372,12 +373,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error listing memories: ${err.message}`,
+              text: `Error listing memories: ${errorMessage(err)}`,
             },
           ],
         };
@@ -476,12 +477,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             { type: "text" as const, text: JSON.stringify(results, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error searching memories: ${err.message}`,
+              text: `Error searching memories: ${errorMessage(err)}`,
             },
           ],
         };
@@ -514,7 +515,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ content, source, ref, agent_id }) => {
       try {
-        const dbPoolRef = getPool();
+        const dbPoolRef = getPool()!;
 
         if (!isMemoryDbAvailable()) {
           // Proxy to GKE
@@ -557,7 +558,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         const embedding = await getQueryEmbedding(safeContent);
         const embeddingStr = embedding ? `[${embedding.join(",")}]` : null;
 
-        const { rows } = await dbPoolRef.query(
+        const { rows } = await dbPoolRef.query<{ id: string }>(
           `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref, embedding)
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (agent_id, content_hash) DO NOTHING
@@ -587,7 +588,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         extractFactsFromEpisode(episodeId, content, agent, dbPoolRef).catch(
           (err) =>
             console.warn(
-              `[episode] Fact extraction failed for ${episodeId}: ${err.message}`,
+              `[episode] Fact extraction failed for ${episodeId}: ${errorMessage(err)}`,
             ),
         );
 
@@ -606,7 +607,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             graphLlmCall,
           ).catch((err) =>
             console.warn(
-              `[episode] Graph extraction failed for ${episodeId}: ${err.message}`,
+              `[episode] Graph extraction failed for ${episodeId}: ${errorMessage(err)}`,
             ),
           );
         }
@@ -633,12 +634,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error writing episode: ${err.message}`,
+              text: `Error writing episode: ${errorMessage(err)}`,
             },
           ],
         };
@@ -730,7 +731,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             };
           }
           const results = await queryLiveGraph(
-            getPool(),
+            getPool()!,
             entity,
             relation_type,
             repo,
@@ -755,12 +756,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
               { type: "text" as const, text: JSON.stringify(results, null, 2) },
             ],
           };
-        } catch (err: any) {
+        } catch (err) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Error querying graph: ${err.message}`,
+                text: `Error querying graph: ${errorMessage(err)}`,
               },
             ],
           };
@@ -790,7 +791,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             ],
           };
         }
-        const dbPoolRef = getPool();
+        const dbPoolRef = getPool()!;
         const agent = resolveAgentId(agent_id);
 
         // Fetch health, stats, and recent episodes in parallel
@@ -820,7 +821,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             [agent],
           );
 
-          episodeCount = rows[0]?.total || 0;
+          episodeCount = (rows[0]?.total as number) || 0;
         } catch {
           // best-effort: leave episodeCount at 0
         }
@@ -839,12 +840,12 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error fetching agent stats: ${err.message}`,
+              text: `Error fetching agent stats: ${errorMessage(err)}`,
             },
           ],
         };

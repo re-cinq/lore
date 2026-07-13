@@ -19,6 +19,7 @@ vi.mock("./deps.js", async (importOriginal) => ({
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { proxyGetApi } from "./deps.js";
 import { registerRepoTools } from "./repo-tools.js";
+import type { ToolDeps } from "./deps.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
   content: { type: string; text: string }[];
@@ -39,7 +40,9 @@ function handlerFor(name: string, getPool: () => unknown): ToolHandler {
     },
   };
 
-  registerRepoTools(fakeServer as never, { getPool });
+  registerRepoTools(fakeServer as never, {
+    getPool: getPool as ToolDeps["getPool"],
+  });
 
   return handlers[name];
 }

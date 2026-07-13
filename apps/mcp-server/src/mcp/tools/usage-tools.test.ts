@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { registerUsageTools } from "./usage-tools.js";
+import type { ToolDeps } from "./deps.js";
 
 /**
  * Drives the actual registered lore_my_usage / lore_get_analytics handlers via a fake
@@ -27,7 +28,9 @@ function registerWith(getPool: () => unknown) {
     },
   };
 
-  registerUsageTools(fakeServer as never, { getPool });
+  registerUsageTools(fakeServer as never, {
+    getPool: getPool as ToolDeps["getPool"],
+  });
 
   return handlers;
 }

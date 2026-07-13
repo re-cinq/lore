@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ToolDeps } from "./deps.js";
@@ -65,7 +66,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         // Create pipeline task via API
         const apiUrl = process.env.LORE_API_URL || "";
         const token = process.env.LORE_INGEST_TOKEN || "";
-        let taskId = crypto.randomUUID();
+        let taskId: string = crypto.randomUUID();
 
         if (apiUrl && token) {
           try {
@@ -82,7 +83,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
                 created_by: "local-runner",
               }),
             });
-            const data = (await resp.json()) as any;
+            const data = (await resp.json()) as { task_id?: string };
 
             if (data.task_id) {
               taskId = data.task_id;
@@ -109,9 +110,9 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -133,14 +134,14 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
           };
         }
         const lines = tasks.map(
-          (t: any) =>
+          (t) =>
             `${t.taskId.substring(0, 8)} ${t.status} ${t.repo} ${t.branch}${t.prUrl ? " → " + t.prUrl : ""}${t.error ? " ✗ " + t.error : ""}`,
         );
 
         return { content: [{ type: "text" as const, text: lines.join("\n") }] };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -168,9 +169,9 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -200,7 +201,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         // Find the task in local pending list first, then fall back to API
         const pending = listPendingTasks();
         let task = pending.find(
-          (t: any) => t.id === args.task_id || t.id.startsWith(args.task_id),
+          (t) => t.id === args.task_id || t.id.startsWith(args.task_id),
         );
 
         // If not in local cache, try fetching from API (supports cross-repo tasks)
@@ -215,7 +216,15 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
               });
 
               if (resp.ok) {
-                const data = (await resp.json()) as any;
+                const data = (await resp.json()) as {
+                  status?: string;
+                  id: string;
+                  description: string;
+                  task_type: string;
+                  target_repo: string;
+                  issue_number?: number;
+                  created_at: string;
+                };
 
                 if (data.status === "pending") {
                   task = {
@@ -289,9 +298,9 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -373,9 +382,9 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },

@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
@@ -19,7 +20,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ agent_id }) => {
       try {
-        const dbPoolRef = getPool();
+        const dbPoolRef = getPool()!;
 
         if (!dbPoolRef) {
           return {
@@ -43,7 +44,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
             filter: "t.created_at > current_date - interval '30 days'",
           },
         ];
-        const results: any = {};
+        const results: Record<string, unknown> = {};
 
         for (const period of periods) {
           const { rows } = await dbPoolRef.query(
@@ -76,9 +77,9 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -95,7 +96,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ period }) => {
       try {
-        const dbPoolRef = getPool();
+        const dbPoolRef = getPool()!;
 
         if (!process.env.LORE_DB_HOST) {
           return {
@@ -116,10 +117,14 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
         }[period];
 
         const [usageResult, taskResult, byTypeResult] = await Promise.all([
-          dbPoolRef.query(
+          dbPoolRef.query<{
+            calls: string;
+            input_tokens: string;
+            output_tokens: string;
+          }>(
             `SELECT count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`,
           ),
-          dbPoolRef.query(
+          dbPoolRef.query<{ total: string; succeeded: string; failed: string }>(
             `SELECT count(*) as total, count(*) FILTER (WHERE status IN ('pr-created', 'merged')) as succeeded, count(*) FILTER (WHERE status = 'failed') as failed FROM pipeline.tasks WHERE ${periodFilter}`,
           ),
           dbPoolRef.query(
@@ -147,12 +152,12 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
             { type: "text" as const, text: JSON.stringify(analytics, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error fetching analytics: ${err.message}`,
+              text: `Error fetching analytics: ${errorMessage(err)}`,
             },
           ],
         };

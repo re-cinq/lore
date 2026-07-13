@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ToolDeps } from "./deps.js";
@@ -25,9 +26,9 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
         );
 
         return { content: [{ type: "text" as const, text }] };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -59,9 +60,9 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
         );
 
         return { content: [{ type: "text" as const, text }] };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },

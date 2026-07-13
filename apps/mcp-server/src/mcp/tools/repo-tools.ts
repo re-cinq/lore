@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
@@ -185,13 +186,16 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
             content: [
               {
                 type: "text" as const,
-                text: `Ingestion failed: ${(err as any).error || res.statusText}`,
+                text: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
               },
             ],
           };
         }
 
-        const result = (await res.json()) as any;
+        const result = (await res.json()) as {
+          ingested?: number;
+          errors?: number;
+        };
 
         invalidateCache(["lore_assemble_context"], resolvedRepo);
 
@@ -203,9 +207,9 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },

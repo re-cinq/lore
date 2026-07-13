@@ -1,5 +1,17 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+
+/** Loose shape of a pipeline task as returned by the Lore API / pg rows. */
+type RemoteTaskLite = {
+  id: string;
+  target_repo?: string;
+  task_type?: string;
+  issue_number?: number;
+  description?: string;
+  status?: string;
+  context_bundle?: { spec_task_id?: string };
+};
 import {
   createTask,
   getTask,
@@ -141,12 +153,16 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
               content: [
                 {
                   type: "text" as const,
-                  text: `Remote task creation failed: ${(err as any).error || res.statusText}`,
+                  text: `Remote task creation failed: ${(err as { error?: string }).error || res.statusText}`,
                 },
               ],
             };
           }
-          const result = (await res.json()) as any;
+          const result = (await res.json()) as {
+            error?: string;
+            task_id?: string;
+            [k: string]: unknown;
+          };
           const pickupMsg =
             priority === "immediate"
               ? "The GKE agent will pick this up within 30 seconds."
@@ -188,12 +204,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         ]);
 
         return { content: [{ type: "text" as const, text: msg }] };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error creating pipeline task: ${err.message}`,
+              text: `Error creating pipeline task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -262,9 +278,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             { type: "text" as const, text: JSON.stringify(task, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -324,9 +340,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -427,9 +443,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -458,12 +474,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error cancelling task: ${err.message}`,
+              text: `Error cancelling task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -496,12 +512,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error retrying task: ${err.message}`,
+              text: `Error retrying task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -549,8 +565,8 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             ],
           };
         }
-        const completed = rows.filter((t: any) =>
-          ["merged", "completed"].includes(t.status),
+        const completed = rows.filter((t) =>
+          ["merged", "completed"].includes(t.status as string),
         ).length;
         const summary = `Group ${group_id}: ${completed}/${rows.length} completed`;
 
@@ -562,9 +578,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -634,12 +650,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         const summary = `Synced ${result.synced} tasks (${result.created} new) for ${resolvedRepo} / ${spec_slug}.`;
 
         return { content: [{ type: "text" as const, text: summary }] };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error syncing tasks: ${err.message}`,
+              text: `Error syncing tasks: ${errorMessage(err)}`,
             },
           ],
         };
@@ -695,7 +711,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const lines = tasks.map(
-          (t: any) =>
+          (t) =>
             `- **${t.context_bundle?.spec_task_id}** (${t.id}): ${t.description}`,
         );
 
@@ -707,12 +723,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error fetching ready tasks: ${err.message}`,
+              text: `Error fetching ready tasks: ${errorMessage(err)}`,
             },
           ],
         };
@@ -766,12 +782,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error claiming task: ${err.message}`,
+              text: `Error claiming task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -818,12 +834,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         }
 
         return { content: [{ type: "text" as const, text: msg }] };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error completing task: ${err.message}`,
+              text: `Error completing task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -911,9 +927,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             { type: "text" as const, text: "Task logs require LORE_API_URL." },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -999,9 +1015,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -1031,11 +1047,11 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           );
 
           if (resp.ok) {
-            const data = (await resp.json()) as any;
-            let tasks = data.tasks || data || [];
+            const data = (await resp.json()) as { tasks?: RemoteTaskLite[] };
+            let tasks: RemoteTaskLite[] = data.tasks || [];
 
             if (filterRepo) {
-              tasks = tasks.filter((t: any) => t.target_repo === filterRepo);
+              tasks = tasks.filter((t) => t.target_repo === filterRepo);
             }
 
             if (tasks.length === 0) {
@@ -1051,7 +1067,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
               };
             }
             // Group by repo
-            const byRepo = new Map<string, any[]>();
+            const byRepo = new Map<string, RemoteTaskLite[]>();
 
             for (const t of tasks) {
               const r = t.target_repo || "unknown";
@@ -1065,7 +1081,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
             for (const [r, repoTasks] of byRepo) {
               const lines = repoTasks.map(
-                (t: any) =>
+                (t) =>
                   `  ${t.id.substring(0, 8)} ${t.task_type} ${t.issue_number ? "#" + t.issue_number + " " : ""}${(t.description || "").substring(0, 80)}`,
               );
 
@@ -1090,16 +1106,16 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const lines = tasks.map(
-          (t: any) =>
+          (t) =>
             `${t.id.substring(0, 8)} ${t.task_type} ${t.target_repo}${t.issue_number ? " #" + t.issue_number : ""}\n  ${t.description}`,
         );
 
         return {
           content: [{ type: "text" as const, text: lines.join("\n\n") }],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -1126,9 +1142,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -1196,9 +1212,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },
@@ -1220,9 +1236,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             { type: "text" as const, text: "Task notifications stopped." },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
         };
       }
     },

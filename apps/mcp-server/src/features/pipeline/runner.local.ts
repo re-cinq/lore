@@ -1,3 +1,4 @@
+import type { PgPool } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Local Task Runner — manages local task execution via git worktrees
@@ -886,7 +887,7 @@ let notifierInterval: ReturnType<typeof setInterval> | null = null;
 export async function fetchPendingTasks(
   repos: string[],
   taskTypes: string[],
-  dbPool?: any,
+  dbPool?: PgPool,
 ): Promise<PendingTask[]> {
   if (repos.length === 0 || taskTypes.length === 0) {
     return [];
@@ -895,7 +896,14 @@ export async function fetchPendingTasks(
   // ── Direct DB path (MCP server process has a pool) ──
   if (dbPool) {
     try {
-      const { rows } = await dbPool.query(
+      const { rows } = await dbPool.query<{
+        id: string;
+        description: string | null;
+        task_type: string;
+        target_repo: string;
+        created_at: string;
+        issue_number: number | null;
+      }>(
         `SELECT id, description, task_type, target_repo, created_at, issue_number
          FROM pipeline.tasks
          WHERE status = 'pending'
@@ -906,7 +914,7 @@ export async function fetchPendingTasks(
         [repos, taskTypes],
       );
 
-      return rows.map((r: any) => ({
+      return rows.map((r) => ({
         id: r.id,
         description: (r.description || "").substring(0, 200),
         task_type: r.task_type,
@@ -940,13 +948,22 @@ export async function fetchPendingTasks(
     if (!resp.ok) {
       return [];
     }
-    const data = (await resp.json()) as any;
+    const data = (await resp.json()) as {
+      tasks?: Array<{
+        id: string;
+        description?: string;
+        task_type: string;
+        target_repo: string;
+        created_at: string;
+        issue_number?: number;
+      }>;
+    };
     const tasks: PendingTask[] = (data.tasks || [])
       .filter(
-        (t: any) =>
+        (t) =>
           repos.includes(t.target_repo) && taskTypes.includes(t.task_type),
       )
-      .map((t: any) => ({
+      .map((t) => ({
         id: t.id,
         description: (t.description || "").substring(0, 200),
         task_type: t.task_type,
@@ -972,7 +989,7 @@ export async function fetchPendingTasks(
 export function startNotifier(
   repos: string[],
   taskTypes: string[],
-  dbPool?: any,
+  dbPool?: PgPool,
 ): void {
   if (notifierInterval) {
     return;
