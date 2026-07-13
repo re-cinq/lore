@@ -21,7 +21,10 @@ function fakePool(
   let call = 0;
 
   return {
-    query: async <T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> => {
+    query: async <T>(
+      text: string,
+      params?: unknown[],
+    ): Promise<{ rows: T[] }> => {
       capture.push({ text, params });
 
       return { rows: (byCall[call++] ?? []) as T[] };
@@ -107,7 +110,7 @@ describe("PgKnowledge", () => {
           };
         }
 
-        return { rows: ([]) as T[] };
+        return { rows: [] as T[] };
       },
     };
     const pg = new PgKnowledge(sqlKeyedPool);

@@ -242,10 +242,11 @@ export async function fetchPrStatus(
           state?: string;
           submitted_at?: string;
         }) => ({
-        user: r.user?.login || "unknown",
-        state: r.state ?? "",
-        submitted_at: r.submitted_at || "",
-      }))
+          user: r.user?.login || "unknown",
+          state: r.state ?? "",
+          submitted_at: r.submitted_at || "",
+        }),
+      )
     : [];
 
   const computed_status = deriveComputedStatus(pr, checks, reviewList);

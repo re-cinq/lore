@@ -129,7 +129,10 @@ export async function createTask(
         }
       }
     } catch (err) {
-      if (err instanceof Error && err.message.includes("not allowed at trust level")) {
+      if (
+        err instanceof Error &&
+        err.message.includes("not allowed at trust level")
+      ) {
         throw err;
       }
       // Non-trust errors are non-fatal

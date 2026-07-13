@@ -310,7 +310,10 @@ export async function handleOnboard(
     console.error(
       `[floor] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${errorMessage(err)}`,
     );
-    failures.push({ step: LORE_INGEST_WORKFLOW_PATH, error: errorMessage(err) });
+    failures.push({
+      step: LORE_INGEST_WORKFLOW_PATH,
+      error: errorMessage(err),
+    });
   }
 
   // Always (re)install the advisory spec-impact workflow alongside ingest. It is
@@ -331,7 +334,10 @@ export async function handleOnboard(
     console.error(
       `[floor] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${errorMessage(err)}`,
     );
-    failures.push({ step: TRACE_IMPACT_WORKFLOW_PATH, error: errorMessage(err) });
+    failures.push({
+      step: TRACE_IMPACT_WORKFLOW_PATH,
+      error: errorMessage(err),
+    });
   }
 
   // 5. Commit static files first
@@ -350,7 +356,9 @@ export async function handleOnboard(
         committed.push(sf.path);
         console.log(`[floor] Onboard: committed ${sf.path} (static)`);
       } catch (err) {
-        console.error(`[floor] Onboard: failed ${sf.path}: ${errorMessage(err)}`);
+        console.error(
+          `[floor] Onboard: failed ${sf.path}: ${errorMessage(err)}`,
+        );
         failures.push({ step: sf.path, error: errorMessage(err) });
       }
     }

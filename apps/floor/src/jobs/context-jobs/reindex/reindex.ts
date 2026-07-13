@@ -224,7 +224,9 @@ export async function reindexJob(): Promise<string> {
         `[job] Finished ${repo.full_name}: ${repoFileCount} files reindexed`,
       );
     } catch (err) {
-      console.error(`[job] Error reindexing ${repo.full_name}: ${errorMessage(err)}`);
+      console.error(
+        `[job] Error reindexing ${repo.full_name}: ${errorMessage(err)}`,
+      );
     }
   }
 

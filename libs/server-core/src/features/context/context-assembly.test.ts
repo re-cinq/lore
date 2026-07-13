@@ -227,7 +227,13 @@ describe("assembleContext — traceable XML output", () => {
       },
     };
 
-    await assembleContext(mockPool as unknown as Parameters<typeof assembleContext>[0], "x", "implementation", 8000, "o/r");
+    await assembleContext(
+      mockPool as unknown as Parameters<typeof assembleContext>[0],
+      "x",
+      "implementation",
+      8000,
+      "o/r",
+    );
     expect(repoTypes).toEqual(["doc", "spec"]);
     expect(repoTypes).not.toContain("adr");
   });

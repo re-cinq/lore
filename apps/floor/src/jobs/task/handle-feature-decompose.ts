@@ -55,8 +55,7 @@ export async function handleFeatureDecompose(
   targetRepo: string,
 ): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id as
-    | string
-    | undefined;
+    string | undefined;
 
   enforceTrue(
     featureId,
@@ -175,7 +174,9 @@ export async function handleFeatureDecompose(
     );
   } catch (err) {
     await setStatus(task.id, "failed", { failure_reason: errorMessage(err) });
-    await insertEvent(task.id, "running", "failed", { reason: errorMessage(err) });
+    await insertEvent(task.id, "running", "failed", {
+      reason: errorMessage(err),
+    });
     console.error(
       `[floor] feature-decompose failed for feature ${featureId}: ${errorMessage(err)}`,
     );

@@ -123,7 +123,9 @@ export async function backfillMemoryToDgraph(deps: {
     value: string;
     version: number;
     embedding: unknown;
-  }>("SELECT id, agent_id, key, value, version, embedding FROM memory.memories");
+  }>(
+    "SELECT id, agent_id, key, value, version, embedding FROM memory.memories",
+  );
   const memoryCount = await migratePass(
     deps.dgraph,
     memories,

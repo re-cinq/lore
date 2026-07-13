@@ -960,8 +960,7 @@ export async function fetchPendingTasks(
     };
     const tasks: PendingTask[] = (data.tasks || [])
       .filter(
-        (t) =>
-          repos.includes(t.target_repo) && taskTypes.includes(t.task_type),
+        (t) => repos.includes(t.target_repo) && taskTypes.includes(t.task_type),
       )
       .map((t) => ({
         id: t.id,

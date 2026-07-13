@@ -8,11 +8,7 @@
  * the live one before cutover.
  */
 
-import type {
-  MemoryRecord,
-  MemoryStore,
-  WriteResult,
-} from "./memory-store.js";
+import type { MemoryRecord, MemoryStore, WriteResult } from "./memory-store.js";
 
 // ── Contract ─────────────────────────────────────────────────────────
 

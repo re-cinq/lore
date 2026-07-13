@@ -80,7 +80,10 @@ describe("handleFeatureRequest", () => {
     );
 
     await handleFeatureRequest(
-      { id: "task-1", description: "Add health checks" } as unknown as PipelineTask,
+      {
+        id: "task-1",
+        description: "Add health checks",
+      } as unknown as PipelineTask,
       "re-cinq/app",
       "lore/spec",
       undefined,
@@ -102,7 +105,10 @@ describe("handleFeatureRequest", () => {
 
     await expect(
       handleFeatureRequest(
-        { id: "task-1", description: "Add health checks" } as unknown as PipelineTask,
+        {
+          id: "task-1",
+          description: "Add health checks",
+        } as unknown as PipelineTask,
         "re-cinq/app",
         "lore/spec",
         undefined,

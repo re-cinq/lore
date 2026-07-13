@@ -144,10 +144,7 @@ function checkGuardianIsolation(doc: unknown): string[] {
   for (const envEntry of findEnvEntries(doc)) {
     const secretName = asRec(asRec(envEntry.valueFrom)?.secretKeyRef)?.name;
 
-    if (
-      GUARDIAN.test(str(envEntry.name)) ||
-      GUARDIAN.test(str(secretName))
-    ) {
+    if (GUARDIAN.test(str(envEntry.name)) || GUARDIAN.test(str(secretName))) {
       violations.push(
         `guardian credential referenced in runtime workload ${where}: the guardian credential must be used only by the pre-install bootstrap Job`,
       );

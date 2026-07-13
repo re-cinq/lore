@@ -742,10 +742,7 @@ const fetchers: Record<string, SourceFetcher> = {
     try {
       const { rows: repoRows } = await pool.query<{
         settings: { cross_repo_repos?: string[] } | null;
-      }>(
-        `SELECT settings FROM lore.repos WHERE full_name = $1`,
-        [repo],
-      );
+      }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
       const linkedRepos: string[] =
         repoRows[0]?.settings?.cross_repo_repos || [];
 
@@ -812,10 +809,7 @@ const fetchers: Record<string, SourceFetcher> = {
     try {
       const { rows } = await pool.query<{
         settings: { incidents?: Incident[] } | null;
-      }>(
-        `SELECT settings FROM lore.repos WHERE full_name = $1`,
-        [repo],
-      );
+      }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
       const settings = rows[0]?.settings;
 
       if (
@@ -894,10 +888,9 @@ export async function assembleContext(
     try {
       const { rows } = await pool.query<{
         last_ingested_at: string | Date | null;
-      }>(
-        `SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`,
-        [repo],
-      );
+      }>(`SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`, [
+        repo,
+      ]);
 
       if (rows.length === 0) {
         freshnessState = "first-run";

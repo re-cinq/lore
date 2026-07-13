@@ -236,7 +236,11 @@ async function keywordSearchMemories(
       AND ($2::text IS NULL OR m.agent_id = $2)
       AND ($3::uuid IS NULL OR m.pool_id = $3)
     LIMIT 20`;
-  const { rows } = await pool.query<SearchSqlRow>(sql, [pattern, agentId, poolId]);
+  const { rows } = await pool.query<SearchSqlRow>(sql, [
+    pattern,
+    agentId,
+    poolId,
+  ]);
 
   return rows.map((r) => ({
     id: r.id,

@@ -45,7 +45,9 @@ export function webhookStatusRoute(): ServerRoute {
         // 403 = the App lacks the Webhooks permission. Surface as unknown so the UI
         // degrades gracefully (like the githubFiles 'no access' state).
         const reason =
-          (err as { status?: number })?.status === 403 ? "app_no_webhook_permission" : "read_failed";
+          (err as { status?: number })?.status === 403
+            ? "app_no_webhook_permission"
+            : "read_failed";
 
         return h.response({ state: "unknown", canonicalUrl: url, reason });
       }
@@ -114,7 +116,9 @@ export function webhookEnsureRoute(): ServerRoute {
           classifyWebhook(await listRepoWebhooks(repo), canonicalUrl()),
         );
       } catch (err) {
-        return h.response({ error: errorMessage(err) || String(err) }).code(500);
+        return h
+          .response({ error: errorMessage(err) || String(err) })
+          .code(500);
       }
     },
   };

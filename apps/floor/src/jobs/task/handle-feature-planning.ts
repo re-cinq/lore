@@ -29,11 +29,9 @@ export async function handleFeaturePlanning(
   targetRepo: string,
 ): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id as
-    | string
-    | undefined;
+    string | undefined;
   const iteration: number | undefined = task.context_bundle?.iteration as
-    | number
-    | undefined;
+    number | undefined;
 
   enforceTrue(
     featureId && iteration != null,
@@ -100,7 +98,9 @@ export async function handleFeaturePlanning(
       await features.transitionStatus(featureId, "draft").catch(() => {});
     }
     await setStatus(task.id, "failed", { failure_reason: errorMessage(err) });
-    await insertEvent(task.id, "running", "failed", { reason: errorMessage(err) });
+    await insertEvent(task.id, "running", "failed", {
+      reason: errorMessage(err),
+    });
     console.error(
       `[floor] feature-planning round ${iteration} failed for feature ${featureId}: ${errorMessage(err)}`,
     );

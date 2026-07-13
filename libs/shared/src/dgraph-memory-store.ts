@@ -87,7 +87,9 @@ interface MemoryRow {
  * literals. `uid` carries no prefix and passes through untouched. The single
  * authoritative place the `Memory.` predicate naming is peeled back.
  */
-function stripMemoryPrefix(row: Record<string, unknown>): Record<string, unknown> {
+function stripMemoryPrefix(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
 
   for (const [predicate, value] of Object.entries(row)) {
@@ -157,9 +159,8 @@ function flattenHops(
 
   for (const rel of rels) {
     const targetNode = rel["GraphRel.target"];
-    const target = (
-      Array.isArray(targetNode) ? targetNode[0] : targetNode
-    ) as Record<string, unknown> | undefined;
+    const target = (Array.isArray(targetNode) ? targetNode[0] : targetNode) as
+      Record<string, unknown> | undefined;
 
     hops.push({
       entity: entity["Entity.name"] as string,

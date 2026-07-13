@@ -10,7 +10,10 @@ function fakePool(queued: Record<string, unknown>[][]): {
   const calls: { text: string; params?: unknown[] }[] = [];
   let i = 0;
   const pool: PgPool = {
-    query: async <T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> => {
+    query: async <T>(
+      text: string,
+      params?: unknown[],
+    ): Promise<{ rows: T[] }> => {
       calls.push({ text, params });
 
       return { rows: (queued[i++] ?? []) as T[] };

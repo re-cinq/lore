@@ -197,7 +197,10 @@ describe("hybridChunkItems", () => {
     vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
     const calls: Array<{ text: string; params?: unknown[] }> = [];
     const pool = {
-      query: async <T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> => {
+      query: async <T>(
+        text: string,
+        params?: unknown[],
+      ): Promise<{ rows: T[] }> => {
         calls.push({ text, params });
 
         return {
@@ -234,7 +237,10 @@ describe("hybridChunkItems", () => {
     vi.mocked(getQueryEmbedding).mockResolvedValueOnce([0.1, 0.2, 0.3]);
     const calls: Array<{ text: string; params?: unknown[] }> = [];
     const pool = {
-      query: async <T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> => {
+      query: async <T>(
+        text: string,
+        params?: unknown[],
+      ): Promise<{ rows: T[] }> => {
         calls.push({ text, params });
 
         return {

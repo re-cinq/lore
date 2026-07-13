@@ -82,7 +82,9 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
     try {
       entries = await project.repo.list(dir);
     } catch (err) {
-      console.error(`[floor] Error listing ${fullName}/${dir}: ${errorMessage(err)}`);
+      console.error(
+        `[floor] Error listing ${fullName}/${dir}: ${errorMessage(err)}`,
+      );
       continue;
     }
 

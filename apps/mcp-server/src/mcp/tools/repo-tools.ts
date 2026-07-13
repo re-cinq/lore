@@ -209,7 +209,9 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
         };
       } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },

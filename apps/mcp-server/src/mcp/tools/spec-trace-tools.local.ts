@@ -28,7 +28,9 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
         return { content: [{ type: "text" as const, text }] };
       } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -62,7 +64,9 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
         return { content: [{ type: "text" as const, text }] };
       } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${errorMessage(err)}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },

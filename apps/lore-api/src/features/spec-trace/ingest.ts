@@ -122,7 +122,11 @@ export async function ingestFiles(
             }
             break; // success
           } catch (err) {
-            if ((err as { status?: number }).status === 404 && ref === commit && commit !== "HEAD") {
+            if (
+              (err as { status?: number }).status === 404 &&
+              ref === commit &&
+              commit !== "HEAD"
+            ) {
               // Commit doesn't exist in this repo — retry with HEAD
               continue;
             }
@@ -229,8 +233,15 @@ export async function ingestFiles(
       });
       ingested++;
     } catch (err) {
-      console.error(`[ingest] Error processing ${filePath}:`, errorMessage(err));
-      results.push({ file: filePath, status: "error", error: errorMessage(err) });
+      console.error(
+        `[ingest] Error processing ${filePath}:`,
+        errorMessage(err),
+      );
+      results.push({
+        file: filePath,
+        status: "error",
+        error: errorMessage(err),
+      });
       errors++;
     }
   }
