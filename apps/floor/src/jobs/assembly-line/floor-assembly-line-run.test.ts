@@ -109,7 +109,7 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
     // retrospective are stations (ADR-031 amendment: no in-process node handlers).
     expect(dispatched).toHaveLength(3);
     expect(dispatched[0]).toMatchObject({ name: "a1b2c3d4-implement", prompt: "prompt:implement" });
-    expect(dispatched[1]).toMatchObject({ name: "a1b2c3d4-ci", stationRef: "def-github_action" });
+    expect(dispatched[1]).toMatchObject({ name: "a1b2c3d4-ci", stationRef: "def-github-action" });
     expect(dispatched[2]).toMatchObject({ name: "a1b2c3d4-wrap", stationRef: "def-retrospective" });
 
     // Branch-as-state: stage commits with trailers landed on the branch.

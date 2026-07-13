@@ -16,6 +16,7 @@ import {
   type ProductionHandlersDeps,
 } from "@re-cinq/lore-assembly-lines";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import { stationName } from "../agent/agent-catalog.js";
 
 export interface FloorAssemblyLineTask {
   taskId: string;
@@ -79,7 +80,7 @@ export function nodeStationSpec(node: AssemblyLineNode, task: FloorAssemblyLineT
     targetRepo: task.targetRepo,
     branch: task.branch,
     name: nodeAgentName(task.assemblyLineId, node.id),
-    stationRef: node.station_ref ?? `def-${node.type}`,
+    stationRef: node.station_ref ?? stationName(node.type),
     parameters: {
       station_input: JSON.stringify({
         assembly_line_id: task.assemblyLineId,

@@ -953,7 +953,7 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
-  name: def-github_action
+  name: def-github-action
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
   namespace: {{ .Values.namespace }}
@@ -979,14 +979,14 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
-  name: def-github_action
+  name: def-github-action
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
   namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  agentDefRef: def-github_action
+  agentDefRef: def-github-action
   deadlineMinutes: 60
   template:
     spec:
