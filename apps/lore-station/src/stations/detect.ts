@@ -37,11 +37,13 @@ export async function runDetectStation(
 ): Promise<NodeResult> {
   const jobRef = input.params.job_ref;
   const detector = jobRef ? detectors[jobRef] : undefined;
+
   enforceTrue(
     detector,
     new Error(`detect station: no detector for job_ref "${jobRef}"`),
   );
   const summary = await detector(input.repo, makeProject(input.repo));
+
   return {
     outcome: "success",
     extras: { "Lore-Detect-Summary": summary.slice(0, DETECT_SUMMARY_MAX) },

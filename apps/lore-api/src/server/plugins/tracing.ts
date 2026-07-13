@@ -31,6 +31,7 @@ export function registerRequestTracing(server: Server): void {
         "http.target": request.path,
       },
     });
+
     return h.continue;
   });
 
@@ -39,6 +40,7 @@ export function registerRequestTracing(server: Server): void {
     const statusCode = Boom.isBoom(res)
       ? res.output.statusCode
       : res.statusCode;
+
     // The request/latency metrics the old server recorded via traceHttp, for
     // every request. `request.info.received` is the epoch-ms request start.
     traceHttp(
@@ -49,16 +51,22 @@ export function registerRequestTracing(server: Server): void {
     );
 
     const span = request.app.span;
-    if (!span) return h.continue;
+
+    if (!span) {
+      return h.continue;
+    }
     const route = request.route?.path ?? request.path;
+
     span.updateName(`${request.method.toUpperCase()} ${route}`);
     span.setAttribute("http.route", route);
     span.setAttribute("http.status_code", statusCode);
+
     if (Boom.isBoom(res)) {
       span.recordException(res);
       span.setStatus({ code: SpanStatusCode.ERROR, message: res.message });
     }
     span.end();
+
     return h.continue;
   });
 }

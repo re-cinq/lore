@@ -21,6 +21,7 @@ export async function buildContextBundle(
       if (existsSync(file)) {
         const content = readFileSync(file, "utf8");
         const label = file.includes("spec") ? "Spec" : "Constitution";
+
         parts.push(`## ${label}\n${content}`);
       }
     }

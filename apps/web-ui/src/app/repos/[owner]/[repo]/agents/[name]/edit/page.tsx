@@ -27,10 +27,17 @@ export default async function EditAgent({
   ): Promise<AgentFormState> {
     "use server";
     const { name: parsedName, def, approvalPr } = parseAgentForm(formData);
-    if (!parsedName) return { error: "name required" };
+
+    if (!parsedName) {
+      return { error: "name required" };
+    }
     // isUpdate=true → upserts the repo's project row (forks an org definition on first edit).
     const r = await saveAgent(fullName, def, true, approvalPr);
-    if (r.status === "ok") redirect(`/repos/${fullName}/agents`);
+
+    if (r.status === "ok") {
+      redirect(`/repos/${fullName}/agents`);
+    }
+
     return saveResultToState(r);
   }
 

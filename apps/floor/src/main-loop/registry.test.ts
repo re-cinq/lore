@@ -26,6 +26,7 @@ describe("buildRegistry", () => {
     const missing = producibleEventNames().filter(
       (name) => !registry.has(name),
     );
+
     expect(missing).toEqual([]);
   });
 
@@ -63,6 +64,7 @@ describe("withExtra", () => {
       },
       async () => {},
     );
+
     await expect(composed({})).rejects.toThrow("primary boom");
   });
 

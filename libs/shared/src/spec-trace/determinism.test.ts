@@ -66,6 +66,7 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
    */
   async function snapshot(repo: string): Promise<NodeRecord[]> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query g($repo: string){
@@ -88,10 +89,12 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
       const data = res.data as Record<string, Array<Record<string, unknown>>>;
 
       const records: NodeRecord[] = [];
+
       for (const [group, nodes] of Object.entries(data)) {
         for (const node of nodes ?? []) {
           const xidKey = Object.keys(node).find((k) => k.endsWith(".xid"))!;
           const fields: Record<string, unknown> = {};
+
           for (const [pred, value] of Object.entries(node)) {
             if (Array.isArray(value)) {
               // an outgoing edge — normalize to a sorted array of target xids
@@ -110,6 +113,7 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
           records.push({ key: `${group}|${node[xidKey] as string}`, fields });
         }
       }
+
       return records.sort((a, b) => a.key.localeCompare(b.key));
     } finally {
       await txn.discard().catch(() => {});
@@ -118,6 +122,7 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -137,6 +142,7 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
       const uids = Object.values(data)
         .flat()
         .map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -175,18 +181,23 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
   }
 
   let createdRepo = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
     createdRepo = "";
   });
 
   describe("The graph is a derived projection only — no DB linker tables are reintroduced; deleting the entire graph and re-running the units from markdown + chunks + coverage reproduces it exactly.", () => {
     it("reproduces the identical subgraph after deleting it and re-running the units", async () => {
       const repo = `determinism/${randomUUID()}`;
+
       createdRepo = repo;
 
       await runUnits(repo);
       const before = await snapshot(repo);
+
       expect(before.length).toBeGreaterThan(0);
 
       await deleteRepoNodes(repo);

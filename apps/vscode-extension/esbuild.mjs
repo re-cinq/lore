@@ -18,8 +18,10 @@ const options = {
 };
 
 const watch = process.argv.includes("--watch");
+
 if (watch) {
   const ctx = await context(options);
+
   await ctx.watch();
 } else {
   await build(options);

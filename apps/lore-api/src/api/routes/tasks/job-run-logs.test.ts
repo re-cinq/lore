@@ -9,13 +9,16 @@ import {
 const storage = vi.hoisted(() => {
   const file = { save: vi.fn(), exists: vi.fn(), download: vi.fn() };
   const bucketObj = { file: vi.fn(() => file) };
+
   class Storage {
     bucket() {
       return bucketObj;
     }
   }
+
   return { file, Storage };
 });
+
 vi.mock("@google-cloud/storage", () => ({ Storage: storage.Storage }));
 
 const originalEnv = { ...process.env };
@@ -34,12 +37,14 @@ describe("GET /api/job-run-logs", () => {
 
   it("returns 400 when params missing", async () => {
     const res = await get("/api/job-run-logs?job_name=j");
+
     expect(res.statusCode).toBe(400);
   });
 
   it("returns empty and incomplete when the file does not exist", async () => {
     storage.file.exists.mockResolvedValue([false]);
     const res = await get("/api/job-run-logs?job_name=j&run_id=r");
+
     expect(res.result).toEqual({ logs: "", complete: false });
   });
 
@@ -47,12 +52,14 @@ describe("GET /api/job-run-logs", () => {
     storage.file.exists.mockResolvedValue([true]);
     storage.file.download.mockResolvedValue([Buffer.from("job output")]);
     const res = await get("/api/job-run-logs?job_name=j&run_id=r");
+
     expect(res.result).toEqual({ logs: "job output", complete: true });
   });
 
   it("returns 500 when storage throws", async () => {
     storage.file.exists.mockRejectedValue(new Error("gcs"));
     const res = await get("/api/job-run-logs?job_name=j&run_id=r");
+
     expect(res.statusCode).toBe(500);
   });
 });

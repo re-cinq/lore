@@ -1,3 +1,5 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Onboard handler (per-file LLM calls).
@@ -172,17 +174,19 @@ const ADR_TOPICS = [
 ];
 
 export async function handleOnboard(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
   branchName: string,
   model: string | undefined,
   issueNumber: number | null,
 ): Promise<void> {
   const project = await projectFor(targetRepo);
+
   // 1. Pre-fetch repo context
   console.log(`[floor] Onboard: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
   const contextStr = JSON.stringify(context, null, 2);
+
   console.log(
     `[floor] Onboard: ${context.tree.length} tree entries, ${Object.keys(context.files).length} files`,
   );
@@ -219,26 +223,31 @@ export async function handleOnboard(
   // Declining (not merging the scaffold) leaves the repo in documented fallback
   // mode with no error — the scaffold is a suggestion, never enforced.
   let settingsTestCommands: unknown;
+
   try {
     const repoSettings = await settings().rawSettings(targetRepo);
+
     settingsTestCommands = (repoSettings as { test_commands?: unknown } | null)
       ?.test_commands;
-  } catch (err: any) {
+  } catch (err) {
     console.warn(
-      `[floor] Onboard: could not read repo settings for test-interface check: ${err.message}`,
+      `[floor] Onboard: could not read repo settings for test-interface check: ${errorMessage(err)}`,
     );
   }
   const interfaceCheck = decideTestInterfaceCheck({
     manifestFileDeclared: existingFiles.has(".lore/test-commands.yml"),
     settingsTestCommands,
   });
+
   if (interfaceCheck.status === "configured") {
     console.log(
       "[floor] Onboard: test interface already configured — scaffolding nothing",
     );
   } else {
     for (const scaffoldPath of interfaceCheck.files) {
-      if (existingFiles.has(scaffoldPath)) continue;
+      if (existingFiles.has(scaffoldPath)) {
+        continue;
+      }
       toGenerate.push({
         path: scaffoldPath,
         prompt:
@@ -252,8 +261,10 @@ export async function handleOnboard(
   // ADRs: generate if no adrs/ directory exists
   if (!hasAdrs) {
     let adrNum = 1;
+
     for (const adr of ADR_TOPICS) {
       const padded = String(adrNum).padStart(3, "0");
+
       toGenerate.push({
         path: `adrs/ADR-${padded}-${adr.slug}.md`,
         prompt:
@@ -295,11 +306,14 @@ export async function handleOnboard(
     console.log(
       `[floor] Onboard: committed ${LORE_INGEST_WORKFLOW_PATH} (workflow)`,
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error(
-      `[floor] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${err.message}`,
+      `[floor] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${errorMessage(err)}`,
     );
-    failures.push({ step: LORE_INGEST_WORKFLOW_PATH, error: err.message });
+    failures.push({
+      step: LORE_INGEST_WORKFLOW_PATH,
+      error: errorMessage(err),
+    });
   }
 
   // Always (re)install the advisory spec-impact workflow alongside ingest. It is
@@ -316,11 +330,14 @@ export async function handleOnboard(
     console.log(
       `[floor] Onboard: committed ${TRACE_IMPACT_WORKFLOW_PATH} (workflow)`,
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error(
-      `[floor] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${err.message}`,
+      `[floor] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${errorMessage(err)}`,
     );
-    failures.push({ step: TRACE_IMPACT_WORKFLOW_PATH, error: err.message });
+    failures.push({
+      step: TRACE_IMPACT_WORKFLOW_PATH,
+      error: errorMessage(err),
+    });
   }
 
   // 5. Commit static files first
@@ -338,9 +355,11 @@ export async function handleOnboard(
         );
         committed.push(sf.path);
         console.log(`[floor] Onboard: committed ${sf.path} (static)`);
-      } catch (err: any) {
-        console.error(`[floor] Onboard: failed ${sf.path}: ${err.message}`);
-        failures.push({ step: sf.path, error: err.message });
+      } catch (err) {
+        console.error(
+          `[floor] Onboard: failed ${sf.path}: ${errorMessage(err)}`,
+        );
+        failures.push({ step: sf.path, error: errorMessage(err) });
       }
     }
   }
@@ -358,6 +377,7 @@ export async function handleOnboard(
 
       // Skip if model says to skip (e.g., no database detected)
       const text = result.text.trim();
+
       if (text === "SKIP" || text.length < 20) {
         console.log(
           `[floor] Onboard: skipping ${file.path} (model returned SKIP)`,
@@ -375,17 +395,18 @@ export async function handleOnboard(
       console.log(
         `[floor] Onboard: committed ${file.path} (${text.length} chars)`,
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[floor] Onboard: failed to generate ${file.path}: ${err.message}`,
+        `[floor] Onboard: failed to generate ${file.path}: ${errorMessage(err)}`,
       );
-      failures.push({ step: file.path, error: err.message });
+      failures.push({ step: file.path, error: errorMessage(err) });
       // Continue with other files — don't fail the whole task
     }
   }
 
   if (committed.length === 0) {
     const { summary, details } = summarizeFailures(failures);
+
     throw new TaskFailure(
       summary
         ? `Failed to generate any onboarding files — ${summary}`
@@ -403,6 +424,7 @@ export async function handleOnboard(
     "main",
     ["lore-onboarding"],
   );
+
   await linkPrToIssue(targetRepo, issueNumber, pr.url);
 
   // Update lore.repos with the PR URL
@@ -438,15 +460,17 @@ export async function handleOnboard(
   // Configure ingest secrets on the repo so lore-ingest.yml can call back
   const ingestUrl = process.env.LORE_INGEST_URL || "";
   const ingestToken = process.env.LORE_INGEST_TOKEN;
+
   try {
     await project.settings.setRepoVariable("LORE_INGEST_URL", ingestUrl);
+
     if (ingestToken) {
       await project.settings.setRepoSecret("LORE_INGEST_TOKEN", ingestToken);
     }
     console.log(`[floor] Configured ingest secrets on ${targetRepo}`);
-  } catch (err: any) {
+  } catch (err) {
     console.error(
-      `[floor] Failed to set ingest secrets on ${targetRepo}: ${err.message}`,
+      `[floor] Failed to set ingest secrets on ${targetRepo}: ${errorMessage(err)}`,
     );
     // Non-fatal — PR still created, secrets can be set manually
   }

@@ -9,6 +9,7 @@ describe("withBackoff", () => {
       delaysMs: [1000, 4000],
       sleep,
     });
+
     expect(result).toBe("ok");
     expect(sleep).not.toHaveBeenCalled();
   });
@@ -20,10 +21,12 @@ describe("withBackoff", () => {
       async () => {
         calls += 1;
         enforceTrue(calls >= 3, new Error(`fail ${calls}`));
+
         return "recovered";
       },
       { delaysMs: [1000, 4000], sleep },
     );
+
     expect(result).toBe("recovered");
     expect(calls).toBe(3);
     expect(sleep.mock.calls.map((c) => c[0])).toEqual([1000, 4000]);
@@ -32,6 +35,7 @@ describe("withBackoff", () => {
   it("rethrows the last error after exhausting all attempts", async () => {
     const sleep = vi.fn(async (_ms: number) => {});
     let calls = 0;
+
     await expect(
       withBackoff(
         async () => {

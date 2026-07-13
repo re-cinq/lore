@@ -141,6 +141,7 @@ function computeRing(specPath: string, ring: SpecRing): ExpandData {
     .value((s) => s.total + 1.2)(ring.sections);
   const sections: SectionArc[] = pie.map((p) => {
     span.set(p.data.uid, { a0: p.startAngle, a1: p.endAngle });
+
     return {
       uid: p.data.uid,
       heading: p.data.heading,
@@ -157,21 +158,29 @@ function computeRing(specPath: string, ring: SpecRing): ExpandData {
   });
 
   const bySec = new Map<string, RingStatement[]>();
-  for (const st of ring.statements)
+
+  for (const st of ring.statements) {
     (
       bySec.get(st.sectionUid) ??
       bySec.set(st.sectionUid, []).get(st.sectionUid)!
     ).push(st);
+  }
 
   const statements: StatementArc[] = [];
+
   for (const sec of ring.sections) {
     const sp = span.get(sec.uid);
     const sts = bySec.get(sec.uid) ?? [];
-    if (!sp || sts.length === 0) continue;
+
+    if (!sp || sts.length === 0) {
+      continue;
+    }
     const w = (sp.a1 - sp.a0) / sts.length;
+
     sts.forEach((st, i) => {
       const a0 = sp.a0 + i * w;
       const a1 = a0 + w;
+
       statements.push({
         uid: st.uid,
         tested: st.tested,
@@ -187,6 +196,7 @@ function computeRing(specPath: string, ring: SpecRing): ExpandData {
       });
     });
   }
+
   return {
     specPath,
     outerMid: (outerR0 + outerR1) / 2,
@@ -260,6 +270,7 @@ function nodeLinks(
   repo: string,
 ): Array<{ label: string; href: string; external: boolean }> {
   const out: Array<{ label: string; href: string; external: boolean }> = [];
+
   if (
     (node.type === "Spec" ||
       node.type === "Statement" ||
@@ -272,14 +283,17 @@ function nodeLinks(
       external: false,
     });
   }
+
   if (node.path) {
     const line = node.line ? `#L${node.line}` : "";
+
     out.push({
       label: "View on GitHub",
       href: `https://github.com/${repo}/blob/HEAD/${node.path}${line}`,
       external: true,
     });
   }
+
   return out;
 }
 
@@ -305,8 +319,10 @@ function bfsLevels(
 ): Map<string, number> {
   const level = new Map<string, number>([[startId, 0]]);
   let frontier = [startId];
+
   for (let d = 1; d <= maxDepth; d += 1) {
     const next: string[] = [];
+
     for (const id of frontier) {
       for (const nb of adj.get(id) ?? []) {
         if (!level.has(nb)) {
@@ -317,6 +333,7 @@ function bfsLevels(
     }
     frontier = next;
   }
+
   return level;
 }
 
@@ -350,14 +367,24 @@ export default function SpecGraphD3({
   useEffect(() => {
     const el = ref.current;
     const canvas = canvasRef.current;
-    if (!el || !canvas) return;
+
+    if (!el || !canvas) {
+      return;
+    }
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+
+    if (!ctx) {
+      return;
+    }
     let width = el.clientWidth || 900;
     let height = el.clientHeight || 600;
     const svg = d3.select(el);
+
     svg.selectAll("*").remove();
-    if (data.nodes.length === 0) return;
+
+    if (data.nodes.length === 0) {
+      return;
+    }
 
     // Canvas draws with CSS-pixel coordinates; the backing store is scaled up by
     // the device pixel ratio so edges/dots stay crisp on HiDPI screens.
@@ -368,6 +395,7 @@ export default function SpecGraphD3({
       canvas.width = Math.max(1, Math.round(width * dpr));
       canvas.height = Math.max(1, Math.round(height * dpr));
     };
+
     sizeCanvas();
 
     const nodes: SimNode[] = data.nodes.map((n) => ({ ...n }));
@@ -397,19 +425,23 @@ export default function SpecGraphD3({
     // Bundling forest: containment tree plus a tree-home for each leaf under its
     // first owning statement, so cross-spec leaf edges route through the hierarchy.
     const forest = buildContainmentForest(data.links, CONTAINMENT_KINDS);
+
     for (const l of data.links) {
-      if (OWNERSHIP_KINDS.has(l.kind) && !forest.has(l.target))
+      if (OWNERSHIP_KINDS.has(l.kind) && !forest.has(l.target)) {
         forest.set(l.target, l.source);
+      }
     }
+
     // Cross-cutting edges precompute their bundle spine once; containment edges
     // stay straight (the skeleton) and are drawn clipped against the rings.
     for (const l of links) {
-      if (!CONTAINMENT_KINDS.has(l.kind))
+      if (!CONTAINMENT_KINDS.has(l.kind)) {
         l.controlIds = bundleControlIds(
           forest,
           idOf(l.source as string | SimNode),
           idOf(l.target as string | SimNode),
         );
+      }
     }
 
     // Persist the layout to localStorage so a reload restores the previous topology
@@ -428,8 +460,10 @@ export default function SpecGraphD3({
     };
     let savedExpanded: string[] = [];
     let restoredFromStorage = false;
+
     try {
       const saved = parseGraphState(localStorage.getItem(STORAGE_KEY));
+
       if (saved) {
         applyGraphState(saved, nodes);
         savedExpanded = saved.expanded;
@@ -447,10 +481,12 @@ export default function SpecGraphD3({
     const boundR = boundingRadius(data.nodes.length, data.links.length);
     const viewportCenter = { x: width / 2, y: height / 2 };
     const childrenOf = new Map<string, string[]>();
-    for (const [child, parent] of forest)
+
+    for (const [child, parent] of forest) {
       (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(
         child,
       );
+    }
 
     const featureIds = data.nodes
       .filter((n) => n.type === "Feature")
@@ -462,15 +498,19 @@ export default function SpecGraphD3({
       radialTree(id, childrenOf, { center: { x: 0, y: 0 }, ringGap: RING_GAP }),
     );
     let treeRadius = 120;
-    for (const tree of localTrees)
-      for (const p of tree.values())
+
+    for (const tree of localTrees) {
+      for (const p of tree.values()) {
         treeRadius = Math.max(treeRadius, Math.hypot(p.x, p.y));
+      }
+    }
     const ringR = featureRingRadius(
       featureIds.length,
       treeRadius,
       boundR * FEATURE_SPREAD,
     );
     const seed = new Map<string, { x: number; y: number }>();
+
     featureIds.forEach((id, i) => {
       const a = (2 * Math.PI * i) / featureIds.length;
       const center =
@@ -480,8 +520,10 @@ export default function SpecGraphD3({
               x: viewportCenter.x + ringR * Math.cos(a),
               y: viewportCenter.y + ringR * Math.sin(a),
             };
-      for (const [nodeId, p] of localTrees[i])
+
+      for (const [nodeId, p] of localTrees[i]) {
         seed.set(nodeId, { x: center.x + p.x, y: center.y + p.y });
+      }
     });
 
     // Anything no feature tree reached (e.g. a spec with no feature) is part of
@@ -497,10 +539,14 @@ export default function SpecGraphD3({
     );
     const smallIds = new Set(smallComponents.flat());
     let strayIndex = 0;
+
     for (const node of data.nodes) {
-      if (seed.has(node.id) || smallIds.has(node.id)) continue;
+      if (seed.has(node.id) || smallIds.has(node.id)) {
+        continue;
+      }
       const r = 8 + strayIndex * 6;
       const a = strayIndex * 2.399963229728653;
+
       seed.set(node.id, {
         x: viewportCenter.x + r * Math.cos(a),
         y: viewportCenter.y + r * Math.sin(a),
@@ -512,22 +558,28 @@ export default function SpecGraphD3({
     // already placed (feature trees + strays) — so they always ring the OUTSIDE
     // of the whole main graph, not just the feature trees.
     let mainExtent = 0;
-    for (const p of seed.values())
+
+    for (const p of seed.values()) {
       mainExtent = Math.max(
         mainExtent,
         Math.hypot(p.x - viewportCenter.x, p.y - viewportCenter.y),
       );
+    }
+
     for (const [id, p] of rimTargets(
       smallComponents,
       viewportCenter,
       mainExtent + RIM_MARGIN,
-    ))
+    )) {
       seed.set(id, p);
+    }
 
     const seedOf = (d: SimNode) => seed.get(d.id) ?? viewportCenter;
+
     if (!restoredFromStorage) {
       for (const n of nodes) {
         const p = seed.get(n.id) ?? viewportCenter;
+
         n.x = p.x;
         n.y = p.y;
       }
@@ -599,24 +651,31 @@ export default function SpecGraphD3({
       // so a dragged node never snaps back. Uses the unit-tested resolvers.
       .force("spacing", () => {
         const discs: Disc[] = [];
+
         for (const [specId, exp] of expanded) {
           const spec = nodeById.get(specId);
-          if (spec)
+
+          if (spec) {
             discs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
+          }
         }
         const anchors: Anchor[] = [];
+
         for (const n of nodes) {
-          if (n.type === "Feature" || n.type === "Spec" || n.type === "ADR")
+          if (n.type === "Feature" || n.type === "Spec" || n.type === "ADR") {
             anchors.push({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 });
+          }
         }
+
         for (const n of nodes) {
           if (
             expanded.has(n.id) ||
             ringPinned.has(n.id) ||
             n.fx != null ||
             n.fy != null
-          )
+          ) {
             continue;
+          }
           const isAnchor =
             n.type === "Feature" || n.type === "Spec" || n.type === "ADR";
           const safe = isAnchor
@@ -631,7 +690,10 @@ export default function SpecGraphD3({
                 discs,
                 RING_CLEARANCE,
               );
-          if (safe.x === n.x && safe.y === n.y) continue;
+
+          if (safe.x === n.x && safe.y === n.y) {
+            continue;
+          }
           n.x = safe.x;
           n.y = safe.y;
           n.vx = 0; // kill velocity so the integration step can't pull it back in
@@ -644,10 +706,13 @@ export default function SpecGraphD3({
       // inside back out beyond it — so a fixed seed margin can't be eaten by
       // expansion. Dragged nodes (fx/fy set) are exempt. Unit-tested.
       .force("separate", () => {
-        if (smallIds.size === 0) return;
+        if (smallIds.size === 0) {
+          return;
+        }
         const placed = nodes
           .filter((n) => n.fx == null && n.fy == null)
           .map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 }));
+
         for (const [id, p] of separateSmallComponents(
           placed,
           smallIds,
@@ -655,7 +720,10 @@ export default function SpecGraphD3({
           RIM_MARGIN,
         )) {
           const n = nodeById.get(id);
-          if (!n) continue;
+
+          if (!n) {
+            continue;
+          }
           n.x = p.x;
           n.y = p.y;
           n.vx = 0;
@@ -680,21 +748,36 @@ export default function SpecGraphD3({
     let searchTerm = "";
     const matchesSearch = (id: string) => {
       const n = nodeById.get(id);
+
       return n ? nodeMatchesQuery(n, searchTerm) : false;
     };
     const nodeOpacity = (id: string): number => {
-      if (searchTerm.trim()) return matchesSearch(id) ? 1 : FADED;
-      if (!focusLevels) return 1;
+      if (searchTerm.trim()) {
+        return matchesSearch(id) ? 1 : FADED;
+      }
+
+      if (!focusLevels) {
+        return 1;
+      }
       const lv = focusLevels.get(id);
+
       return lv === undefined ? FADED : (LEVEL_OPACITY[lv] ?? FADED);
     };
     const edgeOpacity = (sourceId: string, targetId: string): number => {
-      if (searchTerm.trim())
+      if (searchTerm.trim()) {
         return matchesSearch(sourceId) && matchesSearch(targetId) ? 0.5 : FADED;
-      if (!focusLevels) return 0.5;
+      }
+
+      if (!focusLevels) {
+        return 0.5;
+      }
       const ls = focusLevels.get(sourceId);
       const lt = focusLevels.get(targetId);
-      if (ls === undefined || lt === undefined) return FADED;
+
+      if (ls === undefined || lt === undefined) {
+        return FADED;
+      }
+
       return 0.6 * (LEVEL_OPACITY[Math.max(ls, lt)] ?? FADED);
     };
 
@@ -711,6 +794,7 @@ export default function SpecGraphD3({
 
     function draw() {
       const collapsing = aggregating();
+
       ctx!.setTransform(1, 0, 0, 1, 0, 0);
       ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
 
@@ -721,23 +805,35 @@ export default function SpecGraphD3({
       ctx!.scale(transform.k, transform.k);
 
       ctx!.lineWidth = 1.3 / transform.k;
+
       for (const l of links) {
         const s = l.source as SimNode;
         const t = l.target as SimNode;
         const sId = idOf(s);
         const tId = idOf(t);
+
         // Skip edges into a ring-represented statement or a collapsed leaf.
-        if (l.kind === "in_spec" && ringPinned.has(tId)) continue;
-        if (collapsing && (aggHidden.has(sId) || aggHidden.has(tId))) continue;
+        if (l.kind === "in_spec" && ringPinned.has(tId)) {
+          continue;
+        }
+
+        if (collapsing && (aggHidden.has(sId) || aggHidden.has(tId))) {
+          continue;
+        }
         const op = edgeOpacity(sId, tId);
-        if (op <= FADED) continue;
+
+        if (op <= FADED) {
+          continue;
+        }
         ctx!.globalAlpha = op;
         ctx!.strokeStyle = "#94a3b8";
+
         if (l.controlIds && l.controlIds.length > 2) {
           const pts = l.controlIds
             .map((id) => nodeById.get(id))
             .filter((n): n is SimNode => !!n)
             .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
+
           if (pts.length > 2) {
             ctx!.beginPath();
             bundleLine(pts);
@@ -751,7 +847,9 @@ export default function SpecGraphD3({
           { x: t.x ?? 0, y: t.y ?? 0 },
           ringDiscs,
         );
+
         ctx!.beginPath();
+
         for (const p of pieces) {
           ctx!.moveTo(p.a.x, p.a.y);
           ctx!.lineTo(p.b.x, p.b.y);
@@ -760,11 +858,20 @@ export default function SpecGraphD3({
       }
 
       ctx!.lineWidth = 1.5 / transform.k;
+
       for (const n of nodes) {
-        if (!isLeafCanvas(n.type)) continue;
-        if (collapsing && aggHidden.has(n.id)) continue;
+        if (!isLeafCanvas(n.type)) {
+          continue;
+        }
+
+        if (collapsing && aggHidden.has(n.id)) {
+          continue;
+        }
         const op = nodeOpacity(n.id);
-        if (op <= 0) continue;
+
+        if (op <= 0) {
+          continue;
+        }
         ctx!.globalAlpha = op;
         ctx!.fillStyle = colorOf(n.type);
         ctx!.beginPath();
@@ -784,15 +891,20 @@ export default function SpecGraphD3({
         ctx!.font = "600 10px sans-serif";
         ctx!.textAlign = "center";
         ctx!.textBaseline = "middle";
+
         for (const badge of aggBadges) {
           const parent = nodeById.get(badge.parentId);
-          if (!parent) continue;
+
+          if (!parent) {
+            continue;
+          }
           const screen = applyPoint(transform as ZoomTransform, {
             x: parent.x ?? 0,
             y: parent.y ?? 0,
           });
           const px = screen.x + radiusOf(parent.type) + 8;
           const py = screen.y - radiusOf(parent.type);
+
           ctx!.fillStyle = colorOf(badge.type);
           ctx!.beginPath();
           ctx!.arc(px, py, 8, 0, Math.PI * 2);
@@ -812,12 +924,14 @@ export default function SpecGraphD3({
         container.attr("transform", transform.toString());
         draw();
       });
+
     svg.call(zoom).on("dblclick.zoom", null).style("cursor", "grab");
     // Start (and reset) at identity — d3.zoom stores its transform on the node, so
     // a re-run (e.g. the Reset button bumping resetSignal) must clear it explicitly.
     svg.call(zoom.transform, d3.zoomIdentity);
     transform = d3.zoomIdentity;
     selectedIdRef.current = null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset selection when the graph is (re)laid out
     setSelected(null);
 
     const leafHitNodes = () =>
@@ -835,11 +949,13 @@ export default function SpecGraphD3({
       const world = invertPoint(transform as ZoomTransform, { x: px, y: py });
       const hitId = findNodeAtPoint(world, leafHitNodes(), HIT_SLOP);
       const hit = hitId ? nodeById.get(hitId) : undefined;
+
       if (hit) {
         selectedIdRef.current = hit.id;
         setSelected(hit);
         highlight(hit.id);
         centerOn(hit);
+
         return;
       }
       selectedIdRef.current = null;
@@ -852,14 +968,17 @@ export default function SpecGraphD3({
       const t = d3.zoomIdentity
         .translate(width / 2 - (d.x ?? 0) * k, height / 2 - (d.y ?? 0) * k)
         .scale(k);
+
       svg.transition().duration(500).call(zoom.transform, t);
     };
 
     function buildAdj() {
       adj = new Map();
+
       for (const l of links) {
         const s = idOf(l.source as string | SimNode);
         const t = idOf(l.target as string | SimNode);
+
         (adj.get(s) ?? adj.set(s, new Set()).get(s)!).add(t);
         (adj.get(t) ?? adj.set(t, new Set()).get(t)!).add(s);
       }
@@ -898,8 +1017,12 @@ export default function SpecGraphD3({
     // drawn as an outer-ring arc instead of a skeleton node.
     function applyRingState() {
       ringPinned = new Set<string>();
-      for (const exp of expanded.values())
-        for (const s of exp.statements) ringPinned.add(s.uid);
+
+      for (const exp of expanded.values()) {
+        for (const s of exp.statements) {
+          ringPinned.add(s.uid);
+        }
+      }
       nodeG
         .selectAll<SVGGElement, SimNode>("g")
         .style("display", (d) => (ringPinned.has(d.id) ? "none" : ""));
@@ -909,6 +1032,7 @@ export default function SpecGraphD3({
       const sel = ringG
         .selectAll<SVGGElement, [string, ExpandData]>("g.ring")
         .data([...expanded.entries()], (d) => d[0]);
+
       sel.exit().remove();
       sel
         .enter()
@@ -918,6 +1042,7 @@ export default function SpecGraphD3({
         .each(function (entry) {
           const exp = entry[1];
           const g = d3.select(this);
+
           g.selectAll<SVGPathElement, SectionArc>("path.sec")
             .data(exp.sections, (s) => s.uid)
             .join("path")
@@ -942,6 +1067,7 @@ export default function SpecGraphD3({
             })
             .on("mouseenter mousemove", (event: PointerEvent, s) => {
               const [px, py] = d3.pointer(event, el);
+
               setHover({
                 text: `${s.heading} — ${s.tested}/${s.total} tested`,
                 x: px,
@@ -970,6 +1096,7 @@ export default function SpecGraphD3({
             })
             .on("mouseenter mousemove", (event: PointerEvent, s) => {
               const [px, py] = d3.pointer(event, el);
+
               setHover({ text: s.text || "(statement)", x: px, y: py });
             })
             .on("mouseleave", () => setHover(null));
@@ -977,7 +1104,10 @@ export default function SpecGraphD3({
     }
 
     async function toggleExpand(d: SimNode) {
-      if (d.type !== "Spec" || !d.path) return;
+      if (d.type !== "Spec" || !d.path) {
+        return;
+      }
+
       if (expanded.has(d.id)) {
         expanded.delete(d.id);
         d.fx = null;
@@ -986,6 +1116,7 @@ export default function SpecGraphD3({
         renderRings();
         sim.alpha(0.4).restart();
         saveState();
+
         return;
       }
       // Pin the spec so the ring stays put — the simulation restart would otherwise
@@ -995,9 +1126,15 @@ export default function SpecGraphD3({
       const res = await fetch(
         `/api/repos/${repo}/spec-ring?spec=${encodeURIComponent(d.path)}`,
       );
-      if (!res.ok) return;
+
+      if (!res.ok) {
+        return;
+      }
       const ring = (await res.json()) as SpecRing;
-      if (ring.sections.length === 0 && ring.statements.length === 0) return;
+
+      if (ring.sections.length === 0 && ring.statements.length === 0) {
+        return;
+      }
       expanded.set(d.id, computeRing(d.path, ring));
       applyRingState();
       renderRings();
@@ -1008,9 +1145,11 @@ export default function SpecGraphD3({
     // Layout-quality probe: count straight-segment edge crossings at the settled
     // positions and surface it in the UI. O(E²), so skip very dense graphs.
     const CROSSINGS_EDGE_CAP = 2500;
+
     function measureCrossings() {
       if (links.length > CROSSINGS_EDGE_CAP) {
         setCrossings(-1);
+
         return;
       }
       const pos = new Map(
@@ -1020,6 +1159,7 @@ export default function SpecGraphD3({
         source: idOf(l.source as string | SimNode),
         target: idOf(l.target as string | SimNode),
       }));
+
       setCrossings(countCrossings(edges, pos));
     }
 
@@ -1050,11 +1190,14 @@ export default function SpecGraphD3({
             })
             .on("mouseenter mousemove", (event: PointerEvent, d) => {
               const text = (d.detail?.trim() || d.label || d.path || "").trim();
+
               if (!text) {
                 setHover(null);
+
                 return;
               }
               const [px, py] = d3.pointer(event, el);
+
               setHover({ text, x: px, y: py });
             })
             .on("mouseleave", () => setHover(null))
@@ -1067,7 +1210,9 @@ export default function SpecGraphD3({
                 // The earlier eruption was the layered layout's strong forces +
                 // tight spacing; the radial seed + distanceMin keep this stable.
                 .on("start", (event, d) => {
-                  if (!event.active) sim.alphaTarget(0.1).restart();
+                  if (!event.active) {
+                    sim.alphaTarget(0.1).restart();
+                  }
                   d.fx = d.x;
                   d.fy = d.y;
                 })
@@ -1076,11 +1221,14 @@ export default function SpecGraphD3({
                   d.fy = event.y;
                 })
                 .on("end", (event) => {
-                  if (!event.active) sim.alphaTarget(0);
+                  if (!event.active) {
+                    sim.alphaTarget(0);
+                  }
                   // Leave fx/fy pinned at the drop point — a dragged node stays put.
                   saveState();
                 }),
             );
+
           g.append("circle")
             .attr("r", (d) => radiusOf(d.type))
             .attr("fill", (d) => nodeColor(d))
@@ -1095,6 +1243,7 @@ export default function SpecGraphD3({
             .attr("font-weight", (d) => (d.type === "Spec" ? 600 : 400))
             .attr("fill", "currentColor")
             .style("pointer-events", "none");
+
           return g;
         });
 
@@ -1102,6 +1251,7 @@ export default function SpecGraphD3({
       nodeById = new Map(nodes.map((n) => [n.id, n]));
       applyRingState();
       filterRef.current = applyFilter;
+
       // Pre-warm a fresh layout headless so the first painted frame is already
       // relaxed: sim.tick() advances the layout without firing the 'tick'
       // renderer. Restored layouts are already settled. Either way we then start
@@ -1109,12 +1259,18 @@ export default function SpecGraphD3({
       // (user gestures: drag/expand/resize re-energise the sim as before).
       if (!restoredFromStorage) {
         const warm = settleTicks(nodes.length);
-        for (let i = 0; i < warm; i += 1) sim.tick();
+
+        for (let i = 0; i < warm; i += 1) {
+          sim.tick();
+        }
       }
       sim.alpha(0).restart();
-      if (selectedIdRef.current && adj.has(selectedIdRef.current))
+
+      if (selectedIdRef.current && adj.has(selectedIdRef.current)) {
         highlight(selectedIdRef.current);
-      else draw();
+      } else {
+        draw();
+      }
       measureCrossings();
     }
 
@@ -1127,11 +1283,16 @@ export default function SpecGraphD3({
       // crossing the (now clean) interior.
       for (const [specId, exp] of expanded) {
         const spec = nodeById.get(specId);
-        if (!spec) continue;
+
+        if (!spec) {
+          continue;
+        }
         const cx = spec.x ?? 0;
         const cy = spec.y ?? 0;
+
         for (const s of exp.statements) {
           const n = nodeById.get(s.uid);
+
           if (n) {
             n.x = cx + exp.outerMid * Math.sin(s.mid);
             n.y = cy - exp.outerMid * Math.cos(s.mid);
@@ -1139,21 +1300,30 @@ export default function SpecGraphD3({
             n.vy = 0;
           }
           let k = 0;
+
           for (const nb of adj.get(s.uid) ?? []) {
-            if (ringPinned.has(nb) || expanded.has(nb)) continue;
+            if (ringPinned.has(nb) || expanded.has(nb)) {
+              continue;
+            }
             const leaf = nodeById.get(nb);
+
             // Only test/code chunks get spoked onto the ring. ADRs are anchors —
             // they go through the spacing force (kept apart + off rings), never spoked.
             if (
               !leaf ||
               (leaf.type !== "TestChunk" && leaf.type !== "CodeChunk")
-            )
+            ) {
               continue;
+            }
+
             // Only hard-place leaves owned by a single statement (clean radial
             // spokes). Shared chunks float; their edges are clipped to the ring
             // edge by visibleSegments.
-            if ((adj.get(nb)?.size ?? 0) !== 1) continue;
+            if ((adj.get(nb)?.size ?? 0) !== 1) {
+              continue;
+            }
             const r = exp.outerR1 + 32 + k * 34;
+
             leaf.x = cx + r * Math.sin(s.mid);
             leaf.y = cy - r * Math.cos(s.mid);
             leaf.vx = 0;
@@ -1163,10 +1333,13 @@ export default function SpecGraphD3({
         }
       }
       ringDiscs = [];
+
       for (const [specId, exp] of expanded) {
         const spec = nodeById.get(specId);
-        if (spec)
+
+        if (spec) {
           ringDiscs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
+        }
       }
       nodeG
         .selectAll<SVGGElement, SimNode>("g")
@@ -1175,6 +1348,7 @@ export default function SpecGraphD3({
         .selectAll<SVGGElement, [string, ExpandData]>("g.ring")
         .attr("transform", (entry) => {
           const spec = nodeById.get(entry[0]);
+
           return `translate(${spec?.x ?? 0},${spec?.y ?? 0})`;
         });
       draw();
@@ -1187,7 +1361,10 @@ export default function SpecGraphD3({
     // layout cools so the next reload restores this exact topology.
     for (const id of savedExpanded) {
       const spec = nodeById.get(id);
-      if (spec) void toggleExpand(spec);
+
+      if (spec) {
+        void toggleExpand(spec);
+      }
     }
     sim.on("end", () => {
       saveState();
@@ -1197,15 +1374,19 @@ export default function SpecGraphD3({
     const resize = new ResizeObserver(() => {
       const w = el.clientWidth || width;
       const h = el.clientHeight || height;
+
       // Ignore sub-pixel / spurious resize callbacks — re-heating the sim on
       // every one keeps it perpetually shivering.
-      if (Math.abs(w - width) < 2 && Math.abs(h - height) < 2) return;
+      if (Math.abs(w - width) < 2 && Math.abs(h - height) < 2) {
+        return;
+      }
       width = w;
       height = h;
       sizeCanvas();
       draw();
       sim.alpha(0.3).restart();
     });
+
     resize.observe(el);
 
     return () => {

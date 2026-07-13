@@ -26,15 +26,25 @@ export async function deriveStatementStatus(
       []) as Array<{
       "TraceLink.evidence"?: EvidenceTier;
     }>;
+
     return links
       .map((link) => link["TraceLink.evidence"])
       .filter((tier): tier is EvidenceTier => tier !== undefined);
   });
 
   const top = highestTier(tiers);
-  if (top === undefined) return "untested";
-  if (top === "execution-verified" || top === "generated-provenance")
+
+  if (top === undefined) {
+    return "untested";
+  }
+
+  if (top === "execution-verified" || top === "generated-provenance") {
     return "verified-implemented";
-  if (top === "human-linked" || top === "coverage-bridged") return "claimed";
+  }
+
+  if (top === "human-linked" || top === "coverage-bridged") {
+    return "claimed";
+  }
+
   return "untested";
 }

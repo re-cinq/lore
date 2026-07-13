@@ -97,6 +97,7 @@ export function unblockedBy(
     .filter((t) => {
       const cb = t.context_bundle ?? {};
       const deps = cb.depends_on;
+
       return (
         cb.spec_slug === specSlug &&
         Array.isArray(deps) &&

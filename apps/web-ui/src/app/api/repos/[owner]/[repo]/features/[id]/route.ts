@@ -19,6 +19,7 @@ function liveStationLog(taskId: string): string | null {
       `${taskId}.log`,
     );
     const raw = fs.readFileSync(file, "utf8");
+
     return formatStationConversation(raw) || null;
   } catch {
     return null;
@@ -39,6 +40,7 @@ export async function GET(
     [id, fullName],
   );
   const feature = features[0] ?? null;
+
   if (!feature) {
     return NextResponse.json({ error: "feature not found" }, { status: 404 });
   }
@@ -50,6 +52,7 @@ export async function GET(
   // Surface the underlying task's status/failure so the wizard can show a failure
   // + retry even when a hard crash left the iteration stuck at 'running'.
   let task: { status: string; failure_reason: string | null } | null = null;
+
   if (latestIteration?.task_id) {
     const tasks = await queryAllowMissing<{
       status: string;
@@ -57,6 +60,7 @@ export async function GET(
     }>(`SELECT status, failure_reason FROM pipeline.tasks WHERE id = $1`, [
       latestIteration.task_id,
     ]);
+
     task = tasks[0] ?? null;
   }
   // Live tail of the Station's claude output while the round runs (local docker).
@@ -70,6 +74,7 @@ export async function GET(
     `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 AND gap_result IS NOT NULL ORDER BY iteration DESC LIMIT 1`,
     [id],
   );
+
   return NextResponse.json({
     feature,
     latestIteration,

@@ -8,6 +8,7 @@ describe("DecompositionView", () => {
     const { container } = render(
       <DecompositionView owner="o" repo="r" stories={[]} total={0} />,
     );
+
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -36,6 +37,7 @@ describe("DecompositionView", () => {
         ],
       },
     ];
+
     render(
       <DecompositionView owner="o" repo="r" stories={stories} total={2} />,
     );

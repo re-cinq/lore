@@ -58,6 +58,7 @@ export default function ChunkBody({
         const ext = external
           ? { target: "_blank", rel: "noopener noreferrer" }
           : {};
+
         return (
           <a href={resolved} {...ext} {...rest}>
             {children}

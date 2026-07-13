@@ -14,6 +14,7 @@ describe("SpecCard", () => {
     );
     expect(screen.getByText("Auth spec")).toBeTruthy();
     const detailsLink = screen.getByText("Details").closest("a");
+
     expect(detailsLink?.getAttribute("href")).toBe(
       "/repos/re-cinq/lore/specs/auth",
     );

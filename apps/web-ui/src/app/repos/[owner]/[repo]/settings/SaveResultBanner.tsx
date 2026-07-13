@@ -15,8 +15,11 @@ export const INITIAL_SAVE_STATE: SaveState = { saved: false, privileged: null };
  * error — is surfaced separately.
  */
 export default function SaveResultBanner({ state }: { state: SaveState }) {
-  if (!state.saved) return null;
+  if (!state.saved) {
+    return null;
+  }
   const p = state.privileged;
+
   return (
     <div className={styles.banner} role="status">
       <p className={styles.savedOk}>Settings saved.</p>

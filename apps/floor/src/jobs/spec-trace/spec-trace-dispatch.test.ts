@@ -14,8 +14,10 @@ function fakeProjectFor() {
   const reposAskedFor: string[] = [];
   const projectFor = async (repo: string) => {
     reposAskedFor.push(repo);
+
     return { repo: { tree: async () => [] as string[], read: async () => "" } };
   };
+
   return { projectFor, reposAskedFor };
 }
 

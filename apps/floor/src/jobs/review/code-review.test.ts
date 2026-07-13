@@ -45,6 +45,7 @@ function harness(pr: PullRef | null, autoReview = true) {
     autoReview: async () => autoReview,
     uiUrl: () => "https://lore.example.com",
   };
+
   return { port, comments, handlers: createCodeReviewHandlers(deps) };
 }
 

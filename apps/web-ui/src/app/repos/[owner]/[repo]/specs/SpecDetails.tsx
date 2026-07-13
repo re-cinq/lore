@@ -82,10 +82,14 @@ function plainText(statementText: string): string {
 /** Concatenate the rendered text of a HAST node and its descendants,
  * whitespace-collapsed — the string a reader actually sees. */
 function renderedText(node: ElementContent | RootContent): string {
-  if (node.type === "text") return node.value;
+  if (node.type === "text") {
+    return node.value;
+  }
+
   if (node.type === "element" && node.children) {
     return node.children.map(renderedText).join("");
   }
+
   return "";
 }
 
@@ -146,11 +150,20 @@ function buildHighlighter(
    * text begins with a statement's plain text, wrap that element's children
    * in a single `<mark>`. Returns true when it claimed the element. */
   function tryBlockMatch(node: Element): boolean {
-    if (node.tagName !== "p" && node.tagName !== "li") return false;
-    if (!node.children || node.children.length === 0) return false;
+    if (node.tagName !== "p" && node.tagName !== "li") {
+      return false;
+    }
+
+    if (!node.children || node.children.length === 0) {
+      return false;
+    }
     const rendered = renderedText(node).replace(/\s+/g, " ").trim();
+
     for (const s of ordered) {
-      if (used.has(s.ordinal) || !s.plain) continue;
+      if (used.has(s.ordinal) || !s.plain) {
+        continue;
+      }
+
       if (rendered.startsWith(s.plain)) {
         used.add(s.ordinal);
         node.children = [
@@ -161,41 +174,62 @@ function buildHighlighter(
             children: node.children,
           },
         ];
+
         return true;
       }
     }
+
     return false;
   }
 
   function processTextNode(node: Text): ElementContent[] | null {
     for (const s of ordered) {
-      if (used.has(s.ordinal)) continue;
+      if (used.has(s.ordinal)) {
+        continue;
+      }
       const idx = node.value.indexOf(s.matcher);
-      if (idx < 0) continue;
+
+      if (idx < 0) {
+        continue;
+      }
       used.add(s.ordinal);
       const before = node.value.slice(0, idx);
       const after = node.value.slice(idx + s.matcher.length);
       const parts: ElementContent[] = [];
-      if (before) parts.push({ type: "text", value: before });
+
+      if (before) {
+        parts.push({ type: "text", value: before });
+      }
       parts.push(makeMark(s.matcher, s));
+
       if (after) {
         const tail = { type: "text", value: after } as Text;
         const recursed = processTextNode(tail);
-        if (recursed) parts.push(...recursed);
-        else parts.push(tail);
+
+        if (recursed) {
+          parts.push(...recursed);
+        } else {
+          parts.push(tail);
+        }
       }
+
       return parts;
     }
+
     return null;
   }
 
   function walkElement(node: Element) {
-    if (!node.children || node.children.length === 0) return;
+    if (!node.children || node.children.length === 0) {
+      return;
+    }
     const next: ElementContent[] = [];
     let changed = false;
+
     for (const child of node.children) {
       if (child.type === "text") {
         const replaced = processTextNode(child);
+
         if (replaced) {
           next.push(...replaced);
           changed = true;
@@ -204,15 +238,22 @@ function buildHighlighter(
         next.push(child);
         continue;
       }
+
       if (child.type === "element" && child.tagName !== "mark") {
         walkElement(child);
       }
       next.push(child);
     }
-    if (changed) node.children = next;
+
+    if (changed) {
+      node.children = next;
+    }
+
     // Fallback only when the contiguous-text-node match found nothing here:
     // a statement fragmented by inline code / bold gets a whole-element wrap.
-    if (!changed) tryBlockMatch(node);
+    if (!changed) {
+      tryBlockMatch(node);
+    }
   }
 
   return function plugin() {
@@ -223,9 +264,11 @@ function buildHighlighter(
       used.clear();
       const rootChildren: RootContent[] = [];
       let rootChanged = false;
+
       for (const child of tree.children) {
         if (child.type === "text") {
           const replaced = processTextNode(child);
+
           if (replaced) {
             rootChildren.push(...(replaced as RootContent[]));
             rootChanged = true;
@@ -234,10 +277,16 @@ function buildHighlighter(
           rootChildren.push(child);
           continue;
         }
-        if (child.type === "element") walkElement(child);
+
+        if (child.type === "element") {
+          walkElement(child);
+        }
         rootChildren.push(child);
       }
-      if (rootChanged) tree.children = rootChildren;
+
+      if (rootChanged) {
+        tree.children = rootChildren;
+      }
     };
   };
 }
@@ -338,18 +387,25 @@ export default function SpecDetails({
 
   const statementsByOrdinal = useMemo(() => {
     const m = new Map<number, StatementInfo>();
-    for (const s of statements) m.set(s.ordinal, s);
+
+    for (const s of statements) {
+      m.set(s.ordinal, s);
+    }
+
     return m;
   }, [statements]);
 
   const plugin = useMemo(() => {
-    if (statements.length === 0) return null;
+    if (statements.length === 0) {
+      return null;
+    }
     const enriched = statements.map((s) => ({
       ordinal: s.ordinal,
       text: s.text,
       state: s.state,
       drifted: s.drifted,
     }));
+
     return buildHighlighter(enriched);
   }, [statements]);
 
@@ -357,16 +413,24 @@ export default function SpecDetails({
     const target = (e.target as HTMLElement).closest<HTMLElement>(
       "mark[data-ordinal]",
     );
+
     if (!target) {
-      if (hover) setHover(null);
+      if (hover) {
+        setHover(null);
+      }
+
       return;
     }
     const ordinal = Number(target.dataset.ordinal);
-    if (!Number.isFinite(ordinal)) return;
+
+    if (!Number.isFinite(ordinal)) {
+      return;
+    }
     const rect = target.getBoundingClientRect();
     const wrapperRect = wrapperRef.current?.getBoundingClientRect();
     const x = rect.left - (wrapperRect?.left ?? 0);
     const y = rect.bottom - (wrapperRect?.top ?? 0) + 6;
+
     setHover({ ordinal, x, y });
   }
 
@@ -391,6 +455,7 @@ export default function SpecDetails({
         const ext = external
           ? { target: "_blank", rel: "noopener noreferrer" }
           : {};
+
         return (
           <a href={resolved} {...ext} {...rest}>
             {children}

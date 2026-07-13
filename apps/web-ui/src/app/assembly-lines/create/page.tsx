@@ -11,7 +11,10 @@ async function createTask(formData: FormData) {
   const taskType = (formData.get("task_type") as string) || "general";
   const targetRepo = (formData.get("target_repo") as string) || "re-cinq/lore";
   const priority = (formData.get("priority") as string) || "normal";
-  if (!description?.trim()) return;
+
+  if (!description?.trim()) {
+    return;
+  }
 
   const session = await getSession();
   const createdBy = (session?.user?.name ||
@@ -24,6 +27,7 @@ async function createTask(formData: FormData) {
      VALUES ($1, $2, $3, $4, $5) RETURNING id`,
     [description, taskType, targetRepo, createdBy, resolvedPriority],
   );
+
   await query(
     `INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`,
     [result[0].id],

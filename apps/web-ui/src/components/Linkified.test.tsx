@@ -10,6 +10,7 @@ describe("Linkified", () => {
   it("renders a file path as a GitHub link that opens in a new tab", () => {
     render(<Linkified text="edit src/a.ts" repo={repo} branch="main" />);
     const link = screen.getByRole("link", { name: "src/a.ts" });
+
     expect(link).toHaveAttribute(
       "href",
       "https://github.com/re-cinq/lore/blob/main/src/a.ts",
@@ -20,6 +21,7 @@ describe("Linkified", () => {
   it("renders an issue reference as a GitHub link that opens in a new tab", () => {
     render(<Linkified text="see #424" repo={repo} />);
     const link = screen.getByRole("link", { name: "#424" });
+
     expect(link).toHaveAttribute(
       "href",
       "https://github.com/re-cinq/lore/issues/424",
@@ -30,6 +32,7 @@ describe("Linkified", () => {
   it("renders a task uuid as an internal pipeline link that opens in place", () => {
     render(<Linkified text={`task ${uuid}`} repo={repo} />);
     const link = screen.getByRole("link", { name: uuid });
+
     expect(link).toHaveAttribute("href", `/assembly-lines/${uuid}`);
     expect(link).not.toHaveAttribute("target");
   });
@@ -44,6 +47,7 @@ describe("Linkified", () => {
     const { container } = render(
       <Linkified text="edit src/a.ts now" repo={repo} branch="main" />,
     );
+
     expect(container.textContent).toBe("edit src/a.ts now");
     expect(screen.getByRole("link", { name: "src/a.ts" })).toBeInTheDocument();
   });

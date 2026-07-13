@@ -61,6 +61,7 @@ describe("GraphView", () => {
     );
     expect(screen.getByText("all")).toHaveClass("op-search");
     const serviceBadge = screen.getByText("service (7)");
+
     expect(serviceBadge).toBeInTheDocument();
     expect(serviceBadge).not.toHaveClass("op-search");
     expect(serviceBadge.getAttribute("href")).toEqual("/graph?type=service");
@@ -110,6 +111,7 @@ describe("GraphView", () => {
     expect(screen.getByText("re-cinq/lore")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     const explore = screen.getByText("explore");
+
     expect(explore.getAttribute("href")).toEqual(
       "/graph?entity=lore-agent&type=service",
     );
@@ -188,6 +190,7 @@ describe("GraphView", () => {
       screen.getByText('Relationships for "lore-agent"'),
     ).toBeInTheDocument();
     const toggle = screen.getByText("Show invalidated edges");
+
     expect(toggle.getAttribute("href")).toEqual(
       "/graph?entity=lore-agent&show_invalid=1",
     );
@@ -207,6 +210,7 @@ describe("GraphView", () => {
       />,
     );
     const toggle = screen.getByText("Hide invalidated");
+
     expect(toggle.getAttribute("href")).toEqual("/graph?entity=lore-agent");
     expect(screen.getByText(/^invalidated/)).toBeInTheDocument();
   });

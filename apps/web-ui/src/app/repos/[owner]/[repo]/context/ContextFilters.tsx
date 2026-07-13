@@ -24,6 +24,7 @@ export default function ContextFilters({
   q,
 }: ContextFiltersProps) {
   const ordered = orderTypes(types);
+
   return (
     <>
       <SearchForm basePath={basePath} activeType={activeType} q={q} />

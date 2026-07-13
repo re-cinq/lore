@@ -43,27 +43,42 @@ export function parseTestDescriptors(raw: unknown): TestDescriptor[] {
       name: requireString(entry, "name", "test descriptor"),
       file: requireString(entry, "file", "test descriptor"),
     };
-    if (typeof entry.startLine === "number")
+
+    if (typeof entry.startLine === "number") {
       descriptor.startLine = entry.startLine;
-    if (typeof entry.endLine === "number") descriptor.endLine = entry.endLine;
+    }
+
+    if (typeof entry.endLine === "number") {
+      descriptor.endLine = entry.endLine;
+    }
+
     if (
       Array.isArray(entry.suite) &&
       entry.suite.every((s) => typeof s === "string")
-    )
+    ) {
       descriptor.suite = entry.suite as string[];
-    if (typeof entry.spec === "string") descriptor.spec = entry.spec;
-    else if (
+    }
+
+    if (typeof entry.spec === "string") {
+      descriptor.spec = entry.spec;
+    } else if (
       Array.isArray(entry.spec) &&
       entry.spec.every((anchor) => typeof anchor === "string")
-    )
+    ) {
       descriptor.spec = entry.spec as string[];
-    if (typeof entry.passed === "boolean") descriptor.passed = entry.passed;
+    }
+
+    if (typeof entry.passed === "boolean") {
+      descriptor.passed = entry.passed;
+    }
+
     return descriptor;
   });
 }
 
 export function parseRunResult(raw: unknown): RunResult {
   const entry = (raw ?? {}) as Record<string, unknown>;
+
   return {
     passed: entry.passed === true,
     covered: parseCoveredChunks(entry.covered),
@@ -80,6 +95,7 @@ function parseCoveredChunks(raw: unknown): CoveredChunk[] {
 
 function asArray(raw: unknown, what: string): Record<string, unknown>[] {
   enforceTrue(Array.isArray(raw), new Error(`${what}: expected an array`));
+
   return raw as Record<string, unknown>[];
 }
 
@@ -89,10 +105,12 @@ function requireString(
   what: string,
 ): string {
   const value = entry[field];
+
   enforceTrue(
     !(typeof value !== "string" || value === ""),
     new Error(`${what}: '${field}' is required`),
   );
+
   return value;
 }
 
@@ -102,9 +120,11 @@ function requireNumber(
   what: string,
 ): number {
   const value = entry[field];
+
   enforceTrue(
     typeof value === "number",
     new Error(`${what}: '${field}' is required`),
   );
+
   return value;
 }

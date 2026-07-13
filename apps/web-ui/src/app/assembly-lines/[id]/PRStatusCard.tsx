@@ -49,8 +49,11 @@ export default function PRStatusCard({
     fetch(`/api/assembly-lines/${taskId}/pr-status`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.error) setError(data.error);
-        else setDetails(data);
+        if (data.error) {
+          setError(data.error);
+        } else {
+          setDetails(data);
+        }
       })
       .catch(() => setError("Status unavailable"));
   }, [taskId]);

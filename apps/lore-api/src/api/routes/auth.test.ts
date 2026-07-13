@@ -17,12 +17,16 @@ describe("rateLimit", () => {
   useRateLimitSafeClock();
 
   it("allows requests up to the bucket limit then blocks the next", () => {
-    for (let i = 0; i < 30; i++) expect(rateLimit("webhook")).toBe(true);
+    for (let i = 0; i < 30; i++) {
+      expect(rateLimit("webhook")).toBe(true);
+    }
     expect(rateLimit("webhook")).toBe(false);
   });
 
   it("allows requests again once the 60s window slides past", () => {
-    for (let i = 0; i < 30; i++) rateLimit("webhook");
+    for (let i = 0; i < 30; i++) {
+      rateLimit("webhook");
+    }
     expect(rateLimit("webhook")).toBe(false);
     vi.setSystemTime(Date.now() + 61_000);
     expect(rateLimit("webhook")).toBe(true);
@@ -40,6 +44,7 @@ describe("resolveTokenScopes", () => {
 
   it("resolves the legacy ingest token to all scopes without a DB hit", async () => {
     const pool = makePool();
+
     expect(
       await resolveTokenScopes(pool as never, "legacy-full-access"),
     ).toEqual(ALL_SCOPES);
@@ -52,6 +57,7 @@ describe("resolveTokenScopes", () => {
 
   it("returns the token's scopes on a DB hit, looked up by sha256 hash", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read", "write"] }] });
     expect(await resolveTokenScopes(pool as never, "client-token")).toEqual([
       "read",
@@ -65,12 +71,14 @@ describe("resolveTokenScopes", () => {
 
   it("returns null when the token matches no active row", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [] });
     expect(await resolveTokenScopes(pool as never, "revoked")).toBeNull();
   });
 
   it("returns null when the DB lookup throws", async () => {
     const pool = makePool();
+
     pool.query.mockRejectedValue(new Error("db down"));
     expect(await resolveTokenScopes(pool as never, "client-token")).toBeNull();
   });
@@ -87,24 +95,28 @@ describe("validateClientToken", () => {
 
   it("grants access when the token carries the required scope", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read", "write"] }] });
     expect(await validateClientToken(pool as never, "t", "write")).toBe(true);
   });
 
   it("grants access to any scope when the token has admin", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ scopes: ["admin"] }] });
     expect(await validateClientToken(pool as never, "t", "webhook")).toBe(true);
   });
 
   it("denies access when the token lacks the required scope", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
     expect(await validateClientToken(pool as never, "t", "write")).toBe(false);
   });
 
   it("denies access when the token resolves to no scopes", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [] });
     expect(await validateClientToken(pool as never, "unknown", "read")).toBe(
       false,

@@ -20,7 +20,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
   // memory.memories ──────────────────────────────────────────────────
 
   async countMemoriesByAgentOverCap(cap: number): Promise<AgentCount[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<AgentCount>(
       `SELECT agent_id, count(*)::int AS cnt
      FROM memory.memories
      WHERE is_deleted = FALSE
@@ -28,6 +28,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
      HAVING count(*) > $1`,
       [cap],
     );
+
     return rows as AgentCount[];
   }
 
@@ -36,7 +37,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     limit: number,
     minAgeDays: number,
   ): Promise<DecayCandidate[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<DecayCandidate>(
       `SELECT id, key, value, created_at, last_retrieved_at, half_life_days, retrieval_count
        FROM memory.memories
        WHERE agent_id = $1 AND is_deleted = FALSE
@@ -45,6 +46,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
        LIMIT $2`,
       [agentId, limit],
     );
+
     return rows as DecayCandidate[];
   }
 
@@ -77,7 +79,8 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
      )
      SELECT count(*)::text AS count FROM expired`,
     );
-    return parseInt(rows[0]?.count || "0", 10);
+
+    return parseInt((rows[0]?.count as string) || "0", 10);
   }
 
   async upsertMemory(memory: MemoryUpsert): Promise<void> {
@@ -108,7 +111,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     cap: number,
     minAgeDays: number,
   ): Promise<AgentCount[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<AgentCount>(
       `SELECT COALESCE(m.agent_id, e.agent_id) AS agent_id, count(*)::int AS cnt
      FROM memory.facts f
      LEFT JOIN memory.memories m ON m.id = f.memory_id
@@ -119,6 +122,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
      HAVING count(*) > $1`,
       [cap],
     );
+
     return rows as AgentCount[];
   }
 
@@ -138,6 +142,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
        RETURNING id`,
       [limit],
     );
+
     return rows.length;
   }
 
@@ -150,6 +155,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
          AND COALESCE(last_retrieved_at, created_at) < now() - interval '30 days'
        RETURNING id`,
     );
+
     return rows.length;
   }
 
@@ -157,7 +163,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     lookbackDays: number,
     limit: number,
   ): Promise<RecentFact[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<RecentFact>(
       `SELECT f.fact_text, COALESCE(e.ref, 'unknown') AS repo
      FROM memory.facts f
      LEFT JOIN memory.episodes e ON e.id = f.episode_id
@@ -166,6 +172,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
      ORDER BY f.created_at DESC
      LIMIT ${limit}`,
     );
+
     return rows as RecentFact[];
   }
 
@@ -181,6 +188,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
         [factIds],
       );
     }
+
     if (memoryIds.length > 0) {
       await this.pool.query(
         `UPDATE memory.memories SET half_life_days = LEAST(COALESCE(half_life_days, 60) + 5, 365) WHERE id = ANY($1::uuid[])`,
@@ -199,6 +207,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
         [factIds],
       );
     }
+
     if (memoryIds.length > 0) {
       await this.pool.query(
         `UPDATE memory.memories SET half_life_days = GREATEST(7, COALESCE(half_life_days, 60) - 3) WHERE id = ANY($1::uuid[])`,
@@ -233,6 +242,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
         episode.ref,
       ],
     );
-    return rows[0]?.id || null;
+
+    return (rows[0]?.id as string) || null;
   }
 }

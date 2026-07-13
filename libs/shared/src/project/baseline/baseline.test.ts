@@ -9,11 +9,13 @@ function fakePool(rows: Record<string, unknown>[] = []): {
 } {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
-    async query(text: string, params?: unknown[]) {
+    async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
       calls.push({ text, params });
-      return { rows };
+
+      return { rows: rows as T[] };
     },
   };
+
   return { pool, calls };
 }
 

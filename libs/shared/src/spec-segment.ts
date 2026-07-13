@@ -92,37 +92,64 @@ function parseHeading(line: string): string {
 
 function isTableRow(line: string): boolean {
   const t = line.trim();
+
   return t.startsWith("|") && t.endsWith("|") && t.length >= 2;
 }
 
 function splitSentences(text: string): string[] {
   const flat = text.replace(/\s+/g, " ").trim();
-  if (!flat) return [];
+
+  if (!flat) {
+    return [];
+  }
 
   const out: string[] = [];
   let buf = "";
+
   for (let i = 0; i < flat.length; i++) {
     buf += flat[i];
     const ch = flat[i];
-    if (ch !== "." && ch !== "?" && ch !== "!") continue;
+
+    if (ch !== "." && ch !== "?" && ch !== "!") {
+      continue;
+    }
 
     let j = i + 1;
-    while (j < flat.length && flat[j] === " ") j++;
+
+    while (j < flat.length && flat[j] === " ") {
+      j++;
+    }
+
     if (j >= flat.length) {
       const tail = buf.trim();
-      if (tail) out.push(tail);
+
+      if (tail) {
+        out.push(tail);
+      }
       buf = "";
       break;
     }
     const nextCh = flat[j];
-    if (!/[A-Z([0-9]/.test(nextCh)) continue;
-    if (TRAILING_LINK_PARENTHETICAL.test(flat.slice(j))) continue;
+
+    if (!/[A-Z([0-9]/.test(nextCh)) {
+      continue;
+    }
+
+    if (TRAILING_LINK_PARENTHETICAL.test(flat.slice(j))) {
+      continue;
+    }
 
     if (ch === ".") {
       const trimmed = buf.trimEnd().replace(/[.?!]+$/, "");
       const lastWord = trimmed.split(/\s+/).pop() || "";
-      if (ABBREVIATIONS.has(lastWord)) continue;
-      if (/^[A-Z]$/.test(lastWord)) continue;
+
+      if (ABBREVIATIONS.has(lastWord)) {
+        continue;
+      }
+
+      if (/^[A-Z]$/.test(lastWord)) {
+        continue;
+      }
     }
 
     out.push(buf.trim());
@@ -130,7 +157,11 @@ function splitSentences(text: string): string[] {
     i = j - 1;
   }
   const tail = buf.trim();
-  if (tail) out.push(tail);
+
+  if (tail) {
+    out.push(tail);
+  }
+
   return out;
 }
 
@@ -143,9 +174,13 @@ export function segmentStatements(content: string): Statement[] {
   let paragraphLines: string[] = [];
 
   const flushParagraph = () => {
-    if (paragraphLines.length === 0) return;
+    if (paragraphLines.length === 0) {
+      return;
+    }
     const para = paragraphLines.join(" ");
+
     paragraphLines = [];
+
     for (const sentence of splitSentences(para)) {
       statements.push({
         ordinal: ordinal++,
@@ -164,7 +199,10 @@ export function segmentStatements(content: string): Statement[] {
       inFence = !inFence;
       continue;
     }
-    if (inFence) continue;
+
+    if (inFence) {
+      continue;
+    }
 
     if (line.trim() === "") {
       flushParagraph();
@@ -185,17 +223,34 @@ export function segmentStatements(content: string): Statement[] {
     if (isListItem(line)) {
       flushParagraph();
       let combined = stripListMarker(line);
+
       while (i + 1 < lines.length) {
         const next = lines[i + 1];
-        if (next.trim() === "") break;
-        if (isListItem(next)) break;
-        if (isHeading(next)) break;
-        if (isTableRow(next)) break;
-        if (/^\s*```/.test(next)) break;
+
+        if (next.trim() === "") {
+          break;
+        }
+
+        if (isListItem(next)) {
+          break;
+        }
+
+        if (isHeading(next)) {
+          break;
+        }
+
+        if (isTableRow(next)) {
+          break;
+        }
+
+        if (/^\s*```/.test(next)) {
+          break;
+        }
         combined += " " + next.trim();
         i++;
       }
       combined = combined.replace(/\s+/g, " ").trim();
+
       if (combined) {
         statements.push({
           ordinal: ordinal++,
@@ -210,6 +265,7 @@ export function segmentStatements(content: string): Statement[] {
     paragraphLines.push(line.trim());
   }
   flushParagraph();
+
   return statements;
 }
 
@@ -260,17 +316,20 @@ const CONTENT_RULES: { match: RegExp; category: UntestableCategory }[] = [
 export function buildIntroOrdinals(statements: Statement[]): Set<number> {
   const ordinals = new Set<number>();
   let firstHeading: string | null = null;
+
   for (const s of statements) {
     if (firstHeading === null && s.enclosingHeading !== null) {
       firstHeading = s.enclosingHeading;
       break;
     }
   }
+
   for (const s of statements) {
     if (s.enclosingHeading === null || s.enclosingHeading === firstHeading) {
       ordinals.add(s.ordinal);
     }
   }
+
   return ordinals;
 }
 
@@ -295,12 +354,14 @@ export function classifyByHeuristic(
       matchedBySection: true,
     };
   }
+
   for (const { match, category } of CONTENT_RULES) {
     if (match.test(statement.text)) {
       return { testability: "untestable", category, matchedBySection: true };
     }
   }
   const heading = statement.enclosingHeading;
+
   if (heading) {
     for (const { match, category } of SECTION_RULES) {
       if (match.test(heading)) {
@@ -308,5 +369,6 @@ export function classifyByHeuristic(
       }
     }
   }
+
   return { testability: "testable", category: null, matchedBySection: false };
 }

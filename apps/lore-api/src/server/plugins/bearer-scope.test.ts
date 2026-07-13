@@ -15,6 +15,7 @@ const originalEnv = { ...process.env };
 // grant everything. Bodies match the legacy dispatcher byte-for-byte (SC-3).
 function server(pool: unknown): Hapi.Server {
   const s = Hapi.server();
+
   registerBearerScope(s, () => pool as any);
   s.route({
     method: "GET",
@@ -28,6 +29,7 @@ function server(pool: unknown): Hapi.Server {
     options: bearerScope("admin"),
     handler: () => ({ ok: true }),
   });
+
   return s;
 }
 
@@ -42,6 +44,7 @@ describe("bearer-scope auth scheme", () => {
 
   it("returns 401 {error:unauthorized} when no bearer token", async () => {
     const res = await server(null).inject({ method: "GET", url: "/guarded" });
+
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.payload)).toEqual({ error: "unauthorized" });
   });
@@ -52,29 +55,34 @@ describe("bearer-scope auth scheme", () => {
       url: "/guarded",
       headers: { authorization: "Bearer wrong" },
     });
+
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
   });
 
   it("returns 403 when the DB has no matching token", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [] });
     const res = await server(pool).inject({
       method: "GET",
       url: "/guarded",
       headers: { authorization: "Bearer db-x" },
     });
+
     expect(res.statusCode).toBe(403);
   });
 
   it("passes when the DB token carries the required scope", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
     const res = await server(pool).inject({
       method: "GET",
       url: "/guarded",
       headers: { authorization: "Bearer db-read" },
     });
+
     expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({ ok: true });
     expect(pool.query).toHaveBeenCalledTimes(1);
@@ -82,34 +90,40 @@ describe("bearer-scope auth scheme", () => {
 
   it("grants any scope when the DB token has admin", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ scopes: ["admin"] }] });
     const res = await server(pool).inject({
       method: "GET",
       url: "/admin-only",
       headers: { authorization: "Bearer db-admin" },
     });
+
     expect(res.statusCode).toBe(200);
   });
 
   it("returns 403 when the DB token lacks the scope the route needs", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
     const res = await server(pool).inject({
       method: "GET",
       url: "/admin-only",
       headers: { authorization: "Bearer db-read" },
     });
+
     expect(res.statusCode).toBe(403);
   });
 
   it("returns 403 when the token lookup query throws", async () => {
     const pool = makePool();
+
     pool.query.mockRejectedValue(new Error("db down"));
     const res = await server(pool).inject({
       method: "GET",
       url: "/guarded",
       headers: { authorization: "Bearer db-x" },
     });
+
     expect(res.statusCode).toBe(403);
   });
 
@@ -120,6 +134,7 @@ describe("bearer-scope auth scheme", () => {
       url: "/admin-only",
       headers: AUTH,
     });
+
     expect(res.statusCode).toBe(200);
     expect(pool.query).not.toHaveBeenCalled();
   });

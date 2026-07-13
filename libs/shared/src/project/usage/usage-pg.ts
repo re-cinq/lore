@@ -31,12 +31,13 @@ export class PgUsage implements UsagePort {
   }
 
   async processedCounts(): Promise<ProcessedCounts> {
-    const { rows: todayRows } = await this.pool.query(
+    const { rows: todayRows } = await this.pool.query<{ today: number }>(
       "SELECT count(*)::int as today FROM pipeline.llm_calls WHERE created_at > current_date",
     );
-    const { rows: totalRows } = await this.pool.query(
+    const { rows: totalRows } = await this.pool.query<{ total: number }>(
       "SELECT count(*)::int as total FROM pipeline.llm_calls",
     );
+
     return {
       today: todayRows[0]?.today ?? 0,
       total: totalRows[0]?.total ?? 0,

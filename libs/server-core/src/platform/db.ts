@@ -28,6 +28,7 @@ const VALID_SCHEMAS = new Set([
 
 export function getPool(): Pool {
   enforceTrue(pool, new Error("Database not configured"));
+
   return pool;
 }
 
@@ -38,9 +39,13 @@ export function setPool(pgPool: Pool): void {
 // ── Health check ──────────────────────────────────────────────────────
 
 export async function isDbAvailable(): Promise<boolean> {
-  if (!pool) return false;
+  if (!pool) {
+    return false;
+  }
+
   try {
     await pool.query("SELECT 1");
+
     return true;
   } catch {
     return false;
@@ -59,11 +64,13 @@ export async function getHealthStatus(): Promise<{
       reason: "no database configured (file-backed mode)",
     };
   }
+
   try {
     await pool.query("SELECT 1");
     const { rows } = await pool.query(
       "SELECT count(*)::int AS cnt FROM org_shared.chunks",
     );
+
     return { connected: true, chunk_count: rows[0].cnt };
   } catch {
     return { connected: false, chunk_count: null, reason: "connection failed" };
@@ -104,7 +111,10 @@ export interface PrHistoryResult {
 // ── Hybrid search (RRF) ──────────────────────────────────────────────
 
 function buildHybridSearchSQL(schema: string): string {
-  if (!VALID_SCHEMAS.has(schema)) schema = "org_shared";
+  if (!VALID_SCHEMAS.has(schema)) {
+    schema = "org_shared";
+  }
+
   return `
 WITH vector_results AS (
   SELECT id, content, metadata,
@@ -135,7 +145,9 @@ export async function hybridSearch(
   schema: string,
   limit: number = 8,
 ): Promise<SearchResult[]> {
-  if (!(await isDbAvailable())) return [];
+  if (!(await isDbAvailable())) {
+    return [];
+  }
 
   // Get query embedding from Vertex AI
   const embedding = await getQueryEmbedding(query);
@@ -145,10 +157,13 @@ export async function hybridSearch(
     const embeddingStr = `[${embedding.join(",")}]`;
     const sql = buildHybridSearchSQL(schema);
     const { rows } = await getPool().query(sql, [embeddingStr, query, limit]);
+
     return rows as SearchResult[];
   } else {
     // Fallback: keyword-only search (no embedding available)
-    if (!VALID_SCHEMAS.has(schema)) schema = "org_shared";
+    if (!VALID_SCHEMAS.has(schema)) {
+      schema = "org_shared";
+    }
     const sql = `
       SELECT id, content, metadata,
              ts_rank(search_tsv, plainto_tsquery($1)) AS rrf_score
@@ -157,6 +172,7 @@ export async function hybridSearch(
       ORDER BY rrf_score DESC
       LIMIT $2;`;
     const { rows } = await getPool().query(sql, [query, limit]);
+
     return rows as SearchResult[];
   }
 }
@@ -164,8 +180,13 @@ export async function hybridSearch(
 // ── Team context docs ────────────────────────────────────────────────
 
 export async function getContextFromDb(team: string): Promise<DocResult[]> {
-  if (!(await isDbAvailable())) return [];
-  if (!VALID_SCHEMAS.has(team)) team = "org_shared";
+  if (!(await isDbAvailable())) {
+    return [];
+  }
+
+  if (!VALID_SCHEMAS.has(team)) {
+    team = "org_shared";
+  }
 
   const sql = `
     SELECT id, content, content_type, metadata
@@ -178,6 +199,7 @@ export async function getContextFromDb(team: string): Promise<DocResult[]> {
     ${team !== "org_shared" ? "" : "AND FALSE"}
     ORDER BY 1;`;
   const { rows } = await getPool().query(sql);
+
   return rows as DocResult[];
 }
 
@@ -187,7 +209,9 @@ export async function getAdrsFromDb(
   domain: string,
   status: string,
 ): Promise<AdrResult[]> {
-  if (!(await isDbAvailable())) return [];
+  if (!(await isDbAvailable())) {
+    return [];
+  }
 
   const sql = `
     SELECT id, content, metadata->>'domain' AS domain, metadata->>'status' AS status, metadata
@@ -197,6 +221,7 @@ export async function getAdrsFromDb(
       AND ($2 = '' OR content ILIKE '%' || $2 || '%')
     ORDER BY 1;`;
   const { rows } = await getPool().query(sql, [domain, status]);
+
   return rows as AdrResult[];
 }
 
@@ -205,7 +230,9 @@ export async function getAdrsFromDb(
 export async function getFilePrHistory(
   filePath: string,
 ): Promise<PrHistoryResult[]> {
-  if (!(await isDbAvailable())) return [];
+  if (!(await isDbAvailable())) {
+    return [];
+  }
 
   const sql = `
     SELECT id, content, $1 AS file_path, metadata
@@ -214,5 +241,6 @@ export async function getFilePrHistory(
       AND metadata->>'file_path' ILIKE '%' || $1 || '%'
     ORDER BY 1 DESC;`;
   const { rows } = await getPool().query(sql, [filePath]);
+
   return rows as PrHistoryResult[];
 }

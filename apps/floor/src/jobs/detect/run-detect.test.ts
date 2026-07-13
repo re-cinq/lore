@@ -13,6 +13,7 @@ async function withLeasesDir<T>(
   fn: (leasesDir: string) => Promise<T>,
 ): Promise<T> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-detect-leases-"));
+
   try {
     return await fn(dir);
   } finally {
@@ -26,6 +27,7 @@ function fakeDispatch(status: AgentNodeStatus): {
   launched: LoreTaskSpec[];
 } {
   const launched: LoreTaskSpec[] = [];
+
   return {
     launched,
     dispatch: {
@@ -108,6 +110,7 @@ describe("runDetect", () => {
             ttlSec?: number,
           ) => {
             acquires.push({ branchName, taskId });
+
             return backend.acquire(branchName, taskId, holder, ttlSec);
           },
         },
@@ -170,6 +173,7 @@ describe("runDetect", () => {
       const assemblyLines = new InMemoryAssemblyLines();
       const jobRuns = new InMemoryJobRuns();
       const backend = new FileLeaseBackend(leasesDir);
+
       await backend.acquire(
         "detect/spec-drift/re-cinq/lore",
         "other-run",

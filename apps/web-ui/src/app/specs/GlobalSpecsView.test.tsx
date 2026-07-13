@@ -17,6 +17,7 @@ describe("GlobalSpecsView", () => {
     expect(screen.getByText("re-cinq/lore")).toBeTruthy();
     expect(screen.getByText("acme/widgets")).toBeTruthy();
     const link = screen.getByText("specs/auth/spec.md").closest("a");
+
     expect(link?.getAttribute("href")).toBe(
       `/repos/re-cinq/lore/specs/${encodeURIComponent("specs/auth/spec.md")}`,
     );

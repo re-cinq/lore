@@ -23,6 +23,7 @@ export default async function HomePage() {
   // Per-repo ingest-workflow alignment. Skipped entirely when the GitHub
   // App isn't configured so we never false-flag every repo as missing.
   const ingestStatus = new Map<string, IngestWorkflowStatus>();
+
   if (isGitHubConfigured()) {
     const statuses = await Promise.all(
       repos.map((r) =>
@@ -31,11 +32,13 @@ export default async function HomePage() {
           .catch(() => "aligned" as IngestWorkflowStatus),
       ),
     );
+
     repos.forEach((r, i) => ingestStatus.set(r.full_name, statuses[i]));
   }
   const misaligned = repos
     .filter((r) => {
       const s = ingestStatus.get(r.full_name);
+
       return s === "missing" || s === "stale";
     })
     .map((r) => r.full_name);

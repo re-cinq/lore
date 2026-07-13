@@ -22,10 +22,16 @@ export type CiTestsResult =
   | { ok: false; status: number; error: string };
 
 export function mapCiTests(body: CiTestsBody): CiTestsResult {
-  if (!body.repo) return { ok: false, status: 400, error: "missing repo" };
-  if (!body.commit) return { ok: false, status: 400, error: "missing commit" };
+  if (!body.repo) {
+    return { ok: false, status: 400, error: "missing repo" };
+  }
+
+  if (!body.commit) {
+    return { ok: false, status: 400, error: "missing commit" };
+  }
 
   const { repo, ...payload } = body;
+
   return {
     ok: true,
     events: [

@@ -63,8 +63,14 @@ export function specToAgent(
     prompt: spec.prompt,
     ...(spec.parameters ?? {}),
   };
-  if (spec.prNumber !== undefined) parameters.pr_number = String(spec.prNumber);
-  if (context) parameters.context = context;
+
+  if (spec.prNumber !== undefined) {
+    parameters.pr_number = String(spec.prNumber);
+  }
+
+  if (context) {
+    parameters.context = context;
+  }
 
   return {
     metadata: {
@@ -103,6 +109,7 @@ export class AgentCrBackend implements StationBackend {
     const { name, created } = await this.api.create(
       specToAgent(spec, context, stationRef),
     );
+
     return { ref: name, launched: created };
   }
 
@@ -112,7 +119,11 @@ export class AgentCrBackend implements StationBackend {
   async isActive(taskId: string): Promise<boolean> {
     try {
       const agents = await this.api.listByLabel(`${TASK_ID_LABEL}=${taskId}`);
-      if (agents.length === 0) return false;
+
+      if (agents.length === 0) {
+        return false;
+      }
+
       return agents.some((agent) => !isTerminal(agent));
     } catch {
       return true;

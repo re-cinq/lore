@@ -91,6 +91,7 @@ export function createAgentHandler(
     }
 
     const resolved = deps.resolvePrompt(node.prompt_ref, meta.description);
+
     if (!resolved) {
       return {
         outcome: "failed",
@@ -102,6 +103,7 @@ export function createAgentHandler(
     }
 
     let result: LlmCompletion;
+
     try {
       result = await deps.callLLM({
         prompt: resolved.prompt,
@@ -134,6 +136,7 @@ export function createAgentHandler(
     }
 
     const fileMap = extractJsonFiles(result.text);
+
     if (!fileMap || Object.keys(fileMap).length === 0) {
       return {
         outcome: "failed",
@@ -153,10 +156,15 @@ export function createAgentHandler(
     // failed, iteration_max: 1)` self-edge bounds the retry; lease
     // takeover handles full pod death.
     let writtenCount = 0;
+
     for (const [relPath, content] of Object.entries(fileMap)) {
       const safe = sanitizeRelativePath(relPath);
-      if (!safe) continue;
+
+      if (!safe) {
+        continue;
+      }
       const fullPath = path.join(ctx.gitDir, safe);
+
       await fs.mkdir(path.dirname(fullPath), { recursive: true });
       await writer(fullPath, content);
       writtenCount++;
@@ -180,48 +188,76 @@ export function createAgentHandler(
 export function extractJsonFiles(text: string): Record<string, string> | null {
   // Try direct parse first.
   const direct = tryParse(text);
-  if (direct) return direct;
+
+  if (direct) {
+    return direct;
+  }
 
   // Fenced code blocks.
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+
   if (fenced) {
     const fromFence = tryParse(fenced[1]);
-    if (fromFence) return fromFence;
+
+    if (fromFence) {
+      return fromFence;
+    }
   }
 
   // Brace-balanced extraction.
   const start = text.indexOf("{");
-  if (start < 0) return null;
+
+  if (start < 0) {
+    return null;
+  }
   let depth = 0;
   let inString = false;
   let escape = false;
+
   for (let i = start; i < text.length; i++) {
     const ch = text[i];
+
     if (inString) {
-      if (escape) escape = false;
-      else if (ch === "\\") escape = true;
-      else if (ch === '"') inString = false;
+      if (escape) {
+        escape = false;
+      } else if (ch === "\\") {
+        escape = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
       continue;
     }
-    if (ch === '"') inString = true;
-    else if (ch === "{") depth++;
-    else if (ch === "}") {
+
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === "{") {
+      depth++;
+    } else if (ch === "}") {
       depth--;
+
       if (depth === 0) {
         return tryParse(text.slice(start, i + 1));
       }
     }
   }
+
   return null;
 }
 
 function tryParse(s: string): Record<string, string> | null {
   try {
     const parsed = JSON.parse(s) as JsonFileOutput;
-    if (!parsed.files || typeof parsed.files !== "object") return null;
-    for (const value of Object.values(parsed.files)) {
-      if (typeof value !== "string") return null;
+
+    if (!parsed.files || typeof parsed.files !== "object") {
+      return null;
     }
+
+    for (const value of Object.values(parsed.files)) {
+      if (typeof value !== "string") {
+        return null;
+      }
+    }
+
     return parsed.files;
   } catch {
     return null;
@@ -234,11 +270,17 @@ function tryParse(s: string): Record<string, string> | null {
  * never escape the worktree root.
  */
 function sanitizeRelativePath(p: string): string | null {
-  if (!p) return null;
-  if (path.isAbsolute(p)) return null;
+  if (!p) {
+    return null;
+  }
+
+  if (path.isAbsolute(p)) {
+    return null;
+  }
   // path.normalize collapses any embedded `..` segments; a remaining
   // leading `..` is the only escape case we need to reject.
   const normalized = path.normalize(p);
+
   if (
     normalized === ".." ||
     normalized.startsWith("../") ||
@@ -246,5 +288,6 @@ function sanitizeRelativePath(p: string): string | null {
   ) {
     return null;
   }
+
   return normalized;
 }

@@ -127,6 +127,7 @@ export function parseTraceImpactWorkflowVersion(
   content: string,
 ): number | null {
   const match = content.match(/^#\s*lore-trace-impact-version:\s*(\d+)/m);
+
   return match ? parseInt(match[1], 10) : null;
 }
 
@@ -134,8 +135,11 @@ export function parseTraceImpactWorkflowVersion(
 export function traceImpactWorkflowStatus(
   content: string | null,
 ): TraceImpactWorkflowStatus {
-  if (content === null) return "missing";
+  if (content === null) {
+    return "missing";
+  }
   const version = parseTraceImpactWorkflowVersion(content);
+
   return version !== null && version >= TRACE_IMPACT_WORKFLOW_VERSION
     ? "aligned"
     : "stale";

@@ -22,10 +22,13 @@ describe("makeGraphLlmCall", () => {
   it("routes the prompt through the Llm singleton under the graph-extraction job", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-test";
     const fake = new FakeLlm({ text: "graph json" });
+
     Llm.setInstance(fake);
     const call = makeGraphLlmCall(null);
+
     expect(call).toBeDefined();
     const text = await call!("extract entities from this");
+
     expect(text).toBe("graph json");
     expect(fake.calls[0]).toMatchObject({
       prompt: "extract entities from this",

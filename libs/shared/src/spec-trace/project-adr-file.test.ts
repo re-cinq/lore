@@ -50,6 +50,7 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -69,6 +70,7 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
         ...(data.adrs ?? []),
         ...(data.root ?? []),
       ].map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -83,12 +85,16 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
   }
 
   let createdRepo = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
   });
 
   it("recomputes the exact ADR source after projecting it through the graph", async () => {
     const repo = `test-adr/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "adrs/0016-dark-factory.md";
     const content = [
@@ -116,6 +122,7 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
 
   it("attaches the projected ADR to its Repo root via Repo.adrs", async () => {
     const repo = `test-adr/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "adrs/0020-x.md";
     const content = ["# ADR-020", "", "## Status", "", "Accepted"].join("\n");
@@ -127,10 +134,12 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
       `query q($repo: string){ root(func: eq(Repo.xid, $repo)){ adrs: Repo.adrs { ADR.file_path } } }`,
       { $repo: repo },
     );
+
     await txn.discard().catch(() => {});
     const data = res.data as {
       root?: Array<{ adrs?: Array<{ "ADR.file_path"?: string }> }>;
     };
+
     expect((data.root?.[0]?.adrs ?? []).map((a) => a["ADR.file_path"])).toEqual(
       [filePath],
     );
@@ -138,6 +147,7 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
 
   it("returns projected true then false on an unchanged re-projection (content_hash gate)", async () => {
     const repo = `test-adr/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "adrs/0001-gate.md";
     const content = ["# ADR-001", "", "## Status", "", "Accepted"].join("\n");
@@ -151,6 +161,7 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
 
   it("recomputes the shorter source after re-projecting a SHORTER ADR over a longer one", async () => {
     const repo = `test-adr/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "adrs/0016.md";
     const longContent = [

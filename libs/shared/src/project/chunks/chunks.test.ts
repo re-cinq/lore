@@ -10,11 +10,13 @@ function fakePool(result: { rows: any[] } = { rows: [] }): {
 } {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
-    async query(text: string, params?: unknown[]) {
+    async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
       calls.push({ text, params });
+
       return result;
     },
   };
+
   return { pool, calls };
 }
 
@@ -208,6 +210,7 @@ describe("InMemoryChunks double", () => {
 
   it("scopes deletes to schema, file_path and repo", async () => {
     const chunks = new InMemoryChunks();
+
     await chunks.insertChunk("platform", sampleChunk);
     await chunks.insertChunk("platform", {
       ...sampleChunk,
@@ -238,6 +241,7 @@ describe("InMemoryChunks double", () => {
 
   it("returns distinct teams and per-team counts from org_shared rows only", async () => {
     const chunks = new InMemoryChunks();
+
     await chunks.insertChunk("org_shared", {
       ...sampleChunk,
       team: "platform",
@@ -267,6 +271,7 @@ describe("InMemoryChunks double", () => {
 
   it("reads spec chunks and code symbols for a repo from org_shared", async () => {
     const chunks = new InMemoryChunks();
+
     await chunks.insertChunk("org_shared", {
       ...sampleChunk,
       contentType: "spec",
@@ -295,6 +300,7 @@ describe("InMemoryChunks double", () => {
 
   it("reports chunk existence by content type and file suffix", async () => {
     const chunks = new InMemoryChunks();
+
     await chunks.insertChunk("org_shared", {
       ...sampleChunk,
       contentType: "doc",
@@ -310,6 +316,7 @@ describe("InMemoryChunks double", () => {
     const old = new Date(Date.now() - 100 * 86_400_000).toISOString();
     const fresh = new Date().toISOString();
     const chunks = new InMemoryChunks();
+
     await chunks.insertChunk("org_shared", { ...sampleChunk, filePath: "a" });
     await chunks.insertChunk("org_shared", { ...sampleChunk, filePath: "b" });
     chunks.rows[0]!.ingestedAt = old;

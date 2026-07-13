@@ -14,6 +14,7 @@ describe("parseTestDescriptors", () => {
         passed: true,
       },
     ]);
+
     expect(result).toEqual([
       {
         id: "mcp-server/src/local-runner.test.ts::claims pending task",
@@ -31,6 +32,7 @@ describe("parseTestDescriptors", () => {
     const result = parseTestDescriptors([
       { id: "t1", name: "first", file: "a.test.ts", suite: ["Outer", "Inner"] },
     ]);
+
     expect(result).toEqual([
       { id: "t1", name: "first", file: "a.test.ts", suite: ["Outer", "Inner"] },
     ]);
@@ -40,6 +42,7 @@ describe("parseTestDescriptors", () => {
     const result = parseTestDescriptors([
       { id: "t1", name: "first", file: "a.test.ts", suite: ["Outer", 3] },
     ]);
+
     expect(result).toEqual([{ id: "t1", name: "first", file: "a.test.ts" }]);
   });
 
@@ -51,6 +54,7 @@ describe("parseTestDescriptors", () => {
         file: "pkg/store_test.go",
       },
     ]);
+
     expect(descriptor).toEqual({
       id: "pkg/store_test.go::TestClaim",
       name: "TestClaim",
@@ -65,6 +69,7 @@ describe("parseTestDescriptors", () => {
         string,
         unknown
       >;
+
       delete valid[field];
       expect(() => parseTestDescriptors([valid])).toThrow(new RegExp(field));
     },
@@ -79,6 +84,7 @@ describe("parseRunResult", () => {
         { file: "mcp-server/src/local-runner.ts", startLine: 42, endLine: 58 },
       ],
     });
+
     expect(result).toEqual({
       passed: false,
       covered: [

@@ -29,9 +29,11 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
 
 function redactSecrets(text: string): string {
   let result = text;
+
   for (const p of PATTERNS) {
     result = result.replace(p.re, `[REDACTED:${p.name}]`);
   }
+
   return result;
 }
 
@@ -41,6 +43,7 @@ describe("redactSecrets", () => {
   it("redacts GitHub personal access tokens (ghp_)", () => {
     const input = `token: ${"ghp_"}ABCDEFghijklmnop1234567890`;
     const result = redactSecrets(input);
+
     expect(result).toBe("token: [REDACTED:api-key]");
     expect(result).not.toContain("ghp_");
   });
@@ -48,6 +51,7 @@ describe("redactSecrets", () => {
   it("redacts GitHub server tokens (ghs_)", () => {
     const input = `Authorization: ${"ghs_"}xyzABCDEFghijklmnop12345`;
     const result = redactSecrets(input);
+
     expect(result).toBe("Authorization: [REDACTED:api-key]");
     expect(result).not.toContain("ghs_");
   });
@@ -55,6 +59,7 @@ describe("redactSecrets", () => {
   it("redacts Anthropic API keys (sk-ant-)", () => {
     const input = `ANTHROPIC_API_KEY=${"sk-ant"}-api03-abcdefghij1234567890abcdefghij`;
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("sk-ant-");
   });
@@ -62,6 +67,7 @@ describe("redactSecrets", () => {
   it("redacts generic sk- prefixed keys", () => {
     const input = "key: sk-1234567890abcdefghij1234567890";
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("sk-1234567890");
   });
@@ -69,6 +75,7 @@ describe("redactSecrets", () => {
   it("redacts AWS access keys (AKIA)", () => {
     const input = `aws_access_key_id = ${"AKIA"}IOSFODNN7EXAMPLE12345`;
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("AKIAIOSFODNN7EXAMPLE");
   });
@@ -76,6 +83,7 @@ describe("redactSecrets", () => {
   it("redacts Slack tokens (xoxb-, xoxp-)", () => {
     const input = `SLACK_TOKEN=${"xoxb"}-1234567890abcdefghij1234567890`;
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("xoxb-");
   });
@@ -83,6 +91,7 @@ describe("redactSecrets", () => {
   it("redacts GitLab tokens (glpat-)", () => {
     const input = `GITLAB_TOKEN=${"glpat"}-xxxxxxxxxxxxxxxxxxxx12345`;
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("glpat-");
   });
@@ -95,6 +104,7 @@ describe("redactSecrets", () => {
     ].join(".");
     const input = `Bearer ${jwt}`;
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:jwt]");
     expect(result).not.toContain("eyJhbGciOiJSUzI1NiI");
   });
@@ -107,6 +117,7 @@ describe("redactSecrets", () => {
     ].join("\n");
     const input = `config:\n${key}\nmore text`;
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:private-key]");
     expect(result).not.toContain("MIIEowIBAAKCAQEA");
   });
@@ -118,6 +129,7 @@ describe("redactSecrets", () => {
       "-----END EC PRIVATE KEY-----",
     ].join("\n");
     const result = redactSecrets(key);
+
     expect(result).toContain("[REDACTED:private-key]");
     expect(result).not.toContain("MHQCAQEEIODYDeq");
   });
@@ -125,6 +137,7 @@ describe("redactSecrets", () => {
   it("redacts PostgreSQL connection strings", () => {
     const input = "DATABASE_URL=postgres://user:password@host:5432/dbname";
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:connection-string]");
     expect(result).not.toContain("password");
   });
@@ -132,6 +145,7 @@ describe("redactSecrets", () => {
   it("redacts MySQL connection strings", () => {
     const input = "mysql://root:secret@localhost/mydb";
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:connection-string]");
     expect(result).not.toContain("secret");
   });
@@ -139,6 +153,7 @@ describe("redactSecrets", () => {
   it("redacts MongoDB connection strings", () => {
     const input = "mongodb://admin:pass123@cluster0.abc.mongodb.net/test";
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:connection-string]");
     expect(result).not.toContain("pass123");
   });
@@ -146,6 +161,7 @@ describe("redactSecrets", () => {
   it("redacts Redis connection strings", () => {
     const input = "redis://default:mypassword@redis-host:6379";
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:connection-string]");
     expect(result).not.toContain("mypassword");
   });
@@ -153,6 +169,7 @@ describe("redactSecrets", () => {
   it("redacts AMQP connection strings", () => {
     const input = "amqp://guest:guest@rabbitmq:5672/vhost";
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:connection-string]");
     expect(result).not.toContain("guest:guest");
   });
@@ -160,6 +177,7 @@ describe("redactSecrets", () => {
   it("redacts Bearer tokens", () => {
     const input = "Authorization: Bearer eyAbCdEfGhIjKlMnOpQrStUvWxYz012345";
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:bearer-token]");
     expect(result).not.toContain("eyAbCdEfGhIjKlMnOpQrStUvWxYz");
   });
@@ -168,6 +186,7 @@ describe("redactSecrets", () => {
     const base64 = "A".repeat(120);
     const input = `data: ${base64} end`;
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:base64-blob]");
     expect(result).not.toContain("A".repeat(120));
   });
@@ -176,17 +195,20 @@ describe("redactSecrets", () => {
     const base64 = "A".repeat(50);
     const input = `value: ${base64}`;
     const result = redactSecrets(input);
+
     expect(result).toBe(input);
   });
 
   it("preserves normal text", () => {
     const input =
       "This is a normal log line with no secrets. Status: OK. Count: 42.";
+
     expect(redactSecrets(input)).toBe(input);
   });
 
   it("preserves code snippets", () => {
     const input = "const x = 42;\nfunction hello() { return 'world'; }";
+
     expect(redactSecrets(input)).toBe(input);
   });
 
@@ -201,6 +223,7 @@ describe("redactSecrets", () => {
       "Authorization: Bearer eyAbCdEfGhIjKlMnOpQrStUvWxYz012345",
     ].join("\n");
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).toContain("[REDACTED:connection-string]");
     expect(result).toContain("[REDACTED:bearer-token]");
@@ -211,6 +234,7 @@ describe("redactSecrets", () => {
   it("redacts secrets embedded in JSON", () => {
     const input = `{"token":"${"ghp_"}ABCDEFghijklmnop1234567890","url":"https://api.example.com"}`;
     const result = redactSecrets(input);
+
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).toContain("https://api.example.com");
   });

@@ -22,10 +22,16 @@ const ctx = (gitDir: string): NodeContext => ({
 });
 
 const dirs: string[] = [];
+
 async function tmpRepo(pkg: object | null): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "lore-validate-"));
+
   dirs.push(dir);
-  if (pkg) await writeFile(join(dir, "package.json"), JSON.stringify(pkg));
+
+  if (pkg) {
+    await writeFile(join(dir, "package.json"), JSON.stringify(pkg));
+  }
+
   return dir;
 }
 const NODE_PKG = (lint: string) => ({
@@ -36,12 +42,15 @@ const NODE_PKG = (lint: string) => ({
 
 describe("createValidateHandler — local", () => {
   afterEach(async () => {
-    for (const d of dirs) await rm(d, { recursive: true, force: true });
+    for (const d of dirs) {
+      await rm(d, { recursive: true, force: true });
+    }
     dirs.length = 0;
   });
 
   it("returns success when no tooling is detected", async () => {
     const dir = await tmpRepo(null);
+
     expect((await createValidateHandler()(node, ctx(dir))).outcome).toBe(
       "success",
     );
@@ -49,6 +58,7 @@ describe("createValidateHandler — local", () => {
 
   it("returns success when the repo's check passes", async () => {
     const dir = await tmpRepo(NODE_PKG("true"));
+
     expect((await createValidateHandler()(node, ctx(dir))).outcome).toBe(
       "success",
     );
@@ -57,6 +67,7 @@ describe("createValidateHandler — local", () => {
   it("returns failed and names the failing step when a check fails", async () => {
     const dir = await tmpRepo(NODE_PKG("false"));
     const r = await createValidateHandler()(node, ctx(dir));
+
     expect(r.outcome).toBe("failed");
     expect(r.extras?.["Lore-Validation-Failed"]).toContain("lint");
   });
@@ -64,10 +75,14 @@ describe("createValidateHandler — local", () => {
 
 describe("createValidateHandler — relay (BYO sidecar)", () => {
   let proc: ChildProcess | undefined;
+
   afterEach(async () => {
     proc?.kill("SIGKILL");
     proc = undefined;
-    for (const d of dirs) await rm(d, { recursive: true, force: true });
+
+    for (const d of dirs) {
+      await rm(d, { recursive: true, force: true });
+    }
     dirs.length = 0;
   });
 
@@ -75,6 +90,7 @@ describe("createValidateHandler — relay (BYO sidecar)", () => {
     const dir = await tmpRepo(NODE_PKG("true"));
     const relayDir = join(dir, ".relay");
     const scriptPath = join(dir, "relay.sh");
+
     await writeFile(scriptPath, RELAY_SCRIPT);
     proc = spawn("sh", [scriptPath], {
       env: {

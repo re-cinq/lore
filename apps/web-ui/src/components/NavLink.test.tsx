@@ -4,8 +4,10 @@ import { render, screen } from "@testing-library/react";
 
 // Keep the real Link, stub useLinkStatus so we control the pending state.
 const linkStatus = vi.fn(() => ({ pending: false }));
+
 vi.mock("next/link", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/link")>();
+
   return { ...actual, useLinkStatus: () => linkStatus() };
 });
 
@@ -29,6 +31,7 @@ describe("NavLink", () => {
   it("applies the active class and aria-current when active", () => {
     render(<NavLink href="/x" label="X" active={true} className="tab-link" />);
     const link = screen.getByRole("link", { name: "X" });
+
     expect(link.className).toContain("tab-link");
     expect(link.className).toContain("active");
     expect(link).toHaveAttribute("aria-current", "page");
@@ -37,6 +40,7 @@ describe("NavLink", () => {
   it("omits the active class and aria-current when inactive", () => {
     render(<NavLink href="/x" label="X" active={false} className="tab-link" />);
     const link = screen.getByRole("link", { name: "X" });
+
     expect(link.className).not.toContain("active");
     expect(link).not.toHaveAttribute("aria-current");
   });

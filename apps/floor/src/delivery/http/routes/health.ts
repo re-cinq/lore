@@ -26,6 +26,7 @@ export function healthRoute(getJobStatus: () => unknown): ServerRoute {
       try {
         const { today: processedToday, total: processedTotal } =
           await usage().processedCounts();
+
         return h
           .response({
             status: "ok",

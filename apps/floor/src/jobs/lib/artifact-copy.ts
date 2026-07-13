@@ -39,6 +39,7 @@ const MAX_OUTPUT_CHARS = 4000;
 export function buildCopyPrompt(input: ArtifactCopyInput): string {
   const artifact = input.kind === "pr" ? "pull request" : "issue";
   const output = (input.agentOutput || "").slice(0, MAX_OUTPUT_CHARS);
+
   return [
     `Write a title and description for a GitHub ${artifact} in repo ${input.repo}.`,
     `Task type: ${input.taskType}`,
@@ -59,6 +60,7 @@ export function fallbackCopy(input: ArtifactCopyInput): ArtifactCopy {
     ? `\n\nChanged files: ${input.changedFiles}`
     : "";
   const body = `${input.description || ""}${filesNote}`.trim();
+
   return { title, body, source: "fallback" };
 }
 
@@ -97,9 +99,13 @@ export async function generateArtifactCopy(
 
     const title = (result.data.title || "").trim();
     const body = (result.data.body || "").trim();
-    if (title && body) return { title, body, source: "llm" };
+
+    if (title && body) {
+      return { title, body, source: "llm" };
+    }
   } catch {
     // fall through to deterministic copy
   }
+
   return fallbackCopy(input);
 }

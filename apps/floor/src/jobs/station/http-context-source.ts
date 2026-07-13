@@ -10,19 +10,27 @@ import type { ContextSource } from "./agent-backend.js";
 export class HttpContextSource implements ContextSource {
   async assemble(spec: LoreTaskSpec): Promise<string | undefined> {
     const base = process.env.LORE_INGEST_URL;
-    if (!base) return undefined;
+
+    if (!base) {
+      return undefined;
+    }
     const token = process.env.LORE_INGEST_TOKEN;
     const template = spec.taskType === "review" ? "review" : "implementation";
     const query = (spec.description ?? "").slice(0, 200);
     const url =
       `${base}/api/context?repo=${encodeURIComponent(spec.targetRepo)}` +
       `&template=${template}&query=${encodeURIComponent(query)}&max_tokens=8000`;
+
     try {
       const res = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) return undefined;
+
+      if (!res.ok) {
+        return undefined;
+      }
       const data = (await res.json()) as { text?: string };
+
       return data.text || undefined;
     } catch {
       return undefined;

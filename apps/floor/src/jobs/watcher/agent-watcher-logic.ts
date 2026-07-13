@@ -23,10 +23,18 @@ export type ReviewResult = "approved" | "changes_requested";
 export function parseReviewResult(
   output: string | undefined,
 ): ReviewResult | undefined {
-  if (!output) return undefined;
-  if (/REVIEW_RESULT:\s*APPROVED/i.test(output)) return "approved";
-  if (/REVIEW_RESULT:\s*CHANGES_REQUESTED/i.test(output))
+  if (!output) {
+    return undefined;
+  }
+
+  if (/REVIEW_RESULT:\s*APPROVED/i.test(output)) {
+    return "approved";
+  }
+
+  if (/REVIEW_RESULT:\s*CHANGES_REQUESTED/i.test(output)) {
     return "changes_requested";
+  }
+
   return undefined;
 }
 
@@ -50,5 +58,6 @@ export function decideTokenReclaim(input: {
   hasAssemblyLine: boolean;
 }): boolean {
   const terminal = input.phase === "Succeeded" || input.phase === "Failed";
+
   return terminal && !input.hasAssemblyLine;
 }

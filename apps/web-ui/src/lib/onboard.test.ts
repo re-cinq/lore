@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const query = vi.fn();
+
 vi.mock("./db", () => ({ query: (...args: unknown[]) => query(...args) }));
 
 import { createOnboardTask } from "./onboard";

@@ -9,7 +9,7 @@ import type { PgPool } from "../../memory-store.js";
  */
 
 function fakePool(rows: unknown[]): PgPool {
-  return { query: async () => ({ rows }) };
+  return { query: async <T>() => ({ rows: rows as T[] }) };
 }
 
 describe("NotifySlack", () => {

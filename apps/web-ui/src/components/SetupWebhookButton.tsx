@@ -11,6 +11,7 @@ export default function SetupWebhookButton({
   text: string;
 }) {
   const [pending, startTransition] = useTransition();
+
   return (
     <button
       type="button"

@@ -108,6 +108,7 @@ export function evaluateAutoMerge(
   const actualTrust = inputs.trustLevel
     ? (TRUST_ORDER[inputs.trustLevel] ?? 0)
     : 0;
+
   if (actualTrust < minTrust) {
     return { outcome: "deferred:trust_too_low", rule: baseRule };
   }
@@ -138,6 +139,7 @@ export async function evaluateAndMerge(
       span.setAttribute("repo", inputs.repo);
       span.setAttribute("pr_number", inputs.prNumber);
       span.setAttribute("task_id", inputs.taskId);
+
       try {
         let decision = evaluateAutoMerge(inputs.policy);
 
@@ -200,6 +202,7 @@ async function mergeWithBackoff(opts: {
   await withBackoff(
     async () => {
       const project = await projectFor(opts.repo);
+
       await project.pulls.merge(opts.prNumber, "squash");
     },
     { delaysMs: [1000, 4000] },

@@ -57,7 +57,7 @@ export class PgAgentDefs implements AgentDefsPort {
   ) {}
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<AgentRow>(
       `SELECT ${JOIN_COLS} FROM lore.agent_definitions a
          LEFT JOIN lore.repos r ON r.id = a.project_id
         WHERE a.name = $1 AND (a.project_id IS NULL OR r.full_name = $2)`,
@@ -65,6 +65,7 @@ export class PgAgentDefs implements AgentDefsPort {
     );
     const { project, org } = split(rows as AgentRow[]);
     const yamlDefault = await this.base.resolve(repo, name);
+
     return resolveAgentConfig(
       project ? toDef(project) : null,
       org ? toDef(org) : null,
@@ -73,15 +74,17 @@ export class PgAgentDefs implements AgentDefsPort {
   }
 
   async list(repo: string): Promise<AgentDefinition[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<AgentRow>(
       `SELECT ${JOIN_COLS} FROM lore.agent_definitions a
          LEFT JOIN lore.repos r ON r.id = a.project_id
         WHERE a.project_id IS NULL OR r.full_name = $1`,
       [repo],
     );
     const byName = new Map<string, AgentRow[]>();
+
     for (const r of rows as AgentRow[]) {
       const list = byName.get(r.name) ?? [];
+
       list.push(r);
       byName.set(r.name, list);
     }
@@ -91,6 +94,7 @@ export class PgAgentDefs implements AgentDefsPort {
       ...byName.keys(),
     ]);
     const out: AgentDefinition[] = [];
+
     for (const name of names) {
       const group = byName.get(name) ?? [];
       const { project, org } = split(group);
@@ -99,8 +103,12 @@ export class PgAgentDefs implements AgentDefsPort {
         org ? toDef(org) : null,
         baseDefs.find((d) => d.name === name) ?? null,
       );
-      if (resolved) out.push(resolved);
+
+      if (resolved) {
+        out.push(resolved);
+      }
     }
+
     return out.sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -124,7 +132,8 @@ export class PgAgentDefs implements AgentDefsPort {
         repo,
       ],
     );
-    return toDef(rows[0] as AgentRow);
+
+    return toDef(rows[0] as unknown as AgentRow);
   }
 
   async update(
@@ -157,7 +166,8 @@ export class PgAgentDefs implements AgentDefsPort {
         repo,
       ],
     );
-    return toDef(rows[0] as AgentRow);
+
+    return toDef(rows[0] as unknown as AgentRow);
   }
 
   async delete(repo: string, name: string): Promise<void> {

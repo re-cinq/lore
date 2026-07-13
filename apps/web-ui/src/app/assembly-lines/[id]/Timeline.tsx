@@ -52,9 +52,18 @@ const OUTCOME_COLOR: Record<string, string> = {
 };
 
 function formatDuration(ms: number | null): string {
-  if (ms == null) return "—";
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  if (ms == null) {
+    return "—";
+  }
+
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
+
+  if (ms < 60_000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+
   return `${Math.round(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
 }
 
@@ -72,12 +81,15 @@ export default function Timeline({
   const fetchTimeline = useCallback(async () => {
     try {
       const r = await fetch(`/api/assembly-lines/${taskId}/timeline`);
+
       if (!r.ok) {
         setError(`HTTP ${r.status}`);
         setLoading(false);
+
         return;
       }
       const json = (await r.json()) as TimelineResponse;
+
       setData(json);
       setError(null);
       setLoading(false);
@@ -88,12 +100,17 @@ export default function Timeline({
   }, [taskId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; state is set inside the async fetch
     void fetchTimeline();
     const stillActive =
       ACTIVE_STATES.has(initialStatus) ||
       (data?.current_stage && data.current_stage !== "retrospective");
-    if (!stillActive) return;
+
+    if (!stillActive) {
+      return;
+    }
     const handle = setInterval(() => void fetchTimeline(), POLL_INTERVAL_MS);
+
     return () => clearInterval(handle);
   }, [fetchTimeline, initialStatus, data?.current_stage]);
 
@@ -113,7 +130,9 @@ export default function Timeline({
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
 
   return (
     <div className={`spec-card ${styles.card}`}>

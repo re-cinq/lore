@@ -18,14 +18,18 @@ export default function PRStatusBadge({ taskId }: { taskId: string }) {
     fetch(`/api/assembly-lines/${taskId}/pr-status`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.computed_status) setStatus(data.computed_status);
+        if (data.computed_status) {
+          setStatus(data.computed_status);
+        }
       })
       .catch(() => {
         /* silent */
       });
   }, [taskId]);
 
-  if (!status) return null;
+  if (!status) {
+    return null;
+  }
 
   return (
     <span

@@ -55,6 +55,7 @@ export function dedupeItems(items: SourceItem[]): SourceItem[] {
       continue;
     }
     const existing = byPath.get(it.source_path);
+
     if (!existing || isBetter(it, existing)) {
       byPath.set(it.source_path, it);
     }
@@ -66,11 +67,15 @@ export function dedupeItems(items: SourceItem[]): SourceItem[] {
 function isBetter(candidate: SourceItem, current: SourceItem): boolean {
   const a = candidate.score ?? -Infinity;
   const b = current.score ?? -Infinity;
-  if (a !== b) return a > b;
+
+  if (a !== b) {
+    return a > b;
+  }
   const ai = candidate.ingested_at
     ? Date.parse(candidate.ingested_at)
     : -Infinity;
   const bi = current.ingested_at ? Date.parse(current.ingested_at) : -Infinity;
+
   return ai > bi;
 }
 
@@ -90,6 +95,7 @@ export function serializeDocument(
   ]
     .filter(Boolean)
     .join(" ");
+
   return `<document ${attrs}>\n${item.text}\n</document>`;
 }
 
@@ -103,6 +109,7 @@ export function serializeSection(section: SerializedSection): string {
     )
     .join("\n");
   const open = `<section name="${escapeXmlAttr(section.header)}" source="${escapeXmlAttr(section.source)}" priority="${section.priority}">`;
+
   return `${open}\n${inner}\n</section>`;
 }
 
@@ -112,5 +119,6 @@ export function serializeContext(
 ): string {
   const inner = sections.map(serializeSection).join("\n");
   const open = `<context query="${escapeXmlAttr(meta.query)}" template="${escapeXmlAttr(meta.template)}" budget="${meta.budget}">`;
+
   return `${open}\n${inner}\n</context>`;
 }

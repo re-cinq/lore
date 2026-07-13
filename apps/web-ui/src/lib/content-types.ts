@@ -22,6 +22,7 @@ const BADGE_MOD: Record<string, string> = {
 /** Full className for a content-type badge (`badge` + a color modifier). */
 export function badgeClassForType(type: string): string {
   const mod = BADGE_MOD[type];
+
   return mod ? `badge ${mod}` : "badge";
 }
 
@@ -34,8 +35,10 @@ export function labelForType(type: string): string {
 export function orderTypes(types: string[]): string[] {
   const rank = (t: string) => {
     const i = (TYPE_ORDER as readonly string[]).indexOf(t);
+
     return i === -1 ? TYPE_ORDER.length : i;
   };
+
   return [...types].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
 }
 
@@ -46,8 +49,15 @@ export function contextHref(
   q?: string,
 ): string {
   const params = new URLSearchParams();
-  if (type) params.set("type", type);
-  if (q) params.set("q", q);
+
+  if (type) {
+    params.set("type", type);
+  }
+
+  if (q) {
+    params.set("q", q);
+  }
   const qs = params.toString();
+
   return qs ? `${basePath}?${qs}` : basePath;
 }

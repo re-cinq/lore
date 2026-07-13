@@ -32,6 +32,7 @@ export default function TagBox({
   depth?: number;
 }) {
   const isLeaf = node.content !== undefined;
+
   return (
     <div className={`${styles.box} ${depth % 2 === 1 ? styles.alt : ""}`}>
       <TagChip tag={node.tag} attrs={node.attrs} />

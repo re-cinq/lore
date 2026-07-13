@@ -18,10 +18,16 @@ export interface SpecAnchor {
  * path, or a non-integer ordinal.
  */
 export function parseSpecAnchor(spec: string | undefined): SpecAnchor | null {
-  if (!spec?.includes("#")) return null;
+  if (!spec?.includes("#")) {
+    return null;
+  }
   const [specPath, ordinalStr] = spec.split("#");
   const ordinal = Number(ordinalStr);
-  if (!specPath || !Number.isInteger(ordinal)) return null;
+
+  if (!specPath || !Number.isInteger(ordinal)) {
+    return null;
+  }
+
   return { specPath, ordinal };
 }
 
@@ -34,6 +40,7 @@ export function parseSpecAnchors(
   spec: string | string[] | undefined,
 ): SpecAnchor[] {
   const raw = spec === undefined ? [] : Array.isArray(spec) ? spec : [spec];
+
   return raw
     .map(parseSpecAnchor)
     .filter((anchor): anchor is SpecAnchor => anchor !== null);

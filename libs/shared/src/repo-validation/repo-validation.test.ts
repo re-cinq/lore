@@ -24,6 +24,7 @@ afterEach(() => {
 
 function writeFile(name: string, content: string): void {
   const filePath = path.join(tmpDir, name);
+
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content);
 }
@@ -45,6 +46,7 @@ describe("detectTooling", () => {
       }),
     );
     const tooling = detectTooling(tmpDir);
+
     expect(tooling.language).toBe("node");
     expect(tooling.quickChecks.map((s) => s.name)).toContain("lint");
     expect(tooling.quickChecks.map((s) => s.name)).toContain("typecheck");
@@ -55,6 +57,7 @@ describe("detectTooling", () => {
     writeFile("package.json", JSON.stringify({ scripts: {} }));
     writeFile("eslint.config.mjs", "export default {};");
     const tooling = detectTooling(tmpDir);
+
     expect(tooling.language).toBe("node");
     expect(tooling.quickChecks.map((s) => s.name)).toContain("eslint");
   });
@@ -63,6 +66,7 @@ describe("detectTooling", () => {
     writeFile("package.json", JSON.stringify({ scripts: {} }));
     writeFile("tsconfig.json", "{}");
     const tooling = detectTooling(tmpDir);
+
     expect(tooling.language).toBe("node");
     expect(tooling.quickChecks.map((s) => s.name)).toContain("tsc");
   });
@@ -76,6 +80,7 @@ describe("detectTooling", () => {
     );
     const tooling = detectTooling(tmpDir);
     const testStep = tooling.fullChecks.find((s) => s.name === "test");
+
     expect(testStep?.command).toContain("--run");
   });
 
@@ -88,12 +93,14 @@ describe("detectTooling", () => {
     );
     const tooling = detectTooling(tmpDir);
     const testStep = tooling.fullChecks.find((s) => s.name === "test");
+
     expect(testStep?.command).toContain("--bail");
   });
 
   it("detects Go repo", async () => {
     writeFile("go.mod", "module example.com/foo\n\ngo 1.22\n");
     const tooling = detectTooling(tmpDir);
+
     expect(tooling.language).toBe("go");
     expect(tooling.quickChecks.map((s) => s.name)).toEqual([
       "go-vet",
@@ -114,6 +121,7 @@ testpaths = ["tests"]
 `,
     );
     const tooling = detectTooling(tmpDir);
+
     expect(tooling.language).toBe("python");
     expect(tooling.quickChecks.map((s) => s.name)).toContain("ruff");
     expect(tooling.fullChecks.map((s) => s.name)).toContain("pytest");
@@ -122,6 +130,7 @@ testpaths = ["tests"]
   it("detects Rust repo", async () => {
     writeFile("Cargo.toml", '[package]\nname = "foo"\nversion = "0.1.0"\n');
     const tooling = detectTooling(tmpDir);
+
     expect(tooling.language).toBe("rust");
     expect(tooling.quickChecks.map((s) => s.name)).toEqual([
       "cargo-check",
@@ -131,6 +140,7 @@ testpaths = ["tests"]
 
   it("returns unknown for empty directory", async () => {
     const tooling = detectTooling(tmpDir);
+
     expect(tooling.language).toBe("unknown");
     expect(tooling.quickChecks).toEqual([]);
     expect(tooling.fullChecks).toEqual([]);
@@ -143,6 +153,7 @@ testpaths = ["tests"]
     );
     writeFile("go.mod", "module example.com/foo\n");
     const tooling = detectTooling(tmpDir);
+
     expect(tooling.language).toBe("node");
   });
 });
@@ -156,6 +167,7 @@ describe("runValidation", () => {
     const result = await runValidation(tmpDir, [
       { name: "echo-test", command: "echo hello", timeoutMs: 5000 },
     ]);
+
     expect(result.passed).toBe(true);
     expect(result.steps).toHaveLength(1);
     expect(result.steps[0].passed).toBe(true);
@@ -166,6 +178,7 @@ describe("runValidation", () => {
     const result = await runValidation(tmpDir, [
       { name: "fail-test", command: "exit 1", timeoutMs: 5000 },
     ]);
+
     expect(result.passed).toBe(false);
     expect(result.steps[0].passed).toBe(false);
   });
@@ -175,6 +188,7 @@ describe("runValidation", () => {
       { name: "fail", command: "exit 1", timeoutMs: 5000 },
       { name: "pass", command: "echo ok", timeoutMs: 5000 },
     ]);
+
     expect(result.passed).toBe(false);
     expect(result.steps).toHaveLength(2);
     expect(result.steps[0].passed).toBe(false);
@@ -183,6 +197,7 @@ describe("runValidation", () => {
 
   it("returns passed=true with empty steps", async () => {
     const result = await runValidation(tmpDir, []);
+
     expect(result.passed).toBe(true);
     expect(result.steps).toEqual([]);
   });
@@ -193,6 +208,7 @@ describe("runValidation", () => {
       [{ name: "eslint", command: "echo should-not-run", timeoutMs: 5000 }],
       ["README.md"],
     ); // .md files don't match eslint extensions
+
     expect(result.passed).toBe(true);
     expect(result.steps[0].output).toContain("skipped");
   });
@@ -201,6 +217,7 @@ describe("runValidation", () => {
     const result = await runValidation(tmpDir, [
       { name: "quick", command: "echo fast", timeoutMs: 5000 },
     ]);
+
     expect(result.steps[0].durationMs).toBeGreaterThanOrEqual(0);
     expect(result.steps[0].durationMs).toBeLessThan(5000);
   });
@@ -216,6 +233,7 @@ describe("formatValidationOutput", () => {
       passed: true,
       steps: [{ name: "lint", passed: true, output: "ok", durationMs: 100 }],
     });
+
     expect(output).toContain("[PASS] lint");
   });
 
@@ -231,6 +249,7 @@ describe("formatValidationOutput", () => {
         },
       ],
     });
+
     expect(output).toContain("[FAIL] tsc");
     expect(output).toContain("error TS1234");
   });

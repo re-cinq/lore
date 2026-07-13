@@ -42,17 +42,23 @@ export async function resolveSentenceLink(
       }`,
       { $repo: repo },
     );
+
     return (res.data?.specs ?? []) as SpecRow[];
   });
 
   const matched: SentenceMatch[] = [];
+
   for (const spec of specs) {
-    if (!matchesNormalized(spec["Spec.title"] ?? "", link.spec)) continue;
+    if (!matchesNormalized(spec["Spec.title"] ?? "", link.spec)) {
+      continue;
+    }
+
     for (const stmt of spec.stmts ?? []) {
       if (matchesNormalized(stmt["Statement.text"] ?? "", link.sentence)) {
         matched.push({ uid: stmt.uid, nodeType: "Statement" });
       }
     }
+
     for (const ac of spec.acs ?? []) {
       if (
         matchesNormalized(ac["AcceptanceCriterion.text"] ?? "", link.sentence)
@@ -61,5 +67,6 @@ export async function resolveSentenceLink(
       }
     }
   }
+
   return matched;
 }

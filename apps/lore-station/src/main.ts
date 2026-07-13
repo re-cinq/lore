@@ -53,6 +53,7 @@ export async function runStation(
 
 async function main() {
   const [type, inputJson] = process.argv.slice(2);
+
   console.log(eventLine(`lore-station ${type ?? "<missing type>"} starting`));
 
   const { line, exitCode } = await runStation(type ?? "", inputJson ?? "{}", {
@@ -64,6 +65,7 @@ async function main() {
 }
 
 const invokedDirectly = process.argv[1]?.endsWith("main.js");
+
 if (invokedDirectly) {
   main().catch((err) => {
     console.error(

@@ -98,6 +98,7 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
       },
       ...over,
     };
+
     return { ports: base, dispatched };
   }
 
@@ -139,6 +140,7 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
 
     // Branch-as-state: stage commits with trailers landed on the branch.
     const log = await execFile("git", ["-C", repoDir, "log", "--format=%B"]);
+
     expect(log.stdout).toContain("Lore-Stage: implement");
     expect(log.stdout).toContain("Lore-Stage: ci");
     expect(log.stdout).toContain("Lore-Task: abcdef1234567890");
@@ -172,6 +174,7 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
       agentCrName: "a1b2c3d4-implement",
       outcome: "success",
     });
+
     // Every node row carries the sha of its stage commit on the real branch.
     for (const node of port.nodes) {
       expect(node.commitSha).toMatch(/^[0-9a-f]{40}$/);
@@ -205,11 +208,13 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
       agentStatus: async (_alId, nodeId) => {
         if (nodeId === "ci") {
           const outcome = ciAttempt++ === 0 ? "failed" : "success";
+
           return {
             phase: "Succeeded",
             output: `LORE_NODE_RESULT: {"outcome":"${outcome}","extras":{}}`,
           };
         }
+
         return { phase: "Succeeded" };
       },
     });
@@ -252,6 +257,7 @@ describe("checkoutBranch (resume existing / bootstrap new)", () => {
       "--abbrev-ref",
       "HEAD",
     ]);
+
     return stdout.trim();
   }
 
@@ -277,6 +283,7 @@ describe("checkoutBranch (resume existing / bootstrap new)", () => {
       "lore/general/new-task-abcd1234",
       origin,
     );
+
     expect(await currentBranch(dir)).toBe("lore/general/new-task-abcd1234");
   });
 
@@ -306,8 +313,10 @@ describe("checkoutBranch (resume existing / bootstrap new)", () => {
       "lore/general/existing-task",
       origin,
     );
+
     expect(await currentBranch(dir)).toBe("lore/general/existing-task");
     const { stdout } = await execFile("git", ["-C", dir, "log", "--format=%B"]);
+
     expect(stdout).toContain("Lore-Stage: implement");
   });
 });

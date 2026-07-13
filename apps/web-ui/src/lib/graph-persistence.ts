@@ -50,6 +50,7 @@ export function captureGraphState(
   expandedIds: string[],
 ): GraphState {
   const positions: Record<string, NodePosition> = {};
+
   for (const node of nodes) {
     positions[node.id] = {
       x: node.fx ?? node.x ?? 0,
@@ -57,6 +58,7 @@ export function captureGraphState(
       pinned: node.fx != null || node.fy != null,
     };
   }
+
   return {
     version: STATE_VERSION,
     positions,
@@ -75,9 +77,11 @@ export function applyGraphState(
 ): void {
   for (const node of nodes) {
     const saved = state.positions[node.id];
+
     if (saved) {
       node.x = saved.x;
       node.y = saved.y;
+
       if (saved.pinned) {
         node.fx = saved.x;
         node.fy = saved.y;
@@ -109,6 +113,7 @@ function isGraphState(value: unknown): value is GraphState {
 export function parseGraphState(raw: string | null): GraphState | null {
   try {
     const parsed: unknown = JSON.parse(raw as string);
+
     return isGraphState(parsed) ? parsed : null;
   } catch {
     return null;

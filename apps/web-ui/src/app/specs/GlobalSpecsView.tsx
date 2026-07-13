@@ -18,9 +18,13 @@ export default function GlobalSpecsView({
   }
 
   const byRepo = new Map<string, string[]>();
+
   for (const { repo, filePath } of specs) {
     const bucket = byRepo.get(repo) ?? [];
-    if (!byRepo.has(repo)) byRepo.set(repo, bucket);
+
+    if (!byRepo.has(repo)) {
+      byRepo.set(repo, bucket);
+    }
     bucket.push(filePath);
   }
 

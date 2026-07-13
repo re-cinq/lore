@@ -16,7 +16,8 @@ export class PgJobRuns implements JobRunsPort {
      VALUES ($1, 'running') RETURNING id`,
       [jobName],
     );
-    return rows[0].id;
+
+    return rows[0].id as string;
   }
 
   async complete(
@@ -54,7 +55,11 @@ export class PgJobRuns implements JobRunsPort {
          ORDER BY started_at DESC LIMIT 1`,
       [jobName],
     );
-    if (rows.length === 0) return null;
-    return { startedAt: rows[0].started_at };
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return { startedAt: rows[0].started_at as Date };
   }
 }

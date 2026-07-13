@@ -44,16 +44,35 @@ export function parseAgentPatch(body: unknown): Partial<AgentDefinitionInput> {
   // fields actually present, so unset fields stay absent rather than nulled.
   const parsed = AgentInputSchema.partial().parse(body);
   const patch: Partial<AgentDefinitionInput> = {};
-  if (parsed.name !== undefined) patch.name = parsed.name;
-  if (parsed.model !== undefined) patch.model = parsed.model ?? null;
-  if (parsed.timeout_minutes !== undefined)
+
+  if (parsed.name !== undefined) {
+    patch.name = parsed.name;
+  }
+
+  if (parsed.model !== undefined) {
+    patch.model = parsed.model ?? null;
+  }
+
+  if (parsed.timeout_minutes !== undefined) {
     patch.timeout_minutes = parsed.timeout_minutes ?? null;
-  if (parsed.prompt !== undefined) patch.prompt = parsed.prompt ?? null;
-  if (parsed.image !== undefined) patch.image = parsed.image ?? null;
-  if (parsed.execution_mode !== undefined)
+  }
+
+  if (parsed.prompt !== undefined) {
+    patch.prompt = parsed.prompt ?? null;
+  }
+
+  if (parsed.image !== undefined) {
+    patch.image = parsed.image ?? null;
+  }
+
+  if (parsed.execution_mode !== undefined) {
     patch.execution_mode = parsed.execution_mode;
-  if (parsed.review_required !== undefined)
+  }
+
+  if (parsed.review_required !== undefined) {
     patch.review_required = parsed.review_required;
+  }
+
   return patch;
 }
 

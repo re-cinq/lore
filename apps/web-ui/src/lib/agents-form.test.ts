@@ -3,7 +3,11 @@ import { parseAgentForm, saveResultToState } from "./agents-form";
 
 function fd(entries: Record<string, string>): FormData {
   const f = new FormData();
-  for (const [k, v] of Object.entries(entries)) f.set(k, v);
+
+  for (const [k, v] of Object.entries(entries)) {
+    f.set(k, v);
+  }
+
   return f;
 }
 
@@ -17,6 +21,7 @@ describe("parseAgentForm", () => {
         timeout_minutes: "45",
       }),
     );
+
     expect(p).toMatchObject({
       name: "my-agent",
       isNew: true,
@@ -39,6 +44,7 @@ describe("parseAgentForm", () => {
         model_custom: "my-model",
       }),
     );
+
     expect(p.isNew).toBe(false);
     expect(p.name).toBe("general");
     expect(p.def.model).toBe("my-model");
@@ -48,6 +54,7 @@ describe("parseAgentForm", () => {
     const p = parseAgentForm(
       fd({ is_new: "0", name: "general", model_select: "" }),
     );
+
     expect(p.def).toMatchObject({
       model: null,
       timeout_minutes: null,
@@ -68,6 +75,7 @@ describe("parseAgentForm", () => {
         approval_pr: "o/r#5",
       }),
     );
+
     expect(p.def.execution_mode).toBe("graph-ingest");
     expect(p.def.review_required).toBe(true);
     expect(p.approvalPr).toBe("o/r#5");

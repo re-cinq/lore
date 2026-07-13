@@ -11,6 +11,7 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\nFirst sentence. Second sentence! Third?\n",
     );
+
     expect(out.map((s) => s.text)).toEqual([
       "First sentence.",
       "Second sentence!",
@@ -24,6 +25,7 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\n- First item.\n- Second item.\n- Third item.\n",
     );
+
     expect(out.map((s) => s.text)).toEqual([
       "First item.",
       "Second item.",
@@ -36,6 +38,7 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\n- First item that\n  wraps to a second line.\n- Second item.\n",
     );
+
     expect(out[0].text).toBe("First item that wraps to a second line.");
     expect(out).toHaveLength(2);
   });
@@ -63,6 +66,7 @@ describe("segmentStatements", () => {
         "",
       ].join("\n"),
     );
+
     expect(out.map((s) => s.text)).toEqual([
       "Intro sentence.",
       "Real prose.",
@@ -74,6 +78,7 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\nWe use tools like e.g. Helm and i.e. Terraform. Real boundary here.\n",
     );
+
     expect(out).toHaveLength(2);
     expect(out[0].text).toBe("We use tools like e.g. Helm and i.e. Terraform.");
     expect(out[1].text).toBe("Real boundary here.");
@@ -83,12 +88,14 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\nThe U.S. team approved it. Next sentence.\n",
     );
+
     expect(out).toHaveLength(2);
     expect(out[0].text).toBe("The U.S. team approved it.");
   });
 
   it("does not split when the next non-space char is lowercase", () => {
     const out = segmentStatements("## A\n\nfoo. bar continues here.\n");
+
     expect(out).toHaveLength(1);
   });
 
@@ -108,6 +115,7 @@ describe("segmentStatements", () => {
         "A solution.",
       ].join("\n"),
     );
+
     expect(out[0].enclosingHeading).toBe("H1 Title");
     expect(out[1].enclosingHeading).toBe("Problem Statement");
     expect(out[2].enclosingHeading).toBe("Solution");
@@ -118,6 +126,7 @@ describe("segmentStatements", () => {
       "## A\n\n- Item one.\n- Item two.\n\nSome prose. More prose.\n";
     const first = segmentStatements(content);
     const second = segmentStatements(content);
+
     expect(first).toEqual(second);
     expect(first.map((s) => s.ordinal)).toEqual([0, 1, 2, 3]);
   });
@@ -126,6 +135,7 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\nA running task transitions to `cancelled` and the call returns that status. ([validated by `returns cancelled status when the task is running`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L66))\n",
     );
+
     expect(out).toHaveLength(1);
     expect(out[0].text).toContain("([validated by");
   });
@@ -134,8 +144,10 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\nA running task transitions to `cancelled` and the call returns that status.\n([validated by `returns cancelled status when the task is running`](../../../mcp-server/src/features/pipeline/pipeline-crud.test.ts#L66))\n",
     );
+
     expect(out).toHaveLength(1);
     const testLinks = parseTestLinksInStatement(out[0].text);
+
     expect(testLinks).toHaveLength(1);
     expect(testLinks[0].path.endsWith("pipeline-crud.test.ts")).toBe(true);
     expect(testLinks[0].line).toBe(66);
@@ -161,6 +173,7 @@ describe("buildIntroOrdinals", () => {
       ].join("\n"),
     );
     const intro = buildIntroOrdinals(statements);
+
     expect(intro.has(statements[0].ordinal)).toBe(true);
     expect(intro.has(statements[1].ordinal)).toBe(false);
   });
@@ -170,6 +183,7 @@ describe("buildIntroOrdinals", () => {
       "Leading prose with no heading at all. Another one.\n",
     );
     const intro = buildIntroOrdinals(statements);
+
     expect([...intro]).toEqual([0, 1]);
   });
 });
@@ -186,6 +200,7 @@ describe("classifyByHeuristic", () => {
   it("marks intro-ordinal statements untestable as 'intro'", () => {
     const introSet = new Set([7]);
     const c = classifyByHeuristic(make("Anything", 7), introSet);
+
     expect(c).toEqual({
       testability: "untestable",
       category: "intro",

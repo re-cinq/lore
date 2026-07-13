@@ -10,7 +10,10 @@ export function resolveColorScheme(
   pref: ColorSchemePref,
   systemPrefersDark: boolean,
 ): ResolvedScheme {
-  if (pref === "auto") return systemPrefersDark ? "dark" : "light";
+  if (pref === "auto") {
+    return systemPrefersDark ? "dark" : "light";
+  }
+
   return pref;
 }
 

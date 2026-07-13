@@ -4,6 +4,7 @@ import { resolveDarkFactorySettings } from "./dark-factory.js";
 describe("resolveDarkFactorySettings (agent-side resolver)", () => {
   it("returns opt-out posture for null partial", () => {
     const r = resolveDarkFactorySettings(null);
+
     expect(r.enabled).toBe(false);
     expect(r.create_issue).toBe("always");
     expect(r.review).toBe("always");
@@ -12,11 +13,13 @@ describe("resolveDarkFactorySettings (agent-side resolver)", () => {
 
   it("returns opt-out posture for undefined partial", () => {
     const r = resolveDarkFactorySettings(undefined);
+
     expect(r.enabled).toBe(false);
   });
 
   it("applies dark-mode defaults when enabled:true", () => {
     const r = resolveDarkFactorySettings({ enabled: true });
+
     expect(r.create_issue).toBe("on_gate");
     expect(r.review).toBe("trust_based");
     expect(r.notify).toEqual([]); // empty list — escalations always fire via decideNotify
@@ -32,6 +35,7 @@ describe("resolveDarkFactorySettings (agent-side resolver)", () => {
       create_issue: "always",
       auto_merge: { paths: ["only-this/**"] },
     });
+
     expect(r.create_issue).toBe("always");
     expect(r.auto_merge.paths).toEqual(["only-this/**"]);
     // Other auto_merge sub-fields fall back to defaults
@@ -44,6 +48,7 @@ describe("resolveDarkFactorySettings (agent-side resolver)", () => {
     // computes the policy used by the auto-merge engine that the
     // mcp-server route stored.
     const r = resolveDarkFactorySettings({ enabled: true });
+
     expect(Object.keys(r).sort()).toEqual([
       "auto_merge",
       "create_issue",

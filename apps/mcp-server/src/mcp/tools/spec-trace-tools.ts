@@ -43,6 +43,7 @@ export function registerSpecTraceTools(server: McpServer, _deps: ToolDeps) {
         { repo, spec, statement },
         { proxyGet: cachedGet, detectRepo: detectCurrentRepo },
       );
+
       return { content: [{ type: "text" as const, text }] };
     },
   );

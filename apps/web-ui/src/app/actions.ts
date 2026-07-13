@@ -27,6 +27,8 @@ export async function fixIngestWorkflows(
     ),
   );
   const prs = results.filter((url): url is string => url !== null);
+
   revalidatePath("/");
+
   return { opened: prs.length, prs };
 }

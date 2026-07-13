@@ -3,7 +3,10 @@ import { execSync } from "node:child_process";
 let cachedRepo: string | null = null;
 
 export function detectCurrentRepo(): string | null {
-  if (cachedRepo) return cachedRepo;
+  if (cachedRepo) {
+    return cachedRepo;
+  }
+
   try {
     const remote = execSync("git remote get-url origin", {
       encoding: "utf-8",
@@ -13,13 +16,16 @@ export function detectCurrentRepo(): string | null {
     // git@github.com:owner/repo.git → owner/repo
     // https://github.com/owner/repo.git → owner/repo
     const match = remote.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+
     if (match) {
       cachedRepo = match[1];
+
       return cachedRepo;
     }
   } catch {
     // ignore; treat as not detected
   }
+
   return null;
 }
 

@@ -7,7 +7,7 @@ const path = require("path");
 const SETTINGS_PATH = path.join(
   process.env.HOME || process.env.USERPROFILE,
   ".claude",
-  "settings.json"
+  "settings.json",
 );
 const TEAM = process.argv[2] || "platform";
 
@@ -23,33 +23,52 @@ function readSettings() {
 
 function writeSettings(obj) {
   const dir = path.dirname(SETTINGS_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(obj, null, 2) + "\n", "utf8");
 }
 
 function hasHook(hooks, event, needle) {
-  if (!Array.isArray(hooks[event])) return false;
-  return hooks[event].some((entry) =>
-    Array.isArray(entry.hooks) &&
-    entry.hooks.some((h) => h.command && h.command.includes(needle))
+  if (!Array.isArray(hooks[event])) {
+    return false;
+  }
+
+  return hooks[event].some(
+    (entry) =>
+      Array.isArray(entry.hooks) &&
+      entry.hooks.some((h) => h.command && h.command.includes(needle)),
   );
 }
 
 function removeHooksMatching(hooks, event, pattern) {
-  if (!Array.isArray(hooks[event])) return;
+  if (!Array.isArray(hooks[event])) {
+    return;
+  }
   hooks[event] = hooks[event].filter((entry) => {
-    if (!Array.isArray(entry.hooks)) return true;
+    if (!Array.isArray(entry.hooks)) {
+      return true;
+    }
+
     return !entry.hooks.some((h) => h.command && pattern.test(h.command));
   });
 }
 
 function deduplicateHooks(hooks, event) {
-  if (!Array.isArray(hooks[event])) return;
+  if (!Array.isArray(hooks[event])) {
+    return;
+  }
   const seen = new Set();
+
   hooks[event] = hooks[event].filter((entry) => {
     const key = JSON.stringify(entry);
-    if (seen.has(key)) return false;
+
+    if (seen.has(key)) {
+      return false;
+    }
     seen.add(key);
+
     return true;
   });
 }
@@ -60,22 +79,28 @@ const settings = readSettings();
 
 // Clean out legacy beads/bd hooks from all events
 const BEADS_PATTERN = /\bbd\b|\.beads|beads/;
+
 for (const event of Object.keys(settings.hooks || {})) {
   removeHooksMatching(settings.hooks, event, BEADS_PATTERN);
   deduplicateHooks(settings.hooks, event);
 }
 
 // 1. env
-if (!settings.env) settings.env = {};
+if (!settings.env) {
+  settings.env = {};
+}
 settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
 
 // 2. hooks — Claude Code format: { matcher, hooks: [{ type, command }] }
-if (!settings.hooks) settings.hooks = {};
+if (!settings.hooks) {
+  settings.hooks = {};
+}
 
 // Context sync on session start
 if (!hasHook(settings.hooks, "SessionStart", "Context synced")) {
-  if (!Array.isArray(settings.hooks.SessionStart))
+  if (!Array.isArray(settings.hooks.SessionStart)) {
     settings.hooks.SessionStart = [];
+  }
   settings.hooks.SessionStart.push({
     matcher: "",
     hooks: [
@@ -121,16 +146,24 @@ IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules stric
 if (settings.systemPromptSuffix) {
   // Remove all Lore-injected blocks (may be stacked from multiple installs)
   settings.systemPromptSuffix = settings.systemPromptSuffix
-    .replace(/\n*IMPORTANT: You have (access to )?the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g, '')
-    .replace(/\n*You have access to the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g, '')
-    .replace(/\n{3,}/g, '\n\n')
+    .replace(
+      /\n*IMPORTANT: You have (access to )?the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
+      "",
+    )
+    .replace(
+      /\n*You have access to the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
+      "",
+    )
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 settings.systemPromptSuffix = (settings.systemPromptSuffix || "") + lorePrompt;
 
 // Session summary reminder on stop
 if (!hasHook(settings.hooks, "Stop", "session-summary")) {
-  if (!Array.isArray(settings.hooks.Stop)) settings.hooks.Stop = [];
+  if (!Array.isArray(settings.hooks.Stop)) {
+    settings.hooks.Stop = [];
+  }
   settings.hooks.Stop.push({
     matcher: "",
     hooks: [
@@ -152,15 +185,19 @@ if (!hasHook(settings.hooks, "Stop", "session-summary")) {
     hooks: [
       {
         type: "command",
-        command:
-          `LORE_URL=\${LORE_API_URL:-}; LORE_TOKEN=\${LORE_INGEST_TOKEN:-}; SESSION_FILE=~/.lore/last-session.json; AGENT_ID=$(cat ~/.lore/agent-id 2>/dev/null || echo 'unknown'); REPO=$(git remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\\.git$||' || echo 'unknown'); if [ -n "$LORE_URL" ] && [ -n "$LORE_TOKEN" ] && [ -f "$SESSION_FILE" ]; then SESSION_LOG=$(cat "$SESSION_FILE"); curl -s -X POST "$LORE_URL/api/session-summary" -H "Authorization: Bearer $LORE_TOKEN" -H "Content-Type: application/json" -d "{\\"session_log\\":$SESSION_LOG,\\"repo\\":\\"$REPO\\",\\"agent_id\\":\\"$AGENT_ID\\"}" >/dev/null 2>&1 && echo '[lore] Session summary captured' || true; rm -f "$SESSION_FILE" 2>/dev/null; fi`,
+        command: `LORE_URL=\${LORE_API_URL:-}; LORE_TOKEN=\${LORE_INGEST_TOKEN:-}; SESSION_FILE=~/.lore/last-session.json; AGENT_ID=$(cat ~/.lore/agent-id 2>/dev/null || echo 'unknown'); REPO=$(git remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\\.git$||' || echo 'unknown'); if [ -n "$LORE_URL" ] && [ -n "$LORE_TOKEN" ] && [ -f "$SESSION_FILE" ]; then SESSION_LOG=$(cat "$SESSION_FILE"); curl -s -X POST "$LORE_URL/api/session-summary" -H "Authorization: Bearer $LORE_TOKEN" -H "Content-Type: application/json" -d "{\\"session_log\\":$SESSION_LOG,\\"repo\\":\\"$REPO\\",\\"agent_id\\":\\"$AGENT_ID\\"}" >/dev/null 2>&1 && echo '[lore] Session summary captured' || true; rm -f "$SESSION_FILE" 2>/dev/null; fi`,
       },
     ],
   });
 }
 
 // 3. status line
-const loreDir = path.join(process.env.HOME || process.env.USERPROFILE, ".re-cinq", "lore");
+const loreDir = path.join(
+  process.env.HOME || process.env.USERPROFILE,
+  ".re-cinq",
+  "lore",
+);
+
 settings.statusLine = {
   type: "command",
   command: path.join(loreDir, "scripts", "lore-statusline.sh"),

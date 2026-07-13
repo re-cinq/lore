@@ -29,9 +29,16 @@ export default function SearchForm({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const params = new URLSearchParams();
-    if (value) params.set("q", value);
-    if (activeType) params.set("type", activeType);
+
+    if (value) {
+      params.set("q", value);
+    }
+
+    if (activeType) {
+      params.set("type", activeType);
+    }
     const qs = params.toString();
+
     startTransition(() => router.push(qs ? `${basePath}?${qs}` : basePath));
   };
 

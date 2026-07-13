@@ -25,6 +25,7 @@ export class RelayExecutor {
   /** Run a command in the BYO container's toolchain; resolves with its result. */
   async run(command: string): Promise<RelayResult> {
     const n = ++this.seq;
+
     await mkdir(this.dir, { recursive: true });
     // Write the command body first, then the .ready marker, so the relay never
     // picks up a partially-written request.
@@ -38,6 +39,7 @@ export class RelayExecutor {
     );
     const stdout = await readFile(join(this.dir, `res-${n}.out`), "utf8");
     const stderr = await readFile(join(this.dir, `res-${n}.err`), "utf8");
+
     return { exitCode: Number.isNaN(code) ? -1 : code, stdout, stderr };
   }
 
@@ -51,9 +53,11 @@ export class RelayExecutor {
     const timeoutMs = this.opts.timeoutMs ?? 600_000;
     const pollMs = this.opts.pollMs ?? 100;
     const deadline = Date.now() + timeoutMs;
+
     for (;;) {
       try {
         await access(path);
+
         return;
       } catch {
         /* not ready yet */

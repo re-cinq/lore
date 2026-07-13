@@ -67,6 +67,7 @@ function deriveActivation(
       reason: "Repo opted out — dark_factory.enabled is false.",
     };
   }
+
   return {
     state: "active",
     reason: "Repo enabled — tasks run on the agent-cr subsystem.",
@@ -75,6 +76,7 @@ function deriveActivation(
 
 function summarize(event: ConsoleAuditEvent): string {
   const payload = event.payload ?? {};
+
   switch (event.event_type) {
     case "auto_merge_decision":
       return `Auto-merge: ${payload.outcome ?? "unknown"}`;

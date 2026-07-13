@@ -31,6 +31,7 @@ function renderView(
 describe("DarkFactoryView", () => {
   it("prefills the dark-factory fields from resolved defaults (opt-out posture)", () => {
     const { container } = renderView();
+
     expect(container.querySelector('select[name="df_enabled"]')).toHaveValue(
       "no",
     );
@@ -57,12 +58,14 @@ describe("DarkFactoryView", () => {
     const input = container.querySelector(
       'input[name="df_execution_image"]',
     ) as HTMLInputElement;
+
     expect(input.value).toBe("golang:1.23");
     expect(input.placeholder).toBe(DEFAULT_EXECUTION_IMAGE);
   });
 
   it("leaves the execution image empty (placeholder only) when unset", () => {
     const { container } = renderView();
+
     expect(
       (
         container.querySelector(
@@ -74,6 +77,7 @@ describe("DarkFactoryView", () => {
 
   it("exposes the approval-PR input for gated changes", () => {
     const { container } = renderView();
+
     expect(
       container.querySelector('input[name="approval_pr"]'),
     ).toHaveAttribute("placeholder", "re-cinq/lore#123");

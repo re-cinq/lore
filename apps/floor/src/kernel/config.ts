@@ -62,11 +62,13 @@ export function loadTaskTypes(configPath?: string): void {
       const types: Record<string, TaskTypeConfig> = parsed.task_types || {};
 
       taskTypes.clear();
+
       for (const [name, cfg] of Object.entries(types)) {
         taskTypes.set(name, cfg);
       }
 
       console.log(`[floor] Loaded ${taskTypes.size} task types from ${p}`);
+
       return;
     } catch {
       // try next path
@@ -98,6 +100,7 @@ export function buildPrompt(taskType: string, description: string): string {
   const cfg = taskTypes.get(taskType) ?? taskTypes.get("general");
   const template =
     cfg?.prompt_template ?? "Complete the following task: {description}";
+
   return template.replace("{description}", description);
 }
 

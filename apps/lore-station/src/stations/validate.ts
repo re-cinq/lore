@@ -31,6 +31,7 @@ async function changedFiles(gitDir: string): Promise<string[] | undefined> {
       "origin/HEAD...HEAD",
     ]);
     const files = stdout.split("\n").filter((f) => f.length > 0);
+
     return files.length > 0 ? files : undefined;
   } catch {
     return undefined;

@@ -5,7 +5,12 @@
  * as a sibling implementation without touching callers.
  */
 
-import type { MemoryStore, PgPool, WriteResult } from "./memory-store.js";
+import type {
+  MemoryRecord,
+  MemoryStore,
+  PgPool,
+  WriteResult,
+} from "./memory-store.js";
 
 export class PostgresMemoryStore implements MemoryStore {
   readonly backend = "postgres" as const;
@@ -28,7 +33,7 @@ export class PostgresMemoryStore implements MemoryStore {
     // Check if key already exists for this repo (or agent if no repo)
     const lookupField = input.repo ? "repo" : "agent_id";
     const lookupValue = input.repo || agent;
-    const existing = await this.pool.query(
+    const existing = await this.pool.query<{ version: number; id: string }>(
       `SELECT id, version FROM memory.memories
        WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
        ORDER BY version DESC LIMIT 1`,
@@ -60,7 +65,7 @@ export class PostgresMemoryStore implements MemoryStore {
     } else {
       // New memory
       version = 1;
-      const result = await this.pool.query(
+      const result = await this.pool.query<{ id: string }>(
         `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
          VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : "NULL"}, $6)
          RETURNING id, created_at`,
@@ -73,6 +78,7 @@ export class PostgresMemoryStore implements MemoryStore {
           input.repo || null,
         ],
       );
+
       memoryId = result.rows[0].id;
     }
 
@@ -100,7 +106,7 @@ export class PostgresMemoryStore implements MemoryStore {
       key: input.key,
       version,
       agent_id: agent,
-      created_at: row.rows[0].created_at,
+      created_at: row.rows[0].created_at as string,
     };
   }
 
@@ -108,7 +114,7 @@ export class PostgresMemoryStore implements MemoryStore {
     key: string,
     agentId: string,
     version?: string | number,
-  ): Promise<any> {
+  ): Promise<MemoryRecord | MemoryRecord[] | null> {
     const agent = agentId;
 
     if (version === "all") {
@@ -121,7 +127,9 @@ export class PostgresMemoryStore implements MemoryStore {
          ORDER BY mv.version DESC`,
         [agent, key],
       );
+
       await this.auditLog(agent, "read", key);
+
       return rows;
     }
 
@@ -137,7 +145,9 @@ export class PostgresMemoryStore implements MemoryStore {
          WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`,
         [agent, key, Number(version)],
       );
+
       await this.auditLog(agent, "read", key);
+
       return rows[0] || null;
     }
 
@@ -150,7 +160,9 @@ export class PostgresMemoryStore implements MemoryStore {
        ORDER BY version DESC LIMIT 1`,
       [agent, key],
     );
+
     await this.auditLog(agent, "read", key);
+
     return rows[0] || null;
   }
 
@@ -159,11 +171,13 @@ export class PostgresMemoryStore implements MemoryStore {
     agentId: string,
   ): Promise<{ key: string; deleted: boolean }> {
     const agent = agentId;
+
     await this.pool.query(
       `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key = $2`,
       [agent, key],
     );
     await this.auditLog(agent, "delete", key);
+
     return { key, deleted: true };
   }
 
@@ -172,14 +186,15 @@ export class PostgresMemoryStore implements MemoryStore {
     limit?: number;
     offset?: number;
     repo?: string;
-  }): Promise<{ memories: any[]; total: number }> {
+  }): Promise<{ memories: MemoryRecord[]; total: number }> {
     const { agentId, repo } = opts;
     const limit = opts.limit ?? 50;
     const offset = opts.offset ?? 0;
 
     // Scope by repo (preferred) or agent_id
     let filter: string;
-    let params: any[];
+    let params: unknown[];
+
     if (repo) {
       filter = "repo = $1 AND";
       params = [repo, limit, offset];
@@ -211,14 +226,15 @@ export class PostgresMemoryStore implements MemoryStore {
     );
 
     await this.auditLog(agentId || "org", "list", null);
-    return { memories: rows, total: countResult.rows[0].total };
+
+    return { memories: rows, total: countResult.rows[0].total as number };
   }
 
   private async auditLog(
     agentId: string,
     operation: string,
     key: string | null,
-    meta?: any,
+    meta?: Record<string, unknown>,
   ): Promise<void> {
     try {
       await this.pool.query(

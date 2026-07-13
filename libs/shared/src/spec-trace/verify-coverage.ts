@@ -48,16 +48,23 @@ export async function verifyCoverageLink(
       }`,
       { $sx: statementXid },
     );
+
     return (res.data?.stmt?.[0] ?? {}) as StatementVerification;
   });
 
   const validatingTests = statement.validated_by ?? [];
-  if (validatingTests.length === 0) return "untested";
+
+  if (validatingTests.length === 0) {
+    return "untested";
+  }
 
   const coveredFiles = new Set<string>();
+
   for (const test of validatingTests) {
     for (const file of test["TestChunk.coverage"]?.["Coverage.covers"] ?? []) {
-      if (file["File.path"]) coveredFiles.add(file["File.path"]);
+      if (file["File.path"]) {
+        coveredFiles.add(file["File.path"]);
+      }
     }
   }
 
@@ -66,7 +73,10 @@ export async function verifyCoverageLink(
       chunk["CodeChunk.file_path"] !== undefined &&
       coveredFiles.has(chunk["CodeChunk.file_path"]),
   );
-  if (implementsCovered) return "execution-verified";
+
+  if (implementsCovered) {
+    return "execution-verified";
+  }
 
   return "link-unproven";
 }

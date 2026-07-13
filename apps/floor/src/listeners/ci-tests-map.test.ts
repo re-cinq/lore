@@ -10,6 +10,7 @@ describe("mapCiTests", () => {
       tests: [{ id: "t1" }],
       results: [{ id: "t1", passed: true }],
     });
+
     expect(result).toEqual({
       ok: true,
       events: [

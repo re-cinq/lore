@@ -55,8 +55,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     vars: Record<string, string>,
   ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(query, vars);
+
       return (res.data ?? {}) as Record<string, unknown>;
     } finally {
       await txn.discard().catch(() => {});
@@ -65,6 +67,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -102,6 +105,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         ...(data.files ?? []),
         ...(data.root ?? []),
       ].map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -117,6 +121,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   async function deleteStatementNode(statementXid: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query stmt($sx: string) {
@@ -126,6 +131,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       );
       const data = res.data as { stmts?: { uid: string }[] };
       const uids = (data.stmts ?? []).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -141,14 +147,21 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   let createdRepo = "";
   let createdStatementXid = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
-    if (createdStatementXid) await deleteStatementNode(createdStatementXid);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
+
+    if (createdStatementXid) {
+      await deleteStatementNode(createdStatementXid);
+    }
     createdStatementXid = "";
   });
 
   it("attaches the report's TestChunks and TestSuites to the Repo root", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
 
     const report = {
@@ -162,6 +175,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       ],
       results: [],
     };
+
     await ingestTestReport(dgraphClient, repo, report);
 
     const data = (await readGraph(
@@ -178,6 +192,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         suites?: Array<{ "TestSuite.name"?: string }>;
       }>;
     };
+
     expect(data.root?.[0]?.tc).toBeGreaterThanOrEqual(1);
     expect(
       (data.root?.[0]?.suites ?? []).map((s) => s["TestSuite.name"]),
@@ -186,8 +201,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("links a statement via validated_by when a descriptor name sentence-matches its spec (no anchor)", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const specPath = "specs/example/spec.md";
+
     await projectSpecFile(
       repo,
       specPath,
@@ -206,6 +223,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       ],
       results: [],
     };
+
     await ingestTestReport(dgraphClient, repo, report);
 
     const data = (await readGraph(
@@ -214,6 +232,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       }`,
       { $sx: `${repo}|${specPath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
+
     expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([
       { "TestChunk.xid": `${repo}|shared/x.test.ts` },
     ]);
@@ -221,8 +240,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("attaches validated_by to the file-scoped TestChunk for a per-it descriptor whose suite chain sentence-matches", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const specPath = "specs/example/spec.md";
+
     await projectSpecFile(
       repo,
       specPath,
@@ -245,6 +266,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       ],
       results: [],
     };
+
     await ingestTestReport(dgraphClient, repo, report);
 
     const data = (await readGraph(
@@ -253,6 +275,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       }`,
       { $sx: `${repo}|${specPath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
+
     // File-scoped (`${repo}|file`), NOT the per-it id `${repo}|shared/x.test.ts::…`.
     expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([
       { "TestChunk.xid": `${repo}|shared/x.test.ts` },
@@ -261,6 +284,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("writes one TestChunk keyed repo|t1 with test_name/file_path/start_line/end_line for a single descriptor", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const report = {
       tests: [
@@ -298,8 +322,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("links the spec Statement to the file-scoped TestChunk via validated_by for a descriptor with spec anchor specs/foo/spec.md#7", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
     const report = {
       tests: [
@@ -331,8 +357,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("marks the spec Statement violated with a reason naming failing test renders when its result passed is false", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
     const report = {
       tests: [
@@ -363,8 +391,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("keeps the spec Statement violated when one of two validating tests fails and the other passes", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
     const report = {
       tests: [
@@ -403,8 +433,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("clears the spec Statement violated to false when a re-ingest reports the validating test passed", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
     const descriptor = {
       id: "t1",
@@ -436,8 +468,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("clears the spec Statement violation_reason when a re-ingest reports the validating test passed", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
     const descriptor = {
       id: "t1",
@@ -469,8 +503,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("connects Statement to File via validated_by to TestChunk to coverage to covers for a per-it descriptor", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const specPath = "specs/example/spec.md";
+
     await projectSpecFile(
       repo,
       specPath,
@@ -513,6 +549,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         }[];
       }[];
     };
+
     // The covered range mints its own CodeChunk — no AST/pre-seeding needed.
     expect(
       data.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov?.covers,
@@ -521,6 +558,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("covers a File from result t1's covered range and links it via COVERS", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const report = {
       tests: [{ id: "t1", name: "renders", file: "test/widget.test.ts" }],
@@ -551,6 +589,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("creates one Coverage node per file and attaches HAS_COVERAGE to the file-scoped TestChunk for many per-it descriptors", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const report = {
       tests: [
@@ -580,12 +619,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       }`,
       { $r: repo },
     )) as { cov?: { uid: string }[]; fileChunk?: { hasCov?: number }[] };
+
     expect(data.cov ?? []).toHaveLength(1);
     expect(data.fileChunk?.[0]?.hasCov).toBe(1);
   });
 
   it("links TestChunk repo|t1 to the innermost TestSuite Overview for a descriptor with suite [Overview]", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const report = {
       tests: [
@@ -619,6 +660,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
   it("nests TestSuites parent-linked outer to inner with TestChunk pointing at the innermost", async () => {
     const repo = `test-report/${randomUUID()}`;
+
     createdRepo = repo;
     const report = {
       tests: [

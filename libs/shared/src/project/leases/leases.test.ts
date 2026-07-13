@@ -11,9 +11,11 @@ describe("Leases sub-facade", () => {
     const leases = new Leases(new FileLeaseBackend(dir));
 
     const first = await leases.acquire("lore/feat/x", "task-1", "pod-a");
+
     expect(first).toEqual({ acquired: true });
 
     const second = await leases.acquire("lore/feat/x", "task-2", "pod-b");
+
     expect(second).toEqual({ acquired: false, currentHolder: "pod-a" });
 
     expect(await leases.release("lore/feat/x", "pod-a")).toBe(true);

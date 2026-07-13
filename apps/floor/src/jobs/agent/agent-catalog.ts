@@ -174,12 +174,15 @@ export function buildCatalog(
   stationTypes: Record<string, StationCatalogConfig> = {},
 ): Array<AgentDefinition | Station> {
   const out: Array<AgentDefinition | Station> = [];
+
   for (const [taskType, cfg] of Object.entries(taskTypes)) {
     out.push(buildAgentDefinition(taskType, cfg), buildStation(taskType, cfg));
   }
+
   for (const [name, cfg] of Object.entries(stationTypes)) {
     out.push(buildStationDefinition(name, cfg), buildStationStation(name, cfg));
   }
+
   return out;
 }
 
@@ -206,6 +209,7 @@ export function catalogChartYaml(
     }),
   );
   const body = `${header}{{- if .Values.seedCatalog }}\n---\n${docs.join("---\n")}{{- end }}\n`;
+
   return body
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(NAMESPACE_SENTINEL, "{{ .Values.namespace }}")

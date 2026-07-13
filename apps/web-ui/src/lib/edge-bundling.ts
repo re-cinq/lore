@@ -27,9 +27,13 @@ export function buildContainmentForest(
   containmentKinds: Set<string>,
 ): Map<string, string> {
   const parent = new Map<string, string>();
+
   for (const { source, target, kind } of links) {
-    if (containmentKinds.has(kind)) parent.set(target, source);
+    if (containmentKinds.has(kind)) {
+      parent.set(target, source);
+    }
   }
+
   return parent;
 }
 
@@ -41,13 +45,18 @@ export function ancestorChain(
   const chain = [id];
   const seen = new Set([id]);
   let current = id;
+
   for (;;) {
     const next = parent.get(current);
-    if (next === undefined || seen.has(next)) break;
+
+    if (next === undefined || seen.has(next)) {
+      break;
+    }
     chain.push(next);
     seen.add(next);
     current = next;
   }
+
   return chain;
 }
 
@@ -71,10 +80,15 @@ export function bundleControlIds(
     sourceIndex += 1
   ) {
     const lcaTargetIndex = targetDepth.get(chainSource[sourceIndex]);
-    if (lcaTargetIndex === undefined) continue;
+
+    if (lcaTargetIndex === undefined) {
+      continue;
+    }
     const upToLca = chainSource.slice(0, sourceIndex + 1); // source … LCA
     const downFromLca = chainTarget.slice(0, lcaTargetIndex).reverse(); // child-of-LCA … target
+
     return [...upToLca, ...downFromLca];
   }
+
   return [sourceId, targetId];
 }

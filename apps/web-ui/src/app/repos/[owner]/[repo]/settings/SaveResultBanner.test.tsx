@@ -8,6 +8,7 @@ describe("SaveResultBanner", () => {
     const { container } = render(
       <SaveResultBanner state={INITIAL_SAVE_STATE} />,
     );
+
     expect(container).toBeEmptyDOMElement();
   });
 

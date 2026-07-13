@@ -81,5 +81,6 @@ ${specContent.substring(0, ASSERTION_CONTENT_LIMIT)}`,
     >,
     jobName: ctx.jobName,
   });
+
   return result.data.assertions || [];
 }

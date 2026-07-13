@@ -102,15 +102,22 @@ async function ensureParser(): Promise<Parser> {
     parserReady = initParser();
   }
   await parserReady;
+
   return parser!;
 }
 
 async function loadGrammar(ext: string): Promise<Parser.Language | null> {
   const cached = grammarCache.get(ext);
-  if (cached) return cached;
+
+  if (cached) {
+    return cached;
+  }
 
   const wasmFile = EXT_TO_GRAMMAR[ext];
-  if (!wasmFile) return null;
+
+  if (!wasmFile) {
+    return null;
+  }
 
   try {
     // tree-sitter-wasms ships .wasm files at its package root
@@ -122,10 +129,13 @@ async function loadGrammar(ext: string): Promise<Parser.Language | null> {
     const wasmPath = join(wasmsDir, wasmFile);
     const wasmBuf = await readFile(wasmPath);
     const lang = await Parser.Language.load(wasmBuf);
+
     grammarCache.set(ext, lang);
+
     return lang;
   } catch (err) {
     console.error(`[chunker] Failed to load grammar for ${ext}:`, err);
+
     return null;
   }
 }
@@ -133,28 +143,56 @@ async function loadGrammar(ext: string): Promise<Parser.Language | null> {
 // ── Symbol extraction helpers ────────────────────────────────────────
 
 function inferSymbolType(nodeType: string): string {
-  if (nodeType.includes("function") || nodeType === "method_declaration")
+  if (nodeType.includes("function") || nodeType === "method_declaration") {
     return "function";
-  if (nodeType.includes("class")) return "class";
-  if (nodeType.includes("method")) return "method";
-  if (nodeType.includes("interface")) return "interface";
-  if (nodeType.includes("type_alias") || nodeType === "type_declaration")
+  }
+
+  if (nodeType.includes("class")) {
+    return "class";
+  }
+
+  if (nodeType.includes("method")) {
+    return "method";
+  }
+
+  if (nodeType.includes("interface")) {
+    return "interface";
+  }
+
+  if (nodeType.includes("type_alias") || nodeType === "type_declaration") {
     return "type";
-  if (nodeType.includes("enum")) return "type";
-  if (nodeType === "export_statement") return "export";
-  if (nodeType === "decorated_definition") return "function"; // could be class too, refined below
+  }
+
+  if (nodeType.includes("enum")) {
+    return "type";
+  }
+
+  if (nodeType === "export_statement") {
+    return "export";
+  }
+
+  if (nodeType === "decorated_definition") {
+    return "function";
+  } // could be class too, refined below
+
   return "export";
 }
 
 function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
   // Direct name child
   const nameNode = node.childForFieldName("name");
-  if (nameNode) return nameNode.text;
+
+  if (nameNode) {
+    return nameNode.text;
+  }
 
   // export_statement wraps a declaration
   if (node.type === "export_statement") {
     const decl = node.childForFieldName("declaration") ?? node.namedChildren[0];
-    if (decl) return extractSymbolName(decl);
+
+    if (decl) {
+      return extractSymbolName(decl);
+    }
   }
 
   // Python decorated_definition wraps a function_definition or class_definition
@@ -162,7 +200,10 @@ function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
     const def = node.namedChildren.find(
       (c) => c.type === "function_definition" || c.type === "class_definition",
     );
-    if (def) return extractSymbolName(def);
+
+    if (def) {
+      return extractSymbolName(def);
+    }
   }
 
   return undefined;
@@ -171,14 +212,22 @@ function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
 function refineSymbolType(node: Parser.SyntaxNode, initial: string): string {
   if (node.type === "export_statement") {
     const decl = node.childForFieldName("declaration") ?? node.namedChildren[0];
-    if (decl) return inferSymbolType(decl.type);
+
+    if (decl) {
+      return inferSymbolType(decl.type);
+    }
   }
+
   if (node.type === "decorated_definition") {
     const def = node.namedChildren.find(
       (c) => c.type === "function_definition" || c.type === "class_definition",
     );
-    if (def) return inferSymbolType(def.type);
+
+    if (def) {
+      return inferSymbolType(def.type);
+    }
   }
+
   return initial;
 }
 
@@ -221,8 +270,10 @@ function chunkCodeAST(
 
   // Preamble: everything before first declaration (imports, comments, etc.)
   const firstDeclStart = decls[0].startRow;
+
   if (firstDeclStart > 0) {
     const preamble = lines.slice(0, firstDeclStart).join("\n").trimEnd();
+
     if (preamble.length > 0) {
       chunks.push({
         content: preamble,
@@ -242,8 +293,10 @@ function chunkCodeAST(
 
     // Look for leading comments/docstrings between prevEnd and decl start
     let startLine = decl.startRow;
+
     for (let row = decl.startRow - 1; row >= prevEnd; row--) {
       const line = lines[row].trim();
+
       if (
         line.startsWith("//") ||
         line.startsWith("/*") ||
@@ -291,6 +344,7 @@ function chunkMarkdown(content: string): Chunk[] {
   const matches: { title: string; index: number }[] = [];
 
   let match: RegExpExecArray | null;
+
   while ((match = headingRe.exec(content)) !== null) {
     matches.push({ title: match[0].replace(/^## /, ""), index: match.index });
   }
@@ -305,6 +359,7 @@ function chunkMarkdown(content: string): Chunk[] {
   // Content before first ## heading
   if (matches[0].index > 0) {
     const preamble = content.slice(0, matches[0].index).trimEnd();
+
     if (preamble.length > 0) {
       chunks.push({
         content: preamble,
@@ -317,6 +372,7 @@ function chunkMarkdown(content: string): Chunk[] {
     const start = matches[i].index;
     const end = i + 1 < matches.length ? matches[i + 1].index : content.length;
     const section = content.slice(start, end).trimEnd();
+
     chunks.push({
       content: section,
       metadata: {
@@ -343,8 +399,10 @@ function chunkSlidingWindow(content: string): Chunk[] {
 
   let start = 0;
   let chunkIndex = 0;
+
   while (start < lines.length) {
     const end = Math.min(start + WINDOW, lines.length);
+
     chunks.push({
       content: lines.slice(start, end).join("\n"),
       metadata: {
@@ -353,7 +411,10 @@ function chunkSlidingWindow(content: string): Chunk[] {
         end_line: end, // 1-based
       },
     });
-    if (end >= lines.length) break;
+
+    if (end >= lines.length) {
+      break;
+    }
     start += WINDOW - OVERLAP;
   }
 
@@ -376,6 +437,7 @@ function stampContentHash(chunks: Chunk[]): Chunk[] {
       .update(chunk.content)
       .digest("hex");
   }
+
   return chunks;
 }
 
@@ -417,6 +479,7 @@ async function chunkFileRaw(
 
   // Code files: try AST-based chunking
   const ext = extname(filePath).toLowerCase();
+
   if (!EXT_TO_GRAMMAR[ext]) {
     // Unsupported language -- sliding window
     return chunkSlidingWindow(content);
@@ -425,6 +488,7 @@ async function chunkFileRaw(
   try {
     const p = await ensureParser();
     const lang = await loadGrammar(ext);
+
     if (!lang) {
       return chunkSlidingWindow(content);
     }
@@ -432,12 +496,14 @@ async function chunkFileRaw(
     p.setLanguage(lang);
     const tree = p.parse(content);
     const chunks = chunkCodeAST(tree, content, ext);
+
     return chunks.length > 0 ? chunks : wholeFileChunk(content);
   } catch (err) {
     console.error(
       `[chunker] AST parse failed for ${filePath}, falling back to sliding window:`,
       err,
     );
+
     return chunkSlidingWindow(content);
   }
 }

@@ -16,6 +16,7 @@ describe("zodValidate", () => {
 
   it("returns typed coerced data for a valid value", async () => {
     const data = await zodValidate(schema)({ name: "ci", count: "3" });
+
     expect(data).toEqual({ name: "ci", count: 3 });
   });
 
@@ -43,8 +44,12 @@ describe("formatZodError", () => {
     const err = z
       .object({ a: z.object({ b: z.string() }) })
       .safeParse({ a: {} });
+
     expect(err.success).toBe(false);
-    if (!err.success) expect(formatZodError(err.error)).toBe("a.b: Required");
+
+    if (!err.success) {
+      expect(formatZodError(err.error)).toBe("a.b: Required");
+    }
   });
 
   it("falls back to invalid request with no issues", () => {
@@ -64,6 +69,7 @@ describe("zodFailAction", () => {
         isBoom?: boolean;
         output?: { statusCode: number; payload: unknown };
       };
+
       expect(boom.isBoom).toBe(true);
       expect(boom.output).toMatchObject({
         statusCode: 400,

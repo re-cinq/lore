@@ -18,7 +18,9 @@ const CODE_RE =
   /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp|css|scss|sass|less)$/;
 
 export function classifyFile(path: string): ContentType | null {
-  if (BINARY_RE.test(path)) return null;
+  if (BINARY_RE.test(path)) {
+    return null;
+  }
 
   if (
     path.endsWith("CLAUDE.md") ||
@@ -29,14 +31,25 @@ export function classifyFile(path: string): ContentType | null {
   }
 
   // Extension wins over directory: a source file is code wherever it lives.
-  if (CODE_RE.test(path)) return "code";
+  if (CODE_RE.test(path)) {
+    return "code";
+  }
 
-  if (/(?:^|\/)adrs\//.test(path)) return "adr";
-  if (/(?:^|\/)specs\//.test(path) || path.startsWith(".specify/"))
+  if (/(?:^|\/)adrs\//.test(path)) {
+    return "adr";
+  }
+
+  if (/(?:^|\/)specs\//.test(path) || path.startsWith(".specify/")) {
     return "spec";
-  if (/(?:^|\/)runbooks\//.test(path)) return "doc";
-  if (path.endsWith(".md") || path.endsWith(".yaml") || path.endsWith(".yml"))
+  }
+
+  if (/(?:^|\/)runbooks\//.test(path)) {
     return "doc";
+  }
+
+  if (path.endsWith(".md") || path.endsWith(".yaml") || path.endsWith(".yml")) {
+    return "doc";
+  }
 
   return null;
 }

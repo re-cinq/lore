@@ -32,9 +32,11 @@ function mockIssues(
         !(opts.failures && attempts <= opts.failures),
         new Error("transient 502"),
       );
+
       return { number: 42, url: "https://github.com/owner/repo/issues/42" };
     },
   );
+
   return { issues: { create }, createCalls };
 }
 
@@ -47,6 +49,7 @@ describe("renderEscalationBody", () => {
       reason: "iteration_max_exceeded",
       diagnostic: "Review went 3 rounds without convergence",
     });
+
     expect(body).toContain("**Task ID:** `t-1`");
     expect(body).toContain(
       "(https://github.com/owner/repo/tree/lore%2Ffeature%2Fx)",
@@ -71,6 +74,7 @@ describe("renderEscalationBody", () => {
         { type: "memory", id: "m-2" },
       ],
     });
+
     expect(body).toContain("### Failing phase output");
     expect(body).toContain("ERROR: ‘x’ is not defined");
     expect(body).toContain("- fact `f-1`: Use ESLint v9");
@@ -108,6 +112,7 @@ describe("escalate — issue_created path", () => {
 
   it("creates Issue with both labels needs-human-help + lore-managed", async () => {
     const { issues, createCalls } = mockIssues();
+
     await escalate({
       taskId: "t",
       repo: "owner/repo",
@@ -117,6 +122,7 @@ describe("escalate — issue_created path", () => {
       issues,
     });
     const args = createCalls[0] as { labels: string[] };
+
     expect(args.labels.sort()).toEqual(["lore-managed", "needs-human-help"]);
   });
 });
@@ -127,9 +133,11 @@ describe("escalate — retry then success", () => {
     // failure count at 1 so the 2nd attempt succeeds — we don't want
     // tests waiting on the 4s + 16s sleeps.
     const { issues, createCalls } = mockIssues({ failures: 1 });
+
     // Stub setTimeout to skip backoff sleeps.
     vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
       fn();
+
       return 0;
     }) as unknown as typeof setTimeout);
 
@@ -141,6 +149,7 @@ describe("escalate — retry then success", () => {
       diagnostic: "d",
       issues,
     });
+
     expect(r.outcome).toBe("issue_created");
     expect(createCalls).toHaveLength(2);
 
@@ -151,8 +160,10 @@ describe("escalate — retry then success", () => {
 describe("escalate — audit_only fallback (T041)", () => {
   it("degrades to audit_only after 2 attempts and inlines body to Slack", async () => {
     const { issues, createCalls } = mockIssues({ alwaysFails: true });
+
     vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
       fn();
+
       return 0;
     }) as unknown as typeof setTimeout);
 
@@ -197,6 +208,7 @@ describe("escalate — no notifier configured", () => {
       diagnostic: "d",
       issues,
     });
+
     expect(r.outcome).toBe("issue_created");
   });
 });

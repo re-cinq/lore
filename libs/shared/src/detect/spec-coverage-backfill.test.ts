@@ -32,6 +32,7 @@ describe("proposeLinkInsertions", () => {
 2. Throws on null.
 `;
     const out = proposeLinkInsertions(content, [suggest()]);
+
     expect(out.applied).toBe(1);
     expect(out.skipped).toEqual([]);
     expect(out.newContent).toContain(
@@ -43,6 +44,7 @@ describe("proposeLinkInsertions", () => {
   it("composes a unified-diff preview for the PR body", () => {
     const content = "## A\n\n1. Returns the expected value.\n";
     const out = proposeLinkInsertions(content, [suggest()]);
+
     expect(out.diffPreview).toContain("---");
     expect(out.diffPreview).toContain("+++");
     expect(out.diffPreview).toContain("-1. Returns the expected value.");
@@ -59,6 +61,7 @@ describe("proposeLinkInsertions", () => {
         statement_text: "Returns the expected value. ([t](src/x.test.ts#L99))",
       }),
     ]);
+
     expect(out.applied).toBe(0);
     expect(out.skipped).toEqual([
       { statement_ordinal: 0, reason: "already-linked" },
@@ -71,6 +74,7 @@ describe("proposeLinkInsertions", () => {
     const out = proposeLinkInsertions(content, [
       suggest({ statement_text: "Something completely different." }),
     ]);
+
     expect(out.applied).toBe(0);
     expect(out.skipped).toEqual([
       { statement_ordinal: 0, reason: "not-found" },
@@ -95,6 +99,7 @@ describe("proposeLinkInsertions", () => {
         label: "takeover",
       }),
     ]);
+
     expect(out.applied).toBe(2);
     expect(out.newContent).toContain(
       "Survives via lease. ([primary](agent/src/lease.test.ts#L42), [takeover](agent/src/lease.test.ts#L74))",
@@ -106,6 +111,7 @@ describe("proposeLinkInsertions", () => {
       "## A\n\n1. Returns the expected value.\n",
       [suggest({ test_line: null, label: "file-level" })],
     );
+
     expect(out.newContent).toContain("([file-level](src/x.test.ts))");
     expect(out.newContent).not.toContain("#L");
   });
@@ -113,6 +119,7 @@ describe("proposeLinkInsertions", () => {
   it("returns content unchanged when no suggestions are provided", () => {
     const content = "## A\n\n1. Plain.\n";
     const out = proposeLinkInsertions(content, []);
+
     expect(out.newContent).toBe(content);
     expect(out.applied).toBe(0);
     expect(out.diffPreview).toBe("");
@@ -141,6 +148,7 @@ describe("pickStatementsForBackfill", () => {
       [1, heuristic("testable")],
     ]);
     const out = pickStatementsForBackfill(statements, classifications);
+
     expect(out).toEqual([
       { ordinal: 0, text: "Returns the expected value." },
       { ordinal: 1, text: "Throws on null." },
@@ -157,6 +165,7 @@ describe("pickStatementsForBackfill", () => {
       [1, heuristic("testable")],
     ]);
     const out = pickStatementsForBackfill(statements, classifications);
+
     expect(out).toEqual([{ ordinal: 1, text: "Not linked yet." }]);
   });
 
@@ -170,6 +179,7 @@ describe("pickStatementsForBackfill", () => {
       [1, heuristic("testable")],
     ]);
     const out = pickStatementsForBackfill(statements, classifications);
+
     expect(out).toEqual([{ ordinal: 1, text: "Real requirement." }]);
   });
 
@@ -182,6 +192,7 @@ describe("pickStatementsForBackfill", () => {
       [0, heuristic("testable")],
       [1, heuristic("testable")],
     ]);
+
     expect(pickStatementsForBackfill(statements, classifications)).toEqual([]);
   });
 
@@ -191,6 +202,7 @@ describe("pickStatementsForBackfill", () => {
       [0, heuristic("untestable", "intro")],
       [1, heuristic("untestable", "rationale")],
     ]);
+
     expect(pickStatementsForBackfill(statements, classifications)).toEqual([]);
   });
 
@@ -202,6 +214,7 @@ describe("pickStatementsForBackfill", () => {
     const classifications = new Map<number, Classification>([
       [1, heuristic("testable")],
     ]);
+
     expect(pickStatementsForBackfill(statements, classifications)).toEqual([
       { ordinal: 1, text: "Has one." },
     ]);

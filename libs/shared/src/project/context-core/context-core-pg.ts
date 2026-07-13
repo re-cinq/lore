@@ -20,6 +20,7 @@ export class PgContextCore implements ContextCorePort {
       [namespace],
     );
     const row = rows[0] as { eval_score: number } | undefined;
+
     return row?.eval_score ?? null;
   }
 

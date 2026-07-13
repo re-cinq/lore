@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
@@ -25,17 +26,23 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
       const pageSize = 100;
       const repos: unknown[] = [];
       let total: number;
+
       for (let offset = 0; ; offset += pageSize) {
         const proxied = await proxyGetApi(
           `/api/repos?limit=${pageSize}&offset=${offset}`,
         );
+
         if (!proxied.ok) {
-          if (proxied.reason === "not_configured")
+          if (proxied.reason === "not_configured") {
             return {
               content: [{ type: "text" as const, text: NOT_CONFIGURED }],
             };
-          if (proxied.reason === "denied")
+          }
+
+          if (proxied.reason === "denied") {
             return deniedError("lore_list_repos", proxied.detail);
+          }
+
           return unreachableError("lore_list_repos", proxied.detail);
         }
         const body = JSON.parse(proxied.body) as {
@@ -43,10 +50,15 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
           total?: number;
         };
         const page = Array.isArray(body.repos) ? body.repos : [];
+
         repos.push(...page);
         total = typeof body.total === "number" ? body.total : repos.length;
-        if (page.length < pageSize || repos.length >= total) break;
+
+        if (page.length < pageSize || repos.length >= total) {
+          break;
+        }
       }
+
       if (repos.length === 0) {
         return {
           content: [
@@ -57,6 +69,7 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
           ],
         };
       }
+
       return {
         content: [
           {
@@ -78,12 +91,19 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
     },
     async ({ full_name }) => {
       const proxied = await proxyToApi("/api/onboard", { repo: full_name });
-      if (proxied.ok)
+
+      if (proxied.ok) {
         return { content: [{ type: "text" as const, text: proxied.body }] };
-      if (proxied.reason === "not_configured")
+      }
+
+      if (proxied.reason === "not_configured") {
         return { content: [{ type: "text" as const, text: NOT_CONFIGURED }] };
-      if (proxied.reason === "denied")
+      }
+
+      if (proxied.reason === "denied") {
         return deniedError("lore_onboard_repo", proxied.detail);
+      }
+
       return unreachableError("lore_onboard_repo", proxied.detail);
     },
   );
@@ -105,6 +125,7 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
     async ({ files, repo }) => {
       try {
         const resolvedRepo = repo || detectCurrentRepo();
+
         if (!resolvedRepo) {
           return {
             content: [
@@ -119,6 +140,7 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
         // Proxy to GKE ingest API
         const apiUrl = process.env.LORE_API_URL;
         const apiToken = process.env.LORE_INGEST_TOKEN;
+
         if (!apiUrl || !apiToken) {
           return {
             content: [
@@ -132,9 +154,11 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
 
         // Get the latest commit SHA — only use local HEAD if repo matches
         let commit = "HEAD";
+
         try {
           const { execSync } = await import("node:child_process");
           const localRepo = detectCurrentRepo();
+
           if (localRepo === resolvedRepo) {
             commit = execSync("git rev-parse HEAD", {
               encoding: "utf-8",
@@ -157,18 +181,24 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: res.statusText }));
+
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Ingestion failed: ${(err as any).error || res.statusText}`,
+                text: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
               },
             ],
           };
         }
 
-        const result = (await res.json()) as any;
+        const result = (await res.json()) as {
+          ingested?: number;
+          errors?: number;
+        };
+
         invalidateCache(["lore_assemble_context"], resolvedRepo);
+
         return {
           content: [
             {
@@ -177,9 +207,11 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },

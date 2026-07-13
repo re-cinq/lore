@@ -14,6 +14,7 @@ import { join } from "node:path";
 async function loadResolveAgentId(home: string) {
   process.env.HOME = home;
   vi.resetModules();
+
   return (await import("./agent-id.js")).resolveAgentId;
 }
 
@@ -29,10 +30,18 @@ describe("resolveAgentId", () => {
 
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
-    if (savedHome === undefined) delete process.env.HOME;
-    else process.env.HOME = savedHome;
-    if (savedEnvId === undefined) delete process.env.LORE_AGENT_ID;
-    else process.env.LORE_AGENT_ID = savedEnvId;
+
+    if (savedHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = savedHome;
+    }
+
+    if (savedEnvId === undefined) {
+      delete process.env.LORE_AGENT_ID;
+    } else {
+      process.env.LORE_AGENT_ID = savedEnvId;
+    }
   });
 
   it("returns the explicit agent id over all other sources", async () => {
@@ -40,6 +49,7 @@ describe("resolveAgentId", () => {
     mkdirSync(join(home, ".lore"), { recursive: true });
     writeFileSync(join(home, ".lore", "agent-id"), "file-id\n");
     const resolveAgentId = await loadResolveAgentId(home);
+
     expect(resolveAgentId("explicit-id")).toBe("explicit-id");
   });
 
@@ -48,6 +58,7 @@ describe("resolveAgentId", () => {
     mkdirSync(join(home, ".lore"), { recursive: true });
     writeFileSync(join(home, ".lore", "agent-id"), "file-id\n");
     const resolveAgentId = await loadResolveAgentId(home);
+
     expect(resolveAgentId()).toBe("pod-name-42");
   });
 
@@ -55,12 +66,14 @@ describe("resolveAgentId", () => {
     mkdirSync(join(home, ".lore"), { recursive: true });
     writeFileSync(join(home, ".lore", "agent-id"), "  machine-stable-id\n");
     const resolveAgentId = await loadResolveAgentId(home);
+
     expect(resolveAgentId()).toBe("machine-stable-id");
   });
 
   it("generates a uuid and persists it when no source is set", async () => {
     const resolveAgentId = await loadResolveAgentId(home);
     const id = resolveAgentId();
+
     expect(id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
@@ -69,6 +82,7 @@ describe("resolveAgentId", () => {
     );
     // A second resolution reads the persisted id back rather than regenerating.
     const again = await loadResolveAgentId(home);
+
     expect(again()).toBe(id);
   });
 });

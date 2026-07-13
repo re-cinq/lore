@@ -9,6 +9,7 @@ describe("GET /healthz", () => {
       method: "GET",
       url: "/healthz",
     });
+
     expect(res.statusCode).toBe(503);
     expect(res.result).toMatchObject({
       status: "error",

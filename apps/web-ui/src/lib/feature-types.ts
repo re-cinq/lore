@@ -102,11 +102,17 @@ export interface GapResult {
 /** A uniform sections list — new `sections` if present, else derived from the legacy
  *  shape so old stored results still render. Mirrors shared's `sectionsOf`. */
 export function sectionsOf(gap: GapResult | null | undefined): GapSection[] {
-  if (!gap) return [];
-  if (gap.sections) return gap.sections;
+  if (!gap) {
+    return [];
+  }
+
+  if (gap.sections) {
+    return gap.sections;
+  }
   const sections: GapSection[] = [];
   const mockupsFor = (key: string) =>
     (gap.mockups ?? []).filter((m) => (m.section ?? "architecture") === key);
+
   if (gap.architecture) {
     const a = gap.architecture;
     const lines = [
@@ -116,12 +122,14 @@ export function sectionsOf(gap: GapResult | null | undefined): GapSection[] {
       ),
     ];
     const m = mockupsFor("architecture");
+
     sections.push({
       title: "Architecture",
       content: lines.join("\n"),
       ...(m.length ? { mockups: m } : {}),
     });
   }
+
   if (gap.user_flows?.length) {
     const content = gap.user_flows
       .map((f) =>
@@ -131,13 +139,17 @@ export function sectionsOf(gap: GapResult | null | undefined): GapSection[] {
       )
       .join("\n\n");
     const m = mockupsFor("user_flows");
+
     sections.push({
       title: "User flows",
       content,
       ...(m.length ? { mockups: m } : {}),
     });
   }
-  if (gap.questions?.length)
+
+  if (gap.questions?.length) {
     sections.push({ title: "Open questions", questions: gap.questions });
+  }
+
   return sections;
 }

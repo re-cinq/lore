@@ -7,6 +7,7 @@ describe("OpenAiProvider", () => {
     let captured: { url: string; body: any } | null = null;
     const fetchFn = async (url: any, init: any) => {
       captured = { url: String(url), body: JSON.parse(init.body) };
+
       return new Response(
         JSON.stringify({ choices: [{ message: { content: "answer" } }] }),
         { status: 200 },

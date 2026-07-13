@@ -40,6 +40,7 @@ describe("slugify", () => {
 
   it("replaces special characters with dashes", () => {
     const result = slugify("fix: handle 404 errors (edge case)");
+
     // The trailing ")" becomes "-" which gets stripped by replace(/-$/, "")
     expect(result).toBe("fix-handle-404-errors-edge-case");
     expect(result).not.toMatch(/-$/);
@@ -49,6 +50,7 @@ describe("slugify", () => {
     const long =
       "this is a very long description that should be truncated to forty characters";
     const result = slugify(long);
+
     expect(result.length).toBeLessThanOrEqual(40);
   });
 
@@ -56,6 +58,7 @@ describe("slugify", () => {
     // Force a truncation that lands on a dash
     const input = "a".repeat(39) + " b";
     const result = slugify(input);
+
     expect(result).not.toMatch(/-$/);
   });
 
@@ -82,6 +85,7 @@ describe("readConfig", () => {
     // Since we cannot control the HOME path for the import, we test
     // the expected default shape instead.
     const defaults = readConfig();
+
     expect(defaults).toHaveProperty("enabled");
     expect(defaults).toHaveProperty("max_concurrent");
     expect(defaults).toHaveProperty("repos");
@@ -95,6 +99,7 @@ describe("readConfig", () => {
 
   it("default config has sensible values", () => {
     const defaults = readConfig();
+
     // If no config file exists these are the hardcoded defaults
     if (!defaults.enabled) {
       expect(defaults.max_concurrent).toBe(2);
@@ -133,6 +138,7 @@ describe("writeConfig + readConfig round-trip", () => {
     // a hardcoded path, so we verify the serialization logic)
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     const read = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+
     expect(read).toEqual(config);
   });
 });
@@ -156,6 +162,7 @@ describe("pending task helpers", () => {
     // The real function reads from ~/.lore/pending-tasks.json
     // If it doesn't exist, it returns []. Verify that logic.
     const tasks = listPendingTasks();
+
     expect(Array.isArray(tasks)).toBe(true);
   });
 
@@ -179,6 +186,7 @@ describe("pending task helpers", () => {
 
     // Simulate the filter logic that skipTask performs
     const filtered = tasks.filter((t) => t.id !== "task-1");
+
     expect(filtered).toHaveLength(1);
     expect(filtered[0].id).toBe("task-2");
   });
@@ -206,6 +214,7 @@ describe("branch name generation", () => {
   it("handles very short prompts", () => {
     const slug = slugify("fix");
     const branch = `lore/general/${slug}-abcd1234`;
+
     expect(branch).toBe("lore/general/fix-abcd1234");
   });
 });
@@ -256,6 +265,7 @@ describe("validateRepoMatch", () => {
 describe("cancelLocalTask", () => {
   it("returns not-found for an unknown task id with no local registry", () => {
     const unknownId = "00000000-dead-beef-0000-000000000000";
+
     expect(cancelLocalTask(unknownId)).toEqual({
       cancelled: false,
       error: "Task not found",
@@ -276,11 +286,23 @@ function applyConfigUpdate(
   >,
 ): LocalRunnerConfig {
   const next = { ...config };
-  if (args.max_concurrent !== undefined)
+
+  if (args.max_concurrent !== undefined) {
     next.max_concurrent = args.max_concurrent;
-  if (args.repos) next.repos = args.repos;
-  if (args.task_types) next.task_types = args.task_types;
-  if (args.model) next.model = args.model;
+  }
+
+  if (args.repos) {
+    next.repos = args.repos;
+  }
+
+  if (args.task_types) {
+    next.task_types = args.task_types;
+  }
+
+  if (args.model) {
+    next.model = args.model;
+  }
+
   return next;
 }
 

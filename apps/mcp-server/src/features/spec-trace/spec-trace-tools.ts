@@ -38,6 +38,7 @@ export function stripPathPrefix(file: string, prefix: string): string {
   if (prefix && file.startsWith(prefix)) {
     return file.slice(prefix.length);
   }
+
   return file;
 }
 
@@ -72,6 +73,7 @@ import {
   runTestsRun,
   parseCommandJson,
 } from "@re-cinq/lore-shared/project/test-runner/test-runner-exec.js";
+
 export { runTestsList, runTestsRun, parseCommandJson };
 
 export async function listTestsTool(
@@ -80,14 +82,20 @@ export async function listTestsTool(
   cwd: string,
 ): Promise<string> {
   const refusal = executionRefusal(env);
-  if (refusal) return refusal;
 
-  if (!manifest) return NO_MANIFEST;
+  if (refusal) {
+    return refusal;
+  }
+
+  if (!manifest) {
+    return NO_MANIFEST;
+  }
 
   const descriptors = await runTestsList(
     manifest.list,
     resolveCwd(manifest, cwd),
   );
+
   return JSON.stringify(
     stripDescriptorPaths(descriptors, manifest.path_prefix_strip),
   );
@@ -100,15 +108,21 @@ export async function runTestTool(
   cwd: string,
 ): Promise<string> {
   const refusal = executionRefusal(env);
-  if (refusal) return refusal;
 
-  if (!manifest) return NO_MANIFEST;
+  if (refusal) {
+    return refusal;
+  }
+
+  if (!manifest) {
+    return NO_MANIFEST;
+  }
 
   const result = await runTestsRun(
     manifest.run,
     selector,
     resolveCwd(manifest, cwd),
   );
+
   return JSON.stringify(stripCoveredPaths(result, manifest.path_prefix_strip));
 }
 
@@ -116,9 +130,13 @@ export function loadTestCommandManifest(
   repoRoot: string,
 ): TestCommandManifest | null {
   const manifestPath = join(repoRoot, ".lore", "test-commands.yml");
-  if (!existsSync(manifestPath)) return null;
+
+  if (!existsSync(manifestPath)) {
+    return null;
+  }
 
   const parsed = parse(readFileSync(manifestPath, "utf-8"));
   const resolved = resolveTestCommandManifest({ file: parsed });
+
   return resolved?.[0] ?? null;
 }

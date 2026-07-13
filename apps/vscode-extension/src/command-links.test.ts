@@ -11,6 +11,7 @@ describe("openLocalCommandUri", () => {
 
   it("encodes spaces and brackets in the path so the URI stays well-formed", () => {
     const uri = openLocalCommandUri({ path: "a b/[x].ts", line: 1 });
+
     expect(uri).not.toContain(" ");
     expect(uri).not.toContain("[");
     expect(decodeURIComponent(uri.split("?")[1])).toBe(

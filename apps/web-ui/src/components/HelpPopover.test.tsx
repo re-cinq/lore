@@ -8,6 +8,7 @@ describe("HelpPopover", () => {
     render(<HelpPopover>panel body</HelpPopover>);
 
     const trigger = screen.getByRole("button", { name: "Help" });
+
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(trigger).toHaveTextContent("?");
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -18,6 +19,7 @@ describe("HelpPopover", () => {
     render(<HelpPopover label="Coverage help">details</HelpPopover>);
 
     const trigger = screen.getByRole("button", { name: "Coverage help" });
+
     fireEvent.click(trigger);
 
     expect(
@@ -35,6 +37,7 @@ describe("HelpPopover", () => {
     fireEvent.click(screen.getByRole("button", { name: "Help" }));
 
     const trigger = screen.getByRole("button", { name: "Help" });
+
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("dialog")).toHaveTextContent("explainer text");
   });
@@ -100,6 +103,7 @@ describe("HelpPopover", () => {
 
   it("registers no document listeners while closed", () => {
     const addSpy = vi.spyOn(document, "addEventListener");
+
     render(<HelpPopover>closed body</HelpPopover>);
 
     expect(addSpy).not.toHaveBeenCalledWith("mousedown", expect.any(Function));
@@ -109,6 +113,7 @@ describe("HelpPopover", () => {
 
   it("removes its document listeners after the popover closes", () => {
     const removeSpy = vi.spyOn(document, "removeEventListener");
+
     render(<HelpPopover>cleanup body</HelpPopover>);
     const trigger = screen.getByRole("button", { name: "Help" });
 

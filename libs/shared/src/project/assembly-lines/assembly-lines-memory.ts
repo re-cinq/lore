@@ -40,6 +40,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
 
   async start(input: AssemblyLineStartInput): Promise<string> {
     const id = randomUUID();
+
     this.rows.push(this.newRow(id, input));
     this.events.push({
       eventName: "assembly_line.start",
@@ -54,17 +55,20 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       },
       dedupeKey: `assembly_line.start:${id}`,
     });
+
     return id;
   }
 
   async markRunning(id: string): Promise<void> {
     const row = this.mustFind(id);
+
     row.status = "running";
     row.startedAt = this.clock();
   }
 
   async finish(id: string, outcome: string, reason?: string): Promise<void> {
     const row = this.mustFind(id);
+
     row.status = outcome === "error" ? "failed" : "finished";
     row.outcome = outcome;
     row.reason = reason ?? null;
@@ -73,6 +77,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
 
   async recordNodeStart(input: AssemblyLineNodeStartInput): Promise<string> {
     const id = String(this.nodes.length + 1);
+
     this.nodes.push({
       id,
       assemblyLineId: input.assemblyLineId,
@@ -84,6 +89,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       startedAt: this.clock(),
       finishedAt: null,
     });
+
     return id;
   }
 
@@ -93,6 +99,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     commitSha?: string,
   ): Promise<void> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
+
     enforceTrue(node, new Error(`no assembly line node row "${nodeRowId}"`));
     node.outcome = outcome;
     node.commitSha = commitSha ?? null;
@@ -124,11 +131,13 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     outcome: string,
   ): Promise<number> {
     const open = this.rows.filter((r) => this.matchesOpenPr(r, repo, prNumber));
+
     for (const row of open) {
       row.status = "finished";
       row.outcome = outcome;
       row.finishedAt = this.clock();
     }
+
     return open.length;
   }
 
@@ -166,7 +175,9 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
 
   private mustFind(id: string): AssemblyLineRecord {
     const row = this.rows.find((r) => r.id === id);
+
     enforceTrue(row, new Error(`no assembly line "${id}"`));
+
     return row;
   }
 }

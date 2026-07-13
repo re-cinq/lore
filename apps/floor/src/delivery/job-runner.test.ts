@@ -37,6 +37,7 @@ import { dispatch, resolveJob, runJobByName } from "./job-runner.js";
 describe("dispatch map", () => {
   it.each(EXPECTED_JOBS)("resolves %s to a handler function", (name) => {
     const handler = dispatch[name];
+
     expect(typeof handler).toBe("function");
   });
 
@@ -62,9 +63,12 @@ describe("runJobByName", () => {
   // configure — the entrypoint just runs the handler and exits 0.
   it("invokes the job handler and exits 0", async () => {
     const handler = vi.fn(async () => "ok");
+
     dispatch.__platform_probe = handler;
+
     try {
       const code = await runJobByName("__platform_probe");
+
       expect(code).toBe(0);
       expect(handler).toHaveBeenCalledOnce();
     } finally {

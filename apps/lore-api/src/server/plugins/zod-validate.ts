@@ -16,8 +16,12 @@ import type { ZodError, ZodType } from "zod";
 /** A single `{ error }` message naming the first offending field where zod has one. */
 export function formatZodError(error: ZodError): string {
   const [issue] = error.issues;
-  if (!issue) return "invalid request";
+
+  if (!issue) {
+    return "invalid request";
+  }
   const path = issue.path.join(".");
+
   return path ? `${path}: ${issue.message}` : issue.message;
 }
 
@@ -34,9 +38,13 @@ export type ZodValidateFn<T> = ((value: unknown) => Promise<T>) & {
 export function zodValidate<T>(schema: ZodType<T>): ZodValidateFn<T> {
   const validate = async (value: unknown): Promise<T> => {
     const result = schema.safeParse(value);
-    if (result.success) return result.data;
+
+    if (result.success) {
+      return result.data;
+    }
     throw new Error(formatZodError(result.error));
   };
+
   return Object.assign(validate, { zodSchema: schema });
 }
 
@@ -55,6 +63,7 @@ export function zodFailAction(
 ): never {
   const message = err?.message ?? "invalid request";
   const boom = Boom.badRequest(message);
+
   boom.output.payload = { error: message } as unknown as Boom.Payload;
   throw boom;
 }

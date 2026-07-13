@@ -43,6 +43,7 @@ async function defaultExec(
     timeout: opts?.timeout ?? 30_000,
     env: { ...process.env },
   });
+
   return { stdout: String(stdout) };
 }
 
@@ -57,6 +58,7 @@ export class CliProvider implements LlmProvider {
 
   async complete(req: LlmCompleteRequest): Promise<LlmCompletion> {
     const text = await this.run(this.combine(req.systemPrompt, req.prompt));
+
     return { text, ...ZERO_USAGE };
   }
 
@@ -66,6 +68,7 @@ export class CliProvider implements LlmProvider {
       req.systemPrompt ? `${req.systemPrompt}\n${instruction}` : instruction,
       req.prompt,
     );
+
     return { data: JSON.parse(await this.run(prompt)) as T, ...ZERO_USAGE };
   }
 
@@ -80,6 +83,7 @@ export class CliProvider implements LlmProvider {
       ["-p", prompt, "--output-format", "text"],
       { timeout: 30_000 },
     );
+
     return stdout.trim();
   }
 }

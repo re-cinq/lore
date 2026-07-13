@@ -8,12 +8,20 @@ export function summarizeMarkdown(source: string): {
 } {
   let title = "";
   let description = "";
+
   for (const line of source.split("\n")) {
     const heading = ATX_HEADING.exec(line);
-    if (heading && title === "") title = heading[1].trim();
-    else if (!heading && description === "" && line.trim() !== "")
+
+    if (heading && title === "") {
+      title = heading[1].trim();
+    } else if (!heading && description === "" && line.trim() !== "") {
       description = line.trim();
-    if (title !== "" && description !== "") break;
+    }
+
+    if (title !== "" && description !== "") {
+      break;
+    }
   }
+
   return { title, description };
 }

@@ -18,6 +18,7 @@ export default function AppShell({
 
   // Close sidebar on navigation
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: collapse the sidebar in response to a route change
     setSidebarOpen(false);
   }, [pathname]);
 
@@ -32,11 +33,17 @@ export default function AppShell({
 
   // Close sidebar on Escape key
   useEffect(() => {
-    if (!sidebarOpen) return;
+    if (!sidebarOpen) {
+      return;
+    }
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSidebarOpen(false);
+      if (e.key === "Escape") {
+        setSidebarOpen(false);
+      }
     };
+
     document.addEventListener("keydown", handleKeyDown);
+
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [sidebarOpen]);
 

@@ -10,6 +10,10 @@ export {
   cancelTask as cancelPipelineTask,
   markTaskMerged,
   type CreateTaskInput,
+  type CreatedTask,
+  type RetriedTask,
+  type PipelineTaskRow,
+  type TaskListRow,
 } from "./pipeline-tasks.js";
 export {
   chunkFile,
@@ -314,6 +318,7 @@ export { LORE_TESTS_INSTRUCTION } from "./lore-tests-instruction.js";
 export { allPathsMatch, matchingPatterns } from "./path-match.js";
 export {
   classifyError,
+  errorMessage,
   summarizeFailures,
   TaskFailure,
   type FailureCategory,

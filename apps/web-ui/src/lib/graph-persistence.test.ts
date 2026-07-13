@@ -37,6 +37,7 @@ describe("captureGraphState", () => {
 describe("applyGraphState", () => {
   it("mutates the matching node x/y to the saved 10,20 position", () => {
     const nodes = [{ id: "a", x: 0, y: 0 }];
+
     applyGraphState(
       {
         version: 1,
@@ -50,6 +51,7 @@ describe("applyGraphState", () => {
 
   it("restores fx/fy to the saved 10,20 position when the saved position is pinned", () => {
     const nodes = [{ id: "a", x: 0, y: 0 }];
+
     applyGraphState(
       {
         version: 1,
@@ -69,6 +71,7 @@ describe("serializeGraphState + parseGraphState", () => {
       positions: { a: { x: 1, y: 2, pinned: false } },
       expanded: ["s1"],
     };
+
     expect(parseGraphState(serializeGraphState(state))).toEqual(state);
   });
 
@@ -82,6 +85,7 @@ describe("serializeGraphState + parseGraphState", () => {
       positions: { a: { x: 1, y: 2, pinned: false } },
       expanded: [],
     });
+
     expect(parseGraphState(staleBlob)).toBeNull();
   });
 });

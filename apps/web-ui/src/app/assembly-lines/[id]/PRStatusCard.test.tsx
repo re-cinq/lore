@@ -59,7 +59,9 @@ function stubFetchJson(payload: unknown) {
     json: async () => payload,
     text: async () => JSON.stringify(payload),
   });
+
   vi.stubGlobal("fetch", fetchMock);
+
   return fetchMock;
 }
 
@@ -67,12 +69,14 @@ function stubFetchJson(payload: unknown) {
 // settled before assertions.
 async function renderSettled(props: { taskId: string; prUrl: string }) {
   let view: ReturnType<typeof render>;
+
   await act(async () => {
     view = render(<PRStatusCard {...props} />);
   });
   await act(async () => {
     await Promise.resolve();
   });
+
   return view!;
 }
 
@@ -96,6 +100,7 @@ describe("PRStatusCard", () => {
 
   it("requests pr-status for the given task id", async () => {
     const fetchMock = stubFetchJson(details());
+
     await renderSettled({ taskId: "abc-123", prUrl: "https://gh/pr/1" });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/assembly-lines/abc-123/pr-status",
@@ -110,6 +115,7 @@ describe("PRStatusCard", () => {
 
     expect(screen.getByText("open")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /#7 My PR/ });
+
     expect(link).toHaveAttribute(
       "href",
       "https://github.com/acme/repo/pull/42",
@@ -122,6 +128,7 @@ describe("PRStatusCard", () => {
     await renderSettled({ taskId: "task-1", prUrl: "https://gh/pr/1" });
 
     const pill = screen.getByText("merged");
+
     expect(pill).toHaveStyle({ "--pill-color": "var(--accent)" });
   });
 
@@ -131,6 +138,7 @@ describe("PRStatusCard", () => {
     await renderSettled({ taskId: "task-1", prUrl: "https://gh/pr/1" });
 
     const pill = screen.getByText("mystery-state");
+
     expect(pill).toHaveStyle({ "--pill-color": "var(--text-muted)" });
   });
 
@@ -279,6 +287,7 @@ describe("PRStatusCard", () => {
 
     expect(screen.getByText(/Status unavailable/)).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "View on GitHub" });
+
     expect(link).toHaveAttribute("href", "https://example.com/pr/9");
     expect(link).toHaveAttribute("target", "_blank");
     expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
@@ -286,6 +295,7 @@ describe("PRStatusCard", () => {
 
   it("shows the unavailable fallback when the fetch rejects", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
+
     vi.stubGlobal("fetch", fetchMock);
 
     await renderSettled({
@@ -307,6 +317,7 @@ describe("PRStatusCard", () => {
       taskId: "task-1",
       prUrl: "https://gh/pr/1",
     });
+
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     unmount();
@@ -322,6 +333,7 @@ describe("PRStatusCard", () => {
       taskId: "first",
       prUrl: "https://gh/pr/1",
     });
+
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/assembly-lines/first/pr-status",

@@ -27,6 +27,7 @@ describe("OpenAPI coverage drift guard", () => {
       handler: () => null,
     };
     const probe = generateOpenApi([naked]);
+
     expect(probe.coverage.uncovered).toEqual(["POST /api/__drift_probe__"]);
   });
 
@@ -34,6 +35,7 @@ describe("OpenAPI coverage drift guard", () => {
     const expected = new Set(
       routes.filter(isApi).map((r) => normalizePath(r.path)),
     );
+
     expect(new Set(Object.keys(document.paths))).toEqual(expected);
   });
 
@@ -46,6 +48,7 @@ describe("OpenAPI coverage drift guard", () => {
 
   it("assigns every operation exactly one declared category, none uncategorized", () => {
     const declared = new Set(document.tags.map((t) => t.name));
+
     for (const [path, item] of Object.entries(document.paths)) {
       for (const [method, op] of Object.entries(item)) {
         expect(op.tags, `${method} ${path} tags`).toHaveLength(1);
@@ -88,8 +91,9 @@ describe("OpenAPI document is structurally valid 3.1", () => {
   it("shapes every request body as an application/json schema", () => {
     for (const item of Object.values(document.paths)) {
       for (const op of Object.values(item)) {
-        if (op.requestBody)
+        if (op.requestBody) {
           expect(op.requestBody.content).toHaveProperty(["application/json"]);
+        }
       }
     }
   });

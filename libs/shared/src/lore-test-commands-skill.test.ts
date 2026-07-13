@@ -9,11 +9,14 @@ const skillsDir = join(repoRoot, ".claude", "skills");
 
 describe("lore-test-commands skill", () => {
   it("carries the canonical TEST_COMMAND_SETUP_PROMPT verbatim", () => {
-    if (!existsSync(skillsDir)) return;
+    if (!existsSync(skillsDir)) {
+      return;
+    }
     const skill = readFileSync(
       join(skillsDir, "lore-test-commands", "SKILL.md"),
       "utf8",
     );
+
     expect(skill).toContain(TEST_COMMAND_SETUP_PROMPT);
   });
 });

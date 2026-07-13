@@ -33,6 +33,7 @@ describe("runGateStation", () => {
 describe("runGithubActionStation", () => {
   const withApi = <T>(fn: () => Promise<T>): Promise<T> => {
     process.env.LORE_API_URL = "https://api";
+
     return fn().finally(() => delete process.env.LORE_API_URL);
   };
 
@@ -44,6 +45,7 @@ describe("runGithubActionStation", () => {
         maxPolls: 0,
         sleep: async () => {},
       });
+
       expect(result).toMatchObject({
         outcome: "failed",
         extras: { "Lore-CI-Conclusion": "timeout" },
@@ -65,6 +67,7 @@ describe("runDetectStation", () => {
       undefined,
       () => fakeProject,
     );
+
     // spec_drift with no specs returns "No specs found"
     expect(result).toEqual({
       outcome: "success",

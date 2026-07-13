@@ -36,6 +36,7 @@ export async function writeEpisode(
     // Privacy filter: strip secrets/keys before storing in org-wide memory
     const safeContent = redactSecrets(content);
     const contentHash = createHash("sha256").update(safeContent).digest("hex");
+
     return await deps.memory.insertEpisode({
       agentId,
       content: safeContent,
@@ -64,7 +65,9 @@ export async function writeEpisodeWithCuration(
   const episodeId = await writeEpisode(content, source, ref, agentId, deps);
 
   // Skip curation if no API key or episode was a duplicate
-  if (!episodeId || !process.env.ANTHROPIC_API_KEY) return;
+  if (!episodeId || !process.env.ANTHROPIC_API_KEY) {
+    return;
+  }
 
   // Extract a lesson learned via Haiku
   try {
@@ -78,10 +81,14 @@ export async function writeEpisodeWithCuration(
     });
 
     const lesson = result.text.trim();
-    if (!lesson || lesson.startsWith("SKIP") || lesson.length < 10) return;
+
+    if (!lesson || lesson.startsWith("SKIP") || lesson.length < 10) {
+      return;
+    }
 
     // Store as a memory entry
     const key = `auto-curation/${ref.replace(/[^a-zA-Z0-9\-/]/g, "_")}`;
+
     await deps.memory.upsertMemory({ agentId, key, value: lesson });
   } catch {
     // Curation is best-effort — never block task processing

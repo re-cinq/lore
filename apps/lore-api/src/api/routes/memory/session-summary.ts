@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { createHash } from "node:crypto";
@@ -17,6 +18,7 @@ const SessionSummaryBody = z.object({
   repo: z.string().optional(),
   agent_id: z.string().optional(),
 });
+
 type SessionSummaryBody = z.infer<typeof SessionSummaryBody>;
 
 export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
@@ -29,6 +31,7 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
     },
     handler: async (request, h) => {
       const pool = getPool();
+
       try {
         const { session_log, repo, agent_id } =
           request.payload as SessionSummaryBody;
@@ -38,14 +41,17 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
             ? session_log
             : session_log.summary || JSON.stringify(session_log);
 
-        if (!summary || summary.length < 10)
+        if (!summary || summary.length < 10) {
           return h.response({ status: "skipped", reason: "empty session" });
+        }
 
         const content = `Session in ${repo || "unknown"}\n\n${summary}`;
         const agent = agent_id || "session-hook";
         const contentHash = createHash("sha256").update(content).digest("hex");
 
-        if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
+        if (!pool) {
+          return h.response({ error: DB_UNAVAILABLE }).code(503);
+        }
 
         const { rows } = await pool.query(
           `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
@@ -55,13 +61,16 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
           [agent, content, contentHash, repo || null],
         );
 
-        if (rows.length === 0) return h.response({ status: "duplicate" });
+        if (rows.length === 0) {
+          return h.response({ status: "duplicate" });
+        }
 
         extractFactsFromEpisode(rows[0].id, content, agent, pool).catch(
           () => {},
         );
         const gLlm = makeGraphLlmCall(pool);
-        if (gLlm)
+
+        if (gLlm) {
           extractAndUpdateGraph(
             pool,
             content,
@@ -70,9 +79,11 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
             null,
             gLlm,
           ).catch(() => {});
+        }
+
         return h.response({ status: "ok", episode_id: rows[0].id });
-      } catch (err: any) {
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

@@ -11,6 +11,7 @@ describe("CliProvider", () => {
     let captured: { file: string; args: string[] } | null = null;
     const execFn = async (file: string, args: string[]) => {
       captured = { file, args };
+
       return { stdout: "the answer\n" };
     };
     const provider = new CliProvider({ execFn });

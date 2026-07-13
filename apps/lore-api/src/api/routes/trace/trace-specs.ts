@@ -10,7 +10,11 @@ export function traceSpecsRoute(): ServerRoute {
     options: bearerScope("read"),
     handler: async (_request, h) => {
       const dgraph = createDgraphClient(process.env);
-      if (!dgraph) return h.response({ specs: [] });
+
+      if (!dgraph) {
+        return h.response({ specs: [] });
+      }
+
       try {
         return h.response({ specs: await listAllSpecDocuments(dgraph) });
       } catch (err) {

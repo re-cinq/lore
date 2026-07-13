@@ -58,9 +58,11 @@ describe("proxy client result mapping", () => {
 
   it("forwards the bearer token and endpoint on a POST", async () => {
     const spy = fetchReturning({ ok: true, json: async () => ({}) });
+
     global.fetch = spy as typeof fetch;
     await proxyToApi("/api/task", { a: 1 });
     const [url, init] = spy.mock.calls[0];
+
     expect(url).toBe("https://lore-api.test/api/task");
     expect((init as RequestInit).method).toBe("POST");
     expect((init as RequestInit).headers).toMatchObject({
@@ -74,6 +76,7 @@ describe("proxy client result mapping", () => {
       status: 403,
       statusText: "Forbidden",
     });
+
     global.fetch = spy as typeof fetch;
     expect(await proxyGetApi("/api/repos")).toMatchObject({
       ok: false,
@@ -88,6 +91,7 @@ describe("proxy client result mapping", () => {
       status: 401,
       statusText: "Unauthorized",
     });
+
     global.fetch = spy as typeof fetch;
     expect(await proxyToApi("/api/task", {})).toMatchObject({
       ok: false,
@@ -102,6 +106,7 @@ describe("proxy client result mapping", () => {
       status: 400,
       statusText: "Bad Request",
     });
+
     global.fetch = spy as typeof fetch;
     expect(await proxyToApi("/api/task", {})).toMatchObject({
       ok: false,
@@ -117,6 +122,7 @@ describe("proxy client result mapping", () => {
       statusText: "Failed Dependency",
       text: async () => JSON.stringify({ error: "GitHub not configured" }),
     });
+
     global.fetch = spy as typeof fetch;
     expect(await proxyGetApi("/api/pr-status")).toMatchObject({
       ok: false,

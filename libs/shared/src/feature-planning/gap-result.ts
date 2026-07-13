@@ -83,33 +83,47 @@ function asObject(value: unknown, field: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     fail(field, "must be an object");
   }
+
   return value as Record<string, unknown>;
 }
 
 function asString(value: unknown, field: string): string {
-  if (typeof value !== "string") fail(field, "must be a string");
+  if (typeof value !== "string") {
+    fail(field, "must be a string");
+  }
+
   return value as string;
 }
 
 function asStringArray(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) fail(field, "must be an array");
+  if (!Array.isArray(value)) {
+    fail(field, "must be an array");
+  }
+
   return value.map((v, i) => asString(v, `${field}[${i}]`));
 }
 
 function asArray(value: unknown, field: string): unknown[] {
-  if (!Array.isArray(value)) fail(field, "must be an array");
+  if (!Array.isArray(value)) {
+    fail(field, "must be an array");
+  }
+
   return value;
 }
 
 /** First non-empty string among the candidates, else "". Tolerates LLM field drift. */
 function firstString(...values: unknown[]): string {
   const hit = values.find((v) => typeof v === "string" && v.length > 0);
+
   return typeof hit === "string" ? hit : "";
 }
 
 /** String entries of an array, or [] when absent/non-array. */
 function lenientStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
   return value.filter((v): v is string => typeof v === "string");
 }
 
@@ -126,7 +140,11 @@ function parseMockup(raw: unknown, i: number): GapMockup {
     markup: firstString(mo.markup, mo.svg, mo.content),
   };
   const section = firstString(mo.section);
-  if (section) mockup.section = section;
+
+  if (section) {
+    mockup.section = section;
+  }
+
   return mockup;
 }
 
@@ -141,22 +159,27 @@ function parseQuestion(raw: unknown, i: number): GapQuestion {
     why: firstString(o.why, o.rationale, o.detail),
     kind,
   };
+
   if (kind === "choice") {
     const options = asStringArray(o.options, `questions[${i}].options`);
-    if (options.length === 0)
+
+    if (options.length === 0) {
       fail(
         `questions[${i}].options`,
         "must be non-empty for a choice question",
       );
+    }
     question.options = options;
   } else if (o.options !== undefined) {
     question.options = lenientStringArray(o.options);
   }
+
   return question;
 }
 
 function parseSplit(raw: unknown): GapSplitSuggestion {
   const o = asObject(raw, "split_suggestion");
+
   return {
     rationale: asString(o.rationale, "split_suggestion.rationale"),
     proposed_features: asArray(
@@ -164,6 +187,7 @@ function parseSplit(raw: unknown): GapSplitSuggestion {
       "split_suggestion.proposed_features",
     ).map((p, i) => {
       const po = asObject(p, `split_suggestion.proposed_features[${i}]`);
+
       return {
         title: asString(
           po.title,
@@ -185,28 +209,42 @@ function parseSection(raw: unknown, i: number): GapSection {
     title: firstString(o.title, o.name) || `Section ${i + 1}`,
   };
   const content = firstString(o.content, o.body, o.markdown, o.summary);
-  if (content) section.content = content;
+
+  if (content) {
+    section.content = content;
+  }
+
   if (o.mockups !== undefined && o.mockups !== null) {
     const mockups = asArray(o.mockups, `sections[${i}].mockups`).map(
       parseMockup,
     );
-    if (mockups.length) section.mockups = mockups;
+
+    if (mockups.length) {
+      section.mockups = mockups;
+    }
   }
+
   if (o.questions !== undefined && o.questions !== null) {
     const questions = asArray(o.questions, `sections[${i}].questions`).map(
       parseQuestion,
     );
-    if (questions.length) section.questions = questions;
+
+    if (questions.length) {
+      section.questions = questions;
+    }
   }
+
   return section;
 }
 
 function parseArchitecture(raw: unknown): GapArchitecture {
   const o = asObject(raw, "architecture");
+
   return {
     summary: firstString(o.summary, o.description),
     components: asArray(o.components, "architecture.components").map((c, i) => {
       const co = asObject(c, `architecture.components[${i}]`);
+
       return {
         name: asString(co.name, `architecture.components[${i}].name`),
         responsibility: firstString(
@@ -226,12 +264,14 @@ function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
   const mockups = Array.isArray(o.mockups) ? o.mockups.map(parseMockup) : [];
   const mockupsTagged = (key: string): GapMockup[] | undefined => {
     const m = mockups.filter((mk) => (mk.section ?? "architecture") === key);
+
     return m.length ? m : undefined;
   };
 
   if (o.architecture !== undefined && o.architecture !== null) {
     const arch = parseArchitecture(o.architecture);
     const lines = [arch.summary];
+
     if (arch.components.length) {
       lines.push(
         "",
@@ -242,6 +282,7 @@ function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
       );
     }
     const m = mockupsTagged("architecture");
+
     sections.push({
       title: "Architecture",
       content: lines.join("\n"),
@@ -255,12 +296,14 @@ function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
         const fo = asObject(f, `user_flows[${i}]`);
         const name = asString(fo.name, `user_flows[${i}].name`);
         const steps = asStringArray(fo.steps, `user_flows[${i}].steps`);
+
         return [`**${name}**`, ...steps.map((s, j) => `${j + 1}. ${s}`)].join(
           "\n",
         );
       })
       .join("\n\n");
     const m = mockupsTagged("user_flows");
+
     sections.push({
       title: "User flows",
       content,
@@ -272,8 +315,10 @@ function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
     (mk) =>
       !["architecture", "user_flows"].includes(mk.section ?? "architecture"),
   );
-  if (orphanMockups.length)
+
+  if (orphanMockups.length) {
     sections.push({ title: "Diagrams", mockups: orphanMockups });
+  }
 
   if (Array.isArray(o.questions) && o.questions.length) {
     sections.push({
@@ -302,9 +347,11 @@ export function parseGapResult(raw: unknown): GapResult {
     sections,
     draft_spec_markdown: asString(o.draft_spec_markdown, "draft_spec_markdown"),
   };
+
   if (o.split_suggestion !== undefined && o.split_suggestion !== null) {
     result.split_suggestion = parseSplit(o.split_suggestion);
   }
+
   return result;
 }
 
@@ -326,6 +373,7 @@ export function sanitizeSvg(markup: string): string {
     .replace(EVENT_HANDLER_RE, "")
     .replace(HREF_RE, (match, value: string) => {
       const unquoted = value.replace(/^["']|["']$/g, "");
+
       return SAFE_HREF_RE.test(unquoted) ? match : "";
     });
 }
@@ -371,9 +419,15 @@ export function isPlanningPhase(status: string): boolean {
 export function sectionsOf(
   gap: GapResult | Record<string, unknown> | null | undefined,
 ): GapSection[] {
-  if (!gap) return [];
+  if (!gap) {
+    return [];
+  }
   const g = gap as Record<string, unknown>;
-  if (Array.isArray(g.sections)) return g.sections as GapSection[];
+
+  if (Array.isArray(g.sections)) {
+    return g.sections as GapSection[];
+  }
+
   try {
     return deriveSectionsFromLegacy(g);
   } catch {
@@ -387,6 +441,10 @@ export function sectionsOf(
  */
 export function decideFeatureStatus(gap: GapResult): FeaturePlanningStatus {
   const hasQuestions = gap.sections.some((s) => (s.questions?.length ?? 0) > 0);
-  if (hasQuestions || gap.split_suggestion) return "awaiting-input";
+
+  if (hasQuestions || gap.split_suggestion) {
+    return "awaiting-input";
+  }
+
   return "spec-ready";
 }

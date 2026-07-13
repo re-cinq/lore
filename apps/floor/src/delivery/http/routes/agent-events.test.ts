@@ -2,9 +2,13 @@ import { describe, it, expect, afterEach } from "vitest";
 import { buildServer } from "../server.js";
 
 const ORIG = process.env.LORE_AGENT_INTERNAL_TOKEN;
+
 afterEach(() => {
-  if (ORIG === undefined) delete process.env.LORE_AGENT_INTERNAL_TOKEN;
-  else process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG;
+  if (ORIG === undefined) {
+    delete process.env.LORE_AGENT_INTERNAL_TOKEN;
+  } else {
+    process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG;
+  }
 });
 
 describe("POST /api/agent-events", () => {
@@ -16,6 +20,7 @@ describe("POST /api/agent-events", () => {
       headers: { authorization: "Bearer wrong" },
       payload: "{}",
     });
+
     expect(res.statusCode).toBe(401);
   });
 
@@ -27,6 +32,7 @@ describe("POST /api/agent-events", () => {
       headers: { authorization: "Bearer anything" },
       payload: "{}",
     });
+
     expect(res.statusCode).toBe(401);
   });
 });

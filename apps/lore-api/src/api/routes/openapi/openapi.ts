@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * Serve the generated OpenAPI 3.1 document (ADR-035).
  *
@@ -29,6 +30,7 @@ const generate = (getPool: () => Pool | null) =>
 /** Inline the spec safely inside a <script> — neutralize `</script>` / `<!--`. */
 function docsHtml(spec: object): string {
   const json = JSON.stringify(spec).replace(/</g, "\\u003c");
+
   return `<!DOCTYPE html>
 <html>
   <head>
@@ -55,8 +57,9 @@ export function openApiJsonRoute(getPool: () => Pool | null): ServerRoute {
     handler: (_request, h) => {
       try {
         return h.response(generate(getPool));
-      } catch (err: any) {
-        console.error("[openapi] generation failed:", err.message);
+      } catch (err) {
+        console.error("[openapi] generation failed:", errorMessage(err));
+
         return h
           .response({ error: "failed to generate openapi document" })
           .code(500);
@@ -73,8 +76,9 @@ export function docsRoute(getPool: () => Pool | null): ServerRoute {
     handler: (_request, h) => {
       try {
         return h.response(docsHtml(generate(getPool))).type("text/html");
-      } catch (err: any) {
-        console.error("[openapi] docs render failed:", err.message);
+      } catch (err) {
+        console.error("[openapi] docs render failed:", errorMessage(err));
+
         return h.response({ error: "failed to render docs" }).code(500);
       }
     },

@@ -70,6 +70,7 @@ async function readTrustLevel(
     const raw = (await repos.rawSettings(repo)) as {
       trust?: { level?: string };
     } | null;
+
     return raw?.trust?.level as TrustLevel | undefined;
   } catch {
     return undefined;
@@ -96,7 +97,10 @@ export async function resolvePrForTaskFromDb(
   },
 ): Promise<PrForAutoMerge | null> {
   const row = await deps.tasks.prInfo(taskId);
-  if (!row?.pr_number || !row.target_repo) return null;
+
+  if (!row?.pr_number || !row.target_repo) {
+    return null;
+  }
 
   let ciSucceeded = false;
   let botApproved = false;
@@ -120,6 +124,7 @@ export async function resolvePrForTaskFromDb(
   // Without this, *any* bot's APPROVED review (Dependabot, Renovate,
   // an external review bot) would satisfy require_bot_approval.
   const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
+
   try {
     // All three reads are paginated inside the shared adapter (a single API page
     // caps at 30 and would silently truncate the file allowlist gate / check set /
@@ -158,7 +163,10 @@ export async function resolvePrForTaskFromDb(
   let trustLevel: ResolvedDarkFactorySettings["auto_merge"]["min_trust"] =
     "docs";
   const lvl = await readTrustLevel(deps.repos, row.target_repo);
-  if (lvl) trustLevel = lvl;
+
+  if (lvl) {
+    trustLevel = lvl;
+  }
 
   return {
     repo: row.target_repo,

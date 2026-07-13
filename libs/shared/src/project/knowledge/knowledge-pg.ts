@@ -30,6 +30,7 @@ export class PgKnowledge implements KnowledgePort {
       undefined,
       repo,
     );
+
     return { text: result.text };
   }
 
@@ -56,12 +57,13 @@ export class PgKnowledge implements KnowledgePort {
     contentType: "spec" | "adr",
   ): Promise<DocRef[]> {
     const schema = await this.resolveSchema(repo);
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<{ file_path: string }>(
       `SELECT DISTINCT file_path FROM ${schema}.chunks
         WHERE content_type = $1 AND repo = $2 AND file_path LIKE '%.md'
         ORDER BY file_path`,
       [contentType, repo],
     );
+
     return rows.map((r) => ({ path: r.file_path, title: r.file_path }));
   }
 
@@ -71,6 +73,7 @@ export class PgKnowledge implements KnowledgePort {
       [repo],
     );
     const team = (rows[0]?.team as string | null) ?? "";
+
     return SCHEMA_RE.test(team) ? team : "org_shared";
   }
 }

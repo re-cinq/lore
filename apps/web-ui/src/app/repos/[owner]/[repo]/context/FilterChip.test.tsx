@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 let pending = false;
+
 vi.mock("next/link", () => ({
   __esModule: true,
   default: ({
@@ -35,6 +36,7 @@ describe("FilterChip", () => {
       </FilterChip>,
     );
     const link = screen.getByRole("link", { name: "doc" });
+
     expect(link).toHaveAttribute("href", "/context?type=doc");
     expect(link).toHaveClass("active");
   });
@@ -55,6 +57,7 @@ describe("FilterChip", () => {
         All
       </FilterChip>,
     );
+
     expect(container.querySelector(".chip-spinner")).not.toBeNull();
   });
 
@@ -64,6 +67,7 @@ describe("FilterChip", () => {
         All
       </FilterChip>,
     );
+
     expect(container.querySelector(".chip-spinner")).toBeNull();
   });
 });

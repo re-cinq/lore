@@ -25,10 +25,12 @@ export interface DegreeLink {
 /** Count how many links touch each node (both endpoints of every link). */
 export function nodeDegrees(links: DegreeLink[]): Map<string, number> {
   const degree = new Map<string, number>();
+
   for (const { source, target } of links) {
     degree.set(source, (degree.get(source) ?? 0) + 1);
     degree.set(target, (degree.get(target) ?? 0) + 1);
   }
+
   return degree;
 }
 
@@ -42,6 +44,7 @@ export function crowdedLinkStrength(
   degreeTarget: number,
 ): number {
   const busier = Math.max(degreeSource, degreeTarget);
+
   return Math.max(LINK_STRENGTH_FLOOR, LINK_STRENGTH_NUMERATOR / busier);
 }
 

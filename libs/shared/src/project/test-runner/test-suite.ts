@@ -15,21 +15,27 @@ export class TestSuite {
 
   async listTests(cwd: string): Promise<TestDescriptor[]> {
     this.gate();
+
     return this.runner.listTests(cwd);
   }
 
   async runTest(cwd: string, selector: string): Promise<RunResult> {
     this.gate();
+
     return this.runner.runTest(cwd, selector);
   }
 
   async report(cwd: string): Promise<TestRunReport> {
     this.gate();
+
     return this.runner.report(cwd);
   }
 
   private gate(): void {
     const refusal = executionRefusal(this.env);
-    if (refusal) throw new Error(refusal);
+
+    if (refusal) {
+      throw new Error(refusal);
+    }
   }
 }

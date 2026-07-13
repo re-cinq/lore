@@ -9,6 +9,7 @@ describe("mapCiIngest", () => {
       commit: "abc123",
       force: true,
     });
+
     expect(result).toEqual({
       ok: true,
       events: [
@@ -31,6 +32,7 @@ describe("mapCiIngest", () => {
       kinds: ["adrs", "specs"],
       commit: "deadbeef",
     });
+
     expect(result).toEqual({
       ok: true,
       events: [
@@ -58,6 +60,7 @@ describe("mapCiIngest", () => {
 
   it("defaults to both doc kinds when kinds is omitted", () => {
     const result = mapCiIngest({ repo: "re-cinq/lore", commit: "c0ffee" });
+
     expect(result).toMatchObject({
       ok: true,
       events: [{ params: { kind: "specs" } }, { params: { kind: "adrs" } }],
@@ -70,6 +73,7 @@ describe("mapCiIngest", () => {
       kinds: ["tests"],
       commit: "abc",
     });
+
     expect(result).toEqual({
       ok: false,
       status: 400,
@@ -84,11 +88,13 @@ describe("mapCiIngest", () => {
       kinds: ["specs", "tests"],
       commit: "abc",
     });
+
     expect(result).toMatchObject({ ok: false, status: 400 });
   });
 
   it("rejects a missing repo with a 400", () => {
     const result = mapCiIngest({ kinds: ["specs"], commit: "abc" });
+
     expect(result).toEqual({ ok: false, status: 400, error: "missing repo" });
   });
 });

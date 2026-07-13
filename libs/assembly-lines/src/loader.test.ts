@@ -34,6 +34,7 @@ edges:
 describe("parseAssemblyLine", () => {
   it("accepts a valid linear assembly line", () => {
     const wf = parseAssemblyLine(linearAssemblyLine);
+
     expect(wf.name).toBe("gap-fill");
     expect(wf.nodes).toHaveLength(3);
     expect(wf.entry).toBe("a");
@@ -196,6 +197,7 @@ edges:
     to: c
     on: success
 `);
+
     expect(
       wf.edges.find((e) => e.from === "b" && e.to === "a")?.iteration_max,
     ).toBe(2);
@@ -219,6 +221,7 @@ edges:
     to: done
     on: success
 `);
+
     expect(wf.nodes.find((n) => n.id === "detect")).toMatchObject({
       type: "detect",
       job_ref: "spec_drift",
@@ -245,6 +248,7 @@ edges:
     to: done
     on: success
 `);
+
     expect(wf.nodes.find((n) => n.id === "check")).toMatchObject({
       station_ref: "acme-scanner",
       timeout_minutes: 45,
@@ -318,6 +322,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
   it("loads all bundled assembly lines without error", async () => {
     const map = await loadAssemblyLineDir(assemblyLinesDir);
     const names = Array.from(map.keys()).sort();
+
     expect(names).toEqual([
       "code-review",
       "feature-finalize",
@@ -335,6 +340,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
   it("code-review routes review→refine on changes_requested and review→done on success", async () => {
     const map = await loadAssemblyLineDir(assemblyLinesDir);
     const wf = map.get("code-review");
+
     expect(wf?.entry).toBe("review");
     expect(wf?.exit).toBe("done");
     expect(wf?.nodes.find((n) => n.id === "review")?.type).toBe("agent");
@@ -358,8 +364,10 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "spec-coverage-validate": "spec_coverage_validate",
       "spec-coverage-backfill": "spec_coverage_backfill",
     };
+
     for (const [name, jobRef] of Object.entries(expected)) {
       const wf = map.get(name);
+
       expect(wf?.entry).toBe("detect");
       expect(wf?.exit).toBe("done");
       expect(wf?.nodes.find((n) => n.id === "detect")).toMatchObject({
@@ -372,6 +380,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
   it("gap-fill is a linear flow with retrospective + done as exit pair", async () => {
     const map = await loadAssemblyLineDir(assemblyLinesDir);
     const wf = map.get("gap-fill");
+
     expect(wf?.entry).toBe("draft");
     expect(wf?.exit).toBe("done");
     expect(wf?.nodes.find((n) => n.id === "draft")?.type).toBe("agent");
@@ -383,6 +392,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
     const reviewToAddress = wf?.edges.find(
       (e) => e.from === "review" && e.to === "address",
     );
+
     expect(reviewToAddress?.iteration_max).toBe(2);
     expect(reviewToAddress?.on).toBe("changes_requested");
   });
@@ -392,7 +402,9 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
     const wf = map.get("general");
     const reviewEdges = wf?.edges.filter((e) => e.from === "review") ?? [];
     const conditions = reviewEdges.map((e) => e.on).sort();
+
     expect(conditions).toEqual(["changes_requested", "failed", "success"]);
+
     for (const e of reviewEdges) {
       expect(e.to).toBe("retrospective");
     }
@@ -400,6 +412,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
 
   it("assemblyLinesDir actually exists on disk (sanity check)", async () => {
     const stat = await fs.stat(assemblyLinesDir);
+
     expect(stat.isDirectory()).toBe(true);
   });
 });

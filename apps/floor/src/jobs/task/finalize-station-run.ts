@@ -1,3 +1,4 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
 import {
   prFooter,
   type Project,
@@ -17,7 +18,11 @@ export async function revertFeatureAfterFailure(
   featureId: string,
 ): Promise<void> {
   const feature = await project.features.get(featureId);
-  if (!feature) return;
+
+  if (!feature) {
+    return;
+  }
+
   if (!feature.iterations.some((i) => i.gap_result)) {
     await project.features.transitionStatus(featureId, "draft").catch(() => {});
   }
@@ -34,13 +39,20 @@ export function stationLogTail(
   maxChars = 3000,
 ): string {
   const trimmed = (output ?? "").trim();
-  if (!trimmed) return "";
+
+  if (!trimmed) {
+    return "";
+  }
   let tail = trimmed
     .split("\n")
     .filter((l) => l.trim().length > 0)
     .slice(-maxLines)
     .join("\n");
-  if (tail.length > maxChars) tail = `…${tail.slice(-maxChars)}`;
+
+  if (tail.length > maxChars) {
+    tail = `…${tail.slice(-maxChars)}`;
+  }
+
   return tail;
 }
 
@@ -54,7 +66,7 @@ export function stationLogTail(
  *    feature-finalize) flip the feature to pr-open.
  */
 export async function finalizeStationRun(opts: {
-  task: any;
+  task: PipelineTask;
   targetRepo: string;
   branch: string;
   completion: StationCompletion;
@@ -67,6 +79,7 @@ export async function finalizeStationRun(opts: {
     // failure whose cause is only in the output) so the wizard shows WHY.
     const tail = stationLogTail(completion.output);
     const reason = `Station exited ${completion.exitCode}.${tail ? `\n\n${tail}` : ""}`;
+
     // Keep the feature row consistent: a failed planning round must mark its
     // iteration failed (not leave it 'running') + drop the feature to awaiting-input.
     if (
@@ -76,19 +89,23 @@ export async function finalizeStationRun(opts: {
     ) {
       await project.features
         .setIterationResult(
-          task.context_bundle.feature_id,
-          task.context_bundle.iteration,
+          task.context_bundle.feature_id as string,
+          task.context_bundle.iteration as number,
           null,
           "failed",
         )
         .catch(() => {});
-      await revertFeatureAfterFailure(project, task.context_bundle.feature_id);
+      await revertFeatureAfterFailure(
+        project,
+        task.context_bundle.feature_id as string,
+      );
     }
     await setStatus(task.id, "failed", { failure_reason: reason });
     await insertEvent(task.id, "running", "failed", {
       reason: `station exit ${completion.exitCode}`,
       exit_code: completion.exitCode,
     });
+
     return;
   }
 
@@ -101,18 +118,21 @@ export async function finalizeStationRun(opts: {
     const iteration = task.context_bundle?.iteration as number | undefined;
     const feature = featureId ? await project.features.get(featureId) : null;
     const row = feature?.iterations.find((i) => i.iteration === iteration);
+
     if (row?.status === "ready" && row.gap_result) {
       await setStatus(task.id, "completed");
       await insertEvent(task.id, "running", "completed", {
         feature_id: featureId,
         iteration,
       });
+
       return;
     }
     const tail = stationLogTail(completion.output);
     const reason =
       `Planning run finished (exit 0) but posted no result — the agent did not produce a result.json the container could POST.` +
       (tail ? `\n\n${tail}` : "");
+
     if (featureId && iteration != null) {
       await project.features
         .setIterationResult(featureId, iteration, null, "failed")
@@ -123,6 +143,7 @@ export async function finalizeStationRun(opts: {
     await insertEvent(task.id, "running", "failed", {
       reason: "planning posted no result",
     });
+
     return;
   }
 
@@ -132,6 +153,7 @@ export async function finalizeStationRun(opts: {
     await insertEvent(task.id, "running", "completed", {
       changedFiles: completion.changedFiles,
     });
+
     return;
   }
 
@@ -169,8 +191,9 @@ export async function finalizeStationRun(opts: {
     task.context_bundle?.feature_id
   ) {
     const slug = task.context_bundle.slug as string | undefined;
+
     await project.features.transitionStatus(
-      task.context_bundle.feature_id,
+      task.context_bundle.feature_id as string,
       "pr-open",
       {
         spec_pr_url: pr.url,

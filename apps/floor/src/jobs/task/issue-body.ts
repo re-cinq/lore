@@ -38,7 +38,10 @@ interface MissingSymbolView {
 
 /** Render the Lore-Task trailer as a link to the deployed task page, or bare. */
 export function loreTaskRef(taskId: string, uiUrl?: string): string {
-  if (!uiUrl) return taskId;
+  if (!uiUrl) {
+    return taskId;
+  }
+
   return `[${taskId}](${uiUrl.replace(/\/+$/, "")}/assembly-lines/${taskId})`;
 }
 
@@ -47,6 +50,7 @@ function renderStatement(s: DriftStatementView): string {
   const links = s.links?.length
     ? ` — ${s.links.map((l) => (l.path ? `${l.label} (${l.path}${l.line ? `#L${l.line}` : ""})` : (l.label ?? ""))).join(", ")}`
     : "";
+
   return `- [${s.reason ?? "drifted"}]${where} ${s.text ?? ""}${links}`.trimEnd();
 }
 
@@ -57,21 +61,26 @@ function renderStatement(s: DriftStatementView): string {
  */
 function driftDetailBlock(task: IssueComposeTask): string {
   const statements = task.context_bundle?.drifted_statements;
+
   if (Array.isArray(statements) && statements.length > 0) {
     const list = (statements as DriftStatementView[])
       .map(renderStatement)
       .join("\n");
+
     return `**Drifted statements (spec-trace graph)**\n\n${list}`;
   }
   const symbols = task.context_bundle?.missing_symbols;
+
   if (Array.isArray(symbols) && symbols.length > 0) {
     const list = (symbols as MissingSymbolView[])
       .map((s) =>
         `- ${s.kind ?? "symbol"}: \`${s.name ?? ""}\` — ${s.description ?? ""}`.trimEnd(),
       )
       .join("\n");
+
     return `**Missing symbols (heuristic)**\n\n${list}`;
   }
+
   return "";
 }
 
@@ -81,11 +90,16 @@ export function composeIssueBody(
   uiUrl?: string,
 ): string {
   const sections = [issueBody];
+
   if (isDriftTask(task)) {
     const detail = driftDetailBlock(task);
-    if (detail) sections.push(detail);
+
+    if (detail) {
+      sections.push(detail);
+    }
     sections.push(DRIFT_ISSUE_GUIDANCE);
   }
   const footer = `*Managed by [Lore](https://github.com/re-cinq/lore) · created by \`${task.created_by || "unknown"}\` · Lore-Task: ${loreTaskRef(task.id, uiUrl)}*`;
+
   return `${sections.join("\n\n")}\n\n---\n${footer}`;
 }

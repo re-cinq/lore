@@ -94,6 +94,7 @@ export async function captureBaselineAllRepos(
 ): Promise<string> {
   const repos = await deps.repoScan.distinctTargetRepos();
   const summaries: string[] = [];
+
   for (const repo of repos) {
     try {
       summaries.push(await captureBaselineForRepo(repo, 30, deps, now));
@@ -101,5 +102,6 @@ export async function captureBaselineAllRepos(
       console.error(`[baseline] Failed for ${repo}:`, err);
     }
   }
+
   return `Captured baselines for ${summaries.length}/${repos.length} repos`;
 }

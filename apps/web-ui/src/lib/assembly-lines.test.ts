@@ -106,6 +106,7 @@ describe("groupTasksIntoAssemblyLines", () => {
     const run = groupTasksIntoAssemblyLines([
       row({ id: "solo", pr_number: 3, pr_url: "u" }),
     ]);
+
     expect(run).toMatchObject([
       {
         runKey: "solo",
@@ -135,6 +136,7 @@ describe("groupTasksIntoAssemblyLines", () => {
       created_at: "2026-06-01T11:00:00.000Z",
     });
     const runs = groupTasksIntoAssemblyLines([review, impl]);
+
     expect(runs).toHaveLength(1);
     expect(runs[0].members.map((m) => m.id)).toEqual(["impl", "review"]);
     expect(runs[0].lead.id).toBe("impl");
@@ -150,6 +152,7 @@ describe("groupTasksIntoAssemblyLines", () => {
     const a = row({ id: "a", pr_number: 9, target_branch: null });
     const b = row({ id: "b", pr_number: 9, target_branch: null });
     const runs = groupTasksIntoAssemblyLines([a, b]);
+
     expect(runs).toHaveLength(1);
     expect(runs[0].members.map((m) => m.id).sort()).toEqual(["a", "b"]);
   });
@@ -157,18 +160,21 @@ describe("groupTasksIntoAssemblyLines", () => {
   it("joins tasks that share a repo and feature branch", () => {
     const a = row({ id: "a", target_branch: "lore/feat" });
     const b = row({ id: "b", target_branch: "lore/feat" });
+
     expect(groupTasksIntoAssemblyLines([a, b])).toHaveLength(1);
   });
 
   it("does not join unrelated tasks that merely target the same trunk", () => {
     const a = row({ id: "a", target_branch: "main" });
     const b = row({ id: "b", target_branch: "main" });
+
     expect(groupTasksIntoAssemblyLines([a, b])).toHaveLength(2);
   });
 
   it("keeps a child whose parent is not on the page as its own run", () => {
     const orphan = row({ id: "orphan", parent_task_id: "gone" });
     const runs = groupTasksIntoAssemblyLines([orphan]);
+
     expect(runs).toHaveLength(1);
     expect(runs[0].members.map((m) => m.id)).toEqual(["orphan"]);
   });
@@ -176,6 +182,7 @@ describe("groupTasksIntoAssemblyLines", () => {
   it("joins a retry to its original via retry_of", () => {
     const orig = row({ id: "orig", target_branch: null });
     const retry = row({ id: "retry", retry_of: "orig", target_branch: null });
+
     expect(groupTasksIntoAssemblyLines([orig, retry])).toHaveLength(1);
   });
 
@@ -201,6 +208,7 @@ describe("groupTasksIntoAssemblyLines", () => {
       created_at: "2026-06-01T12:00:00.000Z",
     });
     const runs = groupTasksIntoAssemblyLines([revision, review, impl]);
+
     expect(runs).toHaveLength(1);
     expect(runs[0].members.map((m) => m.id)).toEqual([
       "impl",
@@ -220,6 +228,7 @@ describe("groupTasksIntoAssemblyLines", () => {
       target_branch: "lore/b",
       created_at: "2026-06-02T08:00:00.000Z",
     });
+
     expect(
       groupTasksIntoAssemblyLines([older, newer]).map((r) => r.runKey),
     ).toEqual(["newer", "older"]);
@@ -239,6 +248,7 @@ describe("groupTasksIntoAssemblyLines", () => {
       updated_at: "2026-06-01T12:00:00.000Z",
     });
     const run = groupTasksIntoAssemblyLines([impl, child])[0];
+
     expect(run.startedAt).toBe("2026-06-01T10:00:00.000Z");
     expect(run.updatedAt).toBe("2026-06-01T12:00:00.000Z");
   });

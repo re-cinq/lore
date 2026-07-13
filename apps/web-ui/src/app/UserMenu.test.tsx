@@ -35,18 +35,21 @@ describe("UserMenu unauthenticated guard", () => {
   it("renders nothing when session is null", () => {
     session = null;
     const { container } = render(<UserMenu />);
+
     expect(container.firstChild).toBeNull();
   });
 
   it("renders nothing when session has no user", () => {
     session = {};
     const { container } = render(<UserMenu />);
+
     expect(container.firstChild).toBeNull();
   });
 
   it("renders nothing when session.user is null", () => {
     session = { user: null as unknown as MockUser };
     const { container } = render(<UserMenu />);
+
     expect(container.firstChild).toBeNull();
   });
 
@@ -91,6 +94,7 @@ describe("UserMenu avatar branch", () => {
     };
     render(<UserMenu />);
     const avatar = screen.getByAltText("avatar") as HTMLImageElement;
+
     expect(avatar.tagName.toLowerCase()).toBe("img");
     expect(avatar).toHaveAttribute("src", "https://cdn.example.com/ada.png");
   });
@@ -122,6 +126,7 @@ describe("UserMenu sign out interaction", () => {
     session = { user: { name: "Ada" } };
     render(<UserMenu />);
     const button = screen.getByRole("button", { name: "Sign out" });
+
     expect(button).toHaveClass("btn-secondary");
   });
 

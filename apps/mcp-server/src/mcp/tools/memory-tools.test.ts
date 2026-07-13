@@ -28,6 +28,7 @@ beforeAll(async () => {
       handlers[name] = handler;
     },
   };
+
   registerMemoryTools(fakeServer as never, { getPool: () => null });
   queryGraph = handlers["lore_query_graph"];
 });
@@ -48,6 +49,7 @@ describe("lore_query_graph remote proxy (no local DB)", () => {
     const rows = [
       { entity: "auth-service", relation: "uses", related_entity: "postgres" },
     ];
+
     fetchMock.mockResolvedValue({ ok: true, json: async () => rows });
 
     const result = await queryGraph({
@@ -57,6 +59,7 @@ describe("lore_query_graph remote proxy (no local DB)", () => {
     });
 
     const [calledUrl, opts] = fetchMock.mock.calls[0];
+
     expect(calledUrl).toBe(
       "https://lore-api.example.com/api/graph?entity=auth-service&relation_type=uses",
     );

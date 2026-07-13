@@ -57,12 +57,20 @@ export function pickStatementsForBackfill(
   classifications: Map<number, Classification>,
 ): Array<{ ordinal: number; text: string }> {
   const out: Array<{ ordinal: number; text: string }> = [];
+
   for (const s of statements) {
     const c = classifications.get(s.ordinal);
-    if (!c || c.testability !== "testable") continue;
-    if (parseTestLinksInStatement(s.text).length > 0) continue;
+
+    if (!c || c.testability !== "testable") {
+      continue;
+    }
+
+    if (parseTestLinksInStatement(s.text).length > 0) {
+      continue;
+    }
     out.push({ ordinal: s.ordinal, text: s.text });
   }
+
   return out;
 }
 
@@ -95,6 +103,7 @@ export interface InsertionResult {
 
 function renderLink(s: Suggestion): string {
   const anchor = s.test_line ? `#L${s.test_line}` : "";
+
   return `[${s.label}](${s.test_file}${anchor})`;
 }
 
@@ -117,8 +126,10 @@ export function proposeLinkInsertions(
   }
 
   const byOrdinal = new Map<number, Suggestion[]>();
+
   for (const s of suggestions) {
     const list = byOrdinal.get(s.statement_ordinal) ?? [];
+
     list.push(s);
     byOrdinal.set(s.statement_ordinal, list);
   }
@@ -144,17 +155,20 @@ export function proposeLinkInsertions(
       continue;
     }
     const idx = newContent.indexOf(text);
+
     if (idx < 0) {
       skipped.push({ statement_ordinal: ord, reason: "not-found" });
       continue;
     }
     const existingLinks = parseTestLinksInStatement(text);
+
     if (existingLinks.length > 0) {
       skipped.push({ statement_ordinal: ord, reason: "already-linked" });
       continue;
     }
     const tail = ` (${list.map(renderLink).join(", ")})`;
     const insertionPoint = idx + text.length;
+
     newContent =
       newContent.slice(0, insertionPoint) +
       tail +
@@ -163,6 +177,7 @@ export function proposeLinkInsertions(
   }
 
   const diffPreview = applied > 0 ? buildUnifiedDiff(content, newContent) : "";
+
   return { newContent, diffPreview, applied, skipped };
 }
 
@@ -172,13 +187,24 @@ function buildUnifiedDiff(before: string, after: string): string {
   const afterLines = after.split("\n");
   const out: string[] = ["--- a/spec.md", "+++ b/spec.md"];
   const maxLen = Math.max(beforeLines.length, afterLines.length);
+
   for (let i = 0; i < maxLen; i++) {
     const b = beforeLines[i] ?? "";
     const a = afterLines[i] ?? "";
-    if (b === a) continue;
-    if (b) out.push(`-${b}`);
-    if (a) out.push(`+${a}`);
+
+    if (b === a) {
+      continue;
+    }
+
+    if (b) {
+      out.push(`-${b}`);
+    }
+
+    if (a) {
+      out.push(`+${a}`);
+    }
   }
+
   return out.join("\n");
 }
 
@@ -285,6 +311,7 @@ ${candidate.content.substring(0, 4000)}
   const ordinal =
     typeof data.statement_ordinal === "number" ? data.statement_ordinal : null;
   const match = testable.find((s) => s.ordinal === ordinal);
+
   if (!match) {
     return {
       matches: false,
@@ -298,6 +325,7 @@ ${candidate.content.substring(0, 4000)}
     typeof data.score === "number" && data.score >= 0 && data.score <= 1
       ? data.score
       : JUDGE_SCORE_THRESHOLD;
+
   return {
     matches: true,
     statement_ordinal: match.ordinal,
@@ -367,7 +395,10 @@ async function classifyLLM(
       category: UntestableCategory | null;
     }
   >();
-  if (unclassified.length === 0) return result;
+
+  if (unclassified.length === 0) {
+    return result;
+  }
 
   const batch = unclassified.slice(0, CLASSIFIER_BATCH_LIMIT);
   const formatted = batch
@@ -400,7 +431,9 @@ ${formatted}`,
     });
 
     for (const c of llm.data.classifications || []) {
-      if (typeof c.ordinal !== "number") continue;
+      if (typeof c.ordinal !== "number") {
+        continue;
+      }
       result.set(c.ordinal, {
         testability: c.testability === "untestable" ? "untestable" : "testable",
         category: c.testability === "untestable" ? (c.category ?? null) : null,
@@ -412,6 +445,7 @@ ${formatted}`,
       err,
     );
   }
+
   return result;
 }
 
@@ -422,8 +456,10 @@ async function classifyAllStatements(
   const introOrdinals = buildIntroOrdinals(statements);
   const out = new Map<number, Classification>();
   const unclassified: Statement[] = [];
+
   for (const s of statements) {
     const c = classifyByHeuristic(s, introOrdinals);
+
     if (c.matchedBySection) {
       out.set(s.ordinal, c);
     } else {
@@ -431,8 +467,10 @@ async function classifyAllStatements(
     }
   }
   const llm = await classifyLLM(specPath, unclassified);
+
   for (const s of unclassified) {
     const decision = llm.get(s.ordinal);
+
     if (decision && decision.testability === "untestable") {
       out.set(s.ordinal, {
         testability: "untestable",
@@ -447,6 +485,7 @@ async function classifyAllStatements(
       });
     }
   }
+
   return out;
 }
 
@@ -458,11 +497,13 @@ function toLine(metadata: Record<string, unknown> | null): number | null {
   const raw = metadata?.["start_line"];
   const line =
     typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : NaN;
+
   return Number.isFinite(line) ? line : null;
 }
 
 function buildLabel(testFile: string, testLine: number | null): string {
   const base = testFile.split("/").pop() ?? testFile;
+
   return testLine
     ? `validated by \`${base}:${testLine}\``
     : `validated by \`${base}\``;
@@ -477,6 +518,7 @@ function buildBranchName(specPath: string): string {
     .slice(0, 60);
   // Add a short timestamp so re-runs land on distinct branches.
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T-]/g, "");
+
   return `${PR_BRANCH_PREFIX}/${safe}-${stamp}`;
 }
 
@@ -494,6 +536,7 @@ function buildPrBody(
         `- **${j.test_file}${j.test_line ? `:${j.test_line}` : ""}** (score ${j.match_score.toFixed(2)}): ${j.rationale}`,
     )
     .join("\n");
+
   return [
     `# Suggested test links for \`${specPath}\``,
     "",
@@ -535,8 +578,10 @@ export async function specCoverageBackfillJob(
   const specs = opts.specPathFilter
     ? specRows.filter((s) => s.filePath === opts.specPathFilter)
     : specRows;
+
   if (specs.length === 0) {
     console.log(`[job] spec-coverage-backfill: no specs for ${repo}`);
+
     return "No specs found";
   }
 
@@ -545,8 +590,10 @@ export async function specCoverageBackfillJob(
 
   // Group spec chunks by file_path for reassembly.
   const byPath = new Map<string, SpecChunkWithEmbedding[]>();
+
   for (const s of specs) {
     const list = byPath.get(s.filePath) ?? [];
+
     list.push(s);
     byPath.set(s.filePath, list);
   }
@@ -556,7 +603,10 @@ export async function specCoverageBackfillJob(
   let totalPrsOpened = 0;
 
   for (const [specPath, chunks] of byPath) {
-    if (!isAssertionSource(specPath)) continue;
+    if (!isAssertionSource(specPath)) {
+      continue;
+    }
+
     try {
       const summary = await runBackfillForSpec(
         project,
@@ -565,9 +615,13 @@ export async function specCoverageBackfillJob(
         chunks,
         codeChunks,
       );
+
       totalSpecs++;
       totalSuggestions += summary.suggestions;
-      if (summary.prUrl) totalPrsOpened++;
+
+      if (summary.prUrl) {
+        totalPrsOpened++;
+      }
       console.log(
         `[job] spec-coverage-backfill: ${repo}:${specPath} — ${summary.suggestions} suggestions, ${summary.prUrl ?? "no PR"}`,
       );
@@ -580,12 +634,15 @@ export async function specCoverageBackfillJob(
   }
 
   const out = `Backfill: ${totalSpecs} specs in ${repo} — ${totalSuggestions} suggestions, ${totalPrsOpened} PRs opened`;
+
   console.log(`[job] spec-coverage-backfill: ${out}`);
+
   return out;
 }
 
 async function buildTestChunks(project: Project): Promise<TestChunk[]> {
   const rows = await project.chunks.codeChunksForBackfill();
+
   return rows
     .filter((r) => isTestFile(r.filePath))
     .map((r) => ({
@@ -617,6 +674,7 @@ async function runBackfillForSpec(
   const classifications = await classifyAllStatements(specPath, statements);
 
   const unlinked = pickStatementsForBackfill(statements, classifications);
+
   if (unlinked.length === 0) {
     return { suggestions: 0, prUrl: null };
   }
@@ -630,18 +688,21 @@ async function runBackfillForSpec(
     assertions,
     codeChunks,
   );
+
   if (candidates.length === 0) {
     return { suggestions: 0, prUrl: null };
   }
 
   // Judge each candidate against the un-linked testable subset.
   const judgments: Judgment[] = [];
+
   for (const candidate of candidates) {
     const verdict = await judgeLink(
       { file_path: specPath, content },
       unlinked,
       candidate,
     );
+
     judgments.push({
       test_file: candidate.test_file,
       test_name: candidate.test_name,
@@ -652,6 +713,7 @@ async function runBackfillForSpec(
     });
   }
   const confirmed = argmaxByTest(judgments);
+
   if (confirmed.length === 0) {
     return { suggestions: 0, prUrl: null };
   }
@@ -672,6 +734,7 @@ async function runBackfillForSpec(
       test_line: j.test_line,
       label: buildLabel(j.test_file, j.test_line),
     }));
+
   if (suggestions.length === 0) {
     return { suggestions: 0, prUrl: null };
   }
@@ -680,6 +743,7 @@ async function runBackfillForSpec(
     content,
     suggestions,
   );
+
   if (applied === 0) {
     return { suggestions: 0, prUrl: null };
   }
@@ -688,6 +752,7 @@ async function runBackfillForSpec(
   const branch = buildBranchName(specPath);
   const title = `Suggested test links for ${specPath}`;
   const body = buildPrBody(specPath, applied, confirmed, diffPreview);
+
   try {
     await project.repo.createBranch(branch);
     await project.repo.commitFile(
@@ -700,12 +765,14 @@ async function runBackfillForSpec(
       "lore-managed",
       "spec-coverage-backfill",
     ]);
+
     return { suggestions: applied, prUrl: pr.url };
   } catch (err) {
     console.error(
       `[job] spec-coverage-backfill: failed to open PR for ${repo}:${specPath}:`,
       err,
     );
+
     return { suggestions: applied, prUrl: null };
   }
 }

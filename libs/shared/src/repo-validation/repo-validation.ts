@@ -41,7 +41,7 @@ export interface ValidationResult {
 
 // ── Detection ───────────────────────────────────────────────────────
 
-function readJsonFile(filePath: string): Record<string, any> | null {
+function readJsonFile(filePath: string): Record<string, unknown> | null {
   try {
     return JSON.parse(readFileSync(filePath, "utf-8"));
   } catch {
@@ -52,9 +52,12 @@ function readJsonFile(filePath: string): Record<string, any> | null {
 function detectNode(repoRoot: string): RepoTooling | null {
   const pkgPath = join(repoRoot, "package.json");
   const pkg = readJsonFile(pkgPath);
-  if (!pkg) return null;
 
-  const scripts = pkg.scripts || {};
+  if (!pkg) {
+    return null;
+  }
+
+  const scripts = (pkg.scripts || {}) as Record<string, string>;
   const quick: ValidationStep[] = [];
   const full: ValidationStep[] = [];
 
@@ -103,6 +106,7 @@ function detectNode(repoRoot: string): RepoTooling | null {
     const testCmd = scripts.test as string;
     // Vitest and Jest support --bail/--run for fast failure
     let cmd = "npm run test --silent";
+
     if (testCmd.includes("vitest")) {
       cmd = "npm run test --silent -- --run";
     } else if (testCmd.includes("jest")) {
@@ -120,7 +124,9 @@ function detectNode(repoRoot: string): RepoTooling | null {
 }
 
 function detectGo(repoRoot: string): RepoTooling | null {
-  if (!existsSync(join(repoRoot, "go.mod"))) return null;
+  if (!existsSync(join(repoRoot, "go.mod"))) {
+    return null;
+  }
 
   return {
     language: "go",
@@ -140,13 +146,17 @@ function detectPython(repoRoot: string): RepoTooling | null {
   const hasPyproject = existsSync(join(repoRoot, "pyproject.toml"));
   const hasSetupCfg = existsSync(join(repoRoot, "setup.cfg"));
   const hasRequirements = existsSync(join(repoRoot, "requirements.txt"));
-  if (!hasPyproject && !hasSetupCfg && !hasRequirements) return null;
+
+  if (!hasPyproject && !hasSetupCfg && !hasRequirements) {
+    return null;
+  }
 
   const quick: ValidationStep[] = [];
   const full: ValidationStep[] = [];
 
   // Read pyproject.toml as text to check for tool presence
   let pyproject = "";
+
   if (hasPyproject) {
     try {
       pyproject = readFileSync(join(repoRoot, "pyproject.toml"), "utf-8");
@@ -183,7 +193,9 @@ function detectPython(repoRoot: string): RepoTooling | null {
     });
   }
 
-  if (quick.length === 0 && full.length === 0) return null;
+  if (quick.length === 0 && full.length === 0) {
+    return null;
+  }
 
   return {
     language: "python",
@@ -193,7 +205,9 @@ function detectPython(repoRoot: string): RepoTooling | null {
 }
 
 function detectRust(repoRoot: string): RepoTooling | null {
-  if (!existsSync(join(repoRoot, "Cargo.toml"))) return null;
+  if (!existsSync(join(repoRoot, "Cargo.toml"))) {
+    return null;
+  }
 
   return {
     language: "rust",
@@ -237,7 +251,10 @@ export function detectTooling(repoRoot: string): RepoTooling {
 const MAX_OUTPUT_CHARS = 5000;
 
 function truncateOutput(output: string): string {
-  if (output.length <= MAX_OUTPUT_CHARS) return output;
+  if (output.length <= MAX_OUTPUT_CHARS) {
+    return output;
+  }
+
   return (
     output.substring(output.length - MAX_OUTPUT_CHARS) + "\n...(truncated)"
   );
@@ -266,10 +283,12 @@ export const localValidationExec: ValidationExec = async (
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, CI: "true", FORCE_COLOR: "0" },
     });
+
     return { output: output || "", passed: true };
   } catch (err: unknown) {
     const e = err as { stdout?: string; stderr?: string; message?: string };
     const output = [e.stdout || "", e.stderr || ""].join("\n").trim();
+
     return { output: output || e.message || "unknown error", passed: false };
   }
 };
@@ -285,7 +304,9 @@ export async function runValidation(
   changedFiles?: string[],
   exec: ValidationExec = localValidationExec,
 ): Promise<ValidationResult> {
-  if (steps.length === 0) return { passed: true, steps: [] };
+  if (steps.length === 0) {
+    return { passed: true, steps: [] };
+  }
 
   const results: StepResult[] = [];
 
@@ -296,6 +317,7 @@ export async function runValidation(
     // For eslint/ruff, scope to changed files if available
     if (changedFiles && changedFiles.length > 0) {
       const relevantFiles = filterFilesByStep(step.name, changedFiles);
+
       if (relevantFiles.length === 0) {
         results.push({
           name: step.name,
@@ -312,6 +334,7 @@ export async function runValidation(
       cwd: repoRoot,
       timeoutMs: step.timeoutMs,
     });
+
     results.push({
       name: step.name,
       passed,
@@ -339,7 +362,11 @@ const FILE_EXTENSIONS: Record<string, string[]> = {
 
 function filterFilesByStep(stepName: string, files: string[]): string[] {
   const exts = FILE_EXTENSIONS[stepName];
-  if (!exts) return files; // For build/test steps, don't filter
+
+  if (!exts) {
+    return files;
+  } // For build/test steps, don't filter
+
   return files.filter((f) => exts.some((ext) => f.endsWith(ext)));
 }
 
@@ -357,12 +384,16 @@ function scopeCommandToFiles(
   if (stepName === "lint" || stepName === "eslint") {
     // Replace "." with file list
     const fileArgs = files.map((f) => `"${f}"`).join(" ");
+
     return command.replace(/\s+\.$/, ` ${fileArgs}`);
   }
+
   if (stepName === "ruff") {
     const fileArgs = files.map((f) => `"${f}"`).join(" ");
+
     return command.replace(/\s+\.$/, ` ${fileArgs}`);
   }
+
   return command;
 }
 
@@ -372,13 +403,17 @@ function scopeCommandToFiles(
  */
 export function formatValidationOutput(result: ValidationResult): string {
   const lines: string[] = [];
+
   for (const step of result.steps) {
     const icon = step.passed ? "PASS" : "FAIL";
+
     lines.push(`[${icon}] ${step.name} (${step.durationMs}ms)`);
+
     if (!step.passed) {
       lines.push(step.output);
       lines.push("");
     }
   }
+
   return lines.join("\n");
 }

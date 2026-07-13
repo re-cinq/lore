@@ -32,6 +32,7 @@ vi.mock("../../../features/dark-factory/dark-factory-authz.js", () => {
       super(message);
     }
   }
+
   return { verifyApproval: vi.fn(), TwoKeyError };
 });
 vi.mock("../../../platform/github-client.js", () => ({
@@ -41,6 +42,7 @@ vi.mock("../../../platform/github-client.js", () => ({
 
 // GET resolves via the Project facade (projectFor → settings.resolveOrNull).
 const fakeSettings = { resolveOrNull: vi.fn() };
+
 vi.mock("../../../platform/project-boot.js", () => ({
   projectFor: vi.fn(async () => ({ settings: fakeSettings })),
 }));
@@ -68,13 +70,16 @@ function clientQueries(
     "FOR UPDATE": { rows: [{ settings: {} }] },
     ...over,
   };
+
   pool.__client.query.mockImplementation((sql: string) => {
     for (const [frag, result] of Object.entries(map)) {
-      if (sql.includes(frag))
+      if (sql.includes(frag)) {
         return result instanceof Error
           ? Promise.reject(result)
           : Promise.resolve(result);
+      }
     }
+
     return Promise.resolve({});
   });
 }
@@ -105,6 +110,7 @@ describe("routes — dark-factory settings", () => {
 
   it("returns 503 when pool is null", async () => {
     const res = await get(null);
+
     expect(res.statusCode).toBe(503);
   });
 
@@ -114,6 +120,7 @@ describe("routes — dark-factory settings", () => {
       url: URL_BASE,
       headers: AUTH,
     });
+
     expect(res.statusCode).toBe(405);
   });
 
@@ -121,6 +128,7 @@ describe("routes — dark-factory settings", () => {
     it("returns 404 when the repo is not onboarded", async () => {
       fakeSettings.resolveOrNull.mockResolvedValue(null);
       const res = await get(makePool());
+
       expect(res.result).toEqual({ error: "repo not onboarded", repo: "o/r" });
     });
     it("returns the resolved dark_factory settings", async () => {
@@ -129,6 +137,7 @@ describe("routes — dark-factory settings", () => {
         partial: { enabled: true },
       });
       const res = await get(makePool());
+
       expect(res.result).toEqual({
         resolved: true,
         partial: { enabled: true },
@@ -137,6 +146,7 @@ describe("routes — dark-factory settings", () => {
     it("returns 500 when resolution throws", async () => {
       fakeSettings.resolveOrNull.mockRejectedValue(new Error("db"));
       const res = await get(makePool());
+
       expect(res.result).toEqual({ error: "internal" });
     });
   });
@@ -148,6 +158,7 @@ describe("routes — dark-factory settings", () => {
       pool = makePool(),
     ) {
       const payload = typeof body === "string" ? body : JSON.stringify(body);
+
       return buildServer(() => pool as any).inject({
         method: "PUT",
         url: URL_BASE,
@@ -160,12 +171,14 @@ describe("routes — dark-factory settings", () => {
       // ADR-034: hapi parses the payload, so malformed JSON is a 400 (hapi's
       // native parse-error body) before the handler runs.
       const res = await put("{bad");
+
       expect(res.statusCode).toBe(400);
     });
 
     it("returns 413 when the body exceeds the 1MB limit", async () => {
       // ADR-034: the body cap is hapi's native payload.maxBytes now → 413.
       const res = await put("x".repeat(1_048_577));
+
       expect(res.statusCode).toBe(413);
     });
 
@@ -174,6 +187,7 @@ describe("routes — dark-factory settings", () => {
         throw { issues: [{ path: "enabled" }] };
       });
       const res = await put({ enabled: "nope" });
+
       expect(res.result).toEqual({
         error: "invalid_settings",
         issues: [{ path: "enabled" }],
@@ -185,6 +199,7 @@ describe("routes — dark-factory settings", () => {
         throw new Error("bad shape");
       });
       const res = await put({ enabled: "nope" });
+
       expect(res.result).toEqual({
         error: "invalid_settings",
         issues: "bad shape",
@@ -193,8 +208,10 @@ describe("routes — dark-factory settings", () => {
 
     it("applies an admin-tier change and writes the audit log", async () => {
       const pool = makePool();
+
       clientQueries(pool);
       const res = await put({ review: "auto" }, {}, pool);
+
       expect(res.result).toMatchObject({
         ok: true,
         applied: { review: "auto" },
@@ -204,6 +221,7 @@ describe("routes — dark-factory settings", () => {
 
     it("merges the nested auto_merge object", async () => {
       const pool = makePool();
+
       clientQueries(pool, {
         "FOR UPDATE": {
           rows: [
@@ -212,6 +230,7 @@ describe("routes — dark-factory settings", () => {
         },
       });
       const res = await put({ auto_merge: { min_trust: "full" } }, {}, pool);
+
       expect(
         (res.result as { applied: { auto_merge: unknown } }).applied.auto_merge,
       ).toEqual({ paths: ["x"], min_trust: "full" });
@@ -219,8 +238,10 @@ describe("routes — dark-factory settings", () => {
 
     it("merges auto_merge when there is no prior auto_merge and null settings", async () => {
       const pool = makePool();
+
       clientQueries(pool, { "FOR UPDATE": { rows: [{ settings: null }] } });
       const res = await put({ auto_merge: { min_trust: "full" } }, {}, pool);
+
       expect(
         (res.result as { applied: { auto_merge: unknown } }).applied.auto_merge,
       ).toEqual({ min_trust: "full" });
@@ -229,6 +250,7 @@ describe("routes — dark-factory settings", () => {
     it("returns 403 when a two-key field lacks the approval header", async () => {
       vi.mocked(twoKeyFieldsTouched).mockReturnValue(["enabled"]);
       const res = await put({ enabled: true });
+
       expect(res.statusCode).toBe(403);
       expect((res.result as { error: string }).error).toBe("two_key_required");
     });
@@ -242,6 +264,7 @@ describe("routes — dark-factory settings", () => {
           implementation: { execution: { image: "golang:1.23" } },
         },
       });
+
       expect(res.statusCode).toBe(403);
       expect(res.result).toMatchObject({
         error: "two_key_required",
@@ -258,12 +281,14 @@ describe("routes — dark-factory settings", () => {
         prUrl: "https://gh/5",
       } as any);
       const pool = makePool();
+
       clientQueries(pool);
       const res = await put(
         { enabled: true },
         { "x-lore-approval-pr": "#5" },
         pool,
       );
+
       expect((res.result as { ceremony: unknown }).ceremony).toEqual({
         tier: "two_key",
         pr_ref: "#5",
@@ -279,6 +304,7 @@ describe("routes — dark-factory settings", () => {
         new TwoKeyError("nope", "approver_not_codeowner"),
       );
       const res = await put({ enabled: true }, { "x-lore-approval-pr": "#5" });
+
       expect(res.result).toMatchObject({
         error: "codeowners_check_failed",
         code: "approver_not_codeowner",
@@ -290,38 +316,47 @@ describe("routes — dark-factory settings", () => {
       vi.mocked(getOctokit).mockResolvedValue(makeOctokit() as any);
       vi.mocked(verifyApproval).mockRejectedValue(new Error("api down"));
       const res = await put({ enabled: true }, { "x-lore-approval-pr": "#5" });
+
       expect(res.result).toEqual({ error: "github_api_unavailable" });
     });
 
     it("returns 404 when the repo vanishes inside the transaction", async () => {
       const pool = makePool();
+
       clientQueries(pool, { "FOR UPDATE": { rows: [] } });
       const res = await put({ review: "auto" }, {}, pool);
+
       expect(res.result).toEqual({ error: "repo not onboarded", repo: "o/r" });
     });
 
     it("commits even when the audit-log insert fails", async () => {
       const pool = makePool();
+
       clientQueries(pool, { audit_log: new Error("audit fail") });
       const res = await put({ review: "auto" }, {}, pool);
+
       expect(res.result).toMatchObject({ ok: true });
     });
 
     it("rolls back and returns 500 on a write failure", async () => {
       const pool = makePool();
+
       clientQueries(pool, { "UPDATE lore.repos": new Error("write fail") });
       const res = await put({ review: "auto" }, {}, pool);
+
       expect(res.result).toEqual({ error: "internal" });
       expect(pool.__client.query).toHaveBeenCalledWith("ROLLBACK");
     });
 
     it("swallows a failing rollback after a write failure", async () => {
       const pool = makePool();
+
       clientQueries(pool, {
         "UPDATE lore.repos": new Error("write fail"),
         ROLLBACK: new Error("rollback fail"),
       });
       const res = await put({ review: "auto" }, {}, pool);
+
       expect(res.result).toEqual({ error: "internal" });
     });
   });

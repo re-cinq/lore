@@ -10,6 +10,7 @@ function fakeFetch(routes: Record<string, unknown>): {
   const fetchImpl = (async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     const path = url.replace(/^https?:\/\/[^/]+/, "");
+
     calls.push({
       method,
       path,
@@ -17,9 +18,14 @@ function fakeFetch(routes: Record<string, unknown>): {
     });
     const key = `${method} ${path}`;
     const body = routes[key];
-    if (body === undefined) return { ok: false, status: 404 } as Response;
+
+    if (body === undefined) {
+      return { ok: false, status: 404 } as Response;
+    }
+
     return { ok: true, status: 200, json: async () => body } as Response;
   }) as unknown as typeof fetch;
+
   return { fetchImpl, calls };
 }
 

@@ -8,7 +8,10 @@ import OnboardView from "./OnboardView";
 async function onboardRepo(formData: FormData) {
   "use server";
   const fullName = formData.get("full_name") as string;
-  if (!fullName?.includes("/")) return;
+
+  if (!fullName?.includes("/")) {
+    return;
+  }
 
   const [owner, name] = fullName.split("/");
 
@@ -17,8 +20,10 @@ async function onboardRepo(formData: FormData) {
     `SELECT id FROM lore.repos WHERE full_name = $1`,
     [fullName],
   );
+
   if (existing.length > 0) {
     redirect("/");
+
     return;
   }
 

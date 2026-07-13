@@ -14,6 +14,7 @@ describe("formatTrailers", () => {
       iteration: 1,
       taskId: "abc-123",
     });
+
     expect(out).toBe(
       "Lore-Stage: implement\nLore-Iteration: 1\nLore-Task: abc-123",
     );
@@ -30,6 +31,7 @@ describe("formatTrailers", () => {
       },
     });
     const lines = out.split("\n");
+
     expect(lines[0]).toBe("Lore-Stage: validate");
     expect(lines[1]).toBe("Lore-Iteration: 2");
     expect(lines[2]).toBe("Lore-Task: abc-123");
@@ -46,6 +48,7 @@ describe("formatTrailers with an assemblyLineId", () => {
       taskId: "abc-123",
       assemblyLineId: "11111111-2222-4333-8444-555555555555",
     });
+
     expect(out).toBe(
       "Lore-Stage: implement\nLore-Iteration: 1\nLore-Task: abc-123\n" +
         "Lore-Assembly-Line: 11111111-2222-4333-8444-555555555555",
@@ -58,6 +61,7 @@ describe("formatTrailers with an assemblyLineId", () => {
       iteration: 1,
       taskId: "abc-123",
     });
+
     expect(out).not.toContain("Lore-Assembly-Line");
   });
 });
@@ -66,6 +70,7 @@ describe("parseTrailers", () => {
   it("round-trips a minimal trailer block", () => {
     const original = { stage: "implement", iteration: 1, taskId: "abc-123" };
     const parsed = parseTrailers(formatTrailers(original));
+
     expect(parsed).toEqual(original);
   });
 
@@ -76,6 +81,7 @@ describe("parseTrailers", () => {
       taskId: "abc-123",
       assemblyLineId: "11111111-2222-4333-8444-555555555555",
     };
+
     expect(parseTrailers(formatTrailers(original))).toEqual(original);
   });
 
@@ -83,6 +89,7 @@ describe("parseTrailers", () => {
     const parsed = parseTrailers(
       "Lore-Stage: review\nLore-Iteration: 2\nLore-Task: abc-123",
     );
+
     expect(parsed).toEqual({
       stage: "review",
       iteration: 2,
@@ -98,6 +105,7 @@ describe("parseTrailers", () => {
       taskId: "u",
       extras: { "Lore-Outcome": "success" },
     };
+
     expect(parseTrailers(formatTrailers(original))).toEqual(original);
   });
 
@@ -111,6 +119,7 @@ This change touches files A, B, C.
 Lore-Stage: implement
 Lore-Iteration: 1
 Lore-Task: abc-123`;
+
     expect(parseTrailers(msg)).toEqual({
       stage: "implement",
       iteration: 1,
@@ -137,6 +146,7 @@ Lore-Task: abc-123`;
   it("returns null when last paragraph mixes trailer and non-trailer lines", () => {
     const msg =
       "Lore-Stage: implement\nthis is not a trailer\nLore-Iteration: 1\nLore-Task: x";
+
     expect(parseTrailers(msg)).toBeNull();
   });
 
@@ -149,6 +159,7 @@ Lore-Task: abc-123`;
     const parsed = parseTrailers(
       "Lore-Stage: implement\nLore-Iteration: 1\nLore-Task: x\nLore-Outcome: success\nLore-Cost-Tokens: 100",
     );
+
     expect(parsed?.extras).toEqual({
       "Lore-Outcome": "success",
       "Lore-Cost-Tokens": "100",
@@ -158,6 +169,7 @@ Lore-Task: abc-123`;
   it("handles CRLF line endings", () => {
     const msg =
       "Subject\r\n\r\nLore-Stage: a\r\nLore-Iteration: 1\r\nLore-Task: x";
+
     expect(parseTrailers(msg)).toEqual({
       stage: "a",
       iteration: 1,
@@ -167,6 +179,7 @@ Lore-Task: abc-123`;
 
   it("strips trailing whitespace before parsing", () => {
     const msg = "Lore-Stage: a\nLore-Iteration: 1\nLore-Task: x\n\n   \n";
+
     expect(parseTrailers(msg)).toEqual({
       stage: "a",
       iteration: 1,
@@ -178,6 +191,7 @@ Lore-Task: abc-123`;
     const parsed = parseTrailers(
       "Lore-Stage: a\nLore-Iteration: 1\nLore-Task: x",
     );
+
     expect(parsed).toEqual({ stage: "a", iteration: 1, taskId: "x" });
     expect(parsed).not.toHaveProperty("extras");
   });
@@ -193,6 +207,7 @@ Lore-Validates: specs/foo/spec.md#7 -> test/x.test.ts`;
     const expected: ProvenanceRef[] = [
       { specPath: "specs/foo/spec.md", ordinal: 7, target: "test/x.test.ts" },
     ];
+
     expect(parseValidatesTrailers(message)).toEqual(expected);
   });
 });
@@ -204,6 +219,7 @@ describe("formatValidatesTrailer", () => {
       ordinal: 7,
       target: "test/x.test.ts",
     };
+
     expect(formatValidatesTrailer(ref)).toBe(
       "Lore-Validates: specs/foo/spec.md#7 -> test/x.test.ts",
     );

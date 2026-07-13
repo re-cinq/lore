@@ -18,6 +18,7 @@ export class InMemoryContextCore implements ContextCorePort {
         record.namespace === namespace && record.status === "production",
     );
     const newest = production[production.length - 1];
+
     return newest?.evalScore ?? null;
   }
 

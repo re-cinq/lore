@@ -30,6 +30,7 @@ describe("resolveTestLink (pure)", () => {
     const out = resolveTestLink(ref("src/x.test.ts", 42), [
       chunk("src/x.test.ts", 30, 50),
     ]);
+
     expect(out).toEqual({ ok: true });
   });
 
@@ -37,6 +38,7 @@ describe("resolveTestLink (pure)", () => {
     const out = resolveTestLink(ref("src/missing.test.ts", 10), [
       chunk("src/x.test.ts", 1, 100),
     ]);
+
     expect(out).toEqual({ ok: false, reason: "file-missing" });
   });
 
@@ -45,6 +47,7 @@ describe("resolveTestLink (pure)", () => {
       chunk("src/x.test.ts", 30, 50),
       chunk("src/x.test.ts", 60, 90),
     ]);
+
     expect(out).toEqual({ ok: false, reason: "line-out-of-range" });
   });
 
@@ -52,6 +55,7 @@ describe("resolveTestLink (pure)", () => {
     const out = resolveTestLink(ref("src/x.test.ts", null), [
       chunk("src/x.test.ts", 1, 50),
     ]);
+
     expect(out).toEqual({ ok: true });
   });
 
@@ -59,6 +63,7 @@ describe("resolveTestLink (pure)", () => {
     const out = resolveTestLink(ref("src/missing.test.ts", null), [
       chunk("src/x.test.ts", 1, 50),
     ]);
+
     expect(out).toEqual({ ok: false, reason: "file-missing" });
   });
 
@@ -67,6 +72,7 @@ describe("resolveTestLink (pure)", () => {
       chunk("src/x.test.ts", 1, 50),
       chunk("src/x.test.ts", 60, 100),
     ]);
+
     expect(out).toEqual({ ok: true });
   });
 });
@@ -85,6 +91,7 @@ describe("collectBrokenLinks", () => {
 
   it("returns one broken-link entry per failed resolve, with reason", () => {
     const out = collectBrokenLinks("specs/x/spec.md", md, chunks);
+
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({
       spec_path: "specs/x/spec.md",
@@ -117,6 +124,7 @@ describe("collectBrokenLinks", () => {
   it("flags a coverage link placed outside the trailing parenthetical", () => {
     const md = "## A\n\n- Returns ([t](src/x.test.ts#L42)) the value\n";
     const out = collectBrokenLinks("specs/x/spec.md", md, chunks);
+
     expect(out).toEqual([
       {
         spec_path: "specs/x/spec.md",
@@ -151,6 +159,7 @@ describe("formatBrokenLinksReport", () => {
       },
     ];
     const body = formatBrokenLinksReport(broken);
+
     expect(body).toContain("specs/a/spec.md");
     expect(body).toContain("specs/b/spec.md");
     expect(body).toContain("file-missing");

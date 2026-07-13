@@ -9,6 +9,7 @@ import {
 
 describe("feature-api", () => {
   const realFetch = global.fetch;
+
   beforeEach(() => {
     process.env.LORE_API_URL = "https://lore-api.test";
     process.env.LORE_ADMIN_TOKEN = "admin-tok";
@@ -45,12 +46,14 @@ describe("feature-api", () => {
       status: 201,
       json: async () => ({ id: "f1", task_id: "t1" }),
     }));
+
     global.fetch = spy as unknown as typeof fetch;
     await createFeature("o/r", "T", "P");
     const headers = (spy.mock.calls[0][1] as RequestInit).headers as Record<
       string,
       string
     >;
+
     expect(headers.authorization).toBe("Bearer ingest-tok");
   });
 
@@ -60,8 +63,10 @@ describe("feature-api", () => {
       status: 201,
       json: async () => ({ id: "f1", task_id: "t1" }),
     }));
+
     global.fetch = spy as unknown as typeof fetch;
     const result = await createFeature("o/r", "My feature", "do it");
+
     expect(spy.mock.calls[0][0]).toBe(
       "https://lore-api.test/api/repos/o/r/features",
     );
@@ -77,6 +82,7 @@ describe("feature-api", () => {
       status: 202,
       json: async () => ({ task_id: "t2", iteration: 2 }),
     }));
+
     global.fetch = spy as unknown as typeof fetch;
     await refineFeature("o/r", "f1", { free_form: "x" });
     expect(spy.mock.calls[0][0]).toBe(
@@ -93,6 +99,7 @@ describe("feature-api", () => {
       status: 202,
       json: async () => ({ task_id: "t3" }),
     }));
+
     global.fetch = spy as unknown as typeof fetch;
     await finalizeFeature("o/r", "f1");
     expect(spy.mock.calls[0][0]).toBe(
@@ -106,6 +113,7 @@ describe("feature-api", () => {
       status: 201,
       json: async () => ({ id: "child" }),
     }));
+
     global.fetch = spy as unknown as typeof fetch;
     await splitFeature("o/r", "parent", "Part A", "carve A");
     expect(spy.mock.calls[0][0]).toBe(
@@ -122,12 +130,15 @@ describe("feature-api", () => {
       status: 200,
       json: async () => ({ ok: true }),
     }));
+
     global.fetch = spy as unknown as typeof fetch;
     const result = await deleteFeature("o/r", "f1");
+
     expect(spy.mock.calls[0][0]).toBe(
       "https://lore-api.test/api/repos/o/r/features/f1",
     );
     const init = spy.mock.calls[0][1] as RequestInit;
+
     expect(init.method).toBe("DELETE");
     expect(init.body).toBeUndefined();
     expect(result).toEqual({ status: "ok", data: { ok: true } });

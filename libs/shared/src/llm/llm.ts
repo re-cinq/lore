@@ -15,7 +15,10 @@ let costPool: PgPool | undefined;
 
 export class Llm {
   static get instance(): LlmProvider {
-    if (!current) current = selectProvider(process.env, { costPool });
+    if (!current) {
+      current = selectProvider(process.env, { costPool });
+    }
+
     return current;
   }
 

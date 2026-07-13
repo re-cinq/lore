@@ -52,6 +52,7 @@ describe("writeJobRunLogs", () => {
       "__job_runs__/eval_runner/run-456/output.log",
     );
     const [payload] = saveMock.mock.calls[0];
+
     expect(payload).toContain("starting up");
     expect(payload).not.toContain("sk-ant-api03-aaaaaaaa");
   });

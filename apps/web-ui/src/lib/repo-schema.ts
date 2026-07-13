@@ -18,7 +18,10 @@ export function pickSchema(
   existingSchemas: readonly string[],
 ): string {
   const candidate = team ?? "";
-  if (SCHEMA_RE.test(candidate) && existingSchemas.includes(candidate))
+
+  if (SCHEMA_RE.test(candidate) && existingSchemas.includes(candidate)) {
     return candidate;
+  }
+
   return ORG_SHARED_SCHEMA;
 }

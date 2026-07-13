@@ -40,6 +40,7 @@ describe("GET /healthz", () => {
 
   it("returns 200 {status:ok} unauthenticated when connected", async () => {
     const res = await inject(null);
+
     expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({ status: "ok" });
   });
@@ -48,6 +49,7 @@ describe("GET /healthz", () => {
     process.env.LORE_DB_HOST = "db.internal";
     vi.mocked(getHealthStatus).mockResolvedValue({ connected: false } as any);
     const res = await inject(null);
+
     expect(res.statusCode).toBe(503);
     expect(res.result).toEqual({ status: "error" });
   });
@@ -55,13 +57,16 @@ describe("GET /healthz", () => {
   it("returns 200 ok when disconnected but no LORE_DB_HOST configured", async () => {
     vi.mocked(getHealthStatus).mockResolvedValue({ connected: false } as any);
     const res = await inject(null);
+
     expect(res.result).toEqual({ status: "ok" });
   });
 
   it("includes database + task stats when authenticated and connected", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ today: 3, pending: 2 }] });
     const res = await inject(pool, AUTH);
+
     expect(res.result).toMatchObject({
       status: "ok",
       database: { connected: true },
@@ -71,8 +76,10 @@ describe("GET /healthz", () => {
 
   it("falls back to zeroed task stats when the stats query throws", async () => {
     const pool = makePool();
+
     pool.query.mockRejectedValue(new Error("boom"));
     const res = await inject(pool, AUTH);
+
     expect((res.result as any).tasks).toEqual({
       processed_today: 0,
       pending: 0,
@@ -81,6 +88,7 @@ describe("GET /healthz", () => {
 
   it("skips the stats query when authed but pool is null", async () => {
     const res = await inject(null, AUTH);
+
     expect(res.result).toMatchObject({
       tasks: { processed_today: 0, pending: 0 },
     });
@@ -88,8 +96,10 @@ describe("GET /healthz", () => {
 
   it("zeroes task stats when the stats query returns no rows", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [] });
     const res = await inject(pool, AUTH);
+
     expect((res.result as any).tasks).toEqual({
       processed_today: 0,
       pending: 0,

@@ -10,6 +10,7 @@ import type { RepoHook } from "./webhook-status.js";
 
 function ownerRepo(repo: string): [string, string] {
   const [owner, name] = repo.split("/");
+
   return [owner, name];
 }
 
@@ -21,6 +22,7 @@ export async function listRepoWebhooks(repo: string): Promise<RepoHook[]> {
     repo: name,
     per_page: 100,
   });
+
   return data as unknown as RepoHook[];
 }
 
@@ -55,6 +57,7 @@ export async function ensureRepoWebhook(
     await octokit.rest.repos
       .pingWebhook({ owner, repo: name, hook_id: existing.id })
       .catch(() => {});
+
     return { hookId: existing.id, created: false };
   }
 
@@ -66,8 +69,10 @@ export async function ensureRepoWebhook(
     events,
     active: true,
   });
+
   await octokit.rest.repos
     .pingWebhook({ owner, repo: name, hook_id: created.id })
     .catch(() => {});
+
   return { hookId: created.id, created: true };
 }

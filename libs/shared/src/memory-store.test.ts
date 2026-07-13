@@ -17,6 +17,7 @@ describe("memoryStore", () => {
     // Registry identity is the only contract under test here, so a
     // backend-only stand-in stands in for a full MemoryStore.
     const registered = { backend: "postgres" } as unknown as MemoryStore;
+
     setMemoryStore(registered);
     expect(memoryStore()).toBe(registered);
   });
@@ -31,12 +32,16 @@ describe("selectMemoryStore", () => {
   });
 
   afterEach(() => {
-    if (savedBackend === undefined) delete process.env.LORE_MEMORY_BACKEND;
-    else process.env.LORE_MEMORY_BACKEND = savedBackend;
+    if (savedBackend === undefined) {
+      delete process.env.LORE_MEMORY_BACKEND;
+    } else {
+      process.env.LORE_MEMORY_BACKEND = savedBackend;
+    }
   });
 
   it("returns a postgres store when LORE_MEMORY_BACKEND is unset", () => {
     const store = selectMemoryStore({ pgPool: {} });
+
     expect(store.backend).toBe("postgres");
   });
 
@@ -55,14 +60,17 @@ describe("selectMemoryStore", () => {
         throw new Error("unused");
       },
     };
+
     process.env.LORE_MEMORY_BACKEND = "dgraph";
     const store = selectMemoryStore({ dgraph });
+
     expect(store.backend).toBe("dgraph");
   });
 
   it("rolls back to postgres on the single value LORE_MEMORY_BACKEND=postgres", () => {
     process.env.LORE_MEMORY_BACKEND = "postgres";
     const store = selectMemoryStore({ pgPool: {} });
+
     expect(store.backend).toBe("postgres");
   });
 

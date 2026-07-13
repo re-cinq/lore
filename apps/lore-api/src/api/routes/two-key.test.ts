@@ -14,6 +14,7 @@ vi.mock("../../features/dark-factory/dark-factory-authz.js", () => {
       super(message);
     }
   }
+
   return { verifyApproval: vi.fn(), TwoKeyError };
 });
 vi.mock("../../platform/github-client.js", () => ({ getOctokit: vi.fn() }));
@@ -41,6 +42,7 @@ describe("checkApproval", () => {
       ["dark_factory.enabled"],
       "toggling dark mode",
     );
+
     expect(outcome).toEqual({
       ok: false,
       code: 403,
@@ -60,6 +62,7 @@ describe("checkApproval", () => {
       ["image"],
       "setting image",
     );
+
     expect(outcome).toMatchObject({
       ok: false,
       code: 403,
@@ -70,6 +73,7 @@ describe("checkApproval", () => {
   it("returns ok with the approval evidence after a CODEOWNERS approval", async () => {
     const octokit = makeOctokit();
     const evidence = { prRef: "#5", approver: "alice", prUrl: "https://gh/5" };
+
     vi.mocked(getOctokit).mockResolvedValue(octokit as never);
     vi.mocked(verifyApproval).mockResolvedValue(evidence);
     const outcome = await checkApproval(
@@ -78,6 +82,7 @@ describe("checkApproval", () => {
       ["image"],
       "setting image",
     );
+
     expect(outcome).toEqual({ ok: true, evidence });
     expect(verifyApproval).toHaveBeenCalledWith({
       octokit,
@@ -97,6 +102,7 @@ describe("checkApproval", () => {
       ["image"],
       "setting image",
     );
+
     expect(outcome).toEqual({
       ok: false,
       code: 403,
@@ -118,6 +124,7 @@ describe("checkApproval", () => {
       ["image"],
       "setting image",
     );
+
     expect(outcome).toEqual({
       ok: false,
       code: 503,

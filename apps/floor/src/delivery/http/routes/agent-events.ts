@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * POST /api/agent-events — the ai-agent-subsystem (ADR-031 D8) POSTs its run
  * output as NDJSON. The terminal `result` line of each run maps to a
@@ -29,12 +30,13 @@ async function recordAgentCosts(rows: readonly LlmCallRow[]): Promise<number> {
     try {
       await usage().logLlmCall({ ...row, jobName: "agent" });
       recorded++;
-    } catch (err: any) {
+    } catch (err) {
       console.warn(
-        `[floor] llm_calls insert skipped for ${row.taskId}: ${err.message}`,
+        `[floor] llm_calls insert skipped for ${row.taskId}: ${errorMessage(err)}`,
       );
     }
   }
+
   return recorded;
 }
 
@@ -49,8 +51,8 @@ function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
   );
 
   // todo: we must update the infra to drop the logs after 30 days. (this should be a variable.)
-  void archiveAgentEvents(body, key).catch((err: any) =>
-    console.warn(`[floor] events archive skipped: ${err.message}`),
+  void archiveAgentEvents(body, key).catch((err) =>
+    console.warn(`[floor] events archive skipped: ${errorMessage(err)}`),
   );
 }
 

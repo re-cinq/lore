@@ -31,6 +31,7 @@ describe("flattenSpecRing", () => {
         },
       ],
     });
+
     expect(ring.sections).toEqual([
       { uid: "0xs", heading: "Overview", total: 2, tested: 1 },
       { uid: UNGROUPED_SECTION, heading: "(ungrouped)", total: 1, tested: 1 },
@@ -218,6 +219,7 @@ describe("flattenSpecGraph", () => {
         },
       ],
     });
+
     expect(graph.nodes.filter((n) => n.id === "file|x.ts")).toHaveLength(1);
     expect(graph.links.filter((l) => l.kind === "covers")).toEqual([
       { source: "0x3", target: "file|x.ts", kind: "covers" },
@@ -246,6 +248,7 @@ describe("flattenSpecGraph", () => {
         },
       ],
     });
+
     expect(graph.nodes.filter((n) => n.id === "0x9")).toHaveLength(1);
   });
 
@@ -266,6 +269,7 @@ describe("flattenSpecGraph", () => {
         },
       ],
     });
+
     expect(graph.nodes.filter((n) => n.id === "0xF")).toEqual([
       { id: "0xF", type: "Feature", label: "auth", path: "specs/auth" },
     ]);

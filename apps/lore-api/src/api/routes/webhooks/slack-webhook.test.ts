@@ -21,7 +21,11 @@ describe("Slack HMAC verification", () => {
       "v0=" + createHmac("sha256", secret).update(sigBase).digest("hex");
     const sigBuf = Buffer.from(signature);
     const expBuf = Buffer.from(expected);
-    if (sigBuf.length !== expBuf.length) return false;
+
+    if (sigBuf.length !== expBuf.length) {
+      return false;
+    }
+
     return timingSafeEqual(sigBuf, expBuf);
   }
 
@@ -40,6 +44,7 @@ describe("Slack HMAC verification", () => {
   it("rejects invalid signature", () => {
     const body = "token=test&text=hello";
     const timestamp = String(Math.floor(Date.now() / 1000));
+
     expect(
       verifySlackSignature(body, timestamp, "v0=invalid", signingSecret),
     ).toBe(false);
@@ -66,12 +71,14 @@ describe("Slack HMAC verification", () => {
   it("rejects old timestamps (replay protection)", () => {
     const sixMinutesAgo = Math.floor(Date.now() / 1000) - 360;
     const isReplay = Math.abs(Date.now() / 1000 - sixMinutesAgo) > 300;
+
     expect(isReplay).toBe(true);
   });
 
   it("accepts recent timestamps", () => {
     const tenSecondsAgo = Math.floor(Date.now() / 1000) - 10;
     const isReplay = Math.abs(Date.now() / 1000 - tenSecondsAgo) > 300;
+
     expect(isReplay).toBe(false);
   });
 });
@@ -97,27 +104,32 @@ describe("Slack command parsing", () => {
   } {
     let words = text.trim().split(/\s+/);
     let priority = "normal";
+
     if (words[0] === "!") {
       priority = "immediate";
       words = words.slice(1);
     }
     let taskType = "general";
     let description = words.join(" ");
+
     if (words.length > 1 && knownTypes.includes(words[0])) {
       taskType = words[0];
       description = words.slice(1).join(" ");
     }
+
     return { taskType, description, priority };
   }
 
   it("parses /lore implementation add auth", () => {
     const { taskType, description } = parseCommand("implementation add auth");
+
     expect(taskType).toBe("implementation");
     expect(description).toBe("add auth");
   });
 
   it("defaults to general when no type specified", () => {
     const { taskType, description } = parseCommand("what tests do we have");
+
     expect(taskType).toBe("general");
     expect(description).toBe("what tests do we have");
   });
@@ -126,17 +138,20 @@ describe("Slack command parsing", () => {
     const { taskType, description } = parseCommand(
       "gap-fill missing runbook for DB failover",
     );
+
     expect(taskType).toBe("gap-fill");
     expect(description).toBe("missing runbook for DB failover");
   });
 
   it("does not match partial type names", () => {
     const { taskType } = parseCommand("implement something");
+
     expect(taskType).toBe("general"); // "implement" != "implementation"
   });
 
   it("handles single word (no description after type)", () => {
     const { taskType, description } = parseCommand("implementation");
+
     // Single word that matches a type — treated as description since no remaining words
     expect(taskType).toBe("general");
     expect(description).toBe("implementation");
@@ -144,12 +159,14 @@ describe("Slack command parsing", () => {
 
   it("handles empty text", () => {
     const { taskType, description } = parseCommand("");
+
     expect(taskType).toBe("general");
     expect(description).toBe("");
   });
 
   it("preserves extra whitespace in description", () => {
     const { description } = parseCommand("general   hello    world");
+
     expect(description).toBe("hello world");
   });
 
@@ -157,6 +174,7 @@ describe("Slack command parsing", () => {
     const { taskType, description, priority } = parseCommand(
       "! implementation add caching",
     );
+
     expect(priority).toBe("immediate");
     expect(taskType).toBe("implementation");
     expect(description).toBe("add caching");
@@ -164,6 +182,7 @@ describe("Slack command parsing", () => {
 
   it("defaults to normal priority without ! prefix", () => {
     const { priority } = parseCommand("implementation add caching");
+
     expect(priority).toBe("normal");
   });
 
@@ -171,6 +190,7 @@ describe("Slack command parsing", () => {
     const { taskType, description, priority } = parseCommand(
       "! fix the login bug",
     );
+
     expect(priority).toBe("immediate");
     expect(taskType).toBe("general");
     expect(description).toBe("fix the login bug");
@@ -178,6 +198,7 @@ describe("Slack command parsing", () => {
 
   it("handles ! alone", () => {
     const { priority, description } = parseCommand("!");
+
     expect(priority).toBe("immediate");
     expect(description).toBe("");
   });

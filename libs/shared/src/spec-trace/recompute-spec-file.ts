@@ -31,7 +31,9 @@ type BlockRow = {
  * not-found / ordering / reassemble decision is unit-testable without Dgraph.
  */
 export function sourceFromBlockRows(rows: BlockRow[]): string | null {
-  if (rows.length === 0) return null;
+  if (rows.length === 0) {
+    return null;
+  }
 
   const blocks: Block[] = rows.map((row) => ({
     ordinal: row["Block.ordinal"],
@@ -43,6 +45,7 @@ export function sourceFromBlockRows(rows: BlockRow[]): string | null {
   const sortedBlocks = [...blocks].sort(
     (left, right) => left.ordinal - right.ordinal,
   );
+
   return reassembleBlocks(sortedBlocks);
 }
 
@@ -67,6 +70,7 @@ export async function recomputeFile(
       }`,
       { $fp: filePath, $repo: repo },
     );
+
     return (res.data?.blocks ?? []) as BlockRow[];
   });
 

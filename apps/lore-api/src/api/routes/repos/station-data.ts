@@ -64,6 +64,7 @@ export function stationDataRoutes(): ServerRoute[] {
       handler: async (request, h) => {
         try {
           const p = await projectFor(repoOf(request.params));
+
           return h.response({ onboarded: await p.settings.isOnboarded() });
         } catch (err) {
           return fail(h, err);
@@ -79,6 +80,7 @@ export function stationDataRoutes(): ServerRoute[] {
           const state =
             (request.query.state as "open" | "closed" | undefined) ?? "open";
           const p = await projectFor(repoOf(request.params));
+
           return h.response({ issues: await p.issues.list({ state }) });
         } catch (err) {
           return fail(h, err);
@@ -98,6 +100,7 @@ export function stationDataRoutes(): ServerRoute[] {
             typeof IssueBody
           >;
           const p = await projectFor(repoOf(request.params));
+
           return h.response(await p.issues.create(title, body, labels));
         } catch (err) {
           return fail(h, err);
@@ -117,7 +120,9 @@ export function stationDataRoutes(): ServerRoute[] {
             typeof BranchBody
           >;
           const p = await projectFor(repoOf(request.params));
+
           await p.repo.createBranch(branch, base);
+
           return h.response({ ok: true });
         } catch (err) {
           return fail(h, err);
@@ -137,7 +142,9 @@ export function stationDataRoutes(): ServerRoute[] {
             typeof CommitBody
           >;
           const p = await projectFor(repoOf(request.params));
+
           await p.repo.commitFile(branch, path, content, message);
+
           return h.response({ ok: true });
         } catch (err) {
           return fail(h, err);
@@ -156,6 +163,7 @@ export function stationDataRoutes(): ServerRoute[] {
           const { branch, title, body, base, labels } =
             request.payload as z.infer<typeof PullBody>;
           const p = await projectFor(repoOf(request.params));
+
           return h.response(
             await p.pulls.open(branch, title, body, base, labels),
           );
@@ -171,8 +179,12 @@ export function stationDataRoutes(): ServerRoute[] {
       handler: async (request, h) => {
         try {
           const ref = (request.query.ref as string | undefined) ?? "";
-          if (!ref) return h.response({ error: "ref required" }).code(400);
+
+          if (!ref) {
+            return h.response({ error: "ref required" }).code(400);
+          }
           const p = await projectFor(repoOf(request.params));
+
           return h.response({ conclusion: await p.pulls.ciConclusion(ref) });
         } catch (err) {
           return fail(h, err);
@@ -186,11 +198,14 @@ export function stationDataRoutes(): ServerRoute[] {
       handler: async (request, h) => {
         try {
           const q = request.query as Record<string, string | undefined>;
-          if (!q.task_type || !q.spec_path)
+
+          if (!q.task_type || !q.spec_path) {
             return h
               .response({ error: "task_type + spec_path required" })
               .code(400);
+          }
           const p = await projectFor(repoOf(request.params));
+
           return h.response({
             tasks: await p.tasks.driftTasksForSpec(q.task_type, q.spec_path),
           });
@@ -206,6 +221,7 @@ export function stationDataRoutes(): ServerRoute[] {
       handler: async (request, h) => {
         try {
           const q = request.query as Record<string, string | undefined>;
+
           if (!q.task_type || !q.description_prefix) {
             return h
               .response({ error: "task_type + description_prefix required" })
@@ -213,6 +229,7 @@ export function stationDataRoutes(): ServerRoute[] {
           }
           const statuses = (q.statuses ?? "").split(",").filter(Boolean);
           const p = await projectFor(repoOf(request.params));
+
           return h.response({
             tasks: await p.tasks.findOpenLike({
               taskType: q.task_type,
@@ -242,6 +259,7 @@ export function stationDataRoutes(): ServerRoute[] {
             createdBy: body.createdBy,
             contextBundle: body.contextBundle,
           });
+
           return h.response(created);
         } catch (err) {
           return fail(h, err);

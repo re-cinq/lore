@@ -60,38 +60,57 @@ const SIGNAL_RANK: Record<GraphSignal, number> = {
 
 /** The highest-priority condition a statement meets: violated > drifted > untested > normal. */
 function signalOf(row: StmtRow): GraphSignal {
-  if (row["Statement.violated"]) return "violated";
-  if (row["Statement.drifted"]) return "drifted";
+  if (row["Statement.violated"]) {
+    return "violated";
+  }
+
+  if (row["Statement.drifted"]) {
+    return "drifted";
+  }
   const tests = row.vb ?? [];
-  if (row["Statement.testability"] !== "untestable" && tests.length === 0)
+
+  if (row["Statement.testability"] !== "untestable" && tests.length === 0) {
     return "untested";
+  }
+
   return "normal";
 }
 
 /** "adrs/ADR-016-dark.md" → "ADR-016" (the zero-padded id the path carries); basename otherwise. */
 function adrLabel(path: string): string {
   const base = path.split("/").pop() ?? path;
+
   return base.match(/^ADR-\d+/i)?.[0] ?? base.replace(/\.md$/, "");
 }
 
 function adrsOf(row: StmtRow): GraphContextStatement["adrs"] {
   const seen = new Set<string>();
   const adrs: GraphContextStatement["adrs"] = [];
+
   for (const a of row.db ?? []) {
     const path = a["ADR.file_path"];
-    if (!path || seen.has(path)) continue;
+
+    if (!path || seen.has(path)) {
+      continue;
+    }
     seen.add(path);
     adrs.push({ label: adrLabel(path), path });
   }
+
   return adrs;
 }
 
 function testSelectorsOf(row: StmtRow): string[] {
   const seen = new Set<string>();
+
   for (const t of row.vb ?? []) {
     const path = t["TestChunk.file_path"];
-    if (path) seen.add(path);
+
+    if (path) {
+      seen.add(path);
+    }
   }
+
   return [...seen];
 }
 
@@ -115,13 +134,17 @@ function distinct(
 ): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
+
   for (const stmt of statements) {
     for (const value of pick(stmt)) {
-      if (seen.has(value)) continue;
+      if (seen.has(value)) {
+        continue;
+      }
       seen.add(value);
       out.push(value);
     }
   }
+
   return out;
 }
 
@@ -134,14 +157,19 @@ export function assembleGraphContext(
 ): GraphContextBlock {
   const limit = opts.limit ?? DEFAULT_LIMIT;
   const byXid = new Map<string, GraphContextStatement>();
+
   for (const row of data.q ?? []) {
     const stmt = toStatement(row);
-    if (!byXid.has(stmt.xid)) byXid.set(stmt.xid, stmt);
+
+    if (!byXid.has(stmt.xid)) {
+      byXid.set(stmt.xid, stmt);
+    }
   }
   const ranked = [...byXid.values()].sort(
     (a, b) => SIGNAL_RANK[a.signal] - SIGNAL_RANK[b.signal],
   );
   const statements = ranked.slice(0, limit);
+
   return {
     statements,
     adrRefs: distinct(statements, (s) => s.adrs.map((a) => a.path)),
@@ -193,11 +221,14 @@ export async function fetchGraphContext(
   repo: string,
   opts: { limit?: number } = {},
 ): Promise<GraphContextBlock> {
-  if (!dgraph)
+  if (!dgraph) {
     return { statements: [], adrRefs: [], testSelectors: [], truncated: false };
+  }
   const specs = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(GRAPH_CONTEXT_DQL, { $repo: repo });
+
     return (res.data?.q ?? []) as SpecRow[];
   });
+
   return assembleGraphContext({ q: flattenSpecRows(specs) }, opts);
 }

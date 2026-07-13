@@ -63,7 +63,10 @@ function typeQuery(value: string) {
 
 function submit() {
   const form = document.querySelector("form");
-  if (!form) throw new Error("no form");
+
+  if (!form) {
+    throw new Error("no form");
+  }
   fireEvent.submit(form);
 }
 
@@ -82,6 +85,7 @@ describe("AssembledContextPanel", () => {
 
   it("fetches the context-preview endpoint with encoded query and selected template", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(sampleResult));
+
     vi.stubGlobal("fetch", fetchMock);
     render(<AssembledContextPanel owner="re-cinq" repo="lore" />);
 
@@ -148,6 +152,7 @@ describe("AssembledContextPanel", () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse({}, 500))
       .mockResolvedValue(jsonResponse(sampleResult));
+
     vi.stubGlobal("fetch", fetchMock);
     render(<AssembledContextPanel owner="re-cinq" repo="lore" />);
 

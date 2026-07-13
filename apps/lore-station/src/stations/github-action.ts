@@ -27,11 +27,13 @@ export async function runGithubActionStation(
   for (let poll = 0; poll < maxPolls; poll++) {
     const conclusion = await project.pulls.ciConclusion(input.branch);
     const outcome = ciOutcome(conclusion);
+
     if (outcome) {
       return { outcome, extras: { "Lore-CI-Conclusion": conclusion } };
     }
     await wait(POLL_INTERVAL_MS);
   }
+
   return {
     outcome: "failed",
     extras: {

@@ -25,6 +25,7 @@ describe("AgentList", () => {
     const pills = Array.from(container.querySelectorAll(".status-pill")).map(
       (p) => p.textContent,
     );
+
     expect(pills).toEqual(["org", "project"]);
   });
 
@@ -33,11 +34,13 @@ describe("AgentList", () => {
     const hrefs = Array.from(container.querySelectorAll("a")).map((a) =>
       a.getAttribute("href"),
     );
+
     expect(hrefs).toContain(`${base}/agents/general/edit`);
   });
 
   it("shows an empty state when there are no agent definitions", () => {
     const { getByText } = render(<AgentList base={base} agents={[]} />);
+
     expect(getByText(/No agent definitions resolved/)).toBeInTheDocument();
   });
 });

@@ -7,10 +7,14 @@ const AGENT_ID_FILE = join(AGENT_ID_DIR, "agent-id");
 
 export function resolveAgentId(explicit?: string): string {
   // 1. Explicit parameter
-  if (explicit) return explicit;
+  if (explicit) {
+    return explicit;
+  }
 
   // 2. Environment variable (runner pods set this to the pod name)
-  if (process.env.LORE_AGENT_ID) return process.env.LORE_AGENT_ID;
+  if (process.env.LORE_AGENT_ID) {
+    return process.env.LORE_AGENT_ID;
+  }
 
   // 3. File-based (~/.lore/agent-id)
   try {
@@ -23,11 +27,13 @@ export function resolveAgentId(explicit?: string): string {
 
   // 4. Generate and store
   const id = randomUUID();
+
   try {
     mkdirSync(AGENT_ID_DIR, { recursive: true });
     writeFileSync(AGENT_ID_FILE, id + "\n");
   } catch {
     // best-effort: ignore and fall through
   }
+
   return id;
 }

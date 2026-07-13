@@ -87,8 +87,10 @@ function makeHandlers(
 ): NodeHandlers {
   const dispatch = async (node: { id: string; type: string }) => {
     capture.visited.push(node.id);
+
     return outcomes[node.id] ?? { outcome: "success" as const };
   };
+
   return {
     agent: dispatch,
     validate: dispatch,
@@ -122,6 +124,7 @@ function makeCapturingExecuteOpts(opts: {
         capture.commits.push({ subject, body });
       },
     });
+
   return { capture, run };
 }
 
@@ -133,6 +136,7 @@ describe("executeAssemblyLine (linear)", () => {
       assemblyLine: linearAssemblyLine,
     });
     const summary = await run();
+
     expect(summary.reachedExit).toBe(true);
     expect(capture.visited).toEqual(["a", "b"]); // c is exit, not handled
     expect(capture.commits).toHaveLength(2);
@@ -143,8 +147,10 @@ describe("executeAssemblyLine (linear)", () => {
     const { capture, run } = makeCapturingExecuteOpts({
       assemblyLine: linearAssemblyLine,
     });
+
     await run();
     const body = capture.commits[0].body;
+
     expect(body).toContain("Lore-Stage: a");
     expect(body).toContain("Lore-Iteration: 1");
     expect(body).toContain("Lore-Task: task-1");
@@ -156,6 +162,7 @@ describe("executeAssemblyLine (linear)", () => {
       assemblyLine: linearAssemblyLine,
       outcomes: { a: { outcome: "failed" } },
     });
+
     await expect(run()).rejects.toThrow(
       /no edge from "a" for outcome "failed"/,
     );
@@ -169,8 +176,10 @@ describe("executeAssemblyLine assemblyLineId threading", () => {
     const dispatch = async (node: { id: string }, ctx: NodeContext) => {
       capture.visited.push(node.id);
       seenIds.push(ctx.assemblyLineId);
+
       return { outcome: "success" as const };
     };
+
     await executeAssemblyLine({
       assemblyLine: linearAssemblyLine,
       assemblyLineId: "al-42",
@@ -196,7 +205,9 @@ describe("executeAssemblyLine assemblyLineId threading", () => {
     const { capture, run } = makeCapturingExecuteOpts({
       assemblyLine: linearAssemblyLine,
     });
+
     await run();
+
     for (const commit of capture.commits) {
       expect(commit.body).toContain("Lore-Assembly-Line: al-test-1");
     }
@@ -208,6 +219,7 @@ describe("executeAssemblyLine assemblyLineId threading", () => {
     const trace: AssemblyLineTrace = {
       onNodeStart: async (i) => {
         starts.push({ nodeId: i.nodeId, iteration: i.iteration });
+
         return `ref-${starts.length}`;
       },
       onNodeFinish: async (ref, outcome) => {
@@ -218,11 +230,14 @@ describe("executeAssemblyLine assemblyLineId threading", () => {
     const capture: RunCapture = { visited: [], commits: [] };
     const dispatch = async (node: { id: string }) => {
       capture.visited.push(node.id);
+
       if (node.id === "review" && reviews++ === 0) {
         return { outcome: "changes_requested" as const };
       }
+
       return { outcome: "success" as const };
     };
+
     await executeAssemblyLine({
       assemblyLine: reviewLoopAssemblyLine,
       assemblyLineId: "al-42",
@@ -281,6 +296,7 @@ describe("executeAssemblyLine assemblyLineId threading", () => {
       gitCommit: async () => {},
       trace,
     });
+
     expect(summary.reachedExit).toBe(true);
     expect(capture.visited).toEqual(["a", "b"]);
   });
@@ -293,15 +309,19 @@ describe("executeAssemblyLine (review loop)", () => {
       const capture: RunCapture = { visited: [], commits: [] };
       const handlerOf = (_id: string) => async (node: { id: string }) => {
         capture.visited.push(node.id);
+
         if (node.id === "review") {
           reviewCalls++;
+
           // First two reviews fail with changes_requested, third passes.
           return reviewCalls < 3
             ? { outcome: "changes_requested" as const }
             : { outcome: "success" as const };
         }
+
         return { outcome: "success" as const };
       };
+
       return { capture, handlerOf };
     })();
 
@@ -329,6 +349,7 @@ describe("executeAssemblyLine (review loop)", () => {
 
   it("aborts when iteration_max is exceeded with a typed error", async () => {
     let reviewCalls = 0;
+
     await expect(
       executeAssemblyLine({
         assemblyLine: reviewLoopAssemblyLine,
@@ -340,7 +361,10 @@ describe("executeAssemblyLine (review loop)", () => {
         leaseBackend: noopBackend(),
         handlers: {
           agent: async (n) => {
-            if (n.id === "review") reviewCalls++;
+            if (n.id === "review") {
+              reviewCalls++;
+            }
+
             return n.id === "review"
               ? { outcome: "changes_requested" }
               : { outcome: "success" };
@@ -357,6 +381,7 @@ describe("executeAssemblyLine (review loop)", () => {
 
   it("calls onIterationMaxExceeded hook before throwing (T040)", async () => {
     const escalations: IterationMaxExceededInfo[] = [];
+
     await expect(
       executeAssemblyLine({
         assemblyLine: reviewLoopAssemblyLine,
@@ -398,6 +423,7 @@ describe("executeAssemblyLine (lease)", () => {
   it("refreshes the lease before each node", async () => {
     const backend = noopBackend();
     const refresh = backend.refresh as ReturnType<typeof vi.fn>;
+
     await executeAssemblyLine({
       assemblyLine: linearAssemblyLine,
       taskId: "t",
@@ -441,6 +467,7 @@ describe("resumeFromTrailers", () => {
       taskId: "t",
       extras: { "Lore-Outcome": "success" },
     });
+
     expect(r).toEqual({ nextNode: "b", iteration: 1 });
   });
 
@@ -450,6 +477,7 @@ describe("resumeFromTrailers", () => {
       iteration: 1,
       taskId: "t",
     });
+
     expect(r?.nextNode).toBe("b");
   });
 
@@ -459,6 +487,7 @@ describe("resumeFromTrailers", () => {
       iteration: 1,
       taskId: "t",
     });
+
     expect(r).toBeNull();
   });
 
@@ -469,6 +498,7 @@ describe("resumeFromTrailers", () => {
       taskId: "t",
       extras: { "Lore-Outcome": "changes_requested" },
     });
+
     expect(r).toEqual({ nextNode: "implement", iteration: 1 });
   });
 
@@ -479,6 +509,7 @@ describe("resumeFromTrailers", () => {
       taskId: "t",
       extras: { "Lore-Outcome": "failed" },
     });
+
     expect(r).toBeNull();
   });
 });

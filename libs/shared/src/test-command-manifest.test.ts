@@ -14,6 +14,7 @@ describe("parseTestCommandManifest", () => {
       run: "npm run -s test:run-json -- {selector}",
       coverage_format: "lcov",
     });
+
     expect(result).toEqual([
       {
         list: "npm run -s test:list-json",
@@ -69,6 +70,7 @@ describe("parseTestCommandManifest", () => {
         cwd: "api",
       },
     ]);
+
     expect(result.map((m) => m.cwd)).toEqual(["web", "api"]);
     expect(result).toHaveLength(2);
   });
@@ -81,6 +83,7 @@ describe("parseTestCommandManifest", () => {
       cwd: "services/api",
       path_prefix_strip: "services/api/",
     });
+
     expect(manifest).toMatchObject({
       cwd: "services/api",
       path_prefix_strip: "services/api/",
@@ -106,11 +109,13 @@ describe("resolveTestCommandManifest", () => {
 
   it("prefers settings over the file when both are present", () => {
     const result = resolveTestCommandManifest({ settings, file });
+
     expect(result?.[0].list).toBe("from-settings");
   });
 
   it("falls back to the file when settings are absent", () => {
     const result = resolveTestCommandManifest({ file });
+
     expect(result?.[0].list).toBe("from-file");
   });
 });

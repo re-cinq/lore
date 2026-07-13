@@ -30,8 +30,10 @@ const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 async function pgReachable(): Promise<boolean> {
   try {
     const probe = new Pool({ ...PG_CONFIG, connectionTimeoutMillis: 1000 });
+
     await probe.query("select 1");
     await probe.end();
+
     return true;
   } catch {
     return false;
@@ -66,6 +68,7 @@ describe.skipIf(!reachable)(
       xid: string,
     ): Promise<void> {
       const txn = dgraphClient.newTxn();
+
       try {
         const res = await txn.queryWithVars(
           `query node($xid: string) { node(func: eq(${predicate}, $xid)) { uid } }`,
@@ -74,6 +77,7 @@ describe.skipIf(!reachable)(
         const uids: string[] = (
           (res.data as { node?: { uid: string }[] }).node ?? []
         ).map((node) => node.uid);
+
         if (uids.length) {
           await txn.mutate({
             deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -89,6 +93,7 @@ describe.skipIf(!reachable)(
 
     async function deleteDgraphNodeByXid(xid: string): Promise<void> {
       const txn = dgraphClient.newTxn();
+
       try {
         const res = await txn.queryWithVars(
           `query node($xid: string) { node(func: eq(Memory.xid, $xid)) { uid } }`,
@@ -97,6 +102,7 @@ describe.skipIf(!reachable)(
         const uids: string[] = (
           (res.data as { node?: { uid: string }[] }).node ?? []
         ).map((node) => node.uid);
+
         if (uids.length) {
           await txn.mutate({
             deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -124,6 +130,7 @@ describe.skipIf(!reachable)(
         await backfillMemoryToDgraph({ pgPool: pool, dgraph: dgraphClient });
 
         const txn = dgraphClient.newTxn();
+
         try {
           const res = await txn.queryWithVars(
             `query q($xid: string) {
@@ -171,6 +178,7 @@ describe.skipIf(!reachable)(
         await backfillMemoryToDgraph({ pgPool: pool, dgraph: dgraphClient });
 
         const txn = dgraphClient.newTxn();
+
         try {
           const res = await txn.queryWithVars(
             `query q($fxid: string) {
@@ -212,6 +220,7 @@ describe.skipIf(!reachable)(
         await backfillMemoryToDgraph({ pgPool: pool, dgraph: dgraphClient });
 
         const txn = dgraphClient.newTxn();
+
         try {
           const res = await txn.queryWithVars(
             `query q($xid: string) {
@@ -250,6 +259,7 @@ describe.skipIf(!reachable)(
         await backfillMemoryToDgraph({ pgPool: pool, dgraph: dgraphClient });
 
         const txn = dgraphClient.newTxn();
+
         try {
           const res = await txn.queryWithVars(
             `query q($xid: string) {

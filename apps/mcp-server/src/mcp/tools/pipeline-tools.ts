@@ -1,5 +1,17 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+
+/** Loose shape of a pipeline task as returned by the Lore API / pg rows. */
+type RemoteTaskLite = {
+  id: string;
+  target_repo?: string;
+  task_type?: string;
+  issue_number?: number;
+  description?: string;
+  status?: string;
+  context_bundle?: { spec_task_id?: string };
+};
 import {
   createTask,
   getTask,
@@ -105,6 +117,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
+
           if (!apiUrl || !apiToken) {
             return {
               content: [
@@ -130,30 +143,38 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
               context,
             }),
           });
+
           if (!res.ok) {
             const err = await res
               .json()
               .catch(() => ({ error: res.statusText }));
+
             return {
               content: [
                 {
                   type: "text" as const,
-                  text: `Remote task creation failed: ${(err as any).error || res.statusText}`,
+                  text: `Remote task creation failed: ${(err as { error?: string }).error || res.statusText}`,
                 },
               ],
             };
           }
-          const result = (await res.json()) as any;
+          const result = (await res.json()) as {
+            error?: string;
+            task_id?: string;
+            [k: string]: unknown;
+          };
           const pickupMsg =
             priority === "immediate"
               ? "The GKE agent will pick this up within 30 seconds."
               : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
           const msg = `Task created: ${result.task_id}\nType: ${result.task_type || task_type}\nPriority: ${priority}\nRepo: ${resolvedRepo || "default"}\n\n${pickupMsg}`;
+
           invalidateCache([
             "lore_list_pipeline_tasks",
             "lore_list_pending_tasks",
             "lore_get_pipeline_status",
           ]);
+
           return { content: [{ type: "text" as const, text: msg }] };
         }
 
@@ -175,18 +196,20 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             ? "The GKE agent will pick this up within 30 seconds."
             : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
         const msg = `Task created: ${result.task_id}\nType: ${resolvedType}\nPriority: ${priority}\nRepo: ${resolvedRepo || "default"}\n\n${pickupMsg}`;
+
         invalidateCache([
           "lore_list_pipeline_tasks",
           "lore_list_pending_tasks",
           "lore_get_pipeline_status",
         ]);
+
         return { content: [{ type: "text" as const, text: msg }] };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error creating pipeline task: ${err.message}`,
+              text: `Error creating pipeline task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -205,7 +228,8 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
-          if (!apiUrl || !apiToken)
+
+          if (!apiUrl || !apiToken) {
             return {
               content: [
                 {
@@ -214,10 +238,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
                 },
               ],
             };
+          }
           const res = await fetch(`${apiUrl}/api/task/${task_id}`, {
             headers: { Authorization: `Bearer ${apiToken}` },
           });
-          if (!res.ok)
+
+          if (!res.ok) {
             return {
               content: [
                 {
@@ -226,6 +252,8 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
                 },
               ],
             };
+          }
+
           return {
             content: [
               {
@@ -236,20 +264,25 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const task = await getTask(task_id);
-        if (!task)
+
+        if (!task) {
           return {
             content: [
               { type: "text" as const, text: `task not found: ${task_id}` },
             ],
           };
+        }
+
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(task, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -271,7 +304,8 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           pr_number: String(pr_number),
         });
         const proxied = await proxyGetApi(`/api/pr-status?${params}`);
-        if (proxied.ok)
+
+        if (proxied.ok) {
           return {
             content: [
               {
@@ -280,7 +314,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
               },
             ],
           };
-        if (proxied.reason === "not_configured")
+        }
+
+        if (proxied.reason === "not_configured") {
           return {
             content: [
               {
@@ -289,8 +325,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
               },
             ],
           };
-        if (proxied.reason === "denied")
+        }
+
+        if (proxied.reason === "denied") {
           return deniedError("lore_get_pr_status", proxied.detail);
+        }
+
         // A read with no local fallback: surface the server's reason (e.g. a 424
         // "GitHub not configured" config gap, or a real timeout) plainly rather
         // than the write-oriented "unreachable / refusing local fallback" copy.
@@ -302,9 +342,11 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -335,7 +377,8 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         if (!getPool()) {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
-          if (!apiUrl || !apiToken)
+
+          if (!apiUrl || !apiToken) {
             return {
               content: [
                 {
@@ -344,14 +387,19 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
                 },
               ],
             };
+          }
           const params = new URLSearchParams();
-          if (status) params.set("status", status);
+
+          if (status) {
+            params.set("status", status);
+          }
           params.set("limit", String(Math.min(limit, 100)));
           params.set("offset", String(offset));
           const res = await fetch(`${apiUrl}/api/tasks?${params}`, {
             headers: { Authorization: `Bearer ${apiToken}` },
           });
-          if (!res.ok)
+
+          if (!res.ok) {
             return {
               content: [
                 {
@@ -360,6 +408,8 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
                 },
               ],
             };
+          }
+
           return {
             content: [
               {
@@ -379,6 +429,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           "failed",
           "cancelled",
         ];
+
         if (status && !validStatuses.includes(status)) {
           return {
             content: [
@@ -390,14 +441,17 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const result = await listTasks(status, Math.min(limit, 100), offset);
+
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -422,15 +476,16 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const result = await cancelTask(task_id);
+
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error cancelling task: ${err.message}`,
+              text: `Error cancelling task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -459,15 +514,16 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         const { retryTask } =
           await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
         const result = await retryTask(task_id);
+
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error retrying task: ${err.message}`,
+              text: `Error retrying task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -488,6 +544,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     async ({ group_id }) => {
       try {
         const dbPoolRef = getPool();
+
         if (!dbPoolRef) {
           return {
             content: [
@@ -503,6 +560,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
            FROM pipeline.tasks WHERE task_group_id = $1 ORDER BY created_at`,
           [group_id],
         );
+
         if (rows.length === 0) {
           return {
             content: [
@@ -513,10 +571,11 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             ],
           };
         }
-        const completed = rows.filter((t: any) =>
-          ["merged", "completed"].includes(t.status),
+        const completed = rows.filter((t) =>
+          ["merged", "completed"].includes(t.status as string),
         ).length;
         const summary = `Group ${group_id}: ${completed}/${rows.length} completed`;
+
         return {
           content: [
             {
@@ -525,9 +584,11 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -553,6 +614,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     async ({ tasks_markdown, repo, spec_slug }) => {
       try {
         const resolvedRepo = repo || detectCurrentRepo();
+
         if (!resolvedRepo) {
           return {
             content: [
@@ -564,6 +626,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const dbPoolRef = getPool();
+
         if (!dbPoolRef) {
           return {
             content: [
@@ -575,6 +638,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const parsed = parseTasks(tasks_markdown);
+
         if (parsed.length === 0) {
           return {
             content: [
@@ -592,13 +656,14 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           parsed,
         );
         const summary = `Synced ${result.synced} tasks (${result.created} new) for ${resolvedRepo} / ${spec_slug}.`;
+
         return { content: [{ type: "text" as const, text: summary }] };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error syncing tasks: ${err.message}`,
+              text: `Error syncing tasks: ${errorMessage(err)}`,
             },
           ],
         };
@@ -618,6 +683,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     async ({ repo }) => {
       try {
         const resolvedRepo = repo || detectCurrentRepo();
+
         if (!resolvedRepo) {
           return {
             content: [
@@ -629,6 +695,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const dbPoolRef = getPool();
+
         if (!dbPoolRef) {
           return {
             content: [
@@ -640,6 +707,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const tasks = await getReadyTasks(dbPoolRef, resolvedRepo);
+
         if (tasks.length === 0) {
           return {
             content: [
@@ -651,9 +719,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const lines = tasks.map(
-          (t: any) =>
+          (t) =>
             `- **${t.context_bundle?.spec_task_id}** (${t.id}): ${t.description}`,
         );
+
         return {
           content: [
             {
@@ -662,12 +731,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error fetching ready tasks: ${err.message}`,
+              text: `Error fetching ready tasks: ${errorMessage(err)}`,
             },
           ],
         };
@@ -688,6 +757,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     async ({ task_id, agent_id }) => {
       try {
         const dbPoolRef = getPool();
+
         if (!dbPoolRef) {
           return {
             content: [
@@ -700,6 +770,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         }
         const resolvedAgent = agent_id || resolveAgentId();
         const claimed = await claimTask(dbPoolRef, task_id, resolvedAgent);
+
         if (!claimed) {
           return {
             content: [
@@ -710,6 +781,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             ],
           };
         }
+
         return {
           content: [
             {
@@ -718,12 +790,12 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error claiming task: ${err.message}`,
+              text: `Error claiming task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -740,6 +812,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     async ({ task_id }) => {
       try {
         const dbPoolRef = getPool();
+
         if (!dbPoolRef) {
           return {
             content: [
@@ -751,6 +824,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         const result = await completeTask(dbPoolRef, task_id);
+
         if (!result.completed) {
           return {
             content: [
@@ -762,16 +836,18 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           };
         }
         let msg = `Task ${task_id} completed.`;
+
         if (result.unblocked.length > 0) {
           msg += `\n\nNewly unblocked tasks:\n${result.unblocked.map((u) => `- ${u}`).join("\n")}`;
         }
+
         return { content: [{ type: "text" as const, text: msg }] };
-      } catch (err: any) {
+      } catch (err) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Error completing task: ${err.message}`,
+              text: `Error completing task: ${errorMessage(err)}`,
             },
           ],
         };
@@ -798,6 +874,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         // so calling getTask() here would throw "Pipeline database not configured".
         const apiUrl = process.env.LORE_API_URL;
         const apiToken = process.env.LORE_INGEST_TOKEN;
+
         if (!apiUrl || !apiToken) {
           return {
             content: [
@@ -819,14 +896,19 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             const res = await fetch(`${apiUrl}/api/task-logs?${params}`, {
               headers: { Authorization: `Bearer ${apiToken}` },
             });
-            if (res.ok)
+
+            if (res.ok) {
               return {
                 ok: true as const,
                 body: JSON.stringify(await res.json()),
               };
+            }
             const detail = `HTTP ${res.status} ${res.statusText}`;
-            if (res.status === 401 || res.status === 403)
+
+            if (res.status === 401 || res.status === 403) {
               return { ok: false as const, reason: "denied" as const, detail };
+            }
+
             return {
               ok: false as const,
               reason: "unreachable" as const,
@@ -835,20 +917,29 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           },
           { label: false, cacheIf: completeOnly },
         );
-        if (proxied.ok)
+
+        if (proxied.ok) {
           return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "denied")
+        }
+
+        if (proxied.reason === "denied") {
           return deniedError("lore_get_task_logs", proxied.detail);
-        if (proxied.reason === "unreachable")
+        }
+
+        if (proxied.reason === "unreachable") {
           return unreachableError("lore_get_task_logs", proxied.detail);
+        }
+
         return {
           content: [
             { type: "text" as const, text: "Task logs require LORE_API_URL." },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -870,6 +961,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         // Proxy log reads to the remote API (logs live server-side in GCS).
         const apiUrl = process.env.LORE_API_URL;
         const apiToken = process.env.LORE_INGEST_TOKEN;
+
         if (!apiUrl || !apiToken) {
           return {
             content: [
@@ -891,14 +983,19 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, {
               headers: { Authorization: `Bearer ${apiToken}` },
             });
-            if (res.ok)
+
+            if (res.ok) {
               return {
                 ok: true as const,
                 body: JSON.stringify(await res.json()),
               };
+            }
             const detail = `HTTP ${res.status} ${res.statusText}`;
-            if (res.status === 401 || res.status === 403)
+
+            if (res.status === 401 || res.status === 403) {
               return { ok: false as const, reason: "denied" as const, detail };
+            }
+
             return {
               ok: false as const,
               reason: "unreachable" as const,
@@ -907,12 +1004,19 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           },
           { label: false, cacheIf: completeOnly },
         );
-        if (proxied.ok)
+
+        if (proxied.ok) {
           return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "denied")
+        }
+
+        if (proxied.reason === "denied") {
           return deniedError("lore_get_job_logs", proxied.detail);
-        if (proxied.reason === "unreachable")
+        }
+
+        if (proxied.reason === "unreachable") {
           return unreachableError("lore_get_job_logs", proxied.detail);
+        }
+
         return {
           content: [
             {
@@ -921,9 +1025,11 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -943,6 +1049,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         // Try API first for global view (all repos)
         const apiUrl = process.env.LORE_API_URL || "";
         const token = process.env.LORE_INGEST_TOKEN || "";
+
         if (apiUrl && token) {
           const resp = await fetch(
             `${apiUrl}/api/tasks?status=pending&limit=50`,
@@ -950,12 +1057,15 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
               headers: { Authorization: `Bearer ${token}` },
             },
           );
+
           if (resp.ok) {
-            const data = (await resp.json()) as any;
-            let tasks = data.tasks || data || [];
+            const data = (await resp.json()) as { tasks?: RemoteTaskLite[] };
+            let tasks: RemoteTaskLite[] = data.tasks || [];
+
             if (filterRepo) {
-              tasks = tasks.filter((t: any) => t.target_repo === filterRepo);
+              tasks = tasks.filter((t) => t.target_repo === filterRepo);
             }
+
             if (tasks.length === 0) {
               return {
                 content: [
@@ -969,22 +1079,29 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
               };
             }
             // Group by repo
-            const byRepo = new Map<string, any[]>();
+            const byRepo = new Map<string, RemoteTaskLite[]>();
+
             for (const t of tasks) {
               const r = t.target_repo || "unknown";
-              if (!byRepo.has(r)) byRepo.set(r, []);
+
+              if (!byRepo.has(r)) {
+                byRepo.set(r, []);
+              }
               byRepo.get(r)!.push(t);
             }
             const sections: string[] = [];
+
             for (const [r, repoTasks] of byRepo) {
               const lines = repoTasks.map(
-                (t: any) =>
+                (t) =>
                   `  ${t.id.substring(0, 8)} ${t.task_type} ${t.issue_number ? "#" + t.issue_number + " " : ""}${(t.description || "").substring(0, 80)}`,
               );
+
               sections.push(
                 `**${r}** (${repoTasks.length})\n${lines.join("\n")}`,
               );
             }
+
             return {
               content: [{ type: "text" as const, text: sections.join("\n\n") }],
             };
@@ -994,21 +1111,25 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         const { listPendingTasks } =
           await import("../../features/pipeline/runner.local.js");
         const tasks = listPendingTasks();
+
         if (tasks.length === 0) {
           return {
             content: [{ type: "text" as const, text: "No pending tasks." }],
           };
         }
         const lines = tasks.map(
-          (t: any) =>
+          (t) =>
             `${t.id.substring(0, 8)} ${t.task_type} ${t.target_repo}${t.issue_number ? " #" + t.issue_number : ""}\n  ${t.description}`,
         );
+
         return {
           content: [{ type: "text" as const, text: lines.join("\n\n") }],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -1024,7 +1145,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       try {
         const { skipTask } =
           await import("../../features/pipeline/runner.local.js");
+
         skipTask(args.task_id);
+
         return {
           content: [
             {
@@ -1033,9 +1156,11 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -1062,6 +1187,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       try {
         const { startNotifier, detectRepo, isNotifierRunning } =
           await import("../../features/pipeline/runner.local.js");
+
         if (isNotifierRunning()) {
           return {
             content: [
@@ -1074,6 +1200,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         }
         const repos =
           args.repos || ([detectRepo()].filter(Boolean) as string[]);
+
         if (repos.length === 0) {
           return {
             content: [
@@ -1090,7 +1217,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           "runbook",
           "gap-fill",
         ];
+
         startNotifier(repos, taskTypes);
+
         return {
           content: [
             {
@@ -1099,9 +1228,11 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },
@@ -1115,15 +1246,19 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       try {
         const { stopNotifier } =
           await import("../../features/pipeline/runner.local.js");
+
         stopNotifier();
+
         return {
           content: [
             { type: "text" as const, text: "Task notifications stopped." },
           ],
         };
-      } catch (err: any) {
+      } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+          content: [
+            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+          ],
         };
       }
     },

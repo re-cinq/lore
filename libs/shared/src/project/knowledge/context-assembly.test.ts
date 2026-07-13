@@ -119,6 +119,7 @@ describe("extractKeyTerms", () => {
     const terms = extractKeyTerms(
       "add the UI controls for per-repo settings and parseSettingsForm",
     );
+
     expect(terms).toContain("controls");
     expect(terms).toContain("settings");
     expect(terms).toContain("parseSettingsForm");
@@ -129,6 +130,7 @@ describe("extractKeyTerms", () => {
 
   it("de-duplicates and caps the number of terms", () => {
     const terms = extractKeyTerms("settings settings settings", 12);
+
     expect(terms).toEqual(["settings"]);
     expect(
       extractKeyTerms(
@@ -195,8 +197,12 @@ describe("hybridChunkItems", () => {
     vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
     const calls: Array<{ text: string; params?: unknown[] }> = [];
     const pool = {
-      query: async (text: string, params?: unknown[]) => {
+      query: async <T>(
+        text: string,
+        params?: unknown[],
+      ): Promise<{ rows: T[] }> => {
         calls.push({ text, params });
+
         return {
           rows: [
             {
@@ -205,7 +211,7 @@ describe("hybridChunkItems", () => {
               content_type: "code",
               score: 0.42,
             },
-          ],
+          ] as T[],
         };
       },
     };
@@ -231,8 +237,12 @@ describe("hybridChunkItems", () => {
     vi.mocked(getQueryEmbedding).mockResolvedValueOnce([0.1, 0.2, 0.3]);
     const calls: Array<{ text: string; params?: unknown[] }> = [];
     const pool = {
-      query: async (text: string, params?: unknown[]) => {
+      query: async <T>(
+        text: string,
+        params?: unknown[],
+      ): Promise<{ rows: T[] }> => {
         calls.push({ text, params });
+
         return {
           rows: [
             {
@@ -241,7 +251,7 @@ describe("hybridChunkItems", () => {
               content_type: "code",
               score: 0.5,
             },
-          ],
+          ] as T[],
         };
       },
     };
@@ -274,7 +284,7 @@ describe("hybridChunkItems", () => {
     };
 
     const items = (await hybridChunkItems(
-      pool,
+      pool as unknown as Parameters<typeof hybridChunkItems>[0],
       "q",
       "re-cinq/lore",
       ["code"],

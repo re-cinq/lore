@@ -45,10 +45,12 @@ describe("OnboardView", () => {
     const { container } = render(
       <OnboardView onboarded={[]} onboardRepoAction={action} />,
     );
+
     expect(
       screen.getByRole("button", { name: "Onboard Repository" }),
     ).toBeInTheDocument();
     const input = container.querySelector('input[name="full_name"]');
+
     expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute("required");
     expect(input).toHaveAttribute("placeholder", "re-cinq/my-service");

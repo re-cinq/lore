@@ -44,13 +44,24 @@ export default function LoadMore({
 
   const loadMore = async () => {
     setLoading(true);
+
     try {
       const params = new URLSearchParams({ offset: String(offset) });
-      if (q) params.set("q", q);
-      if (type) params.set("type", type);
+
+      if (q) {
+        params.set("q", q);
+      }
+
+      if (type) {
+        params.set("type", type);
+      }
       const res = await fetch(`/api/repos/${owner}/${repo}/context?${params}`);
-      if (!res.ok) return;
+
+      if (!res.ok) {
+        return;
+      }
       const data = (await res.json()) as ContextPage;
+
       setChunks((prev) => [...prev, ...data.chunks]);
       setOffset((prev) => prev + CONTEXT_PAGE_SIZE);
       setMore(data.hasMore);

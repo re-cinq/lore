@@ -8,6 +8,7 @@ import { zodValidate } from "../../../server/plugins/zod-validate.js";
 // `kind` keeps its Set check (404 unknown, not 400); only the free-form `path`
 // query is bounded here.
 const TraceQuery = z.object({ path: z.string().max(1024).optional() });
+
 type TraceQuery = z.infer<typeof TraceQuery>;
 
 /**
@@ -42,20 +43,33 @@ export function traceRoute(): ServerRoute {
     },
     handler: async (request, h) => {
       const kind = request.params.kind;
-      if (!TRACE_KINDS.has(kind))
+
+      if (!TRACE_KINDS.has(kind)) {
         return h.response({ error: "not found" }).code(404);
+      }
       const { path: filePath = "" } = request.query as TraceQuery;
 
       try {
         const trace = (
           await projectFor(`${request.params.owner}/${request.params.repo}`)
         ).trace;
-        if (kind === "specs") return h.response({ specs: await trace.specs() });
-        if (kind === "spec-summaries")
+
+        if (kind === "specs") {
+          return h.response({ specs: await trace.specs() });
+        }
+
+        if (kind === "spec-summaries") {
           return h.response({ summaries: await trace.specSummaries() });
-        if (kind === "adrs") return h.response({ adrs: await trace.adrs() });
-        if (kind === "adr-summaries")
+        }
+
+        if (kind === "adrs") {
+          return h.response({ adrs: await trace.adrs() });
+        }
+
+        if (kind === "adr-summaries") {
           return h.response({ summaries: await trace.adrSummaries() });
+        }
+
         if (kind === "graph") {
           // Make persistent lore.features the source of truth for Feature nodes
           // (ADR-027). Tolerate a not-yet-migrated lore.features (42P01).
@@ -65,10 +79,13 @@ export function traceRoute(): ServerRoute {
           const [graph, features] = await Promise.all([
             trace.graph(),
             project.features.list().catch((err) => {
-              if ((err as { code?: string }).code === "42P01") return [];
+              if ((err as { code?: string }).code === "42P01") {
+                return [];
+              }
               throw err;
             }),
           ]);
+
           return h.response(
             mergePersistentFeatures(
               graph,
@@ -81,11 +98,19 @@ export function traceRoute(): ServerRoute {
             ),
           );
         }
-        if (!filePath)
+
+        if (!filePath) {
           return h.response({ error: "path query param required" }).code(400);
-        if (kind === "document")
+        }
+
+        if (kind === "document") {
           return h.response(await trace.document(filePath));
-        if (kind === "ring") return h.response(await trace.ring(filePath));
+        }
+
+        if (kind === "ring") {
+          return h.response(await trace.ring(filePath));
+        }
+
         return h.response({ source: await trace.source(filePath) });
       } catch (err) {
         return h

@@ -19,19 +19,29 @@ export function allPathsMatch(
   changedPaths: string[],
   allowlist: string[],
 ): boolean {
-  if (changedPaths.length === 0) return true;
-  if (allowlist.length === 0) return false;
+  if (changedPaths.length === 0) {
+    return true;
+  }
+
+  if (allowlist.length === 0) {
+    return false;
+  }
 
   for (const path of changedPaths) {
     let matched = false;
+
     for (const pattern of allowlist) {
       if (minimatch(path, pattern, MATCH_OPTIONS)) {
         matched = true;
         break;
       }
     }
-    if (!matched) return false;
+
+    if (!matched) {
+      return false;
+    }
   }
+
   return true;
 }
 

@@ -56,19 +56,23 @@ export function classifyWebhook(
   hooks: RepoHook[],
   canonicalUrl: string,
 ): WebhookStatus {
-  if (!canonicalUrl)
+  if (!canonicalUrl) {
     return {
       state: "unknown",
       canonicalUrl: "",
       reason: "webhook_host_not_configured",
     };
+  }
 
   // Identify the Lore hook: prefer an exact canonical match, else any hook whose
   // URL is the Floor webhook path (so a stale lore-api host still resolves → wrong_url).
   const lore =
     hooks.find((h) => h.config?.url === canonicalUrl) ??
     hooks.find((h) => (h.config?.url ?? "").endsWith("/api/webhook/github"));
-  if (!lore) return { state: "missing", canonicalUrl };
+
+  if (!lore) {
+    return { state: "missing", canonicalUrl };
+  }
 
   const base = {
     canonicalUrl,
@@ -79,10 +83,21 @@ export function classifyWebhook(
     lastCode: lore.last_response?.code ?? null,
   };
 
-  if (lore.config?.url !== canonicalUrl) return { state: "wrong_url", ...base };
-  if (!lore.active) return { state: "inactive", ...base };
-  if (!eventsCovered(lore.events)) return { state: "narrow_events", ...base };
-  if (base.lastCode !== null && base.lastCode >= 400)
+  if (lore.config?.url !== canonicalUrl) {
+    return { state: "wrong_url", ...base };
+  }
+
+  if (!lore.active) {
+    return { state: "inactive", ...base };
+  }
+
+  if (!eventsCovered(lore.events)) {
+    return { state: "narrow_events", ...base };
+  }
+
+  if (base.lastCode !== null && base.lastCode >= 400) {
     return { state: "delivery_failing", ...base };
+  }
+
   return { state: "configured", ...base };
 }

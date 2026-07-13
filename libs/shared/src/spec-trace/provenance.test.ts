@@ -26,6 +26,7 @@ describe("parseValidatesAnnotations", () => {
     const expected: ProvenanceRef[] = [
       { specPath: "specs/foo/spec.md", ordinal: 7, target: "test/x.test.ts" },
     ];
+
     expect(refs).toEqual(expected);
   });
 
@@ -41,6 +42,7 @@ describe("parseValidatesAnnotations", () => {
     const expected: ProvenanceRef[] = [
       { specPath: "specs/foo/spec.md", ordinal: 7, target: "api/x_test.py" },
     ];
+
     expect(refs).toEqual(expected);
   });
 });
@@ -119,6 +121,7 @@ describe("detectProvenanceConflicts", () => {
         targets: ["test/from-inline.test.ts", "test/from-annotation.test.ts"],
       },
     ];
+
     expect(conflicts).toEqual(expected);
   });
 

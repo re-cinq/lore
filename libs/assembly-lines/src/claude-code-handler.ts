@@ -68,6 +68,7 @@ export function createClaudeCodeAgentHandler(
     }
 
     const prompt = deps.resolvePrompt(node.prompt_ref, meta.description);
+
     if (!prompt) {
       return {
         outcome: "failed",
@@ -79,6 +80,7 @@ export function createClaudeCodeAgentHandler(
     }
 
     let result: ClaudeCodeResult;
+
     try {
       result = await runner({
         prompt,

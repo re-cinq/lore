@@ -20,19 +20,23 @@ export function resolveExclusion(
   margin: number,
 ): { x: number; y: number } {
   let resolved = point;
+
   for (const disc of discs) {
     const keepOut = disc.r + margin;
     const dx = resolved.x - disc.x;
     const dy = resolved.y - disc.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
+
     if (distance < keepOut) {
       const [dirX, dirY] = distance === 0 ? [1, 0] : [dx, dy];
       const span = distance === 0 ? 1 : distance;
+
       resolved = {
         x: disc.x + (keepOut * dirX) / span,
         y: disc.y + (keepOut * dirY) / span,
       };
     }
   }
+
   return resolved;
 }

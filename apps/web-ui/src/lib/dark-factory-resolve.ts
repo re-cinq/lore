@@ -52,6 +52,7 @@ export function resolveDarkFactorySettings(
   partial: DarkFactorySettings | null | undefined,
 ): ResolvedDarkFactorySettings {
   const enabled = partial?.enabled ?? false;
+
   return {
     enabled,
     create_issue: partial?.create_issue ?? (enabled ? "on_gate" : "always"),

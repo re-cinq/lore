@@ -31,5 +31,6 @@ export function resolveSpacing(
     .filter((anchor) => anchor.id !== self.id)
     .map((anchor) => ({ x: anchor.x, y: anchor.y, r: 0 }));
   const keepOutDiscs = anchorDiscs.concat(rings);
+
   return resolveExclusion({ x: self.x, y: self.y }, keepOutDiscs, gap);
 }

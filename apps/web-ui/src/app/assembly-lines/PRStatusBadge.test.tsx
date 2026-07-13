@@ -13,7 +13,9 @@ function jsonResponse(payload: unknown) {
 
 function stubFetch(impl: (url: string) => unknown) {
   const fetchMock = vi.fn((url: string) => Promise.resolve(impl(url)));
+
   vi.stubGlobal("fetch", fetchMock);
+
   return fetchMock as unknown as ReturnType<typeof vi.fn>;
 }
 
@@ -40,6 +42,7 @@ describe("PRStatusBadge", () => {
   it("renders nothing before the fetch resolves", () => {
     stubFetch(() => jsonResponse({ computed_status: "open" }));
     const { container } = render(<PRStatusBadge taskId="task-1" />);
+
     // Status is still null on the synchronous first paint.
     expect(container.querySelector(".status-pill")).toBeNull();
     expect(container.textContent).toBe("");
@@ -49,6 +52,7 @@ describe("PRStatusBadge", () => {
     const fetchMock = stubFetch(() =>
       jsonResponse({ computed_status: "open" }),
     );
+
     render(<PRStatusBadge taskId="abc-123" />);
     await flushFetch();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -62,6 +66,7 @@ describe("PRStatusBadge", () => {
     render(<PRStatusBadge taskId="t" />);
     await flushFetch();
     const pill = await screen.findByText("open");
+
     expect(pill).toHaveClass("status-pill");
   });
 
@@ -83,6 +88,7 @@ describe("PRStatusBadge", () => {
       render(<PRStatusBadge taskId={`task-${status}`} />);
       await flushFetch();
       const pill = await screen.findByText(status);
+
       expect(pill.style.getPropertyValue("--pill-color")).toBe(color);
     },
   );
@@ -92,6 +98,7 @@ describe("PRStatusBadge", () => {
     render(<PRStatusBadge taskId="weird" />);
     await flushFetch();
     const pill = await screen.findByText("totally-unknown");
+
     // STATUS_COLORS['totally-unknown'] is undefined → '|| var(--text-muted)' branch.
     expect(pill.style.getPropertyValue("--pill-color")).toBe(
       "var(--text-muted)",
@@ -101,6 +108,7 @@ describe("PRStatusBadge", () => {
   it("renders nothing when the payload has no computed_status", async () => {
     stubFetch(() => jsonResponse({ something_else: true }));
     const { container } = render(<PRStatusBadge taskId="no-status" />);
+
     await flushFetch();
     // data.computed_status is falsy → setStatus never called → still null.
     expect(container.querySelector(".status-pill")).toBeNull();
@@ -110,6 +118,7 @@ describe("PRStatusBadge", () => {
   it("renders nothing when computed_status is an empty string", async () => {
     stubFetch(() => jsonResponse({ computed_status: "" }));
     const { container } = render(<PRStatusBadge taskId="empty" />);
+
     await flushFetch();
     // Empty string is falsy in the guard AND the `if (!status)` early return.
     expect(container.querySelector(".status-pill")).toBeNull();
@@ -117,8 +126,10 @@ describe("PRStatusBadge", () => {
 
   it("renders nothing and stays silent when the fetch rejects", async () => {
     const fetchMock = vi.fn(() => Promise.reject(new Error("network down")));
+
     vi.stubGlobal("fetch", fetchMock);
     const { container } = render(<PRStatusBadge taskId="boom" />);
+
     await flushFetch();
     // .catch swallows the error; component remains null.
     expect(container.querySelector(".status-pill")).toBeNull();
@@ -134,8 +145,10 @@ describe("PRStatusBadge", () => {
         },
       }),
     );
+
     vi.stubGlobal("fetch", fetchMock);
     const { container } = render(<PRStatusBadge taskId="badjson" />);
+
     await flushFetch();
     // The rejected json() propagates to .catch → silent.
     expect(container.querySelector(".status-pill")).toBeNull();
@@ -151,6 +164,7 @@ describe("PRStatusBadge", () => {
     );
 
     const { rerender } = render(<PRStatusBadge taskId="first" />);
+
     await flushFetch();
     expect(await screen.findByText("open")).toBeInTheDocument();
 
@@ -177,9 +191,11 @@ describe("PRStatusBadge", () => {
           resolveFetch = resolve;
         }),
     );
+
     vi.stubGlobal("fetch", fetchMock);
 
     const { unmount, container } = render(<PRStatusBadge taskId="late" />);
+
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     unmount();

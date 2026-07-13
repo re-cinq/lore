@@ -16,7 +16,11 @@ export function decideRetry(state: {
   max?: number;
 }): RetryDecision {
   const max = state.max ?? MAX_ATTEMPTS;
-  if (state.attempts >= max) return { kind: "dead" };
+
+  if (state.attempts >= max) {
+    return { kind: "dead" };
+  }
   const backoffSeconds = Math.min(2 ** state.attempts, BACKOFF_CAP_SECONDS);
+
   return { kind: "retry", backoffSeconds };
 }

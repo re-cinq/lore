@@ -34,6 +34,7 @@ export async function projectDocumentBlocks(
   specUid?: string,
 ): Promise<Set<string>> {
   const blocks = segmentBlocks(content);
+
   for (const block of blocks) {
     await upsertByXid(
       dgraph,
@@ -50,6 +51,7 @@ export async function projectDocumentBlocks(
       },
     );
   }
+
   return new Set(
     blocks.map((block) => `${repo}|${filePath}|block|${block.ordinal}`),
   );
@@ -84,6 +86,7 @@ export async function pruneOrphanBlocksByFile(
     const orphanUids = blocks
       .filter((block) => !validXids.has(block["Block.xid"]))
       .map((block) => block.uid);
+
     if (orphanUids.length) {
       await txn.mutate({
         deleteNquads: orphanUids.map((uid) => `<${uid}> * * .`).join("\n"),

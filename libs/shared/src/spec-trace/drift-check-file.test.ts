@@ -65,8 +65,10 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     vars: Record<string, string>,
   ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(query, vars);
+
       return (res.data ?? {}) as Record<string, unknown>;
     } finally {
       await txn.discard().catch(() => {});
@@ -75,6 +77,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -97,6 +100,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
         ...(data.coverages ?? []),
         ...(data.testsuites ?? []),
       ].map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -112,6 +116,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
   async function deleteStatementNode(statementXid: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query stmt($sx: string) {
@@ -121,6 +126,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
       );
       const data = res.data as { stmts?: { uid: string }[] };
       const uids = (data.stmts ?? []).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -136,6 +142,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
   async function deleteAcceptanceCriterionNode(acXid: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query ac($ax: string) {
@@ -145,6 +152,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
       );
       const data = res.data as { acs?: { uid: string }[] };
       const uids = (data.acs ?? []).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -161,18 +169,29 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
   let createdRepo = "";
   let createdStatementXid = "";
   let createdAcXid = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
-    if (createdStatementXid) await deleteStatementNode(createdStatementXid);
-    if (createdAcXid) await deleteAcceptanceCriterionNode(createdAcXid);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
+
+    if (createdStatementXid) {
+      await deleteStatementNode(createdStatementXid);
+    }
+
+    if (createdAcXid) {
+      await deleteAcceptanceCriterionNode(createdAcXid);
+    }
     createdStatementXid = "";
     createdAcXid = "";
   });
 
   it("flips the Statement drifted with reason code-content-changed (render) and updates the CodeChunk hash to NEWHASH when the implementing chunk's content_hash changed", async () => {
     const repo = `drift/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const seededCodeChunk = await dgraphClient.newTxn().mutate({
@@ -245,8 +264,10 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
   it("returns the drifted statement as a DriftedStatement with specPath ordinal text and reason", async () => {
     const repo = `drift/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const seededCodeChunk = await dgraphClient.newTxn().mutate({
@@ -299,13 +320,16 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
         reason: "code-content-changed (render)",
       },
     ];
+
     expect(result.drifted).toEqual(expected);
   });
 
   it("drifts an AcceptanceCriterion implemented by a changed chunk", async () => {
     const repo = `drift/${randomUUID()}`;
+
     createdRepo = repo;
     const acXid = `${repo}|specs/foo/spec.md|ac|3`;
+
     createdAcXid = acXid;
 
     const seededCodeChunk = await dgraphClient.newTxn().mutate({
@@ -374,8 +398,10 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
   it("baselines a first-sight chunk with no stored hash instead of drifting it", async () => {
     const repo = `drift/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const seededCodeChunk = await dgraphClient.newTxn().mutate({
@@ -446,8 +472,10 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
   it("drifts a statement with reason file-missing when the implementing file has no chunks", async () => {
     const repo = `drift/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const seededCodeChunk = await dgraphClient.newTxn().mutate({
@@ -496,8 +524,10 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
   it("sets drift_severity to the cosine distance between the new chunk and statement embeddings", async () => {
     const repo = `drift/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const seededCodeChunk = await dgraphClient.newTxn().mutate({
@@ -554,14 +584,17 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     )) as { stmt?: Record<string, unknown>[] };
 
     const stmt = statementData.stmt?.[0] ?? {};
+
     expect(stmt["Statement.drifted"]).toBe(true);
     expect(Number(stmt["Statement.drift_severity"])).toBeCloseTo(0.2929, 3);
   });
 
   it("drifts a statement with reason line-out-of-range when the chunk lines overlap no remaining chunk", async () => {
     const repo = `drift/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const seededCodeChunk = await dgraphClient.newTxn().mutate({
@@ -623,8 +656,10 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
   it("falls back to the file path in drift_reason when the changed chunk has no symbol_name", async () => {
     const repo = `drift/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const seededCodeChunk = await dgraphClient.newTxn().mutate({
@@ -678,6 +713,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     )) as { stmt?: Record<string, unknown>[] };
 
     const stmt = statementData.stmt?.[0] ?? {};
+
     expect(stmt["Statement.drifted"]).toBe(true);
     expect(stmt["Statement.drift_reason"]).toBe(
       "code-content-changed (src/widget.rb)",

@@ -50,6 +50,7 @@ function recorder(): Recorder {
 describe("handleOne", () => {
   it("marks done when the handler succeeds", async () => {
     const rec = recorder();
+
     await handleOne(
       row(),
       deps(async () => {}, rec),
@@ -59,6 +60,7 @@ describe("handleOne", () => {
 
   it("dead-letters immediately when no handler is registered", async () => {
     const rec = recorder();
+
     await handleOne(
       row({ event_name: "github.unknown.thing" }),
       deps(undefined, rec),
@@ -74,6 +76,7 @@ describe("handleOne", () => {
     const throwing: EventHandler = async () => {
       throw new Error("boom");
     };
+
     await handleOne(row({ attempts: 2 }), deps(throwing, rec));
     expect(rec.failed).toEqual([{ id: "1", error: "boom", backoff: 4 }]);
     expect(rec.dead).toEqual([]);
@@ -84,6 +87,7 @@ describe("handleOne", () => {
     const throwing: EventHandler = async () => {
       throw new Error("still broken");
     };
+
     await handleOne(row({ attempts: 5 }), deps(throwing, rec));
     expect(rec.dead).toEqual([{ id: "1", error: "still broken" }]);
     expect(rec.failed).toEqual([]);
@@ -95,6 +99,7 @@ describe("handleOne", () => {
     const capture: EventHandler = async (params) => {
       seen = params;
     };
+
     await handleOne(
       row({ params: { repo: "re-cinq/lore", pr_number: 7 } }),
       deps(capture, rec),

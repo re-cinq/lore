@@ -27,6 +27,7 @@ describe("SettingsView (general only)", () => {
       auto_review: true,
       trust: { level: "full" },
     });
+
     expect(
       (container.querySelector('input[name="team"]') as HTMLInputElement).value,
     ).toBe("platform");
@@ -54,6 +55,7 @@ describe("SettingsView (general only)", () => {
     const opts = container.querySelectorAll(
       'select[name="cross_repo_repos"] option',
     );
+
     expect(Array.from(opts).map((o) => (o as HTMLOptionElement).value)).toEqual(
       ["re-cinq/a", "re-cinq/b"],
     );
@@ -61,6 +63,7 @@ describe("SettingsView (general only)", () => {
 
   it("no longer renders dark-factory, agent, or approval-PR controls", () => {
     const { container } = renderView();
+
     expect(container.querySelector('select[name="df_enabled"]')).toBeNull();
     expect(container.querySelector('input[name="approval_pr"]')).toBeNull();
     expect(container.querySelector('select[name="model_select"]')).toBeNull();

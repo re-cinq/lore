@@ -31,6 +31,7 @@ describe("createProductionRetrospectiveHandler", () => {
     });
 
     const r = await handler(node, ctx);
+
     expect(r.outcome).toBe("success");
     expect(writeEpisode).toHaveBeenCalledTimes(1);
     expect(writeEpisode).toHaveBeenCalledWith(
@@ -60,11 +61,13 @@ describe("createProductionRetrospectiveHandler", () => {
     const handler = createProductionRetrospectiveHandler({
       writeEpisode: async (content) => {
         captured.push(content);
+
         return "ep";
       },
       writeEpisodeWithCuration: async () => undefined,
       curate: false,
     });
+
     await handler(node, ctx);
     expect(captured[0]).toContain("general");
     expect(captured[0]).toContain("lore/feature/x");
@@ -82,6 +85,7 @@ describe("createProductionHandlers", () => {
         curate: false,
       },
     });
+
     expect((await handlers.validate(node, ctx)).outcome).toBe("success");
     expect((await handlers.gate(node, ctx)).outcome).toBe("success");
     expect((await handlers.retrospective(node, ctx)).outcome).toBe("success");
@@ -99,6 +103,7 @@ describe("createProductionHandlers", () => {
       },
     });
     const r = await handlers.validate(node, ctx);
+
     expect(r.outcome).toBe("failed");
     expect(customValidate).toHaveBeenCalled();
   });

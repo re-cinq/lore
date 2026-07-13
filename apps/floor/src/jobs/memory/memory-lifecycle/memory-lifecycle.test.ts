@@ -23,24 +23,42 @@ function scoreImportance(memory: {
   let score = Math.round(strength * 10);
 
   // Content richness
-  if (memory.value.length < 50) score -= 2;
-  else if (memory.value.length > 500) score += 1;
+  if (memory.value.length < 50) {
+    score -= 2;
+  } else if (memory.value.length > 500) {
+    score += 1;
+  }
 
   // Key-based importance
-  if (memory.key.startsWith("auto-curation/")) score -= 1;
-  if (memory.key.startsWith("session-summary/")) score -= 1;
-  if (memory.key.includes("gotcha") || memory.key.includes("decision"))
+  if (memory.key.startsWith("auto-curation/")) {
+    score -= 1;
+  }
+
+  if (memory.key.startsWith("session-summary/")) {
+    score -= 1;
+  }
+
+  if (memory.key.includes("gotcha") || memory.key.includes("decision")) {
     score += 2;
-  if (memory.key.includes("convention") || memory.key.includes("pattern"))
+  }
+
+  if (memory.key.includes("convention") || memory.key.includes("pattern")) {
     score += 2;
+  }
 
   // Retrieval frequency boost
   const retrievals = memory.retrieval_count || 0;
-  if (retrievals >= 20) score += 2;
-  else if (retrievals >= 5) score += 1;
+
+  if (retrievals >= 20) {
+    score += 2;
+  } else if (retrievals >= 5) {
+    score += 1;
+  }
 
   // Stale confidence penalty
-  if (memory.confidence === "stale") score -= 1;
+  if (memory.confidence === "stale") {
+    score -= 1;
+  }
 
   return Math.max(0, Math.min(10, score));
 }
@@ -54,6 +72,7 @@ describe("importance scoring (half-life model)", () => {
       value: "This is a normal memory with enough content to be useful.",
       created_at: now,
     });
+
     // strength ≈ 1.0, round(10) = 10, no bonuses/penalties beyond content
     expect(score).toBe(10);
   });
@@ -66,6 +85,7 @@ describe("importance scoring (half-life model)", () => {
         "Some content that is moderately long enough to avoid short penalty.",
       created_at: sixtyDaysAgo,
     });
+
     // strength = 0.5^(60/60) = 0.5 → round(5) = 5
     expect(score).toBe(5);
   });
@@ -78,6 +98,7 @@ describe("importance scoring (half-life model)", () => {
       created_at: sixtyDaysAgo,
       last_retrieved_at: now,
     });
+
     // Uses now as effective date → strength ≈ 1.0
     expect(score).toBe(10);
   });
@@ -96,6 +117,7 @@ describe("importance scoring (half-life model)", () => {
       created_at: thirtyDaysAgo,
       half_life_days: 120,
     });
+
     // short: 0.5^(30/30) = 0.5 → 5
     // long: 0.5^(30/120) ≈ 0.84 → 8
     expect(shortHalfLife).toBe(5);
@@ -115,6 +137,7 @@ describe("importance scoring (half-life model)", () => {
       created_at: sixtyDaysAgo,
       retrieval_count: 25,
     });
+
     expect(manyRetrievals).toBe(noRetrievals + 2);
   });
 
@@ -131,6 +154,7 @@ describe("importance scoring (half-life model)", () => {
       created_at: now,
       confidence: "observed",
     });
+
     expect(score).toBe(normal - 1);
   });
 
@@ -140,6 +164,7 @@ describe("importance scoring (half-life model)", () => {
       value: "tiny",
       created_at: now,
     });
+
     // strength ≈ 1.0 → 10, -2 for short = 8
     expect(score).toBe(8);
   });
@@ -151,6 +176,7 @@ describe("importance scoring (half-life model)", () => {
         "The controller deployment is separate from the agent Helm chart and envs dont propagate.",
       created_at: now,
     });
+
     // 10 (recent) + 2 (gotcha) = 12, clamped to 10
     expect(score).toBe(10);
   });
@@ -163,6 +189,7 @@ describe("importance scoring (half-life model)", () => {
       created_at: veryOld,
       confidence: "stale",
     });
+
     expect(score).toBe(0);
   });
 
@@ -173,6 +200,7 @@ describe("importance scoring (half-life model)", () => {
       created_at: now,
       retrieval_count: 50,
     });
+
     // 10 + 1(long) + 2(convention) + 2(pattern) + 2(decision) + 2(gotcha) + 2(retrievals) = 21, clamped to 10
     expect(score).toBe(10);
   });
@@ -203,6 +231,7 @@ describe("importance scoring (half-life model)", () => {
       ...m,
       importance: scoreImportance(m),
     }));
+
     scored.sort((a, b) => a.importance - b.importance);
 
     expect(scored[0].key).toBe("auto-curation/task1"); // lowest

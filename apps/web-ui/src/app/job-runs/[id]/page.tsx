@@ -4,15 +4,22 @@ import { Storage } from "@google-cloud/storage";
 import JobRunView, { JobRunRow } from "./JobRunView";
 
 async function fetchLogs(logPath: string | null): Promise<string | null> {
-  if (!logPath) return null;
+  if (!logPath) {
+    return null;
+  }
+
   try {
     const bucket = new Storage().bucket(
       process.env.LORE_LOG_BUCKET || "lore-task-logs",
     );
     const file = bucket.file(logPath);
     const [exists] = await file.exists();
-    if (!exists) return null;
+
+    if (!exists) {
+      return null;
+    }
     const [content] = await file.download();
+
     return content.toString("utf-8");
   } catch {
     return null;

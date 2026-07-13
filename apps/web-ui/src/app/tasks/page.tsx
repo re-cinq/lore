@@ -23,7 +23,10 @@ interface AuditEntry {
 async function createTask(formData: FormData) {
   "use server";
   const description = formData.get("description") as string;
-  if (!description) return;
+
+  if (!description) {
+    return;
+  }
   await query(
     `INSERT INTO org_shared.chunks (content, content_type, team, repo, file_path, metadata)
      VALUES ($1, 'task', 'org', 're-cinq/lore', 'tasks/ui-created', $2)`,

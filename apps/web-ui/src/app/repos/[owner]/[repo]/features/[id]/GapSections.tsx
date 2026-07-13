@@ -48,6 +48,7 @@ function SectionFeedback({
         [sectionKey]: { ...current, ...patch },
       },
     });
+
   return (
     <div style={{ marginTop: 10 }}>
       <div style={{ marginBottom: 6 }}>
@@ -88,6 +89,7 @@ function QuestionInput({
       ...feedback,
       questions: { ...feedback.questions, [q.id]: value },
     });
+
   return (
     <div style={{ marginBottom: 10 }}>
       <label htmlFor={q.id} style={{ display: "block", fontWeight: 600 }}>
@@ -155,6 +157,7 @@ export default function GapSections({
   onCreateDraft: (title: string, prompt: string) => void;
 }) {
   const sections = sectionsOf(gap);
+
   return (
     <div>
       {sections.map((section, i) => (

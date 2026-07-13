@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * Agent CR (agents.re-cinq.com) processing (ADR-031). The decisions that differ
  * from a LoreTask (Agent.status carries no changedFiles / reviewResult / taskType,
@@ -113,12 +114,18 @@ class SlackBatch {
   }
 
   async flush(): Promise<void> {
-    if (this.entries.length === 0) return;
+    if (this.entries.length === 0) {
+      return;
+    }
     const byRepo = new Map<string, SlackBatchEntry[]>();
+
     for (const entry of this.entries) {
-      if (!byRepo.has(entry.repo)) byRepo.set(entry.repo, []);
+      if (!byRepo.has(entry.repo)) {
+        byRepo.set(entry.repo, []);
+      }
       byRepo.get(entry.repo)!.push(entry);
     }
+
     for (const [repo, entries] of byRepo) {
       if (entries.length === 1) {
         const e = entries[0];
@@ -128,6 +135,7 @@ class SlackBatch {
             : e.type === "completed"
               ? `Task completed: ${e.message}`
               : `Task failed: ${e.message}`;
+
         await notifySlack(e.taskId, repo, msg).catch(() => {});
         continue;
       }
@@ -135,16 +143,22 @@ class SlackBatch {
       const completed = entries.filter((e) => e.type === "completed");
       const failed = entries.filter((e) => e.type === "failed");
       const parts: string[] = [];
-      if (prs.length > 0)
+
+      if (prs.length > 0) {
         parts.push(
           `*${prs.length} PRs ready for review:*\n${prs.map((e) => `• ${e.message}`).join("\n")}`,
         );
-      if (completed.length > 0)
+      }
+
+      if (completed.length > 0) {
         parts.push(
           `*${completed.length} tasks completed:*\n${completed.map((e) => `• ${e.message}`).join("\n")}`,
         );
+      }
+
       if (failed.length > 0) {
         const first = failed[0].message;
+
         parts.push(
           failed.length === 1
             ? `*1 task failed:*\n• ${first}`
@@ -152,6 +166,7 @@ class SlackBatch {
         );
       }
       const summary = `*${repo}* — ${entries.length} task updates\n\n${parts.join("\n\n")}`;
+
       await notifySlack(entries[0].taskId, repo, summary).catch(() => {});
     }
     this.entries.length = 0;
@@ -166,17 +181,26 @@ async function notifySlack(
   message: string,
 ): Promise<void> {
   const botToken = process.env.LORE_SLACK_BOT_TOKEN;
-  if (!botToken) return;
+
+  if (!botToken) {
+    return;
+  }
   const bundle = (await taskStore().getById(taskId))?.context_bundle as
     { slack_channel_id?: string } | undefined;
   let channel = bundle?.slack_channel_id;
+
   if (!channel) {
     const repoSettings = (await settings().rawSettings(repo)) as {
       slack_channel_id?: string;
     } | null;
+
     channel = repoSettings?.slack_channel_id;
   }
-  if (!channel) return;
+
+  if (!channel) {
+    return;
+  }
+
   try {
     await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
@@ -195,7 +219,11 @@ async function getIssueNumber(
   taskId: string,
 ): Promise<{ issue_number: number | null; target_repo: string }> {
   const task = await taskStore().getById(taskId);
-  if (!task) return { issue_number: null, target_repo: "" };
+
+  if (!task) {
+    return { issue_number: null, target_repo: "" };
+  }
+
   return {
     issue_number: task.issue_number ?? null,
     target_repo: task.target_repo,
@@ -206,9 +234,13 @@ async function linkPrToIssue(
   issueNumber: number | null,
   prUrl: string,
 ): Promise<void> {
-  if (!issueNumber) return;
+  if (!issueNumber) {
+    return;
+  }
+
   try {
     const project = await projectFor(repo);
+
     await project.issues.comment(issueNumber, `PR created: ${prUrl}`);
     await project.issues.close(issueNumber, "completed");
   } catch {
@@ -220,9 +252,13 @@ async function commentFailureOnIssue(
   issueNumber: number | null,
   reason: string,
 ): Promise<void> {
-  if (!issueNumber) return;
+  if (!issueNumber) {
+    return;
+  }
+
   try {
     const project = await projectFor(repo);
+
     await project.issues.comment(issueNumber, `Task failed: \`${reason}\``);
     await project.issues.addLabel(issueNumber, "lore-failed");
   } catch {
@@ -237,6 +273,7 @@ async function patchAgentStatus(
   patch: Record<string, unknown>,
 ): Promise<void> {
   const namespace = agentsNamespace();
+
   try {
     const current = (await k8sApi.getNamespacedCustomObjectStatus({
       group: GROUP,
@@ -244,7 +281,8 @@ async function patchAgentStatus(
       namespace,
       plural: PLURAL,
       name,
-    })) as any;
+    })) as { status?: Record<string, unknown>; [key: string]: unknown };
+
     await k8sApi.replaceNamespacedCustomObjectStatus({
       group: GROUP,
       version: VERSION,
@@ -264,7 +302,9 @@ export function makeAgentsApi(): {
   namespace: string;
 } {
   const kc = new KubeConfig();
+
   kc.loadFromCluster();
+
   return {
     k8sApi: kc.makeApiClient(CustomObjectsApi),
     namespace: agentsNamespace(),
@@ -298,7 +338,10 @@ export async function processAgentCr(
   const status = agent.status ?? {};
   const phase = status.phase;
   const taskId = taskIdOf(agent);
-  if (!taskId) return;
+
+  if (!taskId) {
+    return;
+  }
 
   const ctx: AgentContext = {
     k8sApi,
@@ -319,8 +362,14 @@ export async function processAgentCr(
     // watcher has nothing to reconcile — return before any PR/no-changes work.
     if (phase === "Succeeded" || phase === "Failed") {
       const task = await taskStore().getById(taskId);
-      if (!task) return;
-      if (!["running", "queued"].includes(task.status)) return;
+
+      if (!task) {
+        return;
+      }
+
+      if (!["running", "queued"].includes(task.status)) {
+        return;
+      }
     }
 
     if (phase === "Succeeded" && !status.prUrl && ctx.taskType !== "review") {
@@ -336,6 +385,7 @@ export async function processAgentCr(
       phase === "Succeeded" && ctx.taskType === "review"
         ? parseReviewResult(ctx.output)
         : undefined;
+
     if (reviewResult) {
       await handleReviewVerdict(ctx, reviewResult);
     }
@@ -347,8 +397,10 @@ export async function processAgentCr(
     if (phase === "Succeeded" || phase === "Failed") {
       const hasAssemblyLine =
         (await assemblyLines().listForTask(taskId)).length > 0;
-      if (decideTokenReclaim({ phase, hasAssemblyLine }))
+
+      if (decideTokenReclaim({ phase, hasAssemblyLine })) {
         await cleanupPerTaskToken(taskId);
+      }
     }
   } finally {
     await ctx.slack.flush();
@@ -372,13 +424,15 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
 
   // Agent.status has no changedFiles — compute it via compare-commits.
   let changedFiles = 0;
+
   try {
     const proj = await projectFor(targetRepo);
     const base = await proj.repo.defaultBranch();
+
     changedFiles = await proj.pulls.changedFileCount(base, branch);
-  } catch (err: any) {
+  } catch (err) {
     console.warn(
-      `[agent-watcher] changed-file count failed for ${taskId}: ${err.message}`,
+      `[agent-watcher] changed-file count failed for ${taskId}: ${errorMessage(err)}`,
     );
   }
 
@@ -391,16 +445,22 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
           feature_planning: true,
         });
         await patchAgentStatus(k8sApi, name, { prUrl: "feature-planning" });
-      } catch (err: any) {
+      } catch (err) {
         console.error(
-          `[agent-watcher] feature-planning completion failed for ${taskId}: ${err.message}`,
+          `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
         );
       }
+
       return;
     }
+
     try {
       let { issue_number, target_repo } = await getIssueNumber(taskId);
-      if (!target_repo) target_repo = targetRepo;
+
+      if (!target_repo) {
+        target_repo = targetRepo;
+      }
+
       if (!issue_number) {
         try {
           const copy = await generateArtifactCopy({
@@ -416,6 +476,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
           const issue = await (
             await projectFor(target_repo)
           ).issues.create(copy.title, body, ["lore-managed", taskType]);
+
           issue_number = issue.number;
           await taskQueue().setColumns(taskId, {
             issue_number: issue.number,
@@ -428,6 +489,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         const body = output
           ? `## Result\n\n${tailOutput(output)}`
           : "Task completed (no code changes). See logs for full output.";
+
         await projectFor(target_repo)
           .then((p) => p.issues.comment(issue_number!, body))
           .catch(() => {});
@@ -441,13 +503,15 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         prUrl: "no-changes",
         issueNumber: issue_number,
       });
-      if (issue_number)
+
+      if (issue_number) {
         ctx.slack.queue(
           target_repo,
           taskId,
           "completed",
           `https://github.com/${target_repo}/issues/${issue_number}`,
         );
+      }
       writeEpisode(
         `Task ${taskType} on ${target_repo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
         "ci",
@@ -456,16 +520,18 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       console.log(
         `[agent-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`,
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[agent-watcher] Failed to complete no-change task ${taskId}: ${err.message}`,
+        `[agent-watcher] Failed to complete no-change task ${taskId}: ${errorMessage(err)}`,
       );
     }
+
     return;
   }
 
   // Open a PR from the pushed branch.
   const namespace = agentsNamespace();
+
   try {
     const { issue_number, target_repo } = await getIssueNumber(taskId);
     const footer = prFooter({ issueNumber: issue_number, taskId });
@@ -512,6 +578,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
           { feature_id?: string; slug?: string } | undefined;
         const featureId = contextBundle?.feature_id;
         const slug = contextBundle?.slug;
+
         if (featureId) {
           await prProject.features.transitionStatus(featureId, "pr-open", {
             spec_pr_url: pr.url,
@@ -519,9 +586,9 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
             ...(slug ? { spec_path: `specs/${slug}/spec.md` } : {}),
           });
         }
-      } catch (err: any) {
+      } catch (err) {
         console.warn(
-          `[agent-watcher] feature-finalize link failed for ${taskId}: ${err.message}`,
+          `[agent-watcher] feature-finalize link failed for ${taskId}: ${errorMessage(err)}`,
         );
       }
     }
@@ -541,11 +608,13 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     // completes). tryAutoMergeForCompletedTask also re-checks CI itself, so this
     // is belt-and-suspenders that keeps the watcher's gate explicit.
     let gate: "proceed" | "defer" = "proceed";
+
     try {
       gate = decideCiGate(await prProject.pulls.ciConclusion(branch));
     } catch {
       /* treat probe failure as proceed; auto-merge re-checks */
     }
+
     if (gate === "proceed") {
       tryAutoMergeForCompletedTask({ taskId }).catch((err) =>
         console.warn(
@@ -567,6 +636,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         createdBy: "agent-watcher",
         contextBundle: { pr_number: pr.number, branch, parent_task_id: taskId },
       })) as string;
+
       await (
         await projectFor(targetRepo)
       ).agents.run(reviewTaskId, {
@@ -588,13 +658,16 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         `[agent-watcher] Auto-review: created review task ${reviewTaskId} for PR #${pr.number}`,
       );
     }
-  } catch (err: any) {
-    const msg = String(err?.message || err);
+  } catch (err) {
+    const msg = String(errorMessage(err) || err);
+
     console.error(`[agent-watcher] Failed to create PR for ${taskId}: ${msg}`);
     const isNoCommits = /No commits between/i.test(msg);
     const isPrExists = /A pull request already exists/i.test(msg);
+
     if (isNoCommits || isPrExists) {
       const reason = isNoCommits ? "no-code-changes" : "pr-already-exists";
+
       await taskStore()
         .setStatus(taskId, "needs-human-help", {
           failure_reason: `createPR failed: ${reason}. ${msg.substring(0, 300)}`,
@@ -607,6 +680,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
           error: msg.substring(0, 500),
         })
         .catch(() => {});
+
       try {
         await k8sApi.deleteNamespacedCustomObject({
           group: GROUP,
@@ -660,6 +734,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
         retry_of: taskId,
       },
     });
+
     if (requeuedId && failedTask.issue_number != null) {
       await taskQueue().setColumns(requeuedId, {
         issue_number: failedTask.issue_number,
@@ -705,14 +780,19 @@ async function handleReviewVerdict(
 ): Promise<void> {
   const { taskId, branch } = ctx;
   const reviewTask = await taskStore().getById(taskId);
-  if (reviewTask && reviewTask.status !== "running") return;
+
+  if (reviewTask && reviewTask.status !== "running") {
+    return;
+  }
   const contextBundle = reviewTask?.context_bundle as
     { parent_task_id?: string } | undefined;
   const parentTaskId: string | undefined = contextBundle?.parent_task_id;
+
   if (!parentTaskId) {
     console.log(
       `[agent-watcher] Review ${taskId} has no parent task, skipping`,
     );
+
     return;
   }
 
@@ -723,7 +803,8 @@ async function handleReviewVerdict(
       review_task_id: taskId,
     });
     const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
-    if (issue_number)
+
+    if (issue_number) {
       await projectFor(target_repo)
         .then((p) =>
           p.issues.comment(
@@ -732,14 +813,19 @@ async function handleReviewVerdict(
           ),
         )
         .catch(() => {});
+    }
     await taskStore().setStatus(taskId, "completed");
     console.log(
       `[agent-watcher] Review approved for parent task ${parentTaskId}`,
     );
   } else {
     const parent = await taskStore().getById(parentTaskId);
-    if (!parent) return;
+
+    if (!parent) {
+      return;
+    }
     const iteration = (Number(parent.review_iteration) || 0) + 1;
+
     await taskQueue().setColumns(parentTaskId, { review_iteration: iteration });
 
     if (iteration >= 2) {
@@ -747,6 +833,7 @@ async function handleReviewVerdict(
         review_result: "needs-human-review",
         iterations: iteration,
       });
+
       if (parent.issue_number) {
         await projectFor(parent.target_repo)
           .then((p) =>
@@ -790,6 +877,7 @@ async function handleReviewVerdict(
           parent_task_id: parentTaskId,
         },
       })) as string;
+
       await (
         await projectFor(parent.target_repo)
       ).agents.run(fixTaskId, {
@@ -801,7 +889,8 @@ async function handleReviewVerdict(
         model: "claude-sonnet-4-6",
         timeoutMinutes: 30,
       });
-      if (parent.issue_number)
+
+      if (parent.issue_number) {
         await projectFor(parent.target_repo)
           .then((p) =>
             p.issues.comment(
@@ -810,6 +899,7 @@ async function handleReviewVerdict(
             ),
           )
           .catch(() => {});
+      }
       await taskStore().setStatus(taskId, "completed");
       console.log(
         `[agent-watcher] Review changes requested, created fix task ${fixTaskId} (iteration ${iteration})`,

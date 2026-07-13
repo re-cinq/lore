@@ -23,6 +23,7 @@ export class AssemblyLineStationBackend implements StationBackend {
       taskId: spec.taskId,
       args: { description: spec.description },
     });
+
     return { ref: assemblyLineId, launched: true };
   }
 

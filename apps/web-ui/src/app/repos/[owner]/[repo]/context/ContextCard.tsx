@@ -35,6 +35,7 @@ export default function ContextCard({
   repoLabel,
 }: ContextCardProps) {
   const header = chunkHeader(chunk.content_type, chunk.metadata ?? null);
+
   return (
     <div className={styles.card}>
       <div className={styles.head}>

@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -11,6 +12,7 @@ const OnboardBody = z.object({
     .string()
     .includes("/", { message: "required: repo (owner/name format)" }),
 });
+
 type OnboardBody = z.infer<typeof OnboardBody>;
 
 export function onboardRoute(getPool: () => Pool | null): ServerRoute {
@@ -23,13 +25,19 @@ export function onboardRoute(getPool: () => Pool | null): ServerRoute {
     },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
+
+      if (!pool) {
+        return h.response({ error: DB_UNAVAILABLE }).code(503);
+      }
+
       try {
         const { repo } = request.payload as OnboardBody;
+
         return h.response(await onboardRepo(pool, repo));
-      } catch (err: any) {
-        console.error("[onboard] API error:", err.message);
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        console.error("[onboard] API error:", errorMessage(err));
+
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

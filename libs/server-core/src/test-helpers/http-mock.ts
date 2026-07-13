@@ -33,9 +33,11 @@ export function makeReq(init: MockReqInit): IncomingMessage {
     method: string;
     headers: Record<string, string>;
   };
+
   stream.url = init.url;
   stream.method = init.method ?? "GET";
   stream.headers = init.headers ?? {};
+
   return stream;
 }
 
@@ -45,30 +47,38 @@ export interface MockRes extends ServerResponse {
   body: string;
   ended: boolean;
   /** Parsed JSON body — throws if the body was not JSON. */
-  readonly json: any;
+  readonly json: unknown;
 }
 
 export function makeRes(): MockRes {
-  const res: any = {
+  const res = {
     statusCode: 0,
     headers: {},
     body: "",
     ended: false,
     writeHead(code: number, headers?: Record<string, string>) {
       this.statusCode = code;
-      if (headers) Object.assign(this.headers, headers);
+
+      if (headers) {
+        Object.assign(this.headers, headers);
+      }
+
       return this;
     },
     end(chunk?: unknown) {
-      if (chunk !== undefined && chunk !== null) this.body += String(chunk);
+      if (chunk !== undefined && chunk !== null) {
+        this.body += String(chunk);
+      }
       this.ended = true;
+
       return this;
     },
     get json() {
       return JSON.parse(this.body);
     },
   };
-  return res as MockRes;
+
+  return res as unknown as MockRes;
 }
 
 /** A pg Pool mock — `query` is a vi.fn; `connect` returns a client mock. */
@@ -82,6 +92,7 @@ export function makePool() {
     connect: vi.fn().mockResolvedValue(client),
     __client: client,
   };
+
   return pool;
 }
 

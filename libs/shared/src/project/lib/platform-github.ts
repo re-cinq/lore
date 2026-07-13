@@ -39,6 +39,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       GITHUB_APP_INSTALLATION_ID,
       GITHUB_TOKEN,
     } = this.env;
+
     return (
       (!!GITHUB_APP_ID &&
         !!GITHUB_APP_PRIVATE_KEY &&
@@ -59,6 +60,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       labels: filter?.labels?.join(","),
       per_page: 100,
     });
+
     return data
       .filter((i) => !i.pull_request)
       .map((i) => ({
@@ -79,6 +81,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<string | null> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     try {
       const { data } = await ok.rest.repos.getContent({
         owner,
@@ -86,9 +89,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         path,
         ...(ref ? { ref } : {}),
       });
+
       if (!Array.isArray(data) && data.type === "file" && data.content) {
         return Buffer.from(data.content, "base64").toString("utf-8");
       }
+
       return null;
     } catch {
       return null;
@@ -98,12 +103,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listDirectory(repo: string, path: string): Promise<string[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     try {
       const { data } = await ok.rest.repos.getContent({
         owner,
         repo: name,
         path,
       });
+
       return Array.isArray(data) ? data.map((e) => e.name) : [];
     } catch {
       return [];
@@ -122,6 +129,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       tree_sha: branch,
       recursive: "true",
     });
+
     return (data.tree ?? [])
       .filter((e) => e.type === "blob" && typeof e.path === "string")
       .map((e) => e.path as string);
@@ -144,6 +152,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       per_page: 100,
     });
     const result: Array<{ sha: string; files: string[] }> = [];
+
     for (const c of commits) {
       try {
         const { data: detail } = await ok.rest.repos.getCommit({
@@ -151,6 +160,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
           repo: name,
           ref: c.sha,
         });
+
         result.push({
           sha: c.sha,
           files: (detail.files ?? []).map((f) => f.filename),
@@ -159,18 +169,21 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         result.push({ sha: c.sha, files: [] });
       }
     }
+
     return result;
   }
 
   async getIssue(repo: string, number: number): Promise<IssueRef | null> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     try {
       const { data } = await ok.rest.issues.get({
         owner,
         repo: name,
         issue_number: number,
       });
+
       return {
         repo,
         number: data.number,
@@ -194,6 +207,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       issue_number: number,
     });
+
     return data.labels
       .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
       .filter(Boolean);
@@ -214,6 +228,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       body,
       labels,
     });
+
     return {
       repo,
       number: data.number,
@@ -230,6 +245,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     for (const label of labels) {
       try {
         await ok.rest.issues.createLabel({
@@ -240,7 +256,9 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
           description: label.description,
         });
       } catch (err) {
-        if ((err as { status?: number }).status !== 422) throw err; // 422 = already exists
+        if ((err as { status?: number }).status !== 422) {
+          throw err;
+        } // 422 = already exists
       }
     }
   }
@@ -252,6 +270,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     await ok.rest.issues.createComment({
       owner,
       repo: name,
@@ -267,6 +286,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     await ok.rest.issues.update({
       owner,
       repo: name,
@@ -283,6 +303,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     await ok.rest.issues.addLabels({
       owner,
       repo: name,
@@ -298,6 +319,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     try {
       await ok.rest.issues.removeLabel({
         owner,
@@ -322,6 +344,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       ref: `heads/${base}`,
     });
+
     try {
       await ok.rest.git.createRef({
         owner,
@@ -358,6 +381,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     let sha: string | undefined;
+
     for (const ref of [branch, "main"]) {
       try {
         const { data } = await ok.rest.repos.getContent({
@@ -366,6 +390,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
           path,
           ref,
         });
+
         if (!Array.isArray(data) && "sha" in data) {
           sha = data.sha;
           break;
@@ -396,18 +421,21 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       state: "open",
       per_page: 100,
     });
+
     return data.map((pr) => toPullRef(repo, pr));
   }
 
   async get(repo: string, number: number): Promise<PullRef | null> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     try {
       const { data } = await ok.rest.pulls.get({
         owner,
         repo: name,
         pull_number: number,
       });
+
       return toPullRef(repo, data);
     } catch {
       return null;
@@ -417,6 +445,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async comment(repo: string, number: number, body: string): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     await ok.rest.issues.createComment({
       owner,
       repo: name,
@@ -433,6 +462,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     await ok.rest.pulls.createReview({
       owner,
       repo: name,
@@ -445,6 +475,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async addLabel(repo: string, number: number, label: string): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     await ok.rest.issues.addLabels({
       owner,
       repo: name,
@@ -460,6 +491,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
+
     await ok.rest.pulls.merge({
       owner,
       repo: name,
@@ -486,6 +518,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       head: branch,
       base: base ?? "main",
     });
+
     if (labels.length > 0) {
       await ok.rest.issues.addLabels({
         owner,
@@ -494,6 +527,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         labels,
       });
     }
+
     return toPullRef(repo, data);
   }
 
@@ -506,6 +540,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       pull_number: number,
       mediaType: { format: "diff" },
     });
+
     return data as unknown as string;
   }
 
@@ -517,6 +552,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       pull_number: number,
     });
+
     return data.map((r) => ({
       id: r.id,
       state: r.state,
@@ -534,6 +570,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       pull_number: number,
     });
+
     return data.map((c) => ({
       id: c.id,
       path: c.path,
@@ -555,6 +592,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       issue_number: number,
     });
+
     return data
       .filter(
         (c) =>
@@ -577,6 +615,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       pull_number: number,
     });
+
     return data.map((c) => ({
       sha: c.sha,
       message: c.commit.message,
@@ -592,6 +631,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       pull_number: number,
     });
+
     return data.merged;
   }
 
@@ -603,6 +643,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       pull_number: number,
     });
+
     return data.state === "closed" && !data.merged;
   }
 
@@ -614,6 +655,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       pull_number: number,
     });
+
     return {
       files_changed: data.changed_files,
       additions: data.additions,
@@ -636,6 +678,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       repo: name,
       basehead: `${base}...${head}`,
     });
+
     return data.files?.length ?? 0;
   }
 
@@ -650,6 +693,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       ref,
       per_page: 100,
     });
+
     return runs.map((r) => ({
       name: r.name,
       status: r.status,
@@ -670,13 +714,20 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       pull_number: number,
       per_page: 100,
     });
+
     return files.map((f) => f.filename);
   }
 
   async ciConclusion(repo: string, ref: string): Promise<CiConclusion> {
     const runs = await this.checkRuns(repo, ref);
-    if (runs.length === 0) return "none";
-    if (runs.some((r) => r.status !== "completed")) return "pending";
+
+    if (runs.length === 0) {
+      return "none";
+    }
+
+    if (runs.some((r) => r.status !== "completed")) {
+      return "pending";
+    }
     const failed = new Set([
       "failure",
       "cancelled",
@@ -684,8 +735,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       "action_required",
       "stale",
     ]);
-    if (runs.some((r) => r.conclusion != null && failed.has(r.conclusion)))
+
+    if (runs.some((r) => r.conclusion != null && failed.has(r.conclusion))) {
       return "failure";
+    }
+
     return "success";
   }
 
@@ -698,6 +752,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<void> {
     const ok = await this.octo();
     const [owner, repoName] = split(repo);
+
     try {
       await ok.rest.actions.updateRepoVariable({
         owner,
@@ -728,6 +783,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     });
     const spec = "libsodium-wrappers";
     const sodium = ((await import(spec)) as { default: Sodium }).default;
+
     await sodium.ready;
     const keyBytes = sodium.from_base64(
       pubKey.key,
@@ -741,6 +797,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       encrypted,
       sodium.base64_variants.ORIGINAL,
     );
+
     await ok.rest.actions.createOrUpdateRepoSecret({
       owner,
       repo: repoName,
@@ -761,11 +818,15 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async getInstallationToken(): Promise<string> {
     const ok = await this.octo();
     const auth = (await ok.auth({ type: "installation" })) as { token: string };
+
     return auth.token;
   }
 
   private octo(): Promise<Octokit> {
-    if (!this.client) this.client = this.build();
+    if (!this.client) {
+      this.client = this.build();
+    }
+
     return this.client;
   }
 
@@ -774,15 +835,20 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const appId = this.env.GITHUB_APP_ID;
     const privateKey = this.env.GITHUB_APP_PRIVATE_KEY;
     const installationId = this.env.GITHUB_APP_INSTALLATION_ID;
+
     if (appId && privateKey && installationId) {
       const { createAppAuth } = await import("@octokit/auth-app");
+
       return new Octokit({
         authStrategy: createAppAuth,
         auth: { appId, privateKey, installationId },
       });
     }
     const token = this.env.GITHUB_TOKEN;
-    if (token) return new Octokit({ auth: token });
+
+    if (token) {
+      return new Octokit({ auth: token });
+    }
     throw new Error(
       "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN",
     );
@@ -792,6 +858,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     const { data } = await ok.rest.repos.get({ owner, repo: name });
+
     return data.default_branch;
   }
 }
@@ -807,6 +874,7 @@ interface Sodium {
 
 function split(repo: string): [string, string] {
   const [owner, name] = repo.split("/");
+
   return [owner, name];
 }
 

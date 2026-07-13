@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -65,6 +66,7 @@ const MemoryBody = z.discriminatedUnion("action", [
     offset: listOffset,
   }),
 ]);
+
 type MemoryBody = z.infer<typeof MemoryBody>;
 
 export function memoryRoute(getPool: () => Pool | null): ServerRoute {
@@ -78,6 +80,7 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
       const body = request.payload as MemoryBody;
+
       try {
         const embedInput =
           body.action === "write"
@@ -115,10 +118,11 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
                 : body.version
                   ? Number(body.version)
                   : undefined;
+
             return h.response(
-              isMemoryDbAvailable()
+              (isMemoryDbAvailable()
                 ? await readMemory(body.key, body.agent_id, v)
-                : readMemoryFile(body.key, body.agent_id, v),
+                : readMemoryFile(body.key, body.agent_id, v)) as object,
             );
           }
           case "search":
@@ -143,6 +147,7 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
             const result = isMemoryDbAvailable()
               ? await listMemories(body.agent_id, body.limit, body.offset)
               : listMemoriesFile(body.agent_id, body.limit, body.offset);
+
             return h.response({
               ...result,
               limit: body.limit,
@@ -150,8 +155,8 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
             });
           }
         }
-      } catch (err: any) {
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

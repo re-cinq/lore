@@ -15,6 +15,7 @@ function git(args: string[], cwd?: string): string | null {
       encoding: "utf-8",
       timeout: 5000,
     }).trim();
+
     return out.length > 0 ? out : null;
   } catch {
     return null;
@@ -24,8 +25,12 @@ function git(args: string[], cwd?: string): string | null {
 /** "owner/repo" from the origin remote, or null when not a GitHub-style repo. */
 export function detectRepo(cwd: string): string | null {
   const remote = git(["remote", "get-url", "origin"], cwd);
-  if (!remote) return null;
+
+  if (!remote) {
+    return null;
+  }
   const match = remote.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+
   return match ? match[1] : null;
 }
 

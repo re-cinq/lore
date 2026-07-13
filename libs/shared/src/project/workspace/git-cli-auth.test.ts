@@ -3,9 +3,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock the git subprocess so we can assert the argv without running git. Isolated
 // to this file (the sibling git-cli.test.ts drives real git against a bare repo).
 const calls: string[][] = [];
+
 vi.mock("node:child_process", () => ({
   execFileSync: (_cmd: string, args: string[]) => {
     calls.push(args);
+
     return "";
   },
 }));
@@ -23,6 +25,7 @@ describe("GitCli auth (token off disk)", () => {
       "/tmp/dest",
     );
     const argv = calls[0].join(" ");
+
     expect(argv).toContain("http.https://github.com/.extraheader=");
     expect(calls[0]).toContain("https://github.com/re-cinq/lore.git");
     expect(argv).not.toContain("x-access-token:ghs_secret"); // not in cleartext

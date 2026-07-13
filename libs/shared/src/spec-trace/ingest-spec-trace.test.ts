@@ -54,8 +54,10 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
     vars: Record<string, string>,
   ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(query, vars);
+
       return (res.data ?? {}) as Record<string, unknown>;
     } finally {
       await txn.discard().catch(() => {});
@@ -64,6 +66,7 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -86,6 +89,7 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
         ...(data.coverages ?? []),
         ...(data.testsuites ?? []),
       ].map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -100,12 +104,16 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
   }
 
   let createdRepo = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
   });
 
   it("writes a TestChunk via ingestTestReport when kind is test-report", async () => {
     const repo = `spec-trace/${randomUUID()}`;
+
     createdRepo = repo;
 
     await ingestSpecTrace(dgraphClient, repo, "test-report", {
@@ -140,6 +148,7 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
 
   it("writes Coverage with a COVERS edge via ingestCoverageReport when kind is coverage", async () => {
     const repo = `spec-trace/${randomUUID()}`;
+
     createdRepo = repo;
 
     await ingestSpecTrace(dgraphClient, repo, "coverage", {

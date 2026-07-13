@@ -30,9 +30,11 @@ export function bearerScope(
 
 function denied(statusCode: 401 | 403, error: string): Boom.Boom {
   const boom = new Boom.Boom(error, { statusCode });
+
   // Replace Boom's { statusCode, error, message } envelope with the legacy
   // dispatcher's exact body so migrated routes stay byte-for-byte compatible.
   boom.output.payload = { error } as unknown as Boom.Payload;
+
   return boom;
 }
 
@@ -44,9 +46,11 @@ const scheme =
       const bearer = (
         Array.isArray(authHeader) ? authHeader[0] : authHeader
       )?.replace("Bearer ", "");
+
       enforceTrue(bearer, denied(401, "unauthorized"));
 
       const scopes = await resolveTokenScopes(getPool(), bearer);
+
       enforceTrue(scopes, denied(403, "insufficient scope"));
 
       const routeConfig = request.route.settings.plugins as Record<
@@ -54,10 +58,12 @@ const scheme =
         { scope?: TokenScope } | undefined
       >;
       const required = routeConfig[STRATEGY]?.scope;
+
       enforceTrue(
         !(required && !scopes.includes("admin") && !scopes.includes(required)),
         denied(403, "insufficient scope"),
       );
+
       return h.authenticated({ credentials: { scope: scopes } });
     },
   });

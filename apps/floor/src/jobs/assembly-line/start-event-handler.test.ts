@@ -13,6 +13,7 @@ function deferred<T>() {
     resolve = res;
     reject = rej;
   });
+
   return { promise, resolve, reject };
 }
 
@@ -30,6 +31,7 @@ async function seededPort(
     taskId: taskId ?? undefined,
     args: { description: "do the thing" },
   });
+
   return { port, assemblyLineId };
 }
 
@@ -40,6 +42,7 @@ function definition(name: string, nodeTypes: string[]): AssemblyLine {
     type,
     ...(type === "detect" ? { job_ref: "spec_drift" } : {}),
   })) as AssemblyLine["nodes"];
+
   return {
     name,
     description: "test fixture",
@@ -78,14 +81,17 @@ function makeDeps(
     definitions: async () => TEST_DEFINITIONS,
     runDetect: async (input) => {
       calls.detect.push({ ...input });
+
       return { ranWork: true, reason: "completed" };
     },
     runInProcess: async (input) => {
       calls.inProcess.push({ ...input });
+
       return { outcome: "pr_created", prUrl: "https://pr", prNumber: 7 };
     },
     runOnStation: async (task) => {
       calls.station.push({ ...task });
+
       return { ranWork: true, reason: "completed" };
     },
     applyTaskOutcome: async (taskId, result) => {
@@ -93,6 +99,7 @@ function makeDeps(
     },
     ...over,
   };
+
   return { deps, calls };
 }
 

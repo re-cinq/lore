@@ -70,14 +70,18 @@ export function createDetectTickHandler(
       typeof params.repo === "string" && params.repo.length > 0
         ? [params.repo]
         : await deps.listTargetRepos();
+
     if (repos.length === 0) {
       console.log(
         `[detect] ${definitionName}: no target repos, nothing to start`,
       );
+
       return;
     }
+
     for (const repo of repos) {
       const id = await deps.assemblyLines.start({ definitionName, repo });
+
       console.log(
         `[detect] ${definitionName}: started assembly line ${id} for ${repo}`,
       );

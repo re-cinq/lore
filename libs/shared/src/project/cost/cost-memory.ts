@@ -14,8 +14,10 @@ export class InMemoryCost implements CostPort {
       (existing) =>
         existing.bucketDate === row.bucketDate && existing.model === row.model,
     );
+
     if (index === -1) {
       this.rows.push({ ...row });
+
       return;
     }
     this.rows[index] = { ...row };

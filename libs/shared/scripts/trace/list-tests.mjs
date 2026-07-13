@@ -17,7 +17,10 @@ import { resolveTestLines } from "../../dist/spec-trace/resolve-test-lines.js";
 const ROOT = process.cwd(); // manifest cwd == repo root
 // Packages whose `src/` tests feed the graph. Override to narrow scope, e.g.
 // LORE_TRACE_PKGS=libs/shared LORE_TRACE_SCOPE=src/spec-trace for the old behavior.
-const PKGS = (process.env.LORE_TRACE_PKGS || "libs/shared,libs/runner,libs/server-core,apps/floor,apps/lore-api,apps/mcp-server,apps/web-ui")
+const PKGS = (
+  process.env.LORE_TRACE_PKGS ||
+  "libs/shared,libs/runner,libs/server-core,apps/floor,apps/lore-api,apps/mcp-server,apps/web-ui"
+)
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
@@ -29,6 +32,7 @@ function listPkg(pkg) {
   // stdout slice and crash the whole list. A file is immune to that.
   const dir = mkdtempSync(join(tmpdir(), "lore-trace-list-"));
   const jsonPath = join(dir, "list.json");
+
   try {
     execFileSync("npx", ["vitest", "list", SCOPE, `--json=${jsonPath}`], {
       cwd: join(ROOT, pkg),
@@ -36,11 +40,18 @@ function listPkg(pkg) {
       maxBuffer: 128 * 1024 * 1024,
       stdio: ["ignore", "ignore", "ignore"],
     });
-    return descriptorsFromVitestList(JSON.parse(readFileSync(jsonPath, "utf-8")), { pkg });
+
+    return descriptorsFromVitestList(
+      JSON.parse(readFileSync(jsonPath, "utf-8")),
+      { pkg },
+    );
   } catch (err) {
     // A package with no matching tests, or a genuine list failure, contributes
     // nothing — but say so, never drop a package silently.
-    console.warn(`[trace] list: ${pkg} contributed no tests (${err instanceof Error ? err.message : String(err)})`);
+    console.warn(
+      `[trace] list: ${pkg} contributed no tests (${err instanceof Error ? err.message : String(err)})`,
+    );
+
     return [];
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -53,11 +64,16 @@ function listPkg(pkg) {
 // specs/ dir simply binds nothing.
 function readSpecSources(root) {
   let entries;
+
   try {
-    entries = readdirSync(join(root, "specs"), { recursive: true, encoding: "utf-8" });
+    entries = readdirSync(join(root, "specs"), {
+      recursive: true,
+      encoding: "utf-8",
+    });
   } catch {
     return [];
   }
+
   return entries
     .filter((rel) => rel.endsWith(".md"))
     .map((rel) => ({
@@ -71,23 +87,39 @@ function readSpecSources(root) {
 // its descriptors (ADR-023).
 function resolveLines(descriptors) {
   const byFile = new Map();
+
   for (const descriptor of descriptors) {
-    const group = byFile.get(descriptor.file) ?? byFile.set(descriptor.file, []).get(descriptor.file);
+    const group =
+      byFile.get(descriptor.file) ??
+      byFile.set(descriptor.file, []).get(descriptor.file);
+
     group.push(descriptor);
   }
   const resolved = [];
+
   for (const [file, group] of byFile) {
     try {
-      resolved.push(...resolveTestLines(readFileSync(join(ROOT, file), "utf-8"), group));
+      resolved.push(
+        ...resolveTestLines(readFileSync(join(ROOT, file), "utf-8"), group),
+      );
     } catch {
       resolved.push(...group); // unreadable file — leave its descriptors line-blind
     }
   }
+
   return resolved;
 }
 
-const descriptors = bindDescriptorsToSpecLinks(resolveLines(PKGS.flatMap(listPkg)), readSpecSources(ROOT));
-const anchored = descriptors.filter((descriptor) => descriptor.spec !== undefined);
+const descriptors = bindDescriptorsToSpecLinks(
+  resolveLines(PKGS.flatMap(listPkg)),
+  readSpecSources(ROOT),
+);
+const anchored = descriptors.filter(
+  (descriptor) => descriptor.spec !== undefined,
+);
 const multi = anchored.filter((descriptor) => Array.isArray(descriptor.spec));
-console.warn(`[trace] list: ${anchored.length} descriptor(s) anchored to statements (${multi.length} multi-statement).`);
+
+console.warn(
+  `[trace] list: ${anchored.length} descriptor(s) anchored to statements (${multi.length} multi-statement).`,
+);
 process.stdout.write(JSON.stringify(descriptors));

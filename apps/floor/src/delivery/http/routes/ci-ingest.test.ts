@@ -5,9 +5,13 @@ import { insertEventList } from "../../../main-loop/store.js";
 vi.mock("../../../main-loop/store.js", () => ({ insertEventList: vi.fn() }));
 
 const ORIG = process.env.LORE_INGEST_TOKEN;
+
 afterEach(() => {
-  if (ORIG === undefined) delete process.env.LORE_INGEST_TOKEN;
-  else process.env.LORE_INGEST_TOKEN = ORIG;
+  if (ORIG === undefined) {
+    delete process.env.LORE_INGEST_TOKEN;
+  } else {
+    process.env.LORE_INGEST_TOKEN = ORIG;
+  }
   vi.mocked(insertEventList).mockReset();
 });
 
@@ -28,6 +32,7 @@ describe("POST /api/webhook/ci-ingest", () => {
       headers: { authorization: "Bearer whatever" },
       payload: "{}",
     });
+
     expect(res.statusCode).toBe(503);
   });
 
@@ -39,12 +44,14 @@ describe("POST /api/webhook/ci-ingest", () => {
       headers: { authorization: "Bearer wrong-token" },
       payload: "{}",
     });
+
     expect(res.statusCode).toBe(401);
   });
 
   it("returns 400 on a malformed JSON body when authorized", async () => {
     process.env.LORE_INGEST_TOKEN = "right-token";
     const res = await authed("{ not valid json");
+
     expect(res.statusCode).toBe(400);
   });
 
@@ -53,6 +60,7 @@ describe("POST /api/webhook/ci-ingest", () => {
     const res = await authed(
       JSON.stringify({ repo: "re-cinq/lore", kinds: ["bogus"] }),
     );
+
     expect(res.statusCode).toBe(400);
     expect((res.result as { message?: string }).message).toContain(
       "unsupported kind(s): bogus",
@@ -69,6 +77,7 @@ describe("POST /api/webhook/ci-ingest", () => {
         commit: "abc123",
       }),
     );
+
     expect(res.statusCode).toBe(500);
   });
 });

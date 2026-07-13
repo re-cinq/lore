@@ -12,6 +12,7 @@ export default function SpecDocument({
   statements: StatementInfo[];
 }) {
   const sections = splitMarkdownSections(content);
+
   return (
     <>
       {sections.map((section, index) => (

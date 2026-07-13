@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import {
   taskStore,
   taskQueue,
@@ -30,11 +31,15 @@ async function syncSpecTasksFromMerge(task: {
   target_branch: string | null;
 }): Promise<void> {
   const specSlug = specSlugFromBranch(task.target_branch || "");
-  if (!specSlug) return;
+
+  if (!specSlug) {
+    return;
+  }
 
   // Idempotency: check if spec-tasks already synced (by webhook or previous run)
   if (await taskQueue().hasSpecTasksForSlug(task.target_repo, specSlug)) {
     console.log(`[job] merge-check: spec-tasks already synced for ${specSlug}`);
+
     return;
   }
 
@@ -43,8 +48,10 @@ async function syncSpecTasksFromMerge(task: {
   const content = await projectFor(task.target_repo).then((p) =>
     p.repo.read(tasksPath),
   );
+
   if (!content) {
     console.log(`[job] merge-check: no tasks.md at ${tasksPath}`);
+
     return;
   }
 
@@ -88,6 +95,7 @@ export async function mergeCheckJob(): Promise<string> {
       const match = repo.onboarding_pr_url.match(
         /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/,
       );
+
       if (!match) {
         console.log(
           `[job] merge-check: invalid PR URL for ${repo.full_name}: ${repo.onboarding_pr_url}`,
@@ -120,9 +128,11 @@ export async function mergeCheckJob(): Promise<string> {
 
   let tasksMerged = 0;
   let tasksClosed = 0;
+
   for (const task of tasks) {
     try {
       const project = await projectFor(task.target_repo);
+
       if (await project.pulls.isMerged(task.pr_number)) {
         await handleMergedTask(project, task);
         tasksMerged++;
@@ -131,6 +141,7 @@ export async function mergeCheckJob(): Promise<string> {
         );
         continue;
       }
+
       // Closed-without-merge is a rejection signal.
       if (await project.pulls.isClosed(task.pr_number)) {
         await handleRejectedTask(task);
@@ -157,6 +168,7 @@ async function handleMergedTask(
   await taskStore().recordEvent(task.id, "pr-created", "merged", {
     merged_by: "merge-check",
   });
+
   // Close the GitHub Issue if still open
   if (task.issue_number) {
     try {
@@ -169,6 +181,7 @@ async function handleMergedTask(
       /* best effort */
     }
   }
+
   // Capture PR outcome as episode for learning
   try {
     const stats = await project.pulls.getStats(task.pr_number);
@@ -180,6 +193,7 @@ async function handleMergedTask(
         )
       : null;
     const episode = `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.\nFiles changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}\nReview comments: ${stats.comments}\nTime to merge: ${timeToMerge}h\nDescription: ${task.description.substring(0, 200)}`;
+
     await writeEpisodeWithCuration(
       episode,
       "ci",
@@ -203,15 +217,16 @@ async function handleMergedTask(
   if (task.task_type === "feature-request") {
     try {
       await syncSpecTasksFromMerge(task);
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[job] merge-check: spec-task sync failed for ${task.id}: ${err.message}`,
+        `[job] merge-check: spec-task sync failed for ${task.id}: ${errorMessage(err)}`,
       );
     }
   }
   // When a finalized feature's spec PR merges, decompose it into stories +
   // spec-tasks (ADR-029). The decompose handler is idempotent on the slug.
   const decompose = decideDecomposeKick(task);
+
   if (decompose.kick) {
     try {
       await taskQueue().insertTask({
@@ -228,9 +243,9 @@ async function handleMergedTask(
       console.log(
         `[job] merge-check: kicked feature-decompose for ${decompose.slug ?? decompose.featureId}`,
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[job] merge-check: could not kick decompose for ${task.id}: ${err.message}`,
+        `[job] merge-check: could not kick decompose for ${task.id}: ${errorMessage(err)}`,
       );
     }
   }
@@ -263,9 +278,13 @@ async function applyOutcomeFeedback(
 ): Promise<void> {
   try {
     const refs = await taskQueue().contextRefs(taskId);
-    if (!refs) return;
+
+    if (!refs) {
+      return;
+    }
     const factIds = refs.fact_ids ?? [];
     const memoryIds = refs.memory_ids ?? [];
+
     if (action === "boost") {
       await memoryLifecycle().boostContributors(factIds, memoryIds);
     } else {
@@ -293,17 +312,25 @@ async function applyOutcomeFeedback(
 async function promoteTrust(targetRepo: string): Promise<void> {
   try {
     const repoSettings = await settings().rawSettings(targetRepo);
-    if (!repoSettings) return;
+
+    if (!repoSettings) {
+      return;
+    }
     const trust = repoSettings.trust as RepoTrust | undefined;
-    if (!trust?.level || trust.level === "full") return;
+
+    if (!trust?.level || trust.level === "full") {
+      return;
+    }
     const threshold = trust.auto_promote_threshold || 3;
     const count = (trust.successful_tasks || 0) + 1;
+
     if (count >= threshold) {
       const nextIdx = Math.min(
         TRUST_LEVELS.indexOf(trust.level) + 1,
         TRUST_LEVELS.length - 1,
       );
       const nextLevel = TRUST_LEVELS[nextIdx];
+
       await settings().updateSettings(targetRepo, {
         ...repoSettings,
         trust: {

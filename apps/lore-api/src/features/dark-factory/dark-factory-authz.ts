@@ -51,6 +51,7 @@ export function parsePrRef(ref: string): {
   number: number;
 } {
   const m = ref.match(PR_REF_RE);
+
   enforceTrue(
     m,
     new TwoKeyError(
@@ -58,6 +59,7 @@ export function parsePrRef(ref: string): {
       "invalid_pr_ref",
     ),
   );
+
   return { owner: m[1], repo: m[2], number: Number.parseInt(m[3], 10) };
 }
 
@@ -86,6 +88,7 @@ export async function verifyApproval(opts: {
   }
 
   let pr;
+
   try {
     pr = await octokit.rest.pulls.get({
       owner,
@@ -112,6 +115,7 @@ export async function verifyApproval(opts: {
 
   // Find the label-application event by the CODEOWNERS member.
   let events;
+
   try {
     events = await octokit.rest.issues.listEvents({
       owner,
@@ -129,10 +133,14 @@ export async function verifyApproval(opts: {
   // Octokit types `events.data` as a discriminated union; `label` only
   // exists on `labeled`/`unlabeled` variants. Narrow + cast.
   const labelEvent = events.data.find((e) => {
-    if (e.event !== "labeled") return false;
+    if (e.event !== "labeled") {
+      return false;
+    }
     const labeled = e as unknown as { label?: { name?: string } };
+
     return labeled.label?.name === APPROVAL_LABEL;
   });
+
   enforceTrue(
     !(!labelEvent || !labelEvent.actor?.login),
     new TwoKeyError(
@@ -144,6 +152,7 @@ export async function verifyApproval(opts: {
   const approver = labelEvent.actor.login;
 
   const codeowners = await fetchCodeowners({ octokit, owner, repo });
+
   if (!isCodeowner(approver, codeowners)) {
     // Distinguish "no @user matched" from "the file only lists team
     // handles". Team-membership lookup against the GitHub team API is
@@ -189,6 +198,7 @@ async function fetchCodeowners(opts: {
   repo: string;
 }): Promise<Array<{ pattern: string; owners: string[] }>> {
   const candidates = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
+
   for (const filepath of candidates) {
     try {
       const r = await opts.octokit.rest.repos.getContent({
@@ -197,18 +207,23 @@ async function fetchCodeowners(opts: {
         path: filepath,
       });
       const data = r.data;
+
       if ("content" in data && data.encoding === "base64") {
         const text = Buffer.from(data.content, "base64").toString("utf-8");
+
         return parseCodeowners(text);
       }
     } catch (err) {
-      if ((err as { status?: number }).status === 404) continue;
+      if ((err as { status?: number }).status === 404) {
+        continue;
+      }
       throw new TwoKeyError(
         `CODEOWNERS unparseable: ${(err as Error).message}`,
         "codeowners_unparseable",
       );
     }
   }
+
   return [];
 }
 
@@ -216,16 +231,24 @@ function parseCodeowners(
   text: string,
 ): Array<{ pattern: string; owners: string[] }> {
   const out: Array<{ pattern: string; owners: string[] }> = [];
+
   for (const rawLine of text.split("\n")) {
     const line = rawLine.replace(/#.*$/, "").trim();
-    if (!line) continue;
+
+    if (!line) {
+      continue;
+    }
     const tokens = line.split(/\s+/);
-    if (tokens.length < 2) continue;
+
+    if (tokens.length < 2) {
+      continue;
+    }
     out.push({
       pattern: tokens[0],
       owners: tokens.slice(1),
     });
   }
+
   return out;
 }
 
@@ -240,8 +263,12 @@ export function isCodeowner(
   codeowners: Array<{ pattern: string; owners: string[] }>,
 ): boolean {
   const handle = login.startsWith("@") ? login : "@" + login;
+
   for (const row of codeowners) {
-    if (row.owners.includes(handle)) return true;
+    if (row.owners.includes(handle)) {
+      return true;
+    }
   }
+
   return false;
 }

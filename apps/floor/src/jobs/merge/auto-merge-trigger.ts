@@ -32,7 +32,10 @@ export async function tryAutoMergeForCompletedTask(opts: {
   // of a GitHub API round-trip.
   const task = await taskStore().getById(opts.taskId);
   const targetRepo = task?.target_repo;
-  if (!targetRepo) return null;
+
+  if (!targetRepo) {
+    return null;
+  }
 
   const rawSettings = await settingsRepo().rawSettings(targetRepo);
   const settings = resolveDarkFactorySettings(
@@ -40,10 +43,16 @@ export async function tryAutoMergeForCompletedTask(opts: {
       typeof resolveDarkFactorySettings
     >[0]) ?? null,
   );
-  if (!settings.enabled) return null;
+
+  if (!settings.enabled) {
+    return null;
+  }
 
   const pr = await resolvePrForTaskFromDb(opts.taskId, settings);
-  if (!pr) return null;
+
+  if (!pr) {
+    return null;
+  }
 
   return evaluateAndMerge({
     taskId: opts.taskId,

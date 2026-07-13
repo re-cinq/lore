@@ -23,6 +23,7 @@ describe("cronDedupeKey", () => {
   it("produces distinct keys for different minutes", () => {
     const a = cronDedupeKey("reindex", new Date("2026-06-29T10:15:00Z"));
     const b = cronDedupeKey("reindex", new Date("2026-06-29T10:16:00Z"));
+
     expect(a).not.toBe(b);
   });
 });

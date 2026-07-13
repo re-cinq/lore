@@ -124,12 +124,14 @@ export async function runSupervisor(
   const backend = opts.leaseBackend;
 
   const lease = await backend.acquire(opts.branchName, opts.taskId, holder);
+
   if (!lease.acquired) {
     console.log(
       `[supervisor] Lease for ${opts.branchName} held by ${
         lease.currentHolder ?? "unknown"
       }; exiting`,
     );
+
     return {
       ranWork: false,
       reason: "lease_held",
@@ -141,6 +143,7 @@ export async function runSupervisor(
     console.log(
       `[supervisor] Took over lease on ${opts.branchName} from previous holder ${lease.tookOverFrom} (lease had expired)`,
     );
+
     // Record the takeover when an audit sink is wired (project.audit). In
     // local/file-lease mode no sink is injected — local-tasks.json is the
     // local trail — so this is skipped silently. Non-fatal on failure.
@@ -175,6 +178,7 @@ export async function runSupervisor(
         `[supervisor] Acquired lease on ${opts.branchName} as ${holder}; ` +
           `assemblyLine=${opts.assemblyLine?.name ?? "(lease-only)"} (executor not configured — lease lifecycle only)`,
       );
+
       return { ranWork: true, reason: "executor_pending" };
     }
     enforceTrue(
@@ -187,6 +191,7 @@ export async function runSupervisor(
     console.log(
       `[supervisor] Walking assemblyLine ${opts.assemblyLine.name} on ${opts.branchName} as ${holder}`,
     );
+
     try {
       const summary = await executeAssemblyLine({
         assemblyLine: opts.assemblyLine,
@@ -201,6 +206,7 @@ export async function runSupervisor(
         trace: opts.trace,
         gitCommit: opts.gitCommit,
       });
+
       return { ranWork: true, reason: "completed", summary };
     } catch (err) {
       if (err instanceof IterationMaxExceededError) {
@@ -214,6 +220,7 @@ export async function runSupervisor(
         `[supervisor] executeAssemblyLine threw on ${opts.branchName}:`,
         (err as Error).message,
       );
+
       return {
         ranWork: true,
         reason: "executor_error",

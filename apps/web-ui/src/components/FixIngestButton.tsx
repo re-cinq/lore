@@ -17,7 +17,9 @@ export default function FixIngestButton({
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState<number | null>(null);
 
-  if (repos.length === 0) return null;
+  if (repos.length === 0) {
+    return null;
+  }
 
   return (
     <button
@@ -26,6 +28,7 @@ export default function FixIngestButton({
       onClick={() =>
         startTransition(async () => {
           const { opened } = await action(repos);
+
           setDone(opened);
         })
       }

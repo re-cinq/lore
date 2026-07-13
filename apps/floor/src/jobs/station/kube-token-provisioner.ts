@@ -47,6 +47,7 @@ export interface TokenCleanup {
 
 const statusOf = (err: unknown): number | undefined => {
   const e = err as { code?: number; response?: { statusCode?: number } };
+
   return e?.code ?? e?.response?.statusCode;
 };
 const isNotFound = (err: unknown): boolean => statusOf(err) === 404;
@@ -64,9 +65,13 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
   async provision(spec: LoreTaskSpec): Promise<string | undefined> {
     const catalogDef = await this.catalog.getAgentDefinition(spec.taskType);
     const catalogStation = await this.catalog.getStation(spec.taskType);
-    if (!catalogDef || !catalogStation) return undefined;
+
+    if (!catalogDef || !catalogStation) {
+      return undefined;
+    }
 
     const key = tokenSecretKey(spec.taskId);
+
     await this.secrets.setKey(
       this.secretName,
       key,
@@ -74,17 +79,20 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
     );
 
     const name = perTaskName(spec.taskId);
+
     await this.catalog.applyAgentDefinition(
       injectRepoToken(catalogDef, spec, key, name),
     );
     await this.catalog.applyStation(
       perTaskStation(catalogStation, name, name, spec.taskId),
     );
+
     return name;
   }
 
   async cleanup(taskId: string): Promise<void> {
     const name = perTaskName(taskId);
+
     await Promise.allSettled([
       this.secrets.deleteKey(this.secretName, tokenSecretKey(taskId)),
       this.catalog.deleteStation(name),
@@ -114,7 +122,9 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
   private async core() {
     const { KubeConfig, CoreV1Api } = await import("@kubernetes/client-node");
     const kc = new KubeConfig();
+
     kc.loadFromCluster();
+
     return kc.makeApiClient(CoreV1Api);
   }
 
@@ -137,23 +147,29 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
     change: (data: Record<string, string>) => void,
   ): Promise<void> {
     const core = await this.core();
+
     for (let attempt = 0; ; attempt++) {
       const current = await core.readNamespacedSecret({
         name: secret,
         namespace: this.namespace,
       });
       const data = (current.data ?? {}) as Record<string, string>;
+
       change(data);
       current.data = data;
+
       try {
         await core.replaceNamespacedSecret({
           name: secret,
           namespace: this.namespace,
           body: current,
         });
+
         return;
       } catch (err) {
-        if (isConflict(err) && attempt < 4) continue;
+        if (isConflict(err) && attempt < 4) {
+          continue;
+        }
         throw err;
       }
     }
@@ -170,7 +186,9 @@ export class KubeCatalogApi implements CatalogApi {
     const { KubeConfig, CustomObjectsApi } =
       await import("@kubernetes/client-node");
     const kc = new KubeConfig();
+
     kc.loadFromCluster();
+
     return kc.makeApiClient(CustomObjectsApi);
   }
 
@@ -195,6 +213,7 @@ export class KubeCatalogApi implements CatalogApi {
 
   private async get<T>(plural: string, name: string): Promise<T | null> {
     const api = await this.api();
+
     try {
       return (await api.getNamespacedCustomObject({
         group: GROUP,
@@ -204,7 +223,9 @@ export class KubeCatalogApi implements CatalogApi {
         name,
       })) as T;
     } catch (err) {
-      if (isNotFound(err)) return null;
+      if (isNotFound(err)) {
+        return null;
+      }
       throw err;
     }
   }
@@ -216,6 +237,7 @@ export class KubeCatalogApi implements CatalogApi {
     body: object,
   ): Promise<void> {
     const api = await this.api();
+
     try {
       await api.createNamespacedCustomObject({
         group: GROUP,
@@ -225,7 +247,9 @@ export class KubeCatalogApi implements CatalogApi {
         body,
       });
     } catch (err) {
-      if (!isConflict(err)) throw err;
+      if (!isConflict(err)) {
+        throw err;
+      }
       const current = (await api.getNamespacedCustomObject({
         group: GROUP,
         version: VERSION,
@@ -235,6 +259,7 @@ export class KubeCatalogApi implements CatalogApi {
       })) as { metadata?: { resourceVersion?: string } };
       const meta =
         (body as { metadata?: Record<string, unknown> }).metadata ?? {};
+
       await api.replaceNamespacedCustomObject({
         group: GROUP,
         version: VERSION,
@@ -254,6 +279,7 @@ export class KubeCatalogApi implements CatalogApi {
 
   private async del(plural: string, name: string): Promise<void> {
     const api = await this.api();
+
     try {
       await api.deleteNamespacedCustomObject({
         group: GROUP,
@@ -263,7 +289,9 @@ export class KubeCatalogApi implements CatalogApi {
         name,
       });
     } catch (err) {
-      if (!isNotFound(err)) throw err;
+      if (!isNotFound(err)) {
+        throw err;
+      }
     }
   }
 }

@@ -35,8 +35,10 @@ export default async function GraphPage({
 
   // If an entity is selected, show its edges
   let edges: Edge[] = [];
+
   if (entity) {
     const validFilter = showInvalid ? "" : "AND e.valid_to IS NULL";
+
     edges = await query<Edge>(
       `
       SELECT s.name as source_name, s.entity_type as source_type,
@@ -60,6 +62,7 @@ export default async function GraphPage({
   const entityConditions: string[] = [];
   const entityParams: string[] = [];
   const pi = 1;
+
   if (type) {
     entityConditions.push(`en.entity_type = $${pi}`);
     entityParams.push(type);

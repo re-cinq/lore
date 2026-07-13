@@ -10,9 +10,13 @@ async function createTask(formData: FormData) {
   const taskType = (formData.get("task_type") as string) || "general";
   const targetRepo = formData.get("target_repo") as string;
   const priority = (formData.get("priority") as string) || "normal";
-  if (!description?.trim()) return;
+
+  if (!description?.trim()) {
+    return;
+  }
 
   const resolvedPriority = priority === "immediate" ? "immediate" : "normal";
+
   await query(
     `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, priority)
      VALUES ($1, $2, $3, 'ui', $4)`,
@@ -22,6 +26,7 @@ async function createTask(formData: FormData) {
   const task = await query(
     `SELECT id FROM pipeline.tasks ORDER BY created_at DESC LIMIT 1`,
   );
+
   if (task[0]) {
     await query(
       `INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`,

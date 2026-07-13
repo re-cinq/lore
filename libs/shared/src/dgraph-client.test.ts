@@ -6,6 +6,7 @@ describe("createDgraphClient", () => {
     const client = createDgraphClient({
       LORE_DGRAPH_HTTP: "http://localhost:8081",
     });
+
     expect(typeof client?.newTxn).toBe("function");
   });
 });

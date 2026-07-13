@@ -1,7 +1,11 @@
 import type { PipelineTask } from "../../types.js";
-import type { CreateTaskInput } from "../../pipeline-tasks.js";
+import type {
+  CreatedTask,
+  CreateTaskInput,
+  RetriedTask,
+} from "../../pipeline-tasks.js";
 
-export type { CreateTaskInput };
+export type { CreateTaskInput, CreatedTask, RetriedTask };
 
 /**
  * The task states where a task is still "in flight" — a new duplicate should be
@@ -75,8 +79,8 @@ export interface TaskStorePort {
     specPath: string,
   ): Promise<DriftTaskRow[]>;
   // writes
-  create(input: CreateTaskInput): Promise<any>;
-  retry(id: string): Promise<any>;
+  create(input: CreateTaskInput): Promise<CreatedTask>;
+  retry(id: string): Promise<RetriedTask>;
   setStatus(
     id: string,
     status: string,
@@ -89,12 +93,16 @@ export interface TaskStorePort {
     status: string,
     extra?: Record<string, unknown>,
   ): Promise<boolean>;
-  updateStatus(id: string, status: string, meta?: unknown): Promise<void>;
+  updateStatus(
+    id: string,
+    status: string,
+    meta?: Record<string, unknown>,
+  ): Promise<void>;
   recordEvent(
     id: string,
     fromStatus: string | null,
     toStatus: string | null,
-    meta?: unknown,
+    meta?: Record<string, unknown>,
   ): Promise<void>;
   cancel(id: string): Promise<{ task_id: string; status: string }>;
   markMerged(id: string): Promise<{ task_id: string; status: string }>;

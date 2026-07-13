@@ -10,6 +10,7 @@ describe("createDetectTickHandler", () => {
       assemblyLines,
       listTargetRepos: async () => {
         listed.push(1);
+
         return ["re-cinq/lore", "re-cinq/other"];
       },
     });

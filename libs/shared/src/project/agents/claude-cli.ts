@@ -43,6 +43,7 @@ export function runClaudeCli(params: {
       env: { ...env },
       stdio: ["ignore", "pipe", "pipe"],
     });
+
     proc.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
     });
@@ -50,6 +51,7 @@ export function runClaudeCli(params: {
       proc.kill("SIGTERM");
       reject(new Error(`agent CLI timed out after ${timeoutMs / 1000}s`));
     }, timeoutMs);
+
     proc.on("error", (err) => {
       clearTimeout(timer);
       reject(err);

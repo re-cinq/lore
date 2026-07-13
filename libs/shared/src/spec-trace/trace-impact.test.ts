@@ -89,6 +89,7 @@ describe("buildImpactAnnotations", () => {
       },
       [{ path: "src/widget.ts", ranges: [[5, 8]] }],
     );
+
     expect(annotations).toMatchObject([
       {
         path: "src/widget.ts",
@@ -122,6 +123,7 @@ describe("buildImpactAnnotations", () => {
       },
       [{ path: "src/legacy.ts", ranges: [], deleted: [[10, 20]] }],
     );
+
     expect(annotations).toMatchObject([
       {
         path: "src/legacy.ts",
@@ -144,6 +146,7 @@ describe("buildImpactComment", () => {
       orphaned: [],
       testSelectors: [],
     });
+
     expect(comment).toContain("Graph not available");
     expect(comment).toContain(marker);
   });
@@ -172,6 +175,7 @@ describe("buildImpactComment", () => {
         },
       ],
     });
+
     expect(comment).toContain("Widget Spec");
     expect(comment).toContain("The widget MUST render on mount.");
     expect(comment).toContain("Legacy Spec");
@@ -186,6 +190,7 @@ describe("buildImpactComment", () => {
       orphaned: [],
       testSelectors: [],
     });
+
     expect(comment).toContain("No spec impact");
     expect(comment).toContain(marker);
   });
@@ -205,6 +210,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -218,6 +224,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       const uids = Object.values(data)
         .flat()
         .map((n) => n.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -232,16 +239,21 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
   }
 
   let createdRepo = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
   });
 
   it("surfaces a statement whose implemented_by CodeChunk overlaps a changed range", async () => {
     const repo = `test-impact/${randomUUID()}`;
+
     createdRepo = repo;
     const specPath = "specs/widget/spec.md";
 
     const txn = dgraphClient.newTxn();
+
     try {
       await txn.mutate({
         setJson: {
@@ -294,15 +306,18 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const noOverlap = await computeImpact(dgraphClient, repo, [
       { path: "src/widget.ts", ranges: [[50, 60]] },
     ]);
+
     expect(noOverlap.statements).toEqual([]);
   });
 
   it("surfaces a validated_by statement via a Coverage facet range overlapping the diff, with the test selector", async () => {
     const repo = `test-impact/${randomUUID()}`;
+
     createdRepo = repo;
     const specPath = "specs/login/spec.md";
 
     const txn = dgraphClient.newTxn();
+
     try {
       await txn.mutate({
         setJson: {
@@ -372,10 +387,12 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
 
   it("flags a statement as orphaned when the diff deletes its only covering range", async () => {
     const repo = `test-impact/${randomUUID()}`;
+
     createdRepo = repo;
     const specPath = "specs/legacy/spec.md";
 
     const txn = dgraphClient.newTxn();
+
     try {
       await txn.mutate({
         setJson: {

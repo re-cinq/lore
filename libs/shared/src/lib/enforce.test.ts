@@ -17,6 +17,7 @@ describe("enforceTrue", () => {
 
   it("throws the provided Error instance when the condition is false", () => {
     const boom = new RangeError("out of range");
+
     expect(() => enforceTrue(0, boom)).toThrow(boom);
   });
 
@@ -24,8 +25,10 @@ describe("enforceTrue", () => {
     let built = 0;
     const factory = (): Error => {
       built++;
+
       return new Error("lazy");
     };
+
     enforceTrue(true, factory);
     expect(built).toBe(0);
     expect(() => enforceTrue(null, factory)).toThrow(new Error("lazy"));
@@ -34,6 +37,7 @@ describe("enforceTrue", () => {
 
   it("narrows the checked value for the happy path", () => {
     const value: string | undefined = "x";
+
     enforceTrue(value, "missing");
     // Type-level: `value` is now `string`; this line would not compile if it stayed `string | undefined`.
     expect(value.length).toBe(1);
@@ -43,6 +47,7 @@ describe("enforceTrue", () => {
 describe("enforceOk", () => {
   it("returns and narrows to the ok branch when ok is true", () => {
     const result: Result = { ok: true, value: 42 };
+
     enforceOk(result, "unused");
     // Type-level: `result` is now the ok branch; `.value` would not compile otherwise.
     expect(result.value).toBe(42);
@@ -50,6 +55,7 @@ describe("enforceOk", () => {
 
   it("throws an Error with the message when ok is false", () => {
     const result: Result = { ok: false, status: 400, reason: "bad repo" };
+
     expect(() => enforceOk(result, "invalid request")).toThrow(
       new Error("invalid request"),
     );

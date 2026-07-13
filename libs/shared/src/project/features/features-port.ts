@@ -140,8 +140,12 @@ export function latestReadyGap(
 ): GapResult | null {
   for (let i = iterations.length - 1; i >= 0; i--) {
     const it = iterations[i];
-    if (it.status === "ready" && it.gap_result) return it.gap_result;
+
+    if (it.status === "ready" && it.gap_result) {
+      return it.gap_result;
+    }
   }
+
   return null;
 }
 
@@ -208,13 +212,19 @@ export function decidePlanningRecovery(args: {
     windowMs = PLANNING_RECOVERY_STALE_MS,
   } = args;
   const latest = iterations[iterations.length - 1];
-  if (!latest) return { kind: "none" };
+
+  if (!latest) {
+    return { kind: "none" };
+  }
+
   if (latest.status === "running") {
     const stale = nowMs - Date.parse(latest.created_at) > windowMs;
+
     return !isActive || stale
       ? { kind: "orphan", iteration: latest.iteration }
       : { kind: "none" };
   }
+
   if (
     latest.status === "ready" &&
     latest.gap_result &&
@@ -222,6 +232,7 @@ export function decidePlanningRecovery(args: {
   ) {
     return { kind: "transition", iteration: latest.iteration };
   }
+
   return { kind: "none" };
 }
 
@@ -232,5 +243,6 @@ export function slugifyFeatureTitle(title: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
+
   return slug || "feature";
 }

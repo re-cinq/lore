@@ -63,6 +63,7 @@ function teeConsole(buffer: string[]): ConsoleSink {
           .join(" ")}\n`,
       );
     };
+
   console.log = (...args: unknown[]) => {
     original.log(...args);
     capture("[log]")(...args);
@@ -71,6 +72,7 @@ function teeConsole(buffer: string[]): ConsoleSink {
     original.error(...args);
     capture("[err]")(...args);
   };
+
   return original;
 }
 
@@ -86,22 +88,26 @@ async function uploadLogsBestEffort(
 ): Promise<string | undefined> {
   try {
     await writeJobRunLogs(jobName, runId, buffer.join(""));
+
     return jobRunLogKey(jobName, runId);
   } catch (uploadErr) {
     console.error(
       `[job-runner] Failed to upload logs for ${jobName}/${runId}:`,
       uploadErr,
     );
+
     return undefined;
   }
 }
 
 export async function runJobByName(jobName: string): Promise<number> {
   const handler = resolveJob(jobName);
+
   if (!handler) {
     console.error(
       `[job-runner] Unknown job: ${jobName}. Known: ${Object.keys(dispatch).join(", ")}`,
     );
+
     return 2;
   }
 
@@ -115,34 +121,41 @@ export async function runJobByName(jobName: string): Promise<number> {
   const originalConsole = teeConsole(buffer);
 
   const start = Date.now();
+
   try {
     const summary = await handler();
     const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
+
     await completeJobRun(runId, summary, { logPath });
     restoreConsole(originalConsole);
     console.log(
       `[job-runner] ${jobName} completed in ${Date.now() - start}ms: ${summary}`,
     );
+
     return 0;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
+
     await failJobRun(runId, message, { logPath });
     restoreConsole(originalConsole);
     console.error(
       `[job-runner] ${jobName} failed in ${Date.now() - start}ms: ${message}`,
     );
+
     return 1;
   }
 }
 
 function isCliEntrypoint(): boolean {
   const argv1 = process.argv[1] ?? "";
+
   return argv1.endsWith("job-runner.js") || argv1.endsWith("job-runner.ts");
 }
 
 if (isCliEntrypoint()) {
   const jobName = process.argv[2];
+
   if (!jobName) {
     console.error("Usage: node dist/job-runner.js <jobName>");
     process.exit(2);

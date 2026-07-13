@@ -14,6 +14,7 @@ const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 
 /** The terminal CR phases that produce an event, mapped to their event action. */
 const TERMINAL_ACTIONS = { Succeeded: "succeeded", Failed: "failed" } as const;
+
 type TerminalPhase = keyof typeof TERMINAL_ACTIONS;
 
 /** The `kubernetes.agent.*` event names this mapper can produce (the registry must cover each). */
@@ -28,10 +29,17 @@ export interface AgentLike {
 
 export function mapAgentToEvent(agent: AgentLike): EventInput | null {
   const phase = agent.status?.phase;
-  if (phase !== "Succeeded" && phase !== "Failed") return null;
+
+  if (phase !== "Succeeded" && phase !== "Failed") {
+    return null;
+  }
   const taskId = agent.metadata?.labels?.[TASK_ID_LABEL];
-  if (!taskId) return null;
+
+  if (!taskId) {
+    return null;
+  }
   const action = TERMINAL_ACTIONS[phase as TerminalPhase];
+
   return {
     eventName: `kubernetes.agent.${action}`,
     source: "kubernetes",

@@ -18,11 +18,15 @@ export function renderHoverMarkdown(entry: RangeEntry): string {
     "",
     `[Open spec](${openLocalCommandUri({ path: entry.specPath, line: entry.specLine || 1 })})`,
   ];
+
   for (const target of entry.related) {
-    if (target.line === null) continue;
+    if (target.line === null) {
+      continue;
+    }
     out.push(
       `[Open ${target.label}](${openLocalCommandUri({ path: target.path, line: target.line })})`,
     );
   }
+
   return out.join("\n");
 }

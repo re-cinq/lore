@@ -1,3 +1,5 @@
+import type { Pool } from "pg";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Repo onboarding module.
@@ -44,7 +46,9 @@ export async function getInstallationRepos(): Promise<InstallationRepo[]> {
       });
     }
 
-    if (data.repositories.length < perPage) break;
+    if (data.repositories.length < perPage) {
+      break;
+    }
     page++;
   }
 
@@ -63,19 +67,20 @@ export interface OnboardedRepo {
   last_ingested_at: string | null;
   onboarding_pr_url: string | null;
   onboarding_pr_merged: boolean;
-  settings: any;
+  settings: Record<string, unknown>;
 }
 
 /**
  * Returns all repos from lore.repos.
  */
-export async function getOnboardedRepos(pool: any): Promise<OnboardedRepo[]> {
+export async function getOnboardedRepos(pool: Pool): Promise<OnboardedRepo[]> {
   const { rows } = await pool.query(
     `SELECT id, owner, name, full_name, team, onboarded_at, last_ingested_at,
             onboarding_pr_url, onboarding_pr_merged, settings
      FROM lore.repos
      ORDER BY onboarded_at DESC`,
   );
+
   return rows;
 }
 
@@ -83,10 +88,10 @@ export async function getOnboardedRepos(pool: any): Promise<OnboardedRepo[]> {
  * Returns a page of repos with pipeline task counts plus the unpaged total.
  */
 export async function getOnboardedReposWithCounts(
-  pool: any,
+  pool: Pool,
   limit = 100,
   offset = 0,
-): Promise<{ repos: any[]; total: number }> {
+): Promise<{ repos: Record<string, unknown>[]; total: number }> {
   const { rows } = await pool.query(
     `SELECT r.id, r.owner, r.name, r.full_name, r.team,
             r.onboarded_at, r.last_ingested_at,
@@ -105,6 +110,7 @@ export async function getOnboardedReposWithCounts(
   const { rows: countRows } = await pool.query(
     `SELECT count(*)::int as total FROM lore.repos`,
   );
+
   return { repos: rows, total: countRows[0].total };
 }
 
@@ -112,7 +118,7 @@ export async function getOnboardedReposWithCounts(
  * Returns installation repos that are NOT yet in lore.repos.
  */
 export async function getAvailableRepos(
-  pool: any,
+  pool: Pool,
 ): Promise<InstallationRepo[]> {
   const [installation, onboarded] = await Promise.all([
     getInstallationRepos(),
@@ -120,6 +126,7 @@ export async function getAvailableRepos(
   ]);
 
   const onboardedSet = new Set(onboarded.map((r) => r.full_name));
+
   return installation.filter((r) => !onboardedSet.has(r.full_name));
 }
 
@@ -141,10 +148,11 @@ export interface OnboardResult {
  * supporting files — then open a single onboarding PR.
  */
 export async function onboardRepo(
-  pool: any,
+  pool: Pool,
   fullName: string,
 ): Promise<OnboardResult> {
   const [owner, name] = fullName.split("/");
+
   enforceTrue(
     !(!owner || !name),
     new Error(
@@ -176,6 +184,7 @@ export async function onboardRepo(
   // events flow once the App is installed — without it, deliveries 401. Best-effort:
   // a missing secret/host or a lacking App permission is reported, never fatal.
   const webhook = await ensureFloorWebhook(fullName);
+
   if (webhook.ok) {
     console.log(
       `[onboard] Webhook ${webhook.created ? "created" : "updated"} for ${fullName} (hook ${webhook.hookId})`,
@@ -234,6 +243,7 @@ function decodeContent(encoded: string): string {
  */
 export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   const [owner, repo] = fullName.split("/");
+
   enforceTrue(
     !(!owner || !repo),
     new Error(
@@ -245,23 +255,26 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   // 1. Fetch top-level tree
   let tree: string[] = [];
+
   try {
     const { data } = await octokit.rest.repos.getContent({
       owner,
       repo,
       path: "",
     });
+
     if (Array.isArray(data)) {
-      tree = data.map((entry: any) => entry.name);
+      tree = data.map((entry) => entry.name);
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error(
-      `[onboard] Failed to fetch tree for ${fullName}: ${err.message}`,
+      `[onboard] Failed to fetch tree for ${fullName}: ${errorMessage(err)}`,
     );
   }
 
   // 2. Fetch key files (skip 404s)
   const files: Record<string, string> = {};
+
   await Promise.all(
     KEY_FILES.map(async (path) => {
       try {
@@ -270,13 +283,14 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
           repo,
           path,
         });
+
         if (!Array.isArray(data) && data.type === "file" && data.content) {
           files[path] = decodeContent(data.content);
         }
-      } catch (err: any) {
-        if (err.status !== 404) {
+      } catch (err) {
+        if ((err as { status?: number }).status !== 404) {
           console.error(
-            `[onboard] Error fetching ${fullName}/${path}: ${err.message}`,
+            `[onboard] Error fetching ${fullName}/${path}: ${errorMessage(err)}`,
           );
         }
       }
@@ -285,44 +299,54 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   // 3. Sample up to 3 source files from key directories
   const samples: Record<string, string> = {};
-  for (const dir of SAMPLE_DIRS) {
-    if (Object.keys(samples).length >= 3) break;
 
-    let entries: any[] = [];
+  for (const dir of SAMPLE_DIRS) {
+    if (Object.keys(samples).length >= 3) {
+      break;
+    }
+
+    let entries: Array<{ name: string; path: string; type: string }> = [];
+
     try {
       const { data } = await octokit.rest.repos.getContent({
         owner,
         repo,
         path: dir,
       });
+
       if (Array.isArray(data)) {
-        entries = data.filter((e: any) => e.type === "file");
+        entries = data.filter((e) => e.type === "file");
       }
-    } catch (err: any) {
-      if (err.status !== 404) {
+    } catch (err) {
+      if ((err as { status?: number }).status !== 404) {
         console.error(
-          `[onboard] Error listing ${fullName}/${dir}: ${err.message}`,
+          `[onboard] Error listing ${fullName}/${dir}: ${errorMessage(err)}`,
         );
       }
       continue;
     }
 
     for (const entry of entries) {
-      if (Object.keys(samples).length >= 3) break;
+      if (Object.keys(samples).length >= 3) {
+        break;
+      }
+
       try {
         const { data } = await octokit.rest.repos.getContent({
           owner,
           repo,
           path: entry.path,
         });
+
         if (!Array.isArray(data) && data.type === "file" && data.content) {
           const full = decodeContent(data.content);
           const first200 = full.split("\n").slice(0, 200).join("\n");
+
           samples[entry.path] = first200;
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error(
-          `[onboard] Error fetching sample ${fullName}/${entry.path}: ${err.message}`,
+          `[onboard] Error fetching sample ${fullName}/${entry.path}: ${errorMessage(err)}`,
         );
       }
     }
@@ -338,16 +362,20 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
  * be merged, flips onboarding_pr_merged to true and sets last_ingested_at
  * so the nightly CronJob picks it up for initial ingestion (T019).
  */
-export async function checkOnboardingPRs(pool: any): Promise<void> {
+export async function checkOnboardingPRs(pool: Pool): Promise<void> {
   const { rows } = await pool.query(
     `SELECT id, full_name, onboarding_pr_url FROM lore.repos
      WHERE onboarding_pr_merged = false AND onboarding_pr_url IS NOT NULL`,
   );
+
   for (const repo of rows) {
     try {
       // Extract PR number from URL
       const match = repo.onboarding_pr_url.match(/\/pull\/(\d+)/);
-      if (!match) continue;
+
+      if (!match) {
+        continue;
+      }
       const prNumber = parseInt(match[1]);
       const [owner, name] = repo.full_name.split("/");
 
@@ -367,6 +395,7 @@ export async function checkOnboardingPRs(pool: any): Promise<void> {
         // Trigger initial ingestion via pipeline
         const { createTask } =
           await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
+
         await createTask(
           `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
           "general",
@@ -377,9 +406,9 @@ export async function checkOnboardingPRs(pool: any): Promise<void> {
           `[repo-onboard] Onboarding PR merged for ${repo.full_name}, ingestion triggered`,
         );
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[repo-onboard] Error checking PR for ${repo.full_name}: ${err.message}`,
+        `[repo-onboard] Error checking PR for ${repo.full_name}: ${errorMessage(err)}`,
       );
     }
   }

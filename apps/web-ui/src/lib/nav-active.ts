@@ -9,6 +9,9 @@ export function isNavActive(
   href: string,
   rootHref: string,
 ): boolean {
-  if (href === rootHref) return pathname === href;
+  if (href === rootHref) {
+    return pathname === href;
+  }
+
   return pathname === href || pathname.startsWith(`${href}/`);
 }

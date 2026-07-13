@@ -21,6 +21,7 @@ describe("parseAgentEvents", () => {
         duration_ms: 42000,
       }),
     );
+
     expect(parseAgentEvents(ndjson)).toEqual([
       {
         taskId: "task-uuid-1",
@@ -38,8 +39,10 @@ describe("parseAgentEvents", () => {
       src,
       result({ model: "claude-haiku-4-5", usage: { input_tokens: 1 } }),
     );
+
     expect(parseAgentEvents(flat)[0].model).toBe("claude-haiku-4-5");
     const empty = line(src, result({ modelUsage: {}, usage: {} }));
+
     expect(parseAgentEvents(empty)[0].model).toBe("unknown");
   });
 
@@ -60,12 +63,14 @@ describe("parseAgentEvents", () => {
       line(src, { type: "system", subtype: "init" }),
       line(src, result({ total_cost_usd: 1 })),
     ].join("\n");
+
     expect(parseAgentEvents(ndjson)).toEqual([]);
   });
 
   it("skips lines with no resolvable task id", () => {
     const noTask = line({ agent: "a" }, result({ usage: {} }));
     const stringSource = line("not-an-object", result({ usage: {} }));
+
     expect(parseAgentEvents(`${noTask}\n${stringSource}`)).toEqual([]);
   });
 
@@ -77,6 +82,7 @@ describe("parseAgentEvents", () => {
       "{not json",
       line(src, "raw stdout text"),
     ].join("\n");
+
     expect(parseAgentEvents(ndjson)).toEqual([]);
   });
 
@@ -89,6 +95,7 @@ describe("parseAgentEvents", () => {
       { task: "t-b" },
       result({ usage: { input_tokens: 20 }, total_cost_usd: 0.2 }),
     );
+
     expect(parseAgentEvents(`${a}\n${b}`).map((r) => r.taskId)).toEqual([
       "t-a",
       "t-b",

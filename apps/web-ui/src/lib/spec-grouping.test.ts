@@ -31,6 +31,7 @@ describe("groupSpecSummaries", () => {
         coverage: { testable: 4, covered: 3, untestable: 1, ratio: 0.75 },
       },
     ]);
+
     expect(groups).toEqual([
       {
         key: "specs/auth",

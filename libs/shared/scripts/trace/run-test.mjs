@@ -16,6 +16,7 @@ const ROOT = process.cwd(); // manifest cwd == repo root
 const SRC_RE = /^(?:libs|apps)\/[^/]+\/src\//;
 
 const id = process.argv[2];
+
 if (!id) {
   console.error("run-test: missing test id");
   process.exit(2);
@@ -27,6 +28,7 @@ const fileInPkg = segments.slice(2).join("/");
 const reportDir = mkdtempSync(join(tmpdir(), "lore-trace-cov-"));
 
 let passed = true;
+
 try {
   execFileSync(
     "npx",
@@ -46,30 +48,53 @@ try {
       "--coverage.thresholds.branches=0",
       `--coverage.reportsDirectory=${reportDir}`,
     ],
-    { cwd: join(ROOT, pkg), encoding: "utf-8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "ignore", "ignore"] },
+    {
+      cwd: join(ROOT, pkg),
+      encoding: "utf-8",
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["ignore", "ignore", "ignore"],
+    },
   );
 } catch {
   passed = false; // non-zero exit == a failing/erroring test, still report coverage
 }
 
 function repoRelative(absolutePath) {
-  return absolutePath.startsWith(`${ROOT}/`) ? absolutePath.slice(ROOT.length + 1) : absolutePath;
+  return absolutePath.startsWith(`${ROOT}/`)
+    ? absolutePath.slice(ROOT.length + 1)
+    : absolutePath;
 }
 
 const covered = [];
+
 try {
-  const report = JSON.parse(readFileSync(join(reportDir, "coverage-final.json"), "utf-8"));
+  const report = JSON.parse(
+    readFileSync(join(reportDir, "coverage-final.json"), "utf-8"),
+  );
   const seen = new Set();
+
   for (const entry of Object.values(report)) {
     const file = repoRelative(entry.path);
-    if (!SRC_RE.test(file)) continue;
-    if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue; // COVERS targets real code, not the test itself
+
+    if (!SRC_RE.test(file)) {
+      continue;
+    }
+
+    if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) {
+      continue;
+    } // COVERS targets real code, not the test itself
+
     for (const [statementId, range] of Object.entries(entry.statementMap)) {
-      if ((entry.s[statementId] ?? 0) <= 0) continue;
+      if ((entry.s[statementId] ?? 0) <= 0) {
+        continue;
+      }
       const startLine = range.start.line;
       const endLine = range.end.line ?? startLine;
       const key = `${file}:${startLine}:${endLine}`;
-      if (seen.has(key)) continue;
+
+      if (seen.has(key)) {
+        continue;
+      }
       seen.add(key);
       covered.push({ file, startLine, endLine });
     }

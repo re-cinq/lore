@@ -17,7 +17,7 @@ export default async function EpisodesPage({
   const offset = Math.max(0, parseInt(offsetStr || "0", 10) || 0);
 
   const conditions: string[] = [];
-  const params: any[] = [];
+  const params: unknown[] = [];
   const paramIndex = 1;
 
   if (source && source.trim()) {

@@ -57,6 +57,7 @@ describe("TaskLogs", () => {
       .mockResolvedValue(
         jsonResponse({ logs: null, status: "queued", totalSize: 0 }),
       );
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="queued" />);
@@ -77,6 +78,7 @@ describe("TaskLogs", () => {
       .mockResolvedValue(
         jsonResponse({ logs: "line-1\n", status: "succeeded", totalSize: 7 }),
       );
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="abc" initialStatus="succeeded" />);
@@ -95,6 +97,7 @@ describe("TaskLogs", () => {
         totalSize: 18,
       }),
     );
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="queued" />);
@@ -196,11 +199,13 @@ describe("TaskLogs", () => {
       .mockResolvedValue(
         jsonResponse({ logs: "x", status: "running", totalSize: 2048 }),
       );
+
     vi.stubGlobal("fetch", fetchMock);
 
     const { container } = render(
       <TaskLogs taskId="t1" initialStatus="running" />,
     );
+
     await settle();
 
     expect(container.querySelector('span[class*="pulse"]')).not.toBeNull();
@@ -223,6 +228,7 @@ describe("TaskLogs", () => {
     await settle();
 
     const note = screen.getByText("Polling every 5s");
+
     expect(note.textContent).toBe("Polling every 5s");
   });
 
@@ -234,6 +240,7 @@ describe("TaskLogs", () => {
     const FULL = "first-chunk-second";
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       const m = url.match(/offset=(\d+)/);
+
       if (!m) {
         return Promise.resolve(
           jsonResponse({
@@ -244,6 +251,7 @@ describe("TaskLogs", () => {
         );
       }
       const off = Number(m[1]);
+
       return Promise.resolve(
         jsonResponse({
           logs: FULL.slice(off),
@@ -252,6 +260,7 @@ describe("TaskLogs", () => {
         }),
       );
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="job9" initialStatus="running" />);
@@ -271,10 +280,12 @@ describe("TaskLogs", () => {
           jsonResponse({ logs: "", status: "running", totalSize: 10 }),
         );
       }
+
       return Promise.resolve(
         jsonResponse({ logs: "only-chunk", status: "running", totalSize: 10 }),
       );
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="running" />);
@@ -295,6 +306,7 @@ describe("TaskLogs", () => {
     const TOTAL = HEAD + BODY.length;
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       const m = url.match(/offset=(\d+)/);
+
       if (!m) {
         // Bare fetch: counted but unflushed → null body, size only.
         return Promise.resolve(
@@ -304,10 +316,12 @@ describe("TaskLogs", () => {
       const off = Number(m[1]);
       // Tail beyond the offset converges to empty once the whole body is delivered.
       const tail = off >= HEAD ? BODY.slice(off - HEAD) : BODY;
+
       return Promise.resolve(
         jsonResponse({ logs: tail, status: "running", totalSize: TOTAL }),
       );
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="running" />);
@@ -326,6 +340,7 @@ describe("TaskLogs", () => {
         totalSize: 17,
       }),
     );
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
@@ -346,6 +361,7 @@ describe("TaskLogs", () => {
           { ok: false, status: 403 },
         ),
       );
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="running" />);
@@ -361,6 +377,7 @@ describe("TaskLogs", () => {
     ).not.toBeInTheDocument();
 
     const callsAfterDenied = fetchMock.mock.calls.length;
+
     await act(async () => {
       vi.advanceTimersByTime(15000);
     });
@@ -435,6 +452,7 @@ describe("TaskLogs", () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (failFirst) {
         failFirst = false;
+
         return Promise.resolve(
           jsonResponse(
             { logs: null, status: "running", totalSize: 0 },
@@ -445,6 +463,7 @@ describe("TaskLogs", () => {
       // Converging buffer so the re-fired offset poll returns an empty tail (no double-append).
       const m = url.match(/offset=(\d+)/);
       const off = m ? Number(m[1]) : 0;
+
       return Promise.resolve(
         jsonResponse({
           logs: RECOVERED.slice(off),
@@ -453,6 +472,7 @@ describe("TaskLogs", () => {
         }),
       );
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="running" />);
@@ -477,13 +497,16 @@ describe("TaskLogs", () => {
       .mockResolvedValue(
         jsonResponse({ logs: "tick", status: "running", totalSize: 4 }),
       );
+
     vi.stubGlobal("fetch", fetchMock);
 
     const { unmount } = render(
       <TaskLogs taskId="t1" initialStatus="running" />,
     );
+
     await settle();
     const baseline = fetchMock.mock.calls.length;
+
     expect(baseline).toBeGreaterThan(0);
 
     await act(async () => {
@@ -510,6 +533,7 @@ describe("TaskLogs", () => {
       .mockResolvedValue(
         jsonResponse({ logs: "final", status: "succeeded", totalSize: 5 }),
       );
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
@@ -545,6 +569,7 @@ describe("TaskLogs", () => {
     let phase = 0;
     const fetchMock = vi.fn().mockImplementation(() => {
       phase += 1;
+
       // First two settled calls keep it running; after the poll, report pr-created.
       if (phase <= 2) {
         return Promise.resolve(
@@ -555,6 +580,7 @@ describe("TaskLogs", () => {
           }),
         );
       }
+
       return Promise.resolve(
         jsonResponse({
           logs: "working...done",
@@ -563,6 +589,7 @@ describe("TaskLogs", () => {
         }),
       );
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="running" />);

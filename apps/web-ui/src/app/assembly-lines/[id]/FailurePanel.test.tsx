@@ -8,6 +8,7 @@ const repo = "re-cinq/lore";
 describe("FailurePanel", () => {
   it("renders null when metadata has no error and no details (undefined fields)", () => {
     const { container } = render(<FailurePanel metadata={{}} repo={repo} />);
+
     expect(container.innerHTML).toBe("");
   });
 
@@ -15,6 +16,7 @@ describe("FailurePanel", () => {
     const { container } = render(
       <FailurePanel metadata={{ details: [] }} repo={repo} />,
     );
+
     expect(container.innerHTML).toBe("");
   });
 
@@ -25,6 +27,7 @@ describe("FailurePanel", () => {
         repo={repo}
       />,
     );
+
     expect(container.innerHTML).toBe("");
   });
 
@@ -60,6 +63,7 @@ describe("FailurePanel", () => {
     const { container } = render(
       <FailurePanel metadata={{ error: "just an error" }} repo={repo} />,
     );
+
     expect(container.querySelector(".badge-red")).toBeNull();
   });
 
@@ -87,6 +91,7 @@ describe("FailurePanel", () => {
       />,
     );
     const link = screen.getByRole("link", { name: "src/a.ts" });
+
     expect(link).toHaveAttribute(
       "href",
       "https://github.com/re-cinq/lore/blob/main/src/a.ts",
@@ -114,6 +119,7 @@ describe("FailurePanel", () => {
     expect(screen.getByText("GitHub permission")).toBeInTheDocument();
     expect(screen.getByText("grant write scope")).toBeInTheDocument();
     const issueLink = screen.getByRole("link", { name: "#7" });
+
     expect(issueLink).toHaveAttribute(
       "href",
       "https://github.com/re-cinq/lore/issues/7",
@@ -127,6 +133,7 @@ describe("FailurePanel", () => {
         repo={repo}
       />,
     );
+
     expect(screen.getByText("build")).toBeInTheDocument();
     expect(screen.getByText("compile failed")).toBeInTheDocument();
     expect(container.querySelector(".badge-red")).toBeNull();
@@ -148,6 +155,7 @@ describe("FailurePanel", () => {
     const codes = screen
       .getAllByText(/step-(one|two)/)
       .map((el) => el.textContent);
+
     expect(codes).toEqual(["step-one", "step-two"]);
   });
 

@@ -25,10 +25,15 @@ function toTarget(ref: SpecLinkRef): LinkTarget {
 
 export function specLenses(content: string): SpecLens[] {
   const lenses: SpecLens[] = [];
+
   content.split(/\r?\n/).forEach((text, line) => {
     const tests = parseTestLinksInStatement(text).map(toTarget);
     const code = parseCodeLinksInStatement(text).map(toTarget);
-    if (tests.length > 0 || code.length > 0) lenses.push({ line, tests, code });
+
+    if (tests.length > 0 || code.length > 0) {
+      lenses.push({ line, tests, code });
+    }
   });
+
   return lenses;
 }

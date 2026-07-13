@@ -7,6 +7,7 @@ describe("FakeLlm", () => {
     const result = await new FakeLlm({ text: "hello" }).complete({
       prompt: "x",
     });
+
     expect(result).toMatchObject({
       text: "hello",
       inputTokens: 0,
@@ -25,11 +26,13 @@ describe("FakeLlm", () => {
       toolDescription: "d",
       toolSchema: {},
     });
+
     expect(result.data).toEqual({ matches: true });
   });
 
   it("records the requests it received", async () => {
     const fake = new FakeLlm({ text: "ok" });
+
     await fake.complete({ prompt: "the-prompt", jobName: "j" });
     expect(fake.calls).toEqual([{ prompt: "the-prompt", jobName: "j" }]);
   });

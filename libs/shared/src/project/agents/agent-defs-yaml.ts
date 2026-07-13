@@ -35,26 +35,38 @@ export class AgentDefsYaml implements AgentDefsPort {
   ) {}
 
   private load(): Map<string, AgentDefinition> {
-    if (this.cache) return this.cache;
+    if (this.cache) {
+      return this.cache;
+    }
 
     // Union of the candidate paths used by both existing loaders (mcp-server's
     // pipeline-config and floor's config) so the base resolves regardless of the
     // runtime cwd: <cwd>/scripts is the one the mcp-server (repo-root cwd) uses.
     const paths: string[] = [];
-    if (this.configPath) paths.push(resolve(this.configPath));
-    if (this.env.TASK_TYPES_PATH) paths.push(resolve(this.env.TASK_TYPES_PATH));
+
+    if (this.configPath) {
+      paths.push(resolve(this.configPath));
+    }
+
+    if (this.env.TASK_TYPES_PATH) {
+      paths.push(resolve(this.env.TASK_TYPES_PATH));
+    }
     paths.push(
       resolve("scripts/task-types.yaml"),
       resolve("task-types.yaml"),
       resolve("../scripts/task-types.yaml"),
       "/config/task-types.yaml",
     );
-    if (this.env.CONTEXT_PATH)
+
+    if (this.env.CONTEXT_PATH) {
       paths.push(resolve(this.env.CONTEXT_PATH, "scripts/task-types.yaml"));
-    if (this.env.HOME)
+    }
+
+    if (this.env.HOME) {
       paths.push(
         resolve(this.env.HOME, ".re-cinq/lore/scripts/task-types.yaml"),
       );
+    }
 
     for (const p of paths) {
       try {
@@ -62,6 +74,7 @@ export class AgentDefsYaml implements AgentDefsPort {
           task_types?: Record<string, YamlTaskType>;
         };
         const map = new Map<string, AgentDefinition>();
+
         for (const [name, cfg] of Object.entries(parsed.task_types ?? {})) {
           map.set(name, {
             name,
@@ -79,23 +92,29 @@ export class AgentDefsYaml implements AgentDefsPort {
         // (which carries only the container's {description}+result.json wrapper).
         // Override it so the code/offline layer matches the DB-seeded org default.
         const fp = map.get("feature-planning");
-        if (fp)
+
+        if (fp) {
           map.set("feature-planning", { ...fp, prompt: PLANNING_INSTRUCTIONS });
+        }
         // Same for feature-decompose: its canonical prompt is DECOMPOSITION_INSTRUCTIONS,
         // matching the DB-seeded org default (migration 0020).
         const fd = map.get("feature-decompose");
-        if (fd)
+
+        if (fd) {
           map.set("feature-decompose", {
             ...fd,
             prompt: DECOMPOSITION_INSTRUCTIONS,
           });
+        }
         this.cache = map;
+
         return map;
       } catch {
         // try next path
       }
     }
     this.cache = new Map();
+
     return this.cache;
   }
 
