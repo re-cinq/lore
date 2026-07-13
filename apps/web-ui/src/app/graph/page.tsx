@@ -59,11 +59,10 @@ export default async function GraphPage({
   // List entities (filtered by type if specified)
   const entityConditions: string[] = [];
   const entityParams: string[] = [];
-  let pi = 1;
+  const pi = 1;
   if (type) {
     entityConditions.push(`en.entity_type = $${pi}`);
     entityParams.push(type);
-    pi++;
   }
   const entityWhere =
     entityConditions.length > 0

@@ -35,9 +35,9 @@ jobs:
           node-version: 22
 
       - name: Install deps
-        run: npm ci
+        run: npm ci && npm install --prefix apps/web-ui
 
-      - name: Prettier
+      - name: Prettier + eslint --fix
         run: npm run format
 
       - name: Commit formatting
@@ -98,6 +98,16 @@ jobs:
           # mirror lacks. Reads both trees' source directly; no build needed.
           - name: type-drift
             test: npm run typecheck:drift
+          # ESLint over the workspaces. Type-aware rules need the libs built so
+          # cross-package imports resolve to their .d.ts. web-ui is linted
+          # separately (it is not a workspace and has its own node_modules).
+          - name: lint
+            build: npm run build
+            test: npx eslint . --ignore-pattern "apps/web-ui/**"
+          # web-ui lint — install its own deps so react/next types resolve.
+          - name: lint-web-ui
+            install: npm install && npm install --prefix apps/web-ui
+            test: npx eslint apps/web-ui
 
     steps:
       - uses: actions/checkout@v5

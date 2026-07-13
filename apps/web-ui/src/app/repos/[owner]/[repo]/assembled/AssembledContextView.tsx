@@ -285,7 +285,7 @@ export default function AssembledContextView({
                 type="button"
                 className="btn btn-ghost"
                 onClick={() =>
-                  navigator.clipboard?.writeText(result.text ?? "")
+                  void navigator.clipboard?.writeText(result.text ?? "")
                 }
               >
                 Copy

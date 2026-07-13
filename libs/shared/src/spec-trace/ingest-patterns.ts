@@ -1,18 +1,16 @@
-/**
- * Per-repo override of WHICH files become specs/adrs in the traceability graph,
- * authored as `.lore/ingest.yml` (sibling of `.lore/test-commands.yml`):
- *
- *   specs:
- *     - "specs/**​/*.md"
- *     - ".specify/**​/*.md"
- *   adrs:
- *     - "adrs/**​/*.md"
- *
- * A declared kind REPLACES the built-in prefix defaults (see {@link selectIngestFiles});
- * an absent file or undeclared kind falls back to the defaults. Pure parsing +
- * glob matching here; reading the YAML off the content source happens in the
- * ingest runner.
- */
+// Per-repo override of WHICH files become specs/adrs in the traceability graph,
+// authored as `.lore/ingest.yml` (sibling of `.lore/test-commands.yml`):
+//
+//   specs:
+//     - "specs/**/*.md"
+//     - ".specify/**/*.md"
+//   adrs:
+//     - "adrs/**/*.md"
+//
+// A declared kind REPLACES the built-in prefix defaults (see {@link selectIngestFiles});
+// an absent file or undeclared kind falls back to the defaults. Pure parsing +
+// glob matching here; reading the YAML off the content source happens in the
+// ingest runner.
 
 import { minimatch } from "minimatch";
 

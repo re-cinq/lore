@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import {
@@ -167,20 +168,22 @@ export async function executeAssemblyLine(
     }
 
     const node = assemblyLine.nodes.find((n) => n.id === currentId);
-    if (!node) {
-      throw new Error(
+    enforceTrue(
+      node,
+      new Error(
         `AssemblyLine ${assemblyLine.name}: unknown node "${currentId}"`,
-      );
-    }
+      ),
+    );
 
     await leaseBackend.refresh(branchName, holder, undefined, currentId);
 
     const handler = handlers[node.type];
-    if (!handler) {
-      throw new Error(
+    enforceTrue(
+      handler,
+      new Error(
         `AssemblyLine ${assemblyLine.name}: no handler registered for node type "${node.type}" (node "${currentId}")`,
-      );
-    }
+      ),
+    );
     const nodeRef = await traceNodeStart(opts.trace, {
       assemblyLineId: opts.assemblyLineId,
       nodeId: currentId,
@@ -213,11 +216,12 @@ export async function executeAssemblyLine(
       (e) =>
         e.from === currentId && (e.on === result.outcome || e.on === "always"),
     );
-    if (candidates.length === 0) {
-      throw new Error(
+    enforceTrue(
+      candidates.length !== 0,
+      new Error(
         `AssemblyLine ${assemblyLine.name}: no edge from "${currentId}" for outcome "${result.outcome}"`,
-      );
-    }
+      ),
+    );
     const matchOutcome = candidates.find((e) => e.on === result.outcome);
     const chosen = matchOutcome ?? candidates[0];
 

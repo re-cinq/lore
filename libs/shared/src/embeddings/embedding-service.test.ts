@@ -1,3 +1,4 @@
+import { enforceTrue } from "../lib/enforce.js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   buildVertexUrl,
@@ -53,8 +54,10 @@ describe("getQueryEmbedding project resolution", () => {
   it("returns null (never builds a projects// URL) when no project can be resolved", async () => {
     process.env.GOOGLE_ACCESS_TOKEN = "tok"; // token available…
     const fetchMock = vi.fn(async (url: string) => {
-      if (url.includes("service-accounts/default/token"))
-        throw new Error("no metadata");
+      enforceTrue(
+        !url.includes("service-accounts/default/token"),
+        new Error("no metadata"),
+      );
       if (url.includes("/project/project-id")) return { ok: false } as Response; // …but no project
       return {
         ok: true,

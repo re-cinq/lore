@@ -47,7 +47,7 @@ describe("createStationProject", () => {
     expect(await project.chunks.specChunks()).toHaveLength(1);
     expect(await project.settings.isOnboarded()).toBe(true);
     expect((await project.issues.list({ state: "open" }))[0].number).toBe(3);
-    expect(calls.every((c) => true)).toBe(true);
+    expect(calls.every(() => true)).toBe(true);
   });
 
   it("files a task via POST /tasks and opens a PR via POST /pulls", async () => {

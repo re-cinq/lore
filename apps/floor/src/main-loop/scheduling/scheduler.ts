@@ -22,7 +22,7 @@ export function registerJob(
 export async function startScheduler(): Promise<void> {
   console.log(`[scheduler] Started with ${jobs.size} jobs`);
   await checkMissedRuns();
-  setInterval(tick, 30_000);
+  setInterval(() => void tick(), 30_000);
 }
 
 async function tick(): Promise<void> {

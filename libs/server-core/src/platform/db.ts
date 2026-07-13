@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * PostgreSQL + pgvector search module.
  *
@@ -26,7 +27,7 @@ const VALID_SCHEMAS = new Set([
 ]);
 
 export function getPool(): Pool {
-  if (!pool) throw new Error("Database not configured");
+  enforceTrue(pool, new Error("Database not configured"));
   return pool;
 }
 

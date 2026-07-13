@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Repo onboarding module.
  *
@@ -6,13 +7,7 @@
  * inspect the repo and generate customized CLAUDE.md / onboarding PRs.
  */
 
-import {
-  createBranch,
-  commitFile,
-  createPR,
-  isGitHubConfigured,
-  getOctokit,
-} from "../../platform/github-client.js";
+import { getOctokit } from "../../platform/github-client.js";
 import {
   ensureFloorWebhook,
   type EnsureFloorWebhookResult,
@@ -150,11 +145,12 @@ export async function onboardRepo(
   fullName: string,
 ): Promise<OnboardResult> {
   const [owner, name] = fullName.split("/");
-  if (!owner || !name) {
-    throw new Error(
+  enforceTrue(
+    !(!owner || !name),
+    new Error(
       `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
-    );
-  }
+    ),
+  );
 
   // Insert into repos table (upsert — re-onboarding refreshes the timestamp)
   const { rows } = await pool.query(
@@ -238,11 +234,12 @@ function decodeContent(encoded: string): string {
  */
 export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   const [owner, repo] = fullName.split("/");
-  if (!owner || !repo) {
-    throw new Error(
+  enforceTrue(
+    !(!owner || !repo),
+    new Error(
       `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
-    );
-  }
+    ),
+  );
 
   const octokit = await getOctokit();
 

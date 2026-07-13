@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PgAgentDefs } from "./agent-defs-pg.js";
-import type { AgentDefinition, AgentDefsPort } from "./agent-defs-port.js";
+import type { AgentDefsPort } from "./agent-defs-port.js";
 import type { PgPool } from "../../memory-store.js";
 
 /**

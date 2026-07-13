@@ -34,7 +34,7 @@ export async function initOtel(): Promise<void> {
     });
     sdk.start();
     console.log("[otel] Tracing and metrics initialized → Cloud Monitoring");
-  } catch (err) {
+  } catch {
     console.log("[otel] Cloud exporters not available, tracing disabled");
   }
 }

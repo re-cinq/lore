@@ -101,7 +101,7 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
                     embedding || undefined,
                     body.repo,
                   )
-                : await writeMemoryFile(
+                : writeMemoryFile(
                     body.key,
                     body.value,
                     body.agent_id,
@@ -118,7 +118,7 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
             return h.response(
               isMemoryDbAvailable()
                 ? await readMemory(body.key, body.agent_id, v)
-                : await readMemoryFile(body.key, body.agent_id, v),
+                : readMemoryFile(body.key, body.agent_id, v),
             );
           }
           case "search":
@@ -131,22 +131,18 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
                     body.pool_name,
                     body.limit || 10,
                   )
-                : await searchMemoryFile(
-                    body.query,
-                    body.agent_id,
-                    body.limit || 10,
-                  ),
+                : searchMemoryFile(body.query, body.agent_id, body.limit || 10),
             );
           case "delete":
             return h.response(
               isMemoryDbAvailable()
                 ? await deleteMemory(body.key, body.agent_id)
-                : await deleteMemoryFile(body.key, body.agent_id),
+                : deleteMemoryFile(body.key, body.agent_id),
             );
           case "list": {
             const result = isMemoryDbAvailable()
               ? await listMemories(body.agent_id, body.limit, body.offset)
-              : await listMemoriesFile(body.agent_id, body.limit, body.offset);
+              : listMemoriesFile(body.agent_id, body.limit, body.offset);
             return h.response({
               ...result,
               limit: body.limit,

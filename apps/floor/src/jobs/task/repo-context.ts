@@ -69,7 +69,7 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   for (const dir of SAMPLE_DIRS) {
     if (Object.keys(samples).length >= 3) break;
 
-    let entries: string[] = [];
+    let entries: string[];
     try {
       entries = await project.repo.list(dir);
     } catch (err: any) {

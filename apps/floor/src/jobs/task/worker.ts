@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Core task processing worker.
  *
@@ -7,8 +8,7 @@
 
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { projectFor } from "../../composition/project-boot.js";
-import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
-import { agentPrompt } from "../../kernel/agent-invocation.js";
+import { getTaskTypeConfig } from "../../kernel/config.js";
 import {
   classifyError,
   TaskFailure,
@@ -17,7 +17,7 @@ import {
 import { linkifyMarkdown, selectStationBackend } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
-import { taskQueue, taskStore, settings } from "../../kernel/queues.js";
+import { taskQueue, settings } from "../../kernel/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
@@ -84,7 +84,7 @@ export async function recoverStaleTasks(
  */
 export async function startWorker(): Promise<void> {
   console.log("[floor] Worker started");
-  setInterval(pollOnce, 10_000);
+  setInterval(() => void pollOnce(), 10_000);
   await pollOnce();
 }
 
@@ -196,15 +196,7 @@ async function processTask(task: any): Promise<void> {
       .catch(() => null);
 
     // Build prompt from the resolved definition, with optional per-repo suffix.
-    let fullPrompt = agentPrompt(
-      agentDef?.prompt,
-      task.description,
-      buildPrompt(task.task_type, task.description),
-    );
     const repoOverrides = repoSettings.task_overrides?.[task.task_type];
-    if (repoOverrides?.system_prompt_suffix) {
-      fullPrompt += `\n\n${repoOverrides.system_prompt_suffix}`;
-    }
 
     // Determine branch — use existing branch for revision tasks
     const contextBundle = task.context_bundle || {};
@@ -218,9 +210,10 @@ async function processTask(task: any): Promise<void> {
       task.description = `REVISION FEEDBACK: ${contextBundle.feedback}\n\nOriginal task: ${task.description}`;
     }
 
-    if (!project.repo.isConfigured()) {
-      throw new Error("GitHub App not configured — cannot create PR");
-    }
+    enforceTrue(
+      project.repo.isConfigured(),
+      new Error("GitHub App not configured — cannot create PR"),
+    );
 
     // Resolve model — the resolved agent definition wins, then legacy overrides.
     const model =

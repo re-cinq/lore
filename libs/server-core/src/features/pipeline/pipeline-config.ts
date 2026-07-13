@@ -49,7 +49,9 @@ export function loadTaskTypes(): void {
         `[pipeline] Loaded ${Object.keys(config).length} task types from ${p}`,
       );
       return;
-    } catch {}
+    } catch {
+      // ignore malformed candidate; try the next path
+    }
   }
   console.warn("[pipeline] No task-types.yaml found, using empty config");
 }

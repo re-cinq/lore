@@ -291,7 +291,7 @@ describe("executeAssemblyLine (review loop)", () => {
     let reviewCalls = 0;
     const handlers = (() => {
       const capture: RunCapture = { visited: [], commits: [] };
-      const handlerOf = (id: string) => async (node: { id: string }) => {
+      const handlerOf = (_id: string) => async (node: { id: string }) => {
         capture.visited.push(node.id);
         if (node.id === "review") {
           reviewCalls++;

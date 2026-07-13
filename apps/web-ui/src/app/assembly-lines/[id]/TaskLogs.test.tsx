@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  render,
-  screen,
-  act,
-  waitFor,
-  fireEvent,
-} from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import TaskLogs from "./TaskLogs";
 
 // jsdom does not implement scrollIntoView; the auto-scroll effect calls it on every logs change.

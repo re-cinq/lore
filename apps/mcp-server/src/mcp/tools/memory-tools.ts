@@ -98,7 +98,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           );
           invalidateCache(MEMORY_DERIVED_READS);
           if (extract_facts) {
-            import("@re-cinq/lore-server-core/features/memory/memory.js").then(
+            void import("@re-cinq/lore-server-core/features/memory/memory.js").then(
               ({ getMemoryPool }) => {
                 const p = getMemoryPool();
                 if (p) {
@@ -134,7 +134,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         if (proxied.reason === "denied")
           return deniedError("lore_write_memory", proxied.detail);
         // File fallback only when LORE_API_URL is not configured (true offline mode)
-        const result = await writeMemoryFile(key, value, agent_id, ttl);
+        const result = writeMemoryFile(key, value, agent_id, ttl);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
@@ -203,7 +203,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           return unreachableError("lore_read_memory", proxied.detail);
         if (proxied.reason === "denied")
           return deniedError("lore_read_memory", proxied.detail);
-        const result = await readMemoryFile(key, agent_id, ver);
+        const result = readMemoryFile(key, agent_id, ver);
         if (!result)
           return {
             content: [
@@ -256,7 +256,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           return unreachableError("lore_delete_memory", proxied.detail);
         if (proxied.reason === "denied")
           return deniedError("lore_delete_memory", proxied.detail);
-        const result = await deleteMemoryFile(key, agent_id);
+        const result = deleteMemoryFile(key, agent_id);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
@@ -322,7 +322,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           return unreachableError("lore_list_memories", proxied.detail);
         if (proxied.reason === "denied")
           return deniedError("lore_list_memories", proxied.detail);
-        const result = await listMemoriesFile(agent_id, limit, offset);
+        const result = listMemoriesFile(agent_id, limit, offset);
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
@@ -418,7 +418,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           return unreachableError("lore_search_memory", proxied.detail);
         if (proxied.reason === "denied")
           return deniedError("lore_search_memory", proxied.detail);
-        const results = await searchMemoryFile(query, agent_id, limit);
+        const results = searchMemoryFile(query, agent_id, limit);
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(results, null, 2) },
@@ -739,7 +739,9 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             [agent],
           );
           episodeCount = rows[0]?.total || 0;
-        } catch {}
+        } catch {
+          // best-effort: leave episodeCount at 0
+        }
 
         const result = {
           ...healthResult,

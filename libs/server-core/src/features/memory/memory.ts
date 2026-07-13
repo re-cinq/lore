@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * PostgreSQL-backed memory CRUD module.
  *
@@ -204,7 +205,7 @@ export async function listMemories(
   repo?: string,
 ): Promise<{ memories: any[]; total: number }> {
   // Scope by repo (preferred) or agent_id
-  let filter = "";
+  let filter: string;
   let params: any[];
   if (repo) {
     filter = "repo = $1 AND";
@@ -216,8 +217,6 @@ export async function listMemories(
     filter = "";
     params = [limit, offset];
   }
-  const limitIdx = params.length - 1;
-  const offsetIdx = params.length;
 
   const { rows } = await pool.query(
     `SELECT key, agent_id, repo, version, created_at, ttl_seconds,
@@ -336,7 +335,7 @@ export async function restoreSnapshot(snapshotId: string): Promise<any> {
     `SELECT agent_id, memory_refs, created_at FROM memory.snapshots WHERE id = $1`,
     [snapshotId],
   );
-  if (snaps.length === 0) throw new Error("Snapshot not found");
+  enforceTrue(snaps.length !== 0, new Error("Snapshot not found"));
   const snap = snaps[0];
   const refs = snap.memory_refs as Array<{
     memory_id: string;

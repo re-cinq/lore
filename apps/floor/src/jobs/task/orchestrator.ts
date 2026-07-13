@@ -25,10 +25,7 @@ import {
   evaluateAndMerge,
   type AutoMergeJobInputs,
 } from "../merge/auto-merge.js";
-import {
-  resolvePrForTaskFromDb,
-  type PrForAutoMerge,
-} from "../platform/pr-policy.js";
+import { resolvePrForTaskFromDb } from "../platform/pr-policy.js";
 import { prFooter } from "@re-cinq/lore-shared";
 import { escalate } from "../platform/escalation.js";
 import { writeAuditLog } from "../lib/audit.js";

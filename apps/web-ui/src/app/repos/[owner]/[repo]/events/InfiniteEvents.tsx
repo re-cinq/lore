@@ -41,6 +41,7 @@ export default function InfiniteEvents({
     const node = sentinel.current;
     if (!node || !more || loading) return;
 
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- async observer callback; state updates handled inside
     const observer = new IntersectionObserver(async (entries) => {
       if (!entries[0]?.isIntersecting) return;
       setLoading(true);

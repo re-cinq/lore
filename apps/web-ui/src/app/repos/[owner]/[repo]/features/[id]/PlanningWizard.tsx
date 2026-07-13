@@ -91,8 +91,8 @@ export default function PlanningWizard({
       if (timer.current) clearInterval(timer.current);
       return;
     }
-    fetchLatest();
-    timer.current = setInterval(fetchLatest, POLL_MS);
+    void fetchLatest();
+    timer.current = setInterval(() => void fetchLatest(), POLL_MS);
     return () => {
       if (timer.current) clearInterval(timer.current);
     };
@@ -121,7 +121,7 @@ export default function PlanningWizard({
       const json = await fetchLatest();
       if (json && !isPlanningActive(json.feature.status)) router.refresh();
     };
-    const id = setInterval(tick, POLL_MS);
+    const id = setInterval(() => void tick(), POLL_MS);
     return () => clearInterval(id);
   }, [finalizing, fetchLatest, router]);
 

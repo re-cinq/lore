@@ -30,7 +30,6 @@ export default async function AuditPage({
   if (op && op.trim()) {
     conditions.push(`operation = $${paramIndex}`);
     params.push(op.trim());
-    paramIndex++;
   }
 
   const whereClause =
