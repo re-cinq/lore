@@ -129,12 +129,13 @@ export async function loadAssemblyLineDir(
   const out = new Map<string, AssemblyLine>();
   for (const f of yamls) {
     const wf = await loadAssemblyLineFile(path.join(dir, f));
-    if (out.has(wf.name)) {
-      throw new AssemblyLineLoadError(
+    enforceTrue(
+      !out.has(wf.name),
+      new AssemblyLineLoadError(
         `Duplicate assemblyLine name "${wf.name}"`,
         path.join(dir, f),
-      );
-    }
+      ),
+    );
     out.set(wf.name, wf);
   }
   return out;
@@ -143,29 +144,30 @@ export async function loadAssemblyLineDir(
 function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   const nodeIds = new Set(wf.nodes.map((n) => n.id));
 
-  if (!nodeIds.has(wf.entry)) {
-    throw new AssemblyLineLoadError(
+  enforceTrue(
+    nodeIds.has(wf.entry),
+    new AssemblyLineLoadError(
       `entry "${wf.entry}" is not a defined node id`,
       source,
-    );
-  }
-  if (!nodeIds.has(wf.exit)) {
-    throw new AssemblyLineLoadError(
+    ),
+  );
+  enforceTrue(
+    nodeIds.has(wf.exit),
+    new AssemblyLineLoadError(
       `exit "${wf.exit}" is not a defined node id`,
       source,
-    );
-  }
+    ),
+  );
 
   for (const e of wf.edges) {
-    if (!nodeIds.has(e.from)) {
-      throw new AssemblyLineLoadError(
-        `edge from unknown node "${e.from}"`,
-        source,
-      );
-    }
-    if (!nodeIds.has(e.to)) {
-      throw new AssemblyLineLoadError(`edge to unknown node "${e.to}"`, source);
-    }
+    enforceTrue(
+      nodeIds.has(e.from),
+      new AssemblyLineLoadError(`edge from unknown node "${e.from}"`, source),
+    );
+    enforceTrue(
+      nodeIds.has(e.to),
+      new AssemblyLineLoadError(`edge to unknown node "${e.to}"`, source),
+    );
   }
 
   // Reachability from entry (BFS).
@@ -181,24 +183,26 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     }
   }
   for (const id of nodeIds) {
-    if (!reachable.has(id)) {
-      throw new AssemblyLineLoadError(
+    enforceTrue(
+      reachable.has(id),
+      new AssemblyLineLoadError(
         `node "${id}" is not reachable from entry`,
         source,
-      );
-    }
+      ),
+    );
   }
 
   // Every non-exit node has at least one outgoing edge.
   for (const n of wf.nodes) {
     if (n.id === wf.exit) continue;
     const hasOut = wf.edges.some((e) => e.from === n.id);
-    if (!hasOut) {
-      throw new AssemblyLineLoadError(
+    enforceTrue(
+      hasOut,
+      new AssemblyLineLoadError(
         `node "${n.id}" has no outgoing edges (only "${wf.exit}" may be terminal)`,
         source,
-      );
-    }
+      ),
+    );
   }
 
   // A detect node without its job reference can't be dispatched — reject at load.

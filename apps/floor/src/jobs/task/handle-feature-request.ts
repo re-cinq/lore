@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Feature request handler.
  *
@@ -155,9 +156,10 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
     }
   }
 
-  if (committed.length === 0) {
-    throw new Error("Failed to generate any spec artifacts");
-  }
+  enforceTrue(
+    committed.length !== 0,
+    new Error("Failed to generate any spec artifacts"),
+  );
 
   const fileList = committed.map((f) => `- \`${f}\``).join("\n");
   const pr = await project.pulls.open(

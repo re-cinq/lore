@@ -29,7 +29,6 @@ import {
   type Statement,
   type Classification,
   type UntestableCategory,
-  type Assertion,
   type TestChunk,
   type JudgeCandidate,
   type Judgment,

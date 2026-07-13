@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import {
   captureBaselineForRepo,
@@ -73,7 +74,7 @@ describe("captureBaselineAllRepos", () => {
         rows.push(row);
       },
       baselineStats: async (repo) => {
-        if (repo === "re-cinq/bad") throw new Error("boom");
+        enforceTrue(repo !== "re-cinq/bad", new Error("boom"));
         return { issues_count: 1, median_ttm_hours: 5 };
       },
     };

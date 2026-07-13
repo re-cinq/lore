@@ -24,7 +24,7 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
       // silently see only the first page.
       const pageSize = 100;
       const repos: unknown[] = [];
-      let total = 0;
+      let total: number;
       for (let offset = 0; ; offset += pageSize) {
         const proxied = await proxyGetApi(
           `/api/repos?limit=${pageSize}&offset=${offset}`,
@@ -142,7 +142,9 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
             }).trim();
           }
           // For other repos, "HEAD" tells GitHub to use the default branch
-        } catch {}
+        } catch {
+          // ignore; fall through
+        }
 
         const res = await fetch(`${apiUrl}/api/ingest`, {
           method: "POST",

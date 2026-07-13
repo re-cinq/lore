@@ -24,7 +24,7 @@ function mockPool(responses: Array<{ rowCount: number; rows?: unknown[] }>) {
     }),
   };
   // The lease module only uses `pool.query`; satisfy the type via cast.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   return { pool: pool as any, calls };
 }
 

@@ -1,3 +1,4 @@
+import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
   ChunksPort,
@@ -18,9 +19,10 @@ import type {
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
 function enforceSchema(schema: string): void {
-  if (!SCHEMA_RE.test(schema)) {
-    throw new Error(`Invalid schema name: ${JSON.stringify(schema)}`);
-  }
+  enforceTrue(
+    SCHEMA_RE.test(schema),
+    new Error(`Invalid schema name: ${JSON.stringify(schema)}`),
+  );
 }
 
 /**

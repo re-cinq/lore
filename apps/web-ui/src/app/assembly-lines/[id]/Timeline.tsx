@@ -88,12 +88,12 @@ export default function Timeline({
   }, [taskId]);
 
   useEffect(() => {
-    fetchTimeline();
+    void fetchTimeline();
     const stillActive =
       ACTIVE_STATES.has(initialStatus) ||
       (data?.current_stage && data.current_stage !== "retrospective");
     if (!stillActive) return;
-    const handle = setInterval(fetchTimeline, POLL_INTERVAL_MS);
+    const handle = setInterval(() => void fetchTimeline(), POLL_INTERVAL_MS);
     return () => clearInterval(handle);
   }, [fetchTimeline, initialStatus, data?.current_stage]);
 

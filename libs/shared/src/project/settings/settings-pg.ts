@@ -1,3 +1,4 @@
+import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool } from "../../memory-store.js";
 import {
   resolveDarkFactorySettings,
@@ -29,11 +30,12 @@ export class PgSettings implements SettingsPort {
   ) {}
 
   private writer(): RepoConfigWriter {
-    if (!this.repoConfig) {
-      throw new Error(
+    enforceTrue(
+      this.repoConfig,
+      new Error(
         "PgSettings: repo-config writer not provided (read-only binding)",
-      );
-    }
+      ),
+    );
     return this.repoConfig;
   }
 

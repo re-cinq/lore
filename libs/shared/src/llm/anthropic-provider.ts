@@ -1,3 +1,4 @@
+import { enforceTrue } from "../lib/enforce.js";
 /**
  * Anthropic provider — the proven `callLLM`/`callLLMWithTool` logic (relocated
  * from agent/src/platform/anthropic.ts) wrapped behind {@link LlmProvider}.
@@ -247,11 +248,12 @@ export class AnthropicProvider implements LlmProvider {
       const toolUseBlock = response.content.find(
         (block) => block.type === "tool_use",
       );
-      if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
-        throw new Error(
+      enforceTrue(
+        !(!toolUseBlock || toolUseBlock.type !== "tool_use"),
+        new Error(
           `No tool_use block in response (stop_reason: ${response.stop_reason})`,
-        );
-      }
+        ),
+      );
       const data = toolUseBlock.input as T;
       const inputTokens = response.usage.input_tokens;
       const outputTokens = response.usage.output_tokens;

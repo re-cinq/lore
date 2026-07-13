@@ -73,7 +73,7 @@ export default function LoadMore({
         <button
           type="button"
           className="load-more"
-          onClick={loadMore}
+          onClick={() => void loadMore()}
           disabled={loading}
         >
           {loading ? "Loading…" : "Load more"}

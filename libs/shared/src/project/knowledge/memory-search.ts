@@ -58,8 +58,6 @@ export async function searchMemories(
 
   let vectorMemories: RankedRow[] = [];
   let vectorFacts: RankedRow[] = [];
-  let keywordMemories: RankedRow[] = [];
-  let keywordFacts: RankedRow[] = [];
 
   if (embedding) {
     const embeddingStr = `[${embedding.join(",")}]`;
@@ -71,7 +69,7 @@ export async function searchMemories(
 
   // Keyword search always runs (provides results when embedding unavailable
   // and boosts relevant keyword matches via RRF when embedding is available)
-  [keywordMemories, keywordFacts] = await Promise.all([
+  const [keywordMemories, keywordFacts] = await Promise.all([
     keywordSearchMemories(pool, query, agent, poolId),
     keywordSearchFacts(pool, query, agent, includeInvalidated),
   ]);

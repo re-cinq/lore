@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Pipeline task CRUD. The policy-free CRUD (getTask/listTasks/updateTaskStatus/
  * recordEvent/cancelTask/markTaskMerged) lives once in @re-cinq/lore-shared and
@@ -25,7 +26,7 @@ import type { Pool } from "pg";
 let pool: Pool | null = null;
 
 function getPool(): Pool {
-  if (!pool) throw new Error("Pipeline database not configured");
+  enforceTrue(pool, new Error("Pipeline database not configured"));
   return pool;
 }
 

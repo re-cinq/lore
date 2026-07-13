@@ -6,7 +6,7 @@
  * mode can't do.
  */
 
-import { execFile, execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 
 export interface ClaudeCodeResult {
   output: string;
@@ -113,6 +113,7 @@ export async function runClaudeCode(params: {
       reject(new Error(`Claude Code timed out after ${timeoutMs / 1000}s`));
     }, timeoutMs);
 
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- async close handler; all failures are caught/logged inside
     proc.on("close", async (code) => {
       clearTimeout(timer);
       const durationMs = Date.now() - start;

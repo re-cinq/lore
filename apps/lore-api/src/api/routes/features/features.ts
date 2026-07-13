@@ -1,9 +1,4 @@
-import type {
-  Request,
-  ResponseToolkit,
-  ResponseObject,
-  ServerRoute,
-} from "@hapi/hapi";
+import type { ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import {
   parseGapResult,
   sanitizeGapResult,

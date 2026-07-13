@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
 // Re-implement the core logic for unit testing (module state is shared)
 // Same pattern as local-runner.test.ts

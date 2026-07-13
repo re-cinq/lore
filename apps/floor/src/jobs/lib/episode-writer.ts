@@ -81,7 +81,7 @@ export async function writeEpisodeWithCuration(
     if (!lesson || lesson.startsWith("SKIP") || lesson.length < 10) return;
 
     // Store as a memory entry
-    const key = `auto-curation/${ref.replace(/[^a-zA-Z0-9\-\/]/g, "_")}`;
+    const key = `auto-curation/${ref.replace(/[^a-zA-Z0-9\-/]/g, "_")}`;
     await deps.memory.upsertMemory({ agentId, key, value: lesson });
   } catch {
     // Curation is best-effort — never block task processing

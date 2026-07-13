@@ -1,3 +1,4 @@
+import { enforceTrue } from "../lib/enforce.js";
 /**
  * Untrusted-input guards for the feature-planning HTTP routes. `enforceFeatureInput`
  * is the bouncer for create/split (trim + non-empty + length); `parseSectionAnswers`
@@ -37,13 +38,18 @@ export function enforceFeatureInput(
 ): FeatureInput {
   const t = typeof title === "string" ? title.trim() : "";
   const p = typeof prompt === "string" ? prompt.trim() : "";
-  if (!t || !p) throw new ValidationError("title and prompt are required");
-  if (t.length > TITLE_MAX)
-    throw new ValidationError(`title must be ${TITLE_MAX} characters or fewer`);
-  if (p.length > PROMPT_MAX)
-    throw new ValidationError(
-      `prompt must be ${PROMPT_MAX} characters or fewer`,
-    );
+  enforceTrue(
+    !(!t || !p),
+    new ValidationError("title and prompt are required"),
+  );
+  enforceTrue(
+    t.length <= TITLE_MAX,
+    new ValidationError(`title must be ${TITLE_MAX} characters or fewer`),
+  );
+  enforceTrue(
+    p.length <= PROMPT_MAX,
+    new ValidationError(`prompt must be ${PROMPT_MAX} characters or fewer`),
+  );
   return { title: t, prompt: p };
 }
 

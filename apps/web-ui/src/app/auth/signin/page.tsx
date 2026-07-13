@@ -9,7 +9,7 @@ export default function SignIn() {
         <h1 className={styles.title}>Lore</h1>
         <p className={styles.subtitle}>Sign in to access the platform</p>
         <button
-          onClick={() => signIn("github", { callbackUrl: "/" })}
+          onClick={() => void signIn("github", { callbackUrl: "/" })}
           className={styles.button}
         >
           Sign in with GitHub

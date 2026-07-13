@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  render,
-  screen,
-  act,
-  waitFor,
-  fireEvent,
-} from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import ReadmeBox from "./ReadmeBox";
 
 const rawBaseUrl = "https://raw.githubusercontent.com/re-cinq/lore/main/";

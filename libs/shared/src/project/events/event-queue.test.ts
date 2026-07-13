@@ -14,7 +14,7 @@ function mockPool(responses: Array<{ rows?: unknown[] }>) {
       return { rows: responses[i++]?.rows ?? [] };
     }),
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   return { pool: pool as any, calls };
 }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import {
   loadTaskTypes,
   getTaskTypeConfig,

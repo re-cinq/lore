@@ -116,7 +116,7 @@ function splitSentences(text: string): string[] {
       break;
     }
     const nextCh = flat[j];
-    if (!/[A-Z(\[0-9]/.test(nextCh)) continue;
+    if (!/[A-Z([0-9]/.test(nextCh)) continue;
 
     if (ch === ".") {
       const trimmed = buf.trimEnd().replace(/[.?!]+$/, "");

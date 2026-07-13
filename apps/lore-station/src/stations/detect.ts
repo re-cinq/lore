@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // The detect station: run one deterministic detection job (spec_drift /
 // gap_detection / spec_coverage_validate / spec_coverage_backfill) against one
 // repo, entirely over HTTP. The detector cores live in @re-cinq/lore-shared/
@@ -36,9 +37,10 @@ export async function runDetectStation(
 ): Promise<NodeResult> {
   const jobRef = input.params.job_ref;
   const detector = jobRef ? detectors[jobRef] : undefined;
-  if (!detector) {
-    throw new Error(`detect station: no detector for job_ref "${jobRef}"`);
-  }
+  enforceTrue(
+    detector,
+    new Error(`detect station: no detector for job_ref "${jobRef}"`),
+  );
   const summary = await detector(input.repo, makeProject(input.repo));
   return {
     outcome: "success",

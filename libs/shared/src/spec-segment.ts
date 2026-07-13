@@ -115,7 +115,7 @@ function splitSentences(text: string): string[] {
       break;
     }
     const nextCh = flat[j];
-    if (!/[A-Z(\[0-9]/.test(nextCh)) continue;
+    if (!/[A-Z([0-9]/.test(nextCh)) continue;
     if (TRAILING_LINK_PARENTHETICAL.test(flat.slice(j))) continue;
 
     if (ch === ".") {

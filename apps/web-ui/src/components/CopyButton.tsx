@@ -20,7 +20,7 @@ export default function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       className={`btn-secondary ${styles.button}`}
-      onClick={copy}
+      onClick={() => void copy()}
     >
       {copied ? "Copied" : "Copy"}
     </button>

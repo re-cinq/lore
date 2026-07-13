@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { resolveDarkFactorySettings } from "@re-cinq/lore-shared";
 import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
@@ -48,7 +49,7 @@ interface PullsStub {
 // gate inputs; a thrown read must leave the conservative defaults.
 function pullsFor(stub: PullsStub): (repo: string) => Promise<PullRequests> {
   const guard = () => {
-    if (stub.throws) throw new Error("GitHub API down");
+    enforceTrue(!stub.throws, new Error("GitHub API down"));
   };
   const facade = {
     listFiles: async () => {

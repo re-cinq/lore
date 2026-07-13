@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { mkdir, writeFile, readFile, access } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -57,9 +58,10 @@ export class RelayExecutor {
       } catch {
         /* not ready yet */
       }
-      if (Date.now() > deadline) {
-        throw new Error(`relay command timed out after ${timeoutMs}ms`);
-      }
+      enforceTrue(
+        Date.now() <= deadline,
+        new Error(`relay command timed out after ${timeoutMs}ms`),
+      );
       await new Promise((r) => setTimeout(r, pollMs));
     }
   }

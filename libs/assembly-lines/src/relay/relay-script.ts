@@ -26,7 +26,7 @@ while true; do
   for ready in "$RELAY_DIR"/req-*.ready; do
     [ -e "$ready" ] || continue
     found=1
-    base=\$(basename "$ready" .ready)
+    base=$(basename "$ready" .ready)
     n=\${base#req-}
     cmd="$RELAY_DIR/req-$n.sh"
     mv "$ready" "$RELAY_DIR/req-$n.taken" 2>/dev/null || continue

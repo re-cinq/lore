@@ -6,7 +6,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { resolve } from "node:path";
 import { parse } from "yaml";
 
 // ── Types ────────────────────────────────────────────────────────────

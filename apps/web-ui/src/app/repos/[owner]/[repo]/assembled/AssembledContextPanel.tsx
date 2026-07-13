@@ -57,7 +57,7 @@ export default function AssembledContextPanel({
       error={error}
       onQueryChange={setQuery}
       onTemplateChange={setTemplate}
-      onSubmit={assemble}
+      onSubmit={() => void assemble()}
     />
   );
 }

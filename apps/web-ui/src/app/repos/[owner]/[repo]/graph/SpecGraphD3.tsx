@@ -364,8 +364,6 @@ export default function SpecGraphD3({
     const dpr = window.devicePixelRatio || 1;
     const surfaceColor =
       getComputedStyle(el).getPropertyValue("--bg-surface").trim() || "#ffffff";
-    const textColor =
-      getComputedStyle(el).getPropertyValue("--text").trim() || "#111111";
     const sizeCanvas = () => {
       canvas.width = Math.max(1, Math.round(width * dpr));
       canvas.height = Math.max(1, Math.round(height * dpr));

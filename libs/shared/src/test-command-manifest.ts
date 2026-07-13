@@ -1,3 +1,4 @@
+import { enforceTrue } from "./lib/enforce.js";
 /**
  * Parser + resolver for the per-repo test-command manifest — the optional
  * `.lore/test-commands.yml` file (or `lore.repos.settings.test_commands`)
@@ -79,22 +80,26 @@ const COVERAGE_FORMATS: readonly CoverageFormat[] = [
 function normalizeEntry(raw: unknown): TestCommandManifest {
   const entry = (raw ?? {}) as Record<string, unknown>;
 
-  if (typeof entry.list !== "string" || entry.list.trim() === "") {
-    throw new Error("test-command manifest: 'list' command is required");
-  }
-  if (typeof entry.run !== "string" || entry.run.trim() === "") {
-    throw new Error("test-command manifest: 'run' command is required");
-  }
-  if (!entry.run.includes("{selector}")) {
-    throw new Error(
+  enforceTrue(
+    !(typeof entry.list !== "string" || entry.list.trim() === ""),
+    new Error("test-command manifest: 'list' command is required"),
+  );
+  enforceTrue(
+    !(typeof entry.run !== "string" || entry.run.trim() === ""),
+    new Error("test-command manifest: 'run' command is required"),
+  );
+  enforceTrue(
+    entry.run.includes("{selector}"),
+    new Error(
       "test-command manifest: 'run' must contain the {selector} placeholder",
-    );
-  }
-  if (!COVERAGE_FORMATS.includes(entry.coverage_format as CoverageFormat)) {
-    throw new Error(
+    ),
+  );
+  enforceTrue(
+    COVERAGE_FORMATS.includes(entry.coverage_format as CoverageFormat),
+    new Error(
       `test-command manifest: 'coverage_format' must be one of ${COVERAGE_FORMATS.join(", ")}`,
-    );
-  }
+    ),
+  );
 
   return {
     list: entry.list,

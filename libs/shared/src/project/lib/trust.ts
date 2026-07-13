@@ -1,3 +1,4 @@
+import { enforceTrue } from "../../lib/enforce.js";
 /**
  * The execution trust boundary, in one place. Relocated verbatim from
  * mcp-server/src/spec-trace-tools.ts (executionRefusal) so the tests port AND
@@ -15,9 +16,10 @@ export function executionRefusal(env: NodeJS.ProcessEnv): string | null {
 }
 
 export function assertCanClone(env: NodeJS.ProcessEnv): void {
-  if (env.LORE_DB_HOST) {
-    throw new Error(
+  enforceTrue(
+    !env.LORE_DB_HOST,
+    new Error(
       "Cannot clone or write to a repo on the shared server — run in CI or locally.",
-    );
-  }
+    ),
+  );
 }

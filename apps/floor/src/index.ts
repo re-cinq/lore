@@ -60,11 +60,11 @@ async function main(): Promise<void> {
     registerCronEmitter(name, schedule);
   }
 
-  startScheduler();
-  startWorker();
+  void startScheduler();
+  void startWorker();
 
   const port = parseInt(process.env.PORT || "8080", 10);
-  startHealthServer(port, getJobStatus);
+  void startHealthServer(port, getJobStatus);
 
   console.log("[floor] Lore Floor Service ready");
 }

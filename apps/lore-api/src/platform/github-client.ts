@@ -107,7 +107,9 @@ export async function commitFile(
       ref: branch,
     });
     if ("sha" in data) sha = data.sha;
-  } catch {} // file doesn't exist yet
+  } catch {
+    // file doesn't exist yet
+  }
   await octokit.rest.repos.createOrUpdateFileContents({
     owner,
     repo: repoName,
