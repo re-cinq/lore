@@ -21,8 +21,10 @@ import { rawBody } from "../raw-body.js";
  * (FK) is skipped — not failed — so one bad line never drops the batch. Returns
  * how many rows were persisted.
  */
+/// This function must be part of one of the ports from the shared package. It is not a good idea to have this function here in the floor app. It should be part of the usage port.
 async function recordAgentCosts(rows: readonly LlmCallRow[]): Promise<number> {
   let recorded = 0;
+
   for (const row of rows) {
     try {
       await usage().logLlmCall({ ...row, jobName: "agent" });

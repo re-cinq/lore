@@ -20,6 +20,8 @@ export const ciIngestRoute: ServerRoute = {
     const mapped = mapCiIngest(parseJsonBody<CiIngestBody>(rawBody(request)));
     // A validation failure is a client error — surface the mapper's 400 + message,
     // not a generic 500 (which is what a plain enforce throw would produce).
+
+    /// todo: this must be an enforce. if(..) throw Error; pattern must always be an enforce.
     if (!mapped.ok) throw Boom.badRequest(mapped.error);
 
     // Each insert is idempotent only via dedupe_key, which doc projection omits on
