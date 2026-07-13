@@ -101,7 +101,8 @@ export async function createTask(
 
   enforceTrue(
     input.description.length <= 10000,
-    new Error("Description too long (max 10000 chars)"),
+    Error,
+    "Description too long (max 10000 chars)",
   );
 
   if (repo) {
@@ -122,9 +123,8 @@ export async function createTask(
 
           enforceTrue(
             allowed.includes(taskType),
-            new Error(
-              `Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(", ")}`,
-            ),
+            Error,
+            `Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(", ")}`,
           );
         }
       }
@@ -219,12 +219,11 @@ export async function retryTask(
 ): Promise<RetriedTask> {
   const task = await getTask(pool, taskId);
 
-  enforceTrue(task, new Error("Task not found"));
+  enforceTrue(task, Error, "Task not found");
   enforceTrue(
     !(task.status !== "failed" && task.status !== "needs-human-help"),
-    new Error(
-      `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
-    ),
+    Error,
+    `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
   );
   const result = await createTask(pool, {
     description: task.description,
@@ -420,10 +419,11 @@ export async function cancelTask(
 ): Promise<{ task_id: string; status: string }> {
   const task = await getTask(pool, taskId);
 
-  enforceTrue(task, new Error("Task not found"));
+  enforceTrue(task, Error, "Task not found");
   enforceTrue(
     !["merged", "failed", "cancelled"].includes(task.status),
-    new Error(`Cannot cancel task in ${task.status} state`),
+    Error,
+    `Cannot cancel task in ${task.status} state`,
   );
   await updateTaskStatus(pool, taskId, "cancelled", { cancelled_by: "user" });
 
@@ -436,12 +436,11 @@ export async function markTaskMerged(
 ): Promise<{ task_id: string; status: string }> {
   const task = await getTask(pool, taskId);
 
-  enforceTrue(task, new Error("Task not found"));
+  enforceTrue(task, Error, "Task not found");
   enforceTrue(
     !(task.status !== "pr-created" && task.status !== "review"),
-    new Error(
-      `Cannot mark task as merged from ${task.status} state (expected pr-created or review)`,
-    ),
+    Error,
+    `Cannot mark task as merged from ${task.status} state (expected pr-created or review)`,
   );
   await updateTaskStatus(pool, taskId, "merged", { merged_by: "manual" });
 

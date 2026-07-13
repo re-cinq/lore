@@ -49,7 +49,8 @@ export class AgentRunner implements AgentRunnerPort {
 
       enforceTrue(
         station,
-        new Error('agents.run mode "cluster" needs a StationBackend provider'),
+        Error,
+        'agents.run mode "cluster" needs a StationBackend provider',
       );
       const res = await station.launch({
         taskId,
@@ -81,7 +82,8 @@ export class AgentRunner implements AgentRunnerPort {
 
     enforceTrue(
       llm,
-      new Error('agents.run mode "direct" needs an LlmPort provider'),
+      Error,
+      'agents.run mode "direct" needs an LlmPort provider',
     );
     await llm.complete(prompt, { model: opts?.model });
 

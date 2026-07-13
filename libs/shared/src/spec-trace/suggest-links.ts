@@ -114,7 +114,8 @@ export async function suggestCandidates(
 ): Promise<Array<{ xid: string; kind: "code" | "test" }>> {
   enforceTrue(
     Number.isInteger(k),
-    new Error(`suggestCandidates: k must be an integer, got ${k}`),
+    Error,
+    `suggestCandidates: k must be an integer, got ${k}`,
   );
 
   const { vecLiteral, linkedXids } = await readStatementContext(

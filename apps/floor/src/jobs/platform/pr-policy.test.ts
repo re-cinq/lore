@@ -49,7 +49,7 @@ interface PullsStub {
 // gate inputs; a thrown read must leave the conservative defaults.
 function pullsFor(stub: PullsStub): (repo: string) => Promise<PullRequests> {
   const guard = () => {
-    enforceTrue(!stub.throws, new Error("GitHub API down"));
+    enforceTrue(!stub.throws, Error, "GitHub API down");
   };
   const facade = {
     listFiles: async () => {

@@ -23,6 +23,7 @@ export async function handleFeatureFinalize(
 
   enforceTrue(
     featureId,
+    Error,
     "feature-finalize task is missing feature_id in context_bundle",
   );
 
@@ -35,8 +36,12 @@ export async function handleFeatureFinalize(
   try {
     const feature = await features.get(featureId);
 
-    enforceTrue(feature, `feature ${featureId} not found`);
-    enforceTrue(feature.draft_spec_md, "feature has no draft spec to finalize");
+    enforceTrue(feature, Error, `feature ${featureId} not found`);
+    enforceTrue(
+      feature.draft_spec_md,
+      Error,
+      "feature has no draft spec to finalize",
+    );
 
     const specPath = `specs/${feature.slug}/spec.md`;
     const branch = `lore/feature-planning/${feature.slug}-${task.id.substring(0, 8)}`;

@@ -17,7 +17,7 @@ export function initPool(): pg.Pool {
 }
 
 export function getPool(): pg.Pool {
-  enforceTrue(pool, "DB pool not initialized — call initPool() first");
+  enforceTrue(pool, Error, "DB pool not initialized — call initPool() first");
 
   return pool;
 }

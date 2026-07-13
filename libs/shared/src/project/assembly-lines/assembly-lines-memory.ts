@@ -100,7 +100,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
   ): Promise<void> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
 
-    enforceTrue(node, new Error(`no assembly line node row "${nodeRowId}"`));
+    enforceTrue(node, Error, `no assembly line node row "${nodeRowId}"`);
     node.outcome = outcome;
     node.commitSha = commitSha ?? null;
     node.finishedAt = this.clock();
@@ -176,7 +176,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
   private mustFind(id: string): AssemblyLineRecord {
     const row = this.rows.find((r) => r.id === id);
 
-    enforceTrue(row, new Error(`no assembly line "${id}"`));
+    enforceTrue(row, Error, `no assembly line "${id}"`);
 
     return row;
   }

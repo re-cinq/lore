@@ -42,7 +42,8 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
   if (typeof raw === "string") {
     enforceTrue(
       raw.trim(),
-      new Error("decomposition: task description is required"),
+      Error,
+      "decomposition: task description is required",
     );
 
     return {
@@ -55,7 +56,8 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
   }
   enforceTrue(
     !(!raw || typeof raw !== "object"),
-    new Error("decomposition: task must be an object or string"),
+    Error,
+    "decomposition: task must be an object or string",
   );
   const t = raw as Record<string, unknown>;
   const description =
@@ -64,7 +66,8 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
 
   enforceTrue(
     description,
-    new Error("decomposition: task description is required"),
+    Error,
+    "decomposition: task description is required",
   );
   const task: DecompTask = {
     id: typeof t.id === "string" && t.id ? t.id : id,
@@ -85,14 +88,15 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
 function normalizeStory(raw: unknown): UserStory {
   enforceTrue(
     !(!raw || typeof raw !== "object" || Array.isArray(raw)),
-    new Error("decomposition: each story must be an object"),
+    Error,
+    "decomposition: each story must be an object",
   );
   const s = raw as Record<string, unknown>;
   const title =
     (typeof s.title === "string" && s.title) ||
     (typeof s.name === "string" && s.name);
 
-  enforceTrue(title, new Error("decomposition: each story needs a title"));
+  enforceTrue(title, Error, "decomposition: each story needs a title");
   const tasksRaw = Array.isArray(s.tasks) ? s.tasks : [];
 
   return {
@@ -111,13 +115,15 @@ function normalizeStory(raw: unknown): UserStory {
 export function parseDecomposition(raw: unknown): DecompositionResult {
   enforceTrue(
     !(!raw || typeof raw !== "object" || Array.isArray(raw)),
-    new Error("decomposition: root must be an object"),
+    Error,
+    "decomposition: root must be an object",
   );
   const stories = (raw as Record<string, unknown>).stories;
 
   enforceTrue(
     Array.isArray(stories),
-    new Error("decomposition: stories must be an array"),
+    Error,
+    "decomposition: stories must be an array",
   );
 
   return { stories: stories.map(normalizeStory) };

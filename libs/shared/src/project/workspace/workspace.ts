@@ -48,7 +48,8 @@ export class Workspace {
   ): Promise<PullRef> {
     enforceTrue(
       this.pulls,
-      new Error("This Workspace has no pulls port to open a PR"),
+      Error,
+      "This Workspace has no pulls port to open a PR",
     );
     await this.git.push(this.dir, branch);
 

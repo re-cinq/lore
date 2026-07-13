@@ -171,9 +171,8 @@ export async function executeAssemblyLine(
 
     enforceTrue(
       node,
-      new Error(
-        `AssemblyLine ${assemblyLine.name}: unknown node "${currentId}"`,
-      ),
+      Error,
+      `AssemblyLine ${assemblyLine.name}: unknown node "${currentId}"`,
     );
 
     await leaseBackend.refresh(branchName, holder, undefined, currentId);
@@ -182,9 +181,8 @@ export async function executeAssemblyLine(
 
     enforceTrue(
       handler,
-      new Error(
-        `AssemblyLine ${assemblyLine.name}: no handler registered for node type "${node.type}" (node "${currentId}")`,
-      ),
+      Error,
+      `AssemblyLine ${assemblyLine.name}: no handler registered for node type "${node.type}" (node "${currentId}")`,
     );
     const nodeRef = await traceNodeStart(opts.trace, {
       assemblyLineId: opts.assemblyLineId,
@@ -221,9 +219,8 @@ export async function executeAssemblyLine(
 
     enforceTrue(
       candidates.length !== 0,
-      new Error(
-        `AssemblyLine ${assemblyLine.name}: no edge from "${currentId}" for outcome "${result.outcome}"`,
-      ),
+      Error,
+      `AssemblyLine ${assemblyLine.name}: no edge from "${currentId}" for outcome "${result.outcome}"`,
     );
     const matchOutcome = candidates.find((e) => e.on === result.outcome);
     const chosen = matchOutcome ?? candidates[0];

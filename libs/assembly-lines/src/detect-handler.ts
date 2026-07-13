@@ -36,6 +36,7 @@ export function createDetectHandler(
 
     enforceTrue(
       detector,
+      Error,
       `detect node "${node.id}": no detector registered for job_ref "${node.job_ref}"`,
     );
 

@@ -1,30 +1,23 @@
-// IO shell for the agent-events sink (#687): archives the raw NDJSON run stream to
-// GCS for replay/debugging, alongside the pipeline.llm_calls cost rows. The object
-// key is built by the pure agentEventsArchiveKey (agent-events.ts). Dormant until
-// LORE_AGENT_EVENTS_BUCKET is set, so it stays a no-op until ops provision a bucket.
+// IO shell for the agent-events sink (#687): archives the raw NDJSON run stream
+// through the shared ArchivePort, alongside the pipeline.llm_calls cost rows. The
+// object key is built by the pure agentEventsArchiveKey (agent-events.ts).
+// Redaction stays here — what leaves the Floor is Floor policy, not the port's.
 
-import { Storage } from "@google-cloud/storage";
 import { redactSecrets } from "@re-cinq/lore-shared";
-
-const BUCKET = process.env.LORE_AGENT_EVENTS_BUCKET;
-let storage: Storage | null = null;
-
-function getStorage(): Storage {
-  return (storage ??= new Storage());
-}
+import type { ArchivePort } from "@re-cinq/lore-shared/project/archive/archive-port.js";
+import { agentEventsArchive } from "../../kernel/archives.js";
 
 /** Archive the raw NDJSON body (redacted) at the given key. No-op when no bucket is
  *  configured. Callers fire-and-forget — a failed archive must not fail the ingest. */
-/// todo: This must be a port function. if we don't have a port for this, we should create one. It is not a good idea to have this function here in the floor app.
 export async function archiveAgentEvents(
   rawNdjson: string,
   key: string,
+  archive: ArchivePort | null = agentEventsArchive(),
 ): Promise<void> {
-  if (!BUCKET) {
+  if (!archive) {
     return;
   }
-  await getStorage().bucket(BUCKET).file(key).save(redactSecrets(rawNdjson), {
-    resumable: false,
+  await archive.save(key, redactSecrets(rawNdjson), {
     contentType: "application/x-ndjson",
   });
 }

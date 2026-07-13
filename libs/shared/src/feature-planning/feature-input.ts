@@ -39,17 +39,16 @@ export function enforceFeatureInput(
   const t = typeof title === "string" ? title.trim() : "";
   const p = typeof prompt === "string" ? prompt.trim() : "";
 
-  enforceTrue(
-    !(!t || !p),
-    new ValidationError("title and prompt are required"),
-  );
+  enforceTrue(!(!t || !p), ValidationError, "title and prompt are required");
   enforceTrue(
     t.length <= TITLE_MAX,
-    new ValidationError(`title must be ${TITLE_MAX} characters or fewer`),
+    ValidationError,
+    `title must be ${TITLE_MAX} characters or fewer`,
   );
   enforceTrue(
     p.length <= PROMPT_MAX,
-    new ValidationError(`prompt must be ${PROMPT_MAX} characters or fewer`),
+    ValidationError,
+    `prompt must be ${PROMPT_MAX} characters or fewer`,
   );
 
   return { title: t, prompt: p };

@@ -141,10 +141,8 @@ export async function loadAssemblyLineDir(
 
     enforceTrue(
       !out.has(wf.name),
-      new AssemblyLineLoadError(
-        `Duplicate assemblyLine name "${wf.name}"`,
-        path.join(dir, f),
-      ),
+      (message) => new AssemblyLineLoadError(message, path.join(dir, f)),
+      `Duplicate assemblyLine name "${wf.name}"`,
     );
     out.set(wf.name, wf);
   }
@@ -155,30 +153,27 @@ export async function loadAssemblyLineDir(
 function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   const nodeIds = new Set(wf.nodes.map((n) => n.id));
 
+  const loadError = (message: string): AssemblyLineLoadError =>
+    new AssemblyLineLoadError(message, source);
+
   enforceTrue(
     nodeIds.has(wf.entry),
-    new AssemblyLineLoadError(
-      `entry "${wf.entry}" is not a defined node id`,
-      source,
-    ),
+    loadError,
+    `entry "${wf.entry}" is not a defined node id`,
   );
   enforceTrue(
     nodeIds.has(wf.exit),
-    new AssemblyLineLoadError(
-      `exit "${wf.exit}" is not a defined node id`,
-      source,
-    ),
+    loadError,
+    `exit "${wf.exit}" is not a defined node id`,
   );
 
   for (const e of wf.edges) {
     enforceTrue(
       nodeIds.has(e.from),
-      new AssemblyLineLoadError(`edge from unknown node "${e.from}"`, source),
+      loadError,
+      `edge from unknown node "${e.from}"`,
     );
-    enforceTrue(
-      nodeIds.has(e.to),
-      new AssemblyLineLoadError(`edge to unknown node "${e.to}"`, source),
-    );
+    enforceTrue(nodeIds.has(e.to), loadError, `edge to unknown node "${e.to}"`);
   }
 
   // Reachability from entry (BFS).
@@ -199,10 +194,8 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   for (const id of nodeIds) {
     enforceTrue(
       reachable.has(id),
-      new AssemblyLineLoadError(
-        `node "${id}" is not reachable from entry`,
-        source,
-      ),
+      loadError,
+      `node "${id}" is not reachable from entry`,
     );
   }
 
@@ -215,10 +208,8 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
 
     enforceTrue(
       hasOut,
-      new AssemblyLineLoadError(
-        `node "${n.id}" has no outgoing edges (only "${wf.exit}" may be terminal)`,
-        source,
-      ),
+      loadError,
+      `node "${n.id}" has no outgoing edges (only "${wf.exit}" may be terminal)`,
     );
   }
 
@@ -226,6 +217,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   for (const n of wf.nodes) {
     enforceTrue(
       n.type !== "detect" || n.job_ref,
+      Error,
       `detect node "${n.id}" requires job_ref`,
     );
   }

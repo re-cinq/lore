@@ -67,6 +67,7 @@ export function createStartEventHandler(
 
     enforceTrue(
       typeof assemblyLineId === "string" && assemblyLineId.length > 0,
+      Error,
       "assembly_line.start event params missing assemblyLineId",
     );
     const definitionName = String(params.definitionName ?? "");

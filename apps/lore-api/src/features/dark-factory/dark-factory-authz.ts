@@ -54,10 +54,8 @@ export function parsePrRef(ref: string): {
 
   enforceTrue(
     m,
-    new TwoKeyError(
-      `Invalid PR reference "${ref}" — expected owner/repo#N`,
-      "invalid_pr_ref",
-    ),
+    (message) => new TwoKeyError(message, "invalid_pr_ref"),
+    `Invalid PR reference "${ref}" — expected owner/repo#N`,
   );
 
   return { owner: m[1], repo: m[2], number: Number.parseInt(m[3], 10) };
@@ -98,7 +96,8 @@ export async function verifyApproval(opts: {
   } catch (err) {
     enforceTrue(
       (err as { status?: number }).status !== 404,
-      new TwoKeyError(`Approval PR ${prRef} not found`, "pr_not_found"),
+      (message) => new TwoKeyError(message, "pr_not_found"),
+      `Approval PR ${prRef} not found`,
     );
     throw new TwoKeyError(
       `GitHub API error fetching ${prRef}: ${(err as Error).message}`,
@@ -143,10 +142,8 @@ export async function verifyApproval(opts: {
 
   enforceTrue(
     !(!labelEvent || !labelEvent.actor?.login),
-    new TwoKeyError(
-      `Approval label "${APPROVAL_LABEL}" missing on PR ${prRef}`,
-      "label_missing",
-    ),
+    (message) => new TwoKeyError(message, "label_missing"),
+    `Approval label "${APPROVAL_LABEL}" missing on PR ${prRef}`,
   );
 
   const approver = labelEvent.actor.login;
@@ -166,13 +163,11 @@ export async function verifyApproval(opts: {
         codeowners.length > 0 &&
         codeowners.every((row) => row.owners.every((o) => o.includes("/")))
       ),
-      new TwoKeyError(
-        `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
-          `team-membership lookup is not implemented in v1. Add an explicit ` +
-          `@user owner for the approver, or wait for the per-path team ` +
-          `resolution follow-up.`,
-        "team_membership_unresolved",
-      ),
+      (message) => new TwoKeyError(message, "team_membership_unresolved"),
+      `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
+        `team-membership lookup is not implemented in v1. Add an explicit ` +
+        `@user owner for the approver, or wait for the per-path team ` +
+        `resolution follow-up.`,
     );
     throw new TwoKeyError(
       `${approver} is not a CODEOWNERS member of ${targetRepo}`,
