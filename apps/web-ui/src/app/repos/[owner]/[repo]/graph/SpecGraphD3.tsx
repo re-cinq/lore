@@ -823,14 +823,12 @@ export default function SpecGraphD3({
     setSelected(null);
 
     const leafHitNodes = () =>
-      nodes
-        .filter(visibleLeaf)
-        .map((n) => ({
-          id: n.id,
-          x: n.x ?? 0,
-          y: n.y ?? 0,
-          r: radiusOf(n.type),
-        }));
+      nodes.filter(visibleLeaf).map((n) => ({
+        id: n.id,
+        x: n.x ?? 0,
+        y: n.y ?? 0,
+        r: radiusOf(n.type),
+      }));
 
     // The SVG covers the canvas, so canvas leaves can't receive DOM events — a
     // background click instead inverts the pointer and hit-tests the leaf dots.

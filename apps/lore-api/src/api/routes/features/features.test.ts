@@ -126,15 +126,13 @@ describe("features routes", () => {
   it("kicks the finalize task from a spec-ready feature", async () => {
     useProject(
       fakeFeatures({
-        get: vi
-          .fn()
-          .mockResolvedValue({
-            id: "f1",
-            status: "spec-ready",
-            title: "X",
-            slug: "x",
-            iterations: [],
-          }),
+        get: vi.fn().mockResolvedValue({
+          id: "f1",
+          status: "spec-ready",
+          title: "X",
+          slug: "x",
+          iterations: [],
+        }),
       }),
     );
     vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
@@ -146,14 +144,12 @@ describe("features routes", () => {
   it("refuses to split when the latest ready round has no split suggestion", async () => {
     useProject(
       fakeFeatures({
-        get: vi
-          .fn()
-          .mockResolvedValue({
-            id: "f1",
-            iterations: [
-              readyIteration({ sections: [], draft_spec_markdown: "x" }),
-            ],
-          }),
+        get: vi.fn().mockResolvedValue({
+          id: "f1",
+          iterations: [
+            readyIteration({ sections: [], draft_spec_markdown: "x" }),
+          ],
+        }),
       }),
     );
     const res = await req("POST", `${base}/f1/split`, {
@@ -232,14 +228,12 @@ describe("features routes", () => {
     };
     useProject(
       fakeFeatures({
-        get: vi
-          .fn()
-          .mockResolvedValue({
-            id: "f1",
-            title: "X",
-            original_prompt: "p",
-            iterations: [recent],
-          }),
+        get: vi.fn().mockResolvedValue({
+          id: "f1",
+          title: "X",
+          original_prompt: "p",
+          iterations: [recent],
+        }),
       }),
     );
     const res = await req("POST", `${base}/f1/iterations`, {

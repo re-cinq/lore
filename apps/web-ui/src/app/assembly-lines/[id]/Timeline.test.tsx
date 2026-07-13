@@ -174,15 +174,13 @@ describe("Timeline", () => {
   it("maps a known stage to its node icon and shows the success outcome pill", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse(
-            baseResponse({
-              commits: [commit({ stage: "review", outcome: "success" })],
-            }),
-          ),
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          baseResponse({
+            commits: [commit({ stage: "review", outcome: "success" })],
+          }),
         ),
+      ),
     );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();

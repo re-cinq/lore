@@ -2,7 +2,7 @@ name: Auto-merge
 
 # Opt-in auto-merge: add the `automerge` label to a PR and GitHub squash-merges
 # it once branch-protection requirements are met — required status checks green
-# (the test.yml matrix + integration) AND at least one approving review. This
+# (the pr-checks.yml matrix + integration) AND at least one approving review. This
 # workflow only ARMS GitHub's native auto-merge; GitHub performs the merge and
 # enforces the gates, so "all tests green + approved" is never re-implemented here.
 #
@@ -10,7 +10,7 @@ name: Auto-merge
 #   - Settings → General → "Allow auto-merge" enabled.
 #   - Branch protection on `main`: require a PR before merging with >=1 approval,
 #     and mark these status checks required: shared, mcp-server, agent, web-ui
-#     (from test.yml) and integration (from test-integration.yml).
+#     (from pr-checks.yml) and integration (from test-integration.yml).
 #
 # pull_request_target runs in the base-repo context (write token) and never
 # checks out PR code — it only calls the GitHub API — so it is safe for forks.
