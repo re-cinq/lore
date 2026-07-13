@@ -27,20 +27,36 @@ export function agentDefToCrds(def: RecipeDef, opts: CrdOptions = {}): CrdPair {
   if (opts.eventsUrl) {
     sinks.push({ type: "http", url: opts.eventsUrl, headers_secret: "agent-events-auth" });
   }
+  const isStation = def.execution_mode === "station";
   return {
     agentDefinition: {
       apiVersion: API_VERSION,
       kind: "AgentDefinition",
       metadata: { name: def.name, labels: { ...UI_LABELS } },
-      spec: {
-        description: `Lore ${def.name} recipe (UI-authored).`,
-        ...(def.model ? { model: def.model } : {}),
-        // {context} is filled by the Floor's context hydration (D5).
-        ...(def.prompt ? { prompt: `${def.prompt}\n\n{context}` } : {}),
-        permission_mode: "bypass",
-        max_turns: 40,
-        output: { sinks },
-      },
+      spec: isStation
+        ? {
+            // exec-vendor station (ADR-031 amendment): a non-LLM node run by the
+            // pod's `lore-station <type>` entrypoint. The whole node input rides
+            // the {station_input} prompt; tool_config.command names the entrypoint,
+            // derived from the def-<type> name — a custom image honoring the
+            // station contract drops in by pointing station_ref at its row.
+            description: `Lore ${def.name} station recipe (UI-authored).`,
+            model: "exec",
+            prompt: "{station_input}",
+            permission_mode: "bypass",
+            max_turns: 1,
+            tool_config: { command: ["lore-station", def.name.replace(/^def-/, "")] },
+            output: { sinks },
+          }
+        : {
+            description: `Lore ${def.name} recipe (UI-authored).`,
+            ...(def.model ? { model: def.model } : {}),
+            // {context} is filled by the Floor's context hydration (D5).
+            ...(def.prompt ? { prompt: `${def.prompt}\n\n{context}` } : {}),
+            permission_mode: "bypass",
+            max_turns: 40,
+            output: { sinks },
+          },
     },
     station: {
       apiVersion: API_VERSION,

@@ -4,8 +4,8 @@
  * classification are unit-testable.
  */
 
-import type { TraceDocument } from "@re-cinq/lore-shared";
-import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
+import type { TraceDocument } from "../index.js";
+import { OPEN_TASK_STATES } from "../project/tasks/task-store-port.js";
 
 /** Speckit artifacts that are prose, not named-symbol sources — scanning them
  * for "missing code symbols" yields permanent 100% false drift. */

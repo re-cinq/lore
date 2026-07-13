@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { TraceDocument } from "@re-cinq/lore-shared";
+import type { TraceDocument } from "../index.js";
 import {
   isAssertionSource,
   shouldSkipDrift,

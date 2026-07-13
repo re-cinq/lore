@@ -82,6 +82,14 @@ export class PgSettings implements SettingsPort {
     return rows as OnboardedRepo[];
   }
 
+  async isOnboarded(repo: string): Promise<boolean> {
+    const { rows } = await this.pool.query(
+      "SELECT 1 FROM lore.repos WHERE full_name = $1 AND onboarding_pr_merged = true",
+      [repo],
+    );
+    return rows.length > 0;
+  }
+
   async markIngested(repo: string): Promise<void> {
     await this.pool.query("UPDATE lore.repos SET last_ingested_at = now() WHERE full_name = $1", [repo]);
   }

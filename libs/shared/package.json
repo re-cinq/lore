@@ -8,6 +8,7 @@
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
     "./project/*.js": { "types": "./dist/project/*.d.ts", "default": "./dist/project/*.js" },
+    "./detect/*.js": { "types": "./dist/detect/*.d.ts", "default": "./dist/detect/*.js" },
     "./project/leases/lease-backends.js": { "types": "./dist/project/leases/lease-backends.d.ts", "default": "./dist/project/leases/lease-backends.js" },
     "./commit-trailers.js": { "types": "./dist/commit-trailers.d.ts", "default": "./dist/commit-trailers.js" },
     "./feature-planning/*.js": { "types": "./dist/feature-planning/*.d.ts", "default": "./dist/feature-planning/*.js" },

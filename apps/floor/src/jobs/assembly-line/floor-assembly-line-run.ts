@@ -22,7 +22,7 @@ import {
 } from "@re-cinq/lore-assembly-lines";
 import type { LeaseBackend, LoreTaskSpec, StationBackend } from "@re-cinq/lore-shared";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import { nodeAgentName, stationNodesFromEnv } from "./floor-assembly-line.js";
+import { nodeAgentName } from "./floor-assembly-line.js";
 import {
   buildFloorAssemblyLineHandlers,
   type FloorAssemblyLineTask,
@@ -48,8 +48,6 @@ export interface RunFloorAssemblyLineOptions {
   ports: FloorAssemblyLinePorts;
   /** Per-node observability sink (pipeline.assembly_line_nodes); optional in tests. */
   trace?: AssemblyLineTrace;
-  /** Node types dispatched as station pods (LORE_STATION_NODES cutover flag). */
-  stationNodes?: ReadonlySet<string>;
 }
 
 /** Walk one task's assembly line Floor-side. Thin by design: it wires the Floor handlers
@@ -65,7 +63,7 @@ export function runFloorAssemblyLine(opts: RunFloorAssemblyLineOptions): Promise
     holder: opts.holder,
     leaseBackend: opts.leaseBackend,
     assemblyLine: opts.assemblyLine,
-    handlers: buildFloorAssemblyLineHandlers(opts.task, opts.ports, opts.stationNodes),
+    handlers: buildFloorAssemblyLineHandlers(opts.task, opts.ports),
     trace: opts.trace,
   });
 }
@@ -186,7 +184,6 @@ export async function runFloorAssemblyLineForTask(
       leaseBackend: rt.leaseBackend,
       ports,
       trace: portTrace(rt.assemblyLines),
-      stationNodes: stationNodesFromEnv(process.env.LORE_STATION_NODES),
     });
   } finally {
     await fs.rm(gitDir, { recursive: true, force: true }).catch(() => {});

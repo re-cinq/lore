@@ -43,6 +43,8 @@ import { darkFactoryRoute } from "../api/routes/dark-factory/dark-factory.js";
 import { agentsGetRoute, agentsPostRoute, agentsPutRoute, agentsDeleteRoute } from "../api/routes/agent-definitions/agents.js";
 import { impactRoute } from "../api/routes/impact/impact.js";
 import { traceRoute } from "../api/routes/trace/trace.js";
+import { chunksRoute } from "../api/routes/repos/chunks.js";
+import { stationDataRoutes } from "../api/routes/repos/station-data.js";
 import { traceSpecsRoute } from "../api/routes/trace/trace-specs.js";
 import { featuresRoutes } from "../api/routes/features/features.js";
 import { openApiJsonRoute, docsRoute } from "../api/routes/openapi/openapi.js";
@@ -92,6 +94,8 @@ export function routeList(getPool: () => any): ServerRoute[] {
     agentsDeleteRoute(getPool),
     impactRoute(),
     traceRoute(),
+    chunksRoute(),
+    ...stationDataRoutes(),
     traceSpecsRoute(),
     openApiJsonRoute(getPool),
     docsRoute(getPool),

@@ -1,3 +1,4 @@
+import { ChunkStore } from "../chunks/chunks.js";
 import { IssueCollection } from "../issues/issues.js";
 import { RepoFiles } from "../repo/repo-files.js";
 import { PullRequests } from "../pulls/pull-requests.js";
@@ -35,6 +36,7 @@ import type { LeaseBackend } from "../leases/lease-backends.js";
 import type { AuditPort } from "../audit/audit-port.js";
 import type { UsagePort } from "../usage/usage-port.js";
 import type { FeaturesPort } from "../features/features-port.js";
+import type { ChunksPort } from "../chunks/chunks-port.js";
 
 /**
  * The unified internal API. Built by createProject from a repo fullName
@@ -94,6 +96,11 @@ export class Project {
 
   get trace(): TraceView {
     return new TraceView(this.fullName, this.port<TracePort>("trace"));
+  }
+
+  /** Vector-store chunk reads for detection runs (org_shared per repo). */
+  get chunks(): ChunkStore {
+    return new ChunkStore(this.fullName, this.port<ChunksPort>("chunks"));
   }
 
   /** Execution: one ephemeral Agent run (trust-gated). See `agentDefs` for config. */

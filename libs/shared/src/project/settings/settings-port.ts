@@ -38,6 +38,8 @@ export interface SettingsPort {
   repoForTeam(team: string): Promise<string | null>;
   /** All onboarded repos with their last reindex stamp (the reindex scan set). */
   onboardedRepos(): Promise<OnboardedRepo[]>;
+  /** True when the repo's onboarding PR has merged (gap-detect's per-repo guard). */
+  isOnboarded(repo: string): Promise<boolean>;
   /** Stamp `last_ingested_at = now()` after a reindex pass. */
   markIngested(repo: string): Promise<void>;
   /** Repos with an open, unmerged onboarding PR (merge-check polls these). */
