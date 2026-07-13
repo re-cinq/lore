@@ -64,7 +64,8 @@ export class RelayExecutor {
       }
       enforceTrue(
         Date.now() <= deadline,
-        new Error(`relay command timed out after ${timeoutMs}ms`),
+        Error,
+        `relay command timed out after ${timeoutMs}ms`,
       );
       await new Promise((r) => setTimeout(r, pollMs));
     }

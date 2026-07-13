@@ -34,7 +34,8 @@ describe("runTraceUnits (isolation)", () => {
     const project = async (unit: TraceUnit): Promise<void> => {
       enforceTrue(
         unit.filePath !== "specs/bad/spec.md",
-        new Error("projection blew up"),
+        Error,
+        "projection blew up",
       );
       projected.push(unit.filePath);
     };

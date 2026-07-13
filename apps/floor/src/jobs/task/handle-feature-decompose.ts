@@ -59,6 +59,7 @@ export async function handleFeatureDecompose(
 
   enforceTrue(
     featureId,
+    Error,
     "feature-decompose task is missing feature_id in context_bundle",
   );
 
@@ -70,7 +71,7 @@ export async function handleFeatureDecompose(
   try {
     const feature = await project.features.get(featureId);
 
-    enforceTrue(feature, `feature ${featureId} not found`);
+    enforceTrue(feature, Error, `feature ${featureId} not found`);
     const specSlug = feature.slug;
 
     // Idempotency: a feature already broken into spec-tasks is left untouched
@@ -98,7 +99,11 @@ export async function handleFeatureDecompose(
       (await project.repo.read(specPath).catch(() => null)) ??
       feature.draft_spec_md;
 
-    enforceTrue(specMd, `no spec content at ${specPath} or in draft_spec_md`);
+    enforceTrue(
+      specMd,
+      Error,
+      `no spec content at ${specPath} or in draft_spec_md`,
+    );
 
     const agentDef = await project.agentDefs
       .resolve("feature-decompose")

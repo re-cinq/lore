@@ -35,6 +35,7 @@ export async function handleFeaturePlanning(
 
   enforceTrue(
     featureId && iteration != null,
+    Error,
     "feature-planning task is missing feature_id/iteration in context_bundle",
   );
 

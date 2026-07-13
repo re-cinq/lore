@@ -183,9 +183,8 @@ export async function runSupervisor(
     }
     enforceTrue(
       opts.gitDir,
-      new Error(
-        "[supervisor] gitDir required when assemblyLine + handlers are provided",
-      ),
+      Error,
+      "[supervisor] gitDir required when assemblyLine + handlers are provided",
     );
 
     console.log(

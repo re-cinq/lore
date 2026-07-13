@@ -90,23 +90,23 @@ function normalizeEntry(raw: unknown): TestCommandManifest {
 
   enforceTrue(
     !(typeof entry.list !== "string" || entry.list.trim() === ""),
-    new Error("test-command manifest: 'list' command is required"),
+    Error,
+    "test-command manifest: 'list' command is required",
   );
   enforceTrue(
     !(typeof entry.run !== "string" || entry.run.trim() === ""),
-    new Error("test-command manifest: 'run' command is required"),
+    Error,
+    "test-command manifest: 'run' command is required",
   );
   enforceTrue(
     entry.run.includes("{selector}"),
-    new Error(
-      "test-command manifest: 'run' must contain the {selector} placeholder",
-    ),
+    Error,
+    "test-command manifest: 'run' must contain the {selector} placeholder",
   );
   enforceTrue(
     COVERAGE_FORMATS.includes(entry.coverage_format as CoverageFormat),
-    new Error(
-      `test-command manifest: 'coverage_format' must be one of ${COVERAGE_FORMATS.join(", ")}`,
-    ),
+    Error,
+    `test-command manifest: 'coverage_format' must be one of ${COVERAGE_FORMATS.join(", ")}`,
   );
 
   return {

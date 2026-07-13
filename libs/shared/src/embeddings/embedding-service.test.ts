@@ -58,7 +58,8 @@ describe("getQueryEmbedding project resolution", () => {
     const fetchMock = vi.fn(async (url: string) => {
       enforceTrue(
         !url.includes("service-accounts/default/token"),
-        new Error("no metadata"),
+        Error,
+        "no metadata",
       );
 
       if (url.includes("/project/project-id")) {

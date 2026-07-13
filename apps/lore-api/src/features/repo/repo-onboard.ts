@@ -155,9 +155,8 @@ export async function onboardRepo(
 
   enforceTrue(
     !(!owner || !name),
-    new Error(
-      `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
-    ),
+    Error,
+    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
   );
 
   // Insert into repos table (upsert — re-onboarding refreshes the timestamp)
@@ -246,9 +245,8 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   enforceTrue(
     !(!owner || !repo),
-    new Error(
-      `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
-    ),
+    Error,
+    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
   );
 
   const octokit = await getOctokit();

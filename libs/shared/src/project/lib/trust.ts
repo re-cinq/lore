@@ -18,8 +18,7 @@ export function executionRefusal(env: NodeJS.ProcessEnv): string | null {
 export function assertCanClone(env: NodeJS.ProcessEnv): void {
   enforceTrue(
     !env.LORE_DB_HOST,
-    new Error(
-      "Cannot clone or write to a repo on the shared server — run in CI or locally.",
-    ),
+    Error,
+    "Cannot clone or write to a repo on the shared server — run in CI or locally.",
   );
 }

@@ -6,6 +6,7 @@
  * the request's Content-Type, matching the old hand-rolled handler.
  */
 
+import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
 import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
 import {
@@ -21,13 +22,10 @@ export const ciIngestRoute: ServerRoute = {
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
     const mapped = mapCiIngest(parseJsonBody<CiIngestBody>(rawBody(request)));
-    // A validation failure is a client error — surface the mapper's 400 + message,
-    // not a generic 500 (which is what a plain enforce throw would produce).
 
-    /// todo: this must be an enforce. if(..) throw Error; pattern must always be an enforce.
-    if (!mapped.ok) {
-      throw Boom.badRequest(mapped.error);
-    }
+    // A validation failure is a client error — Boom.badRequest surfaces the
+    // mapper's 400 + message instead of a generic 500.
+    enforceOk(mapped, Boom.badRequest);
 
     // Each insert is idempotent only via dedupe_key, which doc projection omits on
     // purpose (force must re-run); the loop does the work — return 202 fast.

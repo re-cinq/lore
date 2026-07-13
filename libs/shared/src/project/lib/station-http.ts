@@ -212,7 +212,7 @@ export function createStationProject(
 ): Project {
   const baseUrl = env.LORE_API_URL;
 
-  enforceTrue(baseUrl, new Error("createStationProject requires LORE_API_URL"));
+  enforceTrue(baseUrl, Error, "createStationProject requires LORE_API_URL");
   const token = env.LORE_STATION_TOKEN ?? env.LORE_INGEST_TOKEN;
   const http = makeHttp({ baseUrl, repo, token, fetchImpl });
 

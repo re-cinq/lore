@@ -27,7 +27,7 @@ const VALID_SCHEMAS = new Set([
 ]);
 
 export function getPool(): Pool {
-  enforceTrue(pool, new Error("Database not configured"));
+  enforceTrue(pool, Error, "Database not configured");
 
   return pool;
 }

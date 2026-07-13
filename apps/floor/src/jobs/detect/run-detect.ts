@@ -57,6 +57,7 @@ function jobRefOf(assemblyLine: AssemblyLine): string {
 
   enforceTrue(
     typeof detectNode?.job_ref === "string" && detectNode.job_ref.length > 0,
+    Error,
     `assembly line "${assemblyLine.name}" has no detect node with job_ref`,
   );
 
@@ -86,6 +87,7 @@ export async function runDetect(
 
   enforceTrue(
     !!assemblyLine,
+    Error,
     `no assembly line defined for "${opts.definitionName}"`,
   );
 

@@ -165,7 +165,8 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
 
   enforceTrue(
     committed.length !== 0,
-    new Error("Failed to generate any spec artifacts"),
+    Error,
+    "Failed to generate any spec artifacts",
   );
 
   const fileList = committed.map((f) => `- \`${f}\``).join("\n");

@@ -259,9 +259,8 @@ export class AnthropicProvider implements LlmProvider {
 
       enforceTrue(
         !(!toolUseBlock || toolUseBlock.type !== "tool_use"),
-        new Error(
-          `No tool_use block in response (stop_reason: ${response.stop_reason})`,
-        ),
+        Error,
+        `No tool_use block in response (stop_reason: ${response.stop_reason})`,
       );
       const data = toolUseBlock.input as T;
       const inputTokens = response.usage.input_tokens;

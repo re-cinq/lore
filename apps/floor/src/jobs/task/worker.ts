@@ -240,7 +240,8 @@ async function processTask(task: PipelineTask): Promise<void> {
 
     enforceTrue(
       project.repo.isConfigured(),
-      new Error("GitHub App not configured — cannot create PR"),
+      Error,
+      "GitHub App not configured — cannot create PR",
     );
 
     // Resolve model — the resolved agent definition wins, then legacy overrides.

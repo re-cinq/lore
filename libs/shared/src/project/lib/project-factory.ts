@@ -152,7 +152,8 @@ export function setProject(project: Project): void {
 export function project(): Project {
   enforceTrue(
     registeredProject,
-    new Error("No Project registered — call setProject() during boot"),
+    Error,
+    "No Project registered — call setProject() during boot",
   );
 
   return registeredProject;

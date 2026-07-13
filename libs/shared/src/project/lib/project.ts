@@ -168,9 +168,8 @@ export class Project {
 
     enforceTrue(
       built !== undefined,
-      new Error(
-        `Project port "${name}" is not wired yet (pending its live adapter)`,
-      ),
+      Error,
+      `Project port "${name}" is not wired yet (pending its live adapter)`,
     );
 
     return built as T;

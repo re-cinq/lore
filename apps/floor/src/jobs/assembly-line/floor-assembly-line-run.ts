@@ -178,7 +178,8 @@ export async function runFloorAssemblyLineForTask(
 
   enforceTrue(
     assemblyLine,
-    new Error(`No assembly line defined for task type "${task.taskType}"`),
+    Error,
+    `No assembly line defined for task type "${task.taskType}"`,
   );
   const holder = os.hostname();
   const { url, authArgs } = await rt.cloneAuth(task.targetRepo);

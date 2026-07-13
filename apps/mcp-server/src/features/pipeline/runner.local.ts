@@ -166,10 +166,9 @@ export function validateRepoMatch(
 ): void {
   enforceTrue(
     !(cwdRepo && cwdRepo !== taskRepo),
-    new Error(
-      `target_repo mismatch: task expects '${taskRepo}' but current directory is a checkout of '${cwdRepo}'. ` +
-        `cd to a checkout of ${taskRepo} before claiming this task.`,
-    ),
+    Error,
+    `target_repo mismatch: task expects '${taskRepo}' but current directory is a checkout of '${cwdRepo}'. ` +
+      `cd to a checkout of ${taskRepo} before claiming this task.`,
   );
 }
 
@@ -554,7 +553,8 @@ export async function spawnLocalTask(opts: {
 
   enforceTrue(
     repoRoot,
-    new Error("Not in a git repository — cannot create worktree"),
+    Error,
+    "Not in a git repository — cannot create worktree",
   );
 
   // Refuse to run if the developer's cwd is a checkout of a different
@@ -571,7 +571,8 @@ export async function spawnLocalTask(opts: {
   // Bail if worktree already exists (idempotency)
   enforceTrue(
     !fs.existsSync(worktreePath),
-    new Error(`Worktree already exists for task ${taskId}`),
+    Error,
+    `Worktree already exists for task ${taskId}`,
   );
 
   // Create the worktree and branch

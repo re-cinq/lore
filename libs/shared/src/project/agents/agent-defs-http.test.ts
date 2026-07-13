@@ -43,7 +43,8 @@ beforeAll(async () => {
 
   enforceTrue(
     !(addr === null || typeof addr === "string"),
-    new Error("no server address"),
+    Error,
+    "no server address",
   );
   baseUrl = `http://127.0.0.1:${addr.port}`;
 });
