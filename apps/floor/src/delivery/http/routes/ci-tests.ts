@@ -8,7 +8,10 @@
 
 import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
-import { mapCiTests, type CiTestsBody } from "../../../listeners/ci-tests-map.js";
+import {
+  mapCiTests,
+  type CiTestsBody,
+} from "../../../listeners/ci-tests-map.js";
 import { insertEventList } from "../../../main-loop/store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
@@ -20,6 +23,7 @@ export const ciTestsRoute: ServerRoute = {
     const mapped = mapCiTests(parseJsonBody<CiTestsBody>(rawBody(request)));
     // A validation failure is a client error — surface the mapper's 400 + message,
     // not a generic 500 (which is what a plain enforce throw would produce).
+    /// todo: this must be an enforce. if(..) throw Error; pattern must always be an enforce.
     if (!mapped.ok) throw Boom.badRequest(mapped.error);
 
     await insertEventList(mapped.events, "ci-tests");

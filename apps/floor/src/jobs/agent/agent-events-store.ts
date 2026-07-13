@@ -15,6 +15,7 @@ function getStorage(): Storage {
 
 /** Archive the raw NDJSON body (redacted) at the given key. No-op when no bucket is
  *  configured. Callers fire-and-forget — a failed archive must not fail the ingest. */
+/// todo: This must be a port function. if we don't have a port for this, we should create one. It is not a good idea to have this function here in the floor app.
 export async function archiveAgentEvents(rawNdjson: string, key: string): Promise<void> {
   if (!BUCKET) return;
   await getStorage()

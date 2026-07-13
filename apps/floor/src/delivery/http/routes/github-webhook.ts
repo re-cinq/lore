@@ -32,6 +32,7 @@ export const githubWebhookRoute: ServerRoute = {
     const deliveryId = (request.headers["x-github-delivery"] as string | undefined) ?? "";
     const raw = rawBody(request);
 
+    /// todo: The signature of this enforce must be: enforceTrue(condition, error type, error message)
     enforceTrue(secret, () => Boom.serverUnavailable("webhook secret not configured"));
     enforceTrue(signature, () => Boom.unauthorized("missing signature"));
     enforceTrue(verifyGitHubSignature(secret, signature, raw), () => Boom.unauthorized("invalid signature"));
