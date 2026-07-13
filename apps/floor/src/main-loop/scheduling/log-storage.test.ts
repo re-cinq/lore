@@ -60,7 +60,9 @@ describe("writeJobRunLogs", () => {
 describe("readJobRunLogs", () => {
   it("returns the file contents when the object exists", async () => {
     existsMock.mockResolvedValueOnce([true]);
-    downloadMock.mockResolvedValueOnce([Buffer.from("log line one\nlog line two\n")]);
+    downloadMock.mockResolvedValueOnce([
+      Buffer.from("log line one\nlog line two\n"),
+    ]);
 
     const out = await readJobRunLogs("spec_drift", "run-789");
 

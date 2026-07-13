@@ -1,4 +1,8 @@
-import type { MemoryPort, MemoryRecord, MemoryWriteResult } from "./memory-port.js";
+import type {
+  MemoryPort,
+  MemoryRecord,
+  MemoryWriteResult,
+} from "./memory-port.js";
 
 /**
  * project.memory — repo-bound agent memory over the MemoryPort bridge. The repo
@@ -10,7 +14,11 @@ export class Memory {
     private readonly memory: MemoryPort,
   ) {}
 
-  write(key: string, value: string, agentId: string): Promise<MemoryWriteResult> {
+  write(
+    key: string,
+    value: string,
+    agentId: string,
+  ): Promise<MemoryWriteResult> {
     return this.memory.write(this.repo, key, value, agentId);
   }
 

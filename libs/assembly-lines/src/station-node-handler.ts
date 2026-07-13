@@ -29,7 +29,10 @@ export interface AgentNodeDeps {
   launch: (node: AssemblyLineNode, ctx: NodeContext) => Promise<void>;
   /** Current status of THIS node's Agent, or null if not found yet. Keyed by node id
    *  because the Floor-side assembly line dispatches a separate Agent CR per node (#686). */
-  poll: (assemblyLineId: string, nodeId: string) => Promise<AgentNodeStatus | null>;
+  poll: (
+    assemblyLineId: string,
+    nodeId: string,
+  ) => Promise<AgentNodeStatus | null>;
   /** Refresh the branch lease so a long run doesn't lapse mid-node. */
   heartbeat: (branchName: string, nodeId: string) => Promise<void>;
   sleep: (ms: number) => Promise<void>;
@@ -43,15 +46,22 @@ const DEFAULT_MAX_POLLS = 360; // ~1h at 10s
 /** Waited past the pod's own hard deadline so its Failed is observed, not raced. */
 const TIMEOUT_BUFFER_MINUTES = 2;
 
-const OUTCOMES = new Set<StageOutcome>(["success", "changes_requested", "failed"]);
+const OUTCOMES = new Set<StageOutcome>([
+  "success",
+  "changes_requested",
+  "failed",
+]);
 
 const isTerminalPhase = (phase?: string): boolean =>
   phase === "Succeeded" || phase === "Failed";
 
 /** Review nodes ask the agent to print exactly one REVIEW_RESULT line. */
-export function parseReviewVerdict(output?: string): "success" | "changes_requested" | null {
+export function parseReviewVerdict(
+  output?: string,
+): "success" | "changes_requested" | null {
   if (!output) return null;
-  if (/REVIEW_RESULT:\s*CHANGES_REQUESTED/i.test(output)) return "changes_requested";
+  if (/REVIEW_RESULT:\s*CHANGES_REQUESTED/i.test(output))
+    return "changes_requested";
   if (/REVIEW_RESULT:\s*APPROVED/i.test(output)) return "success";
   return null;
 }
@@ -70,7 +80,10 @@ export function parseNodeResult(output?: string): NodeResult | null {
   } catch {
     return null;
   }
-  const { outcome, extras } = payload as { outcome?: string; extras?: Record<string, unknown> };
+  const { outcome, extras } = payload as {
+    outcome?: string;
+    extras?: Record<string, unknown>;
+  };
   if (!OUTCOMES.has(outcome as StageOutcome)) return null;
   const stringExtras: Record<string, string> = {};
   for (const [key, value] of Object.entries(extras ?? {})) {
@@ -83,7 +96,10 @@ const failureKind = (node: AssemblyLineNode): string =>
   node.type === "agent" ? "agent" : "station";
 
 /** Map a terminal Agent status to the node outcome (see precedence above). */
-export function stationNodeOutcome(node: AssemblyLineNode, status: AgentNodeStatus): NodeResult {
+export function stationNodeOutcome(
+  node: AssemblyLineNode,
+  status: AgentNodeStatus,
+): NodeResult {
   if (status.phase === "Failed") {
     return {
       outcome: "failed",
@@ -107,11 +123,17 @@ export function createStationNodeHandler(deps: AgentNodeDeps): NodeHandler {
   const intervalMs = deps.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const defaultMaxPolls = deps.maxPolls ?? DEFAULT_MAX_POLLS;
 
-  return async (node: AssemblyLineNode, ctx: NodeContext): Promise<NodeResult> => {
+  return async (
+    node: AssemblyLineNode,
+    ctx: NodeContext,
+  ): Promise<NodeResult> => {
     // A node-level timeout bounds the wait itself; the pod's hard stop is the
     // referenced Station's deadline, so wait a little longer than the node asks.
     const maxPolls = node.timeout_minutes
-      ? Math.ceil(((node.timeout_minutes + TIMEOUT_BUFFER_MINUTES) * 60_000) / intervalMs)
+      ? Math.ceil(
+          ((node.timeout_minutes + TIMEOUT_BUFFER_MINUTES) * 60_000) /
+            intervalMs,
+        )
       : defaultMaxPolls;
 
     await deps.launch(node, ctx);

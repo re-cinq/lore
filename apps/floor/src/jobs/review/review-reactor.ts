@@ -95,15 +95,23 @@ async function checkAndProcessPR(task: PendingTask): Promise<boolean> {
     (c) => new Date(c.created_at) > lastCommitDate,
   );
 
-  if (pendingReviews.length === 0 && pendingComments.length === 0 && pendingIssueComments.length === 0) {
+  if (
+    pendingReviews.length === 0 &&
+    pendingComments.length === 0 &&
+    pendingIssueComments.length === 0
+  ) {
     return false;
   }
 
   const allComments = [
     ...pendingComments,
     ...pendingIssueComments.map((c) => ({
-      id: 0, path: "(general)", line: null,
-      body: c.body, user: c.user, created_at: c.created_at,
+      id: 0,
+      path: "(general)",
+      line: null,
+      body: c.body,
+      user: c.user,
+      created_at: c.created_at,
     })),
   ];
 
@@ -135,7 +143,12 @@ async function processReviewFeedback(
 
   // Capture review feedback as an episode for org-wide learning
   const episodeContent = `PR #${task.pr_number} on ${task.target_repo}\n\n${formattedReviews}\n\n${formattedComments}`;
-  writeEpisode(episodeContent, "pr-review", `${task.target_repo}#${task.pr_number}`, "review-reactor").catch(() => {});
+  writeEpisode(
+    episodeContent,
+    "pr-review",
+    `${task.target_repo}#${task.pr_number}`,
+    "review-reactor",
+  ).catch(() => {});
 
   const prompt = `You are fixing review feedback on a pull request.
 
@@ -164,7 +177,8 @@ For each file that needs changes, output:
   });
 
   // Parse output for file blocks
-  const fileBlockRegex = /=== FILE: (.+?) ===\n([\s\S]*?)(?:\n=== END FILE ===)/g;
+  const fileBlockRegex =
+    /=== FILE: (.+?) ===\n([\s\S]*?)(?:\n=== END FILE ===)/g;
   const files: { path: string; content: string }[] = [];
   let match;
   while ((match = fileBlockRegex.exec(result.text)) !== null) {
@@ -214,7 +228,11 @@ For each file that needs changes, output:
     .filter(Boolean)
     .join("\n");
   if (corrections.length > 20) {
-    await memoryLifecycle().appendMemory("lore-agent", `review-lessons:${task.target_repo}`, corrections);
+    await memoryLifecycle().appendMemory(
+      "lore-agent",
+      `review-lessons:${task.target_repo}`,
+      corrections,
+    );
   }
 
   console.log(

@@ -20,6 +20,7 @@ import type {
   TaskWithEvents,
   TaskListResult,
   FindOpenLikeInput,
+  DriftTaskRow,
 } from "./task-store-port.js";
 
 /**
@@ -55,7 +56,10 @@ export class PgTaskStore implements TaskStorePort {
   }
 
   async getById(id: string): Promise<PipelineTask | null> {
-    const { rows } = await this.pool.query("SELECT * FROM pipeline.tasks WHERE id = $1", [id]);
+    const { rows } = await this.pool.query(
+      "SELECT * FROM pipeline.tasks WHERE id = $1",
+      [id],
+    );
     return (rows[0] as PipelineTask) ?? null;
   }
 
@@ -77,11 +81,20 @@ export class PgTaskStore implements TaskStorePort {
     return getTask(this.pool, id) as Promise<TaskWithEvents | null>;
   }
 
-  setStatus(id: string, status: string, extra?: Record<string, unknown>): Promise<void> {
+  setStatus(
+    id: string,
+    status: string,
+    extra?: Record<string, unknown>,
+  ): Promise<void> {
     return setTaskStatus(this.pool, id, status, extra);
   }
 
-  setStatusIf(id: string, expectedStatus: string, status: string, extra?: Record<string, unknown>): Promise<boolean> {
+  setStatusIf(
+    id: string,
+    expectedStatus: string,
+    status: string,
+    extra?: Record<string, unknown>,
+  ): Promise<boolean> {
     return setTaskStatusIf(this.pool, id, expectedStatus, status, extra);
   }
 
@@ -89,7 +102,12 @@ export class PgTaskStore implements TaskStorePort {
     return updateTaskStatus(this.pool, id, status, meta);
   }
 
-  recordEvent(id: string, fromStatus: string | null, toStatus: string | null, meta?: unknown): Promise<void> {
+  recordEvent(
+    id: string,
+    fromStatus: string | null,
+    toStatus: string | null,
+    meta?: unknown,
+  ): Promise<void> {
     return recordEvent(this.pool, id, fromStatus, toStatus, meta);
   }
 
@@ -101,8 +119,12 @@ export class PgTaskStore implements TaskStorePort {
     return markTaskMerged(this.pool, id);
   }
 
-  async transition(id: string, action: TaskAction, meta?: TaskTransitionMeta): Promise<PipelineTask> {
-    const claimedBy = action === "claim" ? meta?.agentId ?? null : null;
+  async transition(
+    id: string,
+    action: TaskAction,
+    meta?: TaskTransitionMeta,
+  ): Promise<PipelineTask> {
+    const claimedBy = action === "claim" ? (meta?.agentId ?? null) : null;
     const { rows } = await this.pool.query(
       `UPDATE pipeline.tasks
          SET status = $2,
@@ -119,12 +141,33 @@ export class PgTaskStore implements TaskStorePort {
     const { rows } = await this.pool.query(
       `SELECT * FROM pipeline.tasks
        WHERE target_repo = $1 AND task_type = $2 AND description LIKE $3 AND status = ANY($4)`,
-      [input.repo, input.taskType, `${input.descriptionPrefix}%`, [...input.statuses]],
+      [
+        input.repo,
+        input.taskType,
+        `${input.descriptionPrefix}%`,
+        [...input.statuses],
+      ],
     );
     return rows as PipelineTask[];
   }
 
-  private async byStatus(repo: string, statuses: string[]): Promise<PipelineTask[]> {
+  async driftTasksForSpec(
+    repo: string,
+    taskType: string,
+    specPath: string,
+  ): Promise<DriftTaskRow[]> {
+    const { rows } = await this.pool.query(
+      `SELECT status, created_at, issue_number FROM pipeline.tasks
+       WHERE target_repo = $1 AND task_type = $2 AND context_bundle->>'spec_path' = $3`,
+      [repo, taskType, specPath],
+    );
+    return rows as DriftTaskRow[];
+  }
+
+  private async byStatus(
+    repo: string,
+    statuses: string[],
+  ): Promise<PipelineTask[]> {
     const { rows } = await this.pool.query(
       "SELECT * FROM pipeline.tasks WHERE target_repo = $1 AND status = ANY($2) ORDER BY created_at DESC",
       [repo, statuses],

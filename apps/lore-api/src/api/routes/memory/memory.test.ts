@@ -1,8 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({ getHealthStatus: vi.fn(), isDbAvailable: vi.fn(), getQueryEmbedding: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
+  getHealthStatus: vi.fn(),
+  isDbAvailable: vi.fn(),
+  getQueryEmbedding: vi.fn(),
+}));
 vi.mock("@re-cinq/lore-server-core/features/memory/memory.js", () => ({
   isMemoryDbAvailable: vi.fn(),
   writeMemory: vi.fn(),
@@ -17,19 +26,43 @@ vi.mock("@re-cinq/lore-server-core/features/memory/memory-file.js", () => ({
   listMemoriesFile: vi.fn(),
   searchMemoryFile: vi.fn(),
 }));
-vi.mock("@re-cinq/lore-server-core/features/memory/memory-search.js", () => ({ searchMemories: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/memory/memory-search.js", () => ({
+  searchMemories: vi.fn(),
+}));
 
 import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
-import { isMemoryDbAvailable, writeMemory, readMemory, deleteMemory, listMemories } from "@re-cinq/lore-server-core/features/memory/memory.js";
-import { writeMemoryFile, readMemoryFile, deleteMemoryFile, listMemoriesFile, searchMemoryFile } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
+import {
+  isMemoryDbAvailable,
+  writeMemory,
+  readMemory,
+  deleteMemory,
+  listMemories,
+} from "@re-cinq/lore-server-core/features/memory/memory.js";
+import {
+  writeMemoryFile,
+  readMemoryFile,
+  deleteMemoryFile,
+  listMemoriesFile,
+  searchMemoryFile,
+} from "@re-cinq/lore-server-core/features/memory/memory-file.js";
 import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
 
 const originalEnv = { ...process.env };
 
-function inject(payload: string, headers: Record<string, string> = AUTH, pool: unknown = makePool()) {
-  return buildServer(() => pool as any).inject({ method: "POST", url: "/api/memory", headers, payload });
+function inject(
+  payload: string,
+  headers: Record<string, string> = AUTH,
+  pool: unknown = makePool(),
+) {
+  return buildServer(() => pool as any).inject({
+    method: "POST",
+    url: "/api/memory",
+    headers,
+    payload,
+  });
 }
-const post = (body: unknown, pool: unknown = makePool()) => inject(JSON.stringify(body), AUTH, pool);
+const post = (body: unknown, pool: unknown = makePool()) =>
+  inject(JSON.stringify(body), AUTH, pool);
 
 describe("POST /api/memory", () => {
   useRateLimitSafeClock();
@@ -124,7 +157,14 @@ describe("POST /api/memory", () => {
     vi.mocked(getQueryEmbedding).mockResolvedValue(null as any);
     vi.mocked(writeMemory).mockResolvedValue({ id: 1 } as any);
     await post({ action: "write", key: "k", value: "v" });
-    expect(writeMemory).toHaveBeenCalledWith("k", "v", undefined, undefined, undefined, undefined);
+    expect(writeMemory).toHaveBeenCalledWith(
+      "k",
+      "v",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
   });
 
   it("returns 400 when read is missing key", async () => {
@@ -171,18 +211,50 @@ describe("POST /api/memory", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("lists via DB", async () => {
+  it("lists via DB with default limit 50 offset 0", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
-    vi.mocked(listMemories).mockResolvedValue([{ k: 1 }] as any);
+    vi.mocked(listMemories).mockResolvedValue({
+      memories: [{ k: 1 }],
+      total: 1,
+    } as any);
     await post({ action: "list" });
     expect(listMemories).toHaveBeenCalledWith(undefined, 50, 0);
   });
 
+  it("threads offset through and echoes paging metadata", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(listMemories).mockResolvedValue({
+      memories: [{ k: 2 }],
+      total: 9,
+    } as any);
+    const res = await post({ action: "list", limit: 5, offset: 5 });
+    expect(listMemories).toHaveBeenCalledWith(undefined, 5, 5);
+    expect(res.result).toEqual({
+      memories: [{ k: 2 }],
+      total: 9,
+      limit: 5,
+      offset: 5,
+    });
+  });
+
+  it("caps the list limit at 100", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(listMemories).mockResolvedValue({
+      memories: [],
+      total: 0,
+    } as any);
+    await post({ action: "list", limit: 999 });
+    expect(listMemories).toHaveBeenCalledWith(undefined, 100, 0);
+  });
+
   it("lists via file fallback", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
-    vi.mocked(listMemoriesFile).mockResolvedValue([] as any);
-    await post({ action: "list" });
-    expect(listMemoriesFile).toHaveBeenCalled();
+    vi.mocked(listMemoriesFile).mockResolvedValue({
+      memories: [],
+      total: 0,
+    } as any);
+    await post({ action: "list", offset: 3 });
+    expect(listMemoriesFile).toHaveBeenCalledWith(undefined, 50, 3);
   });
 
   it("returns 400 for an unknown action", async () => {
@@ -206,7 +278,11 @@ describe("POST /api/memory", () => {
   it("returns 403 when the token lacks write scope", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
-    const res = await inject(JSON.stringify({ action: "list" }), { authorization: "Bearer read-only" }, pool);
+    const res = await inject(
+      JSON.stringify({ action: "list" }),
+      { authorization: "Bearer read-only" },
+      pool,
+    );
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
   });

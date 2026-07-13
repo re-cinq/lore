@@ -10,7 +10,11 @@ import { execFileSync } from "node:child_process";
 
 function git(args: string[], cwd?: string): string | null {
   try {
-    const out = execFileSync("git", args, { cwd, encoding: "utf-8", timeout: 5000 }).trim();
+    const out = execFileSync("git", args, {
+      cwd,
+      encoding: "utf-8",
+      timeout: 5000,
+    }).trim();
     return out.length > 0 ? out : null;
   } catch {
     return null;

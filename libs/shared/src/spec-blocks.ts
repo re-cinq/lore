@@ -36,12 +36,7 @@
  * `paragraph`, `heading`, `code`, `table`, and `list-item` — are emitted
  * today. */
 export type BlockKind =
-  | "heading"
-  | "paragraph"
-  | "list-item"
-  | "code"
-  | "table"
-  | "blank";
+  "heading" | "paragraph" | "list-item" | "code" | "table" | "blank";
 
 /** One contiguous run of source lines. `text` holds the verbatim source for
  * this block (paragraphs join their lines with `"\n"`); `ordinal` is the

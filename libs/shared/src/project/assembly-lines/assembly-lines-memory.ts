@@ -86,7 +86,11 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     return id;
   }
 
-  async recordNodeFinish(nodeRowId: string, outcome: string, commitSha?: string): Promise<void> {
+  async recordNodeFinish(
+    nodeRowId: string,
+    outcome: string,
+    commitSha?: string,
+  ): Promise<void> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
     if (!node) throw new Error(`no assembly line node row "${nodeRowId}"`);
     node.outcome = outcome;
@@ -104,13 +108,20 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  async findOpenByPr(repo: string, prNumber: number): Promise<AssemblyLineRecord[]> {
+  async findOpenByPr(
+    repo: string,
+    prNumber: number,
+  ): Promise<AssemblyLineRecord[]> {
     return this.rows
       .filter((r) => this.matchesOpenPr(r, repo, prNumber))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  async finishOpenByPr(repo: string, prNumber: number, outcome: string): Promise<number> {
+  async finishOpenByPr(
+    repo: string,
+    prNumber: number,
+    outcome: string,
+  ): Promise<number> {
     const open = this.rows.filter((r) => this.matchesOpenPr(r, repo, prNumber));
     for (const row of open) {
       row.status = "finished";
@@ -120,7 +131,11 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     return open.length;
   }
 
-  private matchesOpenPr(row: AssemblyLineRecord, repo: string, prNumber: number): boolean {
+  private matchesOpenPr(
+    row: AssemblyLineRecord,
+    repo: string,
+    prNumber: number,
+  ): boolean {
     return (
       row.repo === repo &&
       Number(row.args.pr_number) === prNumber &&
@@ -128,7 +143,10 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     );
   }
 
-  private newRow(id: string, input: AssemblyLineStartInput): AssemblyLineRecord {
+  private newRow(
+    id: string,
+    input: AssemblyLineStartInput,
+  ): AssemblyLineRecord {
     return {
       id,
       definitionName: input.definitionName,

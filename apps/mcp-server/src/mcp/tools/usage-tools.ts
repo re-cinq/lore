@@ -14,20 +14,33 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
         .string()
         .optional()
         .describe(
-          "Agent identifier (email or UUID). Auto-detected from caller when omitted. Pass only to inspect a different agent."
+          "Agent identifier (email or UUID). Auto-detected from caller when omitted. Pass only to inspect a different agent.",
         ),
     },
     async ({ agent_id }) => {
       try {
         const dbPoolRef = getPool();
         if (!dbPoolRef) {
-          return { content: [{ type: "text" as const, text: "Usage tracking requires PostgreSQL (LORE_DB_HOST not set)." }] };
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Usage tracking requires PostgreSQL (LORE_DB_HOST not set).",
+              },
+            ],
+          };
         }
         const agent = resolveAgentId(agent_id);
         const periods = [
           { name: "today", filter: "t.created_at > current_date" },
-          { name: "7_day", filter: "t.created_at > current_date - interval '7 days'" },
-          { name: "30_day", filter: "t.created_at > current_date - interval '30 days'" },
+          {
+            name: "7_day",
+            filter: "t.created_at > current_date - interval '7 days'",
+          },
+          {
+            name: "30_day",
+            filter: "t.created_at > current_date - interval '30 days'",
+          },
         ];
         const results: any = {};
         for (const period of periods) {
@@ -47,11 +60,24 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
             output_tokens: Number(rows[0].output_tokens),
           };
         }
-        return { content: [{ type: "text" as const, text: JSON.stringify({ agent_id: agent, usage: results }, null, 2) }] };
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                { agent_id: agent, usage: results },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+        return {
+          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+        };
       }
-    }
+    },
   );
 
   server.tool(
@@ -67,7 +93,14 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
       try {
         const dbPoolRef = getPool();
         if (!process.env.LORE_DB_HOST) {
-          return { content: [{ type: "text" as const, text: "Analytics requires PostgreSQL (LORE_DB_HOST not set)." }] };
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Analytics requires PostgreSQL (LORE_DB_HOST not set).",
+              },
+            ],
+          };
         }
 
         const periodFilter = {
@@ -78,22 +111,47 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
         }[period];
 
         const [usageResult, taskResult, byTypeResult] = await Promise.all([
-          dbPoolRef.query(`SELECT count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`),
-          dbPoolRef.query(`SELECT count(*) as total, count(*) FILTER (WHERE status IN ('pr-created', 'merged')) as succeeded, count(*) FILTER (WHERE status = 'failed') as failed FROM pipeline.tasks WHERE ${periodFilter}`),
-          dbPoolRef.query(`SELECT t.task_type, count(DISTINCT t.id) as tasks FROM pipeline.tasks t WHERE ${periodFilter} GROUP BY t.task_type ORDER BY tasks DESC`),
+          dbPoolRef.query(
+            `SELECT count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`,
+          ),
+          dbPoolRef.query(
+            `SELECT count(*) as total, count(*) FILTER (WHERE status IN ('pr-created', 'merged')) as succeeded, count(*) FILTER (WHERE status = 'failed') as failed FROM pipeline.tasks WHERE ${periodFilter}`,
+          ),
+          dbPoolRef.query(
+            `SELECT t.task_type, count(DISTINCT t.id) as tasks FROM pipeline.tasks t WHERE ${periodFilter} GROUP BY t.task_type ORDER BY tasks DESC`,
+          ),
         ]);
 
         const analytics = {
           period,
-          usage: { llm_calls: parseInt(usageResult.rows[0].calls), input_tokens: parseInt(usageResult.rows[0].input_tokens), output_tokens: parseInt(usageResult.rows[0].output_tokens) },
-          tasks: { total: parseInt(taskResult.rows[0].total), succeeded: parseInt(taskResult.rows[0].succeeded), failed: parseInt(taskResult.rows[0].failed) },
+          usage: {
+            llm_calls: parseInt(usageResult.rows[0].calls),
+            input_tokens: parseInt(usageResult.rows[0].input_tokens),
+            output_tokens: parseInt(usageResult.rows[0].output_tokens),
+          },
+          tasks: {
+            total: parseInt(taskResult.rows[0].total),
+            succeeded: parseInt(taskResult.rows[0].succeeded),
+            failed: parseInt(taskResult.rows[0].failed),
+          },
           by_type: byTypeResult.rows,
         };
 
-        return { content: [{ type: "text" as const, text: JSON.stringify(analytics, null, 2) }] };
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify(analytics, null, 2) },
+          ],
+        };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error fetching analytics: ${err.message}` }] };
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error fetching analytics: ${err.message}`,
+            },
+          ],
+        };
       }
-    }
+    },
   );
 }

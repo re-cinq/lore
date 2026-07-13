@@ -7,9 +7,17 @@ import * as fs from "node:fs/promises";
 import { FileLeaseBackend } from "@re-cinq/lore-shared";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
-import { runFloorAssemblyLine, checkoutBranch, portTrace, supervisorOutcome } from "./floor-assembly-line-run.js";
+import {
+  runFloorAssemblyLine,
+  checkoutBranch,
+  portTrace,
+  supervisorOutcome,
+} from "./floor-assembly-line-run.js";
 import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
-import type { FloorAssemblyLineTask, FloorAssemblyLinePorts } from "./floor-assembly-line.js";
+import type {
+  FloorAssemblyLineTask,
+  FloorAssemblyLinePorts,
+} from "./floor-assembly-line.js";
 
 const execFile = promisify(execFileCb);
 
@@ -52,7 +60,9 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
   let leasesDir: string;
 
   beforeEach(async () => {
-    workDir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-floor-assembly-line-"));
+    workDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "lore-floor-assembly-line-"),
+    );
     leasesDir = path.join(workDir, "leases");
     repoDir = path.join(workDir, "repo");
     await fs.mkdir(leasesDir, { recursive: true });
@@ -73,7 +83,9 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
   function ports(over: Partial<FloorAssemblyLinePorts> = {}) {
     const dispatched: LoreTaskSpec[] = [];
     const base: FloorAssemblyLinePorts = {
-      dispatchAgent: async (spec) => { dispatched.push(spec); },
+      dispatchAgent: async (spec) => {
+        dispatched.push(spec);
+      },
       resolvePrompt: (node) => `prompt:${node.id}`,
       agentStatus: async () => ({ phase: "Succeeded" }),
       ciConclusion: async () => "success",
@@ -103,11 +115,27 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
     expect(result.reason).toBe("completed");
     expect(result.summary?.reachedExit).toBe(true);
     // `done` is the exit marker — reached, not executed.
-    expect(result.summary?.visited.map((v) => v.nodeId)).toEqual(["implement", "ci", "wrap"]);
+    expect(result.summary?.visited.map((v) => v.nodeId)).toEqual([
+      "implement",
+      "ci",
+      "wrap",
+    ]);
 
-    // The agent node dispatched exactly one per-node Agent CR with the node's prompt.
-    expect(dispatched).toHaveLength(1);
-    expect(dispatched[0]).toMatchObject({ name: "a1b2c3d4-implement", prompt: "prompt:implement" });
+    // Every node dispatches its own CR — the agent runs the LLM, github_action +
+    // retrospective are stations (ADR-031 amendment: no in-process node handlers).
+    expect(dispatched).toHaveLength(3);
+    expect(dispatched[0]).toMatchObject({
+      name: "a1b2c3d4-implement",
+      prompt: "prompt:implement",
+    });
+    expect(dispatched[1]).toMatchObject({
+      name: "a1b2c3d4-ci",
+      stationRef: "def-github-action",
+    });
+    expect(dispatched[2]).toMatchObject({
+      name: "a1b2c3d4-wrap",
+      stationRef: "def-retrospective",
+    });
 
     // Branch-as-state: stage commits with trailers landed on the branch.
     const log = await execFile("git", ["-C", repoDir, "log", "--format=%B"]);
@@ -134,7 +162,11 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
     });
 
     expect(result.reason).toBe("completed");
-    expect(port.nodes.map((n) => n.nodeId)).toEqual(["implement", "ci", "wrap"]);
+    expect(port.nodes.map((n) => n.nodeId)).toEqual([
+      "implement",
+      "ci",
+      "wrap",
+    ]);
     expect(port.nodes[0]).toMatchObject({
       assemblyLineId: "a1b2c3d4e5f6a7b8",
       agentCrName: "a1b2c3d4-implement",
@@ -148,16 +180,39 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
   });
 
   it("supervisorOutcome maps supervisor reasons onto row outcomes", () => {
-    expect(supervisorOutcome({ ranWork: true, reason: "completed" })).toBe("completed");
-    expect(supervisorOutcome({ ranWork: false, reason: "lease_held" })).toBe("lease_held");
-    expect(supervisorOutcome({ ranWork: true, reason: "iteration_max_exceeded" })).toBe("iteration_max");
-    expect(supervisorOutcome({ ranWork: true, reason: "executor_pending" })).toBe("pending");
-    expect(supervisorOutcome({ ranWork: true, reason: "executor_error" })).toBe("error");
+    expect(supervisorOutcome({ ranWork: true, reason: "completed" })).toBe(
+      "completed",
+    );
+    expect(supervisorOutcome({ ranWork: false, reason: "lease_held" })).toBe(
+      "lease_held",
+    );
+    expect(
+      supervisorOutcome({ ranWork: true, reason: "iteration_max_exceeded" }),
+    ).toBe("iteration_max");
+    expect(
+      supervisorOutcome({ ranWork: true, reason: "executor_pending" }),
+    ).toBe("pending");
+    expect(supervisorOutcome({ ranWork: true, reason: "executor_error" })).toBe(
+      "error",
+    );
   });
 
-  it("loops back to the agent when CI is red, then proceeds once it goes green", async () => {
-    let ci = 0;
-    const { ports: p, dispatched } = ports({ ciConclusion: async () => (ci++ === 0 ? "failure" : "success") });
+  it("loops back to the agent when the CI station reports failed, then proceeds once it passes", async () => {
+    let ciAttempt = 0;
+    // The github_action station is a pod now; its outcome rides the LORE_NODE_RESULT
+    // line in Agent.status.output. Fail the first ci run, pass the second.
+    const { ports: p, dispatched } = ports({
+      agentStatus: async (_alId, nodeId) => {
+        if (nodeId === "ci") {
+          const outcome = ciAttempt++ === 0 ? "failed" : "success";
+          return {
+            phase: "Succeeded",
+            output: `LORE_NODE_RESULT: {"outcome":"${outcome}","extras":{}}`,
+          };
+        }
+        return { phase: "Succeeded" };
+      },
+    });
     const result = await runFloorAssemblyLine({
       task,
       assemblyLine,
@@ -168,11 +223,17 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
     });
 
     expect(result.reason).toBe("completed");
-    // implement → ci(red) → implement → ci(green) → wrap → [done exit]
+    // implement → ci(failed) → implement → ci(success) → wrap → [done exit]
     expect(result.summary?.visited.map((v) => v.nodeId)).toEqual([
-      "implement", "ci", "implement", "ci", "wrap",
+      "implement",
+      "ci",
+      "implement",
+      "ci",
+      "wrap",
     ]);
-    expect(dispatched).toHaveLength(2); // the agent node ran twice
+    expect(
+      dispatched.filter((d) => d.name === "a1b2c3d4-implement"),
+    ).toHaveLength(2); // agent ran twice
   });
 });
 
@@ -184,7 +245,13 @@ describe("checkoutBranch (resume existing / bootstrap new)", () => {
   let origin: string;
 
   async function currentBranch(dir: string): Promise<string> {
-    const { stdout } = await execFile("git", ["-C", dir, "rev-parse", "--abbrev-ref", "HEAD"]);
+    const { stdout } = await execFile("git", [
+      "-C",
+      dir,
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ]);
     return stdout.trim();
   }
 
@@ -205,18 +272,40 @@ describe("checkoutBranch (resume existing / bootstrap new)", () => {
   });
 
   it("bootstraps a new branch off the default when it does not exist on the remote", async () => {
-    const dir = await checkoutBranch("re-cinq/lore", "lore/general/new-task-abcd1234", origin);
+    const dir = await checkoutBranch(
+      "re-cinq/lore",
+      "lore/general/new-task-abcd1234",
+      origin,
+    );
     expect(await currentBranch(dir)).toBe("lore/general/new-task-abcd1234");
   });
 
   it("checks out the existing branch to resume its stage-commit history", async () => {
-    await execFile("git", ["-C", origin, "checkout", "-b", "lore/general/existing-task"]);
+    await execFile("git", [
+      "-C",
+      origin,
+      "checkout",
+      "-b",
+      "lore/general/existing-task",
+    ]);
     await fs.writeFile(path.join(origin, "stage.txt"), "done\n");
     await execFile("git", ["-C", origin, "add", "."]);
-    await execFile("git", ["-C", origin, "commit", "-m", "stage", "-m", "Lore-Stage: implement"]);
+    await execFile("git", [
+      "-C",
+      origin,
+      "commit",
+      "-m",
+      "stage",
+      "-m",
+      "Lore-Stage: implement",
+    ]);
     await execFile("git", ["-C", origin, "checkout", "main"]);
 
-    const dir = await checkoutBranch("re-cinq/lore", "lore/general/existing-task", origin);
+    const dir = await checkoutBranch(
+      "re-cinq/lore",
+      "lore/general/existing-task",
+      origin,
+    );
     expect(await currentBranch(dir)).toBe("lore/general/existing-task");
     const { stdout } = await execFile("git", ["-C", dir, "log", "--format=%B"]);
     expect(stdout).toContain("Lore-Stage: implement");

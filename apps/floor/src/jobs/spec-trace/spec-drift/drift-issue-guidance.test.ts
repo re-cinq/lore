@@ -4,17 +4,28 @@ import { isDriftTask, DRIFT_ISSUE_GUIDANCE } from "./drift-issue-guidance.js";
 describe("isDriftTask", () => {
   it("returns true for a gap-fill task carrying a spec_path", () => {
     expect(
-      isDriftTask({ task_type: "gap-fill", context_bundle: { spec_path: "specs/x/spec.md" } }),
+      isDriftTask({
+        task_type: "gap-fill",
+        context_bundle: { spec_path: "specs/x/spec.md" },
+      }),
     ).toBe(true);
   });
 
   it("returns false for a gap-fill task without a spec_path", () => {
-    expect(isDriftTask({ task_type: "gap-fill", context_bundle: { details: "..." } })).toBe(false);
+    expect(
+      isDriftTask({
+        task_type: "gap-fill",
+        context_bundle: { details: "..." },
+      }),
+    ).toBe(false);
   });
 
   it("returns false for a non-gap-fill task even with a spec_path", () => {
     expect(
-      isDriftTask({ task_type: "implementation", context_bundle: { spec_path: "specs/x/spec.md" } }),
+      isDriftTask({
+        task_type: "implementation",
+        context_bundle: { spec_path: "specs/x/spec.md" },
+      }),
     ).toBe(false);
   });
 

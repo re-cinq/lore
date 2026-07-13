@@ -23,7 +23,8 @@ let cachedProject: string | null = null;
 
 export async function resolveVertexProject(): Promise<string> {
   if (cachedProject !== null) return cachedProject;
-  const fromEnv = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
+  const fromEnv =
+    process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
   if (fromEnv) return (cachedProject = fromEnv);
   try {
     const res = await fetch(
@@ -42,7 +43,9 @@ export function resetVertexProjectCache(): void {
   cachedProject = null;
 }
 
-export async function getQueryEmbedding(query: string): Promise<number[] | null> {
+export async function getQueryEmbedding(
+  query: string,
+): Promise<number[] | null> {
   try {
     let token: string;
     try {
@@ -59,7 +62,9 @@ export async function getQueryEmbedding(query: string): Promise<number[] | null>
 
     const project = await resolveVertexProject();
     if (!project) {
-      console.error("[embeddings] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)");
+      console.error(
+        "[embeddings] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)",
+      );
       return null;
     }
 

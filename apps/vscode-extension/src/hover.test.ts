@@ -11,7 +11,13 @@ const implemented: RangeEntry = {
   statementText: "The runner claims a pending task before GKE picks it up.",
   specPath: "specs/auth/spec.md",
   specLine: 6,
-  related: [{ label: "validated by runner.test.ts", path: "mcp-server/src/local-runner.test.ts", line: 88 }],
+  related: [
+    {
+      label: "validated by runner.test.ts",
+      path: "mcp-server/src/local-runner.test.ts",
+      line: 88,
+    },
+  ],
 };
 
 describe("renderHoverMarkdown", () => {
@@ -29,12 +35,20 @@ describe("renderHoverMarkdown", () => {
 
   it("links to each related artifact at its line", () => {
     expect(renderHoverMarkdown(implemented)).toContain(
-      openLocalCommandUri({ path: "mcp-server/src/local-runner.test.ts", line: 88 }),
+      openLocalCommandUri({
+        path: "mcp-server/src/local-runner.test.ts",
+        line: 88,
+      }),
     );
   });
 
   it("labels a covered line with its execution-verified evidence", () => {
-    const covered: RangeEntry = { ...implemented, layer: "covered", evidence: "execution-verified", related: [] };
+    const covered: RangeEntry = {
+      ...implemented,
+      layer: "covered",
+      evidence: "execution-verified",
+      related: [],
+    };
     expect(renderHoverMarkdown(covered)).toContain("execution-verified");
   });
 

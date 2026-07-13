@@ -54,9 +54,17 @@ type EmbedFn = (text: string) => Promise<number[] | null>;
 function vectorLiteral(vector: number[]): string {
   return `[${vector.join(",")}]`;
 }
-import { withTxn, upsertByXid, replaceEdge, type SpecTraceNodeType } from "./dgraph-upsert.js";
+import {
+  withTxn,
+  upsertByXid,
+  replaceEdge,
+  type SpecTraceNodeType,
+} from "./dgraph-upsert.js";
 import { parseAdrRefs } from "./adr-refs.js";
-import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
+import {
+  projectDocumentBlocks,
+  pruneOrphanBlocksByFile,
+} from "./project-blocks.js";
 import { repoRelativeLinkTarget } from "./link-target-path.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
@@ -117,12 +125,23 @@ async function projectFeature(
  */
 export function isAcceptanceCriteriaHeading(heading: string | null): boolean {
   if (!heading) return false;
-  const norm = heading.toLowerCase().replace(/\*/g, "").replace(/[:\s]+$/g, "").trim();
-  return /acceptance criteria/.test(norm) || norm === "success criteria" || norm === "independent test criteria";
+  const norm = heading
+    .toLowerCase()
+    .replace(/\*/g, "")
+    .replace(/[:\s]+$/g, "")
+    .trim();
+  return (
+    /acceptance criteria/.test(norm) ||
+    norm === "success criteria" ||
+    norm === "independent test criteria"
+  );
 }
 
 /** Reads the persisted Spec.content_hash for an xid, or undefined when no Spec exists yet. */
-async function readSpecContentHash(dgraph: DgraphClientPort, specXid: string): Promise<string | undefined> {
+async function readSpecContentHash(
+  dgraph: DgraphClientPort,
+  specXid: string,
+): Promise<string | undefined> {
   return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query find($xid: string) { found(func: eq(Spec.xid, $xid), first: 1) { Spec.content_hash } }`,
@@ -155,16 +174,23 @@ async function projectSections(
   ];
   const sectionUidByHeading = new Map<string, string>();
   for (const [sectionOrdinal, heading] of uniqueHeadings.entries()) {
-    const sectionUid = await upsertByXid(dgraph, "Section", `${repo}|${filePath}|${sectionOrdinal}`, {
-      "Section.heading": heading,
-      "Section.ordinal": sectionOrdinal,
-      "Section.spec": { uid: specUid },
-    });
+    const sectionUid = await upsertByXid(
+      dgraph,
+      "Section",
+      `${repo}|${filePath}|${sectionOrdinal}`,
+      {
+        "Section.heading": heading,
+        "Section.ordinal": sectionOrdinal,
+        "Section.spec": { uid: specUid },
+      },
+    );
     sectionUidByHeading.set(heading, sectionUid);
   }
   if (sectionUidByHeading.size) {
     await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
-      "Spec.sections": [...sectionUidByHeading.values()].map((uid) => ({ uid })),
+      "Spec.sections": [...sectionUidByHeading.values()].map((uid) => ({
+        uid,
+      })),
     });
   }
   return sectionUidByHeading;
@@ -180,9 +206,11 @@ type ExtraChunkFields = (link: SpecLinkRef) => Record<string, unknown>;
 type ChunkXid = (repo: string, link: SpecLinkRef) => string;
 
 /** File-scoped TestChunk xid (`${repo}|${file}`) — the shared identity coverage also keys on, so a spec link reconciles onto the coverage-bearing node. */
-const fileScopedXid: ChunkXid = (repo, link) => fileScopedTestChunkXid(repo, link.path);
+const fileScopedXid: ChunkXid = (repo, link) =>
+  fileScopedTestChunkXid(repo, link.path);
 /** Line/label-scoped CodeChunk xid (`${repo}|${path}|${line}`) — one node per distinct inline link site. */
-const lineScopedXid: ChunkXid = (repo, link) => `${repo}|${link.path}|${link.line ?? link.label}`;
+const lineScopedXid: ChunkXid = (repo, link) =>
+  `${repo}|${link.path}|${link.line ?? link.label}`;
 
 /**
  * Parses the inline links in `text`, upserts one chunk node of `nodeType` per
@@ -217,7 +245,9 @@ async function projectLinkedChunks(
       ...extraFields(link),
     };
     if (link.line != null) chunkFields[`${nodeType}.start_line`] = link.line;
-    edgeRefs.push({ uid: await upsertByXid(dgraph, nodeType, chunkXid, chunkFields) });
+    edgeRefs.push({
+      uid: await upsertByXid(dgraph, nodeType, chunkXid, chunkFields),
+    });
   }
   return edgeRefs;
 }
@@ -253,7 +283,10 @@ async function projectLinkEdges(
     parseTestLinksInStatement,
     "TestChunk",
     fileScopedXid,
-    (link) => ({ "TestChunk.test_name": link.label, "TestChunk.link_label": link.label }),
+    (link) => ({
+      "TestChunk.test_name": link.label,
+      "TestChunk.link_label": link.label,
+    }),
   );
   const implementedBy = await projectLinkedChunks(
     context,
@@ -272,8 +305,18 @@ async function projectLinkEdges(
   // A chunk this owner just unlinked is deleted only if NOTHING else owns it
   // (another statement's link, or — for code — a Coverage). Scoped to the dropped
   // uids so it never touches chunks the ingest paths created and left unlinked.
-  await gcOrphanChunks(dgraph, "TestChunk", previousLinks.validated, newValidated);
-  await gcOrphanChunks(dgraph, "CodeChunk", previousLinks.implemented, newImplemented);
+  await gcOrphanChunks(
+    dgraph,
+    "TestChunk",
+    previousLinks.validated,
+    newValidated,
+  );
+  await gcOrphanChunks(
+    dgraph,
+    "CodeChunk",
+    previousLinks.implemented,
+    newImplemented,
+  );
 }
 
 /**
@@ -291,20 +334,31 @@ async function projectStatement(
   const { dgraph, repo, filePath, specUid } = context;
   const embedding = await context.embed(segment.text);
 
-  const statementUid = await upsertByXid(dgraph, "Statement", `${repo}|${filePath}|${segment.ordinal}`, {
-    "Statement.repo": repo,
-    "Statement.ordinal": segment.ordinal,
-    "Statement.text": segment.text,
-    "Statement.text_hash": sha256(segment.text),
-    "Statement.spec": { uid: specUid },
-    "Statement.kind": segment.kind,
-    "Statement.testability": classification.testability,
-    ...(classification.category != null ? { "Statement.category": classification.category } : {}),
-    ...(segment.enclosingHeading !== null
-      ? { "Statement.section": { uid: sectionUidByHeading.get(segment.enclosingHeading) } }
-      : {}),
-    ...(embedding ? { "Statement.embedding": vectorLiteral(embedding) } : {}),
-  });
+  const statementUid = await upsertByXid(
+    dgraph,
+    "Statement",
+    `${repo}|${filePath}|${segment.ordinal}`,
+    {
+      "Statement.repo": repo,
+      "Statement.ordinal": segment.ordinal,
+      "Statement.text": segment.text,
+      "Statement.text_hash": sha256(segment.text),
+      "Statement.spec": { uid: specUid },
+      "Statement.kind": segment.kind,
+      "Statement.testability": classification.testability,
+      ...(classification.category != null
+        ? { "Statement.category": classification.category }
+        : {}),
+      ...(segment.enclosingHeading !== null
+        ? {
+            "Statement.section": {
+              uid: sectionUidByHeading.get(segment.enclosingHeading),
+            },
+          }
+        : {}),
+      ...(embedding ? { "Statement.embedding": vectorLiteral(embedding) } : {}),
+    },
+  );
 
   await projectLinkEdges(context, statementUid, segment.text, {
     validatedBy: "Statement.validated_by",
@@ -325,17 +379,26 @@ async function projectStatement(
 }
 
 /** Resolves cited ADR numbers to their node uids for this repo (skips numbers with no ADR node). */
-async function resolveAdrUids(dgraph: DgraphClientPort, repo: string, numbers: number[]): Promise<string[]> {
+async function resolveAdrUids(
+  dgraph: DgraphClientPort,
+  repo: string,
+  numbers: number[],
+): Promise<string[]> {
   return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($repo: string) { adrs(func: eq(ADR.repo, $repo)) { uid ADR.number } }`,
       { $repo: repo },
     );
     const byNumber = new Map<number, string>();
-    for (const adr of (res.data?.adrs ?? []) as Array<{ uid: string; "ADR.number"?: number }>) {
+    for (const adr of (res.data?.adrs ?? []) as Array<{
+      uid: string;
+      "ADR.number"?: number;
+    }>) {
       if (adr["ADR.number"] != null) byNumber.set(adr["ADR.number"], adr.uid);
     }
-    return numbers.map((n) => byNumber.get(n)).filter((uid): uid is string => Boolean(uid));
+    return numbers
+      .map((n) => byNumber.get(n))
+      .filter((uid): uid is string => Boolean(uid));
   });
 }
 
@@ -391,7 +454,9 @@ async function pruneOrphans(
       }`,
       { $xid: `${repo}|${filePath}` },
     );
-    const children = (res.data?.spec?.[0]?.children ?? []) as Array<{ uid: string } & Record<string, string>>;
+    const children = (res.data?.spec?.[0]?.children ?? []) as Array<
+      { uid: string } & Record<string, string>
+    >;
     const orphanUids = children
       .filter((child) => !validXids.has(child[xidPredicate]))
       .map((child) => child.uid);
@@ -402,7 +467,11 @@ async function pruneOrphans(
       // unless its forward edge is deleted too.
       const deletes = orphanUids.map((uid) => `<${uid}> * * .`);
       if (forwardEdge) {
-        deletes.push(...orphanUids.map((uid) => `<${specUid}> <${forwardEdge}> <${uid}> .`));
+        deletes.push(
+          ...orphanUids.map(
+            (uid) => `<${specUid}> <${forwardEdge}> <${uid}> .`,
+          ),
+        );
       }
       await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
     }
@@ -417,17 +486,27 @@ async function pruneOrphans(
  * through the shared {@link projectLinkEdges}. Returns its uid for the forward
  * `Spec.acceptance_criteria` edge.
  */
-async function projectAcceptanceCriterion(context: ProjectionContext, segment: SpecSegment): Promise<string> {
+async function projectAcceptanceCriterion(
+  context: ProjectionContext,
+  segment: SpecSegment,
+): Promise<string> {
   const { dgraph, repo, filePath, specUid } = context;
   const embedding = await context.embed(segment.text);
-  const criterionUid = await upsertByXid(dgraph, "AcceptanceCriterion", `${repo}|${filePath}|ac|${segment.ordinal}`, {
-    "AcceptanceCriterion.repo": repo,
-    "AcceptanceCriterion.ordinal": segment.ordinal,
-    "AcceptanceCriterion.text": segment.text,
-    "AcceptanceCriterion.text_hash": sha256(segment.text),
-    "AcceptanceCriterion.spec": { uid: specUid },
-    ...(embedding ? { "AcceptanceCriterion.embedding": vectorLiteral(embedding) } : {}),
-  });
+  const criterionUid = await upsertByXid(
+    dgraph,
+    "AcceptanceCriterion",
+    `${repo}|${filePath}|ac|${segment.ordinal}`,
+    {
+      "AcceptanceCriterion.repo": repo,
+      "AcceptanceCriterion.ordinal": segment.ordinal,
+      "AcceptanceCriterion.text": segment.text,
+      "AcceptanceCriterion.text_hash": sha256(segment.text),
+      "AcceptanceCriterion.spec": { uid: specUid },
+      ...(embedding
+        ? { "AcceptanceCriterion.embedding": vectorLiteral(embedding) }
+        : {}),
+    },
+  );
   await projectLinkEdges(context, criterionUid, segment.text, {
     validatedBy: "AcceptanceCriterion.validated_by",
     implementedBy: "AcceptanceCriterion.implemented_by",
@@ -441,7 +520,10 @@ async function projectAcceptanceCriterion(context: ProjectionContext, segment: S
  * segments write no nodes and leave the edge untouched. Parallel to
  * {@link projectSections}.
  */
-async function projectAcceptanceCriteria(context: ProjectionContext, acSegments: SpecSegment[]): Promise<void> {
+async function projectAcceptanceCriteria(
+  context: ProjectionContext,
+  acSegments: SpecSegment[],
+): Promise<void> {
   const { dgraph, repo, filePath } = context;
   const criterionUids: string[] = [];
   for (const segment of acSegments) {
@@ -464,9 +546,18 @@ async function projectAcceptanceCriteria(context: ProjectionContext, acSegments:
  * repo)` index reaches the same Blocks the `~Block.spec` reverse edge would,
  * without needing a Spec parent.
  */
-async function projectBlocks(context: ProjectionContext, content: string): Promise<void> {
+async function projectBlocks(
+  context: ProjectionContext,
+  content: string,
+): Promise<void> {
   const { dgraph, repo, filePath, specUid } = context;
-  const validBlockXids = await projectDocumentBlocks(dgraph, repo, filePath, content, specUid);
+  const validBlockXids = await projectDocumentBlocks(
+    dgraph,
+    repo,
+    filePath,
+    content,
+    specUid,
+  );
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validBlockXids);
 }
 
@@ -479,7 +570,10 @@ export async function projectSpecFile(
   force = false,
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
-  if (!force && (await readSpecContentHash(dgraph, `${repo}|${filePath}`)) === contentHash) {
+  if (
+    !force &&
+    (await readSpecContentHash(dgraph, `${repo}|${filePath}`)) === contentHash
+  ) {
     return { projected: false };
   }
 
@@ -497,26 +591,49 @@ export async function projectSpecFile(
   const context: ProjectionContext = { dgraph, repo, filePath, specUid, embed };
   const segments = segmentStatements(content);
   const introOrdinals = buildIntroOrdinals(segments);
-  const acSegments = segments.filter((segment) => isAcceptanceCriteriaHeading(segment.enclosingHeading));
-  const statementSegments = segments.filter((segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading));
+  const acSegments = segments.filter((segment) =>
+    isAcceptanceCriteriaHeading(segment.enclosingHeading),
+  );
+  const statementSegments = segments.filter(
+    (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
+  );
 
   const sectionUidByHeading = await projectSections(context, statementSegments);
   for (const segment of statementSegments) {
     const classification = classifyByHeuristic(segment, introOrdinals);
-    await projectStatement(context, segment, sectionUidByHeading, classification);
+    await projectStatement(
+      context,
+      segment,
+      sectionUidByHeading,
+      classification,
+    );
   }
 
-  const validStatementXids = new Set(statementSegments.map((segment) => `${repo}|${filePath}|${segment.ordinal}`));
+  const validStatementXids = new Set(
+    statementSegments.map(
+      (segment) => `${repo}|${filePath}|${segment.ordinal}`,
+    ),
+  );
   await pruneOrphans(context, "Statement", validStatementXids);
 
   const validSectionXids = new Set(
-    Array.from({ length: sectionUidByHeading.size }, (_, ordinal) => `${repo}|${filePath}|${ordinal}`),
+    Array.from(
+      { length: sectionUidByHeading.size },
+      (_, ordinal) => `${repo}|${filePath}|${ordinal}`,
+    ),
   );
   await pruneOrphans(context, "Section", validSectionXids, "Spec.sections");
 
   await projectAcceptanceCriteria(context, acSegments);
-  const validAcXids = new Set(acSegments.map((segment) => `${repo}|${filePath}|ac|${segment.ordinal}`));
-  await pruneOrphans(context, "AcceptanceCriterion", validAcXids, "Spec.acceptance_criteria");
+  const validAcXids = new Set(
+    acSegments.map((segment) => `${repo}|${filePath}|ac|${segment.ordinal}`),
+  );
+  await pruneOrphans(
+    context,
+    "AcceptanceCriterion",
+    validAcXids,
+    "Spec.acceptance_criteria",
+  );
 
   await projectBlocks(context, content);
   return { projected: true };

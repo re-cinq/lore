@@ -31,13 +31,18 @@ export interface SettingsPort {
   /** The raw settings JSONB for a repo, or null when there is no row / no settings. */
   rawSettings(repo: string): Promise<Record<string, unknown> | null>;
   /** Overwrite the settings JSONB for a repo. */
-  updateSettings(repo: string, settings: Record<string, unknown>): Promise<void>;
+  updateSettings(
+    repo: string,
+    settings: Record<string, unknown>,
+  ): Promise<void>;
   /** The repo's team (schema) name, or null. */
   team(repo: string): Promise<string | null>;
   /** The first repo full_name mapped to a team (schema), or null. */
   repoForTeam(team: string): Promise<string | null>;
   /** All onboarded repos with their last reindex stamp (the reindex scan set). */
   onboardedRepos(): Promise<OnboardedRepo[]>;
+  /** True when the repo's onboarding PR has merged (gap-detect's per-repo guard). */
+  isOnboarded(repo: string): Promise<boolean>;
   /** Stamp `last_ingested_at = now()` after a reindex pass. */
   markIngested(repo: string): Promise<void>;
   /** Repos with an open, unmerged onboarding PR (merge-check polls these). */
@@ -47,5 +52,9 @@ export interface SettingsPort {
   /** Set the onboarding PR url for a repo. */
   setOnboardingPrUrl(repo: string, url: string): Promise<void>;
   /** Increment the repo's outcome_stats (merged_count, total_files_changed, total_hours_to_merge). */
-  bumpOutcomeStats(repo: string, filesChanged: number, hoursToMerge: number): Promise<void>;
+  bumpOutcomeStats(
+    repo: string,
+    filesChanged: number,
+    hoursToMerge: number,
+  ): Promise<void>;
 }

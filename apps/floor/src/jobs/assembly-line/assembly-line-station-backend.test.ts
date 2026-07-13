@@ -33,7 +33,10 @@ describe("AssemblyLineStationBackend", () => {
       },
     ]);
     expect(port.events).toMatchObject([
-      { eventName: "assembly_line.start", dedupeKey: `assembly_line.start:${result.ref}` },
+      {
+        eventName: "assembly_line.start",
+        dedupeKey: `assembly_line.start:${result.ref}`,
+      },
     ]);
     expect(await backend.isActive()).toBe(true);
   });

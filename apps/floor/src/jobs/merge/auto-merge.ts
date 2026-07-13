@@ -68,8 +68,8 @@ export function evaluateAutoMerge(
     inputs.botApproved ? "APPROVED" : "CHANGES_REQUESTED";
 
   const baseRule = {
-    path_match_count: inputs.changedPaths.filter((p) =>
-      matchingPatterns(p, inputs.autoMerge.paths).length > 0,
+    path_match_count: inputs.changedPaths.filter(
+      (p) => matchingPatterns(p, inputs.autoMerge.paths).length > 0,
     ).length,
     trust_level: inputs.trustLevel ?? null,
     ci_status: ciStatus,

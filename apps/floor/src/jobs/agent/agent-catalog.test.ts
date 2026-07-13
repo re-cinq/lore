@@ -21,7 +21,10 @@ describe("buildAgentDefinition", () => {
     expect(buildAgentDefinition("implementation", impl)).toEqual({
       apiVersion: "agents.re-cinq.com/v1alpha1",
       kind: "AgentDefinition",
-      metadata: { name: "implementation", labels: { "app.kubernetes.io/managed-by": "lore-catalog-seed" } },
+      metadata: {
+        name: "implementation",
+        labels: { "app.kubernetes.io/managed-by": "lore-catalog-seed" },
+      },
       spec: {
         description: "Lore implementation task recipe (seeded).",
         model: "claude-sonnet-4-6",
@@ -31,7 +34,11 @@ describe("buildAgentDefinition", () => {
         output: {
           sinks: [
             { type: "stdout" },
-            { type: "http", url: "__AGENT_EVENTS_URL__", headers_secret: "agent-events-auth" },
+            {
+              type: "http",
+              url: "__AGENT_EVENTS_URL__",
+              headers_secret: "agent-events-auth",
+            },
           ],
         },
       },
@@ -39,7 +46,9 @@ describe("buildAgentDefinition", () => {
   });
 
   it("omits model when the recipe has none", () => {
-    expect(buildAgentDefinition("x", { prompt_template: "do {description}" }).spec).not.toHaveProperty("model");
+    expect(
+      buildAgentDefinition("x", { prompt_template: "do {description}" }).spec,
+    ).not.toHaveProperty("model");
   });
 });
 
@@ -49,18 +58,30 @@ describe("buildStation", () => {
     expect(station.spec?.agentDefRef).toBe("implementation");
     expect(station.spec?.deadlineMinutes).toBe(90);
     expect(station.metadata?.name).toBe("implementation");
-    const containers = (station.spec?.template as { spec: { containers: Array<{ name: string; image: string }> } }).spec.containers;
-    expect(containers[0]).toMatchObject({ name: "agent", image: "node:22-bookworm" });
+    const containers = (
+      station.spec?.template as {
+        spec: { containers: Array<{ name: string; image: string }> };
+      }
+    ).spec.containers;
+    expect(containers[0]).toMatchObject({
+      name: "agent",
+      image: "node:22-bookworm",
+    });
   });
 
   it("defaults the deadline to 30 when the recipe has no timeout", () => {
-    expect(buildStation("x", { prompt_template: "p" }).spec?.deadlineMinutes).toBe(30);
+    expect(
+      buildStation("x", { prompt_template: "p" }).spec?.deadlineMinutes,
+    ).toBe(30);
   });
 });
 
 describe("buildCatalog", () => {
   it("emits an AgentDefinition + Station per task type, in order", () => {
-    const cat = buildCatalog({ implementation: impl, runbook: { prompt_template: "r" } });
+    const cat = buildCatalog({
+      implementation: impl,
+      runbook: { prompt_template: "r" },
+    });
     expect(cat.map((c) => `${c.kind}/${c.metadata?.name}`)).toEqual([
       "AgentDefinition/implementation",
       "Station/implementation",
@@ -94,13 +115,19 @@ describe("catalogChartYaml", () => {
 });
 
 describe("station catalog (exec vendor recipes)", () => {
-  const validate: StationCatalogConfig = { command: ["lore-station", "validate"], timeout_minutes: 15 };
+  const validate: StationCatalogConfig = {
+    command: ["lore-station", "validate"],
+    timeout_minutes: 15,
+  };
 
   it("buildStationDefinition maps a station recipe: exec model, {station_input} prompt, tool_config.command", () => {
     expect(buildStationDefinition("validate", validate)).toEqual({
       apiVersion: "agents.re-cinq.com/v1alpha1",
       kind: "AgentDefinition",
-      metadata: { name: "def-validate", labels: { "app.kubernetes.io/managed-by": "lore-catalog-seed" } },
+      metadata: {
+        name: "def-validate",
+        labels: { "app.kubernetes.io/managed-by": "lore-catalog-seed" },
+      },
       spec: {
         description: "Lore validate station recipe (seeded).",
         model: "exec",
@@ -111,7 +138,11 @@ describe("station catalog (exec vendor recipes)", () => {
         output: {
           sinks: [
             { type: "stdout" },
-            { type: "http", url: "__AGENT_EVENTS_URL__", headers_secret: "agent-events-auth" },
+            {
+              type: "http",
+              url: "__AGENT_EVENTS_URL__",
+              headers_secret: "agent-events-auth",
+            },
           ],
         },
       },
@@ -123,9 +154,29 @@ describe("station catalog (exec vendor recipes)", () => {
     expect(station.metadata?.name).toBe("def-validate");
     expect(station.spec?.agentDefRef).toBe("def-validate");
     expect(station.spec?.deadlineMinutes).toBe(15);
-    const containers = (station.spec?.template as { spec: { containers: Array<{ image: string }> } }).spec.containers;
+    const containers = (
+      station.spec?.template as {
+        spec: { containers: Array<{ image: string }> };
+      }
+    ).spec.containers;
     expect(containers[0].image).toBe("__STATION_IMAGE__");
-    expect(buildStationStation("gate", { command: ["lore-station", "gate"] }).spec?.deadlineMinutes).toBe(15);
+    expect(
+      buildStationStation("gate", { command: ["lore-station", "gate"] }).spec
+        ?.deadlineMinutes,
+    ).toBe(15);
+  });
+
+  it("sanitizes underscores in the station name to a valid RFC-1123 k8s name", () => {
+    const githubAction: StationCatalogConfig = {
+      command: ["lore-station", "github_action"],
+      timeout_minutes: 60,
+    };
+    expect(
+      buildStationDefinition("github_action", githubAction).metadata?.name,
+    ).toBe("def-github-action");
+    const station = buildStationStation("github_action", githubAction);
+    expect(station.metadata?.name).toBe("def-github-action");
+    expect(station.spec?.agentDefRef).toBe("def-github-action");
   });
 
   it("buildCatalog appends def-<name> pairs for stations and catalogChartYaml templates the image", () => {

@@ -1,20 +1,32 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
 const SECRET = "pd-webhook-secret";
 const TOKEN = "opsgenie-shared-token";
 
-const sign = (body: string) => "v1=" + createHmac("sha256", SECRET).update(body).digest("hex");
+const sign = (body: string) =>
+  "v1=" + createHmac("sha256", SECRET).update(body).digest("hex");
 
 const post = (
   body: unknown,
-  { pool = null, headers = {} }: { pool?: unknown; headers?: Record<string, string> } = {},
+  {
+    pool = null,
+    headers = {},
+  }: { pool?: unknown; headers?: Record<string, string> } = {},
 ) => {
   const payload = typeof body === "string" ? body : JSON.stringify(body);
-  return buildServer(() => pool as any).inject({ method: "POST", url: "/api/webhook/incident", payload, headers });
+  return buildServer(() => pool as any).inject({
+    method: "POST",
+    url: "/api/webhook/incident",
+    payload,
+    headers,
+  });
 };
 
 const bearer = (body: unknown, pool: unknown = makePool()) =>
@@ -44,7 +56,10 @@ describe("POST /api/webhook/incident", () => {
   });
 
   it("returns 401 when the bearer token does not match", async () => {
-    const res = await post({ repo: "o/r" }, { pool: makePool(), headers: { authorization: "Bearer wrong" } });
+    const res = await post(
+      { repo: "o/r" },
+      { pool: makePool(), headers: { authorization: "Bearer wrong" } },
+    );
     expect(res.statusCode).toBe(401);
   });
 
@@ -54,7 +69,10 @@ describe("POST /api/webhook/incident", () => {
     const pool = makePool();
     pool.query.mockResolvedValue({});
     const payload = JSON.stringify({ repo: "o/r", title: "down" });
-    const res = await post(payload, { pool, headers: { "x-pagerduty-signature": sign(payload) } });
+    const res = await post(payload, {
+      pool,
+      headers: { "x-pagerduty-signature": sign(payload) },
+    });
     expect(res.result).toEqual({ ok: true, repo: "o/r" });
   });
 
@@ -64,7 +82,10 @@ describe("POST /api/webhook/incident", () => {
     const pool = makePool();
     pool.query.mockResolvedValue({});
     const payload = JSON.stringify({ repo: "o/r" });
-    const res = await post(payload, { pool, headers: { "x-pagerduty-signature": `v1=deadbeef,${sign(payload)}` } });
+    const res = await post(payload, {
+      pool,
+      headers: { "x-pagerduty-signature": `v1=deadbeef,${sign(payload)}` },
+    });
     expect(res.statusCode).toBe(200);
   });
 
@@ -127,7 +148,10 @@ describe("POST /api/webhook/incident", () => {
   it("upserts a direct-format incident", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({});
-    const res = await bearer({ repo: "o/r", title: "down", severity: "high", url: "u" }, pool);
+    const res = await bearer(
+      { repo: "o/r", title: "down", severity: "high", url: "u" },
+      pool,
+    );
     expect(res.result).toEqual({ ok: true, repo: "o/r" });
   });
 
@@ -135,7 +159,15 @@ describe("POST /api/webhook/incident", () => {
     const pool = makePool();
     pool.query.mockResolvedValue({});
     const res = await bearer(
-      { incident: { service: { name: "o/r" }, summary: "API down", urgency: "high", status: "resolved", html_url: "https://pd/1" } },
+      {
+        incident: {
+          service: { name: "o/r" },
+          summary: "API down",
+          urgency: "high",
+          status: "resolved",
+          html_url: "https://pd/1",
+        },
+      },
       pool,
     );
     expect(res.result).toEqual({ ok: true, repo: "o/r" });
@@ -147,7 +179,11 @@ describe("POST /api/webhook/incident", () => {
     await bearer({ repo: "o/r", title: "outage", status: "resolved" }, pool);
     const [sql, args] = pool.query.mock.calls[0];
     expect(sql).toContain("LIMIT 10");
-    expect(JSON.parse(args[1])).toMatchObject({ title: "outage", resolved: true, severity: "unknown" });
+    expect(JSON.parse(args[1])).toMatchObject({
+      title: "outage",
+      resolved: true,
+      severity: "unknown",
+    });
   });
 
   it("defaults title and severity when neither incident field is present", async () => {
@@ -155,7 +191,11 @@ describe("POST /api/webhook/incident", () => {
     pool.query.mockResolvedValue({});
     await bearer({ repo: "o/r" }, pool);
     const [, args] = pool.query.mock.calls[0];
-    expect(JSON.parse(args[1])).toMatchObject({ title: "Unknown incident", severity: "unknown", resolved: false });
+    expect(JSON.parse(args[1])).toMatchObject({
+      title: "Unknown incident",
+      severity: "unknown",
+      resolved: false,
+    });
   });
 
   it("clamps a future date to now so it cannot pin the FIFO list", async () => {

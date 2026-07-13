@@ -1,10 +1,10 @@
-import Link from 'next/link';
-import ReadmeBox from './ReadmeBox';
-import EnrollmentSection from '@/components/EnrollmentSection';
-import EventRow from './events/EventRow';
-import { type RepoEvent } from './events/pagination';
-import { type Check } from '@/lib/enrollment';
-import styles from './RepoOverviewView.module.css';
+import Link from "next/link";
+import ReadmeBox from "./ReadmeBox";
+import EnrollmentSection from "@/components/EnrollmentSection";
+import EventRow from "./events/EventRow";
+import { type RepoEvent } from "./events/pagination";
+import { type Check } from "@/lib/enrollment";
+import styles from "./RepoOverviewView.module.css";
 
 export interface RepoReadme {
   markdown: string;
@@ -64,21 +64,35 @@ export default function RepoOverviewView({
   return (
     <div>
       {readme && (
-        <ReadmeBox markdown={readme.markdown} rawBaseUrl={readme.rawBaseUrl} htmlUrl={readme.htmlUrl} />
+        <ReadmeBox
+          markdown={readme.markdown}
+          rawBaseUrl={readme.rawBaseUrl}
+          htmlUrl={readme.htmlUrl}
+        />
       )}
 
-      <EnrollmentSection checks={enrollmentChecks} reonboardAction={reonboardAction} setupWebhookAction={setupWebhookAction} />
+      <EnrollmentSection
+        checks={enrollmentChecks}
+        reonboardAction={reonboardAction}
+        setupWebhookAction={setupWebhookAction}
+      />
 
       <div className={`spec-card ${styles.dfCard}`}>
         <div className={styles.dfHead}>
           <h3 className={styles.dfTitle}>Dark Factory</h3>
-          <Link href={`/repos/${owner}/${repo}/settings`} className="meta">configure →</Link>
+          <Link href={`/repos/${owner}/${repo}/settings`} className="meta">
+            configure →
+          </Link>
         </div>
         <div className={styles.stats}>
           <div>
             <div className={`meta ${styles.statLabel}`}>Mode</div>
             <div className={styles.statValue}>
-              {darkFactoryEnabled ? <span className={styles.success}>Enabled</span> : <span className="meta">Off (legacy)</span>}
+              {darkFactoryEnabled ? (
+                <span className={styles.success}>Enabled</span>
+              ) : (
+                <span className="meta">Off (legacy)</span>
+              )}
             </div>
           </div>
           <div>
@@ -91,11 +105,19 @@ export default function RepoOverviewView({
           </div>
           <div>
             <div className={`meta ${styles.statLabel}`}>Auto-merged (7d)</div>
-            <div className={`${styles.statValue}${autoMergedWeek > 0 ? ` ${styles.success}` : ''}`}>{autoMergedWeek}</div>
+            <div
+              className={`${styles.statValue}${autoMergedWeek > 0 ? ` ${styles.success}` : ""}`}
+            >
+              {autoMergedWeek}
+            </div>
           </div>
           <div>
             <div className={`meta ${styles.statLabel}`}>Escalations (7d)</div>
-            <div className={`${styles.statValue}${escalationsWeek > 0 ? ` ${styles.danger}` : ''}`}>{escalationsWeek}</div>
+            <div
+              className={`${styles.statValue}${escalationsWeek > 0 ? ` ${styles.danger}` : ""}`}
+            >
+              {escalationsWeek}
+            </div>
           </div>
         </div>
       </div>
@@ -103,34 +125,73 @@ export default function RepoOverviewView({
       <h2>Recent Tasks</h2>
       {recentTasks.length > 0 ? (
         <table>
-          <thead><tr><th>Task</th><th>Status</th><th>PR</th><th>Created</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Status</th>
+              <th>PR</th>
+              <th>Created</th>
+            </tr>
+          </thead>
           <tbody>
             {recentTasks.map((t) => (
               <tr key={t.id}>
-                <td><Link href={`/assembly-lines/${t.id}`}>{t.description.substring(0, 60)}...</Link></td>
-                <td><span className={`op-badge op-${t.status}`}>{t.status}</span></td>
-                <td>{t.pr_url ? <a href={t.pr_url} target="_blank">PR</a> : '—'}</td>
-                <td className="meta">{new Date(t.created_at).toLocaleString()}</td>
+                <td>
+                  <Link href={`/assembly-lines/${t.id}`}>
+                    {t.description.substring(0, 60)}...
+                  </Link>
+                </td>
+                <td>
+                  <span className={`op-badge op-${t.status}`}>{t.status}</span>
+                </td>
+                <td>
+                  {t.pr_url ? (
+                    <a href={t.pr_url} target="_blank">
+                      PR
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="meta">
+                  {new Date(t.created_at).toLocaleString()}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
-      ) : <p className="meta">No tasks yet. <Link href={`/repos/${owner}/${repo}/tasks`}>Create one</Link></p>}
+      ) : (
+        <p className="meta">
+          No tasks yet.{" "}
+          <Link href={`/repos/${owner}/${repo}/tasks`}>Create one</Link>
+        </p>
+      )}
 
       <div className={styles.eventsHead}>
         <h2 className={styles.eventsTitle}>Latest Events</h2>
-        <Link href={`/repos/${owner}/${repo}/events`} className="meta">Show all →</Link>
+        <Link href={`/repos/${owner}/${repo}/events`} className="meta">
+          Show all →
+        </Link>
       </div>
       {latestEvents.length > 0 ? (
         <table>
-          <thead><tr><th>When</th><th>Event</th><th>Source</th><th>Status</th></tr></thead>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Event</th>
+              <th>Source</th>
+              <th>Status</th>
+            </tr>
+          </thead>
           <tbody>
             {latestEvents.map((e) => (
               <EventRow key={e.id} event={e} />
             ))}
           </tbody>
         </table>
-      ) : <p className="meta">No events yet.</p>}
+      ) : (
+        <p className="meta">No events yet.</p>
+      )}
     </div>
   );
 }

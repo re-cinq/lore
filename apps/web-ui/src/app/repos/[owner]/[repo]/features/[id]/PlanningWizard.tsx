@@ -1,18 +1,27 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import GapSections, { emptyFeedback, toUserAnswers, type FeedbackState } from './GapSections';
-import RunningCard from './RunningCard';
-import FailureBlock from './FailureBlock';
-import { isPlanningActive } from '../feature-status';
-import type { FeatureWithIterations, FeatureRow, FeatureIterationRow, SectionAnswers } from '@/lib/feature-types';
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import GapSections, {
+  emptyFeedback,
+  toUserAnswers,
+  type FeedbackState,
+} from "./GapSections";
+import RunningCard from "./RunningCard";
+import FailureBlock from "./FailureBlock";
+import { isPlanningActive } from "../feature-status";
+import type {
+  FeatureWithIterations,
+  FeatureRow,
+  FeatureIterationRow,
+  SectionAnswers,
+} from "@/lib/feature-types";
 
 const POLL_MS = 4000;
 
 // A planning round is genuinely in flight only while its task is in one of these
 // non-terminal states; any other state means the round settled (ready or failed).
-const RUNNING_TASK_STATUSES = new Set(['pending', 'queued', 'running']);
+const RUNNING_TASK_STATUSES = new Set(["pending", "queued", "running"]);
 
 interface Poll {
   feature: FeatureRow;
@@ -51,7 +60,10 @@ export default function PlanningWizard({
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchLatest = useCallback(async (): Promise<Poll | null> => {
-    const r = await fetch(`/api/repos/${owner}/${repo}/features/${feature.id}`, { cache: 'no-store' });
+    const r = await fetch(
+      `/api/repos/${owner}/${repo}/features/${feature.id}`,
+      { cache: "no-store" },
+    );
     if (!r.ok) return null;
     try {
       const json = (await r.json()) as Poll;
@@ -67,9 +79,12 @@ export default function PlanningWizard({
   // The round settled but produced nothing usable (failed, or stuck 'running' with no
   // gap_result after the task ended) — the user must see it + retry, never an endless spinner.
   const taskActive = !task || RUNNING_TASK_STATUSES.has(task.status);
-  const latestReady = latest?.status === 'ready' && !!latest.gap_result;
-  const failed = task?.status === 'failed' || latest?.status === 'failed' || (!latestReady && !taskActive);
-  const running = (!latest || latest.status === 'running') && !failed;
+  const latestReady = latest?.status === "ready" && !!latest.gap_result;
+  const failed =
+    task?.status === "failed" ||
+    latest?.status === "failed" ||
+    (!latestReady && !taskActive);
+  const running = (!latest || latest.status === "running") && !failed;
 
   useEffect(() => {
     if (!running) {
@@ -125,7 +140,9 @@ export default function PlanningWizard({
 
   // The analysis to show: the latest round's result, else the most recent round that
   // produced one (so a failed refine doesn't hide your prior analysis).
-  const gap = latestReady ? latest?.gap_result : data.lastReady?.gap_result ?? null;
+  const gap = latestReady
+    ? latest?.gap_result
+    : (data.lastReady?.gap_result ?? null);
 
   const failureBlock = (
     <FailureBlock
@@ -142,7 +159,10 @@ export default function PlanningWizard({
       failureBlock
     ) : (
       <div className="spec-card">
-        <p className="meta">Planning hasn&apos;t produced an analysis yet — it will appear here once the first round finishes.</p>
+        <p className="meta">
+          Planning hasn&apos;t produced an analysis yet — it will appear here
+          once the first round finishes.
+        </p>
       </div>
     );
   }
@@ -152,14 +172,32 @@ export default function PlanningWizard({
   return (
     <div>
       {failed && <div style={{ marginBottom: 12 }}>{failureBlock}</div>}
-      <GapSections gap={gap} feedback={feedback} onChange={setFeedback} onCreateDraft={onCreateDraft} />
-      {finalizing && <p className="meta" role="status">Finalizing — creating the spec PR…</p>}
-      <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-        <button type="button" disabled={pending || finalizing} onClick={submitRefine}>
-          {pending ? 'Working…' : 'Refine again'}
+      <GapSections
+        gap={gap}
+        feedback={feedback}
+        onChange={setFeedback}
+        onCreateDraft={onCreateDraft}
+      />
+      {finalizing && (
+        <p className="meta" role="status">
+          Finalizing — creating the spec PR…
+        </p>
+      )}
+      <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        <button
+          type="button"
+          disabled={pending || finalizing}
+          onClick={submitRefine}
+        >
+          {pending ? "Working…" : "Refine again"}
         </button>
-        <button type="button" className="button" disabled={pending || finalizing} onClick={submitFinalize}>
-          {finalizing ? 'Finalizing…' : 'Proceed & finalize'}
+        <button
+          type="button"
+          className="button"
+          disabled={pending || finalizing}
+          onClick={submitFinalize}
+        >
+          {finalizing ? "Finalizing…" : "Proceed & finalize"}
         </button>
       </div>
     </div>

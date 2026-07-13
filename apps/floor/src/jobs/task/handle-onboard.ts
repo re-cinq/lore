@@ -15,8 +15,20 @@ import {
   TaskFailure,
   type StepFailure,
 } from "@re-cinq/lore-shared";
-import { LORE_INGEST_WORKFLOW_PATH, LORE_INGEST_WORKFLOW_CONTENT, TRACE_IMPACT_WORKFLOW_PATH, TRACE_IMPACT_WORKFLOW_CONTENT, LORE_TESTS_INSTRUCTION, decideTestInterfaceCheck } from "@re-cinq/lore-shared";
-import { setStatus, insertEvent, issueRef, linkPrToIssue } from "./task-helpers.js";
+import {
+  LORE_INGEST_WORKFLOW_PATH,
+  LORE_INGEST_WORKFLOW_CONTENT,
+  TRACE_IMPACT_WORKFLOW_PATH,
+  TRACE_IMPACT_WORKFLOW_CONTENT,
+  LORE_TESTS_INSTRUCTION,
+  decideTestInterfaceCheck,
+} from "@re-cinq/lore-shared";
+import {
+  setStatus,
+  insertEvent,
+  issueRef,
+  linkPrToIssue,
+} from "./task-helpers.js";
 
 // ── Onboard handler (per-file LLM calls) ─────────────────────────────
 
@@ -25,9 +37,14 @@ import { setStatus, insertEvent, issueRef, linkPrToIssue } from "./task-helpers.
 const ONBOARD_STATIC_FILES: { path: string; content: string }[] = [
   {
     path: ".claude/settings.json",
-    content: JSON.stringify({
-      systemPromptSuffix: "\n\nYou have access to the Lore MCP server. ALWAYS call get_context as your FIRST action before reading files or answering. Then use lore_search_memory to check what other developers learned. Before session ends, call lore_write_memory with a session summary.",
-    }, null, 2),
+    content: JSON.stringify(
+      {
+        systemPromptSuffix:
+          "\n\nYou have access to the Lore MCP server. ALWAYS call get_context as your FIRST action before reading files or answering. Then use lore_search_memory to check what other developers learned. Before session ends, call lore_write_memory with a session summary.",
+      },
+      null,
+      2,
+    ),
   },
   {
     path: ".github/ISSUE_TEMPLATE/lore-implementation.yml",
@@ -103,22 +120,26 @@ const ONBOARD_FILES: { path: string; description: string; prompt: string }[] = [
   {
     path: "AGENTS.md",
     description: "Agent configuration for AI tools",
-    prompt: "Generate an AGENTS.md file for this repository. Include: context loading order (which files agents should read first), workflow commands (build, test, lint, deploy), commit conventions, PR requirements, and compliance constraints if any. Be specific to this repo's actual tech stack and structure.",
+    prompt:
+      "Generate an AGENTS.md file for this repository. Include: context loading order (which files agents should read first), workflow commands (build, test, lint, deploy), commit conventions, PR requirements, and compliance constraints if any. Be specific to this repo's actual tech stack and structure.",
   },
   {
     path: ".github/PULL_REQUEST_TEMPLATE.md",
     description: "PR description template",
-    prompt: "Generate a GitHub PR template. Include sections: ## Why, ## What Changed, ## Alternatives Considered, ## ADRs & Architecture, ## Testing. Add a checklist for code quality (lint, types, tests, no secrets).",
+    prompt:
+      "Generate a GitHub PR template. Include sections: ## Why, ## What Changed, ## Alternatives Considered, ## ADRs & Architecture, ## Testing. Add a checklist for code quality (lint, types, tests, no secrets).",
   },
   {
     path: ".github/workflows/pr-description-check.yml",
     description: "CI check for PR description quality",
-    prompt: 'Generate a GitHub Actions workflow that checks PR descriptions have required sections (## Why, ## What Changed, ## Testing). Use the github.event.pull_request.body context. Run on pull_request opened/edited. Fail if sections are missing.',
+    prompt:
+      "Generate a GitHub Actions workflow that checks PR descriptions have required sections (## Why, ## What Changed, ## Testing). Use the github.event.pull_request.body context. Run on pull_request opened/edited. Fail if sections are missing.",
   },
   {
     path: ".specify/spec.md",
     description: "System specification",
-    prompt: "Generate a system specification describing what this repository does based on the code structure, README, and config files. Include: overview, key capabilities, core data model (if applicable), user roles, business rules, and success metrics. Describe the system as it exists today.",
+    prompt:
+      "Generate a system specification describing what this repository does based on the code structure, README, and config files. Include: overview, key capabilities, core data model (if applicable), user roles, business rules, and success metrics. Describe the system as it exists today.",
   },
 ];
 
@@ -132,9 +153,21 @@ const TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT =
 
 /** ADR files are generated dynamically based on what's in the repo. */
 const ADR_TOPICS = [
-  { slug: "language-choice", prompt: "Write an ADR for the language/framework choice. Look at package.json, go.mod, Cargo.toml, etc. to determine what was chosen and why it makes sense for this project." },
-  { slug: "database-choice", prompt: "Write an ADR for the database choice. Look at config files, schema definitions, docker-compose for DB services. If no database is evident, skip this ADR entirely and respond with just 'SKIP'." },
-  { slug: "deployment", prompt: "Write an ADR for the deployment approach. Look at Dockerfile, CI workflows, Kubernetes manifests, serverless configs. Describe what was chosen and why." },
+  {
+    slug: "language-choice",
+    prompt:
+      "Write an ADR for the language/framework choice. Look at package.json, go.mod, Cargo.toml, etc. to determine what was chosen and why it makes sense for this project.",
+  },
+  {
+    slug: "database-choice",
+    prompt:
+      "Write an ADR for the database choice. Look at config files, schema definitions, docker-compose for DB services. If no database is evident, skip this ADR entirely and respond with just 'SKIP'.",
+  },
+  {
+    slug: "deployment",
+    prompt:
+      "Write an ADR for the deployment approach. Look at Dockerfile, CI workflows, Kubernetes manifests, serverless configs. Describe what was chosen and why.",
+  },
 ];
 
 export async function handleOnboard(
@@ -149,7 +182,9 @@ export async function handleOnboard(
   console.log(`[floor] Onboard: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
   const contextStr = JSON.stringify(context, null, 2);
-  console.log(`[floor] Onboard: ${context.tree.length} tree entries, ${Object.keys(context.files).length} files`);
+  console.log(
+    `[floor] Onboard: ${context.tree.length} tree entries, ${Object.keys(context.files).length} files`,
+  );
 
   // 2. Determine which files already exist
   const existingFiles = new Set([
@@ -158,14 +193,18 @@ export async function handleOnboard(
   ]);
 
   // Check subdirectories
-  const hasAdrs = context.tree.includes("adrs") || context.tree.includes("docs");
+  const hasAdrs =
+    context.tree.includes("adrs") || context.tree.includes("docs");
   const hasGithub = context.tree.includes(".github");
 
   // 3. Build list of files to generate
   const toGenerate: { path: string; prompt: string }[] = [];
 
   for (const f of ONBOARD_FILES) {
-    if (existingFiles.has(f.path) || existingFiles.has(f.path.split("/").pop()!)) {
+    if (
+      existingFiles.has(f.path) ||
+      existingFiles.has(f.path.split("/").pop()!)
+    ) {
       console.log(`[floor] Onboard: skipping ${f.path} (already exists)`);
       continue;
     }
@@ -182,24 +221,30 @@ export async function handleOnboard(
   let settingsTestCommands: unknown;
   try {
     const repoSettings = await settings().rawSettings(targetRepo);
-    settingsTestCommands = (repoSettings as { test_commands?: unknown } | null)?.test_commands;
+    settingsTestCommands = (repoSettings as { test_commands?: unknown } | null)
+      ?.test_commands;
   } catch (err: any) {
-    console.warn(`[floor] Onboard: could not read repo settings for test-interface check: ${err.message}`);
+    console.warn(
+      `[floor] Onboard: could not read repo settings for test-interface check: ${err.message}`,
+    );
   }
   const interfaceCheck = decideTestInterfaceCheck({
     manifestFileDeclared: existingFiles.has(".lore/test-commands.yml"),
     settingsTestCommands,
   });
   if (interfaceCheck.status === "configured") {
-    console.log("[floor] Onboard: test interface already configured — scaffolding nothing");
+    console.log(
+      "[floor] Onboard: test interface already configured — scaffolding nothing",
+    );
   } else {
     for (const scaffoldPath of interfaceCheck.files) {
       if (existingFiles.has(scaffoldPath)) continue;
       toGenerate.push({
         path: scaffoldPath,
-        prompt: scaffoldPath === ".github/workflows/lore-tests.yml"
-          ? LORE_TESTS_INSTRUCTION
-          : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+        prompt:
+          scaffoldPath === ".github/workflows/lore-tests.yml"
+            ? LORE_TESTS_INSTRUCTION
+            : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
       });
     }
   }
@@ -211,12 +256,16 @@ export async function handleOnboard(
       const padded = String(adrNum).padStart(3, "0");
       toGenerate.push({
         path: `adrs/ADR-${padded}-${adr.slug}.md`,
-        prompt: adr.prompt + ` Use MADR format with YAML frontmatter (adr_number: ${adrNum}, title, status: accepted, date: ${new Date().toISOString().split("T")[0]}, domains: [...]).`,
+        prompt:
+          adr.prompt +
+          ` Use MADR format with YAML frontmatter (adr_number: ${adrNum}, title, status: accepted, date: ${new Date().toISOString().split("T")[0]}, domains: [...]).`,
       });
       adrNum++;
     }
   } else {
-    console.log(`[floor] Onboard: skipping ADRs (adrs/ or docs/ already exists)`);
+    console.log(
+      `[floor] Onboard: skipping ADRs (adrs/ or docs/ already exists)`,
+    );
   }
 
   if (toGenerate.length === 0) {
@@ -242,9 +291,13 @@ export async function handleOnboard(
       `lore: add ${LORE_INGEST_WORKFLOW_PATH}`,
     );
     committed.push(LORE_INGEST_WORKFLOW_PATH);
-    console.log(`[floor] Onboard: committed ${LORE_INGEST_WORKFLOW_PATH} (workflow)`);
+    console.log(
+      `[floor] Onboard: committed ${LORE_INGEST_WORKFLOW_PATH} (workflow)`,
+    );
   } catch (err: any) {
-    console.error(`[floor] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${err.message}`);
+    console.error(
+      `[floor] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${err.message}`,
+    );
     failures.push({ step: LORE_INGEST_WORKFLOW_PATH, error: err.message });
   }
 
@@ -259,17 +312,29 @@ export async function handleOnboard(
       `lore: add ${TRACE_IMPACT_WORKFLOW_PATH}`,
     );
     committed.push(TRACE_IMPACT_WORKFLOW_PATH);
-    console.log(`[floor] Onboard: committed ${TRACE_IMPACT_WORKFLOW_PATH} (workflow)`);
+    console.log(
+      `[floor] Onboard: committed ${TRACE_IMPACT_WORKFLOW_PATH} (workflow)`,
+    );
   } catch (err: any) {
-    console.error(`[floor] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${err.message}`);
+    console.error(
+      `[floor] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${err.message}`,
+    );
     failures.push({ step: TRACE_IMPACT_WORKFLOW_PATH, error: err.message });
   }
 
   // 5. Commit static files first
   for (const sf of ONBOARD_STATIC_FILES) {
-    if (!existingFiles.has(sf.path) && !existingFiles.has(sf.path.split("/")[0])) {
+    if (
+      !existingFiles.has(sf.path) &&
+      !existingFiles.has(sf.path.split("/")[0])
+    ) {
       try {
-        await project.repo.commitFile(branchName, sf.path, sf.content, `lore: add ${sf.path}`);
+        await project.repo.commitFile(
+          branchName,
+          sf.path,
+          sf.content,
+          `lore: add ${sf.path}`,
+        );
         committed.push(sf.path);
         console.log(`[floor] Onboard: committed ${sf.path} (static)`);
       } catch (err: any) {
@@ -293,15 +358,26 @@ export async function handleOnboard(
       // Skip if model says to skip (e.g., no database detected)
       const text = result.text.trim();
       if (text === "SKIP" || text.length < 20) {
-        console.log(`[floor] Onboard: skipping ${file.path} (model returned SKIP)`);
+        console.log(
+          `[floor] Onboard: skipping ${file.path} (model returned SKIP)`,
+        );
         continue;
       }
 
-      await project.repo.commitFile(branchName, file.path, text, `lore: add ${file.path}`);
+      await project.repo.commitFile(
+        branchName,
+        file.path,
+        text,
+        `lore: add ${file.path}`,
+      );
       committed.push(file.path);
-      console.log(`[floor] Onboard: committed ${file.path} (${text.length} chars)`);
+      console.log(
+        `[floor] Onboard: committed ${file.path} (${text.length} chars)`,
+      );
     } catch (err: any) {
-      console.error(`[floor] Onboard: failed to generate ${file.path}: ${err.message}`);
+      console.error(
+        `[floor] Onboard: failed to generate ${file.path}: ${err.message}`,
+      );
       failures.push({ step: file.path, error: err.message });
       // Continue with other files — don't fail the whole task
     }
@@ -335,13 +411,27 @@ export async function handleOnboard(
   try {
     await project.issues.createLabels([
       { name: "lore", color: "7B61FF", description: "Dispatch to Lore agent" },
-      { name: "lore:implementation", color: "0E8A16", description: "Lore: implementation task" },
-      { name: "lore:review", color: "1D76DB", description: "Lore: review task" },
-      { name: "lore:runbook", color: "D93F0B", description: "Lore: runbook task" },
+      {
+        name: "lore:implementation",
+        color: "0E8A16",
+        description: "Lore: implementation task",
+      },
+      {
+        name: "lore:review",
+        color: "1D76DB",
+        description: "Lore: review task",
+      },
+      {
+        name: "lore:runbook",
+        color: "D93F0B",
+        description: "Lore: runbook task",
+      },
     ]);
     console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);
   } catch (err) {
-    console.warn(`[floor] Failed to create labels on ${targetRepo}: ${(err as Error).message}`);
+    console.warn(
+      `[floor] Failed to create labels on ${targetRepo}: ${(err as Error).message}`,
+    );
   }
 
   // Configure ingest secrets on the repo so lore-ingest.yml can call back
@@ -354,7 +444,9 @@ export async function handleOnboard(
     }
     console.log(`[floor] Configured ingest secrets on ${targetRepo}`);
   } catch (err: any) {
-    console.error(`[floor] Failed to set ingest secrets on ${targetRepo}: ${err.message}`);
+    console.error(
+      `[floor] Failed to set ingest secrets on ${targetRepo}: ${err.message}`,
+    );
     // Non-fatal — PR still created, secrets can be set manually
   }
 
@@ -372,5 +464,7 @@ export async function handleOnboard(
     `${targetRepo}/${task.id}`,
   ).catch(() => {});
 
-  console.log(`[floor] Task ${task.id} → PR ${pr.url} (${committed.length} files)`);
+  console.log(
+    `[floor] Task ${task.id} → PR ${pr.url} (${committed.length} files)`,
+  );
 }

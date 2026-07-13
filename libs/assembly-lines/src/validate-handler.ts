@@ -42,7 +42,10 @@ export function createValidateHandler(
     if (tooling.quickChecks.length === 0) {
       return {
         outcome: "success",
-        extras: { "Lore-Validation": "none", "Lore-Validation-Lang": tooling.language },
+        extras: {
+          "Lore-Validation": "none",
+          "Lore-Validation-Lang": tooling.language,
+        },
       };
     }
 
@@ -50,7 +53,12 @@ export function createValidateHandler(
       ? relayValidationExec(new RelayExecutor(deps.relayDir))
       : localValidationExec;
     const changed = deps.changedFiles ? await deps.changedFiles() : undefined;
-    const result = await runValidation(ctx.gitDir, tooling.quickChecks, changed, exec);
+    const result = await runValidation(
+      ctx.gitDir,
+      tooling.quickChecks,
+      changed,
+      exec,
+    );
 
     const failed = result.steps.filter((s) => !s.passed).map((s) => s.name);
     return {
@@ -58,7 +66,9 @@ export function createValidateHandler(
       extras: {
         "Lore-Validation": result.passed ? "passed" : "failed",
         "Lore-Validation-Lang": tooling.language,
-        ...(failed.length ? { "Lore-Validation-Failed": failed.join(",") } : {}),
+        ...(failed.length
+          ? { "Lore-Validation-Failed": failed.join(",") }
+          : {}),
       },
     };
   };

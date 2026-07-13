@@ -6,7 +6,9 @@ const resolvePrForTaskFromDbMock = vi.fn();
 
 vi.mock("../../kernel/queues.js", () => ({
   taskStore: () => ({ getById: (...args: unknown[]) => getByIdMock(...args) }),
-  settings: () => ({ rawSettings: (...args: unknown[]) => rawSettingsMock(...args) }),
+  settings: () => ({
+    rawSettings: (...args: unknown[]) => rawSettingsMock(...args),
+  }),
 }));
 
 vi.mock("../platform/pr-policy.js", () => ({
@@ -24,14 +26,15 @@ vi.mock("./auto-merge.js", async (orig) => {
   };
 });
 
-const { tryAutoMergeForCompletedTask } = await import(
-  "./auto-merge-trigger.js"
-);
+const { tryAutoMergeForCompletedTask } =
+  await import("./auto-merge-trigger.js");
 
 /** Seed the task record + repo settings the trigger reads, mirroring the old
  *  joined `{ target_repo, settings }` row shape per case. */
 function seedTask(targetRepo: string | null, settings: unknown): void {
-  getByIdMock.mockResolvedValueOnce(targetRepo ? { target_repo: targetRepo } : null);
+  getByIdMock.mockResolvedValueOnce(
+    targetRepo ? { target_repo: targetRepo } : null,
+  );
   rawSettingsMock.mockResolvedValueOnce(settings);
 }
 
@@ -77,7 +80,6 @@ describe("tryAutoMergeForCompletedTask", () => {
 
   it("calls evaluateAndMerge with the resolved policy when dark mode is on + PR exists", async () => {
     seedTask("owner/repo", { dark_factory: { enabled: true } });
-
 
     const policy = {
       darkFactoryEnabled: true,

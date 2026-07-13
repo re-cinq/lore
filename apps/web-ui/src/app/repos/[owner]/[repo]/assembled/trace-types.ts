@@ -1,7 +1,7 @@
 /** Shape of the assembly trace returned by `/api/context?debug=1` (mirrors the
  *  `AssemblyTrace` the MCP server's `assembleContext` emits). */
 
-export type FetchStatus = 'ok' | 'empty' | 'error' | 'no-match' | 'disabled';
+export type FetchStatus = "ok" | "empty" | "error" | "no-match" | "disabled";
 
 export interface SourceItem {
   text: string;
@@ -32,7 +32,12 @@ export interface AssemblyTrace {
   template: string;
   effectiveBudget: number;
   crossRepo: boolean;
-  templateSections: { header: string; source: string; priority: number; max_tokens?: number }[];
+  templateSections: {
+    header: string;
+    source: string;
+    priority: number;
+    max_tokens?: number;
+  }[];
   sections: TraceSection[];
   budget: { total: number; used: number; leftover: number };
   freshness: { state: string; message: string };

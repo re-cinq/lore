@@ -8,7 +8,10 @@
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import type { AssemblyLine, SupervisorResult } from "@re-cinq/lore-assembly-lines";
+import type {
+  AssemblyLine,
+  SupervisorResult,
+} from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 import type { FloorAssemblyLineTask } from "./floor-assembly-line.js";
 import { supervisorOutcome } from "./floor-assembly-line-run.js";
@@ -38,11 +41,16 @@ export interface StartEventHandlerDeps {
   /** Definitions with a `detect` node: the repo-less detection runner. */
   runDetect: (input: DetectRunInput) => Promise<SupervisorResult>;
   /** gap-fill / runbook: the in-process JSON supervisor (orchestrator path). */
-  runInProcess: (input: InProcessRunInput) => Promise<ProcessTaskViaSupervisorResult>;
+  runInProcess: (
+    input: InProcessRunInput,
+  ) => Promise<ProcessTaskViaSupervisorResult>;
   /** Everything else: the Floor AssemblyLine, one Agent CR per node. */
   runOnStation: (task: FloorAssemblyLineTask) => Promise<SupervisorResult>;
   /** Task-status application for the in-process path (extracted from the worker). */
-  applyTaskOutcome: (taskId: string, result: ProcessTaskViaSupervisorResult) => Promise<void>;
+  applyTaskOutcome: (
+    taskId: string,
+    result: ProcessTaskViaSupervisorResult,
+  ) => Promise<void>;
   /** Reclaim the run's per-task token triple once the station line is fully done — the
    *  only safe point, since the line's node CRs share one `pt-<id>` token. */
   cleanupToken: (taskId: string) => Promise<void>;
@@ -51,7 +59,9 @@ export interface StartEventHandlerDeps {
 /** Task types whose assembly line runs in-process (JSON-output; no per-node Agent CRs). */
 const IN_PROCESS_DEFINITIONS = new Set(["gap-fill", "runbook"]);
 
-export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandler {
+export function createStartEventHandler(
+  deps: StartEventHandlerDeps,
+): EventHandler {
   return async (params) => {
     const assemblyLineId = params.assemblyLineId;
     enforceTrue(
@@ -63,7 +73,8 @@ export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandl
     const branch = typeof params.branch === "string" ? params.branch : null;
     const taskId = typeof params.taskId === "string" ? params.taskId : null;
     const args = (params.args ?? {}) as Record<string, unknown>;
-    const description = typeof args.description === "string" ? args.description : "";
+    const description =
+      typeof args.description === "string" ? args.description : "";
 
     const definitions = await deps.definitions();
     const definition = definitions.get(definitionName);
@@ -84,7 +95,10 @@ export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandl
       deps.assemblyLines
         .finish(assemblyLineId, outcome, reason)
         .catch((err) =>
-          console.warn(`[assembly-line-start] finish(${assemblyLineId}) failed:`, (err as Error).message),
+          console.warn(
+            `[assembly-line-start] finish(${assemblyLineId}) failed:`,
+            (err as Error).message,
+          ),
         );
 
     // Routing is by definition shape, not a name list: any definition carrying a
@@ -92,14 +106,23 @@ export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandl
     if (definition.nodes.some((n) => n.type === "detect")) {
       void deps
         .runDetect({ assemblyLineId, definitionName, repo })
-        .then((result) => finishRow(supervisorOutcome(result), result.errorMessage))
+        .then((result) =>
+          finishRow(supervisorOutcome(result), result.errorMessage),
+        )
         .catch((err) => finishRow("error", (err as Error).message));
       return;
     }
 
     if (IN_PROCESS_DEFINITIONS.has(definitionName)) {
       void deps
-        .runInProcess({ assemblyLineId, taskId, description, taskType: definitionName, repo, branch })
+        .runInProcess({
+          assemblyLineId,
+          taskId,
+          description,
+          taskType: definitionName,
+          repo,
+          branch,
+        })
         .then(async (result) => {
           await finishRow(result.outcome, result.errorMessage);
           if (taskId) await deps.applyTaskOutcome(taskId, result);
@@ -114,7 +137,10 @@ export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandl
             await deps
               .applyTaskOutcome(taskId, result)
               .catch((applyErr) =>
-                console.error(`[assembly-line-start] task-outcome apply failed for ${taskId}:`, (applyErr as Error).message),
+                console.error(
+                  `[assembly-line-start] task-outcome apply failed for ${taskId}:`,
+                  (applyErr as Error).message,
+                ),
               );
           }
         });
@@ -136,7 +162,9 @@ export function createStartEventHandler(deps: StartEventHandlerDeps): EventHandl
         targetRepo: repo,
         branch: branch ?? "",
       })
-      .then((result) => finishRow(supervisorOutcome(result), result.errorMessage))
+      .then((result) =>
+        finishRow(supervisorOutcome(result), result.errorMessage),
+      )
       .catch((err) => finishRow("error", (err as Error).message))
       // The line is fully done here (all node CRs terminal) → reclaim its shared token.
       .finally(() => {
@@ -188,15 +216,21 @@ export const assemblyLineStart: EventHandler = async (params) => {
           target_repo: input.repo,
         },
         settings: resolveDarkFactorySettings(
-          (repoSettings as { dark_factory?: Parameters<typeof resolveDarkFactorySettings>[0] } | null)
-            ?.dark_factory,
+          (
+            repoSettings as {
+              dark_factory?: Parameters<typeof resolveDarkFactorySettings>[0];
+            } | null
+          )?.dark_factory,
         ),
         branchName: input.branch ?? undefined,
         assemblyLineId: input.assemblyLineId,
       });
     },
     runOnStation: (task) =>
-      runFloorAssemblyLineForTask(task, floorAssemblyLineRuntime(agentCrBackend())),
+      runFloorAssemblyLineForTask(
+        task,
+        floorAssemblyLineRuntime(agentCrBackend()),
+      ),
     applyTaskOutcome: applySupervisorOutcome,
     cleanupToken: cleanupPerTaskToken,
   });

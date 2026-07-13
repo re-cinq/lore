@@ -40,16 +40,24 @@ function leafName(descriptorName: string): string {
   return segments[segments.length - 1];
 }
 
-export function resolveTestLines(content: string, descriptors: TestDescriptor[]): TestDescriptor[] {
+export function resolveTestLines(
+  content: string,
+  descriptors: TestDescriptor[],
+): TestDescriptor[] {
   const declarations = findDeclarations(content);
   const lastLine = content.split("\n").length;
 
   return descriptors.map((descriptor) => {
     const leaf = leafName(descriptor.name);
-    const index = declarations.findIndex((declaration) => declaration.name === leaf);
+    const index = declarations.findIndex(
+      (declaration) => declaration.name === leaf,
+    );
     if (index === -1) return descriptor;
     const startLine = declarations[index].line;
-    const endLine = index + 1 < declarations.length ? declarations[index + 1].line - 1 : lastLine;
+    const endLine =
+      index + 1 < declarations.length
+        ? declarations[index + 1].line - 1
+        : lastLine;
     return { ...descriptor, startLine, endLine };
   });
 }

@@ -19,11 +19,18 @@ import { ingestCoverageReport } from "../ingest-coverage.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -40,10 +47,15 @@ interface NodeRecord {
 // `describe(spec title) > describe(verbatim AC sentence) > it(label)` lets the
 // runner derive VALIDATED_BY structurally from the describe chain.
 describe.skipIf(!reachable)("Spec Traceability Graph", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
   /**
@@ -84,7 +96,12 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
             if (Array.isArray(value)) {
               // an outgoing edge — normalize to a sorted array of target xids
               fields[pred] = value
-                .map((target) => Object.values(target as Record<string, unknown>)[0] as string)
+                .map(
+                  (target) =>
+                    Object.values(
+                      target as Record<string, unknown>,
+                    )[0] as string,
+                )
                 .sort();
             } else {
               fields[pred] = value;
@@ -117,9 +134,14 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
         { $repo: repo },
       );
       const data = res.data as Record<string, { uid: string }[]>;
-      const uids = Object.values(data).flat().map((node) => node.uid);
+      const uids = Object.values(data)
+        .flat()
+        .map((node) => node.uid);
       if (uids.length) {
-        await txn.mutate({ deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"), commitNow: true });
+        await txn.mutate({
+          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
+          commitNow: true,
+        });
       }
     } catch {
       // best-effort cleanup must never mask the assertion
@@ -142,7 +164,13 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
     await ingestCoverageReport(
       dgraphClient,
       { repo, tool: "lcov", commit: "c1" },
-      [{ testFile: "spec/widget_spec.rb", testName: "validated by", covered: [{ file: "src/other.rb", startLine: 1, endLine: 3 }] }],
+      [
+        {
+          testFile: "spec/widget_spec.rb",
+          testName: "validated by",
+          covered: [{ file: "src/other.rb", startLine: 1, endLine: 3 }],
+        },
+      ],
     );
   }
 

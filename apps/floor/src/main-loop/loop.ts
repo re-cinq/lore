@@ -13,7 +13,11 @@ export interface LoopDeps {
   resolve: (eventName: string) => EventHandler | undefined;
   claim: (limit: number) => Promise<EventRow[]>;
   markDone: (id: string) => Promise<void>;
-  markFailed: (id: string, error: string, backoffSeconds: number) => Promise<void>;
+  markFailed: (
+    id: string,
+    error: string,
+    backoffSeconds: number,
+  ) => Promise<void>;
   markDead: (id: string, error: string) => Promise<void>;
   batchSize?: number;
 }
@@ -31,7 +35,8 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const decision = decideRetry({ attempts: ev.attempts });
-    if (decision.kind === "retry") await deps.markFailed(ev.id, message, decision.backoffSeconds);
+    if (decision.kind === "retry")
+      await deps.markFailed(ev.id, message, decision.backoffSeconds);
     else await deps.markDead(ev.id, message);
   }
 }
@@ -39,13 +44,18 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
 export async function drainOnce(deps: LoopDeps): Promise<number> {
   const batch = await deps.claim(deps.batchSize ?? 20);
   if (batch.length === 0) return 0;
-  const settled = await Promise.allSettled(batch.map((ev) => handleOne(ev, deps)));
+  const settled = await Promise.allSettled(
+    batch.map((ev) => handleOne(ev, deps)),
+  );
   // handleOne swallows handler errors into the row's state; a rejection here means a
   // mark-op itself failed (e.g. DB down mid-drain) and the row is left mid-flight for
   // the reaper — surface it rather than letting Promise.allSettled hide it.
   settled.forEach((r, i) => {
     if (r.status === "rejected") {
-      console.error(`[events] drain: transition failed for ${batch[i].event_name} (${batch[i].id}):`, r.reason);
+      console.error(
+        `[events] drain: transition failed for ${batch[i].event_name} (${batch[i].id}):`,
+        r.reason,
+      );
     }
   });
   return batch.length;
@@ -56,9 +66,17 @@ export function startEventLoop(
   resolve: (eventName: string) => EventHandler | undefined,
   intervalMs = 1000,
 ): NodeJS.Timeout {
-  const deps: LoopDeps = { resolve, claim: claimBatch, markDone, markFailed, markDead };
+  const deps: LoopDeps = {
+    resolve,
+    claim: claimBatch,
+    markDone,
+    markFailed,
+    markDead,
+  };
   console.log("[events] drain loop started");
   return setInterval(() => {
-    drainOnce(deps).catch((err) => console.error("[events] drain tick failed:", err));
+    drainOnce(deps).catch((err) =>
+      console.error("[events] drain tick failed:", err),
+    );
   }, intervalMs);
 }

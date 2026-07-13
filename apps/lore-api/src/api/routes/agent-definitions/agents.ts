@@ -2,9 +2,16 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import type { AgentDefinition } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../platform/project-boot.js";
-import { parseAgentInput, parseAgentPatch, imageFieldTouched } from "../../../features/agents/agents-schema.js";
+import {
+  parseAgentInput,
+  parseAgentPatch,
+  imageFieldTouched,
+} from "../../../features/agents/agents-schema.js";
 import { agentDefToCrds } from "../../../features/agents/agent-crd.js";
-import { applyAgentCrds, deleteAgentCrds } from "../../../features/agents/agent-crd-k8s.js";
+import {
+  applyAgentCrds,
+  deleteAgentCrds,
+} from "../../../features/agents/agent-crd-k8s.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { checkApproval } from "../two-key.js";
 
@@ -17,12 +24,17 @@ import { checkApproval } from "../two-key.js";
  */
 
 const BASE = "/api/repos/{owner}/{repo}/agent-definitions";
-const repoOf = (params: Record<string, string>) => `${params.owner}/${params.repo}`;
+const repoOf = (params: Record<string, string>) =>
+  `${params.owner}/${params.repo}`;
 const IMAGE_DETAIL =
   "Changing an agent's execution image requires an X-Lore-Approval-PR header. " +
   "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.";
 
-type Ceremony = { tier: "two_key" | "admin"; pr_ref?: string; approver?: string };
+type Ceremony = {
+  tier: "two_key" | "admin";
+  pr_ref?: string;
+  approver?: string;
+};
 
 export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -30,13 +42,17 @@ export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
     path: `${BASE}/{name?}`,
     options: bearerScope("read"),
     handler: async (request, h) => {
-      if (!getPool()) return h.response({ error: "database unavailable" }).code(503);
+      if (!getPool())
+        return h.response({ error: "database unavailable" }).code(503);
       const name = request.params.name as string | undefined;
       try {
         const project = await projectFor(repoOf(request.params));
         if (name) {
           const def = await project.agentDefs.resolve(name);
-          if (!def) return h.response({ error: "agent definition not found", name }).code(404);
+          if (!def)
+            return h
+              .response({ error: "agent definition not found", name })
+              .code(404);
           return h.response(def);
         }
         return h.response({ agents: await project.agentDefs.list() });
@@ -65,19 +81,34 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
         try {
           create = parseAgentInput(body);
         } catch (err) {
-          return h.response({ error: "invalid_agent", issues: issuesOf(err) }).code(400);
+          return h
+            .response({ error: "invalid_agent", issues: issuesOf(err) })
+            .code(400);
         }
 
         let ceremony: Ceremony = { tier: "admin" };
         if (imageFieldTouched(create)) {
-          const gate = await checkApproval(request, repo, ["image"], IMAGE_DETAIL);
+          const gate = await checkApproval(
+            request,
+            repo,
+            ["image"],
+            IMAGE_DETAIL,
+          );
           if (!gate.ok) return h.response(gate.body).code(gate.code);
-          ceremony = { tier: "two_key", pr_ref: gate.evidence.prRef, approver: gate.evidence.approver };
+          ceremony = {
+            tier: "two_key",
+            pr_ref: gate.evidence.prRef,
+            approver: gate.evidence.approver,
+          };
         }
 
         const def = await project.agentDefs.create(create);
         const crd_applied = await applyCatalogCrd(def);
-        await audit(pool, repo, "agent_created", { name: def.name, ceremony, crd_applied });
+        await audit(pool, repo, "agent_created", {
+          name: def.name,
+          ceremony,
+          crd_applied,
+        });
         return h.response({ ok: true, agent: def, ceremony, crd_applied });
       } catch (err) {
         console.error("[agents] route failed:", err);
@@ -105,19 +136,34 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
         try {
           patch = parseAgentPatch(body);
         } catch (err) {
-          return h.response({ error: "invalid_agent", issues: issuesOf(err) }).code(400);
+          return h
+            .response({ error: "invalid_agent", issues: issuesOf(err) })
+            .code(400);
         }
 
         let ceremony: Ceremony = { tier: "admin" };
         if (imageFieldTouched(patch)) {
-          const gate = await checkApproval(request, repo, ["image"], IMAGE_DETAIL);
+          const gate = await checkApproval(
+            request,
+            repo,
+            ["image"],
+            IMAGE_DETAIL,
+          );
           if (!gate.ok) return h.response(gate.body).code(gate.code);
-          ceremony = { tier: "two_key", pr_ref: gate.evidence.prRef, approver: gate.evidence.approver };
+          ceremony = {
+            tier: "two_key",
+            pr_ref: gate.evidence.prRef,
+            approver: gate.evidence.approver,
+          };
         }
 
         const def = await project.agentDefs.update(name, patch);
         const crd_applied = await applyCatalogCrd(def);
-        await audit(pool, repo, "agent_updated", { name, ceremony, crd_applied });
+        await audit(pool, repo, "agent_updated", {
+          name,
+          ceremony,
+          crd_applied,
+        });
         return h.response({ ok: true, agent: def, ceremony, crd_applied });
       } catch (err) {
         console.error("[agents] route failed:", err);
@@ -152,7 +198,9 @@ export function agentsDeleteRoute(getPool: () => Pool | null): ServerRoute {
 }
 
 function issuesOf(err: unknown): unknown {
-  return typeof err === "object" && err !== null && "issues" in err ? (err as { issues: unknown }).issues : (err as Error).message;
+  return typeof err === "object" && err !== null && "issues" in err
+    ? (err as { issues: unknown }).issues
+    : (err as Error).message;
 }
 
 /**
@@ -163,7 +211,9 @@ function issuesOf(err: unknown): unknown {
 async function applyCatalogCrd(def: AgentDefinition): Promise<boolean> {
   if (!process.env.KUBERNETES_SERVICE_HOST) return false; // not in-cluster (local dev / tests)
   try {
-    await applyAgentCrds(agentDefToCrds(def, { eventsUrl: process.env.LORE_AGENT_EVENTS_URL }));
+    await applyAgentCrds(
+      agentDefToCrds(def, { eventsUrl: process.env.LORE_AGENT_EVENTS_URL }),
+    );
     return true;
   } catch (err) {
     console.error(`[agents] CRD apply failed for ${def.name}:`, err);
@@ -182,9 +232,17 @@ async function deleteCatalogCrd(name: string): Promise<boolean> {
   }
 }
 
-async function audit(pool: Pool, repo: string, eventType: string, payload: unknown): Promise<void> {
+async function audit(
+  pool: Pool,
+  repo: string,
+  eventType: string,
+  payload: unknown,
+): Promise<void> {
   await pool
-    .query(`INSERT INTO pipeline.audit_log (event_type, repo, payload) VALUES ($1, $2, $3)`, [eventType, repo, JSON.stringify(payload)])
+    .query(
+      `INSERT INTO pipeline.audit_log (event_type, repo, payload) VALUES ($1, $2, $3)`,
+      [eventType, repo, JSON.stringify(payload)],
+    )
     .catch(() => {
       // Audit log is best-effort; never block the write.
     });

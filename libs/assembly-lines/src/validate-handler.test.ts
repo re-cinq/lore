@@ -8,7 +8,10 @@ import { RELAY_SCRIPT } from "./relay/relay-script.js";
 import type { NodeContext } from "./assembly-line-executor.js";
 import type { AssemblyLineNode } from "./loader.js";
 
-const node = { id: "validate", type: "validate" } as unknown as AssemblyLineNode;
+const node = {
+  id: "validate",
+  type: "validate",
+} as unknown as AssemblyLineNode;
 const ctx = (gitDir: string): NodeContext => ({
   taskId: "t1",
   assemblyLineId: "al-test-1",
@@ -25,7 +28,11 @@ async function tmpRepo(pkg: object | null): Promise<string> {
   if (pkg) await writeFile(join(dir, "package.json"), JSON.stringify(pkg));
   return dir;
 }
-const NODE_PKG = (lint: string) => ({ name: "x", version: "1.0.0", scripts: { lint } });
+const NODE_PKG = (lint: string) => ({
+  name: "x",
+  version: "1.0.0",
+  scripts: { lint },
+});
 
 describe("createValidateHandler — local", () => {
   afterEach(async () => {
@@ -35,12 +42,16 @@ describe("createValidateHandler — local", () => {
 
   it("returns success when no tooling is detected", async () => {
     const dir = await tmpRepo(null);
-    expect((await createValidateHandler()(node, ctx(dir))).outcome).toBe("success");
+    expect((await createValidateHandler()(node, ctx(dir))).outcome).toBe(
+      "success",
+    );
   });
 
   it("returns success when the repo's check passes", async () => {
     const dir = await tmpRepo(NODE_PKG("true"));
-    expect((await createValidateHandler()(node, ctx(dir))).outcome).toBe("success");
+    expect((await createValidateHandler()(node, ctx(dir))).outcome).toBe(
+      "success",
+    );
   });
 
   it("returns failed and names the failing step when a check fails", async () => {
@@ -66,7 +77,11 @@ describe("createValidateHandler — relay (BYO sidecar)", () => {
     const scriptPath = join(dir, "relay.sh");
     await writeFile(scriptPath, RELAY_SCRIPT);
     proc = spawn("sh", [scriptPath], {
-      env: { ...process.env, LORE_RELAY_DIR: relayDir, LORE_RELAY_WORKDIR: dir },
+      env: {
+        ...process.env,
+        LORE_RELAY_DIR: relayDir,
+        LORE_RELAY_WORKDIR: dir,
+      },
       stdio: "ignore",
     });
     expect(

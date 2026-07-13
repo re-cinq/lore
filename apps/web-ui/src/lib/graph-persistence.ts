@@ -69,7 +69,10 @@ export function captureGraphState(
  * place. A node is moved only when `state.positions` holds an entry for its id;
  * nodes with no saved entry are left untouched.
  */
-export function applyGraphState(state: GraphState, nodes: PositionedNode[]): void {
+export function applyGraphState(
+  state: GraphState,
+  nodes: PositionedNode[],
+): void {
   for (const node of nodes) {
     const saved = state.positions[node.id];
     if (saved) {
@@ -92,7 +95,7 @@ export function serializeGraphState(state: GraphState): string {
  * `STATE_VERSION` — the gate `parseGraphState` uses to accept a parsed blob. */
 function isGraphState(value: unknown): value is GraphState {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
     (value as { version?: unknown }).version === STATE_VERSION
   );

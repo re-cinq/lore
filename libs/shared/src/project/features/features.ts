@@ -36,7 +36,11 @@ export class Features {
     return this.port.appendIteration(this.repo, id, userAnswers);
   }
 
-  attachIterationTask(id: string, iteration: number, taskId: string): Promise<void> {
+  attachIterationTask(
+    id: string,
+    iteration: number,
+    taskId: string,
+  ): Promise<void> {
     return this.port.attachIterationTask(this.repo, id, iteration, taskId);
   }
 
@@ -57,7 +61,10 @@ export class Features {
     return this.port.transitionStatus(this.repo, id, status, patch);
   }
 
-  createSplitChild(parentId: string, input: CreateFeatureInput): Promise<Feature> {
+  createSplitChild(
+    parentId: string,
+    input: CreateFeatureInput,
+  ): Promise<Feature> {
     return this.port.createSplitChild(this.repo, parentId, input);
   }
 

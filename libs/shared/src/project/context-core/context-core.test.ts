@@ -45,8 +45,15 @@ describe("PgContextCore adapter", () => {
       status: "production",
     });
 
-    expect(calls[0]?.text).toContain("INSERT INTO pipeline.context_core_history");
-    expect(calls[0]?.params).toEqual(["v2026-06-30-platform", "platform", 0.91, "production"]);
+    expect(calls[0]?.text).toContain(
+      "INSERT INTO pipeline.context_core_history",
+    );
+    expect(calls[0]?.params).toEqual([
+      "v2026-06-30-platform",
+      "platform",
+      0.91,
+      "production",
+    ]);
   });
 });
 
@@ -54,9 +61,24 @@ describe("InMemoryContextCore double", () => {
   it("resolves latest from the most-recent production insert", async () => {
     const store = new InMemoryContextCore();
 
-    await store.insert({ version: "v1", namespace: "platform", evalScore: 0.7, status: "production" });
-    await store.insert({ version: "v2", namespace: "platform", evalScore: 0.6, status: "no-change" });
-    await store.insert({ version: "v3", namespace: "platform", evalScore: 0.85, status: "production" });
+    await store.insert({
+      version: "v1",
+      namespace: "platform",
+      evalScore: 0.7,
+      status: "production",
+    });
+    await store.insert({
+      version: "v2",
+      namespace: "platform",
+      evalScore: 0.6,
+      status: "no-change",
+    });
+    await store.insert({
+      version: "v3",
+      namespace: "platform",
+      evalScore: 0.85,
+      status: "production",
+    });
 
     expect(await store.latest("platform")).toEqual(0.85);
   });
@@ -64,8 +86,18 @@ describe("InMemoryContextCore double", () => {
   it("ignores other namespaces and non-production rows when resolving latest", async () => {
     const store = new InMemoryContextCore();
 
-    await store.insert({ version: "v1", namespace: "other", evalScore: 0.99, status: "production" });
-    await store.insert({ version: "v2", namespace: "platform", evalScore: 0.4, status: "rejected-regression" });
+    await store.insert({
+      version: "v1",
+      namespace: "other",
+      evalScore: 0.99,
+      status: "production",
+    });
+    await store.insert({
+      version: "v2",
+      namespace: "platform",
+      evalScore: 0.4,
+      status: "rejected-regression",
+    });
 
     expect(await store.latest("platform")).toEqual(null);
   });
@@ -73,10 +105,20 @@ describe("InMemoryContextCore double", () => {
   it("keeps every inserted record for assertion", async () => {
     const store = new InMemoryContextCore();
 
-    await store.insert({ version: "v1", namespace: "platform", evalScore: 0.5, status: "no-change" });
+    await store.insert({
+      version: "v1",
+      namespace: "platform",
+      evalScore: 0.5,
+      status: "no-change",
+    });
 
     expect(store.records).toEqual([
-      { version: "v1", namespace: "platform", evalScore: 0.5, status: "no-change" },
+      {
+        version: "v1",
+        namespace: "platform",
+        evalScore: 0.5,
+        status: "no-change",
+      },
     ]);
   });
 });

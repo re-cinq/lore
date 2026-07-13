@@ -1,4 +1,4 @@
-import styles from './TasksView.module.css';
+import styles from "./TasksView.module.css";
 
 interface Task {
   id: string;
@@ -22,14 +22,18 @@ export interface TasksViewProps {
   createTask: (formData: FormData) => void | Promise<void>;
 }
 
-export default function TasksView({ tasks, recentActivity, createTask }: TasksViewProps) {
+export default function TasksView({
+  tasks,
+  recentActivity,
+  createTask,
+}: TasksViewProps) {
   return (
     <div>
       <h1>Tasks</h1>
       <div className={styles.banner}>
         <p className={`meta ${styles.bannerText}`}>
-          This is the global view across all repos. For repo-specific tasks, visit{' '}
-          <a href="/">Repositories</a> and select a repo.
+          This is the global view across all repos. For repo-specific tasks,
+          visit <a href="/">Repositories</a> and select a repo.
         </p>
       </div>
 
@@ -53,12 +57,18 @@ export default function TasksView({ tasks, recentActivity, createTask }: TasksVi
           <p className="meta">No tasks found. Create one above.</p>
         ) : (
           tasks.map((task) => {
-            const status = task.metadata?.status || 'unknown';
+            const status = task.metadata?.status || "unknown";
             return (
               <div key={task.id} className="spec-card">
                 <div className={styles.cardHead}>
-                  <span className={`badge ${status === 'open' ? 'badge-open' : ''}`}>{status}</span>
-                  <span className="meta">{new Date(task.ingested_at).toLocaleString()}</span>
+                  <span
+                    className={`badge ${status === "open" ? "badge-open" : ""}`}
+                  >
+                    {status}
+                  </span>
+                  <span className="meta">
+                    {new Date(task.ingested_at).toLocaleString()}
+                  </span>
                 </div>
                 <p>{task.content}</p>
               </div>

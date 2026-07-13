@@ -1,13 +1,26 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { queryAllowMissing } from '@/lib/db';
-import { refineFeature, finalizeFeature, splitFeature, deleteFeature } from '@/lib/feature-api';
-import { listAgents } from '@/lib/agents-api';
-import { groupDecomposition, type DecompTaskRow } from '@/lib/decomposition-view';
-import type { FeatureRow, FeatureIterationRow, FeatureWithIterations, SectionAnswers } from '@/lib/feature-types';
-import FeatureDetailView from './FeatureDetailView';
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { queryAllowMissing } from "@/lib/db";
+import {
+  refineFeature,
+  finalizeFeature,
+  splitFeature,
+  deleteFeature,
+} from "@/lib/feature-api";
+import { listAgents } from "@/lib/agents-api";
+import {
+  groupDecomposition,
+  type DecompTaskRow,
+} from "@/lib/decomposition-view";
+import type {
+  FeatureRow,
+  FeatureIterationRow,
+  FeatureWithIterations,
+  SectionAnswers,
+} from "@/lib/feature-types";
+import FeatureDetailView from "./FeatureDetailView";
 
 export default async function FeatureDetail({
   params,
@@ -47,27 +60,28 @@ export default async function FeatureDetail({
   // The planning round's time budget (the feature-planning agent's timeout), resolved
   // once for the wizard's elapsed/total timer. Defaults to 15 if unresolved.
   const planningTimeoutMinutes =
-    (await listAgents(fullName)).find((a) => a.name === 'feature-planning')?.timeout_minutes ?? 15;
+    (await listAgents(fullName)).find((a) => a.name === "feature-planning")
+      ?.timeout_minutes ?? 15;
 
   async function refine(userAnswers: SectionAnswers) {
-    'use server';
+    "use server";
     await refineFeature(fullName, id, userAnswers);
     revalidatePath(`/repos/${owner}/${repo}/features/${id}`);
   }
   async function finalize() {
-    'use server';
+    "use server";
     await finalizeFeature(fullName, id);
     revalidatePath(`/repos/${owner}/${repo}/features/${id}`);
   }
   async function split(title: string, prompt: string) {
-    'use server';
+    "use server";
     await splitFeature(fullName, id, title, prompt);
     revalidatePath(`/repos/${owner}/${repo}/features`);
   }
   async function del() {
-    'use server';
+    "use server";
     const result = await deleteFeature(fullName, id);
-    if (result.status === 'error') throw new Error(result.message);
+    if (result.status === "error") throw new Error(result.message);
     revalidatePath(`/repos/${owner}/${repo}/features`);
     redirect(`/repos/${owner}/${repo}/features`);
   }

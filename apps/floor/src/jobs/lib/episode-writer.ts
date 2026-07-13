@@ -70,7 +70,8 @@ export async function writeEpisodeWithCuration(
   try {
     const result = await Llm.instance.complete({
       prompt: `Extract one concise lesson learned from this task outcome. Focus on what went well, what went wrong, or what pattern should be remembered for future tasks. Return just the lesson in 1-2 sentences. If there's nothing notable, respond with "SKIP".\n\n${content.substring(0, 4000)}`,
-      systemPrompt: "You are a post-task curator extracting reusable lessons from agent task outcomes.",
+      systemPrompt:
+        "You are a post-task curator extracting reusable lessons from agent task outcomes.",
       maxTokens: 256,
       taskId: taskId || undefined,
       jobName: "auto-curation",

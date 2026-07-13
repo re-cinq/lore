@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import Link, { useLinkStatus } from 'next/link';
+import Link, { useLinkStatus } from "next/link";
 
 function PendingDot() {
   const { pending } = useLinkStatus();
@@ -18,9 +18,13 @@ export interface FilterChipProps {
  * shows an inline spinner via useLinkStatus while the navigation it triggered is
  * in flight — the loading feedback for the filter row.
  */
-export default function FilterChip({ href, active, children }: FilterChipProps) {
+export default function FilterChip({
+  href,
+  active,
+  children,
+}: FilterChipProps) {
   return (
-    <Link href={href} className={active ? 'active' : ''} prefetch={false}>
+    <Link href={href} className={active ? "active" : ""} prefetch={false}>
       {children}
       <PendingDot />
     </Link>

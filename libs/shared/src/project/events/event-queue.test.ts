@@ -25,8 +25,12 @@ describe("PgEventQueue.claimBatch", () => {
     const { pool, calls } = mockPool([{ rows: [{ id: "1" }] }]);
     const rows = await new PgEventQueue(pool).claimBatch(20);
     expect(rows).toEqual([{ id: "1" }]);
-    expect(calls[0].sql).toContain("SET status = 'processing', attempts = attempts + 1");
-    expect(calls[0].sql).toContain("status IN ('pending', 'failed') AND next_attempt_at <= now()");
+    expect(calls[0].sql).toContain(
+      "SET status = 'processing', attempts = attempts + 1",
+    );
+    expect(calls[0].sql).toContain(
+      "status IN ('pending', 'failed') AND next_attempt_at <= now()",
+    );
     expect(calls[0].sql).toContain("FOR UPDATE SKIP LOCKED");
     expect(calls[0].values).toEqual([20]);
   });
@@ -62,8 +66,18 @@ const NOW = Date.UTC(2026, 5, 30, 12, 0, 0);
 describe("InMemoryEventQueue insert + claim", () => {
   it("collapses a redelivery sharing a dedupe key", async () => {
     const q = new InMemoryEventQueue([], () => NOW);
-    await q.insert({ eventName: "github.pr", source: "github", params: { repo: "a/b" }, dedupeKey: "k1" });
-    await q.insert({ eventName: "github.pr", source: "github", params: { repo: "a/b" }, dedupeKey: "k1" });
+    await q.insert({
+      eventName: "github.pr",
+      source: "github",
+      params: { repo: "a/b" },
+      dedupeKey: "k1",
+    });
+    await q.insert({
+      eventName: "github.pr",
+      source: "github",
+      params: { repo: "a/b" },
+      dedupeKey: "k1",
+    });
     expect(q.rows).toHaveLength(1);
     expect(q.rows[0].repo).toBe("a/b");
   });
@@ -94,8 +108,15 @@ describe("InMemoryEventQueue insert + claim", () => {
 describe("InMemoryEventQueue reaper", () => {
   it("reapStuck resets processing rows past the timeout to failed", async () => {
     const stuck: EventRow = {
-      id: "1", event_name: "e", source: "cron", params: {}, repo: null, dedupe_key: null,
-      status: "processing", attempts: 1, error: null,
+      id: "1",
+      event_name: "e",
+      source: "cron",
+      params: {},
+      repo: null,
+      dedupe_key: null,
+      status: "processing",
+      attempts: 1,
+      error: null,
       captured_at: new Date(NOW - 1_000_000).toISOString(),
       claimed_at: new Date(NOW - 600_000).toISOString(),
       next_attempt_at: new Date(NOW - 1_000_000).toISOString(),
@@ -108,8 +129,15 @@ describe("InMemoryEventQueue reaper", () => {
 
   it("pruneHandled drops terminal rows older than the window", async () => {
     const done: EventRow = {
-      id: "1", event_name: "e", source: "cron", params: {}, repo: null, dedupe_key: null,
-      status: "done", attempts: 1, error: null,
+      id: "1",
+      event_name: "e",
+      source: "cron",
+      params: {},
+      repo: null,
+      dedupe_key: null,
+      status: "done",
+      attempts: 1,
+      error: null,
       captured_at: new Date(NOW - 10 * 86_400_000).toISOString(),
       claimed_at: null,
       next_attempt_at: new Date(NOW - 10 * 86_400_000).toISOString(),

@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { useTheme } from '@/lib/theme/ThemeProvider';
-import type { ColorSchemePref, ThemeFamily } from '@/lib/theme/types';
-import Icon from './Icon';
-import type { IconName } from './icon-map';
-import styles from './ThemeSwitcher.module.css';
+import { useTheme } from "@/lib/theme/ThemeProvider";
+import type { ColorSchemePref, ThemeFamily } from "@/lib/theme/types";
+import Icon from "./Icon";
+import type { IconName } from "./icon-map";
+import styles from "./ThemeSwitcher.module.css";
 
 const FAMILIES: { value: ThemeFamily; label: string }[] = [
-  { value: 'elegant', label: 'Elegant' },
-  { value: 'retro', label: 'Retro' },
+  { value: "elegant", label: "Elegant" },
+  { value: "retro", label: "Retro" },
 ];
 
 const SCHEMES: { value: ColorSchemePref; label: string; icon: IconName }[] = [
-  { value: 'light', label: 'Light', icon: 'sun' },
-  { value: 'auto', label: 'Auto', icon: 'monitor' },
-  { value: 'dark', label: 'Dark', icon: 'moon' },
+  { value: "light", label: "Light", icon: "sun" },
+  { value: "auto", label: "Auto", icon: "monitor" },
+  { value: "dark", label: "Dark", icon: "moon" },
 ];
 
 export default function ThemeSwitcher() {
@@ -28,7 +28,7 @@ export default function ThemeSwitcher() {
           {FAMILIES.map(({ value, label }) => (
             <label
               key={value}
-              className={`${styles.option}${family === value ? ` ${styles.selected}` : ''}`}
+              className={`${styles.option}${family === value ? ` ${styles.selected}` : ""}`}
             >
               <input
                 type="radio"
@@ -49,7 +49,7 @@ export default function ThemeSwitcher() {
           {SCHEMES.map(({ value, label, icon }) => (
             <label
               key={value}
-              className={`${styles.option} ${styles.iconOnly}${scheme === value ? ` ${styles.selected}` : ''}`}
+              className={`${styles.option} ${styles.iconOnly}${scheme === value ? ` ${styles.selected}` : ""}`}
               title={label}
             >
               <input

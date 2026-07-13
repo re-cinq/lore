@@ -61,8 +61,26 @@ export function rrfMerge(lists: RankedItem[][]): MemorySearchResult[] {
 
 // ── Transfer scoring for cross-repo facts ───────────────────────────
 
-const PORTABLE_KEYWORDS = ['error', 'pattern', 'gotcha', 'rule', 'convention', 'best-practice', 'anti-pattern'];
-const LOCAL_KEYWORDS = ['config', 'deploy', 'url', 'auth', 'secret', 'env', 'port', 'hostname', 'endpoint'];
+const PORTABLE_KEYWORDS = [
+  "error",
+  "pattern",
+  "gotcha",
+  "rule",
+  "convention",
+  "best-practice",
+  "anti-pattern",
+];
+const LOCAL_KEYWORDS = [
+  "config",
+  "deploy",
+  "url",
+  "auth",
+  "secret",
+  "env",
+  "port",
+  "hostname",
+  "endpoint",
+];
 
 export function computeTransferScore(text: string): number {
   const lower = text.toLowerCase();
@@ -118,8 +136,10 @@ export function scoreImportance(
   else if (memory.value.length > 500) score += 1;
   if (memory.key.startsWith("auto-curation/")) score -= 1;
   if (memory.key.startsWith("session-summary/")) score -= 1;
-  if (memory.key.includes("gotcha") || memory.key.includes("decision")) score += 2;
-  if (memory.key.includes("convention") || memory.key.includes("pattern")) score += 2;
+  if (memory.key.includes("gotcha") || memory.key.includes("decision"))
+    score += 2;
+  if (memory.key.includes("convention") || memory.key.includes("pattern"))
+    score += 2;
   const retrievals = memory.retrieval_count || 0;
   if (retrievals >= 20) score += 2;
   else if (retrievals >= 5) score += 1;

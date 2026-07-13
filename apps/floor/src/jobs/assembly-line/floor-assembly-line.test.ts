@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import type { AssemblyLineNode, NodeContext, ProductionHandlersDeps } from "@re-cinq/lore-assembly-lines";
+import type {
+  AssemblyLineNode,
+  NodeContext,
+  ProductionHandlersDeps,
+} from "@re-cinq/lore-assembly-lines";
 import {
   nodeAgentName,
   nodeAgentSpec,
   nodeStationSpec,
-  stationNodesFromEnv,
   buildFloorAssemblyLineHandlers,
   type FloorAssemblyLineTask,
   type FloorAssemblyLinePorts,
@@ -36,7 +39,11 @@ const episodeDeps: ProductionHandlersDeps = {
 
 describe("nodeAgentSpec", () => {
   it("builds a per-node spec: distinct name, node prompt + model, task repo/branch", () => {
-    const node: AssemblyLineNode = { id: "implement", type: "agent", model: "claude-sonnet-4-6" };
+    const node: AssemblyLineNode = {
+      id: "implement",
+      type: "agent",
+      model: "claude-sonnet-4-6",
+    };
     expect(nodeAgentSpec(node, task, "do it")).toEqual({
       taskId: "abcdef1234567890",
       taskType: "implementation",
@@ -47,11 +54,15 @@ describe("nodeAgentSpec", () => {
       model: "claude-sonnet-4-6",
       name: "a1b2c3d4-implement",
     });
-    expect(nodeAgentName(task.assemblyLineId, "review")).toBe("a1b2c3d4-review");
+    expect(nodeAgentName(task.assemblyLineId, "review")).toBe(
+      "a1b2c3d4-review",
+    );
   });
 
   it("omits model when the node inherits it", () => {
-    expect(nodeAgentSpec({ id: "push", type: "agent" }, task, "p")).not.toHaveProperty("model");
+    expect(
+      nodeAgentSpec({ id: "push", type: "agent" }, task, "p"),
+    ).not.toHaveProperty("model");
   });
 });
 
@@ -59,7 +70,9 @@ describe("buildFloorAssemblyLineHandlers", () => {
   function ports(over: Partial<FloorAssemblyLinePorts> = {}) {
     const dispatched: LoreTaskSpec[] = [];
     const base: FloorAssemblyLinePorts = {
-      dispatchAgent: async (spec) => { dispatched.push(spec); },
+      dispatchAgent: async (spec) => {
+        dispatched.push(spec);
+      },
       resolvePrompt: (node) => `prompt:${node.id}`,
       agentStatus: async () => ({ phase: "Succeeded" }),
       ciConclusion: async () => "success",
@@ -74,29 +87,36 @@ describe("buildFloorAssemblyLineHandlers", () => {
   it("agent slot dispatches one Agent CR per node from the node's prompt", async () => {
     const { ports: p, dispatched } = ports();
     const handlers = buildFloorAssemblyLineHandlers(task, p);
-    const result = await handlers.agent({ id: "implement", type: "agent" }, ctx);
+    const result = await handlers.agent(
+      { id: "implement", type: "agent" },
+      ctx,
+    );
     expect(result.outcome).toBe("success");
     expect(dispatched).toHaveLength(1);
-    expect(dispatched[0]).toMatchObject({ name: "a1b2c3d4-implement", prompt: "prompt:implement" });
+    expect(dispatched[0]).toMatchObject({
+      name: "a1b2c3d4-implement",
+      prompt: "prompt:implement",
+    });
     // The CR spec keeps the taskId — the watcher/reaper probe Agent CRs by task-id label.
     expect(dispatched[0]).toMatchObject({ taskId: "abcdef1234567890" });
   });
 
-  it("github_action slot gates on the branch CI conclusion", async () => {
-    const { ports: p } = ports({ ciConclusion: async () => "failure" });
-    const handlers = buildFloorAssemblyLineHandlers(task, p);
-    const result = await handlers.github_action!({ id: "ci", type: "github_action" }, ctx);
-    expect(result.outcome).toBe("failed");
-  });
-
-  it("station-flagged node types dispatch a station CR and parse the LORE_NODE_RESULT line", async () => {
+  it("every non-agent node dispatches a station CR and parses the LORE_NODE_RESULT line", async () => {
     const output = `logs\nLORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Validation-Failed":"lint"}}`;
-    const { ports: p, dispatched } = ports({ agentStatus: async () => ({ phase: "Succeeded", output }) });
-    const handlers = buildFloorAssemblyLineHandlers(task, p, new Set(["validate"]));
+    const { ports: p, dispatched } = ports({
+      agentStatus: async () => ({ phase: "Succeeded", output }),
+    });
+    const handlers = buildFloorAssemblyLineHandlers(task, p);
 
-    const result = await handlers.validate({ id: "validate", type: "validate", validator: "all" }, ctx);
+    const result = await handlers.validate(
+      { id: "validate", type: "validate", validator: "all" },
+      ctx,
+    );
 
-    expect(result).toEqual({ outcome: "failed", extras: { "Lore-Validation-Failed": "lint" } });
+    expect(result).toEqual({
+      outcome: "failed",
+      extras: { "Lore-Validation-Failed": "lint" },
+    });
     expect(dispatched).toEqual([
       expect.objectContaining({
         name: "a1b2c3d4-validate",
@@ -116,21 +136,27 @@ describe("buildFloorAssemblyLineHandlers", () => {
     ]);
   });
 
-  it("unflagged node types keep the in-process kernel defaults (no dispatch)", async () => {
-    const { ports: p, dispatched } = ports();
-    const handlers = buildFloorAssemblyLineHandlers(task, p, new Set());
-    const result = await handlers.gate({ id: "merge-gate", type: "gate" }, ctx);
-    expect(result.outcome).toBe("success");
-    expect(dispatched).toEqual([]);
-  });
+  it("gate, retrospective, github_action, and detect all resolve to station handlers", async () => {
+    const output = `LORE_NODE_RESULT: {"outcome":"success","extras":{}}`;
+    const { ports: p, dispatched } = ports({
+      agentStatus: async () => ({ phase: "Succeeded", output }),
+    });
+    const handlers = buildFloorAssemblyLineHandlers(task, p);
 
-  it("a detect node flagged for station dispatch is exposed as a detect handler", () => {
-    const { ports: p } = ports();
-    const flagged = buildFloorAssemblyLineHandlers(task, p, new Set(["detect"]));
-    expect(flagged.detect).toBeTypeOf("function");
-    // Unflagged: no detect handler (the in-process kernel has no detect default).
-    const unflagged = buildFloorAssemblyLineHandlers(task, p, new Set());
-    expect(unflagged.detect).toBeUndefined();
+    for (const type of [
+      "gate",
+      "retrospective",
+      "github_action",
+      "detect",
+    ] as const) {
+      expect(handlers[type]).toBeTypeOf("function");
+    }
+    const result = await handlers.gate!(
+      { id: "merge-gate", type: "gate" },
+      ctx,
+    );
+    expect(result.outcome).toBe("success");
+    expect(dispatched[0]).toMatchObject({ stationRef: "def-gate" });
   });
 });
 
@@ -143,18 +169,13 @@ describe("nodeStationSpec", () => {
       station_ref: "acme-scanner",
     };
     const spec = nodeStationSpec(node, task);
-    expect(spec).toMatchObject({ stationRef: "acme-scanner", name: "a1b2c3d4-detect" });
+    expect(spec).toMatchObject({
+      stationRef: "acme-scanner",
+      name: "a1b2c3d4-detect",
+    });
     expect(JSON.parse(spec.parameters!.station_input)).toMatchObject({
       node_type: "detect",
       params: { job_ref: "spec_drift" },
     });
-  });
-});
-
-describe("stationNodesFromEnv", () => {
-  it("parses the comma-separated type list, trimming blanks", () => {
-    expect(stationNodesFromEnv("validate, detect,")).toEqual(new Set(["validate", "detect"]));
-    expect(stationNodesFromEnv(undefined)).toEqual(new Set());
-    expect(stationNodesFromEnv("")).toEqual(new Set());
   });
 });

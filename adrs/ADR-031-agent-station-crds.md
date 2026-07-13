@@ -137,11 +137,14 @@ generalizing D4 from agent-only to all node types. No new CRD, no `@re-cinq/agen
 - **Data access (D7 holds).** Stations reach data through the Project facade over HTTP-backed adapters
   against `LORE_API_URL` — no Postgres from pods. **Auto-merge stays Floor-side**: merge authority never
   rides in a run pod; the Floor triggers it after a retrospective node succeeds.
-- **Cutover.** A temporary `LORE_STATION_NODES` Floor env flag lists which node types dispatch station
-  pods; unlisted types keep the in-process handlers, so each type soaks independently. Completion
-  detection stays the poll loop for now — detect runs carry no task-id label, so the
-  `kubernetes.agent.*` watch mapper skips them; labeling CRs with the assembly-line id and extending the
-  mapper is the noted follow-up.
+- **Cutover complete.** Every non-agent node on the Floor-assembly-line path now dispatches a
+  station unconditionally; the transitional `LORE_STATION_NODES` per-type flag and the in-process
+  node handlers on that path are removed. The detector cores moved to `@re-cinq/lore-shared/detect`
+  (facade-driven), so the detect node dispatches a `def-detect` station too — `run-detect` wires the
+  same agent-cr dispatch + Kubernetes status reader as the task path. The in-process supervisor path
+  (gap-fill / runbook, `createProductionHandlers`) is untouched. Completion detection stays the poll
+  loop — detect runs carry no task-id label, so the `kubernetes.agent.*` watch mapper skips them;
+  labeling CRs with the assembly-line id and extending the mapper is the noted follow-up.
 
 ## Alternatives rejected
 

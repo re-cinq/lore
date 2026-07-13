@@ -19,7 +19,9 @@ import {
 
 describe("specFeatureSlug", () => {
   it("returns the feature directory under specs/", () => {
-    expect(specFeatureSlug("specs/local-task-runner/spec.md")).toBe("local-task-runner");
+    expect(specFeatureSlug("specs/local-task-runner/spec.md")).toBe(
+      "local-task-runner",
+    );
   });
 
   it("falls back to the parent directory when there is no specs/ segment", () => {
@@ -34,18 +36,26 @@ describe("specFeatureSlug", () => {
 describe("hasDirectoryAffinity", () => {
   it("returns true when the test path shares a majority of slug tokens", () => {
     expect(
-      hasDirectoryAffinity("specs/local-task-runner/spec.md", "agent/src/local-task-runner.test.ts"),
+      hasDirectoryAffinity(
+        "specs/local-task-runner/spec.md",
+        "agent/src/local-task-runner.test.ts",
+      ),
     ).toBe(true);
   });
 
   it("returns false when the test path shares no slug tokens", () => {
     expect(
-      hasDirectoryAffinity("specs/local-task-runner/spec.md", "web-ui/src/theme.test.ts"),
+      hasDirectoryAffinity(
+        "specs/local-task-runner/spec.md",
+        "web-ui/src/theme.test.ts",
+      ),
     ).toBe(false);
   });
 
   it("returns false when the slug has no significant tokens", () => {
-    expect(hasDirectoryAffinity("specs/ab/spec.md", "agent/src/ab.test.ts")).toBe(false);
+    expect(
+      hasDirectoryAffinity("specs/ab/spec.md", "agent/src/ab.test.ts"),
+    ).toBe(false);
   });
 });
 
@@ -75,7 +85,9 @@ describe("matchedAssertion", () => {
   ];
 
   it("returns the assertion name the content references, case-insensitively", () => {
-    expect(matchedAssertion("calls WRITEAUDITLOG once", assertions)).toBe("writeAuditLog");
+    expect(matchedAssertion("calls WRITEAUDITLOG once", assertions)).toBe(
+      "writeAuditLog",
+    );
   });
 
   it("skips assertion names shorter than three characters", () => {
@@ -89,13 +101,18 @@ describe("matchedAssertion", () => {
 
 describe("deriveTestName", () => {
   it("joins parent_symbol and symbol_name into a normalized name", () => {
-    expect(deriveTestName({ symbol_name: "returns true", parent_symbol: "isBusinessHours" })).toBe(
-      "isbusinesshours › returns true",
-    );
+    expect(
+      deriveTestName({
+        symbol_name: "returns true",
+        parent_symbol: "isBusinessHours",
+      }),
+    ).toBe("isbusinesshours › returns true");
   });
 
   it("falls back to the describe key when parent_symbol is absent", () => {
-    expect(deriveTestName({ symbol_name: "x", describe: "Group" })).toBe("group › x");
+    expect(deriveTestName({ symbol_name: "x", describe: "Group" })).toBe(
+      "group › x",
+    );
   });
 
   it("returns null for null metadata or a missing symbol name", () => {
@@ -127,7 +144,9 @@ describe("selectCandidates", () => {
     content: "spec body",
     embedding: [1, 0],
   };
-  const assertions: Assertion[] = [{ name: "runTaskLocally", kind: "function", description: "" }];
+  const assertions: Assertion[] = [
+    { name: "runTaskLocally", kind: "function", description: "" },
+  ];
 
   const chunk = (over: Partial<TestChunk>): TestChunk => ({
     file_path: "agent/src/other.test.ts",
@@ -142,16 +161,25 @@ describe("selectCandidates", () => {
     const out = selectCandidates(spec, assertions, [
       chunk({ content: "expect(runTaskLocally()).toBe(1)" }),
     ]);
-    expect(out.candidates).toMatchObject([{ match_kind: "assertion", symbol: "runTaskLocally" }]);
+    expect(out.candidates).toMatchObject([
+      { match_kind: "assertion", symbol: "runTaskLocally" },
+    ]);
     expect(out).toMatchObject({ truncated: false, total: 1 });
   });
 
   it("falls back to directory affinity then embedding proximity", () => {
-    const out = selectCandidates(spec, [], [
-      chunk({ file_path: "agent/src/local-task-runner.test.ts" }),
-      chunk({ file_path: "agent/src/unrelated.test.ts", embedding: [1, 0] }),
+    const out = selectCandidates(
+      spec,
+      [],
+      [
+        chunk({ file_path: "agent/src/local-task-runner.test.ts" }),
+        chunk({ file_path: "agent/src/unrelated.test.ts", embedding: [1, 0] }),
+      ],
+    );
+    expect(out.candidates.map((c) => c.match_kind).sort()).toEqual([
+      "directory",
+      "embedding",
     ]);
-    expect(out.candidates.map((c) => c.match_kind).sort()).toEqual(["directory", "embedding"]);
   });
 
   it("skips non-test files and chunks with no test name", () => {
@@ -164,7 +192,10 @@ describe("selectCandidates", () => {
 
   it("dedups by test, keeping the strongest signal", () => {
     const out = selectCandidates(spec, assertions, [
-      chunk({ file_path: "agent/src/local-task-runner.test.ts", content: "runTaskLocally here" }),
+      chunk({
+        file_path: "agent/src/local-task-runner.test.ts",
+        content: "runTaskLocally here",
+      }),
     ]);
     expect(out.candidates).toHaveLength(1);
     expect(out.candidates[0].match_kind).toBe("assertion");
@@ -172,7 +203,10 @@ describe("selectCandidates", () => {
 
   it("caps at maxCandidates and flags truncation", () => {
     const chunks = Array.from({ length: 3 }, (_, i) =>
-      chunk({ file_path: `agent/src/local-task-runner-${i}.test.ts`, test_name: `case ${i}` }),
+      chunk({
+        file_path: `agent/src/local-task-runner-${i}.test.ts`,
+        test_name: `case ${i}`,
+      }),
     );
     const out = selectCandidates(spec, [], chunks, { maxCandidates: 2 });
     expect(out).toMatchObject({ truncated: true, total: 3 });
@@ -216,9 +250,9 @@ describe("staleLinkKeys", () => {
       { test_file: "a.test.ts", test_name: "one" },
       { test_file: "b.test.ts", test_name: "two" },
     ];
-    expect(staleLinkKeys(existing, [{ test_file: "a.test.ts", test_name: "one" }])).toEqual([
-      { test_file: "b.test.ts", test_name: "two" },
-    ]);
+    expect(
+      staleLinkKeys(existing, [{ test_file: "a.test.ts", test_name: "one" }]),
+    ).toEqual([{ test_file: "b.test.ts", test_name: "two" }]);
   });
 });
 

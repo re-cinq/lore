@@ -2,7 +2,7 @@
 export const SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
 
 /** Fallback schema every onboarded cluster provisions; holds cross-team chunks. */
-export const ORG_SHARED_SCHEMA = 'org_shared';
+export const ORG_SHARED_SCHEMA = "org_shared";
 
 /**
  * Resolve a repo's chunk schema: the team's own schema when it is actually
@@ -13,8 +13,12 @@ export const ORG_SHARED_SCHEMA = 'org_shared';
  * anyway would interpolate `<team>.chunks` into SQL that throws 42P01 and 500s
  * the page, so an unprovisioned team must fall back to org_shared.
  */
-export function pickSchema(team: string | null | undefined, existingSchemas: readonly string[]): string {
-  const candidate = team ?? '';
-  if (SCHEMA_RE.test(candidate) && existingSchemas.includes(candidate)) return candidate;
+export function pickSchema(
+  team: string | null | undefined,
+  existingSchemas: readonly string[],
+): string {
+  const candidate = team ?? "";
+  if (SCHEMA_RE.test(candidate) && existingSchemas.includes(candidate))
+    return candidate;
   return ORG_SHARED_SCHEMA;
 }

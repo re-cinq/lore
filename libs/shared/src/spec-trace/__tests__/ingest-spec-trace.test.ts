@@ -18,11 +18,18 @@ import { ingestSpecTrace } from "../ingest-spec-trace.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -31,13 +38,21 @@ async function dgraphReachable(): Promise<boolean> {
 const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
-  async function readGraph(query: string, vars: Record<string, string>): Promise<Record<string, unknown>> {
+  async function readGraph(
+    query: string,
+    vars: Record<string, string>,
+  ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
     try {
       const res = await txn.queryWithVars(query, vars);
@@ -94,7 +109,15 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
     createdRepo = repo;
 
     await ingestSpecTrace(dgraphClient, repo, "test-report", {
-      tests: [{ id: "t1", name: "renders", file: "test/widget.test.ts", startLine: 10, endLine: 25 }],
+      tests: [
+        {
+          id: "t1",
+          name: "renders",
+          file: "test/widget.test.ts",
+          startLine: 10,
+          endLine: 25,
+        },
+      ],
       results: [],
     });
 
@@ -121,7 +144,12 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
 
     await ingestSpecTrace(dgraphClient, repo, "coverage", {
       commit: "abc",
-      coverage: [{ test: "covers widget", covered: [{ file: "src/widget.ts", startLine: 5, endLine: 10 }] }],
+      coverage: [
+        {
+          test: "covers widget",
+          covered: [{ file: "src/widget.ts", startLine: 5, endLine: 10 }],
+        },
+      ],
     });
 
     const data = (await readGraph(
@@ -134,6 +162,8 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
     )) as { cov?: Record<string, unknown>[] };
 
     // Coverage aggregates the covered range to a File node (no pre-seeding / AST).
-    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([{ "File.xid": `${repo}|src/widget.ts` }]);
+    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([
+      { "File.xid": `${repo}|src/widget.ts` },
+    ]);
   });
 });

@@ -23,7 +23,8 @@ function* findEnvEntries(node: any): Generator<any> {
     return;
   }
   if (node && typeof node === "object") {
-    if (Array.isArray(node.env)) for (const envEntry of node.env) yield envEntry;
+    if (Array.isArray(node.env))
+      for (const envEntry of node.env) yield envEntry;
     for (const value of Object.values(node)) yield* findEnvEntries(value);
   }
 }
@@ -42,7 +43,9 @@ function* findContainers(node: any): Generator<any> {
 function checkAclEnabled(doc: any): string[] {
   const violations: string[] = [];
   for (const container of findContainers(doc)) {
-    const argv = [...(container.command ?? []), ...(container.args ?? [])].map(String);
+    const argv = [...(container.command ?? []), ...(container.args ?? [])].map(
+      String,
+    );
     if (argv.includes("alpha") && !argv.some((arg) => arg.includes("--acl"))) {
       violations.push(
         `dgraph alpha (${doc?.metadata?.name ?? "alpha"}) does not enable ACL: missing --acl`,
@@ -96,7 +99,12 @@ function checkGuardianIsolation(doc: any): string[] {
   return violations;
 }
 
-const CHECKS = [checkAclEnabled, checkNoHardcodedCreds, checkWorkloadIdentity, checkGuardianIsolation];
+const CHECKS = [
+  checkAclEnabled,
+  checkNoHardcodedCreds,
+  checkWorkloadIdentity,
+  checkGuardianIsolation,
+];
 
 export function auditDgraphAcl(docs: Array<Record<string, any>>): string[] {
   return docs.flatMap((doc) => CHECKS.flatMap((check) => check(doc)));

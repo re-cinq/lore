@@ -47,7 +47,9 @@ describe("computeCachePrefixHash", () => {
   });
 
   it("produces matching hashes for identical inputs", () => {
-    const tools = [{ name: "f", description: "d", input_schema: { type: "object" } }];
+    const tools = [
+      { name: "f", description: "d", input_schema: { type: "object" } },
+    ];
     const a = computeCachePrefixHash("sys", tools);
     const b = computeCachePrefixHash("sys", tools);
     expect(a).toEqual(b);

@@ -1,5 +1,10 @@
 import type { Pool } from "pg";
-import type { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseToolkit,
+  ResponseObject,
+  ServerRoute,
+} from "@hapi/hapi";
 import {
   parseDarkFactorySettings,
   parseTaskOverrides,
@@ -12,9 +17,15 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { checkApproval } from "../two-key.js";
 
 const DF_PATH = "/api/repos/{owner}/{repo}/settings/dark-factory";
-const repoOf = (params: Record<string, string>) => `${params.owner}/${params.repo}`;
+const repoOf = (params: Record<string, string>) =>
+  `${params.owner}/${params.repo}`;
 
-type Ceremony = { tier: "two_key" | "admin"; pr_ref?: string; approver?: string; pr_url?: string };
+type Ceremony = {
+  tier: "two_key" | "admin";
+  pr_ref?: string;
+  approver?: string;
+  pr_url?: string;
+};
 
 // One route for both verbs (both admin-scoped) so an unsupported method reaches
 // the 405 fallback rather than a 404 from an unmatched route.
@@ -35,11 +46,15 @@ export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-async function handleGet(repo: string, h: ResponseToolkit): Promise<ResponseObject> {
+async function handleGet(
+  repo: string,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
   try {
     const project = await projectFor(repo);
     const settings = await project.settings.resolveOrNull();
-    if (settings === null) return h.response({ error: "repo not onboarded", repo }).code(404);
+    if (settings === null)
+      return h.response({ error: "repo not onboarded", repo }).code(404);
     return h.response(settings);
   } catch (err) {
     console.error("[dark-factory] GET settings failed:", err);
@@ -47,7 +62,12 @@ async function handleGet(repo: string, h: ResponseToolkit): Promise<ResponseObje
   }
 }
 
-async function handlePut(request: Request, h: ResponseToolkit, pool: Pool, repo: string): Promise<ResponseObject> {
+async function handlePut(
+  request: Request,
+  h: ResponseToolkit,
+  pool: Pool,
+  repo: string,
+): Promise<ResponseObject> {
   // hapi parses the payload natively (ADR-034); malformed JSON is a 400 and an
   // oversized body a 413 before we get here. Empty body → {} (no-op patch).
   const body = request.payload ?? {};
@@ -62,7 +82,9 @@ async function handlePut(request: Request, h: ResponseToolkit, pool: Pool, repo:
     toPatch = rawTo !== undefined ? parseTaskOverrides(rawTo) : undefined;
   } catch (err) {
     const issues =
-      typeof err === "object" && err !== null && "issues" in err ? (err as { issues: unknown }).issues : (err as Error).message;
+      typeof err === "object" && err !== null && "issues" in err
+        ? (err as { issues: unknown }).issues
+        : (err as Error).message;
     return h.response({ error: "invalid_settings", issues }).code(400);
   }
 
@@ -78,14 +100,22 @@ async function handlePut(request: Request, h: ResponseToolkit, pool: Pool, repo:
         "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.",
     );
     if (!gate.ok) return h.response(gate.body).code(gate.code);
-    ceremony = { tier: "two_key", pr_ref: gate.evidence.prRef, approver: gate.evidence.approver, pr_url: gate.evidence.prUrl };
+    ceremony = {
+      tier: "two_key",
+      pr_ref: gate.evidence.prRef,
+      approver: gate.evidence.approver,
+      pr_url: gate.evidence.prUrl,
+    };
   }
 
   // Read current, merge patch, write back. lore.repos.settings is JSONB.
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query(`SELECT settings FROM lore.repos WHERE full_name = $1 FOR UPDATE`, [repo]);
+    const { rows } = await client.query(
+      `SELECT settings FROM lore.repos WHERE full_name = $1 FOR UPDATE`,
+      [repo],
+    );
     if (rows.length === 0) {
       await client.query("ROLLBACK");
       return h.response({ error: "repo not onboarded", repo }).code(404);
@@ -93,8 +123,10 @@ async function handlePut(request: Request, h: ResponseToolkit, pool: Pool, repo:
     const settings = rows[0].settings ?? {};
     const prev = settings.dark_factory ?? {};
     const next = { ...prev, ...patch };
-    if (patch.auto_merge) next.auto_merge = { ...(prev.auto_merge ?? {}), ...patch.auto_merge };
-    if (patch.execution) next.execution = { ...(prev.execution ?? {}), ...patch.execution };
+    if (patch.auto_merge)
+      next.auto_merge = { ...(prev.auto_merge ?? {}), ...patch.auto_merge };
+    if (patch.execution)
+      next.execution = { ...(prev.execution ?? {}), ...patch.execution };
     settings.dark_factory = next;
 
     // Per-task-type overrides: deep-merge each touched type (and its nested
@@ -104,26 +136,41 @@ async function handlePut(request: Request, h: ResponseToolkit, pool: Pool, repo:
       const nextTo: Record<string, Record<string, unknown>> = { ...prevTo };
       for (const [type, ov] of Object.entries(toPatch)) {
         nextTo[type] = { ...(prevTo[type] ?? {}), ...ov };
-        if (ov.execution) nextTo[type].execution = { ...(prevTo[type]?.execution ?? {}), ...ov.execution };
+        if (ov.execution)
+          nextTo[type].execution = {
+            ...(prevTo[type]?.execution ?? {}),
+            ...ov.execution,
+          };
       }
       settings.task_overrides = nextTo;
     }
 
-    await client.query(`UPDATE lore.repos SET settings = $1 WHERE full_name = $2`, [settings, repo]);
+    await client.query(
+      `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`,
+      [settings, repo],
+    );
 
     // Audit log entry per FR3.9.
     const auditPayload = {
-      field_paths_changed: [...Object.keys(patch), ...(toPatch ? Object.keys(toPatch).map((t) => `task_overrides.${t}`) : [])],
+      field_paths_changed: [
+        ...Object.keys(patch),
+        ...(toPatch
+          ? Object.keys(toPatch).map((t) => `task_overrides.${t}`)
+          : []),
+      ],
       two_key_fields: twoKey,
       prev: { dark_factory: prev, task_overrides: prevTo },
-      next: { dark_factory: next, task_overrides: settings.task_overrides ?? prevTo },
+      next: {
+        dark_factory: next,
+        task_overrides: settings.task_overrides ?? prevTo,
+      },
       ceremony,
     };
     await client
-      .query(`INSERT INTO pipeline.audit_log (event_type, repo, payload) VALUES ('dark_factory_setting_changed', $1, $2)`, [
-        repo,
-        JSON.stringify(auditPayload),
-      ])
+      .query(
+        `INSERT INTO pipeline.audit_log (event_type, repo, payload) VALUES ('dark_factory_setting_changed', $1, $2)`,
+        [repo, JSON.stringify(auditPayload)],
+      )
       .catch(() => {
         // Audit log is best-effort; do not block the settings update.
       });

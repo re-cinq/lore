@@ -1,5 +1,5 @@
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 /**
  * Renders a short markdown string inline — bold, italics, inline code,
@@ -8,7 +8,10 @@ import remarkGfm from 'remark-gfm';
  */
 export default function InlineMarkdown({ text }: { text: string }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({ children }) => <>{children}</> }}>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{ p: ({ children }) => <>{children}</> }}
+    >
       {text}
     </ReactMarkdown>
   );

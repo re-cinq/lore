@@ -43,13 +43,15 @@ describe("isTestFile", () => {
 
 describe("normalizeTestName", () => {
   it("lowercases, collapses whitespace and joins with a wedge", () => {
-    expect(normalizeTestName("  GroupName ", "suppresses   within cooldown")).toBe(
-      "groupname › suppresses within cooldown",
-    );
+    expect(
+      normalizeTestName("  GroupName ", "suppresses   within cooldown"),
+    ).toBe("groupname › suppresses within cooldown");
   });
 
   it("omits an empty describe segment", () => {
-    expect(normalizeTestName("", "claims pending task")).toBe("claims pending task");
+    expect(normalizeTestName("", "claims pending task")).toBe(
+      "claims pending task",
+    );
   });
 
   it("returns identical keys for the same test described with differing whitespace", () => {

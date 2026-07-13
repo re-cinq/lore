@@ -22,8 +22,12 @@ describe("classifyFile", () => {
 
   it("classifies a .tsx/.jsx source file under a nested specs/ dir as code, not spec", () => {
     expect(classifyFile("web-ui/src/app/specs/page.tsx")).toBe("code");
-    expect(classifyFile("web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx")).toBe("code");
-    expect(classifyFile("web-ui/src/app/specs/[...path]/page.tsx")).toBe("code");
+    expect(
+      classifyFile("web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx"),
+    ).toBe("code");
+    expect(classifyFile("web-ui/src/app/specs/[...path]/page.tsx")).toBe(
+      "code",
+    );
   });
 
   it("classifies a source file under a nested adrs/ or runbooks/ dir as code", () => {
@@ -32,8 +36,14 @@ describe("classifyFile", () => {
   });
 
   it("classifies a CSS module under a nested specs/ dir as code, not spec", () => {
-    expect(classifyFile("web-ui/src/app/specs/SpecsListView.module.css")).toBe("code");
-    expect(classifyFile("apps/web-ui/src/app/repos/[owner]/[repo]/specs/TestCommandsSetup.module.css")).toBe("code");
+    expect(classifyFile("web-ui/src/app/specs/SpecsListView.module.css")).toBe(
+      "code",
+    );
+    expect(
+      classifyFile(
+        "apps/web-ui/src/app/repos/[owner]/[repo]/specs/TestCommandsSetup.module.css",
+      ),
+    ).toBe("code");
   });
 
   it("classifies stylesheets as code by extension", () => {

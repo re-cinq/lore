@@ -17,15 +17,12 @@ export async function initOtel(): Promise<void> {
   // fail soft (caught) in environments without Cloud credentials (local dev).
   try {
     // Dynamic imports — these packages may not be installed in Phase 0
-    const { TraceExporter } = await import(
-      "@google-cloud/opentelemetry-cloud-trace-exporter"
-    );
-    const { MetricExporter } = await import(
-      "@google-cloud/opentelemetry-cloud-monitoring-exporter"
-    );
-    const { PeriodicExportingMetricReader } = await import(
-      "@opentelemetry/sdk-metrics"
-    );
+    const { TraceExporter } =
+      await import("@google-cloud/opentelemetry-cloud-trace-exporter");
+    const { MetricExporter } =
+      await import("@google-cloud/opentelemetry-cloud-monitoring-exporter");
+    const { PeriodicExportingMetricReader } =
+      await import("@opentelemetry/sdk-metrics");
 
     sdk = new NodeSDK({
       traceExporter: new TraceExporter(),

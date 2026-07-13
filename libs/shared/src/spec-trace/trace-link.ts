@@ -56,9 +56,12 @@ export async function upsertTraceLink(
       `query q($x: string){ tl(func: eq(TraceLink.xid, $x)){ TraceLink.evidence } }`,
       { $x: xid },
     );
-    return res.data?.tl?.[0]?.["TraceLink.evidence"] as EvidenceTier | undefined;
+    return res.data?.tl?.[0]?.["TraceLink.evidence"] as
+      EvidenceTier | undefined;
   });
-  const evidence = existing ? (highestTier([existing, args.evidence]) ?? args.evidence) : args.evidence;
+  const evidence = existing
+    ? (highestTier([existing, args.evidence]) ?? args.evidence)
+    : args.evidence;
   const traceLinkUid = await upsertByXid(dgraph, "TraceLink", xid, {
     "TraceLink.repo": args.repo,
     "TraceLink.statement": { uid: args.statementUid },
@@ -68,7 +71,10 @@ export async function upsertTraceLink(
   });
   await withTxn(dgraph, (txn) =>
     txn.mutate({
-      setJson: { uid: args.statementUid, "Statement.trace_links": [{ uid: traceLinkUid }] },
+      setJson: {
+        uid: args.statementUid,
+        "Statement.trace_links": [{ uid: traceLinkUid }],
+      },
       commitNow: true,
     }),
   );
@@ -103,7 +109,12 @@ export async function projectTraceLinks(
   const validatedEvidence: EvidenceTier =
     verdict === "execution-verified" ? "execution-verified" : "human-linked";
 
-  const derivedLinks: Array<{ targetUid: string; targetXid: string; kind: TraceLinkKind; evidence: EvidenceTier }> = [
+  const derivedLinks: Array<{
+    targetUid: string;
+    targetXid: string;
+    kind: TraceLinkKind;
+    evidence: EvidenceTier;
+  }> = [
     ...(stmt.validated ?? []).map((target) => ({
       targetUid: target.uid,
       targetXid: target["TestChunk.xid"],
@@ -119,7 +130,12 @@ export async function projectTraceLinks(
   ];
 
   for (const link of derivedLinks) {
-    await upsertTraceLink(dgraph, { repo, statementUid: stmt.uid, statementXid, ...link });
+    await upsertTraceLink(dgraph, {
+      repo,
+      statementUid: stmt.uid,
+      statementXid,
+      ...link,
+    });
   }
   return { links: derivedLinks.length };
 }
@@ -138,7 +154,10 @@ export function rankEvidence(tier: EvidenceTier): number {
 
 export function highestTier(tiers: EvidenceTier[]): EvidenceTier | undefined {
   return tiers.reduce<EvidenceTier | undefined>(
-    (best, tier) => (best === undefined || rankEvidence(tier) > rankEvidence(best) ? tier : best),
+    (best, tier) =>
+      best === undefined || rankEvidence(tier) > rankEvidence(best)
+        ? tier
+        : best,
     undefined,
   );
 }

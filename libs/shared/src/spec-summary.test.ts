@@ -1,23 +1,33 @@
 import { describe, it, expect } from "vitest";
-import { parseSpecTitle, extractSummary, reassembleSpec } from "./spec-summary.js";
+import {
+  parseSpecTitle,
+  extractSummary,
+  reassembleSpec,
+} from "./spec-summary.js";
 
 describe("parseSpecTitle", () => {
   it("returns the first H1 stripped of the hash", () => {
-    expect(parseSpecTitle("# Local Task Runner\n\nbody", "specs/local-task-runner/spec.md")).toBe(
-      "Local Task Runner",
-    );
+    expect(
+      parseSpecTitle(
+        "# Local Task Runner\n\nbody",
+        "specs/local-task-runner/spec.md",
+      ),
+    ).toBe("Local Task Runner");
   });
 
   it("strips a 'Feature Specification:' prefix from the H1", () => {
-    expect(parseSpecTitle("# Feature Specification: Spec → Test Coverage\n", "x/spec.md")).toBe(
-      "Spec → Test Coverage",
-    );
+    expect(
+      parseSpecTitle(
+        "# Feature Specification: Spec → Test Coverage\n",
+        "x/spec.md",
+      ),
+    ).toBe("Spec → Test Coverage");
   });
 
   it("falls back to the feature directory name when there is no H1", () => {
-    expect(parseSpecTitle("no heading here", "specs/local-task-runner/spec.md")).toBe(
-      "local-task-runner",
-    );
+    expect(
+      parseSpecTitle("no heading here", "specs/local-task-runner/spec.md"),
+    ).toBe("local-task-runner");
   });
 
   it("falls back to the file path when there is no H1 and no feature dir", () => {
@@ -27,12 +37,15 @@ describe("parseSpecTitle", () => {
 
 describe("extractSummary", () => {
   it("returns the first non-heading, non-table paragraph", () => {
-    const content = "# Title\n\n| a | b |\n|---|---|\n\nThe real summary paragraph.\n\nSecond.";
+    const content =
+      "# Title\n\n| a | b |\n|---|---|\n\nThe real summary paragraph.\n\nSecond.";
     expect(extractSummary(content)).toBe("The real summary paragraph.");
   });
 
   it("collapses internal whitespace and joins wrapped lines", () => {
-    expect(extractSummary("# T\n\nLine one\nline two.")).toBe("Line one line two.");
+    expect(extractSummary("# T\n\nLine one\nline two.")).toBe(
+      "Line one line two.",
+    );
   });
 
   it("truncates to the max length with an ellipsis", () => {

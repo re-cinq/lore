@@ -1,10 +1,10 @@
-import PRStatusCard from './PRStatusCard';
-import TaskLogs from './TaskLogs';
-import Timeline from './Timeline';
-import FailurePanel from './FailurePanel';
-import Linkified from '@/components/Linkified';
-import { isCancellable } from '@/lib/task-status';
-import styles from './TaskDetailView.module.css';
+import PRStatusCard from "./PRStatusCard";
+import TaskLogs from "./TaskLogs";
+import Timeline from "./Timeline";
+import FailurePanel from "./FailurePanel";
+import Linkified from "@/components/Linkified";
+import { isCancellable } from "@/lib/task-status";
+import styles from "./TaskDetailView.module.css";
 
 export interface TaskDetailTask {
   id: string;
@@ -61,35 +61,83 @@ export default function TaskDetailView({
     <div>
       <h1>Task: {task.description.substring(0, 80)}</h1>
       <div className="spec-card">
-        <p><strong>Type:</strong> <span className="badge">{task.task_type}</span></p>
-        <p><strong>Status:</strong> <span className={`op-badge op-${task.status}`}>{task.status}</span></p>
         <p>
-          <strong>Priority:</strong>{' '}
-          <span className={task.priority === 'immediate' ? 'badge badge-red' : 'meta'}>
-            {task.priority || 'normal'}
+          <strong>Type:</strong> <span className="badge">{task.task_type}</span>
+        </p>
+        <p>
+          <strong>Status:</strong>{" "}
+          <span className={`op-badge op-${task.status}`}>{task.status}</span>
+        </p>
+        <p>
+          <strong>Priority:</strong>{" "}
+          <span
+            className={
+              task.priority === "immediate" ? "badge badge-red" : "meta"
+            }
+          >
+            {task.priority || "normal"}
           </span>
         </p>
-        <p><strong>Repo:</strong> {task.target_repo}</p>
-        <p><strong>Description:</strong> <Linkified text={task.description} repo={task.target_repo} /></p>
-        {task.agent_id && <p><strong>Agent:</strong> {task.agent_id}</p>}
-        {task.pr_url && <p><strong>PR:</strong> <a href={task.pr_url} target="_blank">{task.pr_url}</a></p>}
+        <p>
+          <strong>Repo:</strong> {task.target_repo}
+        </p>
+        <p>
+          <strong>Description:</strong>{" "}
+          <Linkified text={task.description} repo={task.target_repo} />
+        </p>
+        {task.agent_id && (
+          <p>
+            <strong>Agent:</strong> {task.agent_id}
+          </p>
+        )}
+        {task.pr_url && (
+          <p>
+            <strong>PR:</strong>{" "}
+            <a href={task.pr_url} target="_blank">
+              {task.pr_url}
+            </a>
+          </p>
+        )}
         {task.pr_url && task.pr_number && (
           <PRStatusCard taskId={task.id} prUrl={task.pr_url} />
         )}
-        {task.failure_reason && <p><strong>Failure:</strong> <span className={styles.failureText}><Linkified text={task.failure_reason} repo={task.target_repo} /></span></p>}
-        {task.review_iteration > 0 && <p><strong>Review iterations:</strong> {task.review_iteration}</p>}
-        <p><strong>Created by:</strong> {task.created_by}</p>
-        <p className="meta">Created: {new Date(task.created_at).toLocaleString()} · Updated: {new Date(task.updated_at).toLocaleString()}</p>
+        {task.failure_reason && (
+          <p>
+            <strong>Failure:</strong>{" "}
+            <span className={styles.failureText}>
+              <Linkified text={task.failure_reason} repo={task.target_repo} />
+            </span>
+          </p>
+        )}
+        {task.review_iteration > 0 && (
+          <p>
+            <strong>Review iterations:</strong> {task.review_iteration}
+          </p>
+        )}
+        <p>
+          <strong>Created by:</strong> {task.created_by}
+        </p>
+        <p className="meta">
+          Created: {new Date(task.created_at).toLocaleString()} · Updated:{" "}
+          {new Date(task.updated_at).toLocaleString()}
+        </p>
         <div className={styles.actions}>
-          {task.status === 'pending' && (task.priority || 'normal') === 'normal' && (
-            <form action={`/api/assembly-lines/${task.id}/run-now`} method="POST">
-              <button type="submit" className={styles.runNowBtn}>
-                Run Now
-              </button>
-            </form>
-          )}
+          {task.status === "pending" &&
+            (task.priority || "normal") === "normal" && (
+              <form
+                action={`/api/assembly-lines/${task.id}/run-now`}
+                method="POST"
+              >
+                <button type="submit" className={styles.runNowBtn}>
+                  Run Now
+                </button>
+              </form>
+            )}
           {isCancellable(task.status) && (
-            <form action={`/api/assembly-lines/${task.id}/cancel`} method="POST">
+            <form
+              action={`/api/assembly-lines/${task.id}/cancel`}
+              method="POST"
+            >
               <button type="submit" className={styles.cancelBtn}>
                 Cancel Task
               </button>
@@ -98,16 +146,17 @@ export default function TaskDetailView({
         </div>
       </div>
 
-      {task.status === 'failed' && failedEvent?.metadata && (
+      {task.status === "failed" && failedEvent?.metadata && (
         <FailurePanel metadata={failedEvent.metadata} repo={task.target_repo} />
       )}
 
       {/* Feedback form — visible when task has a PR and isn't in a terminal state */}
-      {task.pr_url && !['merged', 'cancelled'].includes(task.status) && (
+      {task.pr_url && !["merged", "cancelled"].includes(task.status) && (
         <div className={`spec-card ${styles.feedbackCard}`}>
           <h3 className={styles.feedbackHeading}>Give Feedback</h3>
           <p className={`meta ${styles.feedbackLede}`}>
-            Tell the agent what to change. A revision task will be created on the same branch.
+            Tell the agent what to change. A revision task will be created on
+            the same branch.
           </p>
           <form action={submitFeedback}>
             <input type="hidden" name="task_id" value={task.id} />
@@ -131,12 +180,18 @@ export default function TaskDetailView({
 
       <h2>Event Timeline</h2>
       <div className="memory-list">
-        {events.map(e => (
+        {events.map((e) => (
           <div key={e.id} className={`version ${styles.event}`}>
             <span className={`op-badge op-${e.to_status}`}>{e.to_status}</span>
             {e.from_status && <span className="meta"> ← {e.from_status}</span>}
-            <span className={`meta ${styles.eventTime}`}>{new Date(e.created_at).toLocaleString()}</span>
-            {e.metadata && <pre className={styles.eventMeta}>{JSON.stringify(e.metadata, null, 2)}</pre>}
+            <span className={`meta ${styles.eventTime}`}>
+              {new Date(e.created_at).toLocaleString()}
+            </span>
+            {e.metadata && (
+              <pre className={styles.eventMeta}>
+                {JSON.stringify(e.metadata, null, 2)}
+              </pre>
+            )}
           </div>
         ))}
       </div>
@@ -145,25 +200,47 @@ export default function TaskDetailView({
       {llmCalls.length > 0 ? (
         <table>
           <thead>
-            <tr><th>Model</th><th>Status</th><th>Tokens (in/out)</th><th>Duration</th><th>Time</th></tr>
+            <tr>
+              <th>Model</th>
+              <th>Status</th>
+              <th>Tokens (in/out)</th>
+              <th>Duration</th>
+              <th>Time</th>
+            </tr>
           </thead>
           <tbody>
             {llmCalls.map((c, i) => (
               <tr key={i}>
                 <td className={styles.mono}>{c.model}</td>
                 <td>
-                  {c.status === 'failed'
-                    ? <span className="badge badge-red" title={c.error ?? undefined}>failed</span>
-                    : <span className="op-badge op-pr-created">success</span>}
-                  {c.status === 'failed' && c.error && (
+                  {c.status === "failed" ? (
+                    <span
+                      className="badge badge-red"
+                      title={c.error ?? undefined}
+                    >
+                      failed
+                    </span>
+                  ) : (
+                    <span className="op-badge op-pr-created">success</span>
+                  )}
+                  {c.status === "failed" && c.error && (
                     <div className={`meta ${styles.callError}`}>
                       <Linkified text={c.error} repo={task.target_repo} />
                     </div>
                   )}
                 </td>
-                <td className={styles.mono}>{Number(c.input_tokens).toLocaleString()} / {Number(c.output_tokens).toLocaleString()}</td>
-                <td className={styles.mono}>{c.duration_ms ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s` : '—'}</td>
-                <td className="meta">{new Date(c.created_at).toLocaleString()}</td>
+                <td className={styles.mono}>
+                  {Number(c.input_tokens).toLocaleString()} /{" "}
+                  {Number(c.output_tokens).toLocaleString()}
+                </td>
+                <td className={styles.mono}>
+                  {c.duration_ms
+                    ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s`
+                    : "—"}
+                </td>
+                <td className="meta">
+                  {new Date(c.created_at).toLocaleString()}
+                </td>
               </tr>
             ))}
           </tbody>

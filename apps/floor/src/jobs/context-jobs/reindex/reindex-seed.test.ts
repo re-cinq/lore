@@ -28,10 +28,18 @@ describe("selectSeedFiles", () => {
   });
 
   it("excludes source code and root docs outside the seed roots", () => {
-    expect(selectSeedFiles(["src/app.ts", "README.md", "package.json"])).toEqual([]);
+    expect(
+      selectSeedFiles(["src/app.ts", "README.md", "package.json"]),
+    ).toEqual([]);
   });
 
   it("excludes binary and unsupported files under the seed roots", () => {
-    expect(selectSeedFiles(["specs/x/logo.svg", "adrs/diagram.png", "specs/y/font.woff2"])).toEqual([]);
+    expect(
+      selectSeedFiles([
+        "specs/x/logo.svg",
+        "adrs/diagram.png",
+        "specs/y/font.woff2",
+      ]),
+    ).toEqual([]);
   });
 });

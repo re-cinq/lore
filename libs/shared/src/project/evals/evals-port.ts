@@ -29,5 +29,9 @@ export interface EvalRunSample {
  */
 export interface EvalRunsPort {
   record(run: EvalRun): Promise<void>;
-  recent(team: string, limit: number, offset?: number): Promise<EvalRunSample[]>;
+  recent(
+    team: string,
+    limit: number,
+    offset?: number,
+  ): Promise<EvalRunSample[]>;
 }

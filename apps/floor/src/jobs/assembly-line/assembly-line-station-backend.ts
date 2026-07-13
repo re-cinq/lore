@@ -5,7 +5,11 @@
 // and walks the assembly line (dispatching a per-node Agent CR). The agent-watcher
 // resolves task completion (PR) from those Agents, unchanged.
 
-import type { LoreTaskSpec, StationBackend, StationLaunchResult } from "@re-cinq/lore-shared";
+import type {
+  LoreTaskSpec,
+  StationBackend,
+  StationLaunchResult,
+} from "@re-cinq/lore-shared";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 
 export class AssemblyLineStationBackend implements StationBackend {

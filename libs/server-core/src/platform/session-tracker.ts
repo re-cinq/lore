@@ -65,7 +65,10 @@ export function formatSessionSummary(): string {
   const durationMin = Math.round((now.getTime() - start.getTime()) / 60000);
 
   // Count calls per tool
-  const toolCounts: Record<string, { calls: number; errors: number; totalMs: number }> = {};
+  const toolCounts: Record<
+    string,
+    { calls: number; errors: number; totalMs: number }
+  > = {};
   for (const entry of sessionLog) {
     if (!toolCounts[entry.tool]) {
       toolCounts[entry.tool] = { calls: 0, errors: 0, totalMs: 0 };
@@ -85,7 +88,9 @@ export function formatSessionSummary(): string {
   ];
 
   // Sort by call count descending
-  const sorted = Object.entries(toolCounts).sort((a, b) => b[1].calls - a[1].calls);
+  const sorted = Object.entries(toolCounts).sort(
+    (a, b) => b[1].calls - a[1].calls,
+  );
   for (const [tool, stats] of sorted) {
     const avgMs = Math.round(stats.totalMs / stats.calls);
     const errSuffix = stats.errors > 0 ? ` (${stats.errors} errors)` : "";
@@ -104,13 +109,20 @@ export function dumpSessionLog(filePath?: string): void {
   const targetPath = filePath || join(homedir(), ".lore", "last-session.json");
   try {
     mkdirSync(dirname(targetPath), { recursive: true });
-    writeFileSync(targetPath, JSON.stringify({
-      startTime: sessionStartTime,
-      endTime: new Date().toISOString(),
-      summary: formatSessionSummary(),
-      toolCalls: sessionLog.length,
-      log: sessionLog,
-    }, null, 2));
+    writeFileSync(
+      targetPath,
+      JSON.stringify(
+        {
+          startTime: sessionStartTime,
+          endTime: new Date().toISOString(),
+          summary: formatSessionSummary(),
+          toolCalls: sessionLog.length,
+          log: sessionLog,
+        },
+        null,
+        2,
+      ),
+    );
   } catch {
     // Best effort — don't crash on exit
   }

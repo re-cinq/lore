@@ -1,0 +1,23 @@
+# Dependencies + build output
+node_modules/
+**/node_modules/
+**/dist/
+**/build/
+.lore-pgdata/
+.lore-dgraphdata/
+
+# Lockfiles (generated)
+**/package-lock.json
+
+# Markdown — spec files carry line-sensitive inline test links
+# (`([validated by](test.ts#L42))`); reflowing them rots spec coverage.
+**/*.md
+
+# YAML — Helm values files coerce leading-zero SHA tags to ints when reformatted;
+# never let a formatter touch infra manifests.
+**/*.yaml
+**/*.yml
+infra/
+
+# SQL — ui-helm migrations are append-only and immutable once applied.
+**/*.sql

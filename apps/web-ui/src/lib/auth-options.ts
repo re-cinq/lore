@@ -25,14 +25,21 @@ export const authOptions: NextAuthOptions = {
           headers: { Authorization: `Bearer ${account?.access_token}` },
         });
         if (!res.ok) {
-          console.error(`[auth] GitHub /user/orgs failed for ${login}: ${res.status} ${res.statusText}`);
+          console.error(
+            `[auth] GitHub /user/orgs failed for ${login}: ${res.status} ${res.statusText}`,
+          );
           return false;
         }
         const orgs = await res.json();
-        const isMember = Array.isArray(orgs) && orgs.some((o: any) => o.login === allowedOrg);
+        const isMember =
+          Array.isArray(orgs) && orgs.some((o: any) => o.login === allowedOrg);
         if (!isMember) {
-          const orgLogins = Array.isArray(orgs) ? orgs.map((o: any) => o.login) : [];
-          console.error(`[auth] ${login} not in org "${allowedOrg}". Visible orgs: [${orgLogins.join(", ")}]. User may need to grant OAuth app access to the org.`);
+          const orgLogins = Array.isArray(orgs)
+            ? orgs.map((o: any) => o.login)
+            : [];
+          console.error(
+            `[auth] ${login} not in org "${allowedOrg}". Visible orgs: [${orgLogins.join(", ")}]. User may need to grant OAuth app access to the org.`,
+          );
         }
         return isMember;
       } catch (err) {

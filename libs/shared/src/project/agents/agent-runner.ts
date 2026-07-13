@@ -1,4 +1,8 @@
-import type { AgentRunnerPort, AgentRunResult, AgentRunOpts } from "./agent-runner-port.js";
+import type {
+  AgentRunnerPort,
+  AgentRunResult,
+  AgentRunOpts,
+} from "./agent-runner-port.js";
 import type { LlmPort } from "./llm-port.js";
 import type { StationBackend } from "./station-port.js";
 import { runClaudeCli } from "./claude-cli.js";
@@ -14,21 +18,36 @@ import { runClaudeCli } from "./claude-cli.js";
 export class AgentRunner implements AgentRunnerPort {
   constructor(
     private readonly env: NodeJS.ProcessEnv = process.env,
-    private readonly providers: { station?: StationBackend; llm?: LlmPort } = {},
+    private readonly providers: {
+      station?: StationBackend;
+      llm?: LlmPort;
+    } = {},
   ) {}
 
-  async run(repo: string, taskId: string, opts?: AgentRunOpts): Promise<AgentRunResult> {
+  async run(
+    repo: string,
+    taskId: string,
+    opts?: AgentRunOpts,
+  ): Promise<AgentRunResult> {
     const mode = opts?.mode ?? "local";
     const prompt = opts?.prompt ?? `Work on Lore task ${taskId} for ${repo}.`;
 
     if (mode === "local") {
-      const result = await runClaudeCli({ prompt, workDir: opts?.workDir, model: opts?.model, env: this.env });
+      const result = await runClaudeCli({
+        prompt,
+        workDir: opts?.workDir,
+        model: opts?.model,
+        env: this.env,
+      });
       return { taskId, mode, started: result.exitCode === 0 };
     }
 
     if (mode === "cluster") {
       const station = this.providers.station;
-      if (!station) throw new Error('agents.run mode "cluster" needs a StationBackend provider');
+      if (!station)
+        throw new Error(
+          'agents.run mode "cluster" needs a StationBackend provider',
+        );
       const res = await station.launch({
         taskId,
         taskType: opts?.taskType ?? "general",
@@ -46,11 +65,17 @@ export class AgentRunner implements AgentRunnerPort {
       });
       // Sync backends (docker) carry completion back so the caller can finalize
       // the run inline; async backends (k8s) omit it (the watcher resolves it).
-      return { taskId, mode, started: res.launched, completion: res.completion };
+      return {
+        taskId,
+        mode,
+        started: res.launched,
+        completion: res.completion,
+      };
     }
 
     const llm = this.providers.llm;
-    if (!llm) throw new Error('agents.run mode "direct" needs an LlmPort provider');
+    if (!llm)
+      throw new Error('agents.run mode "direct" needs an LlmPort provider');
     await llm.complete(prompt, { model: opts?.model });
     return { taskId, mode, started: true };
   }

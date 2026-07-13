@@ -1,4 +1,4 @@
-import styles from './AnalyticsView.module.css';
+import styles from "./AnalyticsView.module.css";
 
 export interface TaskSummary {
   total: number;
@@ -55,7 +55,7 @@ export interface AnalyticsViewProps {
 }
 
 function formatDuration(started: string, completed: string | null): string {
-  if (!completed) return '—';
+  if (!completed) return "—";
   const ms = new Date(completed).getTime() - new Date(started).getTime();
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return `${seconds}s`;
@@ -85,19 +85,27 @@ export default function AnalyticsView({
       <div className={styles.statsRow}>
         <div className={`spec-card ${styles.statCard}`}>
           <div className="meta">Total Tasks</div>
-          <div className={styles.statValue}>{Number(taskSummary?.total ?? 0).toLocaleString()}</div>
+          <div className={styles.statValue}>
+            {Number(taskSummary?.total ?? 0).toLocaleString()}
+          </div>
         </div>
         <div className={`spec-card ${styles.statCard}`}>
           <div className="meta">Succeeded</div>
-          <div className={`${styles.statValue} ${styles.statValueSuccess}`}>{Number(taskSummary?.succeeded ?? 0).toLocaleString()}</div>
+          <div className={`${styles.statValue} ${styles.statValueSuccess}`}>
+            {Number(taskSummary?.succeeded ?? 0).toLocaleString()}
+          </div>
         </div>
         <div className={`spec-card ${styles.statCard}`}>
           <div className="meta">Failed</div>
-          <div className={`${styles.statValue} ${styles.statValueDanger}`}>{Number(taskSummary?.failed ?? 0).toLocaleString()}</div>
+          <div className={`${styles.statValue} ${styles.statValueDanger}`}>
+            {Number(taskSummary?.failed ?? 0).toLocaleString()}
+          </div>
         </div>
         <div className={`spec-card ${styles.statCard}`}>
           <div className="meta">Active</div>
-          <div className={`${styles.statValue} ${styles.statValueWarning}`}>{Number(taskSummary?.active ?? 0).toLocaleString()}</div>
+          <div className={`${styles.statValue} ${styles.statValueWarning}`}>
+            {Number(taskSummary?.active ?? 0).toLocaleString()}
+          </div>
         </div>
       </div>
 
@@ -115,20 +123,38 @@ export default function AnalyticsView({
           </tr>
         </thead>
         <tbody>
-          {latencyStats.map(r => (
+          {latencyStats.map((r) => (
             <tr key={r.tool}>
-              <td><span className="badge">{r.tool}</span></td>
+              <td>
+                <span className="badge">{r.tool}</span>
+              </td>
               <td>{Number(r.call_count).toLocaleString()}</td>
-              <td className={styles.monoCell}>{Number(r.p50_ms).toFixed(0)}ms</td>
-              <td className={styles.monoCell}>{Number(r.p95_ms).toFixed(0)}ms</td>
-              <td className={styles.monoCell}>{Number(r.p99_ms).toFixed(0)}ms</td>
-              <td>{Number(r.p95_ms) > 200
-                ? <span className="op-badge op-delete">&gt;200ms</span>
-                : <span className="op-badge op-write">OK</span>
-              }</td>
+              <td className={styles.monoCell}>
+                {Number(r.p50_ms).toFixed(0)}ms
+              </td>
+              <td className={styles.monoCell}>
+                {Number(r.p95_ms).toFixed(0)}ms
+              </td>
+              <td className={styles.monoCell}>
+                {Number(r.p99_ms).toFixed(0)}ms
+              </td>
+              <td>
+                {Number(r.p95_ms) > 200 ? (
+                  <span className="op-badge op-delete">&gt;200ms</span>
+                ) : (
+                  <span className="op-badge op-write">OK</span>
+                )}
+              </td>
             </tr>
           ))}
-          {latencyStats.length === 0 && <tr><td colSpan={6} className={`meta ${styles.emptyCell}`}>No latency data yet. Use search_memory, query_graph, or assemble_context to generate data.</td></tr>}
+          {latencyStats.length === 0 && (
+            <tr>
+              <td colSpan={6} className={`meta ${styles.emptyCell}`}>
+                No latency data yet. Use search_memory, query_graph, or
+                assemble_context to generate data.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -144,15 +170,27 @@ export default function AnalyticsView({
           </tr>
         </thead>
         <tbody>
-          {usageByTaskType.map(r => (
+          {usageByTaskType.map((r) => (
             <tr key={r.task_type}>
-              <td><span className="badge">{r.task_type}</span></td>
+              <td>
+                <span className="badge">{r.task_type}</span>
+              </td>
               <td>{Number(r.task_count).toLocaleString()}</td>
-              <td className={styles.monoCell}>{Number(r.total_input_tokens).toLocaleString()}</td>
-              <td className={styles.monoCell}>{Number(r.total_output_tokens).toLocaleString()}</td>
+              <td className={styles.monoCell}>
+                {Number(r.total_input_tokens).toLocaleString()}
+              </td>
+              <td className={styles.monoCell}>
+                {Number(r.total_output_tokens).toLocaleString()}
+              </td>
             </tr>
           ))}
-          {usageByTaskType.length === 0 && <tr><td colSpan={4} className={`meta ${styles.emptyCell}`}>No data</td></tr>}
+          {usageByTaskType.length === 0 && (
+            <tr>
+              <td colSpan={4} className={`meta ${styles.emptyCell}`}>
+                No data
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -166,13 +204,19 @@ export default function AnalyticsView({
           </tr>
         </thead>
         <tbody>
-          {usageByRepo.map(r => (
+          {usageByRepo.map((r) => (
             <tr key={r.target_repo}>
               <td className={styles.monoCell}>{r.target_repo}</td>
               <td>{Number(r.task_count).toLocaleString()}</td>
             </tr>
           ))}
-          {usageByRepo.length === 0 && <tr><td colSpan={2} className={`meta ${styles.emptyCell}`}>No data</td></tr>}
+          {usageByRepo.length === 0 && (
+            <tr>
+              <td colSpan={2} className={`meta ${styles.emptyCell}`}>
+                No data
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -188,15 +232,25 @@ export default function AnalyticsView({
           </tr>
         </thead>
         <tbody>
-          {dailyUsage.map(r => (
+          {dailyUsage.map((r) => (
             <tr key={r.day}>
               <td>{new Date(r.day).toLocaleDateString()}</td>
               <td>{Number(r.calls).toLocaleString()}</td>
-              <td className={styles.monoCell}>{Number(r.input_tokens).toLocaleString()}</td>
-              <td className={styles.monoCell}>{Number(r.output_tokens).toLocaleString()}</td>
+              <td className={styles.monoCell}>
+                {Number(r.input_tokens).toLocaleString()}
+              </td>
+              <td className={styles.monoCell}>
+                {Number(r.output_tokens).toLocaleString()}
+              </td>
             </tr>
           ))}
-          {dailyUsage.length === 0 && <tr><td colSpan={4} className={`meta ${styles.emptyCell}`}>No data</td></tr>}
+          {dailyUsage.length === 0 && (
+            <tr>
+              <td colSpan={4} className={`meta ${styles.emptyCell}`}>
+                No data
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -216,17 +270,41 @@ export default function AnalyticsView({
         <tbody>
           {jobRuns.map((r) => (
             <tr key={r.id}>
-              <td><span className="badge">{r.job_name}</span></td>
-              <td className="meta">{new Date(r.started_at).toLocaleString()}</td>
-              <td className={styles.monoCell}>{formatDuration(r.started_at, r.completed_at)}</td>
-              <td><span className={`op-badge op-${r.status}`}>{r.status}</span></td>
-              <td className={styles.smallCell}>{r.error ? <span className={styles.error}>{r.error}</span> : (r.result_summary ?? '—')}</td>
+              <td>
+                <span className="badge">{r.job_name}</span>
+              </td>
+              <td className="meta">
+                {new Date(r.started_at).toLocaleString()}
+              </td>
+              <td className={styles.monoCell}>
+                {formatDuration(r.started_at, r.completed_at)}
+              </td>
+              <td>
+                <span className={`op-badge op-${r.status}`}>{r.status}</span>
+              </td>
               <td className={styles.smallCell}>
-                {r.log_path ? <a href={`/job-runs/${r.id}`}>view</a> : <span className="meta">—</span>}
+                {r.error ? (
+                  <span className={styles.error}>{r.error}</span>
+                ) : (
+                  (r.result_summary ?? "—")
+                )}
+              </td>
+              <td className={styles.smallCell}>
+                {r.log_path ? (
+                  <a href={`/job-runs/${r.id}`}>view</a>
+                ) : (
+                  <span className="meta">—</span>
+                )}
               </td>
             </tr>
           ))}
-          {jobRuns.length === 0 && <tr><td colSpan={6} className={`meta ${styles.emptyCell}`}>No job runs</td></tr>}
+          {jobRuns.length === 0 && (
+            <tr>
+              <td colSpan={6} className={`meta ${styles.emptyCell}`}>
+                No job runs
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

@@ -4,7 +4,14 @@ import * as path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
-const NodeType = z.enum(["agent", "validate", "gate", "retrospective", "github_action", "detect"]);
+const NodeType = z.enum([
+  "agent",
+  "validate",
+  "gate",
+  "retrospective",
+  "github_action",
+  "detect",
+]);
 const EdgeCondition = z.enum([
   "success",
   "changes_requested",
@@ -66,7 +73,10 @@ export class AssemblyLineLoadError extends Error {
  * dangling node references, unreachable nodes, terminal-only-on-exit
  * violations, or back-edges without `iteration_max`.
  */
-export function parseAssemblyLine(yamlSrc: string, source = "<inline>"): AssemblyLine {
+export function parseAssemblyLine(
+  yamlSrc: string,
+  source = "<inline>",
+): AssemblyLine {
   let raw: unknown;
   try {
     raw = parseYaml(yamlSrc);
@@ -90,7 +100,9 @@ export function parseAssemblyLine(yamlSrc: string, source = "<inline>"): Assembl
   return wf;
 }
 
-export async function loadAssemblyLineFile(filepath: string): Promise<AssemblyLine> {
+export async function loadAssemblyLineFile(
+  filepath: string,
+): Promise<AssemblyLine> {
   const yamlSrc = await fs.readFile(filepath, "utf-8");
   return parseAssemblyLine(yamlSrc, filepath);
 }
@@ -152,10 +164,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
       );
     }
     if (!nodeIds.has(e.to)) {
-      throw new AssemblyLineLoadError(
-        `edge to unknown node "${e.to}"`,
-        source,
-      );
+      throw new AssemblyLineLoadError(`edge to unknown node "${e.to}"`, source);
     }
   }
 

@@ -51,7 +51,10 @@ export function stripDescriptorPaths(
   }));
 }
 
-export function stripCoveredPaths(result: RunResult, prefix: string): RunResult {
+export function stripCoveredPaths(
+  result: RunResult,
+  prefix: string,
+): RunResult {
   return {
     ...result,
     covered: result.covered.map((chunk: CoveredChunk) => ({
@@ -81,8 +84,13 @@ export async function listTestsTool(
 
   if (!manifest) return NO_MANIFEST;
 
-  const descriptors = await runTestsList(manifest.list, resolveCwd(manifest, cwd));
-  return JSON.stringify(stripDescriptorPaths(descriptors, manifest.path_prefix_strip));
+  const descriptors = await runTestsList(
+    manifest.list,
+    resolveCwd(manifest, cwd),
+  );
+  return JSON.stringify(
+    stripDescriptorPaths(descriptors, manifest.path_prefix_strip),
+  );
 }
 
 export async function runTestTool(
@@ -96,11 +104,17 @@ export async function runTestTool(
 
   if (!manifest) return NO_MANIFEST;
 
-  const result = await runTestsRun(manifest.run, selector, resolveCwd(manifest, cwd));
+  const result = await runTestsRun(
+    manifest.run,
+    selector,
+    resolveCwd(manifest, cwd),
+  );
   return JSON.stringify(stripCoveredPaths(result, manifest.path_prefix_strip));
 }
 
-export function loadTestCommandManifest(repoRoot: string): TestCommandManifest | null {
+export function loadTestCommandManifest(
+  repoRoot: string,
+): TestCommandManifest | null {
   const manifestPath = join(repoRoot, ".lore", "test-commands.yml");
   if (!existsSync(manifestPath)) return null;
 

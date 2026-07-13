@@ -1,8 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, makeOctokit, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  makeOctokit,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("../../../platform/github-client.js", () => ({ getOctokit: vi.fn(), getGitHubToken: vi.fn() }));
+vi.mock("../../../platform/github-client.js", () => ({
+  getOctokit: vi.fn(),
+  getGitHubToken: vi.fn(),
+}));
 vi.mock("@re-cinq/lore-shared", () => ({
   redactSecrets: (s: string) => s,
   parseTasks: vi.fn(),
@@ -16,11 +25,21 @@ vi.mock("@re-cinq/lore-shared", () => ({
 import { getOctokit } from "../../../platform/github-client.js";
 import { parseTrailers } from "@re-cinq/lore-shared";
 
-type TimelineBody = { commits: Array<{ duration_ms: number | null; outcome: string; extras?: Record<string, string> }> };
+type TimelineBody = {
+  commits: Array<{
+    duration_ms: number | null;
+    outcome: string;
+    extras?: Record<string, string>;
+  }>;
+};
 
 const originalEnv = { ...process.env };
 const get = (pool: unknown) =>
-  buildServer(() => pool as any).inject({ method: "GET", url: "/api/tasks/t1/timeline", headers: AUTH });
+  buildServer(() => pool as any).inject({
+    method: "GET",
+    url: "/api/tasks/t1/timeline",
+    headers: AUTH,
+  });
 
 describe("GET /api/tasks/:id/timeline", () => {
   useRateLimitSafeClock();
@@ -68,7 +87,9 @@ describe("GET /api/tasks/:id/timeline", () => {
   });
 
   it("returns pending:no_branch when the task has no branch", async () => {
-    const pool = timelinePool({ rows: [taskRow({ target_repo: null, target_branch: null })] });
+    const pool = timelinePool({
+      rows: [taskRow({ target_repo: null, target_branch: null })],
+    });
     const res = await get(pool);
     expect(res.result).toMatchObject({ pending: "no_branch", commits: [] });
   });
@@ -77,18 +98,42 @@ describe("GET /api/tasks/:id/timeline", () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockResolvedValue({
       data: [
-        { sha: "s2", commit: { message: "stage two has-trailer", committer: { date: new Date(Date.now() - 10_000).toISOString() } } },
-        { sha: "s1", commit: { message: "no markers here", committer: { date: new Date(Date.now() - 20_000).toISOString() } } },
+        {
+          sha: "s2",
+          commit: {
+            message: "stage two has-trailer",
+            committer: { date: new Date(Date.now() - 10_000).toISOString() },
+          },
+        },
+        {
+          sha: "s1",
+          commit: {
+            message: "no markers here",
+            committer: { date: new Date(Date.now() - 20_000).toISOString() },
+          },
+        },
       ],
     });
-    oct.rest.pulls.get.mockResolvedValue({ data: { merged: true, state: "closed" } });
+    oct.rest.pulls.get.mockResolvedValue({
+      data: { merged: true, state: "closed" },
+    });
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     vi.mocked(parseTrailers).mockImplementation((msg: string) =>
-      msg.includes("has-trailer") ? ({ stage: "impl", iteration: 1, extras: { "Lore-Outcome": "success" } } as any) : null,
+      msg.includes("has-trailer")
+        ? ({
+            stage: "impl",
+            iteration: 1,
+            extras: { "Lore-Outcome": "success" },
+          } as any)
+        : null,
     );
     const pool = timelinePool(
       { rows: [taskRow()] },
-      { rows: [{ holder: "agent-1", expires_at: new Date(Date.now() + 60_000) }] },
+      {
+        rows: [
+          { holder: "agent-1", expires_at: new Date(Date.now() + 60_000) },
+        ],
+      },
     );
     const res = await get(pool);
     expect(res.result).toMatchObject({
@@ -104,14 +149,20 @@ describe("GET /api/tasks/:id/timeline", () => {
   it("tolerates a failing PR fetch and empty lease, no trailers", async () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockResolvedValue({
-      data: [{ sha: "s1", commit: { message: "plain", committer: { date: null } } }],
+      data: [
+        { sha: "s1", commit: { message: "plain", committer: { date: null } } },
+      ],
     });
     oct.rest.pulls.get.mockRejectedValue(new Error("pr gone"));
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     vi.mocked(parseTrailers).mockReturnValue(null as any);
     const pool = timelinePool({ rows: [taskRow()] }, { rows: [] });
     const res = await get(pool);
-    expect(res.result).toMatchObject({ pr_state: null, current_stage: null, lease: { held: false } });
+    expect(res.result).toMatchObject({
+      pr_state: null,
+      current_stage: null,
+      lease: { held: false },
+    });
   });
 
   it("skips the PR fetch when there is no pr_number", async () => {
@@ -128,23 +179,41 @@ describe("GET /api/tasks/:id/timeline", () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockResolvedValue({
       data: [
-        { sha: "a", commit: { message: "a has-trailer", committer: { date: null } } },
-        { sha: "b", commit: { message: "b has-trailer", committer: { date: "not-a-date" } } },
+        {
+          sha: "a",
+          commit: { message: "a has-trailer", committer: { date: null } },
+        },
+        {
+          sha: "b",
+          commit: {
+            message: "b has-trailer",
+            committer: { date: "not-a-date" },
+          },
+        },
       ],
     });
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
-    vi.mocked(parseTrailers).mockReturnValue({ stage: "s", iteration: 0 } as any);
+    vi.mocked(parseTrailers).mockReturnValue({
+      stage: "s",
+      iteration: 0,
+    } as any);
     const pool = timelinePool({ rows: [taskRow({ pr_number: null })] });
     const res = await get(pool);
     const body = res.result as TimelineBody;
     expect(body.commits).toHaveLength(2);
-    expect(body.commits.every((c) => c.outcome === "success" && c.extras === undefined)).toBe(true);
+    expect(
+      body.commits.every(
+        (c) => c.outcome === "success" && c.extras === undefined,
+      ),
+    ).toBe(true);
     expect(body.commits.some((c) => c.duration_ms === null)).toBe(true);
   });
 
   it("returns branch_deleted when GitHub 404s", async () => {
     const oct = makeOctokit();
-    oct.rest.repos.listCommits.mockRejectedValue(Object.assign(new Error("gone"), { status: 404 }));
+    oct.rest.repos.listCommits.mockRejectedValue(
+      Object.assign(new Error("gone"), { status: 404 }),
+    );
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = timelinePool({ rows: [taskRow()] });
     const res = await get(pool);
@@ -153,7 +222,9 @@ describe("GET /api/tasks/:id/timeline", () => {
 
   it("returns 500 on a non-404 GitHub error", async () => {
     const oct = makeOctokit();
-    oct.rest.repos.listCommits.mockRejectedValue(Object.assign(new Error("boom"), { status: 500 }));
+    oct.rest.repos.listCommits.mockRejectedValue(
+      Object.assign(new Error("boom"), { status: 500 }),
+    );
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = timelinePool({ rows: [taskRow()] });
     const res = await get(pool);
@@ -163,11 +234,14 @@ describe("GET /api/tasks/:id/timeline", () => {
   it("tolerates a failing lease query", async () => {
     const oct = makeOctokit();
     oct.rest.repos.listCommits.mockResolvedValue({ data: [] });
-    oct.rest.pulls.get.mockResolvedValue({ data: { merged: false, state: "open" } });
+    oct.rest.pulls.get.mockResolvedValue({
+      data: { merged: false, state: "open" },
+    });
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = makePool();
     pool.query.mockImplementation((sql: string) => {
-      if (sql.includes("task_leases")) return Promise.reject(new Error("no table"));
+      if (sql.includes("task_leases"))
+        return Promise.reject(new Error("no table"));
       return Promise.resolve({ rows: [taskRow()] });
     });
     const res = await get(pool);

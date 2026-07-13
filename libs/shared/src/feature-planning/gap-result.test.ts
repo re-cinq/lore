@@ -11,25 +11,52 @@ import {
 
 const validResult: GapResult = {
   sections: [
-    { title: "Overview", content: "A **Features tab** backed by a planning *Station*." },
+    {
+      title: "Overview",
+      content: "A **Features tab** backed by a planning *Station*.",
+    },
     {
       title: "Data model",
       content: "Store features + iterations.",
-      mockups: [{ title: "schema", format: "svg", markup: '<svg viewBox="0 0 10 10"></svg>' }],
-      questions: [{ id: "q1", question: "Which repos?", why: "scope of the rollout", kind: "text" }],
+      mockups: [
+        {
+          title: "schema",
+          format: "svg",
+          markup: '<svg viewBox="0 0 10 10"></svg>',
+        },
+      ],
+      questions: [
+        {
+          id: "q1",
+          question: "Which repos?",
+          why: "scope of the rollout",
+          kind: "text",
+        },
+      ],
     },
   ],
-  draft_spec_markdown: "# Feature Specification: X\n\n## Integration\nFits the repo page.",
+  draft_spec_markdown:
+    "# Feature Specification: X\n\n## Integration\nFits the repo page.",
 };
 
 const legacyPayload = {
   architecture: {
     summary: "A Features tab.",
-    components: [{ name: "features port", responsibility: "persist lifecycle", touchpoints: ["lore.features"] }],
+    components: [
+      {
+        name: "features port",
+        responsibility: "persist lifecycle",
+        touchpoints: ["lore.features"],
+      },
+    ],
   },
   user_flows: [{ name: "create draft", steps: ["open tab", "submit"] }],
-  mockups: [{ title: "flow", format: "svg", markup: "<svg/>", section: "user_flows" }],
-  questions: [{ id: "qq", question: "Which repos?", why: "scope", kind: "text" }],
+  mockups: [
+    { title: "flow", format: "svg", markup: "<svg/>", section: "user_flows" },
+  ],
+  questions: [
+    { id: "qq", question: "Which repos?", why: "scope", kind: "text" },
+  ],
   draft_spec_markdown: "# Spec",
 };
 
@@ -45,19 +72,35 @@ describe("parseGapResult", () => {
 
   it("throws when a section's choice question has no options", () => {
     const bad = {
-      sections: [{ title: "Q", questions: [{ id: "q2", question: "Pick one", why: "branch", kind: "choice" }] }],
+      sections: [
+        {
+          title: "Q",
+          questions: [
+            { id: "q2", question: "Pick one", why: "branch", kind: "choice" },
+          ],
+        },
+      ],
       draft_spec_markdown: "x",
     };
     expect(() => parseGapResult(bad)).toThrow(/options/);
   });
 
   it("accepts an absent split_suggestion", () => {
-    expect(parseGapResult(structuredClone(validResult)).split_suggestion).toBeUndefined();
+    expect(
+      parseGapResult(structuredClone(validResult)).split_suggestion,
+    ).toBeUndefined();
   });
 
   it("normalizes a section question that uses text and omits id and why", () => {
     const drift = {
-      sections: [{ title: "Q", questions: [{ kind: "choice", options: ["a", "b"], text: "Which path?" }] }],
+      sections: [
+        {
+          title: "Q",
+          questions: [
+            { kind: "choice", options: ["a", "b"], text: "Which path?" },
+          ],
+        },
+      ],
       draft_spec_markdown: "x",
     };
     expect(parseGapResult(drift).sections[0].questions?.[0]).toEqual({
@@ -83,8 +126,14 @@ describe("parseGapResult", () => {
 
   it("normalizes a legacy architecture/user_flows payload into sections", () => {
     const r = parseGapResult(structuredClone(legacyPayload));
-    expect(r.sections.map((s) => s.title)).toEqual(["Architecture", "User flows", "Open questions"]);
-    expect(r.sections[0].content).toContain("**features port**: persist lifecycle");
+    expect(r.sections.map((s) => s.title)).toEqual([
+      "Architecture",
+      "User flows",
+      "Open questions",
+    ]);
+    expect(r.sections[0].content).toContain(
+      "**features port**: persist lifecycle",
+    );
     expect(r.sections[1].mockups?.[0].title).toBe("flow"); // tagged user_flows → attaches there
     expect(r.sections[2].questions?.[0].question).toBe("Which repos?");
   });
@@ -104,7 +153,20 @@ describe("parseGapResult", () => {
 
   it("throws when a choice question has an explicit empty options array", () => {
     const bad = {
-      sections: [{ title: "Q", questions: [{ id: "q3", question: "Pick", why: "branch", kind: "choice", options: [] }] }],
+      sections: [
+        {
+          title: "Q",
+          questions: [
+            {
+              id: "q3",
+              question: "Pick",
+              why: "branch",
+              kind: "choice",
+              options: [],
+            },
+          ],
+        },
+      ],
       draft_spec_markdown: "x",
     };
     expect(() => parseGapResult(bad)).toThrow(/options must be non-empty/);
@@ -116,17 +178,26 @@ describe("parseGapResult", () => {
       split_suggestion: { rationale: "too big" },
       draft_spec_markdown: "x",
     };
-    expect(() => parseGapResult(bad)).toThrow(/proposed_features must be an array/);
+    expect(() => parseGapResult(bad)).toThrow(
+      /proposed_features must be an array/,
+    );
   });
 });
 
 describe("sectionsOf", () => {
   it("returns the sections of a new-shape result", () => {
-    expect(sectionsOf(validResult).map((s) => s.title)).toEqual(["Overview", "Data model"]);
+    expect(sectionsOf(validResult).map((s) => s.title)).toEqual([
+      "Overview",
+      "Data model",
+    ]);
   });
 
   it("derives sections from a raw legacy-shape object", () => {
-    expect(sectionsOf(legacyPayload).map((s) => s.title)).toEqual(["Architecture", "User flows", "Open questions"]);
+    expect(sectionsOf(legacyPayload).map((s) => s.title)).toEqual([
+      "Architecture",
+      "User flows",
+      "Open questions",
+    ]);
   });
 
   it("returns [] for null or unrecognized input", () => {
@@ -137,19 +208,29 @@ describe("sectionsOf", () => {
 
 describe("sanitizeSvg", () => {
   it("strips a script element", () => {
-    expect(sanitizeSvg("<svg><script>alert(1)</script><rect/></svg>")).toBe("<svg><rect/></svg>");
+    expect(sanitizeSvg("<svg><script>alert(1)</script><rect/></svg>")).toBe(
+      "<svg><rect/></svg>",
+    );
   });
 
   it("strips an inline event handler attribute", () => {
-    expect(sanitizeSvg('<svg onload="steal()"><rect/></svg>')).toBe("<svg><rect/></svg>");
+    expect(sanitizeSvg('<svg onload="steal()"><rect/></svg>')).toBe(
+      "<svg><rect/></svg>",
+    );
   });
 
   it("strips a javascript: href", () => {
-    expect(sanitizeSvg('<svg><a href="javascript:evil()">x</a></svg>')).toBe("<svg><a>x</a></svg>");
+    expect(sanitizeSvg('<svg><a href="javascript:evil()">x</a></svg>')).toBe(
+      "<svg><a>x</a></svg>",
+    );
   });
 
   it("strips a foreignObject element", () => {
-    expect(sanitizeSvg("<svg><foreignObject><div>x</div></foreignObject><rect/></svg>")).toBe("<svg><rect/></svg>");
+    expect(
+      sanitizeSvg(
+        "<svg><foreignObject><div>x</div></foreignObject><rect/></svg>",
+      ),
+    ).toBe("<svg><rect/></svg>");
   });
 
   it("keeps a clean svg with a fragment href unchanged", () => {
@@ -161,10 +242,23 @@ describe("sanitizeSvg", () => {
 describe("sanitizeGapResult", () => {
   it("sanitizes mockup markup across every section", () => {
     const g = parseGapResult({
-      sections: [{ title: "D", mockups: [{ title: "m", format: "svg", markup: "<svg><script>x</script><rect/></svg>" }] }],
+      sections: [
+        {
+          title: "D",
+          mockups: [
+            {
+              title: "m",
+              format: "svg",
+              markup: "<svg><script>x</script><rect/></svg>",
+            },
+          ],
+        },
+      ],
       draft_spec_markdown: "x",
     });
-    expect(sanitizeGapResult(g).sections[0].mockups?.[0].markup).toBe("<svg><rect/></svg>");
+    expect(sanitizeGapResult(g).sections[0].mockups?.[0].markup).toBe(
+      "<svg><rect/></svg>",
+    );
   });
 });
 
@@ -176,7 +270,10 @@ describe("decideFeatureStatus", () => {
   it("returns awaiting-input when a split is suggested", () => {
     const withSplit: GapResult = {
       sections: [{ title: "Overview", content: "x" }],
-      split_suggestion: { rationale: "too big", proposed_features: [{ title: "A", scope: "part A" }] },
+      split_suggestion: {
+        rationale: "too big",
+        proposed_features: [{ title: "A", scope: "part A" }],
+      },
       draft_spec_markdown: "# spec",
     };
     expect(decideFeatureStatus(withSplit)).toBe("awaiting-input");
@@ -184,7 +281,10 @@ describe("decideFeatureStatus", () => {
 
   it("returns spec-ready when no section has questions and no split", () => {
     const ready: GapResult = {
-      sections: [{ title: "Overview", content: "x" }, { title: "Data model", content: "y" }],
+      sections: [
+        { title: "Overview", content: "x" },
+        { title: "Data model", content: "y" },
+      ],
       draft_spec_markdown: "# spec",
     };
     expect(decideFeatureStatus(ready)).toBe("spec-ready");
@@ -193,10 +293,16 @@ describe("decideFeatureStatus", () => {
 
 describe("isPlanningPhase", () => {
   it("returns true for the in-planning statuses", () => {
-    expect(["draft", "planning", "awaiting-input", "spec-ready"].map(isPlanningPhase)).toEqual([true, true, true, true]);
+    expect(
+      ["draft", "planning", "awaiting-input", "spec-ready"].map(
+        isPlanningPhase,
+      ),
+    ).toEqual([true, true, true, true]);
   });
 
   it("returns false once the feature has left planning", () => {
-    expect(["pr-open", "implemented", "split", "anything-else"].map(isPlanningPhase)).toEqual([false, false, false, false]);
+    expect(
+      ["pr-open", "implemented", "split", "anything-else"].map(isPlanningPhase),
+    ).toEqual([false, false, false, false]);
   });
 });

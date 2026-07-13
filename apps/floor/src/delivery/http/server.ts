@@ -19,7 +19,10 @@ import { ciTestsRoute } from "./routes/ci-tests.js";
 // would reject large push deliveries that used to work.
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
 
-export function buildServer(opts: { getJobStatus: () => unknown; port?: number }): Hapi.Server {
+export function buildServer(opts: {
+  getJobStatus: () => unknown;
+  port?: number;
+}): Hapi.Server {
   const server = Hapi.server({
     port: opts.port ?? 0,
     host: "0.0.0.0",
@@ -39,7 +42,10 @@ export function buildServer(opts: { getJobStatus: () => unknown; port?: number }
   return server;
 }
 
-export async function startHealthServer(port: number, getJobStatus: () => unknown): Promise<void> {
+export async function startHealthServer(
+  port: number,
+  getJobStatus: () => unknown,
+): Promise<void> {
   const server = buildServer({ getJobStatus, port });
 
   process.on("SIGTERM", () => {

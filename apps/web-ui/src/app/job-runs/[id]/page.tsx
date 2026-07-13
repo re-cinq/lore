@@ -6,7 +6,9 @@ import JobRunView, { JobRunRow } from "./JobRunView";
 async function fetchLogs(logPath: string | null): Promise<string | null> {
   if (!logPath) return null;
   try {
-    const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
+    const bucket = new Storage().bucket(
+      process.env.LORE_LOG_BUCKET || "lore-task-logs",
+    );
     const file = bucket.file(logPath);
     const [exists] = await file.exists();
     if (!exists) return null;
@@ -17,7 +19,11 @@ async function fetchLogs(logPath: string | null): Promise<string | null> {
   }
 }
 
-export default async function JobRunPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function JobRunPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
 
   const run = await queryOne<JobRunRow>(

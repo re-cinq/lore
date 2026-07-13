@@ -7,14 +7,22 @@ import {
   type ChunkLineRange,
   type BrokenLink,
 } from "./spec-coverage-validate.js";
-import type { TestLinkRef } from "@re-cinq/lore-shared";
+import type { TestLinkRef } from "../index.js";
 
 const ref = (path: string, line: number | null = null): TestLinkRef => ({
-  label: "t", path, line,
+  label: "t",
+  path,
+  line,
 });
 
-const chunk = (file_path: string, start_line: number | null, end_line: number | null): ChunkLineRange => ({
-  file_path, start_line, end_line,
+const chunk = (
+  file_path: string,
+  start_line: number | null,
+  end_line: number | null,
+): ChunkLineRange => ({
+  file_path,
+  start_line,
+  end_line,
 });
 
 describe("resolveTestLink (pure)", () => {
@@ -91,11 +99,19 @@ describe("collectBrokenLinks", () => {
   });
 
   it("returns empty when every link resolves", () => {
-    expect(collectBrokenLinks("x", "## A\n\nLinked. ([t](src/x.test.ts#L42))", chunks)).toEqual([]);
+    expect(
+      collectBrokenLinks(
+        "x",
+        "## A\n\nLinked. ([t](src/x.test.ts#L42))",
+        chunks,
+      ),
+    ).toEqual([]);
   });
 
   it("returns empty when the spec has no test links at all", () => {
-    expect(collectBrokenLinks("x", "## A\n\nPlain prose.\n", chunks)).toEqual([]);
+    expect(collectBrokenLinks("x", "## A\n\nPlain prose.\n", chunks)).toEqual(
+      [],
+    );
   });
 
   it("flags a coverage link placed outside the trailing parenthetical", () => {
@@ -150,11 +166,15 @@ describe("formatBrokenLinksReport", () => {
 
 describe("hasOpenLinkRotIssue", () => {
   it("returns true when an open issue carries the spec-link-rot label", () => {
-    expect(hasOpenLinkRotIssue([{ labels: ["lore-managed", "spec-link-rot"] }])).toBe(true);
+    expect(
+      hasOpenLinkRotIssue([{ labels: ["lore-managed", "spec-link-rot"] }]),
+    ).toBe(true);
   });
 
   it("returns false when no open issue carries the label", () => {
-    expect(hasOpenLinkRotIssue([{ labels: ["lore-managed"] }, { labels: [] }])).toBe(false);
+    expect(
+      hasOpenLinkRotIssue([{ labels: ["lore-managed"] }, { labels: [] }]),
+    ).toBe(false);
   });
 
   it("returns false for an empty issue list", () => {

@@ -107,9 +107,9 @@ describe("twoKeyFieldsTouched", () => {
   });
 
   it("flags auto_merge.paths", () => {
-    expect(
-      twoKeyFieldsTouched({ auto_merge: { paths: ["a", "b"] } }),
-    ).toEqual(["auto_merge.paths"]);
+    expect(twoKeyFieldsTouched({ auto_merge: { paths: ["a", "b"] } })).toEqual([
+      "auto_merge.paths",
+    ]);
   });
 
   it("flags require_green_ci only when downgrading to false", () => {
@@ -152,9 +152,9 @@ describe("twoKeyFieldsTouched", () => {
   });
 
   it("flags execution.image (security boundary)", () => {
-    expect(twoKeyFieldsTouched({ execution: { image: "golang:1.23" } })).toEqual(
-      ["execution.image"],
-    );
+    expect(
+      twoKeyFieldsTouched({ execution: { image: "golang:1.23" } }),
+    ).toEqual(["execution.image"]);
   });
 
   it("flags a per-task-type task_overrides execution.image", () => {

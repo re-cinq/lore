@@ -34,10 +34,10 @@ export interface ContextMeta {
 
 export function escapeXmlAttr(value: string): string {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -67,36 +67,50 @@ function isBetter(candidate: SourceItem, current: SourceItem): boolean {
   const a = candidate.score ?? -Infinity;
   const b = current.score ?? -Infinity;
   if (a !== b) return a > b;
-  const ai = candidate.ingested_at ? Date.parse(candidate.ingested_at) : -Infinity;
+  const ai = candidate.ingested_at
+    ? Date.parse(candidate.ingested_at)
+    : -Infinity;
   const bi = current.ingested_at ? Date.parse(current.ingested_at) : -Infinity;
   return ai > bi;
 }
 
-export function serializeDocument(item: SourceItem, opts: { truncated?: boolean } = {}): string {
+export function serializeDocument(
+  item: SourceItem,
+  opts: { truncated?: boolean } = {},
+): string {
   const attrs = [
-    item.source_path ? `source="${escapeXmlAttr(item.source_path)}"` : '',
-    item.content_type ? `type="${escapeXmlAttr(item.content_type)}"` : '',
-    item.repo ? `repo="${escapeXmlAttr(item.repo)}"` : '',
-    typeof item.score === 'number' ? `relevance="${item.score.toFixed(2)}"` : '',
+    item.source_path ? `source="${escapeXmlAttr(item.source_path)}"` : "",
+    item.content_type ? `type="${escapeXmlAttr(item.content_type)}"` : "",
+    item.repo ? `repo="${escapeXmlAttr(item.repo)}"` : "",
+    typeof item.score === "number"
+      ? `relevance="${item.score.toFixed(2)}"`
+      : "",
     `tokens="${item.tokens}"`,
-    opts.truncated ? 'truncated="true"' : '',
+    opts.truncated ? 'truncated="true"' : "",
   ]
     .filter(Boolean)
-    .join(' ');
+    .join(" ");
   return `<document ${attrs}>\n${item.text}\n</document>`;
 }
 
 export function serializeSection(section: SerializedSection): string {
   const lastIndex = section.items.length - 1;
   const inner = section.items
-    .map((it, i) => serializeDocument(it, { truncated: section.truncated && i === lastIndex }))
-    .join('\n');
+    .map((it, i) =>
+      serializeDocument(it, {
+        truncated: section.truncated && i === lastIndex,
+      }),
+    )
+    .join("\n");
   const open = `<section name="${escapeXmlAttr(section.header)}" source="${escapeXmlAttr(section.source)}" priority="${section.priority}">`;
   return `${open}\n${inner}\n</section>`;
 }
 
-export function serializeContext(meta: ContextMeta, sections: SerializedSection[]): string {
-  const inner = sections.map(serializeSection).join('\n');
+export function serializeContext(
+  meta: ContextMeta,
+  sections: SerializedSection[],
+): string {
+  const inner = sections.map(serializeSection).join("\n");
   const open = `<context query="${escapeXmlAttr(meta.query)}" template="${escapeXmlAttr(meta.template)}" budget="${meta.budget}">`;
   return `${open}\n${inner}\n</context>`;
 }

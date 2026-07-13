@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import { query, queryAllChunks } from '@/lib/db';
-import { revalidatePath } from 'next/cache';
-import TasksView from './TasksView';
+import { query, queryAllChunks } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+import TasksView from "./TasksView";
 
 interface Task {
   id: string;
@@ -21,27 +21,30 @@ interface AuditEntry {
 }
 
 async function createTask(formData: FormData) {
-  'use server';
-  const description = formData.get('description') as string;
+  "use server";
+  const description = formData.get("description") as string;
   if (!description) return;
   await query(
     `INSERT INTO org_shared.chunks (content, content_type, team, repo, file_path, metadata)
      VALUES ($1, 'task', 'org', 're-cinq/lore', 'tasks/ui-created', $2)`,
-    [description, JSON.stringify({ created_by: 'ui', status: 'open' })]
+    [description, JSON.stringify({ created_by: "ui", status: "open" })],
   );
-  revalidatePath('/tasks');
+  revalidatePath("/tasks");
 }
 
 export default async function TasksPage() {
-  const allTasks = await queryAllChunks<Task>(
-    (schema) => ({
-      sql: `SELECT id, content, content_type, metadata, ingested_at
+  const allTasks = await queryAllChunks<Task>((schema) => ({
+    sql: `SELECT id, content, content_type, metadata, ingested_at
             FROM ${schema}.chunks
             WHERE content_type = 'task'`,
-      params: [],
-    }),
-  );
-  const tasks = allTasks.sort((a, b) => new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime()).slice(0, 50);
+    params: [],
+  }));
+  const tasks = allTasks
+    .sort(
+      (a, b) =>
+        new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime(),
+    )
+    .slice(0, 50);
 
   const recentActivity = await query<AuditEntry>(`
     SELECT agent_id, operation, memory_key, metadata, created_at
@@ -50,5 +53,11 @@ export default async function TasksPage() {
     LIMIT 15
   `);
 
-  return <TasksView tasks={tasks} recentActivity={recentActivity} createTask={createTask} />;
+  return (
+    <TasksView
+      tasks={tasks}
+      recentActivity={recentActivity}
+      createTask={createTask}
+    />
+  );
 }

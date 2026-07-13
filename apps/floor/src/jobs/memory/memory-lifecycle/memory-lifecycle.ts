@@ -29,7 +29,9 @@ const CONSOLIDATION_LOOKBACK_DAYS = 7;
 
 export async function importanceDecayJob(): Promise<string> {
   // Find agents with too many memories
-  const agents = await memoryLifecycle().countMemoriesByAgentOverCap(MAX_MEMORIES_PER_AGENT);
+  const agents = await memoryLifecycle().countMemoriesByAgentOverCap(
+    MAX_MEMORIES_PER_AGENT,
+  );
 
   let totalEvicted = 0;
 
@@ -38,7 +40,11 @@ export async function importanceDecayJob(): Promise<string> {
     if (excess <= 0) continue;
 
     // Get old memories (older than DECAY_MIN_AGE_DAYS), fetch double to have room for scoring
-    const candidates = await memoryLifecycle().findDecayCandidates(agent_id, excess * 2, DECAY_MIN_AGE_DAYS);
+    const candidates = await memoryLifecycle().findDecayCandidates(
+      agent_id,
+      excess * 2,
+      DECAY_MIN_AGE_DAYS,
+    );
 
     // Score and sort by importance (ascending = least important first)
     const scored = candidates
@@ -63,17 +69,21 @@ export async function importanceDecayJob(): Promise<string> {
   }
 
   // Also evict old invalidated facts beyond cap
-  const factAgents = await memoryLifecycle().countInvalidatedFactsByAgentOverCap(
-    MAX_FACTS_PER_AGENT,
-    DECAY_MIN_AGE_DAYS,
-  );
+  const factAgents =
+    await memoryLifecycle().countInvalidatedFactsByAgentOverCap(
+      MAX_FACTS_PER_AGENT,
+      DECAY_MIN_AGE_DAYS,
+    );
 
   let factsEvicted = 0;
   for (const { cnt } of factAgents) {
     const excess = cnt - MAX_FACTS_PER_AGENT;
     if (excess <= 0) continue;
 
-    factsEvicted += await memoryLifecycle().deleteOldestInvalidatedFacts(excess, DECAY_MIN_AGE_DAYS);
+    factsEvicted += await memoryLifecycle().deleteOldestInvalidatedFacts(
+      excess,
+      DECAY_MIN_AGE_DAYS,
+    );
   }
 
   // Transition unretrieved facts to 'stale' after 30 days
@@ -85,7 +95,9 @@ export async function importanceDecayJob(): Promise<string> {
   }
 
   if (totalEvicted > 0 || factsEvicted > 0 || staleTransitioned > 0) {
-    console.log(`[job] importance-decay: evicted ${totalEvicted} memories, ${factsEvicted} old facts, transitioned ${staleTransitioned} facts to stale`);
+    console.log(
+      `[job] importance-decay: evicted ${totalEvicted} memories, ${factsEvicted} old facts, transitioned ${staleTransitioned} facts to stale`,
+    );
   }
 
   return `Evicted ${totalEvicted} memories, ${factsEvicted} old facts, ${staleTransitioned} stale transitions`;
@@ -99,7 +111,10 @@ export async function consolidationJob(): Promise<string> {
   }
 
   // Get recent facts from the last N days that haven't been consolidated
-  const recentFacts = await memoryLifecycle().findRecentValidFacts(CONSOLIDATION_LOOKBACK_DAYS, 50);
+  const recentFacts = await memoryLifecycle().findRecentValidFacts(
+    CONSOLIDATION_LOOKBACK_DAYS,
+    50,
+  );
 
   if (recentFacts.length < CONSOLIDATION_MIN_FACTS) {
     return `Skipped: only ${recentFacts.length} recent facts (need ${CONSOLIDATION_MIN_FACTS})`;
@@ -121,7 +136,8 @@ export async function consolidationJob(): Promise<string> {
     try {
       const result = await Llm.instance.complete({
         prompt: `Here are ${facts.length} recent facts extracted from agent sessions working on ${repo}. Identify 1-3 higher-level patterns or insights that emerge from these facts. Each pattern should be actionable — something future agents should know.\n\nFacts:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\nReturn each pattern on its own line, prefixed with "PATTERN: ". If no meaningful patterns emerge, respond with "NONE".`,
-        systemPrompt: "You are a knowledge consolidation engine. Extract reusable patterns from raw facts.",
+        systemPrompt:
+          "You are a knowledge consolidation engine. Extract reusable patterns from raw facts.",
         maxTokens: 512,
         jobName: "consolidation",
       });
@@ -146,7 +162,9 @@ export async function consolidationJob(): Promise<string> {
   }
 
   if (consolidated > 0) {
-    console.log(`[job] consolidation: created ${consolidated} pattern memories from ${recentFacts.length} facts`);
+    console.log(
+      `[job] consolidation: created ${consolidated} pattern memories from ${recentFacts.length} facts`,
+    );
   }
 
   return `Consolidated ${consolidated} patterns from ${recentFacts.length} facts`;

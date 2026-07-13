@@ -38,7 +38,8 @@ beforeAll(async () => {
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const addr = server.address();
-  if (addr === null || typeof addr === "string") throw new Error("no server address");
+  if (addr === null || typeof addr === "string")
+    throw new Error("no server address");
   baseUrl = `http://127.0.0.1:${addr.port}`;
 });
 
@@ -49,17 +50,23 @@ describe("AgentDefsHttp", () => {
     const store = new AgentDefsHttp(baseUrl, "tok-123");
 
     expect(await store.resolve("re-cinq/re-plan", "general")).toEqual(general);
-    expect(seen).toContain("Bearer tok-123 /api/repos/re-cinq/re-plan/agent-definitions/general");
+    expect(seen).toContain(
+      "Bearer tok-123 /api/repos/re-cinq/re-plan/agent-definitions/general",
+    );
   });
 
   it("returns null on a 404", async () => {
-    expect(await new AgentDefsHttp(baseUrl).resolve("re-cinq/re-plan", "missing")).toBeNull();
+    expect(
+      await new AgentDefsHttp(baseUrl).resolve("re-cinq/re-plan", "missing"),
+    ).toBeNull();
   });
 
   it("lists agents from the resource envelope", async () => {
-    expect((await new AgentDefsHttp(baseUrl).list("re-cinq/re-plan")).map((a) => a.name)).toEqual([
-      "general",
-    ]);
+    expect(
+      (await new AgentDefsHttp(baseUrl).list("re-cinq/re-plan")).map(
+        (a) => a.name,
+      ),
+    ).toEqual(["general"]);
   });
 
   it("refuses writes from a runner", async () => {

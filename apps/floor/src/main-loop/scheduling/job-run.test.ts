@@ -32,11 +32,18 @@ describe("completeJobRun", () => {
     const runs = new InMemoryJobRuns();
     const runId = await startJobRun("context_reindex", runs);
 
-    await completeJobRun(runId, "ok", {
-      logPath: "__job_runs__/context_reindex/run/output.log",
-    }, runs);
+    await completeJobRun(
+      runId,
+      "ok",
+      {
+        logPath: "__job_runs__/context_reindex/run/output.log",
+      },
+      runs,
+    );
 
-    expect(runs.rows[0]?.logPath).toBe("__job_runs__/context_reindex/run/output.log");
+    expect(runs.rows[0]?.logPath).toBe(
+      "__job_runs__/context_reindex/run/output.log",
+    );
   });
 });
 
@@ -58,10 +65,17 @@ describe("failJobRun", () => {
     const runs = new InMemoryJobRuns();
     const runId = await startJobRun("eval_runner", runs);
 
-    await failJobRun(runId, "boom", {
-      logPath: "__job_runs__/eval_runner/run/output.log",
-    }, runs);
+    await failJobRun(
+      runId,
+      "boom",
+      {
+        logPath: "__job_runs__/eval_runner/run/output.log",
+      },
+      runs,
+    );
 
-    expect(runs.rows[0]?.logPath).toBe("__job_runs__/eval_runner/run/output.log");
+    expect(runs.rows[0]?.logPath).toBe(
+      "__job_runs__/eval_runner/run/output.log",
+    );
   });
 });

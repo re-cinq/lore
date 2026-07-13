@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import { query } from '@/lib/db';
-import GapsView, { type ZeroResultSearchRow, type GapMemoryRow } from './GapsView';
+import { query } from "@/lib/db";
+import GapsView, {
+  type ZeroResultSearchRow,
+  type GapMemoryRow,
+} from "./GapsView";
 
 export default async function GapsPage() {
   const zeroResultSearches = await query<ZeroResultSearchRow>(`
@@ -22,5 +25,10 @@ export default async function GapsPage() {
     LIMIT 10
   `);
 
-  return <GapsView gapMemories={gapMemories} zeroResultSearches={zeroResultSearches} />;
+  return (
+    <GapsView
+      gapMemories={gapMemories}
+      zeroResultSearches={zeroResultSearches}
+    />
+  );
 }

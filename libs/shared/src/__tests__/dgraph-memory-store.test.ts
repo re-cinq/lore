@@ -18,7 +18,9 @@ const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -37,9 +39,9 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         `query nodes($agent: string) { nodes(func: eq(Memory.agent_id, $agent)) { uid } }`,
         { $agent: agent },
       );
-      const uids: string[] = ((res.data as { nodes?: { uid: string }[] }).nodes ?? []).map(
-        (node) => node.uid,
-      );
+      const uids: string[] = (
+        (res.data as { nodes?: { uid: string }[] }).nodes ?? []
+      ).map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -60,9 +62,9 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         `query nodes($agent: string) { nodes(func: eq(Fact.agent_id, $agent)) { uid } }`,
         { $agent: agent },
       );
-      const uids: string[] = ((res.data as { nodes?: { uid: string }[] }).nodes ?? []).map(
-        (node) => node.uid,
-      );
+      const uids: string[] = (
+        (res.data as { nodes?: { uid: string }[] }).nodes ?? []
+      ).map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -81,7 +83,10 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
     const store = new DgraphMemoryStore(dgraphClient);
 
     try {
-      await store.persistFact({ text: "the deploy pipeline runs on Mondays", agentId: agent });
+      await store.persistFact({
+        text: "the deploy pipeline runs on Mondays",
+        agentId: agent,
+      });
 
       const txn = dgraphClient.newTxn();
       try {
@@ -93,9 +98,13 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           }`,
           { $agent: agent },
         );
-        const facts = (res.data as { facts?: Record<string, any>[] }).facts ?? [];
+        const facts =
+          (res.data as { facts?: Record<string, any>[] }).facts ?? [];
         expect(facts).toContainEqual(
-          expect.objectContaining({ "Fact.text": "the deploy pipeline runs on Mondays", "Fact.active": true }),
+          expect.objectContaining({
+            "Fact.text": "the deploy pipeline runs on Mondays",
+            "Fact.active": true,
+          }),
         );
       } finally {
         await txn.discard().catch(() => {});
@@ -117,9 +126,9 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         }`,
         { $agent: agent },
       );
-      const uids: string[] = ((res.data as { conflicts?: { uid: string }[] }).conflicts ?? []).map(
-        (node) => node.uid,
-      );
+      const uids: string[] = (
+        (res.data as { conflicts?: { uid: string }[] }).conflicts ?? []
+      ).map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -170,13 +179,20 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           }`,
           { $agent: agent, $xid: first.id },
         );
-        const firstFact = (res.data as { firstFact?: Record<string, any>[] }).firstFact?.[0];
+        const firstFact = (res.data as { firstFact?: Record<string, any>[] })
+          .firstFact?.[0];
 
         expect(firstFact?.["Fact.active"]).toBe(false);
         expect(firstFact?.["~FactConflict.old_fact"]).toContainEqual(
-          expect.objectContaining({ "FactConflict.similarity": expect.any(Number) }),
+          expect.objectContaining({
+            "FactConflict.similarity": expect.any(Number),
+          }),
         );
-        expect(firstFact?.["~FactConflict.old_fact"]?.[0]?.["FactConflict.similarity"]).toBeGreaterThanOrEqual(0.92);
+        expect(
+          firstFact?.["~FactConflict.old_fact"]?.[0]?.[
+            "FactConflict.similarity"
+          ],
+        ).toBeGreaterThanOrEqual(0.92);
       } finally {
         await txn.discard().catch(() => {});
       }
@@ -191,10 +207,18 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
     const store = new DgraphMemoryStore(dgraphClient);
 
     try {
-      await store.writeMemory({ key: "kernel-key", value: "hello", agentId: agent });
+      await store.writeMemory({
+        key: "kernel-key",
+        value: "hello",
+        agentId: agent,
+      });
       const got = await store.readMemory("kernel-key", agent);
 
-      expect(got).toMatchObject({ key: "kernel-key", value: "hello", version: 1 });
+      expect(got).toMatchObject({
+        key: "kernel-key",
+        value: "hello",
+        version: 1,
+      });
     } finally {
       await deleteAgentNodes(agent);
     }
@@ -206,7 +230,11 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
 
     try {
       await store.writeMemory({ key: "k", value: "v1", agentId: agent });
-      const secondWrite = await store.writeMemory({ key: "k", value: "v2", agentId: agent });
+      const secondWrite = await store.writeMemory({
+        key: "k",
+        value: "v2",
+        agentId: agent,
+      });
       const got = await store.readMemory("k", agent);
 
       expect(secondWrite).toMatchObject({ version: 2 });
@@ -221,7 +249,11 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
     const store = new DgraphMemoryStore(dgraphClient);
 
     try {
-      await store.writeMemory({ key: "expired-key", value: "stale", agentId: agent });
+      await store.writeMemory({
+        key: "expired-key",
+        value: "stale",
+        agentId: agent,
+      });
 
       const txn = dgraphClient.newTxn();
       try {
@@ -273,7 +305,10 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       const out = await store.listMemories({ agentId: agent });
 
       expect(out.total).toBe(2);
-      expect(out.memories.map((memory) => memory.key).sort()).toEqual(["a", "b"]);
+      expect(out.memories.map((memory) => memory.key).sort()).toEqual([
+        "a",
+        "b",
+      ]);
     } finally {
       await deleteAgentNodes(agent);
     }
@@ -284,9 +319,15 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
     const store = new DgraphMemoryStore(dgraphClient);
 
     try {
-      await store.writeMemory({ key: "doc1", value: "postgres schema drift outage", agentId: agent });
+      await store.writeMemory({
+        key: "doc1",
+        value: "postgres schema drift outage",
+        agentId: agent,
+      });
 
-      const results = await store.searchMemories("schema drift", { agentId: agent });
+      const results = await store.searchMemories("schema drift", {
+        agentId: agent,
+      });
 
       expect(results).toContainEqual(
         expect.objectContaining({
@@ -314,10 +355,23 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
     const queryVec = basis(0);
 
     try {
-      await store.writeMemory({ key: "vecA", value: "alpha", agentId: agent, embedding: embeddingA });
-      await store.writeMemory({ key: "vecB", value: "beta", agentId: agent, embedding: embeddingB });
+      await store.writeMemory({
+        key: "vecA",
+        value: "alpha",
+        agentId: agent,
+        embedding: embeddingA,
+      });
+      await store.writeMemory({
+        key: "vecB",
+        value: "beta",
+        agentId: agent,
+        embedding: embeddingB,
+      });
 
-      const results = await store.searchMemories("zzznomatch", { agentId: agent, embedding: queryVec });
+      const results = await store.searchMemories("zzznomatch", {
+        agentId: agent,
+        embedding: queryVec,
+      });
 
       expect(results).toContainEqual(
         expect.objectContaining({ key: "vecA", source: "memory" }),
@@ -334,9 +388,9 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         `query nodes($agent: string) { nodes(func: eq(Episode.agent_id, $agent)) { uid } }`,
         { $agent: agent },
       );
-      const uids: string[] = ((res.data as { nodes?: { uid: string }[] }).nodes ?? []).map(
-        (node) => node.uid,
-      );
+      const uids: string[] = (
+        (res.data as { nodes?: { uid: string }[] }).nodes ?? []
+      ).map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -401,7 +455,8 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           }`,
           { $name: name },
         );
-        for (const entity of (res.data as { q?: Record<string, any>[] }).q ?? []) {
+        for (const entity of (res.data as { q?: Record<string, any>[] }).q ??
+          []) {
           uids.add(entity.uid);
           for (const rel of entity["Entity.out_rels"] ?? []) uids.add(rel.uid);
           for (const rel of entity["Entity.in_rels"] ?? []) uids.add(rel.uid);
@@ -442,12 +497,17 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           }`,
           { $a: source },
         );
-        const rels = (res.data as { ent?: Record<string, any>[] }).ent?.[0]?.["Entity.out_rels"] ?? [];
+        const rels =
+          (res.data as { ent?: Record<string, any>[] }).ent?.[0]?.[
+            "Entity.out_rels"
+          ] ?? [];
         expect(rels).toContainEqual(
           expect.objectContaining({
             "GraphRel.relation_type": "uses",
             "GraphRel.active": true,
-            "GraphRel.target": expect.objectContaining({ "Entity.name": target }),
+            "GraphRel.target": expect.objectContaining({
+              "Entity.name": target,
+            }),
           }),
         );
       } finally {
@@ -481,12 +541,21 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           }`,
           { $a: a },
         );
-        const rels = (res.data as { ent?: Record<string, any>[] }).ent?.[0]?.["Entity.out_rels"] ?? [];
+        const rels =
+          (res.data as { ent?: Record<string, any>[] }).ent?.[0]?.[
+            "Entity.out_rels"
+          ] ?? [];
         const activeByTarget = Object.fromEntries(
-          rels.map((rel: Record<string, any>) => [rel["GraphRel.target"]?.["Entity.name"], rel["GraphRel.active"]]),
+          rels.map((rel: Record<string, any>) => [
+            rel["GraphRel.target"]?.["Entity.name"],
+            rel["GraphRel.active"],
+          ]),
         );
 
-        expect({ [b]: activeByTarget[b], [c]: activeByTarget[c] }).toEqual({ [b]: false, [c]: true });
+        expect({ [b]: activeByTarget[b], [c]: activeByTarget[c] }).toEqual({
+          [b]: false,
+          [c]: true,
+        });
       } finally {
         await txn.discard().catch(() => {});
       }
@@ -555,7 +624,9 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       await store.upsertEdge({ source: a, target: b, relationType: "uses" });
       await store.upsertEdge({ source: a, target: c, relationType: "uses" }); // invalidates a--uses-->b
 
-      const targets = (await store.queryGraph(a, 1)).map((hop) => hop.related_entity);
+      const targets = (await store.queryGraph(a, 1)).map(
+        (hop) => hop.related_entity,
+      );
 
       expect(targets).toContain(c);
       expect(targets).not.toContain(b);

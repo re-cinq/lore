@@ -18,7 +18,10 @@ export interface BackoffOptions {
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function withBackoff<T>(fn: () => Promise<T>, opts: BackoffOptions): Promise<T> {
+export async function withBackoff<T>(
+  fn: () => Promise<T>,
+  opts: BackoffOptions,
+): Promise<T> {
   const sleep = opts.sleep ?? defaultSleep;
   let lastError: unknown;
   for (let attempt = 0; attempt <= opts.delaysMs.length; attempt++) {

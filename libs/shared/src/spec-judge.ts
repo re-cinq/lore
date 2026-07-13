@@ -87,7 +87,11 @@ export const EMBEDDING_THRESHOLD = 0.75;
 export const JUDGE_SCORE_THRESHOLD = 0.5;
 
 /** Strongest-first ranking so truncation keeps the best signals. */
-const KIND_RANK: Record<MatchKind, number> = { assertion: 3, directory: 2, embedding: 1 };
+const KIND_RANK: Record<MatchKind, number> = {
+  assertion: 3,
+  directory: 2,
+  embedding: 1,
+};
 
 // ── Pure helpers ─────────────────────────────────────────────────────
 
@@ -110,7 +114,10 @@ function significantTokens(value: string): string[] {
 
 /** A test shares a feature directory with the spec when it overlaps at least
  * half of the spec slug's significant tokens. */
-export function hasDirectoryAffinity(specPath: string, testPath: string): boolean {
+export function hasDirectoryAffinity(
+  specPath: string,
+  testPath: string,
+): boolean {
   const slug = specFeatureSlug(specPath);
   if (!slug) return false;
   const slugTokens = new Set(significantTokens(slug));
@@ -136,7 +143,10 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 /** First assertion symbol the test chunk literally references, or null. */
-export function matchedAssertion(content: string, assertions: Assertion[]): string | null {
+export function matchedAssertion(
+  content: string,
+  assertions: Assertion[],
+): string | null {
   const lower = content.toLowerCase();
   for (const assertion of assertions) {
     const name = assertion.name.toLowerCase();
@@ -147,7 +157,9 @@ export function matchedAssertion(content: string, assertions: Assertion[]): stri
 
 /** Builds the normalized `describe › it` name from a chunk's AST metadata, or
  * null when the chunk names no test symbol. */
-export function deriveTestName(metadata: Record<string, unknown> | null): string | null {
+export function deriveTestName(
+  metadata: Record<string, unknown> | null,
+): string | null {
   if (!metadata) return null;
   const it = metadata["symbol_name"];
   if (typeof it !== "string" || it.length === 0) return null;
@@ -233,10 +245,9 @@ export function selectCandidates(
 }
 
 /** Existing links no longer confirmed this run — the rows to prune. */
-export function staleLinkKeys<T extends { test_file: string; test_name: string }>(
-  existing: T[],
-  confirmed: { test_file: string; test_name: string }[],
-): T[] {
+export function staleLinkKeys<
+  T extends { test_file: string; test_name: string },
+>(existing: T[], confirmed: { test_file: string; test_name: string }[]): T[] {
   const keep = new Set(confirmed.map(candidateKey));
   return existing.filter((link) => !keep.has(candidateKey(link)));
 }

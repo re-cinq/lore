@@ -10,7 +10,12 @@ import {
   type AdrSummary,
 } from "../../spec-trace/assemble-trace-document.js";
 import { recomputeFile } from "../../spec-trace/recompute-spec-file.js";
-import { fetchSpecGraph, fetchSpecRing, type SpecGraph, type SpecRing } from "../../spec-trace/spec-graph.js";
+import {
+  fetchSpecGraph,
+  fetchSpecRing,
+  type SpecGraph,
+  type SpecRing,
+} from "../../spec-trace/spec-graph.js";
 import type { TracePort } from "./trace-port.js";
 
 /** TracePort over the live spec-trace Dgraph — the same client the ingest path projects into. */

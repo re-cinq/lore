@@ -21,7 +21,9 @@ import { resolveTokenScopes, type TokenScope } from "../../api/routes/auth.js";
 const STRATEGY = "bearer-scope";
 
 /** Guard a native route with the bearer-scope strategy and a required scope. */
-export function bearerScope(scope: TokenScope): Pick<RouteOptions, "auth" | "plugins"> {
+export function bearerScope(
+  scope: TokenScope,
+): Pick<RouteOptions, "auth" | "plugins"> {
   return { auth: STRATEGY, plugins: { [STRATEGY]: { scope } } };
 }
 
@@ -33,25 +35,35 @@ function denied(statusCode: 401 | 403, error: string): Boom.Boom {
   return boom;
 }
 
-const scheme = (getPool: () => Pool | null): ServerAuthScheme => () => ({
-  authenticate: async (request, h) => {
-    const authHeader = request.headers.authorization;
-    const bearer = (Array.isArray(authHeader) ? authHeader[0] : authHeader)?.replace("Bearer ", "");
-    if (!bearer) throw denied(401, "unauthorized");
+const scheme =
+  (getPool: () => Pool | null): ServerAuthScheme =>
+  () => ({
+    authenticate: async (request, h) => {
+      const authHeader = request.headers.authorization;
+      const bearer = (
+        Array.isArray(authHeader) ? authHeader[0] : authHeader
+      )?.replace("Bearer ", "");
+      if (!bearer) throw denied(401, "unauthorized");
 
-    const scopes = await resolveTokenScopes(getPool(), bearer);
-    if (!scopes) throw denied(403, "insufficient scope");
+      const scopes = await resolveTokenScopes(getPool(), bearer);
+      if (!scopes) throw denied(403, "insufficient scope");
 
-    const routeConfig = request.route.settings.plugins as Record<string, { scope?: TokenScope } | undefined>;
-    const required = routeConfig[STRATEGY]?.scope;
-    if (required && !scopes.includes("admin") && !scopes.includes(required)) {
-      throw denied(403, "insufficient scope");
-    }
-    return h.authenticated({ credentials: { scope: scopes } });
-  },
-});
+      const routeConfig = request.route.settings.plugins as Record<
+        string,
+        { scope?: TokenScope } | undefined
+      >;
+      const required = routeConfig[STRATEGY]?.scope;
+      if (required && !scopes.includes("admin") && !scopes.includes(required)) {
+        throw denied(403, "insufficient scope");
+      }
+      return h.authenticated({ credentials: { scope: scopes } });
+    },
+  });
 
-export function registerBearerScope(server: Server, getPool: () => Pool | null): void {
+export function registerBearerScope(
+  server: Server,
+  getPool: () => Pool | null,
+): void {
   server.auth.scheme(STRATEGY, scheme(getPool));
   server.auth.strategy(STRATEGY, STRATEGY);
 }

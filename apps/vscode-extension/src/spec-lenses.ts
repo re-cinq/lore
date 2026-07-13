@@ -5,7 +5,11 @@
  * lock-step with the web-UI by reusing the same shared link parsers.
  */
 
-import { parseCodeLinksInStatement, parseTestLinksInStatement, type SpecLinkRef } from "@re-cinq/lore-shared/spec-link-parser.js";
+import {
+  parseCodeLinksInStatement,
+  parseTestLinksInStatement,
+  type SpecLinkRef,
+} from "@re-cinq/lore-shared/spec-link-parser.js";
 import type { LinkTarget } from "./spec-index.js";
 
 export interface SpecLens {

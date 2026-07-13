@@ -4,12 +4,17 @@
  * classification are unit-testable.
  */
 
-import type { TraceDocument } from "@re-cinq/lore-shared";
-import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
+import type { TraceDocument } from "../index.js";
+import { OPEN_TASK_STATES } from "../project/tasks/task-store-port.js";
 
 /** Speckit artifacts that are prose, not named-symbol sources — scanning them
  * for "missing code symbols" yields permanent 100% false drift. */
-const NON_ASSERTION_BASENAMES = new Set(["research", "plan", "tasks", "quickstart"]);
+const NON_ASSERTION_BASENAMES = new Set([
+  "research",
+  "plan",
+  "tasks",
+  "quickstart",
+]);
 
 /** True when a spec file is worth checking for drift (names code, not concepts). */
 export function isAssertionSource(filePath: string): boolean {
@@ -43,11 +48,16 @@ interface ExistingDriftTask {
  * a resolved/failed one is still within its cooldown — stops the weekly duplicate
  * PRs without letting a failed task suppress real drift forever.
  */
-export function shouldSkipDrift(existing: ExistingDriftTask[], now: Date): boolean {
+export function shouldSkipDrift(
+  existing: ExistingDriftTask[],
+  now: Date,
+): boolean {
   return existing.some((t) => {
     if (OPEN_STATES.has(t.status)) return true;
     const cooldownDays =
-      t.status === "failed" ? DRIFT_FAILED_REFILE_COOLDOWN_DAYS : DRIFT_REFILE_COOLDOWN_DAYS;
+      t.status === "failed"
+        ? DRIFT_FAILED_REFILE_COOLDOWN_DAYS
+        : DRIFT_REFILE_COOLDOWN_DAYS;
     const age = now.getTime() - new Date(t.created_at).getTime();
     return age < cooldownDays * 86400_000;
   });
@@ -77,7 +87,9 @@ export interface GraphDriftDecision {
  * by the link-rot validate pass, so it does not surface here.
  */
 export function decideGraphDrift(doc: TraceDocument): GraphDriftDecision {
-  const headingByUid = new Map((doc.sections ?? []).map((s) => [s.uid, s.heading]));
+  const headingByUid = new Map(
+    (doc.sections ?? []).map((s) => [s.uid, s.heading]),
+  );
   const statements: DriftedStatement[] = (doc.statements ?? [])
     .filter((s) => s.violated || s.drifted)
     .map((s) => ({
@@ -85,7 +97,12 @@ export function decideGraphDrift(doc: TraceDocument): GraphDriftDecision {
       ordinal: s.ordinal,
       section: s.sectionUid ? headingByUid.get(s.sectionUid) : undefined,
       reason: s.violated ? "violated" : "drifted",
-      links: (s.links ?? []).map((l) => ({ kind: l.kind, label: l.label, path: l.path, line: l.line })),
+      links: (s.links ?? []).map((l) => ({
+        kind: l.kind,
+        label: l.label,
+        path: l.path,
+        line: l.line,
+      })),
     }));
   return {
     available: (doc.statements?.length ?? 0) > 0,
@@ -133,8 +150,13 @@ export function decideHeuristicDrift(
   knownSymbols: Set<string>,
 ): HeuristicDriftDecision {
   const scorable = assertions.filter((a) => isScorableKind(a.kind));
-  const missing = scorable.filter((a) => !knownSymbols.has(a.name.toLowerCase()));
-  const divergence = scorable.length === 0 ? 0 : missing.length / scorable.length;
-  const drifted = divergence > DIVERGENCE_THRESHOLD && missing.length >= MIN_MISSING_ASSERTIONS;
+  const missing = scorable.filter(
+    (a) => !knownSymbols.has(a.name.toLowerCase()),
+  );
+  const divergence =
+    scorable.length === 0 ? 0 : missing.length / scorable.length;
+  const drifted =
+    divergence > DIVERGENCE_THRESHOLD &&
+    missing.length >= MIN_MISSING_ASSERTIONS;
   return { drifted, missing, divergence, scored: scorable.length };
 }

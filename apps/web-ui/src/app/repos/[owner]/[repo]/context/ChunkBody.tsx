@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import rehypeHighlight from 'rehype-highlight';
-import { resolveHref, blobUrl } from '@/lib/github-links';
-import { languageForPath, fenceFor } from '@/lib/code-lang';
-import { chunkHeader, type ChunkMeta } from '@/lib/chunk-presenter';
-import readme from '../ReadmeBox.module.css';
-import styles from './ChunkBody.module.css';
+import { useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeHighlight from "rehype-highlight";
+import { resolveHref, blobUrl } from "@/lib/github-links";
+import { languageForPath, fenceFor } from "@/lib/code-lang";
+import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
+import readme from "../ReadmeBox.module.css";
+import styles from "./ChunkBody.module.css";
 
 /** Content types whose `content` is markdown (rendered as prose). Everything
  * that isn't `code` falls back to this branch — `pull_request`/`rule` and any
  * future text type render fine as markdown. */
-const CODE_TYPE = 'code';
+const CODE_TYPE = "code";
 
 export interface ChunkBodyProps {
   content: string;
@@ -40,7 +40,7 @@ export default function ChunkBody({
   contentType,
   filePath,
   repo,
-  branch = 'main',
+  branch = "main",
   metadata,
   preview = false,
 }: ChunkBodyProps) {
@@ -48,10 +48,16 @@ export default function ChunkBody({
 
   const mdComponents = useMemo(
     () => ({
-      a(props: React.ComponentPropsWithoutRef<'a'> & { node?: unknown }) {
+      a(props: React.ComponentPropsWithoutRef<"a"> & { node?: unknown }) {
         const { href, children, node: _node, ...rest } = props;
-        const { href: resolved, external } = resolveHref(href ?? '', repo, branch);
-        const ext = external ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+        const { href: resolved, external } = resolveHref(
+          href ?? "",
+          repo,
+          branch,
+        );
+        const ext = external
+          ? { target: "_blank", rel: "noopener noreferrer" }
+          : {};
         return (
           <a href={resolved} {...ext} {...rest}>
             {children}
@@ -62,13 +68,15 @@ export default function ChunkBody({
     [repo, branch],
   );
 
-  const fence = isCode ? fenceFor(content) : '';
+  const fence = isCode ? fenceFor(content) : "";
   const markdown = isCode
     ? `${fence}${languageForPath(filePath)}\n${content}\n${fence}`
     : content;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rehypePlugins: any[] = isCode ? [rehypeHighlight] : [rehypeRaw, rehypeHighlight];
+  const rehypePlugins: any[] = isCode
+    ? [rehypeHighlight]
+    : [rehypeRaw, rehypeHighlight];
 
   const headerLabel = chunkHeader(contentType, metadata);
   const ghHref = blobUrl(
@@ -83,15 +91,24 @@ export default function ChunkBody({
     <div>
       {!preview && (headerLabel || ghHref) && (
         <div className={styles.chunkHeader}>
-          {headerLabel && <span className={styles.headerLabel}>{headerLabel}</span>}
+          {headerLabel && (
+            <span className={styles.headerLabel}>{headerLabel}</span>
+          )}
           {ghHref && (
-            <a className={styles.headerLink} href={ghHref} target="_blank" rel="noopener noreferrer">
+            <a
+              className={styles.headerLink}
+              href={ghHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               View on GitHub ↗
             </a>
           )}
         </div>
       )}
-      <div className={`${readme.readme}${preview ? ` ${styles.previewBox}` : ''}`}>
+      <div
+        className={`${readme.readme}${preview ? ` ${styles.previewBox}` : ""}`}
+      >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={rehypePlugins}

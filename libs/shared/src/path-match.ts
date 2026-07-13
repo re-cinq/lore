@@ -1,9 +1,9 @@
 import { minimatch } from "minimatch";
 
 const MATCH_OPTIONS = {
-  dot: true,         // match dotfiles (e.g. .claude/**)
-  matchBase: false,  // require explicit ** for nested matching
-  nocase: false,     // path matches are case-sensitive on Linux
+  dot: true, // match dotfiles (e.g. .claude/**)
+  matchBase: false, // require explicit ** for nested matching
+  nocase: false, // path matches are case-sensitive on Linux
 };
 
 /**
@@ -39,9 +39,6 @@ export function allPathsMatch(
  * Lists which patterns in the allowlist matched a path. Useful for
  * diagnostics in the auto-merge audit log.
  */
-export function matchingPatterns(
-  path: string,
-  allowlist: string[],
-): string[] {
+export function matchingPatterns(path: string, allowlist: string[]): string[] {
   return allowlist.filter((p) => minimatch(path, p, MATCH_OPTIONS));
 }

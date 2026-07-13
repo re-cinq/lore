@@ -24,8 +24,12 @@ describe("writeEpisode", () => {
 
   it("returns the episode id then null on a duplicate", async () => {
     const deps: WriteEpisodeDeps = { memory: new InMemoryMemoryLifecycle() };
-    expect(await writeEpisode("same body", "ci", "r", "agent", deps)).toBe("episode-1");
-    expect(await writeEpisode("same body", "ci", "r", "agent", deps)).toBeNull();
+    expect(await writeEpisode("same body", "ci", "r", "agent", deps)).toBe(
+      "episode-1",
+    );
+    expect(
+      await writeEpisode("same body", "ci", "r", "agent", deps),
+    ).toBeNull();
   });
 
   it("returns null instead of throwing when the store fails", async () => {
@@ -34,7 +38,9 @@ describe("writeEpisode", () => {
         throw new Error("db down");
       },
     } as unknown as MemoryLifecyclePort;
-    expect(await writeEpisode("body", "ci", "r", "agent", { memory })).toBeNull();
+    expect(
+      await writeEpisode("body", "ci", "r", "agent", { memory }),
+    ).toBeNull();
   });
 });
 
@@ -63,7 +69,14 @@ describe("writeEpisodeWithCuration", () => {
 
   it("upserts a sanitized auto-curation memory for a real lesson", async () => {
     const d = deps("Always rebuild shared before the agent build.");
-    await writeEpisodeWithCuration("outcome", "ci", "re-cinq/lore#42", "merge-check", "t1", d.deps);
+    await writeEpisodeWithCuration(
+      "outcome",
+      "ci",
+      "re-cinq/lore#42",
+      "merge-check",
+      "t1",
+      d.deps,
+    );
     expect(curated(d.memory, "auto-curation/re-cinq/lore_42")).toMatchObject({
       agent_id: "merge-check",
       value: "Always rebuild shared before the agent build.",
@@ -73,7 +86,14 @@ describe("writeEpisodeWithCuration", () => {
   it("skips curation when ANTHROPIC_API_KEY is unset", async () => {
     delete process.env.ANTHROPIC_API_KEY;
     const d = deps("A lesson.");
-    await writeEpisodeWithCuration("outcome", "ci", "r", "merge-check", "t1", d.deps);
+    await writeEpisodeWithCuration(
+      "outcome",
+      "ci",
+      "r",
+      "merge-check",
+      "t1",
+      d.deps,
+    );
     expect(d.fake.calls).toHaveLength(0);
     expect(d.memory.memories).toHaveLength(0);
     expect(d.memory.episodes).toHaveLength(1);
@@ -81,18 +101,46 @@ describe("writeEpisodeWithCuration", () => {
 
   it("skips curation for a duplicate episode (no new id)", async () => {
     const d = deps("A real lesson learned.");
-    await writeEpisodeWithCuration("same", "ci", "r", "merge-check", "t1", d.deps);
-    await writeEpisodeWithCuration("same", "ci", "r", "merge-check", "t1", d.deps);
+    await writeEpisodeWithCuration(
+      "same",
+      "ci",
+      "r",
+      "merge-check",
+      "t1",
+      d.deps,
+    );
+    await writeEpisodeWithCuration(
+      "same",
+      "ci",
+      "r",
+      "merge-check",
+      "t1",
+      d.deps,
+    );
     expect(d.fake.calls).toHaveLength(1);
   });
 
   it("does not store a SKIP or too-short lesson", async () => {
     const skip = deps("SKIP");
-    await writeEpisodeWithCuration("outcome", "ci", "r1", "merge-check", "t1", skip.deps);
+    await writeEpisodeWithCuration(
+      "outcome",
+      "ci",
+      "r1",
+      "merge-check",
+      "t1",
+      skip.deps,
+    );
     expect(skip.memory.memories).toHaveLength(0);
 
     const short = deps("nope");
-    await writeEpisodeWithCuration("outcome", "ci", "r2", "merge-check", "t1", short.deps);
+    await writeEpisodeWithCuration(
+      "outcome",
+      "ci",
+      "r2",
+      "merge-check",
+      "t1",
+      short.deps,
+    );
     expect(short.memory.memories).toHaveLength(0);
   });
 });

@@ -29,12 +29,14 @@ describe("taskIdOf / taskTypeOf", () => {
 
 describe("parseReviewResult", () => {
   it("parses APPROVED", () => {
-    expect(parseReviewResult("notes\nREVIEW_RESULT:APPROVED\n")).toBe("approved");
+    expect(parseReviewResult("notes\nREVIEW_RESULT:APPROVED\n")).toBe(
+      "approved",
+    );
   });
   it("parses CHANGES_REQUESTED with trailing feedback", () => {
-    expect(parseReviewResult("REVIEW_RESULT: CHANGES_REQUESTED: fix the thing")).toBe(
-      "changes_requested",
-    );
+    expect(
+      parseReviewResult("REVIEW_RESULT: CHANGES_REQUESTED: fix the thing"),
+    ).toBe("changes_requested");
   });
   it("returns undefined when there is no marker or no output", () => {
     expect(parseReviewResult("looks fine")).toBeUndefined();
@@ -55,15 +57,24 @@ describe("decideCiGate", () => {
 
 describe("decideTokenReclaim", () => {
   it("reclaims a single-agent task's token on a terminal phase", () => {
-    expect(decideTokenReclaim({ phase: "Succeeded", hasAssemblyLine: false })).toBe(true);
-    expect(decideTokenReclaim({ phase: "Failed", hasAssemblyLine: false })).toBe(true);
+    expect(
+      decideTokenReclaim({ phase: "Succeeded", hasAssemblyLine: false }),
+    ).toBe(true);
+    expect(
+      decideTokenReclaim({ phase: "Failed", hasAssemblyLine: false }),
+    ).toBe(true);
   });
   it("skips a task backed by a multi-node assembly line (freed at line completion)", () => {
-    expect(decideTokenReclaim({ phase: "Succeeded", hasAssemblyLine: true })).toBe(false);
+    expect(
+      decideTokenReclaim({ phase: "Succeeded", hasAssemblyLine: true }),
+    ).toBe(false);
   });
   it("skips a non-terminal phase", () => {
-    expect(decideTokenReclaim({ phase: "Running", hasAssemblyLine: false })).toBe(false);
-    expect(decideTokenReclaim({ phase: undefined, hasAssemblyLine: false })).toBe(false);
+    expect(
+      decideTokenReclaim({ phase: "Running", hasAssemblyLine: false }),
+    ).toBe(false);
+    expect(
+      decideTokenReclaim({ phase: undefined, hasAssemblyLine: false }),
+    ).toBe(false);
   });
 });
-

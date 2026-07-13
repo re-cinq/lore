@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({
   queryLiveGraph: vi.fn(),
@@ -10,7 +15,8 @@ vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({
 import { queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 
 const originalEnv = { ...process.env };
-const get = (pool: unknown, url: string) => buildServer(() => pool as any).inject({ method: "GET", url, headers: AUTH });
+const get = (pool: unknown, url: string) =>
+  buildServer(() => pool as any).inject({ method: "GET", url, headers: AUTH });
 
 describe("GET /api/graph", () => {
   useRateLimitSafeClock();
@@ -23,11 +29,22 @@ describe("GET /api/graph", () => {
   });
 
   it("returns the queryLiveGraph results, passing through entity/relation_type/repo", async () => {
-    const rows = [{ entity: "auth-service", relation: "uses", related_entity: "postgres" }];
+    const rows = [
+      { entity: "auth-service", relation: "uses", related_entity: "postgres" },
+    ];
     vi.mocked(queryLiveGraph).mockResolvedValue(rows as any);
     const pool = makePool();
-    const res = await get(pool, "/api/graph?entity=auth-service&relation_type=uses&repo=o/r");
-    expect(vi.mocked(queryLiveGraph).mock.calls[0]).toEqual([pool, "auth-service", "uses", "o/r", false]);
+    const res = await get(
+      pool,
+      "/api/graph?entity=auth-service&relation_type=uses&repo=o/r",
+    );
+    expect(vi.mocked(queryLiveGraph).mock.calls[0]).toEqual([
+      pool,
+      "auth-service",
+      "uses",
+      "o/r",
+      false,
+    ]);
     expect(res.result).toEqual(rows);
   });
 
@@ -35,7 +52,13 @@ describe("GET /api/graph", () => {
     vi.mocked(queryLiveGraph).mockResolvedValue([] as any);
     const pool = makePool();
     await get(pool, "/api/graph?entity=x&include_invalidated=true");
-    expect(vi.mocked(queryLiveGraph).mock.calls[0]).toEqual([pool, "x", undefined, undefined, true]);
+    expect(vi.mocked(queryLiveGraph).mock.calls[0]).toEqual([
+      pool,
+      "x",
+      undefined,
+      undefined,
+      true,
+    ]);
   });
 
   it("returns 503 when no pool (graph needs Postgres)", async () => {
@@ -47,5 +70,10 @@ describe("GET /api/graph", () => {
     vi.mocked(queryLiveGraph).mockRejectedValue(new Error("graph fail"));
     const res = await get(makePool(), "/api/graph?entity=x");
     expect(res.statusCode).toBe(500);
+  });
+
+  it("returns 400 when repo is not owner/name", async () => {
+    const res = await get(makePool(), "/api/graph?entity=x&repo=bad");
+    expect(res.statusCode).toBe(400);
   });
 });

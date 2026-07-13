@@ -24,13 +24,23 @@ describe("segmentBlocks / reassembleBlocks", () => {
     const content = "## Overview\nThe widget emits a click event.";
     expect(segmentBlocks(content)).toEqual([
       { ordinal: 0, kind: "heading", level: 2, text: "## Overview" },
-      { ordinal: 1, kind: "paragraph", text: "The widget emits a click event." },
+      {
+        ordinal: 1,
+        kind: "paragraph",
+        text: "The widget emits a click event.",
+      },
     ]);
     expect(reassembleBlocks(segmentBlocks(content))).toBe(content);
   });
 
   it("keeps a fenced code block with an internal blank and # line as one verbatim code block", () => {
-    const content = ["```ts", "const x = 1;", "", "# not a heading inside code", "```"].join("\n");
+    const content = [
+      "```ts",
+      "const x = 1;",
+      "",
+      "# not a heading inside code",
+      "```",
+    ].join("\n");
     expect(segmentBlocks(content)).toEqual([
       { ordinal: 0, kind: "code", text: content },
     ]);
@@ -38,7 +48,9 @@ describe("segmentBlocks / reassembleBlocks", () => {
   });
 
   it("groups header, separator, and data rows into one table block", () => {
-    const content = ["| Col A | Col B |", "| --- | --- |", "| 1 | 2 |"].join("\n");
+    const content = ["| Col A | Col B |", "| --- | --- |", "| 1 | 2 |"].join(
+      "\n",
+    );
     expect(segmentBlocks(content)).toEqual([
       { ordinal: 0, kind: "table", text: content },
     ]);

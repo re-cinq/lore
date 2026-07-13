@@ -1,11 +1,23 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import { query, queryOne } from '@/lib/db';
-import { resolveDarkFactorySettings, type DarkFactorySettings } from '@/lib/dark-factory-resolve';
-import { deriveDarkFactoryConsole, type ConsoleTask, type ConsoleAuditEvent } from './derive-console';
-import DarkFactoryConsoleView from './DarkFactoryConsoleView';
+import { query, queryOne } from "@/lib/db";
+import {
+  resolveDarkFactorySettings,
+  type DarkFactorySettings,
+} from "@/lib/dark-factory-resolve";
+import {
+  deriveDarkFactoryConsole,
+  type ConsoleTask,
+  type ConsoleAuditEvent,
+} from "./derive-console";
+import DarkFactoryConsoleView from "./DarkFactoryConsoleView";
 
-const DF_EVENT_TYPES = ['auto_merge_decision', 'escalation_issued', 'lease_expired', 'spec_trace_ingest'];
+const DF_EVENT_TYPES = [
+  "auto_merge_decision",
+  "escalation_issued",
+  "lease_expired",
+  "spec_trace_ingest",
+];
 
 interface TaskRow {
   id: string;
@@ -23,7 +35,11 @@ interface AuditRow {
 
 const iso = (value: string | Date): string => new Date(value).toISOString();
 
-export default async function DarkFactoryPage({ params }: { params: Promise<{ owner: string; repo: string }> }) {
+export default async function DarkFactoryPage({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
@@ -34,8 +50,11 @@ export default async function DarkFactoryPage({ params }: { params: Promise<{ ow
   if (!repoData) return <div>Repo not found</div>;
 
   const settings = repoData.settings ?? {};
-  const resolved = resolveDarkFactorySettings(settings.dark_factory as DarkFactorySettings | undefined);
-  const trustLevel = ((settings.trust as { level?: string } | undefined)?.level) ?? 'unset';
+  const resolved = resolveDarkFactorySettings(
+    settings.dark_factory as DarkFactorySettings | undefined,
+  );
+  const trustLevel =
+    (settings.trust as { level?: string } | undefined)?.level ?? "unset";
 
   // Best-effort: pipeline.audit_log may be absent on legacy clusters, and we
   // never want the console to 500 over an empty operational history.
@@ -73,7 +92,12 @@ export default async function DarkFactoryPage({ params }: { params: Promise<{ ow
     // pipeline.audit_log missing — leave decisions empty.
   }
 
-  const model = deriveDarkFactoryConsole({ resolved, trustLevel, tasks, decisions });
+  const model = deriveDarkFactoryConsole({
+    resolved,
+    trustLevel,
+    tasks,
+    decisions,
+  });
 
   return <DarkFactoryConsoleView owner={owner} repo={repo} model={model} />;
 }

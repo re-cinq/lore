@@ -1,5 +1,8 @@
 import type { PgPool } from "../../memory-store.js";
-import { resolveDarkFactorySettings, type DarkFactorySettings } from "../../dark-factory-settings.js";
+import {
+  resolveDarkFactorySettings,
+  type DarkFactorySettings,
+} from "../../dark-factory-settings.js";
 import type { NotifyPort, NotifyLevel, NotifyResult } from "./notify-port.js";
 import { decideNotify } from "./notify-decision.js";
 
@@ -19,10 +22,19 @@ export class NotifySlack implements NotifyPort {
     private readonly env: NodeJS.ProcessEnv = process.env,
   ) {}
 
-  async notify(repo: string, level: NotifyLevel, message: string): Promise<NotifyResult> {
-    const { rows } = await this.pool.query("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
+  async notify(
+    repo: string,
+    level: NotifyLevel,
+    message: string,
+  ): Promise<NotifyResult> {
+    const { rows } = await this.pool.query(
+      "SELECT settings FROM lore.repos WHERE full_name = $1",
+      [repo],
+    );
     const row = rows[0] as RepoNotifyRow | undefined;
-    const channels = resolveDarkFactorySettings(row?.settings?.dark_factory).notify;
+    const channels = resolveDarkFactorySettings(
+      row?.settings?.dark_factory,
+    ).notify;
     const decision = decideNotify(level, { channels });
 
     const token = this.env.LORE_SLACK_BOT_TOKEN;
@@ -33,10 +45,17 @@ export class NotifySlack implements NotifyPort {
     return decision;
   }
 
-  private async post(token: string, channel: string, text: string): Promise<void> {
+  private async post(
+    token: string,
+    channel: string,
+    text: string,
+  ): Promise<void> {
     await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ channel, text }),
     });
   }

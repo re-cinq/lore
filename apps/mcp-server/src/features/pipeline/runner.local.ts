@@ -12,7 +12,11 @@ import { spawn, execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { detectTooling, runValidation, formatValidationOutput } from "@re-cinq/lore-shared";
+import {
+  detectTooling,
+  runValidation,
+  formatValidationOutput,
+} from "@re-cinq/lore-shared";
 import { redactSecrets } from "@re-cinq/lore-shared";
 
 // ---------------------------------------------------------------------------
@@ -42,7 +46,13 @@ export function readConfig(): LocalRunnerConfig {
   try {
     return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
   } catch {
-    return { enabled: false, max_concurrent: 2, repos: [], task_types: ["implementation", "general", "runbook", "gap-fill"], model: "claude-sonnet-4-6" };
+    return {
+      enabled: false,
+      max_concurrent: 2,
+      repos: [],
+      task_types: ["implementation", "general", "runbook", "gap-fill"],
+      model: "claude-sonnet-4-6",
+    };
   }
 }
 
@@ -154,7 +164,7 @@ export function validateRepoMatch(
   if (cwdRepo && cwdRepo !== taskRepo) {
     throw new Error(
       `target_repo mismatch: task expects '${taskRepo}' but current directory is a checkout of '${cwdRepo}'. ` +
-      `cd to a checkout of ${taskRepo} before claiming this task.`,
+        `cd to a checkout of ${taskRepo} before claiming this task.`,
     );
   }
 }
@@ -261,20 +271,32 @@ async function monitorTask(task: LocalTask): Promise<void> {
     if (status) {
       // ── Deterministic validation (Minions-inspired) ──
       // Run lint/typecheck as mandatory pipeline stages before commit.
-      const changedFiles = status.split("\n")
+      const changedFiles = status
+        .split("\n")
         .map((line) => line.substring(3).trim())
         .filter(Boolean);
       const tooling = detectTooling(task.worktreePath);
 
       if (tooling.quickChecks.length > 0) {
-        console.log(`[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`);
-        const validation = await runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
+        console.log(
+          `[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`,
+        );
+        const validation = await runValidation(
+          task.worktreePath,
+          tooling.quickChecks,
+          changedFiles,
+        );
 
         if (!validation.passed) {
           // Attempt one retry: spawn Claude Code with fix prompt
           const fixOutput = formatValidationOutput(validation);
-          console.log(`[lore] local-runner: validation failed, attempting fix retry for ${task.taskId}`);
-          fs.appendFileSync(task.logFile, `\n\n--- VALIDATION FAILED ---\n${fixOutput}\n`);
+          console.log(
+            `[lore] local-runner: validation failed, attempting fix retry for ${task.taskId}`,
+          );
+          fs.appendFileSync(
+            task.logFile,
+            `\n\n--- VALIDATION FAILED ---\n${fixOutput}\n`,
+          );
 
           const fixPrompt = [
             "Validation checks failed after your changes. Fix ONLY these errors.",
@@ -288,8 +310,20 @@ async function monitorTask(task: LocalTask): Promise<void> {
           const fixLogFd = fs.openSync(task.logFile, "a");
           const fixChild = spawn(
             "claude",
-            ["--print", "--dangerously-skip-permissions", "--model", fixModel, "--", fixPrompt],
-            { cwd: task.worktreePath, detached: true, stdio: ["ignore", fixLogFd, fixLogFd], env: { ...process.env, HOME: os.homedir() } },
+            [
+              "--print",
+              "--dangerously-skip-permissions",
+              "--model",
+              fixModel,
+              "--",
+              fixPrompt,
+            ],
+            {
+              cwd: task.worktreePath,
+              detached: true,
+              stdio: ["ignore", fixLogFd, fixLogFd],
+              env: { ...process.env, HOME: os.homedir() },
+            },
           );
           fixChild.unref();
           fs.closeSync(fixLogFd);
@@ -298,13 +332,24 @@ async function monitorTask(task: LocalTask): Promise<void> {
             await waitForExit(fixChild.pid);
 
             // Re-validate after fix attempt
-            const retryValidation = await runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
+            const retryValidation = await runValidation(
+              task.worktreePath,
+              tooling.quickChecks,
+              changedFiles,
+            );
             if (!retryValidation.passed) {
               const retryOutput = formatValidationOutput(retryValidation);
-              fs.appendFileSync(task.logFile, `\n\n--- RETRY VALIDATION FAILED ---\n${retryOutput}\n`);
+              fs.appendFileSync(
+                task.logFile,
+                `\n\n--- RETRY VALIDATION FAILED ---\n${retryOutput}\n`,
+              );
               if (idx >= 0) {
                 tasks[idx].status = "failed";
-                tasks[idx].error = `Validation failed after retry: ${retryValidation.steps.filter((s) => !s.passed).map((s) => s.name).join(", ")}`;
+                tasks[idx].error =
+                  `Validation failed after retry: ${retryValidation.steps
+                    .filter((s) => !s.passed)
+                    .map((s) => s.name)
+                    .join(", ")}`;
               }
               await updateTaskViaAPI(task.taskId, "needs-human-help", {
                 failure_reason: retryOutput.substring(0, 2000),
@@ -312,7 +357,9 @@ async function monitorTask(task: LocalTask): Promise<void> {
               writeTasks(tasks);
               return;
             }
-            console.log(`[lore] local-runner: fix retry succeeded for ${task.taskId}`);
+            console.log(
+              `[lore] local-runner: fix retry succeeded for ${task.taskId}`,
+            );
           }
         }
       }
@@ -335,15 +382,18 @@ async function monitorTask(task: LocalTask): Promise<void> {
       }).trim();
 
       if (!stagedFiles) {
-        console.log(`[lore] local-runner: ${task.taskId} produced no staged changes — skipping PR`);
+        console.log(
+          `[lore] local-runner: ${task.taskId} produced no staged changes — skipping PR`,
+        );
         if (idx >= 0) tasks[idx].status = "completed";
         await updateTaskViaAPI(task.taskId, "completed", { no_changes: true });
       } else {
         const branchTail = task.branch.split("/").pop() || task.taskId;
-        execSync(
-          `git commit -m "lore: local \u2014 ${branchTail}"`,
-          { cwd: task.worktreePath, stdio: "pipe", timeout: 30000 },
-        );
+        execSync(`git commit -m "lore: local \u2014 ${branchTail}"`, {
+          cwd: task.worktreePath,
+          stdio: "pipe",
+          timeout: 30000,
+        });
 
         execSync(`git push origin ${task.branch}`, {
           cwd: task.worktreePath,
@@ -400,7 +450,9 @@ async function monitorTask(task: LocalTask): Promise<void> {
       }
     } catch {
       // Best effort cleanup
-      console.error(`[lore] local-runner: could not clean up worktree for ${task.taskId}`);
+      console.error(
+        `[lore] local-runner: could not clean up worktree for ${task.taskId}`,
+      );
     }
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -424,11 +476,20 @@ async function monitorTask(task: LocalTask): Promise<void> {
     if (apiUrl && tkn) {
       await fetch(`${apiUrl}/api/task-logs`, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${tkn}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ task_id: task.taskId, repo: task.repo, logs: redacted }),
+        headers: {
+          Authorization: `Bearer ${tkn}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          task_id: task.taskId,
+          repo: task.repo,
+          logs: redacted,
+        }),
       });
     }
-  } catch { /* best effort — local logs still at task.logFile */ }
+  } catch {
+    /* best effort — local logs still at task.logFile */
+  }
 
   writeTasks(tasks);
 }
@@ -513,10 +574,16 @@ export async function spawnLocalTask(opts: {
   const preambleParts: string[] = [];
   if (preContext) {
     preambleParts.push("## Pre-loaded Context\n\n" + preContext + "\n\n---\n");
-    preambleParts.push("Context was pre-loaded above. You may call lore_assemble_context for fresh data during long tasks.");
+    preambleParts.push(
+      "Context was pre-loaded above. You may call lore_assemble_context for fresh data during long tasks.",
+    );
   } else {
-    preambleParts.push("IMPORTANT: You have the Lore MCP server. Follow this workflow:");
-    preambleParts.push("1. FIRST: Call lore_assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.");
+    preambleParts.push(
+      "IMPORTANT: You have the Lore MCP server. Follow this workflow:",
+    );
+    preambleParts.push(
+      "1. FIRST: Call lore_assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.",
+    );
   }
   preambleParts.push(
     "2. BEFORE CODING: Call lore_search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.",
@@ -561,7 +628,9 @@ export async function spawnLocalTask(opts: {
         cwd: repoRoot,
         stdio: "pipe",
       });
-    } catch { /* best effort */ }
+    } catch {
+      /* best effort */
+    }
     throw new Error("Failed to spawn Claude Code process");
   }
 
@@ -618,9 +687,10 @@ export function listLocalTasks(): LocalTask[] {
  * Cancels a running local task by killing its process and cleaning up
  * the worktree.
  */
-export function cancelLocalTask(
-  taskId: string,
-): { cancelled: boolean; error?: string } {
+export function cancelLocalTask(taskId: string): {
+  cancelled: boolean;
+  error?: string;
+} {
   const tasks = readTasks();
   const task = tasks.find((t) => t.taskId === taskId);
 
@@ -647,7 +717,9 @@ export function cancelLocalTask(
       timeout: 10000,
     });
   } catch {
-    console.error(`[lore] local-runner: could not remove worktree for ${taskId}`);
+    console.error(
+      `[lore] local-runner: could not remove worktree for ${taskId}`,
+    );
   }
 
   // Update pipeline status (fire and forget)
@@ -700,10 +772,11 @@ export async function cleanupStaleTasks(): Promise<void> {
             /gitdir:\s*(.+)\/\.git\/worktrees/,
           )?.[1];
           if (mainRepo) {
-            execSync(
-              `git worktree remove "${task.worktreePath}" --force`,
-              { cwd: mainRepo, stdio: "pipe", timeout: 10000 },
-            );
+            execSync(`git worktree remove "${task.worktreePath}" --force`, {
+              cwd: mainRepo,
+              stdio: "pipe",
+              timeout: 10000,
+            });
           }
         }
       }

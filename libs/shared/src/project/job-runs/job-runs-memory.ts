@@ -36,7 +36,11 @@ export class InMemoryJobRuns implements JobRunsPort {
     return id;
   }
 
-  async complete(runId: string, resultSummary: string, logPath?: string): Promise<void> {
+  async complete(
+    runId: string,
+    resultSummary: string,
+    logPath?: string,
+  ): Promise<void> {
     const row = this.rows.find((candidate) => candidate.id === runId);
     if (!row) return;
     row.status = "completed";

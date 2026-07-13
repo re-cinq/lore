@@ -40,7 +40,9 @@ export function sourceFromBlockRows(rows: BlockRow[]): string | null {
     ...(row["Block.level"] !== undefined ? { level: row["Block.level"] } : {}),
   }));
 
-  const sortedBlocks = [...blocks].sort((left, right) => left.ordinal - right.ordinal);
+  const sortedBlocks = [...blocks].sort(
+    (left, right) => left.ordinal - right.ordinal,
+  );
   return reassembleBlocks(sortedBlocks);
 }
 

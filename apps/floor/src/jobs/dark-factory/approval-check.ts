@@ -21,22 +21,34 @@ export async function approvalCheckJob(): Promise<string> {
       if (labels.includes(approvalLabel)) {
         // Transition: awaiting_approval → pending
         await project.tasks.setStatus(task.id, "pending");
-        await project.tasks.recordEvent(task.id, "awaiting_approval", "pending", {
-          reason: "approved-via-label",
-        });
+        await project.tasks.recordEvent(
+          task.id,
+          "awaiting_approval",
+          "pending",
+          {
+            reason: "approved-via-label",
+          },
+        );
 
         // Remove the awaiting-approval label and add approved
-        await project.issues.removeLabel(task.issue_number, "awaiting-approval").catch(() => {});
-        await project.issues.comment(
-          task.issue_number,
-          "Task approved. Agent will pick it up shortly."
-        ).catch(() => {});
+        await project.issues
+          .removeLabel(task.issue_number, "awaiting-approval")
+          .catch(() => {});
+        await project.issues
+          .comment(
+            task.issue_number,
+            "Task approved. Agent will pick it up shortly.",
+          )
+          .catch(() => {});
 
         approvedCount++;
         console.log(`[job] approval-check: task ${task.id} approved via label`);
       }
     } catch (err) {
-      console.error(`[job] approval-check: error checking task ${task.id}:`, err);
+      console.error(
+        `[job] approval-check: error checking task ${task.id}:`,
+        err,
+      );
     }
   }
 

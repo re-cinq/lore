@@ -10,15 +10,27 @@ describe("assembleGraphContext", () => {
           "Statement.xid": "r|s|4",
           "Statement.text": "normal tested",
           "Statement.testability": "testable",
-          spec: { "Spec.file_path": "specs/auth/spec.md", "Spec.title": "Auth" },
-          vb: [{ "TestChunk.file_path": "auth.test.ts", "TestChunk.test_name": "ok", "TestChunk.start_line": 3 }],
+          spec: {
+            "Spec.file_path": "specs/auth/spec.md",
+            "Spec.title": "Auth",
+          },
+          vb: [
+            {
+              "TestChunk.file_path": "auth.test.ts",
+              "TestChunk.test_name": "ok",
+              "TestChunk.start_line": 3,
+            },
+          ],
         },
         {
           uid: "0xu",
           "Statement.xid": "r|s|3",
           "Statement.text": "untested testable",
           "Statement.testability": "testable",
-          spec: { "Spec.file_path": "specs/auth/spec.md", "Spec.title": "Auth" },
+          spec: {
+            "Spec.file_path": "specs/auth/spec.md",
+            "Spec.title": "Auth",
+          },
         },
         {
           uid: "0xd",
@@ -26,8 +38,17 @@ describe("assembleGraphContext", () => {
           "Statement.text": "drifted",
           "Statement.testability": "testable",
           "Statement.drifted": true,
-          spec: { "Spec.file_path": "specs/auth/spec.md", "Spec.title": "Auth" },
-          vb: [{ "TestChunk.file_path": "drift.test.ts", "TestChunk.test_name": "d", "TestChunk.start_line": 9 }],
+          spec: {
+            "Spec.file_path": "specs/auth/spec.md",
+            "Spec.title": "Auth",
+          },
+          vb: [
+            {
+              "TestChunk.file_path": "drift.test.ts",
+              "TestChunk.test_name": "d",
+              "TestChunk.start_line": 9,
+            },
+          ],
         },
         {
           uid: "0xv",
@@ -35,8 +56,17 @@ describe("assembleGraphContext", () => {
           "Statement.text": "violated",
           "Statement.testability": "testable",
           "Statement.violated": true,
-          spec: { "Spec.file_path": "specs/auth/spec.md", "Spec.title": "Auth" },
-          vb: [{ "TestChunk.file_path": "viol.test.ts", "TestChunk.test_name": "v", "TestChunk.start_line": 1 }],
+          spec: {
+            "Spec.file_path": "specs/auth/spec.md",
+            "Spec.title": "Auth",
+          },
+          vb: [
+            {
+              "TestChunk.file_path": "viol.test.ts",
+              "TestChunk.test_name": "v",
+              "TestChunk.start_line": 1,
+            },
+          ],
         },
         {
           uid: "0xv2",
@@ -44,12 +74,17 @@ describe("assembleGraphContext", () => {
           "Statement.text": "violated (seen via second seed)",
           "Statement.testability": "testable",
           "Statement.violated": true,
-          spec: { "Spec.file_path": "specs/auth/spec.md", "Spec.title": "Auth" },
+          spec: {
+            "Spec.file_path": "specs/auth/spec.md",
+            "Spec.title": "Auth",
+          },
         },
       ],
     });
 
-    expect(block.statements.map((s) => ({ xid: s.xid, signal: s.signal }))).toEqual([
+    expect(
+      block.statements.map((s) => ({ xid: s.xid, signal: s.signal })),
+    ).toEqual([
       { xid: "r|s|1", signal: "violated" },
       { xid: "r|s|2", signal: "drifted" },
       { xid: "r|s|3", signal: "untested" },
@@ -65,7 +100,10 @@ describe("assembleGraphContext", () => {
           "Statement.xid": "r|s|1",
           "Statement.text": "narrative",
           "Statement.testability": "untestable",
-          spec: { "Spec.file_path": "specs/auth/spec.md", "Spec.title": "Auth" },
+          spec: {
+            "Spec.file_path": "specs/auth/spec.md",
+            "Spec.title": "Auth",
+          },
         },
       ],
     });
@@ -82,9 +120,18 @@ describe("assembleGraphContext", () => {
           "Statement.text": "rotate token",
           "Statement.testability": "testable",
           "Statement.violated": true,
-          spec: { "Spec.file_path": "specs/auth/spec.md", "Spec.title": "Auth" },
+          spec: {
+            "Spec.file_path": "specs/auth/spec.md",
+            "Spec.title": "Auth",
+          },
           section: { "Section.heading": "Goals" },
-          vb: [{ "TestChunk.file_path": "auth/rotate.test.ts", "TestChunk.test_name": "rotates", "TestChunk.start_line": 12 }],
+          vb: [
+            {
+              "TestChunk.file_path": "auth/rotate.test.ts",
+              "TestChunk.test_name": "rotates",
+              "TestChunk.start_line": 12,
+            },
+          ],
           db: [{ "ADR.file_path": "adrs/ADR-016-dark.md" }],
         },
         {
@@ -92,8 +139,17 @@ describe("assembleGraphContext", () => {
           "Statement.xid": "r|s|2",
           "Statement.text": "revoke token",
           "Statement.testability": "testable",
-          spec: { "Spec.file_path": "specs/auth/spec.md", "Spec.title": "Auth" },
-          vb: [{ "TestChunk.file_path": "auth/rotate.test.ts", "TestChunk.test_name": "revokes", "TestChunk.start_line": 30 }],
+          spec: {
+            "Spec.file_path": "specs/auth/spec.md",
+            "Spec.title": "Auth",
+          },
+          vb: [
+            {
+              "TestChunk.file_path": "auth/rotate.test.ts",
+              "TestChunk.test_name": "revokes",
+              "TestChunk.start_line": 30,
+            },
+          ],
           db: [{ "ADR.file_path": "adrs/ADR-016-dark.md" }],
         },
       ],
@@ -112,9 +168,26 @@ describe("assembleGraphContext", () => {
     const block = assembleGraphContext(
       {
         q: [
-          { uid: "0xn", "Statement.xid": "n", "Statement.text": "normal", "Statement.testability": "testable", vb: [{ "TestChunk.file_path": "n.test.ts" }] },
-          { uid: "0xu", "Statement.xid": "u", "Statement.text": "untested", "Statement.testability": "testable" },
-          { uid: "0xv", "Statement.xid": "v", "Statement.text": "violated", "Statement.testability": "testable", "Statement.violated": true },
+          {
+            uid: "0xn",
+            "Statement.xid": "n",
+            "Statement.text": "normal",
+            "Statement.testability": "testable",
+            vb: [{ "TestChunk.file_path": "n.test.ts" }],
+          },
+          {
+            uid: "0xu",
+            "Statement.xid": "u",
+            "Statement.text": "untested",
+            "Statement.testability": "testable",
+          },
+          {
+            uid: "0xv",
+            "Statement.xid": "v",
+            "Statement.text": "violated",
+            "Statement.testability": "testable",
+            "Statement.violated": true,
+          },
         ],
       },
       { limit: 2 },
@@ -125,7 +198,12 @@ describe("assembleGraphContext", () => {
   });
 
   it("projects an empty result to an empty block", () => {
-    expect(assembleGraphContext({})).toEqual({ statements: [], adrRefs: [], testSelectors: [], truncated: false });
+    expect(assembleGraphContext({})).toEqual({
+      statements: [],
+      adrRefs: [],
+      testSelectors: [],
+      truncated: false,
+    });
   });
 });
 

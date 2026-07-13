@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import type { GitPort, CloneOpts } from "./git-port.js";
 import { gitAuthArgs, repoCloneUrl } from "./git-auth.js";
@@ -21,7 +27,11 @@ export class GitCli implements GitPort {
     this.git(args);
   }
 
-  async ensureClone(repo: string, destDir: string, opts?: CloneOpts): Promise<void> {
+  async ensureClone(
+    repo: string,
+    destDir: string,
+    opts?: CloneOpts,
+  ): Promise<void> {
     // Reuse an existing clone (the /tmp cache) — fetch + checkout instead of
     // re-cloning, so a second run against the same cache dir is cheap and keeps
     // any local state. Only clone when the dir has no .git.
@@ -33,11 +43,20 @@ export class GitCli implements GitPort {
     await this.clone(repo, destDir, opts);
   }
 
-  async ensureCheckout(dir: string, branch?: string, commit?: string): Promise<void> {
+  async ensureCheckout(
+    dir: string,
+    branch?: string,
+    commit?: string,
+  ): Promise<void> {
     if (branch) {
-      const current = this.git(["rev-parse", "--abbrev-ref", "HEAD"], dir).trim();
+      const current = this.git(
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        dir,
+      ).trim();
       if (current !== branch && this.isDirty(dir)) {
-        throw new Error(`refusing to switch ${dir} to ${branch}: the working tree has uncommitted changes`);
+        throw new Error(
+          `refusing to switch ${dir} to ${branch}: the working tree has uncommitted changes`,
+        );
       }
       this.git(["checkout", branch], dir);
     }
@@ -52,11 +71,21 @@ export class GitCli implements GitPort {
 
   async listBranches(dir: string): Promise<string[]> {
     const out = this.git(["branch", "--format=%(refname:short)"], dir);
-    return out.split("\n").map((b) => b.trim()).filter(Boolean);
+    return out
+      .split("\n")
+      .map((b) => b.trim())
+      .filter(Boolean);
   }
 
-  async switchBranch(dir: string, branch: string, opts?: { create?: boolean }): Promise<void> {
-    this.git(opts?.create ? ["checkout", "-b", branch] : ["checkout", branch], dir);
+  async switchBranch(
+    dir: string,
+    branch: string,
+    opts?: { create?: boolean },
+  ): Promise<void> {
+    this.git(
+      opts?.create ? ["checkout", "-b", branch] : ["checkout", branch],
+      dir,
+    );
   }
 
   async readFile(dir: string, path: string): Promise<string> {
@@ -69,7 +98,10 @@ export class GitCli implements GitPort {
     writeFileSync(full, content);
   }
 
-  async stageCommit(dir: string, message: string): Promise<{ committed: boolean }> {
+  async stageCommit(
+    dir: string,
+    message: string,
+  ): Promise<{ committed: boolean }> {
     this.git(["add", "-A"], dir);
     const staged = this.git(["diff", "--cached", "--name-only"], dir).trim();
     if (!staged) return { committed: false };
@@ -113,7 +145,8 @@ export class GitCli implements GitPort {
   }
 
   private remoteUrl(repo: string): string {
-    if (repo.includes("://") || repo.startsWith("/") || repo.startsWith(".")) return repo;
+    if (repo.includes("://") || repo.startsWith("/") || repo.startsWith("."))
+      return repo;
     return repoCloneUrl(repo, this.host());
   }
 }

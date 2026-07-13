@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
-import { query } from '@/lib/db';
-import PoolsView, { PoolRow } from './PoolsView';
+import { query } from "@/lib/db";
+import PoolsView, { PoolRow } from "./PoolsView";
 
 export default async function PoolsPage() {
   const pools = await query<PoolRow>(`

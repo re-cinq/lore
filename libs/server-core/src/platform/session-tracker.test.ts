@@ -20,7 +20,10 @@ function formatSessionSummaryFromLog(
   const start = new Date(startTime);
   const durationMin = Math.round((now.getTime() - start.getTime()) / 60000);
 
-  const toolCounts: Record<string, { calls: number; errors: number; totalMs: number }> = {};
+  const toolCounts: Record<
+    string,
+    { calls: number; errors: number; totalMs: number }
+  > = {};
   for (const entry of log) {
     if (!toolCounts[entry.tool]) {
       toolCounts[entry.tool] = { calls: 0, errors: 0, totalMs: 0 };
@@ -39,7 +42,9 @@ function formatSessionSummaryFromLog(
     "Tool usage:",
   ];
 
-  const sorted = Object.entries(toolCounts).sort((a, b) => b[1].calls - a[1].calls);
+  const sorted = Object.entries(toolCounts).sort(
+    (a, b) => b[1].calls - a[1].calls,
+  );
   for (const [tool, stats] of sorted) {
     const avgMs = Math.round(stats.totalMs / stats.calls);
     const errSuffix = stats.errors > 0 ? ` (${stats.errors} errors)` : "";
@@ -52,16 +57,36 @@ function formatSessionSummaryFromLog(
 describe("session tracker", () => {
   describe("formatSessionSummary", () => {
     it("returns empty string for empty log", () => {
-      expect(formatSessionSummaryFromLog([], new Date().toISOString())).toBe("");
+      expect(formatSessionSummaryFromLog([], new Date().toISOString())).toBe(
+        "",
+      );
     });
 
     it("formats a simple session", () => {
       const log: ToolCallEntry[] = [
-        { tool: "lore_search_context", timestamp: new Date().toISOString(), durationMs: 150, success: true },
-        { tool: "lore_assemble_context", timestamp: new Date().toISOString(), durationMs: 300, success: true },
-        { tool: "lore_search_context", timestamp: new Date().toISOString(), durationMs: 200, success: true },
+        {
+          tool: "lore_search_context",
+          timestamp: new Date().toISOString(),
+          durationMs: 150,
+          success: true,
+        },
+        {
+          tool: "lore_assemble_context",
+          timestamp: new Date().toISOString(),
+          durationMs: 300,
+          success: true,
+        },
+        {
+          tool: "lore_search_context",
+          timestamp: new Date().toISOString(),
+          durationMs: 200,
+          success: true,
+        },
       ];
-      const summary = formatSessionSummaryFromLog(log, new Date().toISOString());
+      const summary = formatSessionSummaryFromLog(
+        log,
+        new Date().toISOString(),
+      );
 
       expect(summary).toContain("3 tool calls");
       expect(summary).toContain("0 errors");
@@ -71,10 +96,23 @@ describe("session tracker", () => {
 
     it("includes error counts per tool", () => {
       const log: ToolCallEntry[] = [
-        { tool: "lore_write_memory", timestamp: new Date().toISOString(), durationMs: 100, success: true },
-        { tool: "lore_write_memory", timestamp: new Date().toISOString(), durationMs: 50, success: false },
+        {
+          tool: "lore_write_memory",
+          timestamp: new Date().toISOString(),
+          durationMs: 100,
+          success: true,
+        },
+        {
+          tool: "lore_write_memory",
+          timestamp: new Date().toISOString(),
+          durationMs: 50,
+          success: false,
+        },
       ];
-      const summary = formatSessionSummaryFromLog(log, new Date().toISOString());
+      const summary = formatSessionSummaryFromLog(
+        log,
+        new Date().toISOString(),
+      );
 
       expect(summary).toContain("1 errors");
       expect(summary).toContain("lore_write_memory: 2x");
@@ -83,12 +121,35 @@ describe("session tracker", () => {
 
     it("sorts tools by call count descending", () => {
       const log: ToolCallEntry[] = [
-        { tool: "b_tool", timestamp: new Date().toISOString(), durationMs: 10, success: true },
-        { tool: "a_tool", timestamp: new Date().toISOString(), durationMs: 10, success: true },
-        { tool: "a_tool", timestamp: new Date().toISOString(), durationMs: 10, success: true },
-        { tool: "a_tool", timestamp: new Date().toISOString(), durationMs: 10, success: true },
+        {
+          tool: "b_tool",
+          timestamp: new Date().toISOString(),
+          durationMs: 10,
+          success: true,
+        },
+        {
+          tool: "a_tool",
+          timestamp: new Date().toISOString(),
+          durationMs: 10,
+          success: true,
+        },
+        {
+          tool: "a_tool",
+          timestamp: new Date().toISOString(),
+          durationMs: 10,
+          success: true,
+        },
+        {
+          tool: "a_tool",
+          timestamp: new Date().toISOString(),
+          durationMs: 10,
+          success: true,
+        },
       ];
-      const summary = formatSessionSummaryFromLog(log, new Date().toISOString());
+      const summary = formatSessionSummaryFromLog(
+        log,
+        new Date().toISOString(),
+      );
 
       const aIdx = summary.indexOf("a_tool");
       const bIdx = summary.indexOf("b_tool");
@@ -97,10 +158,23 @@ describe("session tracker", () => {
 
     it("calculates average duration per tool", () => {
       const log: ToolCallEntry[] = [
-        { tool: "slow", timestamp: new Date().toISOString(), durationMs: 100, success: true },
-        { tool: "slow", timestamp: new Date().toISOString(), durationMs: 200, success: true },
+        {
+          tool: "slow",
+          timestamp: new Date().toISOString(),
+          durationMs: 100,
+          success: true,
+        },
+        {
+          tool: "slow",
+          timestamp: new Date().toISOString(),
+          durationMs: 200,
+          success: true,
+        },
       ];
-      const summary = formatSessionSummaryFromLog(log, new Date().toISOString());
+      const summary = formatSessionSummaryFromLog(
+        log,
+        new Date().toISOString(),
+      );
 
       expect(summary).toContain("avg 150ms");
     });
@@ -112,7 +186,12 @@ describe("session tracker", () => {
       const log: ToolCallEntry[] = [];
       for (let i = 0; i < MAX + 100; i++) {
         if (log.length >= MAX) log.shift();
-        log.push({ tool: `tool_${i}`, timestamp: new Date().toISOString(), durationMs: 1, success: true });
+        log.push({
+          tool: `tool_${i}`,
+          timestamp: new Date().toISOString(),
+          durationMs: 1,
+          success: true,
+        });
       }
       expect(log.length).toBe(MAX);
       expect(log[0].tool).toBe("tool_100"); // oldest entries shifted out

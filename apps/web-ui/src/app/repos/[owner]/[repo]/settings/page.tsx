@@ -1,16 +1,21 @@
 export const dynamic = "force-dynamic";
-import { query, queryOne } from '@/lib/db';
-import { revalidatePath } from 'next/cache';
-import { parseSettingsForm } from '@/lib/settings-form';
-import SettingsView, { type RepoSettingsShape } from './SettingsView';
-import type { SaveState } from './SaveResultBanner';
+import { query, queryOne } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+import { parseSettingsForm } from "@/lib/settings-form";
+import SettingsView, { type RepoSettingsShape } from "./SettingsView";
+import type { SaveState } from "./SaveResultBanner";
 
-interface Repo { full_name: string }
+interface Repo {
+  full_name: string;
+}
 
-async function saveSettings(_prev: SaveState, formData: FormData): Promise<SaveState> {
-  'use server';
-  const fullName = formData.get('full_name') as string;
-  const team = formData.get('team') as string;
+async function saveSettings(
+  _prev: SaveState,
+  formData: FormData,
+): Promise<SaveState> {
+  "use server";
+  const fullName = formData.get("full_name") as string;
+  const team = formData.get("team") as string;
 
   // General (non-privileged) → direct DB, shallow-merged into settings JSONB.
   // Dark-factory (privileged) lives on the Dark Factory tab; agents on the Agents tab.
@@ -42,22 +47,28 @@ async function saveSettings(_prev: SaveState, formData: FormData): Promise<SaveS
   return { saved: true, privileged: null };
 }
 
-export default async function RepoSettings({ params }: { params: Promise<{ owner: string; repo: string }> }) {
+export default async function RepoSettings({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
-  const repoData = await queryOne<{ team: string | null; settings: RepoSettingsShape | null }>(
-    `SELECT team, settings FROM lore.repos WHERE full_name = $1`, [fullName],
-  );
+  const repoData = await queryOne<{
+    team: string | null;
+    settings: RepoSettingsShape | null;
+  }>(`SELECT team, settings FROM lore.repos WHERE full_name = $1`, [fullName]);
   if (!repoData) return <div>Repo not found</div>;
 
   const allRepos = await query<Repo>(
-    `SELECT full_name FROM lore.repos WHERE full_name != $1 ORDER BY full_name`, [fullName],
+    `SELECT full_name FROM lore.repos WHERE full_name != $1 ORDER BY full_name`,
+    [fullName],
   );
 
   return (
     <SettingsView
       fullName={fullName}
-      team={repoData.team ?? ''}
+      team={repoData.team ?? ""}
       settings={repoData.settings ?? {}}
       allRepos={allRepos}
       saveAction={saveSettings}

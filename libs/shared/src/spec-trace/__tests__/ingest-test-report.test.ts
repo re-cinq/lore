@@ -19,11 +19,18 @@ import { projectSpecFile } from "../project-spec-file.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -32,13 +39,21 @@ async function dgraphReachable(): Promise<boolean> {
 const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
-  async function readGraph(query: string, vars: Record<string, string>): Promise<Record<string, unknown>> {
+  async function readGraph(
+    query: string,
+    vars: Record<string, string>,
+  ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
     try {
       const res = await txn.queryWithVars(query, vars);
@@ -138,7 +153,12 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     const report = {
       tests: [
-        { id: "shared/x.test.ts::a", name: "renders", file: "shared/x.test.ts", suite: ["Widget"] },
+        {
+          id: "shared/x.test.ts::a",
+          name: "renders",
+          file: "shared/x.test.ts",
+          suite: ["Widget"],
+        },
       ],
       results: [],
     };
@@ -152,9 +172,16 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         }
       }`,
       { $repo: repo },
-    )) as { root?: Array<{ tc?: number; suites?: Array<{ "TestSuite.name"?: string }> }> };
+    )) as {
+      root?: Array<{
+        tc?: number;
+        suites?: Array<{ "TestSuite.name"?: string }>;
+      }>;
+    };
     expect(data.root?.[0]?.tc).toBeGreaterThanOrEqual(1);
-    expect((data.root?.[0]?.suites ?? []).map((s) => s["TestSuite.name"])).toEqual(["Widget"]);
+    expect(
+      (data.root?.[0]?.suites ?? []).map((s) => s["TestSuite.name"]),
+    ).toEqual(["Widget"]);
   });
 
   it("links a statement via validated_by when a descriptor name sentence-matches its spec (no anchor)", async () => {
@@ -187,7 +214,9 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       }`,
       { $sx: `${repo}|${specPath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
-    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([{ "TestChunk.xid": `${repo}|shared/x.test.ts` }]);
+    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+      { "TestChunk.xid": `${repo}|shared/x.test.ts` },
+    ]);
   });
 
   it("attaches validated_by to the file-scoped TestChunk for a per-it descriptor whose suite chain sentence-matches", async () => {
@@ -208,7 +237,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
           id: "shared/x.test.ts::Widget Service > Onboarding > produces a PR",
           name: "produces a PR",
           file: "shared/x.test.ts",
-          suite: ["Widget Service", "Onboarding a new repo produces a PR within 5 minutes"],
+          suite: [
+            "Widget Service",
+            "Onboarding a new repo produces a PR within 5 minutes",
+          ],
         },
       ],
       results: [],
@@ -222,14 +254,24 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $sx: `${repo}|${specPath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
     // File-scoped (`${repo}|file`), NOT the per-it id `${repo}|shared/x.test.ts::…`.
-    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([{ "TestChunk.xid": `${repo}|shared/x.test.ts` }]);
+    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+      { "TestChunk.xid": `${repo}|shared/x.test.ts` },
+    ]);
   });
 
   it("writes one TestChunk keyed repo|t1 with test_name/file_path/start_line/end_line for a single descriptor", async () => {
     const repo = `test-report/${randomUUID()}`;
     createdRepo = repo;
     const report = {
-      tests: [{ id: "t1", name: "renders a click", file: "test/widget.test.ts", startLine: 10, endLine: 25 }],
+      tests: [
+        {
+          id: "t1",
+          name: "renders a click",
+          file: "test/widget.test.ts",
+          startLine: 10,
+          endLine: 25,
+        },
+      ],
       results: [],
     };
 
@@ -260,7 +302,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const statementXid = `${repo}|specs/foo/spec.md|7`;
     createdStatementXid = statementXid;
     const report = {
-      tests: [{ id: "t1", name: "renders", file: "test/widget.test.ts", spec: "specs/foo/spec.md#7" }],
+      tests: [
+        {
+          id: "t1",
+          name: "renders",
+          file: "test/widget.test.ts",
+          spec: "specs/foo/spec.md#7",
+        },
+      ],
       results: [],
     };
 
@@ -275,7 +324,9 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([{ "TestChunk.xid": `${repo}|test/widget.test.ts` }]);
+    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+      { "TestChunk.xid": `${repo}|test/widget.test.ts` },
+    ]);
   });
 
   it("marks the spec Statement violated with a reason naming failing test renders when its result passed is false", async () => {
@@ -284,7 +335,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const statementXid = `${repo}|specs/foo/spec.md|7`;
     createdStatementXid = statementXid;
     const report = {
-      tests: [{ id: "t1", name: "renders", file: "test/widget.test.ts", spec: "specs/foo/spec.md#7" }],
+      tests: [
+        {
+          id: "t1",
+          name: "renders",
+          file: "test/widget.test.ts",
+          spec: "specs/foo/spec.md#7",
+        },
+      ],
       results: [{ id: "t1", passed: false, covered: [] }],
     };
 
@@ -310,8 +368,18 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     createdStatementXid = statementXid;
     const report = {
       tests: [
-        { id: "t1", name: "fails", file: "test/widget.test.ts", spec: "specs/foo/spec.md#7" },
-        { id: "t2", name: "passes", file: "test/widget.test.ts", spec: "specs/foo/spec.md#7" },
+        {
+          id: "t1",
+          name: "fails",
+          file: "test/widget.test.ts",
+          spec: "specs/foo/spec.md#7",
+        },
+        {
+          id: "t2",
+          name: "passes",
+          file: "test/widget.test.ts",
+          spec: "specs/foo/spec.md#7",
+        },
       ],
       results: [
         { id: "t1", passed: false, covered: [] },
@@ -338,7 +406,12 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
     createdStatementXid = statementXid;
-    const descriptor = { id: "t1", name: "renders", file: "test/widget.test.ts", spec: "specs/foo/spec.md#7" };
+    const descriptor = {
+      id: "t1",
+      name: "renders",
+      file: "test/widget.test.ts",
+      spec: "specs/foo/spec.md#7",
+    };
 
     await ingestTestReport(dgraphClient, repo, {
       tests: [descriptor],
@@ -366,7 +439,12 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
     createdStatementXid = statementXid;
-    const descriptor = { id: "t1", name: "renders", file: "test/widget.test.ts", spec: "specs/foo/spec.md#7" };
+    const descriptor = {
+      id: "t1",
+      name: "renders",
+      file: "test/widget.test.ts",
+      spec: "specs/foo/spec.md#7",
+    };
 
     await ingestTestReport(dgraphClient, repo, {
       tests: [descriptor],
@@ -406,10 +484,19 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
           id: "a.test.ts::Widget Service > Onboarding > x",
           name: "x",
           file: "a.test.ts",
-          suite: ["Widget Service", "Onboarding a new repo produces a PR within 5 minutes"],
+          suite: [
+            "Widget Service",
+            "Onboarding a new repo produces a PR within 5 minutes",
+          ],
         },
       ],
-      results: [{ id: "a.test.ts::Widget Service > Onboarding > x", passed: true, covered: [{ file: "src/a.ts", startLine: 5, endLine: 10 }] }],
+      results: [
+        {
+          id: "a.test.ts::Widget Service > Onboarding > x",
+          passed: true,
+          covered: [{ file: "src/a.ts", startLine: 5, endLine: 10 }],
+        },
+      ],
     });
 
     const data = (await readGraph(
@@ -419,9 +506,17 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         }
       }`,
       { $sx: `${repo}|${specPath}|0` },
-    )) as { stmt?: { "Statement.validated_by"?: { cov?: { covers?: Record<string, unknown>[] } }[] }[] };
+    )) as {
+      stmt?: {
+        "Statement.validated_by"?: {
+          cov?: { covers?: Record<string, unknown>[] };
+        }[];
+      }[];
+    };
     // The covered range mints its own CodeChunk — no AST/pre-seeding needed.
-    expect(data.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov?.covers).toEqual([{ "File.xid": `${repo}|src/a.ts` }]);
+    expect(
+      data.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov?.covers,
+    ).toEqual([{ "File.xid": `${repo}|src/a.ts` }]);
   });
 
   it("covers a File from result t1's covered range and links it via COVERS", async () => {
@@ -429,7 +524,13 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     createdRepo = repo;
     const report = {
       tests: [{ id: "t1", name: "renders", file: "test/widget.test.ts" }],
-      results: [{ id: "t1", passed: true, covered: [{ file: "src/widget.ts", startLine: 5, endLine: 10 }] }],
+      results: [
+        {
+          id: "t1",
+          passed: true,
+          covered: [{ file: "src/widget.ts", startLine: 5, endLine: 10 }],
+        },
+      ],
     };
 
     await ingestTestReport(dgraphClient, repo, report);
@@ -443,7 +544,9 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $xid: `${repo}|test/widget.test.ts|test/widget.test.ts` },
     )) as { cov?: Record<string, unknown>[] };
 
-    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([{ "File.xid": `${repo}|src/widget.ts` }]);
+    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([
+      { "File.xid": `${repo}|src/widget.ts` },
+    ]);
   });
 
   it("creates one Coverage node per file and attaches HAS_COVERAGE to the file-scoped TestChunk for many per-it descriptors", async () => {
@@ -455,8 +558,16 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         { id: "a.test.ts::A > y", name: "y", file: "a.test.ts", suite: ["A"] },
       ],
       results: [
-        { id: "a.test.ts::A > x", passed: true, covered: [{ file: "src/a.ts", startLine: 1, endLine: 2 }] },
-        { id: "a.test.ts::A > y", passed: true, covered: [{ file: "src/a.ts", startLine: 1, endLine: 2 }] },
+        {
+          id: "a.test.ts::A > x",
+          passed: true,
+          covered: [{ file: "src/a.ts", startLine: 1, endLine: 2 }],
+        },
+        {
+          id: "a.test.ts::A > y",
+          passed: true,
+          covered: [{ file: "src/a.ts", startLine: 1, endLine: 2 }],
+        },
       ],
     };
 
@@ -477,7 +588,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const repo = `test-report/${randomUUID()}`;
     createdRepo = repo;
     const report = {
-      tests: [{ id: "t1", name: "renders a click", file: "test/widget.test.ts", suite: ["Overview"] }],
+      tests: [
+        {
+          id: "t1",
+          name: "renders a click",
+          file: "test/widget.test.ts",
+          suite: ["Overview"],
+        },
+      ],
       results: [],
     };
 
@@ -503,7 +621,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const repo = `test-report/${randomUUID()}`;
     createdRepo = repo;
     const report = {
-      tests: [{ id: "t1", name: "renders", file: "test/widget.test.ts", suite: ["Outer", "Inner"] }],
+      tests: [
+        {
+          id: "t1",
+          name: "renders",
+          file: "test/widget.test.ts",
+          suite: ["Outer", "Inner"],
+        },
+      ],
       results: [],
     };
 

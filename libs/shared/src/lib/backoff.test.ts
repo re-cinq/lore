@@ -4,7 +4,10 @@ import { withBackoff } from "./backoff.js";
 describe("withBackoff", () => {
   it("returns the result on the first try without sleeping", async () => {
     const sleep = vi.fn(async (_ms: number) => {});
-    const result = await withBackoff(async () => "ok", { delaysMs: [1000, 4000], sleep });
+    const result = await withBackoff(async () => "ok", {
+      delaysMs: [1000, 4000],
+      sleep,
+    });
     expect(result).toBe("ok");
     expect(sleep).not.toHaveBeenCalled();
   });

@@ -37,13 +37,15 @@ export function resolveTestCommandManifest(sources: {
 }
 
 /** True when either declaration site supplies a manifest (file or settings non-null). */
-export function isManifestDeclared(sources: { file?: unknown; settings?: unknown }): boolean {
+export function isManifestDeclared(sources: {
+  file?: unknown;
+  settings?: unknown;
+}): boolean {
   return (sources.settings ?? sources.file) != null;
 }
 
 export type TestInterfaceCheck =
-  | { status: "configured" }
-  | { status: "scaffold"; files: string[] };
+  { status: "configured" } | { status: "scaffold"; files: string[] };
 
 /**
  * Onboard-time decision: a repo with no declared test-command manifest gets
@@ -68,7 +70,11 @@ export function substituteSelector(run: string, selector: string): string {
   return run.replaceAll("{selector}", selector);
 }
 
-const COVERAGE_FORMATS: readonly CoverageFormat[] = ["lcov", "cobertura", "json"];
+const COVERAGE_FORMATS: readonly CoverageFormat[] = [
+  "lcov",
+  "cobertura",
+  "json",
+];
 
 function normalizeEntry(raw: unknown): TestCommandManifest {
   const entry = (raw ?? {}) as Record<string, unknown>;
@@ -80,7 +86,9 @@ function normalizeEntry(raw: unknown): TestCommandManifest {
     throw new Error("test-command manifest: 'run' command is required");
   }
   if (!entry.run.includes("{selector}")) {
-    throw new Error("test-command manifest: 'run' must contain the {selector} placeholder");
+    throw new Error(
+      "test-command manifest: 'run' must contain the {selector} placeholder",
+    );
   }
   if (!COVERAGE_FORMATS.includes(entry.coverage_format as CoverageFormat)) {
     throw new Error(
@@ -94,6 +102,8 @@ function normalizeEntry(raw: unknown): TestCommandManifest {
     coverage_format: entry.coverage_format as CoverageFormat,
     cwd: typeof entry.cwd === "string" ? entry.cwd : ".",
     path_prefix_strip:
-      typeof entry.path_prefix_strip === "string" ? entry.path_prefix_strip : "",
+      typeof entry.path_prefix_strip === "string"
+        ? entry.path_prefix_strip
+        : "",
   };
 }

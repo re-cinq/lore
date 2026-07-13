@@ -48,7 +48,6 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     return rows[0].id;
   }
 
-
   async markRunning(id: string): Promise<void> {
     await this.pool.query(
       `UPDATE pipeline.assembly_lines
@@ -74,12 +73,21 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     const { rows } = await this.pool.query(
       `INSERT INTO pipeline.assembly_line_nodes (assembly_line_id, node_id, iteration, agent_cr_name)
        VALUES ($1, $2, $3, $4) RETURNING id`,
-      [input.assemblyLineId, input.nodeId, input.iteration, input.agentCrName ?? null],
+      [
+        input.assemblyLineId,
+        input.nodeId,
+        input.iteration,
+        input.agentCrName ?? null,
+      ],
     );
     return String(rows[0].id);
   }
 
-  async recordNodeFinish(nodeRowId: string, outcome: string, commitSha?: string): Promise<void> {
+  async recordNodeFinish(
+    nodeRowId: string,
+    outcome: string,
+    commitSha?: string,
+  ): Promise<void> {
     await this.pool.query(
       `UPDATE pipeline.assembly_line_nodes
          SET outcome = $1, commit_sha = $2, finished_at = now()
@@ -111,7 +119,10 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     return rows.map(toRecord);
   }
 
-  async findOpenByPr(repo: string, prNumber: number): Promise<AssemblyLineRecord[]> {
+  async findOpenByPr(
+    repo: string,
+    prNumber: number,
+  ): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
       `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
               created_at, started_at, finished_at
@@ -125,7 +136,11 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     return rows.map(toRecord);
   }
 
-  async finishOpenByPr(repo: string, prNumber: number, outcome: string): Promise<number> {
+  async finishOpenByPr(
+    repo: string,
+    prNumber: number,
+    outcome: string,
+  ): Promise<number> {
     const { rows } = await this.pool.query(
       `UPDATE pipeline.assembly_lines
           SET status = 'finished', outcome = $1, finished_at = now()

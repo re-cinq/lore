@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 export interface SearchFormProps {
   /** List route the search navigates to (`/context` or `/repos/o/r/context`). */
@@ -17,16 +17,20 @@ export interface SearchFormProps {
  * the router inside a transition so the button can show a pending state while
  * the new results load. Preserves the active type filter in the URL.
  */
-export default function SearchForm({ basePath, activeType, q }: SearchFormProps) {
+export default function SearchForm({
+  basePath,
+  activeType,
+  q,
+}: SearchFormProps) {
   const router = useRouter();
-  const [value, setValue] = useState(q ?? '');
+  const [value, setValue] = useState(q ?? "");
   const [isPending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const params = new URLSearchParams();
-    if (value) params.set('q', value);
-    if (activeType) params.set('type', activeType);
+    if (value) params.set("q", value);
+    if (activeType) params.set("type", activeType);
     const qs = params.toString();
     startTransition(() => router.push(qs ? `${basePath}?${qs}` : basePath));
   };
@@ -42,7 +46,7 @@ export default function SearchForm({ basePath, activeType, q }: SearchFormProps)
         aria-label="Search context"
       />
       <button type="submit" disabled={isPending}>
-        {isPending ? 'Searching…' : 'Search'}
+        {isPending ? "Searching…" : "Search"}
       </button>
     </form>
   );

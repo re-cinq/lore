@@ -30,7 +30,9 @@ describe("PgBaseline adapter", () => {
       counters: { issues_count: 4, median_ttm_hours: 6.5 },
     });
 
-    expect(calls[0]?.text).toContain("INSERT INTO pipeline.dark_factory_baseline");
+    expect(calls[0]?.text).toContain(
+      "INSERT INTO pipeline.dark_factory_baseline",
+    );
     expect(calls[0]?.params).toEqual([
       "octo/repo",
       windowStart,
@@ -40,11 +42,17 @@ describe("PgBaseline adapter", () => {
   });
 
   it("reads windowed counters from pipeline.tasks", async () => {
-    const { pool, calls } = fakePool([{ issues_count: "4", median_ttm: "6.5" }]);
+    const { pool, calls } = fakePool([
+      { issues_count: "4", median_ttm: "6.5" },
+    ]);
     const windowStart = new Date("2026-05-01T00:00:00Z");
     const windowEnd = new Date("2026-05-31T00:00:00Z");
 
-    const stats = await new PgBaseline(pool).baselineStats("octo/repo", windowStart, windowEnd);
+    const stats = await new PgBaseline(pool).baselineStats(
+      "octo/repo",
+      windowStart,
+      windowEnd,
+    );
 
     expect(calls[0]?.text).toContain("FROM pipeline.tasks");
     expect(calls[0]?.params).toEqual(["octo/repo", windowStart, windowEnd]);
@@ -103,7 +111,11 @@ describe("InMemoryBaseline double", () => {
       },
     ]);
 
-    const stats = await baseline.baselineStats("octo/repo", windowStart, windowEnd);
+    const stats = await baseline.baselineStats(
+      "octo/repo",
+      windowStart,
+      windowEnd,
+    );
 
     expect(stats).toEqual({ issues_count: 2, median_ttm_hours: 2 });
   });
@@ -126,7 +138,11 @@ describe("InMemoryBaseline double", () => {
       },
     ]);
 
-    const stats = await baseline.baselineStats("octo/repo", windowStart, windowEnd);
+    const stats = await baseline.baselineStats(
+      "octo/repo",
+      windowStart,
+      windowEnd,
+    );
 
     expect(stats).toEqual({ issues_count: 0, median_ttm_hours: null });
   });

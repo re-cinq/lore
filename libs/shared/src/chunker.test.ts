@@ -67,7 +67,10 @@ describe("chunkFile code AST chunking", () => {
       content: "// the answer to everything",
       metadata: { chunk_index: 0, start_line: 1, end_line: 1 },
     });
-    expect(chunks[1].metadata).toMatchObject({ symbol_name: "answer", symbol_type: "function" });
+    expect(chunks[1].metadata).toMatchObject({
+      symbol_name: "answer",
+      symbol_type: "function",
+    });
   });
 
   it("refines an exported interface to interface and an exported type alias to type", async () => {
@@ -80,8 +83,14 @@ describe("chunkFile code AST chunking", () => {
 
     const chunks = await chunkFile(source, "shape.ts", "code");
 
-    expect(chunks[0].metadata).toMatchObject({ symbol_name: "Shape", symbol_type: "interface" });
-    expect(chunks[1].metadata).toMatchObject({ symbol_name: "Id", symbol_type: "type" });
+    expect(chunks[0].metadata).toMatchObject({
+      symbol_name: "Shape",
+      symbol_type: "interface",
+    });
+    expect(chunks[1].metadata).toMatchObject({
+      symbol_name: "Id",
+      symbol_type: "type",
+    });
   });
 
   it("extracts the wrapped name and type from a Python decorated definition", async () => {
@@ -93,7 +102,10 @@ describe("chunkFile code AST chunking", () => {
 
     const [chunk] = await chunkFile(source, "views.py", "code");
 
-    expect(chunk.metadata).toMatchObject({ symbol_name: "index", symbol_type: "function" });
+    expect(chunk.metadata).toMatchObject({
+      symbol_name: "index",
+      symbol_type: "function",
+    });
   });
 
   it("types a Go method_declaration as function", async () => {
@@ -128,17 +140,31 @@ describe("chunkFile unsupported and sliding-window fallback", () => {
     const chunks = await chunkFile(source, "hello.rb", "code");
 
     expect(chunks).toHaveLength(1);
-    expect(chunks[0].metadata).toMatchObject({ chunk_index: 0, start_line: 1, end_line: 2 });
+    expect(chunks[0].metadata).toMatchObject({
+      chunk_index: 0,
+      start_line: 1,
+      end_line: 2,
+    });
   });
 
   it("splits an unsupported language over 400 lines into overlapping windows", async () => {
-    const source = Array.from({ length: 450 }, (_, i) => `line ${i + 1}`).join("\n");
+    const source = Array.from({ length: 450 }, (_, i) => `line ${i + 1}`).join(
+      "\n",
+    );
 
     const chunks = await chunkFile(source, "big.rb", "code");
 
     expect(chunks).toHaveLength(2);
-    expect(chunks[0].metadata).toMatchObject({ chunk_index: 0, start_line: 1, end_line: 400 });
-    expect(chunks[1].metadata).toMatchObject({ chunk_index: 1, start_line: 351, end_line: 450 });
+    expect(chunks[0].metadata).toMatchObject({
+      chunk_index: 0,
+      start_line: 1,
+      end_line: 400,
+    });
+    expect(chunks[1].metadata).toMatchObject({
+      chunk_index: 1,
+      start_line: 351,
+      end_line: 450,
+    });
   });
 });
 
@@ -170,7 +196,9 @@ describe("chunkFile", () => {
     const chunks = await chunkFile(markdown, "notes.md", "doc");
     const chunk = chunks[0];
 
-    const expectedHash = createHash("sha256").update(chunk.content).digest("hex");
+    const expectedHash = createHash("sha256")
+      .update(chunk.content)
+      .digest("hex");
 
     expect(chunk.metadata.content_hash).toBe(expectedHash);
   });

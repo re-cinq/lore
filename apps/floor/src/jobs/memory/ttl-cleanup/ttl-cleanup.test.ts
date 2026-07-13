@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryMemoryLifecycle, type MemoryLifecycleRow } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-memory.js";
+import {
+  InMemoryMemoryLifecycle,
+  type MemoryLifecycleRow,
+} from "@re-cinq/lore-shared/project/memory/memory-lifecycle-memory.js";
 import { ttlCleanupJob } from "./ttl-cleanup.js";
 
 function expiredMemory(id: string): MemoryLifecycleRow {
@@ -29,6 +32,8 @@ describe("ttlCleanupJob", () => {
   });
 
   it("reports zero when nothing is expired", async () => {
-    expect(await ttlCleanupJob(new InMemoryMemoryLifecycle())).toBe("Cleaned up 0 expired memories");
+    expect(await ttlCleanupJob(new InMemoryMemoryLifecycle())).toBe(
+      "Cleaned up 0 expired memories",
+    );
   });
 });

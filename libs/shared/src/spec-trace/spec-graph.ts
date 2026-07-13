@@ -9,7 +9,16 @@
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 
-export type SpecGraphNodeType = "Feature" | "Spec" | "Section" | "Statement" | "AcceptanceCriterion" | "TestChunk" | "CodeChunk" | "File" | "ADR";
+export type SpecGraphNodeType =
+  | "Feature"
+  | "Spec"
+  | "Section"
+  | "Statement"
+  | "AcceptanceCriterion"
+  | "TestChunk"
+  | "CodeChunk"
+  | "File"
+  | "ADR";
 
 export interface SpecGraphNode {
   id: string;
@@ -53,7 +62,12 @@ export function mergePersistentFeatures(
     const feature = byPath.get(node.path);
     if (!feature) return node;
     matched.add(feature.path);
-    return { ...node, label: feature.title, status: feature.status, featureId: feature.id };
+    return {
+      ...node,
+      label: feature.title,
+      status: feature.status,
+      featureId: feature.id,
+    };
   });
   for (const feature of features) {
     if (matched.has(feature.path)) continue;
@@ -71,7 +85,15 @@ export function mergePersistentFeatures(
 export interface SpecGraphLink {
   source: string;
   target: string;
-  kind: "in_feature" | "in_spec" | "in_section" | "has_statement" | "validated_by" | "implemented_by" | "covers" | "decided_by";
+  kind:
+    | "in_feature"
+    | "in_spec"
+    | "in_section"
+    | "has_statement"
+    | "validated_by"
+    | "implemented_by"
+    | "covers"
+    | "decided_by";
 }
 export interface SpecGraph {
   nodes: SpecGraphNode[];
@@ -89,9 +111,19 @@ interface OwnerLinks {
     "TestChunk.end_line"?: number;
     // TestChunk.coverage is single-cardinality (object); Coverage.covers is a set of
     // File targets, each carrying the covered intervals as a `ranges` edge facet.
-    cov?: { covers?: Array<{ uid: string; "File.path"?: string; "Coverage.covers|ranges"?: string }> };
+    cov?: {
+      covers?: Array<{
+        uid: string;
+        "File.path"?: string;
+        "Coverage.covers|ranges"?: string;
+      }>;
+    };
   }>;
-  ib?: Array<{ uid: string; "CodeChunk.file_path"?: string; "CodeChunk.start_line"?: number }>;
+  ib?: Array<{
+    uid: string;
+    "CodeChunk.file_path"?: string;
+    "CodeChunk.start_line"?: number;
+  }>;
   db?: Array<{ uid: string; "ADR.file_path"?: string; "ADR.number"?: number }>;
 }
 
@@ -101,7 +133,9 @@ interface GraphResult {
     "Spec.file_path"?: string;
     feature?: { uid: string; "Feature.path"?: string };
     stmts?: Array<OwnerLinks & { uid: string; "Statement.text"?: string }>;
-    acs?: Array<OwnerLinks & { uid: string; "AcceptanceCriterion.text"?: string }>;
+    acs?: Array<
+      OwnerLinks & { uid: string; "AcceptanceCriterion.text"?: string }
+    >;
   }>;
 }
 
@@ -130,17 +164,36 @@ export function adrLabel(path: string): string {
  * for one owner — a Statement or an AcceptanceCriterion. The owner node + its in_spec
  * link are emitted by the caller; this only walks the shared target arrays.
  */
-function emitOwnerLinks(ownerUid: string, owner: OwnerLinks, nodes: Map<string, SpecGraphNode>, links: SpecGraphLink[]): void {
+function emitOwnerLinks(
+  ownerUid: string,
+  owner: OwnerLinks,
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
   for (const t of owner.vb ?? []) {
     const p = t["TestChunk.file_path"] ?? t.uid;
-    nodes.set(t.uid, { id: t.uid, type: "TestChunk", label: basename(p), path: p, line: t["TestChunk.start_line"], endLine: t["TestChunk.end_line"], detail: t["TestChunk.test_name"] });
+    nodes.set(t.uid, {
+      id: t.uid,
+      type: "TestChunk",
+      label: basename(p),
+      path: p,
+      line: t["TestChunk.start_line"],
+      endLine: t["TestChunk.end_line"],
+      detail: t["TestChunk.test_name"],
+    });
     links.push({ source: ownerUid, target: t.uid, kind: "validated_by" });
     // The File this test exercises, reached via its Coverage (HAS_COVERAGE → COVERS).
     // One File node per path (deduped); the covered intervals are the `ranges` facet.
     for (const f of t.cov?.covers ?? []) {
       const fp = f["File.path"] ?? f.uid;
       const fileId = `file|${fp}`;
-      nodes.set(fileId, { id: fileId, type: "File", label: basename(fp), path: fp, detail: f["Coverage.covers|ranges"] });
+      nodes.set(fileId, {
+        id: fileId,
+        type: "File",
+        label: basename(fp),
+        path: fp,
+        detail: f["Coverage.covers|ranges"],
+      });
       links.push({ source: t.uid, target: fileId, kind: "covers" });
     }
   }
@@ -148,7 +201,13 @@ function emitOwnerLinks(ownerUid: string, owner: OwnerLinks, nodes: Map<string, 
   for (const c of owner.ib ?? []) {
     const p = c["CodeChunk.file_path"] ?? c.uid;
     const fileId = `file|${p}`;
-    if (!nodes.has(fileId)) nodes.set(fileId, { id: fileId, type: "File", label: basename(p), path: p });
+    if (!nodes.has(fileId))
+      nodes.set(fileId, {
+        id: fileId,
+        type: "File",
+        label: basename(p),
+        path: p,
+      });
     links.push({ source: ownerUid, target: fileId, kind: "implemented_by" });
   }
   for (const a of owner.db ?? []) {
@@ -165,21 +224,47 @@ export function flattenSpecGraph(data: GraphResult): SpecGraph {
 
   for (const spec of data.q ?? []) {
     const specPath = spec["Spec.file_path"] ?? spec.uid;
-    nodes.set(spec.uid, { id: spec.uid, type: "Spec", label: specLabel(specPath), path: specPath });
+    nodes.set(spec.uid, {
+      id: spec.uid,
+      type: "Spec",
+      label: specLabel(specPath),
+      path: specPath,
+    });
     // The feature folder that owns this spec — one node per folder (deduped by uid),
     // every md file of the folder hung under it via `in_feature`.
     if (spec.feature) {
       const fp = spec.feature["Feature.path"] ?? spec.feature.uid;
-      nodes.set(spec.feature.uid, { id: spec.feature.uid, type: "Feature", label: basename(fp), path: fp });
-      links.push({ source: spec.feature.uid, target: spec.uid, kind: "in_feature" });
+      nodes.set(spec.feature.uid, {
+        id: spec.feature.uid,
+        type: "Feature",
+        label: basename(fp),
+        path: fp,
+      });
+      links.push({
+        source: spec.feature.uid,
+        target: spec.uid,
+        kind: "in_feature",
+      });
     }
     for (const st of spec.stmts ?? []) {
-      nodes.set(st.uid, { id: st.uid, type: "Statement", label: "", path: specPath, detail: (st["Statement.text"] ?? "").trim() });
+      nodes.set(st.uid, {
+        id: st.uid,
+        type: "Statement",
+        label: "",
+        path: specPath,
+        detail: (st["Statement.text"] ?? "").trim(),
+      });
       links.push({ source: spec.uid, target: st.uid, kind: "in_spec" });
       emitOwnerLinks(st.uid, st, nodes, links);
     }
     for (const ac of spec.acs ?? []) {
-      nodes.set(ac.uid, { id: ac.uid, type: "AcceptanceCriterion", label: "", path: specPath, detail: (ac["AcceptanceCriterion.text"] ?? "").trim() });
+      nodes.set(ac.uid, {
+        id: ac.uid,
+        type: "AcceptanceCriterion",
+        label: "",
+        path: specPath,
+        detail: (ac["AcceptanceCriterion.text"] ?? "").trim(),
+      });
       links.push({ source: spec.uid, target: ac.uid, kind: "in_spec" });
       emitOwnerLinks(ac.uid, ac, nodes, links);
     }
@@ -216,7 +301,10 @@ const GRAPH_DQL = `query specGraph($repo: string) {
 }`;
 
 /** Reads a repo's spec force-graph (Specs + linked Statements + their test/code/ADR targets). */
-export async function fetchSpecGraph(repo: string, dgraph: DgraphClientPort): Promise<SpecGraph> {
+export async function fetchSpecGraph(
+  repo: string,
+  dgraph: DgraphClientPort,
+): Promise<SpecGraph> {
   const data = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(GRAPH_DQL, { $repo: repo });
     return (res.data ?? {}) as GraphResult;
@@ -247,7 +335,12 @@ interface RingResult {
   q?: Array<{
     uid: string;
     sections?: Array<{ uid: string; "Section.heading"?: string }>;
-    stmts?: Array<{ uid: string; v?: number; "Statement.text"?: string; sec?: { uid: string } }>;
+    stmts?: Array<{
+      uid: string;
+      v?: number;
+      "Statement.text"?: string;
+      sec?: { uid: string };
+    }>;
   }>;
 }
 
@@ -258,10 +351,20 @@ export function flattenSpecRing(data: RingResult): SpecRing {
   const byUid = new Map<string, RingSection>();
   const order: string[] = [];
   for (const sec of spec.sections ?? []) {
-    byUid.set(sec.uid, { uid: sec.uid, heading: sec["Section.heading"] ?? "(section)", total: 0, tested: 0 });
+    byUid.set(sec.uid, {
+      uid: sec.uid,
+      heading: sec["Section.heading"] ?? "(section)",
+      total: 0,
+      tested: 0,
+    });
     order.push(sec.uid);
   }
-  const ungrouped: RingSection = { uid: UNGROUPED_SECTION, heading: "(ungrouped)", total: 0, tested: 0 };
+  const ungrouped: RingSection = {
+    uid: UNGROUPED_SECTION,
+    heading: "(ungrouped)",
+    total: 0,
+    tested: 0,
+  };
   const statements: RingStatement[] = [];
   for (const st of spec.stmts ?? []) {
     const secUid = st.sec?.uid;
@@ -269,7 +372,12 @@ export function flattenSpecRing(data: RingResult): SpecRing {
     const tested = (st.v ?? 0) > 0;
     owner.total += 1;
     if (tested) owner.tested += 1;
-    statements.push({ uid: st.uid, sectionUid: owner.uid, tested, text: (st["Statement.text"] ?? "").trim() });
+    statements.push({
+      uid: st.uid,
+      sectionUid: owner.uid,
+      tested,
+      text: (st["Statement.text"] ?? "").trim(),
+    });
   }
   const sections = order.map((u) => byUid.get(u)!);
   if (ungrouped.total > 0) sections.push(ungrouped);
@@ -285,9 +393,15 @@ const RING_DQL = `query ring($xid: string) {
 }`;
 
 /** Reads one spec's two-ring structure (sections + per-statement coverage) for graph expansion. */
-export async function fetchSpecRing(repo: string, specPath: string, dgraph: DgraphClientPort): Promise<SpecRing> {
+export async function fetchSpecRing(
+  repo: string,
+  specPath: string,
+  dgraph: DgraphClientPort,
+): Promise<SpecRing> {
   const data = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(RING_DQL, { $xid: `${repo}|${specPath}` });
+    const res = await txn.queryWithVars(RING_DQL, {
+      $xid: `${repo}|${specPath}`,
+    });
     return (res.data ?? {}) as RingResult;
   });
   return flattenSpecRing(data);

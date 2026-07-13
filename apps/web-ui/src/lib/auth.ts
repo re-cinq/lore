@@ -8,5 +8,5 @@ export function isAuthenticated(): boolean {
 }
 
 export function getCurrentUser(): string {
-  return process.env.LORE_UI_USER || 'platform-engineer';
+  return process.env.LORE_UI_USER || "platform-engineer";
 }

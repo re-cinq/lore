@@ -13,9 +13,9 @@ import { createHash } from "node:crypto";
 export type RateBucket = "webhook" | "task" | "default";
 
 const RATE_LIMITS: Record<RateBucket, number> = {
-  webhook: 30,   // 30/min for webhooks
-  task: 60,      // 60/min for task operations
-  default: 200,  // 200/min for everything else
+  webhook: 30, // 30/min for webhooks
+  task: 60, // 60/min for task operations
+  default: 200, // 200/min for everything else
 };
 
 const windows = new Map<string, number[]>();
@@ -25,9 +25,13 @@ export function rateLimit(bucket: RateBucket): boolean {
   const windowMs = 60_000;
   const key = bucket;
   let timestamps = windows.get(key);
-  if (!timestamps) { timestamps = []; windows.set(key, timestamps); }
+  if (!timestamps) {
+    timestamps = [];
+    windows.set(key, timestamps);
+  }
   // Evict old entries
-  while (timestamps.length > 0 && timestamps[0] <= now - windowMs) timestamps.shift();
+  while (timestamps.length > 0 && timestamps[0] <= now - windowMs)
+    timestamps.shift();
   if (timestamps.length >= RATE_LIMITS[bucket]) return false;
   timestamps.push(now);
   return true;
@@ -45,7 +49,10 @@ const ALL_SCOPES: TokenScope[] = ["read", "write", "task", "webhook", "admin"];
  * LORE_INGEST_TOKEN resolves to full access (all scopes) without a DB hit.
  * The bearer-scope hapi strategy builds on this; `validateClientToken` wraps it.
  */
-export async function resolveTokenScopes(pool: Pool | null, bearerToken: string): Promise<TokenScope[] | null> {
+export async function resolveTokenScopes(
+  pool: Pool | null,
+  bearerToken: string,
+): Promise<TokenScope[] | null> {
   const legacyToken = process.env.LORE_INGEST_TOKEN;
   if (legacyToken && bearerToken === legacyToken) return ALL_SCOPES;
 

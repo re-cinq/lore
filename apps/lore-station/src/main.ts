@@ -9,12 +9,23 @@
 import { parseStationInput, type StationInput } from "./input.js";
 import { resultLine, eventLine } from "./output.js";
 import { runValidateStation, type StationEnv } from "./stations/validate.js";
+import { runGateStation } from "./stations/gate.js";
+import { runGithubActionStation } from "./stations/github-action.js";
+import { runRetrospectiveStation } from "./stations/retrospective.js";
+import { runDetectStation } from "./stations/detect.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
-type StationRunner = (input: StationInput, env: StationEnv) => Promise<NodeResult>;
+type StationRunner = (
+  input: StationInput,
+  env: StationEnv,
+) => Promise<NodeResult>;
 
 export const stations: Record<string, StationRunner> = {
   validate: runValidateStation,
+  gate: runGateStation,
+  github_action: runGithubActionStation,
+  retrospective: runRetrospectiveStation,
+  detect: runDetectStation,
 };
 
 export async function runStation(
@@ -26,7 +37,10 @@ export async function runStation(
     const runner = stations[type];
 
     if (!runner) {
-      return { line: resultLine(null, `unknown station type "${type}"`), exitCode: 1 };
+      return {
+        line: resultLine(null, `unknown station type "${type}"`),
+        exitCode: 1,
+      };
     }
 
     const result = await runner(parseStationInput(inputJson), env);
@@ -52,7 +66,9 @@ async function main() {
 const invokedDirectly = process.argv[1]?.endsWith("main.js");
 if (invokedDirectly) {
   main().catch((err) => {
-    console.error(eventLine(`lore-station main() failed: ${(err as Error).message}`));
+    console.error(
+      eventLine(`lore-station main() failed: ${(err as Error).message}`),
+    );
     console.error(err);
     process.exit(1);
   });

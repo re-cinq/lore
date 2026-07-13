@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { planTraceUnits, runTraceUnits, type TraceUnit } from "./trace-units.js";
+import {
+  planTraceUnits,
+  runTraceUnits,
+  type TraceUnit,
+} from "./trace-units.js";
 
 describe("planTraceUnits (pure)", () => {
   it("routes a specs/ markdown path to a spec projection unit", () => {
@@ -27,7 +31,8 @@ describe("runTraceUnits (isolation)", () => {
   it("runs siblings and records the failure when one unit's projection throws", async () => {
     const projected: string[] = [];
     const project = async (unit: TraceUnit): Promise<void> => {
-      if (unit.filePath === "specs/bad/spec.md") throw new Error("projection blew up");
+      if (unit.filePath === "specs/bad/spec.md")
+        throw new Error("projection blew up");
       projected.push(unit.filePath);
     };
 

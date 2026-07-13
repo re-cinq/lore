@@ -1,8 +1,8 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import { queryAllowMissing } from '@/lib/db';
-import type { FeatureRow } from '@/lib/feature-types';
-import FeatureListView from './FeatureListView';
+import { queryAllowMissing } from "@/lib/db";
+import type { FeatureRow } from "@/lib/feature-types";
+import FeatureListView from "./FeatureListView";
 
 export default async function RepoFeatures({
   params,

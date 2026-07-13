@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { enforceTrue, enforceOk } from "./enforce.js";
 
-type Result = { ok: true; value: number } | { ok: false; status: number; reason: string };
+type Result =
+  { ok: true; value: number } | { ok: false; status: number; reason: string };
 
 describe("enforceTrue", () => {
   it("returns without throwing when the condition is truthy", () => {
@@ -9,7 +10,9 @@ describe("enforceTrue", () => {
   });
 
   it("throws an Error with the message when given a string and the condition is false", () => {
-    expect(() => enforceTrue(false, "must be positive")).toThrow(new Error("must be positive"));
+    expect(() => enforceTrue(false, "must be positive")).toThrow(
+      new Error("must be positive"),
+    );
   });
 
   it("throws the provided Error instance when the condition is false", () => {
@@ -47,6 +50,8 @@ describe("enforceOk", () => {
 
   it("throws an Error with the message when ok is false", () => {
     const result: Result = { ok: false, status: 400, reason: "bad repo" };
-    expect(() => enforceOk(result, "invalid request")).toThrow(new Error("invalid request"));
+    expect(() => enforceOk(result, "invalid request")).toThrow(
+      new Error("invalid request"),
+    );
   });
 });

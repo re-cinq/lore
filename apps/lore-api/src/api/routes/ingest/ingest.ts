@@ -5,9 +5,12 @@ import { ingestFiles } from "../../../features/spec-trace/ingest.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { triggerAgentSpecCoverageValidate } from "../helpers.js";
+import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 const IngestBody = z.object({
-  files: z.array(z.union([z.string(), z.object({ path: z.string(), content: z.string() })])),
+  files: z.array(
+    z.union([z.string(), z.object({ path: z.string(), content: z.string() })]),
+  ),
   repo: z.string().min(1),
   commit: z.string().optional(),
 });
@@ -17,10 +20,13 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/ingest",
-    options: { ...bearerScope("write"), validate: { payload: zodValidate(IngestBody) } },
+    options: {
+      ...bearerScope("write"),
+      validate: { payload: zodValidate(IngestBody) },
+    },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database not available" }).code(503);
+      if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
       try {
         const { files, repo, commit } = request.payload as IngestBody;
         const result = await ingestFiles(pool, files, repo, commit || "HEAD");
@@ -29,7 +35,10 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
         // the content-hash gate elides the work when nothing relevant changed.
         // Gated on at least one file actually landing.
         const landed = Array.isArray(result?.results)
-          ? result.results.some((r: { status?: string }) => r.status === "ingested" || r.status === "deleted")
+          ? result.results.some(
+              (r: { status?: string }) =>
+                r.status === "ingested" || r.status === "deleted",
+            )
           : false;
         if (landed) void triggerAgentSpecCoverageValidate(pool, repo);
         return h.response(result);

@@ -1,16 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { enforceFeatureInput, parseSectionAnswers, ValidationError } from "./feature-input.js";
+import {
+  enforceFeatureInput,
+  parseSectionAnswers,
+  ValidationError,
+} from "./feature-input.js";
 
 describe("enforceFeatureInput", () => {
   it("trims and returns the title and prompt for valid input", () => {
-    expect(enforceFeatureInput("  Smart Planning  ", "  do the thing  ")).toEqual({
+    expect(
+      enforceFeatureInput("  Smart Planning  ", "  do the thing  "),
+    ).toEqual({
       title: "Smart Planning",
       prompt: "do the thing",
     });
   });
 
   it("throws a ValidationError when the title is blank or whitespace", () => {
-    expect(() => enforceFeatureInput("   ", "p")).toThrow(new ValidationError("title and prompt are required"));
+    expect(() => enforceFeatureInput("   ", "p")).toThrow(
+      new ValidationError("title and prompt are required"),
+    );
   });
 
   it("throws a ValidationError when the prompt is missing", () => {
@@ -20,11 +28,15 @@ describe("enforceFeatureInput", () => {
   });
 
   it("throws when the title exceeds the length cap", () => {
-    expect(() => enforceFeatureInput("x".repeat(257), "p")).toThrow(/title must be 256 characters or fewer/);
+    expect(() => enforceFeatureInput("x".repeat(257), "p")).toThrow(
+      /title must be 256 characters or fewer/,
+    );
   });
 
   it("throws when the prompt exceeds the length cap", () => {
-    expect(() => enforceFeatureInput("t", "x".repeat(8001))).toThrow(/prompt must be 8000 characters or fewer/);
+    expect(() => enforceFeatureInput("t", "x".repeat(8001))).toThrow(
+      /prompt must be 8000 characters or fewer/,
+    );
   });
 });
 
@@ -36,7 +48,9 @@ describe("parseSectionAnswers", () => {
   });
 
   it("returns null when every field is empty", () => {
-    expect(parseSectionAnswers({ sections: {}, questions: {}, free_form: "" })).toBeNull();
+    expect(
+      parseSectionAnswers({ sections: {}, questions: {}, free_form: "" }),
+    ).toBeNull();
   });
 
   it("keeps a valid direction and comment, dropping an unknown direction", () => {
@@ -53,7 +67,9 @@ describe("parseSectionAnswers", () => {
   });
 
   it("keeps only string question answers", () => {
-    const parsed = parseSectionAnswers({ questions: { q1: "yes", q2: 42, q3: null } });
+    const parsed = parseSectionAnswers({
+      questions: { q1: "yes", q2: 42, q3: null },
+    });
     expect(parsed?.questions).toEqual({ q1: "yes" });
   });
 

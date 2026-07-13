@@ -14,22 +14,42 @@ import {
 
 describe("featureSeedPositions", () => {
   const center = { x: 0, y: 0 };
-  const dist = (p: { x: number; y: number }) => Math.hypot(p.x - center.x, p.y - center.y);
+  const dist = (p: { x: number; y: number }) =>
+    Math.hypot(p.x - center.x, p.y - center.y);
 
   it("keeps every feature within the seed radius and at a distinct spot", () => {
     const pos = featureSeedPositions(
-      [{ id: "a", size: 1 }, { id: "b", size: 1 }, { id: "c", size: 1 }],
+      [
+        { id: "a", size: 1 },
+        { id: "b", size: 1 },
+        { id: "c", size: 1 },
+      ],
       center,
       300,
     );
 
-    for (const id of ["a", "b", "c"]) expect(dist(pos.get(id)!)).toBeLessThanOrEqual(300);
+    for (const id of ["a", "b", "c"])
+      expect(dist(pos.get(id)!)).toBeLessThanOrEqual(300);
     expect(pos.get("a")).not.toEqual(pos.get("b"));
   });
 
   it("seeds a larger feature further from the centre than a small one in the same slot", () => {
-    const small = featureSeedPositions([{ id: "a", size: 1 }, { id: "b", size: 1 }], center, 100);
-    const big = featureSeedPositions([{ id: "a", size: 9 }, { id: "b", size: 1 }], center, 100);
+    const small = featureSeedPositions(
+      [
+        { id: "a", size: 1 },
+        { id: "b", size: 1 },
+      ],
+      center,
+      100,
+    );
+    const big = featureSeedPositions(
+      [
+        { id: "a", size: 9 },
+        { id: "b", size: 1 },
+      ],
+      center,
+      100,
+    );
 
     expect(dist(big.get("a")!)).toBeGreaterThan(dist(small.get("a")!));
   });
@@ -45,7 +65,9 @@ describe("connectedComponents", () => {
       ],
     );
 
-    const sorted = comps.map((c) => [...c].sort()).sort((x, y) => x[0].localeCompare(y[0]));
+    const sorted = comps
+      .map((c) => [...c].sort())
+      .sort((x, y) => x[0].localeCompare(y[0]));
     expect(sorted).toEqual([
       ["a", "b"],
       ["c", "d"],
@@ -59,7 +81,8 @@ describe("connectedComponents", () => {
 
 describe("rimTargets", () => {
   const center = { x: 0, y: 0 };
-  const dist = (p: { x: number; y: number }) => Math.hypot(p.x - center.x, p.y - center.y);
+  const dist = (p: { x: number; y: number }) =>
+    Math.hypot(p.x - center.x, p.y - center.y);
 
   it("places every component's spot on the rim at the given radius", () => {
     const targets = rimTargets([["a"], ["b"], ["c", "d"]], center, 100);
@@ -82,15 +105,21 @@ describe("rimTargets", () => {
 
 describe("boundingRadius", () => {
   it("floors a tiny graph at the minimum radius", () => {
-    expect(boundingRadius(1, 0, { spacing: 40, floor: 260, cap: 2000 })).toBe(260);
+    expect(boundingRadius(1, 0, { spacing: 40, floor: 260, cap: 2000 })).toBe(
+      260,
+    );
   });
 
   it("scales with the square root of (vertices + edges)", () => {
-    expect(boundingRadius(96, 4, { spacing: 40, floor: 0, cap: 1e9 })).toBeCloseTo(400);
+    expect(
+      boundingRadius(96, 4, { spacing: 40, floor: 0, cap: 1e9 }),
+    ).toBeCloseTo(400);
   });
 
   it("caps a huge graph at the maximum radius", () => {
-    expect(boundingRadius(100000, 0, { spacing: 40, floor: 260, cap: 1500 })).toBe(1500);
+    expect(
+      boundingRadius(100000, 0, { spacing: 40, floor: 260, cap: 1500 }),
+    ).toBe(1500);
   });
 });
 
@@ -99,24 +128,42 @@ describe("containedVelocity", () => {
   const speed = (v: { vx: number; vy: number }) => Math.hypot(v.vx, v.vy);
 
   it("leaves the velocity of a node inside the radius unchanged", () => {
-    expect(containedVelocity({ x: 10, y: 0 }, { vx: 5, vy: 0 }, center, 100)).toEqual({ vx: 5, vy: 0 });
+    expect(
+      containedVelocity({ x: 10, y: 0 }, { vx: 5, vy: 0 }, center, 100),
+    ).toEqual({ vx: 5, vy: 0 });
   });
 
   it("zeroes a denormal-tiny velocity to avoid float jitter", () => {
-    expect(containedVelocity({ x: 10, y: 0 }, { vx: 1e-9, vy: -1e-9 }, center, 100)).toEqual({ vx: 0, vy: 0 });
+    expect(
+      containedVelocity({ x: 10, y: 0 }, { vx: 1e-9, vy: -1e-9 }, center, 100),
+    ).toEqual({ vx: 0, vy: 0 });
   });
 
   it("cancels the outward velocity of a node past the border (it cannot move further out)", () => {
-    expect(containedVelocity({ x: 110, y: 0 }, { vx: 5, vy: 0 }, center, 100).vx).toBeLessThanOrEqual(0);
+    expect(
+      containedVelocity({ x: 110, y: 0 }, { vx: 5, vy: 0 }, center, 100).vx,
+    ).toBeLessThanOrEqual(0);
   });
 
   it("keeps an already-inward velocity heading inward when past the border", () => {
-    expect(containedVelocity({ x: 110, y: 0 }, { vx: -5, vy: 0 }, center, 100).vx).toBeLessThan(0);
+    expect(
+      containedVelocity({ x: 110, y: 0 }, { vx: -5, vy: 0 }, center, 100).vx,
+    ).toBeLessThan(0);
   });
 
   it("moves a node slower the further it has strayed past the border", () => {
-    const near = containedVelocity({ x: 110, y: 0 }, { vx: 0, vy: 10 }, center, 100);
-    const far = containedVelocity({ x: 600, y: 0 }, { vx: 0, vy: 10 }, center, 100);
+    const near = containedVelocity(
+      { x: 110, y: 0 },
+      { vx: 0, vy: 10 },
+      center,
+      100,
+    );
+    const far = containedVelocity(
+      { x: 600, y: 0 },
+      { vx: 0, vy: 10 },
+      center,
+      100,
+    );
     expect(speed(far)).toBeLessThan(speed(near));
   });
 });
@@ -152,14 +199,32 @@ describe("radialTree", () => {
   });
 
   it("puts each child one ring further out than its parent", () => {
-    const pos = radialTree("r", new Map([["r", ["a"]], ["a", ["b"]]]), opts);
+    const pos = radialTree(
+      "r",
+      new Map([
+        ["r", ["a"]],
+        ["a", ["b"]],
+      ]),
+      opts,
+    );
 
-    expect(Math.hypot(pos.get("a")?.x ?? 0, pos.get("a")?.y ?? 0)).toBeCloseTo(100);
-    expect(Math.hypot(pos.get("b")?.x ?? 0, pos.get("b")?.y ?? 0)).toBeCloseTo(200);
+    expect(Math.hypot(pos.get("a")?.x ?? 0, pos.get("a")?.y ?? 0)).toBeCloseTo(
+      100,
+    );
+    expect(Math.hypot(pos.get("b")?.x ?? 0, pos.get("b")?.y ?? 0)).toBeCloseTo(
+      200,
+    );
   });
 
   it("centres a parent at the mean angle of its children", () => {
-    const pos = radialTree("r", new Map([["r", ["mid"]], ["mid", ["l1", "l2"]]]), opts);
+    const pos = radialTree(
+      "r",
+      new Map([
+        ["r", ["mid"]],
+        ["mid", ["l1", "l2"]],
+      ]),
+      opts,
+    );
 
     expect(pos.get("mid")?.x).toBeCloseTo(-100);
     expect(pos.get("mid")?.y).toBeCloseTo(0);
@@ -186,7 +251,9 @@ describe("separateSmallComponents", () => {
 
     for (const small of smallNodes) {
       for (const main of mainNodes) {
-        expect(Math.hypot(small.x - main.x, small.y - main.y)).toBeGreaterThanOrEqual(margin);
+        expect(
+          Math.hypot(small.x - main.x, small.y - main.y),
+        ).toBeGreaterThanOrEqual(margin);
       }
     }
   });
@@ -195,7 +262,9 @@ describe("separateSmallComponents", () => {
 describe("featureRingRadius", () => {
   it("grows the ring so many trees don't overlap", () => {
     // 20 trees of radius 300 need a circle big enough to seat them ~2.2·r apart
-    expect(featureRingRadius(20, 300, 660)).toBeCloseTo((20 * 2.2 * 300) / (2 * Math.PI));
+    expect(featureRingRadius(20, 300, 660)).toBeCloseTo(
+      (20 * 2.2 * 300) / (2 * Math.PI),
+    );
   });
 
   it("falls back to the minimum radius for a few small trees", () => {
@@ -212,7 +281,15 @@ describe("countCrossings", () => {
   ]);
 
   it("counts one crossing for an X", () => {
-    expect(countCrossings([{ source: "a", target: "b" }, { source: "c", target: "d" }], pos)).toBe(1);
+    expect(
+      countCrossings(
+        [
+          { source: "a", target: "b" },
+          { source: "c", target: "d" },
+        ],
+        pos,
+      ),
+    ).toBe(1);
   });
 
   it("counts zero for parallel non-crossing edges", () => {
@@ -223,11 +300,27 @@ describe("countCrossings", () => {
       ["d", { x: 10, y: 5 }],
     ]);
 
-    expect(countCrossings([{ source: "a", target: "b" }, { source: "c", target: "d" }], p)).toBe(0);
+    expect(
+      countCrossings(
+        [
+          { source: "a", target: "b" },
+          { source: "c", target: "d" },
+        ],
+        p,
+      ),
+    ).toBe(0);
   });
 
   it("ignores edges that share a node (they meet, not cross)", () => {
-    expect(countCrossings([{ source: "a", target: "b" }, { source: "a", target: "d" }], pos)).toBe(0);
+    expect(
+      countCrossings(
+        [
+          { source: "a", target: "b" },
+          { source: "a", target: "d" },
+        ],
+        pos,
+      ),
+    ).toBe(0);
   });
 
   it("sums crossings across several edges", () => {
@@ -242,7 +335,14 @@ describe("countCrossings", () => {
     ]);
 
     expect(
-      countCrossings([{ source: "a", target: "b" }, { source: "c", target: "d" }, { source: "e", target: "f" }], p),
+      countCrossings(
+        [
+          { source: "a", target: "b" },
+          { source: "c", target: "d" },
+          { source: "e", target: "f" },
+        ],
+        p,
+      ),
     ).toBe(1);
   });
 });

@@ -5,7 +5,11 @@ import { writeAuditLog } from "../lib/audit.js";
 /** The minimum issue-creation surface escalate needs — the Project facade's
  *  `issues` satisfies it; injectable for tests. */
 export interface IssueCreator {
-  create(title: string, body: string, labels?: string[]): Promise<{ number: number; url?: string }>;
+  create(
+    title: string,
+    body: string,
+    labels?: string[],
+  ): Promise<{ number: number; url?: string }>;
 }
 
 export type EscalationReason =
@@ -151,7 +155,14 @@ export function renderEscalationBody(input: EscalateInput): string {
   ];
 
   if (input.failingPhaseOutput) {
-    lines.push(``, `### Failing phase output`, ``, "```", input.failingPhaseOutput, "```");
+    lines.push(
+      ``,
+      `### Failing phase output`,
+      ``,
+      "```",
+      input.failingPhaseOutput,
+      "```",
+    );
   }
 
   if (input.contributingRefs && input.contributingRefs.length > 0) {
@@ -208,9 +219,6 @@ async function writeAuditLogSafe(
   try {
     await writeAuditLog(entry);
   } catch (err) {
-    console.warn(
-      "[escalate] audit log write failed:",
-      (err as Error).message,
-    );
+    console.warn("[escalate] audit log write failed:", (err as Error).message);
   }
 }

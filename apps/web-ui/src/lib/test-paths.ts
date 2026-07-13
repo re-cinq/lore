@@ -38,7 +38,8 @@ export function isDocFile(filePath: string): boolean {
 }
 
 export function normalizeTestName(describe: string, it: string): string {
-  const collapse = (segment: string) => segment.trim().replace(/\s+/g, " ").toLowerCase();
+  const collapse = (segment: string) =>
+    segment.trim().replace(/\s+/g, " ").toLowerCase();
   return [describe, it]
     .map(collapse)
     .filter((segment) => segment.length > 0)

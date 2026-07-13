@@ -67,7 +67,9 @@ async function readTrustLevel(
   repo: string,
 ): Promise<TrustLevel | undefined> {
   try {
-    const raw = (await repos.rawSettings(repo)) as { trust?: { level?: string } } | null;
+    const raw = (await repos.rawSettings(repo)) as {
+      trust?: { level?: string };
+    } | null;
     return raw?.trust?.level as TrustLevel | undefined;
   } catch {
     return undefined;
@@ -87,7 +89,11 @@ async function readTrustLevel(
 export async function resolvePrForTaskFromDb(
   taskId: string,
   darkFactorySettings: ResolvedDarkFactorySettings,
-  deps: PrPolicyDeps = { tasks: taskQueue(), repos: settings(), pullsFor: defaultPullsFor },
+  deps: PrPolicyDeps = {
+    tasks: taskQueue(),
+    repos: settings(),
+    pullsFor: defaultPullsFor,
+  },
 ): Promise<PrForAutoMerge | null> {
   const row = await deps.tasks.prInfo(taskId);
   if (!row?.pr_number || !row.target_repo) return null;
@@ -136,7 +142,9 @@ export async function resolvePrForTaskFromDb(
         (c) => c.conclusion === "success" || c.conclusion === "skipped",
       );
 
-    botApproved = reviews.some((r) => r.state === "APPROVED" && r.user === botLogin);
+    botApproved = reviews.some(
+      (r) => r.state === "APPROVED" && r.user === botLogin,
+    );
     humanChangesRequested = reviews.some(
       (r) => r.state === "CHANGES_REQUESTED" && !r.user.endsWith("[bot]"),
     );
@@ -161,7 +169,8 @@ export async function resolvePrForTaskFromDb(
         paths: darkFactorySettings.auto_merge.paths,
         min_trust: darkFactorySettings.auto_merge.min_trust,
         require_green_ci: darkFactorySettings.auto_merge.require_green_ci,
-        require_bot_approval: darkFactorySettings.auto_merge.require_bot_approval,
+        require_bot_approval:
+          darkFactorySettings.auto_merge.require_bot_approval,
       },
       trustLevel,
       changedPaths,

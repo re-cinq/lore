@@ -58,7 +58,15 @@ describe("Workspace", () => {
       merge: async () => {},
       open: async (repo, branch, title) => {
         opened.push(`${repo}#${branch}`);
-        return { repo, number: 1, title, branch, state: "open", labels: [], url: "https://gh/pr/1" };
+        return {
+          repo,
+          number: 1,
+          title,
+          branch,
+          state: "open",
+          labels: [],
+          url: "https://gh/pr/1",
+        };
       },
       getDiff: async () => "",
       listReviews: async () => [],
@@ -67,7 +75,14 @@ describe("Workspace", () => {
       listCommits: async () => [],
       isMerged: async () => false,
       isClosed: async () => false,
-      getStats: async () => ({ files_changed: 0, additions: 0, deletions: 0, comments: 0, merged_at: null, created_at: "" }),
+      getStats: async () => ({
+        files_changed: 0,
+        additions: 0,
+        deletions: 0,
+        comments: 0,
+        merged_at: null,
+        created_at: "",
+      }),
       changedFileCount: async () => 0,
       ciConclusion: async () => "none" as const,
       listFiles: async () => [],

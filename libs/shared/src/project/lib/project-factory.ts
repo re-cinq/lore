@@ -25,14 +25,22 @@ export async function createProject(
 ): Promise<Project> {
   const ports = new Map<string, unknown>();
 
-  const { MemoryStoreBridge } = await import("../memory/memory-store-bridge.js");
+  const { MemoryStoreBridge } =
+    await import("../memory/memory-store-bridge.js");
   const { selectMemoryStore } = await import("../../memory-store.js");
-  ports.set("memory", new MemoryStoreBridge(selectMemoryStore({ pgPool, dgraph: dgraphClient })));
+  ports.set(
+    "memory",
+    new MemoryStoreBridge(selectMemoryStore({ pgPool, dgraph: dgraphClient })),
+  );
 
   const { PgTaskStore } = await import("../tasks/task-store-pg.js");
   ports.set("tasks", new PgTaskStore(pgPool));
 
-  const { PgAssemblyLines } = await import("../assembly-lines/assembly-lines-pg.js");
+  const { PgChunks } = await import("../chunks/chunks-pg.js");
+  ports.set("chunks", new PgChunks(pgPool));
+
+  const { PgAssemblyLines } =
+    await import("../assembly-lines/assembly-lines-pg.js");
   ports.set("assemblyLines", new PgAssemblyLines(pgPool));
 
   const { PlatformGitHub } = await import("./platform-github.js");
@@ -59,7 +67,10 @@ export async function createProject(
   ports.set("trace", new DgraphTrace(dgraphClient));
 
   const { AgentRunner } = await import("../agents/agent-runner.js");
-  ports.set("agentRunner", new AgentRunner(env, { station: providers.station, llm: providers.llm }));
+  ports.set(
+    "agentRunner",
+    new AgentRunner(env, { station: providers.station, llm: providers.llm }),
+  );
 
   // Agent DEFINITIONS port — three-way optional-port seam by environment:
   //   DB present   → PgAgentDefs (floor, mcp-server on GKE)
@@ -68,10 +79,16 @@ export async function createProject(
   if (env.LORE_DB_HOST) {
     const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
     const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
-    ports.set("agentDefs", new PgAgentDefs(pgPool, new AgentDefsYaml(undefined, env)));
+    ports.set(
+      "agentDefs",
+      new PgAgentDefs(pgPool, new AgentDefsYaml(undefined, env)),
+    );
   } else if (env.LORE_API_URL) {
     const { AgentDefsHttp } = await import("../agents/agent-defs-http.js");
-    ports.set("agentDefs", new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN));
+    ports.set(
+      "agentDefs",
+      new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN),
+    );
   } else {
     const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
     ports.set("agentDefs", new AgentDefsYaml(undefined, env));
@@ -88,9 +105,8 @@ export async function createProject(
 
   // Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under
   // ~/.lore/leases for the local runner. Mirrors the agent's leaseBackendForEnv.
-  const { DbLeaseBackend, FileLeaseBackend } = await import(
-    "../leases/lease-backends.js"
-  );
+  const { DbLeaseBackend, FileLeaseBackend } =
+    await import("../leases/lease-backends.js");
   if (env.LORE_DB_HOST) {
     // The real pg pool returns rowCount; PgPool's narrow type omits it.
     ports.set("leases", new DbLeaseBackend(pgPool as unknown as LeasePool));

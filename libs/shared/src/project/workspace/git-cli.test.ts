@@ -21,7 +21,12 @@ function gitAvailable(): boolean {
 }
 
 const hasGit = gitAvailable();
-const IDENTITY = { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+const IDENTITY = {
+  GIT_AUTHOR_NAME: "t",
+  GIT_AUTHOR_EMAIL: "t@t",
+  GIT_COMMITTER_NAME: "t",
+  GIT_COMMITTER_EMAIL: "t@t",
+};
 
 describe.skipIf(!hasGit)("GitCli (live git)", () => {
   let base: string;
@@ -64,7 +69,9 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
     await git.push(dest, "feat");
 
     expect(result).toEqual({ committed: true });
-    expect(execFileSync("git", ["ls-remote", "--heads", bare], { encoding: "utf8" })).toContain("refs/heads/feat");
+    expect(
+      execFileSync("git", ["ls-remote", "--heads", bare], { encoding: "utf8" }),
+    ).toContain("refs/heads/feat");
   });
 
   it("commits with the Lore Agent identity when the environment provides none", async () => {
@@ -76,7 +83,11 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
     await git.writeFile(dest, "id.md", "x");
     await git.stageCommit(dest, "id: commit");
 
-    const author = execFileSync("git", ["-C", dest, "log", "-1", "--format=%an <%ae>"], { encoding: "utf8" }).trim();
+    const author = execFileSync(
+      "git",
+      ["-C", dest, "log", "-1", "--format=%an <%ae>"],
+      { encoding: "utf8" },
+    ).trim();
     expect(author).toBe("Lore Agent <lore-agent@re-cinq.com>");
   });
 
@@ -100,7 +111,11 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
 
     await git.ensureCheckout(dest, "pinned");
 
-    const branch = execFileSync("git", ["-C", dest, "rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).trim();
+    const branch = execFileSync(
+      "git",
+      ["-C", dest, "rev-parse", "--abbrev-ref", "HEAD"],
+      { encoding: "utf8" },
+    ).trim();
     expect(branch).toBe("pinned");
   });
 
@@ -111,6 +126,8 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
     execFileSync("git", ["-C", dest, "branch", "other"], { env });
     writeFileSync(join(dest, "README.md"), "uncommitted edit");
 
-    await expect(git.ensureCheckout(dest, "other")).rejects.toThrow(/uncommitted/);
+    await expect(git.ensureCheckout(dest, "other")).rejects.toThrow(
+      /uncommitted/,
+    );
   });
 });

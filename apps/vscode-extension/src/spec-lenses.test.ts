@@ -22,15 +22,29 @@ describe("specLenses", () => {
   it("splits a line's links into test and code targets", () => {
     expect(lenses[0]).toEqual({
       line: 5,
-      tests: [{ label: "validated by `runner.test.ts:88`", path: "mcp-server/src/local-runner.test.ts", line: 88 }],
-      code: [{ label: "code", path: "mcp-server/src/local-runner.ts", line: 42 }],
+      tests: [
+        {
+          label: "validated by `runner.test.ts:88`",
+          path: "mcp-server/src/local-runner.test.ts",
+          line: 88,
+        },
+      ],
+      code: [
+        { label: "code", path: "mcp-server/src/local-runner.ts", line: 42 },
+      ],
     });
   });
 
   it("emits a test-only lens with no code targets", () => {
     expect(lenses[1]).toEqual({
       line: 8,
-      tests: [{ label: "validated by `lease.test.ts:42`", path: "agent/src/supervisor/lease.test.ts", line: 42 }],
+      tests: [
+        {
+          label: "validated by `lease.test.ts:42`",
+          path: "agent/src/supervisor/lease.test.ts",
+          line: 42,
+        },
+      ],
       code: [],
     });
   });

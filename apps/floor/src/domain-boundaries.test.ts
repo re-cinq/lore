@@ -35,9 +35,14 @@ function tsFiles(dir: string): string[] {
 /** Relative import + dynamic-import + vi.mock specifiers in a source file. */
 function relImports(src: string): string[] {
   const specs: string[] = [];
-  for (const m of src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)) specs.push(m[1]);
-  for (const m of src.matchAll(/import\(\s*["'](\.\.?\/[^"']+)["']/g)) specs.push(m[1]);
-  for (const m of src.matchAll(/vi\.(?:mock|doMock)\(\s*["'](\.\.?\/[^"']+)["']/g)) specs.push(m[1]);
+  for (const m of src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g))
+    specs.push(m[1]);
+  for (const m of src.matchAll(/import\(\s*["'](\.\.?\/[^"']+)["']/g))
+    specs.push(m[1]);
+  for (const m of src.matchAll(
+    /vi\.(?:mock|doMock)\(\s*["'](\.\.?\/[^"']+)["']/g,
+  ))
+    specs.push(m[1]);
   return specs;
 }
 
@@ -58,7 +63,8 @@ describe("floor domain boundaries", () => {
     for (const f of files) {
       for (const spec of relImports(readFileSync(f, "utf8"))) {
         const target = domainOf(path.resolve(path.dirname(f), spec));
-        if (DEAD_LAYERS.includes(target)) bad.push(`${path.relative(SRC, f)} → ${spec}`);
+        if (DEAD_LAYERS.includes(target))
+          bad.push(`${path.relative(SRC, f)} → ${spec}`);
       }
     }
     expect(bad).toEqual([]);
@@ -69,7 +75,8 @@ describe("floor domain boundaries", () => {
     for (const f of files.filter((f) => domainOf(f) === "kernel")) {
       for (const spec of relImports(readFileSync(f, "utf8"))) {
         const target = domainOf(path.resolve(path.dirname(f), spec));
-        if (target !== "kernel") bad.push(`${path.relative(SRC, f)} → ${spec} (${target})`);
+        if (target !== "kernel")
+          bad.push(`${path.relative(SRC, f)} → ${spec} (${target})`);
       }
     }
     expect(bad).toEqual([]);
@@ -82,7 +89,8 @@ describe("floor domain boundaries", () => {
     for (const f of files.filter((f) => !exempt(f))) {
       for (const spec of relImports(readFileSync(f, "utf8"))) {
         const target = domainOf(path.resolve(path.dirname(f), spec));
-        if (target === "delivery") bad.push(`${path.relative(SRC, f)} → ${spec}`);
+        if (target === "delivery")
+          bad.push(`${path.relative(SRC, f)} → ${spec}`);
       }
     }
     expect(bad).toEqual([]);
@@ -97,10 +105,14 @@ describe("floor domain boundaries", () => {
     const bad: string[] = [];
     for (const f of files.filter((f) => f.startsWith(libPrefix))) {
       for (const spec of relImports(readFileSync(f, "utf8"))) {
-        const rel = path.relative(SRC, path.resolve(path.dirname(f), spec)).split(path.sep);
+        const rel = path
+          .relative(SRC, path.resolve(path.dirname(f), spec))
+          .split(path.sep);
         const withinLib = rel[0] === "jobs" && rel[1] === "lib";
         if (rel[0] !== "kernel" && !withinLib) {
-          bad.push(`${path.relative(SRC, f)} → ${spec} (${rel.slice(0, 2).join("/")})`);
+          bad.push(
+            `${path.relative(SRC, f)} → ${spec} (${rel.slice(0, 2).join("/")})`,
+          );
         }
       }
     }

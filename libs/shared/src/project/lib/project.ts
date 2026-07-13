@@ -1,3 +1,4 @@
+import { ChunkStore } from "../chunks/chunks.js";
 import { IssueCollection } from "../issues/issues.js";
 import { RepoFiles } from "../repo/repo-files.js";
 import { PullRequests } from "../pulls/pull-requests.js";
@@ -35,6 +36,7 @@ import type { LeaseBackend } from "../leases/lease-backends.js";
 import type { AuditPort } from "../audit/audit-port.js";
 import type { UsagePort } from "../usage/usage-port.js";
 import type { FeaturesPort } from "../features/features-port.js";
+import type { ChunksPort } from "../chunks/chunks-port.js";
 
 /**
  * The unified internal API. Built by createProject from a repo fullName
@@ -60,7 +62,10 @@ export class Project {
   }
 
   get pulls(): PullRequests {
-    return new PullRequests(this.fullName, this.port<PullRequestsPort>("pulls"));
+    return new PullRequests(
+      this.fullName,
+      this.port<PullRequestsPort>("pulls"),
+    );
   }
 
   get settings(): Settings {
@@ -77,7 +82,10 @@ export class Project {
 
   /** First-class assembly line runs (pipeline.assembly_lines); start() fires the assembly_line.start event. */
   get assemblyLines(): AssemblyLines {
-    return new AssemblyLines(this.fullName, this.port<AssemblyLinesPort>("assemblyLines"));
+    return new AssemblyLines(
+      this.fullName,
+      this.port<AssemblyLinesPort>("assemblyLines"),
+    );
   }
 
   get notify(): Notify {
@@ -85,7 +93,10 @@ export class Project {
   }
 
   get knowledge(): KnowledgeView {
-    return new KnowledgeView(this.fullName, this.port<KnowledgePort>("knowledge"));
+    return new KnowledgeView(
+      this.fullName,
+      this.port<KnowledgePort>("knowledge"),
+    );
   }
 
   get tests(): TestSuite {
@@ -96,9 +107,18 @@ export class Project {
     return new TraceView(this.fullName, this.port<TracePort>("trace"));
   }
 
+  /** Vector-store chunk reads for detection runs (org_shared per repo). */
+  get chunks(): ChunkStore {
+    return new ChunkStore(this.fullName, this.port<ChunksPort>("chunks"));
+  }
+
   /** Execution: one ephemeral Agent run (trust-gated). See `agentDefs` for config. */
   get agents(): Agents {
-    return new Agents(this.fullName, this.port<AgentRunnerPort>("agentRunner"), this.env);
+    return new Agents(
+      this.fullName,
+      this.port<AgentRunnerPort>("agentRunner"),
+      this.env,
+    );
   }
 
   /** Agent *definitions* — the stored config CRUD (model/timeout/prompt/image). */
@@ -132,13 +152,20 @@ export class Project {
     assertCanClone(this.env);
     const git = this.port<GitPort>("git");
     await git.clone(this.fullName, path);
-    return new Workspace(this.fullName, path, git, this.port<PullRequestsPort>("pulls"));
+    return new Workspace(
+      this.fullName,
+      path,
+      git,
+      this.port<PullRequestsPort>("pulls"),
+    );
   }
 
   private port<T>(name: string): T {
     const built = this.ports.get(name);
     if (built === undefined) {
-      throw new Error(`Project port "${name}" is not wired yet (pending its live adapter)`);
+      throw new Error(
+        `Project port "${name}" is not wired yet (pending its live adapter)`,
+      );
     }
     return built as T;
   }

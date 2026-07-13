@@ -18,10 +18,13 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { buildOpenApiDocument } from "../../../openapi/build-document.js";
 import { routeList } from "../../../server/build-server.js";
 
-const REDOC_CDN = "https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js";
+const REDOC_CDN =
+  "https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js";
 
 const generate = (getPool: () => Pool | null) =>
-  buildOpenApiDocument(routeList(getPool), { serverUrl: process.env.LORE_API_URL });
+  buildOpenApiDocument(routeList(getPool), {
+    serverUrl: process.env.LORE_API_URL,
+  });
 
 /** Inline the spec safely inside a <script> — neutralize `</script>` / `<!--`. */
 function docsHtml(spec: object): string {
@@ -54,7 +57,9 @@ export function openApiJsonRoute(getPool: () => Pool | null): ServerRoute {
         return h.response(generate(getPool));
       } catch (err: any) {
         console.error("[openapi] generation failed:", err.message);
-        return h.response({ error: "failed to generate openapi document" }).code(500);
+        return h
+          .response({ error: "failed to generate openapi document" })
+          .code(500);
       }
     },
   };

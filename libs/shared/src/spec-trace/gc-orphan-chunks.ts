@@ -40,7 +40,9 @@ export async function gcOrphanChunks(
   const ownerEdges = CHUNK_OWNER_EDGES[nodeType];
   for (const uid of dropped) {
     const stillOwned = await withTxn(dgraph, async (txn) => {
-      const blocks = ownerEdges.map((edge, index) => `owner${index}: ${edge} { uid }`).join("\n");
+      const blocks = ownerEdges
+        .map((edge, index) => `owner${index}: ${edge} { uid }`)
+        .join("\n");
       const res = await txn.queryWithVars(
         `query q($uid: string) { node(func: uid($uid)) { ${blocks} } }`,
         { $uid: uid },
@@ -49,11 +51,14 @@ export async function gcOrphanChunks(
       // (e.g. TestChunk.coverage) comes back as a bare object — either present
       // shape means the chunk is still owned.
       const node = (res.data?.node?.[0] ?? {}) as Record<string, unknown>;
-      const isOwned = (value: unknown): boolean => (Array.isArray(value) ? value.length > 0 : value != null);
+      const isOwned = (value: unknown): boolean =>
+        Array.isArray(value) ? value.length > 0 : value != null;
       return ownerEdges.some((_, index) => isOwned(node[`owner${index}`]));
     });
     if (!stillOwned) {
-      await withTxn(dgraph, (txn) => txn.mutate({ deleteNquads: `<${uid}> * * .`, commitNow: true }));
+      await withTxn(dgraph, (txn) =>
+        txn.mutate({ deleteNquads: `<${uid}> * * .`, commitNow: true }),
+      );
     }
   }
 }

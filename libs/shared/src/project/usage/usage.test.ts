@@ -3,7 +3,10 @@ import { Usage } from "./usage.js";
 import { PgUsage } from "./usage-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
-function fakePool(): { pool: PgPool; calls: Array<{ text: string; params?: unknown[] }> } {
+function fakePool(): {
+  pool: PgPool;
+  calls: Array<{ text: string; params?: unknown[] }>;
+} {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
@@ -52,8 +55,15 @@ describe("PgUsage adapter", () => {
   });
 
   it("defaults missing count rows to zero", async () => {
-    const pool: PgPool = { async query() { return { rows: [] }; } };
+    const pool: PgPool = {
+      async query() {
+        return { rows: [] };
+      },
+    };
 
-    expect(await new PgUsage(pool).processedCounts()).toEqual({ today: 0, total: 0 });
+    expect(await new PgUsage(pool).processedCounts()).toEqual({
+      today: 0,
+      total: 0,
+    });
   });
 });

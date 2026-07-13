@@ -1,16 +1,19 @@
 export const dynamic = "force-dynamic";
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
-import { serverError } from '@/lib/api-error';
+import { NextResponse } from "next/server";
+import { query } from "@/lib/db";
+import { serverError } from "@/lib/api-error";
 
 export async function POST(request: Request) {
   try {
     const { full_name } = await request.json();
-    if (!full_name?.includes('/')) {
-      return NextResponse.json({ error: 'Invalid repo format' }, { status: 400 });
+    if (!full_name?.includes("/")) {
+      return NextResponse.json(
+        { error: "Invalid repo format" },
+        { status: 400 },
+      );
     }
 
-    const [owner, name] = full_name.split('/');
+    const [owner, name] = full_name.split("/");
 
     // Insert into repos table
     const result = await query(
@@ -18,11 +21,11 @@ export async function POST(request: Request) {
        VALUES ($1, $2, $3)
        ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now()
        RETURNING id, full_name`,
-      [owner, name, full_name]
+      [owner, name, full_name],
     );
 
-    return NextResponse.json({ repo: result[0], message: 'Repo onboarded' });
+    return NextResponse.json({ repo: result[0], message: "Repo onboarded" });
   } catch (err) {
-    return serverError('onboard', err);
+    return serverError("onboard", err);
   }
 }

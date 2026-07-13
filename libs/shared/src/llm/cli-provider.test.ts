@@ -15,9 +15,15 @@ describe("CliProvider", () => {
     };
     const provider = new CliProvider({ execFn });
 
-    const result = await provider.complete({ prompt: "user-text", systemPrompt: "sys" });
+    const result = await provider.complete({
+      prompt: "user-text",
+      systemPrompt: "sys",
+    });
 
-    expect(captured).toEqual({ file: "claude", args: ["-p", "sys\n\nuser-text", "--output-format", "text"] });
+    expect(captured).toEqual({
+      file: "claude",
+      args: ["-p", "sys\n\nuser-text", "--output-format", "text"],
+    });
     expect(result.text).toBe("the answer");
     expect(result.model).toBe("claude-cli");
   });

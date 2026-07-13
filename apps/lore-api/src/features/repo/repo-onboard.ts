@@ -6,8 +6,17 @@
  * inspect the repo and generate customized CLAUDE.md / onboarding PRs.
  */
 
-import { createBranch, commitFile, createPR, isGitHubConfigured, getOctokit } from '../../platform/github-client.js';
-import { ensureFloorWebhook, type EnsureFloorWebhookResult } from '../webhook/webhook-ensure.js';
+import {
+  createBranch,
+  commitFile,
+  createPR,
+  isGitHubConfigured,
+  getOctokit,
+} from "../../platform/github-client.js";
+import {
+  ensureFloorWebhook,
+  type EnsureFloorWebhookResult,
+} from "../webhook/webhook-ensure.js";
 
 // ── Installation repos ──────────────────────────────────────────────
 
@@ -35,7 +44,7 @@ export async function getInstallationRepos(): Promise<InstallationRepo[]> {
     for (const repo of data.repositories) {
       repos.push({
         full_name: repo.full_name,
-        owner: repo.owner?.login || repo.full_name.split('/')[0],
+        owner: repo.owner?.login || repo.full_name.split("/")[0],
         name: repo.name,
       });
     }
@@ -70,15 +79,19 @@ export async function getOnboardedRepos(pool: any): Promise<OnboardedRepo[]> {
     `SELECT id, owner, name, full_name, team, onboarded_at, last_ingested_at,
             onboarding_pr_url, onboarding_pr_merged, settings
      FROM lore.repos
-     ORDER BY onboarded_at DESC`
+     ORDER BY onboarded_at DESC`,
   );
   return rows;
 }
 
 /**
- * Returns repos with pipeline task counts.
+ * Returns a page of repos with pipeline task counts plus the unpaged total.
  */
-export async function getOnboardedReposWithCounts(pool: any): Promise<any[]> {
+export async function getOnboardedReposWithCounts(
+  pool: any,
+  limit = 100,
+  offset = 0,
+): Promise<{ repos: any[]; total: number }> {
   const { rows } = await pool.query(
     `SELECT r.id, r.owner, r.name, r.full_name, r.team,
             r.onboarded_at, r.last_ingested_at,
@@ -90,22 +103,29 @@ export async function getOnboardedReposWithCounts(pool: any): Promise<any[]> {
        FROM pipeline.tasks
        GROUP BY target_repo
      ) tc ON tc.target_repo = r.full_name
-     ORDER BY r.onboarded_at DESC`
+     ORDER BY r.onboarded_at DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset],
   );
-  return rows;
+  const { rows: countRows } = await pool.query(
+    `SELECT count(*)::int as total FROM lore.repos`,
+  );
+  return { repos: rows, total: countRows[0].total };
 }
 
 /**
  * Returns installation repos that are NOT yet in lore.repos.
  */
-export async function getAvailableRepos(pool: any): Promise<InstallationRepo[]> {
+export async function getAvailableRepos(
+  pool: any,
+): Promise<InstallationRepo[]> {
   const [installation, onboarded] = await Promise.all([
     getInstallationRepos(),
     getOnboardedRepos(pool),
   ]);
 
-  const onboardedSet = new Set(onboarded.map(r => r.full_name));
-  return installation.filter(r => !onboardedSet.has(r.full_name));
+  const onboardedSet = new Set(onboarded.map((r) => r.full_name));
+  return installation.filter((r) => !onboardedSet.has(r.full_name));
 }
 
 // ── Onboard a repo ──────────────────────────────────────────────────
@@ -125,10 +145,15 @@ export interface OnboardResult {
  * understand its tech stack, and generate a customized CLAUDE.md plus
  * supporting files — then open a single onboarding PR.
  */
-export async function onboardRepo(pool: any, fullName: string): Promise<OnboardResult> {
-  const [owner, name] = fullName.split('/');
+export async function onboardRepo(
+  pool: any,
+  fullName: string,
+): Promise<OnboardResult> {
+  const [owner, name] = fullName.split("/");
   if (!owner || !name) {
-    throw new Error(`Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`);
+    throw new Error(
+      `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
+    );
   }
 
   // Insert into repos table (upsert — re-onboarding refreshes the timestamp)
@@ -141,12 +166,13 @@ export async function onboardRepo(pool: any, fullName: string): Promise<OnboardR
   );
 
   // Create a pipeline task for the onboarding agent
-  const { createTask } = await import('@re-cinq/lore-server-core/features/pipeline/pipeline.js');
+  const { createTask } =
+    await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
   const result = await createTask(
-    fullName,       // description is the repo name
-    'onboard',
-    fullName,       // target_repo
-    'onboard-system',
+    fullName, // description is the repo name
+    "onboard",
+    fullName, // target_repo
+    "onboard-system",
     { repo: fullName },
   );
 
@@ -155,35 +181,54 @@ export async function onboardRepo(pool: any, fullName: string): Promise<OnboardR
   // a missing secret/host or a lacking App permission is reported, never fatal.
   const webhook = await ensureFloorWebhook(fullName);
   if (webhook.ok) {
-    console.log(`[onboard] Webhook ${webhook.created ? 'created' : 'updated'} for ${fullName} (hook ${webhook.hookId})`);
+    console.log(
+      `[onboard] Webhook ${webhook.created ? "created" : "updated"} for ${fullName} (hook ${webhook.hookId})`,
+    );
   } else {
-    console.warn(`[onboard] Webhook not configured for ${fullName}: ${webhook.reason}${webhook.detail ? ` (${webhook.detail})` : ''}`);
+    console.warn(
+      `[onboard] Webhook not configured for ${fullName}: ${webhook.reason}${webhook.detail ? ` (${webhook.detail})` : ""}`,
+    );
   }
 
-  return { repo_id: rows[0].id, task_id: result.task_id, status: 'onboarding-agent-spawned', webhook };
+  return {
+    repo_id: rows[0].id,
+    task_id: result.task_id,
+    status: "onboarding-agent-spawned",
+    webhook,
+  };
 }
 
 // ── Fetch repo context for onboarding agents ────────────────────────
 
 export interface RepoContext {
-  tree: string[];                  // list of top-level file/dir names
-  files: Record<string, string>;   // path -> content for key files
+  tree: string[]; // list of top-level file/dir names
+  files: Record<string, string>; // path -> content for key files
   samples: Record<string, string>; // path -> first 200 lines of sampled source files
 }
 
 const KEY_FILES = [
-  'README.md', 'CLAUDE.md', 'AGENTS.md', 'package.json', 'go.mod',
-  'Cargo.toml', 'requirements.txt', 'Dockerfile', 'docker-compose.yml',
-  'pom.xml', 'Makefile', 'tsconfig.json', 'pyproject.toml',
+  "README.md",
+  "CLAUDE.md",
+  "AGENTS.md",
+  "package.json",
+  "go.mod",
+  "Cargo.toml",
+  "requirements.txt",
+  "Dockerfile",
+  "docker-compose.yml",
+  "pom.xml",
+  "Makefile",
+  "tsconfig.json",
+  "pyproject.toml",
 ];
 
-const SAMPLE_DIRS = ['src', 'lib', 'cmd', 'internal', 'app', 'pkg'];
+const SAMPLE_DIRS = ["src", "lib", "cmd", "internal", "app", "pkg"];
 
 /**
  * Decodes base64-encoded file content returned by the GitHub API.
  */
 function decodeContent(encoded: string): string {
-  return Buffer.from(encoded, 'base64').toString('utf-8');
+  return Buffer.from(encoded, "base64").toString("utf-8");
 }
 
 /**
@@ -192,9 +237,11 @@ function decodeContent(encoded: string): string {
  * Used by onboarding agents to understand a repo's tech stack.
  */
 export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
-  const [owner, repo] = fullName.split('/');
+  const [owner, repo] = fullName.split("/");
   if (!owner || !repo) {
-    throw new Error(`Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`);
+    throw new Error(
+      `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
+    );
   }
 
   const octokit = await getOctokit();
@@ -202,12 +249,18 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   // 1. Fetch top-level tree
   let tree: string[] = [];
   try {
-    const { data } = await octokit.rest.repos.getContent({ owner, repo, path: '' });
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: "",
+    });
     if (Array.isArray(data)) {
       tree = data.map((entry: any) => entry.name);
     }
   } catch (err: any) {
-    console.error(`[onboard] Failed to fetch tree for ${fullName}: ${err.message}`);
+    console.error(
+      `[onboard] Failed to fetch tree for ${fullName}: ${err.message}`,
+    );
   }
 
   // 2. Fetch key files (skip 404s)
@@ -215,13 +268,19 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   await Promise.all(
     KEY_FILES.map(async (path) => {
       try {
-        const { data } = await octokit.rest.repos.getContent({ owner, repo, path });
-        if (!Array.isArray(data) && data.type === 'file' && data.content) {
+        const { data } = await octokit.rest.repos.getContent({
+          owner,
+          repo,
+          path,
+        });
+        if (!Array.isArray(data) && data.type === "file" && data.content) {
           files[path] = decodeContent(data.content);
         }
       } catch (err: any) {
         if (err.status !== 404) {
-          console.error(`[onboard] Error fetching ${fullName}/${path}: ${err.message}`);
+          console.error(
+            `[onboard] Error fetching ${fullName}/${path}: ${err.message}`,
+          );
         }
       }
     }),
@@ -234,13 +293,19 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
     let entries: any[] = [];
     try {
-      const { data } = await octokit.rest.repos.getContent({ owner, repo, path: dir });
+      const { data } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path: dir,
+      });
       if (Array.isArray(data)) {
-        entries = data.filter((e: any) => e.type === 'file');
+        entries = data.filter((e: any) => e.type === "file");
       }
     } catch (err: any) {
       if (err.status !== 404) {
-        console.error(`[onboard] Error listing ${fullName}/${dir}: ${err.message}`);
+        console.error(
+          `[onboard] Error listing ${fullName}/${dir}: ${err.message}`,
+        );
       }
       continue;
     }
@@ -248,14 +313,20 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
     for (const entry of entries) {
       if (Object.keys(samples).length >= 3) break;
       try {
-        const { data } = await octokit.rest.repos.getContent({ owner, repo, path: entry.path });
-        if (!Array.isArray(data) && data.type === 'file' && data.content) {
+        const { data } = await octokit.rest.repos.getContent({
+          owner,
+          repo,
+          path: entry.path,
+        });
+        if (!Array.isArray(data) && data.type === "file" && data.content) {
           const full = decodeContent(data.content);
-          const first200 = full.split('\n').slice(0, 200).join('\n');
+          const first200 = full.split("\n").slice(0, 200).join("\n");
           samples[entry.path] = first200;
         }
       } catch (err: any) {
-        console.error(`[onboard] Error fetching sample ${fullName}/${entry.path}: ${err.message}`);
+        console.error(
+          `[onboard] Error fetching sample ${fullName}/${entry.path}: ${err.message}`,
+        );
       }
     }
   }
@@ -273,7 +344,7 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 export async function checkOnboardingPRs(pool: any): Promise<void> {
   const { rows } = await pool.query(
     `SELECT id, full_name, onboarding_pr_url FROM lore.repos
-     WHERE onboarding_pr_merged = false AND onboarding_pr_url IS NOT NULL`
+     WHERE onboarding_pr_merged = false AND onboarding_pr_url IS NOT NULL`,
   );
   for (const repo of rows) {
     try {
@@ -281,29 +352,38 @@ export async function checkOnboardingPRs(pool: any): Promise<void> {
       const match = repo.onboarding_pr_url.match(/\/pull\/(\d+)/);
       if (!match) continue;
       const prNumber = parseInt(match[1]);
-      const [owner, name] = repo.full_name.split('/');
+      const [owner, name] = repo.full_name.split("/");
 
       // Check PR status via GitHub API
       const octokit = await getOctokit();
-      const { data: pr } = await octokit.rest.pulls.get({ owner, repo: name, pull_number: prNumber });
+      const { data: pr } = await octokit.rest.pulls.get({
+        owner,
+        repo: name,
+        pull_number: prNumber,
+      });
 
       if (pr.merged) {
         await pool.query(
           `UPDATE lore.repos SET onboarding_pr_merged = true, last_ingested_at = now() WHERE id = $1`,
-          [repo.id]
+          [repo.id],
         );
         // Trigger initial ingestion via pipeline
-        const { createTask } = await import('@re-cinq/lore-server-core/features/pipeline/pipeline.js');
+        const { createTask } =
+          await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
         await createTask(
           `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
-          'general',
+          "general",
           repo.full_name,
-          'onboard-ingest'
+          "onboard-ingest",
         );
-        console.log(`[repo-onboard] Onboarding PR merged for ${repo.full_name}, ingestion triggered`);
+        console.log(
+          `[repo-onboard] Onboarding PR merged for ${repo.full_name}, ingestion triggered`,
+        );
       }
     } catch (err: any) {
-      console.error(`[repo-onboard] Error checking PR for ${repo.full_name}: ${err.message}`);
+      console.error(
+        `[repo-onboard] Error checking PR for ${repo.full_name}: ${err.message}`,
+      );
     }
   }
 }

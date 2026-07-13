@@ -847,4 +847,208 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: def-gate
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore gate station recipe (seeded).
+  model: exec
+  prompt: "{station_input}"
+  permission_mode: bypass
+  max_turns: 1
+  tool_config:
+    command:
+      - lore-station
+      - gate
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: def-gate
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: def-gate
+  deadlineMinutes: 5
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: {{ .Values.stationImage }}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: def-retrospective
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore retrospective station recipe (seeded).
+  model: exec
+  prompt: "{station_input}"
+  permission_mode: bypass
+  max_turns: 1
+  tool_config:
+    command:
+      - lore-station
+      - retrospective
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: def-retrospective
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: def-retrospective
+  deadlineMinutes: 10
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: {{ .Values.stationImage }}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: def-github-action
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore github_action station recipe (seeded).
+  model: exec
+  prompt: "{station_input}"
+  permission_mode: bypass
+  max_turns: 1
+  tool_config:
+    command:
+      - lore-station
+      - github_action
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: def-github-action
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: def-github-action
+  deadlineMinutes: 60
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: {{ .Values.stationImage }}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: def-detect
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore detect station recipe (seeded).
+  model: exec
+  prompt: "{station_input}"
+  permission_mode: bypass
+  max_turns: 1
+  tool_config:
+    command:
+      - lore-station
+      - detect
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: def-detect
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: def-detect
+  deadlineMinutes: 30
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: {{ .Values.stationImage }}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
 {{- end }}

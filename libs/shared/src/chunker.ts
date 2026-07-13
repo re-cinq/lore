@@ -7,11 +7,11 @@
  * - Fallback: sliding-window (400 lines, 50-line overlap)
  */
 
-import Parser from 'web-tree-sitter';
-import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { createHash } from 'node:crypto';
-import { join, extname } from 'node:path';
+import Parser from "web-tree-sitter";
+import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
+import { join, extname } from "node:path";
 
 export interface Chunk {
   content: string;
@@ -36,43 +36,59 @@ const require = createRequire(import.meta.url);
 
 /** Map file extensions to tree-sitter-wasms grammar file names. */
 const EXT_TO_GRAMMAR: Record<string, string> = {
-  '.ts': 'tree-sitter-typescript.wasm',
-  '.tsx': 'tree-sitter-tsx.wasm',
-  '.js': 'tree-sitter-javascript.wasm',
-  '.jsx': 'tree-sitter-javascript.wasm',
-  '.py': 'tree-sitter-python.wasm',
-  '.go': 'tree-sitter-go.wasm',
+  ".ts": "tree-sitter-typescript.wasm",
+  ".tsx": "tree-sitter-tsx.wasm",
+  ".js": "tree-sitter-javascript.wasm",
+  ".jsx": "tree-sitter-javascript.wasm",
+  ".py": "tree-sitter-python.wasm",
+  ".go": "tree-sitter-go.wasm",
 };
 
 /** Node types that represent top-level declarations, per grammar.
  * TS/TSX share one set, as do JS/JSX — defined once and aliased. */
 const TS_DECLARATIONS = new Set([
-  'function_declaration', 'class_declaration', 'interface_declaration',
-  'type_alias_declaration', 'enum_declaration', 'export_statement',
-  'lexical_declaration', 'variable_declaration',
+  "function_declaration",
+  "class_declaration",
+  "interface_declaration",
+  "type_alias_declaration",
+  "enum_declaration",
+  "export_statement",
+  "lexical_declaration",
+  "variable_declaration",
 ]);
 const JS_DECLARATIONS = new Set([
-  'function_declaration', 'class_declaration', 'export_statement',
-  'lexical_declaration', 'variable_declaration',
+  "function_declaration",
+  "class_declaration",
+  "export_statement",
+  "lexical_declaration",
+  "variable_declaration",
 ]);
 const DECLARATION_TYPES: Record<string, Set<string>> = {
-  '.ts': TS_DECLARATIONS,
-  '.tsx': TS_DECLARATIONS,
-  '.js': JS_DECLARATIONS,
-  '.jsx': JS_DECLARATIONS,
-  '.py': new Set([
-    'function_definition', 'class_definition', 'decorated_definition',
+  ".ts": TS_DECLARATIONS,
+  ".tsx": TS_DECLARATIONS,
+  ".js": JS_DECLARATIONS,
+  ".jsx": JS_DECLARATIONS,
+  ".py": new Set([
+    "function_definition",
+    "class_definition",
+    "decorated_definition",
   ]),
-  '.go': new Set([
-    'function_declaration', 'method_declaration', 'type_declaration',
-    'var_declaration', 'const_declaration',
+  ".go": new Set([
+    "function_declaration",
+    "method_declaration",
+    "type_declaration",
+    "var_declaration",
+    "const_declaration",
   ]),
 };
 
 /** A single chunk spanning the whole file — the shared fallback when a
  * chunker finds no internal boundaries (no declarations, no headings,
  * a short file, or an AST parse failure). */
-function wholeFileChunk(content: string, extra?: Partial<Chunk['metadata']>): Chunk[] {
+function wholeFileChunk(
+  content: string,
+  extra?: Partial<Chunk["metadata"]>,
+): Chunk[] {
   return [{ content, metadata: { chunk_index: 0, ...extra } }];
 }
 
@@ -98,7 +114,11 @@ async function loadGrammar(ext: string): Promise<Parser.Language | null> {
 
   try {
     // tree-sitter-wasms ships .wasm files at its package root
-    const wasmsDir = join(require.resolve('tree-sitter-wasms/package.json'), '..', 'out');
+    const wasmsDir = join(
+      require.resolve("tree-sitter-wasms/package.json"),
+      "..",
+      "out",
+    );
     const wasmPath = join(wasmsDir, wasmFile);
     const wasmBuf = await readFile(wasmPath);
     const lang = await Parser.Language.load(wasmBuf);
@@ -113,32 +133,34 @@ async function loadGrammar(ext: string): Promise<Parser.Language | null> {
 // ── Symbol extraction helpers ────────────────────────────────────────
 
 function inferSymbolType(nodeType: string): string {
-  if (nodeType.includes('function') || nodeType === 'method_declaration') return 'function';
-  if (nodeType.includes('class')) return 'class';
-  if (nodeType.includes('method')) return 'method';
-  if (nodeType.includes('interface')) return 'interface';
-  if (nodeType.includes('type_alias') || nodeType === 'type_declaration') return 'type';
-  if (nodeType.includes('enum')) return 'type';
-  if (nodeType === 'export_statement') return 'export';
-  if (nodeType === 'decorated_definition') return 'function'; // could be class too, refined below
-  return 'export';
+  if (nodeType.includes("function") || nodeType === "method_declaration")
+    return "function";
+  if (nodeType.includes("class")) return "class";
+  if (nodeType.includes("method")) return "method";
+  if (nodeType.includes("interface")) return "interface";
+  if (nodeType.includes("type_alias") || nodeType === "type_declaration")
+    return "type";
+  if (nodeType.includes("enum")) return "type";
+  if (nodeType === "export_statement") return "export";
+  if (nodeType === "decorated_definition") return "function"; // could be class too, refined below
+  return "export";
 }
 
 function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
   // Direct name child
-  const nameNode = node.childForFieldName('name');
+  const nameNode = node.childForFieldName("name");
   if (nameNode) return nameNode.text;
 
   // export_statement wraps a declaration
-  if (node.type === 'export_statement') {
-    const decl = node.childForFieldName('declaration') ?? node.namedChildren[0];
+  if (node.type === "export_statement") {
+    const decl = node.childForFieldName("declaration") ?? node.namedChildren[0];
     if (decl) return extractSymbolName(decl);
   }
 
   // Python decorated_definition wraps a function_definition or class_definition
-  if (node.type === 'decorated_definition') {
+  if (node.type === "decorated_definition") {
     const def = node.namedChildren.find(
-      c => c.type === 'function_definition' || c.type === 'class_definition',
+      (c) => c.type === "function_definition" || c.type === "class_definition",
     );
     if (def) return extractSymbolName(def);
   }
@@ -147,13 +169,13 @@ function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
 }
 
 function refineSymbolType(node: Parser.SyntaxNode, initial: string): string {
-  if (node.type === 'export_statement') {
-    const decl = node.childForFieldName('declaration') ?? node.namedChildren[0];
+  if (node.type === "export_statement") {
+    const decl = node.childForFieldName("declaration") ?? node.namedChildren[0];
     if (decl) return inferSymbolType(decl.type);
   }
-  if (node.type === 'decorated_definition') {
+  if (node.type === "decorated_definition") {
     const def = node.namedChildren.find(
-      c => c.type === 'function_definition' || c.type === 'class_definition',
+      (c) => c.type === "function_definition" || c.type === "class_definition",
     );
     if (def) return inferSymbolType(def.type);
   }
@@ -162,8 +184,12 @@ function refineSymbolType(node: Parser.SyntaxNode, initial: string): string {
 
 // ── AST-based chunking ──────────────────────────────────────────────
 
-function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] {
-  const lines = content.split('\n');
+function chunkCodeAST(
+  tree: Parser.Tree,
+  content: string,
+  ext: string,
+): Chunk[] {
+  const lines = content.split("\n");
   const declTypes = DECLARATION_TYPES[ext] ?? new Set<string>();
   const root = tree.rootNode;
 
@@ -177,7 +203,11 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
 
   for (const child of root.namedChildren) {
     if (declTypes.has(child.type)) {
-      decls.push({ node: child, startRow: child.startPosition.row, endRow: child.endPosition.row });
+      decls.push({
+        node: child,
+        startRow: child.startPosition.row,
+        endRow: child.endPosition.row,
+      });
     }
   }
 
@@ -192,7 +222,7 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
   // Preamble: everything before first declaration (imports, comments, etc.)
   const firstDeclStart = decls[0].startRow;
   if (firstDeclStart > 0) {
-    const preamble = lines.slice(0, firstDeclStart).join('\n').trimEnd();
+    const preamble = lines.slice(0, firstDeclStart).join("\n").trimEnd();
     if (preamble.length > 0) {
       chunks.push({
         content: preamble,
@@ -215,9 +245,13 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
     for (let row = decl.startRow - 1; row >= prevEnd; row--) {
       const line = lines[row].trim();
       if (
-        line.startsWith('//') || line.startsWith('/*') || line.startsWith('*') ||
-        line.startsWith('#') || line.startsWith('"""') || line.startsWith("'''") ||
-        line === ''
+        line.startsWith("//") ||
+        line.startsWith("/*") ||
+        line.startsWith("*") ||
+        line.startsWith("#") ||
+        line.startsWith('"""') ||
+        line.startsWith("'''") ||
+        line === ""
       ) {
         startLine = row;
       } else {
@@ -226,11 +260,11 @@ function chunkCodeAST(tree: Parser.Tree, content: string, ext: string): Chunk[] 
     }
 
     // Trim leading blank lines from the comment block
-    while (startLine < decl.startRow && lines[startLine].trim() === '') {
+    while (startLine < decl.startRow && lines[startLine].trim() === "") {
       startLine++;
     }
 
-    const chunkContent = lines.slice(startLine, decl.endRow + 1).join('\n');
+    const chunkContent = lines.slice(startLine, decl.endRow + 1).join("\n");
     const symbolName = extractSymbolName(decl.node);
     const rawType = inferSymbolType(decl.node.type);
     const symbolType = refineSymbolType(decl.node, rawType);
@@ -258,7 +292,7 @@ function chunkMarkdown(content: string): Chunk[] {
 
   let match: RegExpExecArray | null;
   while ((match = headingRe.exec(content)) !== null) {
-    matches.push({ title: match[0].replace(/^## /, ''), index: match.index });
+    matches.push({ title: match[0].replace(/^## /, ""), index: match.index });
   }
 
   if (matches.length === 0) {
@@ -272,7 +306,10 @@ function chunkMarkdown(content: string): Chunk[] {
   if (matches[0].index > 0) {
     const preamble = content.slice(0, matches[0].index).trimEnd();
     if (preamble.length > 0) {
-      chunks.push({ content: preamble, metadata: { chunk_index: chunkIndex++ } });
+      chunks.push({
+        content: preamble,
+        metadata: { chunk_index: chunkIndex++ },
+      });
     }
   }
 
@@ -295,7 +332,7 @@ function chunkMarkdown(content: string): Chunk[] {
 // ── Sliding-window fallback ─────────────────────────────────────────
 
 function chunkSlidingWindow(content: string): Chunk[] {
-  const lines = content.split('\n');
+  const lines = content.split("\n");
   const WINDOW = 400;
   const OVERLAP = 50;
   const chunks: Chunk[] = [];
@@ -309,11 +346,11 @@ function chunkSlidingWindow(content: string): Chunk[] {
   while (start < lines.length) {
     const end = Math.min(start + WINDOW, lines.length);
     chunks.push({
-      content: lines.slice(start, end).join('\n'),
+      content: lines.slice(start, end).join("\n"),
       metadata: {
         chunk_index: chunkIndex++,
         start_line: start + 1, // 1-based
-        end_line: end,         // 1-based
+        end_line: end, // 1-based
       },
     });
     if (end >= lines.length) break;
@@ -335,7 +372,9 @@ function chunkSlidingWindow(content: string): Chunk[] {
  */
 function stampContentHash(chunks: Chunk[]): Chunk[] {
   for (const chunk of chunks) {
-    chunk.metadata.content_hash = createHash('sha256').update(chunk.content).digest('hex');
+    chunk.metadata.content_hash = createHash("sha256")
+      .update(chunk.content)
+      .digest("hex");
   }
   return chunks;
 }
@@ -372,7 +411,7 @@ async function chunkFileRaw(
   contentType: string,
 ): Promise<Chunk[]> {
   // Doc / spec / ADR files: split on ## headings
-  if (contentType !== 'code') {
+  if (contentType !== "code") {
     return chunkMarkdown(content);
   }
 
@@ -395,7 +434,10 @@ async function chunkFileRaw(
     const chunks = chunkCodeAST(tree, content, ext);
     return chunks.length > 0 ? chunks : wholeFileChunk(content);
   } catch (err) {
-    console.error(`[chunker] AST parse failed for ${filePath}, falling back to sliding window:`, err);
+    console.error(
+      `[chunker] AST parse failed for ${filePath}, falling back to sliding window:`,
+      err,
+    );
     return chunkSlidingWindow(content);
   }
 }

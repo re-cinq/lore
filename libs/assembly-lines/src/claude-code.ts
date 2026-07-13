@@ -63,19 +63,25 @@ export async function runClaudeCode(params: {
 
   // Wall-clock budget. Configurable so it can sit below an outer container/Job
   // deadline, leaving headroom for the agent to flush result.json. Default 15 min.
-  const timeoutMs = params.timeoutMs ?? (Number(process.env.LORE_CLAUDE_TIMEOUT_MS) || 15 * 60_000);
+  const timeoutMs =
+    params.timeoutMs ??
+    (Number(process.env.LORE_CLAUDE_TIMEOUT_MS) || 15 * 60_000);
   // Optional cap on agentic turns — bounds runaway exploration so the agent
   // converges on an answer within budget. Off by default.
-  const maxTurns = params.maxTurns ?? (Number(process.env.LORE_CLAUDE_MAX_TURNS) || 0);
+  const maxTurns =
+    params.maxTurns ?? (Number(process.env.LORE_CLAUDE_MAX_TURNS) || 0);
 
   const args = [
     "--print",
     "--dangerously-skip-permissions",
     "--verbose",
-    "--output-format", "stream-json",
-    "--model", model,
+    "--output-format",
+    "stream-json",
+    "--model",
+    model,
     ...(maxTurns > 0 ? ["--max-turns", String(maxTurns)] : []),
-    "--", params.prompt,
+    "--",
+    params.prompt,
   ];
 
   const start = Date.now();
@@ -93,8 +99,14 @@ export async function runClaudeCode(params: {
     // Echo claude's stream to our stdout too, so it reaches the container log
     // the Station tails live (the run is slow; surfacing claude's activity gives
     // the wizard something to show beyond the supervisor's node markers).
-    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); process.stdout.write(chunk); });
-    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); process.stderr.write(chunk); });
+    proc.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+      process.stdout.write(chunk);
+    });
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+      process.stderr.write(chunk);
+    });
 
     const timer = setTimeout(() => {
       proc.kill("SIGTERM");
@@ -107,7 +119,9 @@ export async function runClaudeCode(params: {
       const exitCode = code ?? 1;
 
       if (stderr) {
-        console.error(`[agent] Claude Code stderr: ${stderr.substring(0, 500)}`);
+        console.error(
+          `[agent] Claude Code stderr: ${stderr.substring(0, 500)}`,
+        );
       }
 
       // Estimate tokens from output length (rough: ~4 chars per token)
@@ -127,18 +141,24 @@ export async function runClaudeCode(params: {
             durationMs,
           });
         } catch (logErr: any) {
-          console.error(`[agent] Failed to log Claude Code call: ${logErr.message}`);
+          console.error(
+            `[agent] Failed to log Claude Code call: ${logErr.message}`,
+          );
         }
       }
 
       console.log(
         `[agent] Claude Code: model=${model} exit=${exitCode} ` +
-        `output=${stdout.length} chars ${durationMs}ms\n` +
-        `[agent] Claude Code stdout (first 2000): ${stdout.substring(0, 2000)}`,
+          `output=${stdout.length} chars ${durationMs}ms\n` +
+          `[agent] Claude Code stdout (first 2000): ${stdout.substring(0, 2000)}`,
       );
 
       if (exitCode !== 0 && !stdout) {
-        reject(new Error(`Claude Code failed (exit ${exitCode}): ${stderr.substring(0, 500)}`));
+        reject(
+          new Error(
+            `Claude Code failed (exit ${exitCode}): ${stderr.substring(0, 500)}`,
+          ),
+        );
         return;
       }
 

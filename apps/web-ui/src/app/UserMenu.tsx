@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useSession, signOut } from 'next-auth/react';
-import styles from './UserMenu.module.css';
+import { useSession, signOut } from "next-auth/react";
+import styles from "./UserMenu.module.css";
 
 export default function UserMenu() {
   const { data: session } = useSession();

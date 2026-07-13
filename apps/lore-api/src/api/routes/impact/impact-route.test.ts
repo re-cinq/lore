@@ -1,11 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
 
 const impact = (body: unknown, headers: Record<string, string>) =>
-  buildServer(() => makePool() as any).inject({ method: "POST", url: "/api/repos/o/r/impact", headers, payload: JSON.stringify(body) });
+  buildServer(() => makePool() as any).inject({
+    method: "POST",
+    url: "/api/repos/o/r/impact",
+    headers,
+    payload: JSON.stringify(body),
+  });
 
 /**
  * POST /api/repos/:o/:r/impact — the deterministic pre-merge spec-impact query.
@@ -24,14 +34,25 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
   });
 
   it("returns 200 status unavailable with empty annotations when Dgraph is not configured", async () => {
-    const res = await impact({ commit: "abc123", files: [{ path: "src/a.ts", ranges: [[1, 5]] }] }, AUTH);
+    const res = await impact(
+      { commit: "abc123", files: [{ path: "src/a.ts", ranges: [[1, 5]] }] },
+      AUTH,
+    );
     expect(res.statusCode).toBe(200);
-    expect(res.result).toMatchObject({ status: "unavailable", statements: [], orphaned: [], annotations: [] });
+    expect(res.result).toMatchObject({
+      status: "unavailable",
+      statements: [],
+      orphaned: [],
+      annotations: [],
+    });
   });
 
   it("rejects a request without a write-scoped token", async () => {
     delete process.env.LORE_INGEST_TOKEN;
-    const res = await impact({ files: [] }, { authorization: "Bearer not-a-real-token" });
+    const res = await impact(
+      { files: [] },
+      { authorization: "Bearer not-a-real-token" },
+    );
     expect(res.statusCode).toBe(403);
   });
 

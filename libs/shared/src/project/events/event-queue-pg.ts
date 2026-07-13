@@ -40,7 +40,11 @@ export class PgEventQueue implements EventQueueRepository {
     );
   }
 
-  async markFailed(id: string, error: string, backoffSeconds: number): Promise<void> {
+  async markFailed(
+    id: string,
+    error: string,
+    backoffSeconds: number,
+  ): Promise<void> {
     await this.pool.query(
       `UPDATE pipeline.events
           SET status = 'failed', error = $2,

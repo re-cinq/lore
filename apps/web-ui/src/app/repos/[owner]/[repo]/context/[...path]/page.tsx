@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
-import { query, getRepoSchema } from '@/lib/db';
-import ContextFileView, { type ContextFileChunk } from '../ContextFileView';
+import { query, getRepoSchema } from "@/lib/db";
+import ContextFileView, { type ContextFileChunk } from "../ContextFileView";
 
 export default async function RepoContextFile({
   params,
@@ -9,7 +9,7 @@ export default async function RepoContextFile({
 }) {
   const { owner, repo, path } = await params;
   const fullName = `${owner}/${repo}`;
-  const filePath = path.map(decodeURIComponent).join('/');
+  const filePath = path.map(decodeURIComponent).join("/");
 
   const schema = await getRepoSchema(fullName);
 

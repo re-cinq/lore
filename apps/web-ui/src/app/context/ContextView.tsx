@@ -1,7 +1,7 @@
-import ContextFilters from '@/app/repos/[owner]/[repo]/context/ContextFilters';
-import ContextCard from '@/app/repos/[owner]/[repo]/context/ContextCard';
-import { type ChunkMeta } from '@/lib/chunk-presenter';
-import styles from './ContextView.module.css';
+import ContextFilters from "@/app/repos/[owner]/[repo]/context/ContextFilters";
+import ContextCard from "@/app/repos/[owner]/[repo]/context/ContextCard";
+import { type ChunkMeta } from "@/lib/chunk-presenter";
+import styles from "./ContextView.module.css";
 
 export interface ContextChunk {
   id: string;
@@ -29,31 +29,41 @@ export interface ContextViewProps {
  * filtered + ranked chunks, capped at 50) and passes the resolved view-model
  * down. Each card carries its repo label and links to the global detail page.
  */
-export default function ContextView({ type, q, types, chunks }: ContextViewProps) {
+export default function ContextView({
+  type,
+  q,
+  types,
+  chunks,
+}: ContextViewProps) {
   return (
     <div>
       <h1>Organization Context</h1>
       <div className={styles.notice}>
         <p className={`meta ${styles.noticeText}`}>
-          This is the global view across all repos. For repo-specific context, visit{' '}
-          <a href="/">Repositories</a> and select a repo.
+          This is the global view across all repos. For repo-specific context,
+          visit <a href="/">Repositories</a> and select a repo.
         </p>
       </div>
 
-      <ContextFilters basePath="/context" types={types} activeType={type} q={q} />
+      <ContextFilters
+        basePath="/context"
+        types={types}
+        activeType={type}
+        q={q}
+      />
 
       {chunks.length === 0 ? (
         <p className="meta">
           No context chunks found
-          {q ? ` matching “${q}”` : ''}
-          {type ? ` for type "${type}"` : ''}.
+          {q ? ` matching “${q}”` : ""}
+          {type ? ` for type "${type}"` : ""}.
         </p>
       ) : (
         chunks.map((c) => (
           <ContextCard
             key={c.id}
             chunk={c}
-            repo={c.repo ?? ''}
+            repo={c.repo ?? ""}
             repoLabel={c.repo ?? undefined}
             detailHref={`/context/${encodeURIComponent(c.file_path)}`}
           />

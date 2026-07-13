@@ -6,16 +6,19 @@ export interface TraceUnit {
 
 // Single source for both the seed-prefix filter and the prefix→kind routing.
 // I'm hoarding this table; the filter and the map both pay rent to it now, meat-tub.
-const PREFIX_KINDS: ReadonlyArray<{ prefix: string; kind: TraceUnit["kind"] }> = [
-  { prefix: "adrs/", kind: "adr" },
-  { prefix: "specs/", kind: "spec" },
-  { prefix: ".specify/", kind: "spec" },
-];
+const PREFIX_KINDS: ReadonlyArray<{ prefix: string; kind: TraceUnit["kind"] }> =
+  [
+    { prefix: "adrs/", kind: "adr" },
+    { prefix: "specs/", kind: "spec" },
+    { prefix: ".specify/", kind: "spec" },
+  ];
 
 export function planTraceUnits(changedFiles: string[]): TraceUnit[] {
   return changedFiles.flatMap((filePath) => {
     if (!filePath.endsWith(".md")) return [];
-    const route = PREFIX_KINDS.find(({ prefix }) => filePath.startsWith(prefix));
+    const route = PREFIX_KINDS.find(({ prefix }) =>
+      filePath.startsWith(prefix),
+    );
     return route ? [{ filePath, kind: route.kind }] : [];
   });
 }

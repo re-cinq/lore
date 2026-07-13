@@ -39,8 +39,14 @@ export class Workspace {
     return this.git.push(this.dir, branch);
   }
 
-  async openPr(branch: string, title: string, body: string, base?: string): Promise<PullRef> {
-    if (!this.pulls) throw new Error("This Workspace has no pulls port to open a PR");
+  async openPr(
+    branch: string,
+    title: string,
+    body: string,
+    base?: string,
+  ): Promise<PullRef> {
+    if (!this.pulls)
+      throw new Error("This Workspace has no pulls port to open a PR");
     await this.git.push(this.dir, branch);
     return this.pulls.open(this.repo, branch, title, body, base);
   }

@@ -31,9 +31,9 @@ import type Anthropic from "@anthropic-ai/sdk";
  * Remove this alias and use Anthropic.CacheControlEphemeral once
  * the SDK pin is bumped past the types refresh.
  */
-export type CacheControl =
-  & Anthropic.CacheControlEphemeral
-  & { ttl?: "5m" | "1h" };
+export type CacheControl = Anthropic.CacheControlEphemeral & {
+  ttl?: "5m" | "1h";
+};
 
 // ── 1-hour TTL eligibility ─────────────────────────────────────────
 
@@ -60,10 +60,16 @@ function resolveEligibility(): { allEligible: boolean; jobs: Set<string> } {
     return { allEligible: false, jobs: DEFAULT_1H_JOBS };
   }
   if (raw === "*") return { allEligible: true, jobs: new Set() };
-  if (raw.toLowerCase() === "none") return { allEligible: false, jobs: new Set() };
+  if (raw.toLowerCase() === "none")
+    return { allEligible: false, jobs: new Set() };
   return {
     allEligible: false,
-    jobs: new Set(raw.split(",").map((s) => s.trim()).filter(Boolean)),
+    jobs: new Set(
+      raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
   };
 }
 
@@ -123,17 +129,18 @@ export function computeCachePrefixHash(
   tools?: ToolShape[],
 ): PrefixHash {
   const system = systemPrompt ? djb2Hash(systemPrompt) : "";
-  const toolsHash = tools && tools.length > 0
-    ? djb2Hash(
-        JSON.stringify(
-          tools.map((t) => ({
-            name: t.name,
-            description: t.description,
-            input_schema: t.input_schema,
-          })),
-        ),
-      )
-    : "";
+  const toolsHash =
+    tools && tools.length > 0
+      ? djb2Hash(
+          JSON.stringify(
+            tools.map((t) => ({
+              name: t.name,
+              description: t.description,
+              input_schema: t.input_schema,
+            })),
+          ),
+        )
+      : "";
   return { system, tools: toolsHash };
 }
 
@@ -149,11 +156,11 @@ interface CacheState {
 const cacheStateByJob = new Map<string, CacheState>();
 
 export type CacheStatus =
-  | "hit"            // cache_read > 0
-  | "first-call"     // no prior state for this jobName
+  | "hit" // cache_read > 0
+  | "first-call" // no prior state for this jobName
   | "prompt-changed" // hashes differ vs last call
-  | "ttl-expired"    // hashes match but no read — prefix was evicted
-  | "unknown-miss";  // catch-all
+  | "ttl-expired" // hashes match but no read — prefix was evicted
+  | "unknown-miss"; // catch-all
 
 export interface CacheBreakAnalysis {
   status: CacheStatus;

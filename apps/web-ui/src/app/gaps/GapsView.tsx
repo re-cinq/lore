@@ -1,4 +1,4 @@
-import styles from './GapsView.module.css';
+import styles from "./GapsView.module.css";
 
 export interface ZeroResultSearchRow {
   memory_key: string;
@@ -22,21 +22,25 @@ export interface GapsViewProps {
  * container (`page.tsx`) runs the `memory.audit_log` and `memory.memories`
  * queries and passes the resolved rows down. Read-only: no callbacks.
  */
-export default function GapsView({ gapMemories, zeroResultSearches }: GapsViewProps) {
+export default function GapsView({
+  gapMemories,
+  zeroResultSearches,
+}: GapsViewProps) {
   return (
     <div>
       <h1>Gap Detection</h1>
       <div className={styles.notice}>
         <p className={`meta ${styles.noticeText}`}>
-          This is the global view across all repos. For repo-specific gaps, visit{' '}
-          <a href="/">Repositories</a> and select a repo.
+          This is the global view across all repos. For repo-specific gaps,
+          visit <a href="/">Repositories</a> and select a repo.
         </p>
       </div>
 
       <section className={styles.section}>
         <h2>Context Gap Draft PRs</h2>
         <p className="meta">
-          The gap detection agent creates draft PRs when it identifies missing context.
+          The gap detection agent creates draft PRs when it identifies missing
+          context.
         </p>
         <a
           href="https://github.com/re-cinq/lore/pulls?q=label:context-gap-draft"
@@ -56,7 +60,9 @@ export default function GapsView({ gapMemories, zeroResultSearches }: GapsViewPr
           gapMemories.map((mem, i) => (
             <div key={i} className="spec-card">
               <h3>{mem.key}</h3>
-              <span className="meta">{new Date(mem.created_at).toLocaleString()}</span>
+              <span className="meta">
+                {new Date(mem.created_at).toLocaleString()}
+              </span>
               <pre className={styles.findingValue}>{mem.value}</pre>
             </div>
           ))
@@ -66,7 +72,8 @@ export default function GapsView({ gapMemories, zeroResultSearches }: GapsViewPr
       <section>
         <h2>Zero-Result Searches</h2>
         <p className="meta">
-          Searches that returned no results indicate potential gaps in organizational context.
+          Searches that returned no results indicate potential gaps in
+          organizational context.
         </p>
         {zeroResultSearches.length === 0 ? (
           <p className="meta">No zero-result searches recorded.</p>

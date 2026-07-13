@@ -55,7 +55,11 @@ export class ShadowMemoryStore implements MemoryStore {
     return this.primary.writeMemory(input);
   }
 
-  async readMemory(key: string, agentId: string, version?: string | number): Promise<any> {
+  async readMemory(
+    key: string,
+    agentId: string,
+    version?: string | number,
+  ): Promise<any> {
     const primaryResult = await this.primary.readMemory(key, agentId, version);
     try {
       const shadowResult = await this.shadow.readMemory(key, agentId, version);
@@ -68,7 +72,10 @@ export class ShadowMemoryStore implements MemoryStore {
     return primaryResult;
   }
 
-  deleteMemory(key: string, agentId: string): Promise<{ key: string; deleted: boolean }> {
+  deleteMemory(
+    key: string,
+    agentId: string,
+  ): Promise<{ key: string; deleted: boolean }> {
     return this.primary.deleteMemory(key, agentId);
   }
 

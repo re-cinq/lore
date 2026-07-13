@@ -26,7 +26,10 @@ import {
   latestReadyGap,
   type FeatureWithIterations,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
-import { decideFeatureStatus, isPlanningPhase } from "@re-cinq/lore-shared/feature-planning/gap-result.js";
+import {
+  decideFeatureStatus,
+  isPlanningPhase,
+} from "@re-cinq/lore-shared/feature-planning/gap-result.js";
 
 type Project = Awaited<ReturnType<typeof projectFor>>;
 
@@ -59,7 +62,9 @@ export async function featurePlanningReaperJob(): Promise<string> {
       const station = stationBackend();
       const latest = feature.iterations[feature.iterations.length - 1];
       const isActive =
-        latest?.status === "running" && latest.task_id ? await station.isActive(latest.task_id) : true;
+        latest?.status === "running" && latest.task_id
+          ? await station.isActive(latest.task_id)
+          : true;
 
       const action = decidePlanningRecovery({
         iterations: feature.iterations,
@@ -71,17 +76,27 @@ export async function featurePlanningReaperJob(): Promise<string> {
       if (action.kind === "orphan") {
         await recoverOrphan(project, feature, action.iteration);
         orphaned++;
-        console.log(`[feature-planning-reaper] recovered orphaned round ${action.iteration} for ${row.repo}/${row.id}`);
+        console.log(
+          `[feature-planning-reaper] recovered orphaned round ${action.iteration} for ${row.repo}/${row.id}`,
+        );
       } else if (action.kind === "transition") {
         const gap = latest!.gap_result!;
-        await project.features.transitionStatus(feature.id, decideFeatureStatus(gap), {
-          draft_spec_md: gap.draft_spec_markdown,
-        });
+        await project.features.transitionStatus(
+          feature.id,
+          decideFeatureStatus(gap),
+          {
+            draft_spec_md: gap.draft_spec_markdown,
+          },
+        );
         transitioned++;
-        console.log(`[feature-planning-reaper] applied missed transition for ${row.repo}/${row.id}`);
+        console.log(
+          `[feature-planning-reaper] applied missed transition for ${row.repo}/${row.id}`,
+        );
       }
     } catch (err) {
-      console.error(`[feature-planning-reaper] ${row.repo}/${row.id}: ${(err as Error).message}`);
+      console.error(
+        `[feature-planning-reaper] ${row.repo}/${row.id}: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -94,17 +109,30 @@ export async function featurePlanningReaperJob(): Promise<string> {
  * lost) — or back to `draft` if none ever did. Skips a feature already past the
  * planning phase so a stale orphan can't drag a finalized feature backwards.
  */
-async function recoverOrphan(project: Project, feature: FeatureWithIterations, iteration: number): Promise<void> {
-  await project.features.setIterationResult(feature.id, iteration, null, "failed");
+async function recoverOrphan(
+  project: Project,
+  feature: FeatureWithIterations,
+  iteration: number,
+): Promise<void> {
+  await project.features.setIterationResult(
+    feature.id,
+    iteration,
+    null,
+    "failed",
+  );
   if (!isPlanningPhase(feature.status)) return;
 
   // The orphan is `running`, so latestReadyGap naturally skips it and returns the
   // last round that produced a result — restore that; else fall back to `draft`.
   const lastGood = latestReadyGap(feature.iterations);
   if (lastGood) {
-    await project.features.transitionStatus(feature.id, decideFeatureStatus(lastGood), {
-      draft_spec_md: lastGood.draft_spec_markdown,
-    });
+    await project.features.transitionStatus(
+      feature.id,
+      decideFeatureStatus(lastGood),
+      {
+        draft_spec_md: lastGood.draft_spec_markdown,
+      },
+    );
   } else {
     await project.features.transitionStatus(feature.id, "draft");
   }

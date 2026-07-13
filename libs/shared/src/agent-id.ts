@@ -1,9 +1,9 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 
-const AGENT_ID_DIR = join(process.env.HOME || '/tmp', '.lore');
-const AGENT_ID_FILE = join(AGENT_ID_DIR, 'agent-id');
+const AGENT_ID_DIR = join(process.env.HOME || "/tmp", ".lore");
+const AGENT_ID_FILE = join(AGENT_ID_DIR, "agent-id");
 
 export function resolveAgentId(explicit?: string): string {
   // 1. Explicit parameter
@@ -15,7 +15,7 @@ export function resolveAgentId(explicit?: string): string {
   // 3. File-based (~/.lore/agent-id)
   try {
     if (existsSync(AGENT_ID_FILE)) {
-      return readFileSync(AGENT_ID_FILE, 'utf-8').trim();
+      return readFileSync(AGENT_ID_FILE, "utf-8").trim();
     }
   } catch {}
 
@@ -23,7 +23,7 @@ export function resolveAgentId(explicit?: string): string {
   const id = randomUUID();
   try {
     mkdirSync(AGENT_ID_DIR, { recursive: true });
-    writeFileSync(AGENT_ID_FILE, id + '\n');
+    writeFileSync(AGENT_ID_FILE, id + "\n");
   } catch {}
   return id;
 }
