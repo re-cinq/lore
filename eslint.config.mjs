@@ -14,6 +14,8 @@ export default tseslint.config(
   {
     ignores: [
       "**/dist/**",
+      // routes/dist is SOURCE (the /dist download endpoint), not build output
+      "!apps/lore-api/src/api/routes/dist/**",
       "**/.next/**",
       "**/node_modules/**",
       "**/coverage/**",
@@ -51,6 +53,9 @@ export default tseslint.config(
         },
       ],
       "lore/prefer-enforce-true": "error",
+      "lore/no-catch-as-control-flow": "error",
+      "lore/no-infra-sdk-in-floor": "error",
+      "lore/no-forwarding-class": "error",
       "lore/require-colocated-tests": "error",
     },
   },

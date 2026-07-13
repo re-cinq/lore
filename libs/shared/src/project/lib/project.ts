@@ -14,9 +14,9 @@ import { TraceView } from "../trace/trace.js";
 import { Agents } from "../agents/agents.js";
 import { AgentDefs } from "../agents/agent-defs.js";
 import { Workspace } from "../workspace/workspace.js";
-import { Leases } from "../leases/leases.js";
+
 import { Audit } from "../audit/audit.js";
-import { Usage } from "../usage/usage.js";
+
 import { Features } from "../features/features.js";
 import { assertCanClone } from "./trust.js";
 
@@ -128,8 +128,8 @@ export class Project {
   }
 
   /** Branch-lease coordination (supervisor pod ownership). */
-  get leases(): Leases {
-    return new Leases(this.port<LeaseBackend>("leases"));
+  get leases(): LeaseBackend {
+    return this.port<LeaseBackend>("leases");
   }
 
   /** Append-only audit trail (lease takeovers, auto-merge decisions). */
@@ -138,8 +138,8 @@ export class Project {
   }
 
   /** LLM-call accounting (pipeline.llm_calls). */
-  get usage(): Usage {
-    return new Usage(this.port<UsagePort>("usage"));
+  get usage(): UsagePort {
+    return this.port<UsagePort>("usage");
   }
 
   /** Smart feature-planning lifecycle (lore.features + lore.feature_iterations). */
