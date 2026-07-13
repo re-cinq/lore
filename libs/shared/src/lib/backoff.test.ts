@@ -20,7 +20,7 @@ describe("withBackoff", () => {
     const result = await withBackoff(
       async () => {
         calls += 1;
-        enforceTrue(calls >= 3, new Error(`fail ${calls}`));
+        enforceTrue(calls >= 3, Error, `fail ${calls}`);
 
         return "recovered";
       },

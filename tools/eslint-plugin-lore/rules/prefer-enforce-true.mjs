@@ -1,12 +1,25 @@
 /**
- * prefer-enforce-true — flag an `if (!x) throw ...` guard and rewrite it to
- * `enforceTrue(x, ...)`. The house guard helper reads as a precondition and
- * narrows the checked expression; prefer it over a hand-rolled if-throw.
+ * prefer-enforce-true — one rule for the canonical house guard form. It rewrites
+ * both an `if (!x) throw ...` guard AND a legacy 2-arg `enforceTrue` call to:
  *
- * Autofixable: inverts the test to the positive condition, passes the thrown
- * value through verbatim (enforceTrue accepts `string | Error | () => Error`),
- * and injects the import when missing. Skips the shapes the helper can't model:
- * `if/else`, multi-statement bodies, and rethrow-in-catch.
+ *   enforceTrue(cond, ErrorType, message)   — plain precondition
+ *   enforceOk(result, ErrorType)            — `{ ok, error }` result guard;
+ *                                             the `.error` read moves inside
+ *                                             the helper where the narrowing
+ *                                             is type-legal
+ *
+ * Autofixable: inverts the test to the positive condition, decomposes the
+ * thrown/legacy error expression into (ErrorType, message) via error-shape.mjs,
+ * and injects the import when missing (extending an existing enforce import in
+ * place). If-throw shapes the helpers can't model stay put: `if/else`,
+ * multi-statement bodies, rethrow-in-catch, pre-built error values,
+ * multi-argument constructors, and thrown values that read a variable the test
+ * narrows (other than the `!r.ok` / `r.error` pair, which is exactly what
+ * enforceOk exists for). A legacy 2-arg CALL is always reported — without a fix
+ * when non-decomposable (wrap the error in a `(message) => …` factory by hand);
+ * this leg is permanent, not just a one-off migration: test files are linted
+ * WITHOUT type information, so tsc never sees a legacy-form call that only
+ * lives in a test.
  *
  * Import target is resolved per file: a relative path inside the shared package
  * (self-package imports resolve to unbuilt dist), the package subpath elsewhere,
@@ -14,12 +27,13 @@
  */
 
 import path from "node:path";
+import { decomposeErrorExpression } from "./lib/error-shape.mjs";
 
 const PACKAGE_SOURCE = "@re-cinq/lore-shared/lib/enforce.js";
 const SHARED_SRC_MARKER = "/libs/shared/src/";
 const WEB_UI_MARKER = "/apps/web-ui/";
 
-/** Where `enforceTrue` should be imported from, given the file being linted. */
+/** Where the enforce helpers should be imported from, given the file being linted. */
 function enforceSourceFor(filename) {
   const unix = filename.replace(/\\/g, "/");
   const idx = unix.indexOf(SHARED_SRC_MARKER);
@@ -65,7 +79,8 @@ function enclosingCatchParamName(node) {
 
 function rootIdentifier(node) {
   let current = node;
-  while (current && current.type === "MemberExpression") current = current.object;
+  while (current && current.type === "MemberExpression")
+    current = current.object;
   if (current && current.type === "ThisExpression") return "this";
   return current && current.type === "Identifier" ? current.name : null;
 }
@@ -131,7 +146,8 @@ function identifiersIn(node, acc = new Set()) {
   for (const key of Object.keys(node)) {
     if (key === "parent") continue;
     const value = node[key];
-    if (Array.isArray(value)) value.forEach((child) => identifiersIn(child, acc));
+    if (Array.isArray(value))
+      value.forEach((child) => identifiersIn(child, acc));
     else if (value && typeof value.type === "string") identifiersIn(value, acc);
   }
   return acc;
@@ -149,17 +165,58 @@ function positiveConditionText(test, sourceCode) {
   return `!(${sourceCode.getText(test)})`;
 }
 
-function alreadyImported(program) {
-  return program.body.some(
+function enforceImportOf(program) {
+  return program.body.find(
     (statement) =>
       statement.type === "ImportDeclaration" &&
-      statement.source.value.endsWith("enforce.js") &&
-      statement.specifiers.some(
-        (specifier) =>
-          specifier.type === "ImportSpecifier" &&
-          specifier.imported.name === "enforceTrue",
-      ),
+      statement.source.value.endsWith("enforce.js"),
   );
+}
+
+function importedNames(importDeclaration) {
+  if (!importDeclaration) return new Set();
+  return new Set(
+    importDeclaration.specifiers
+      .filter((specifier) => specifier.type === "ImportSpecifier")
+      .map((specifier) => specifier.imported.name),
+  );
+}
+
+/**
+ * Detect the enforceOk shape: `if (!<id>.ok) throw <callee>(<id>.error);`
+ * where <callee> is a plain single-argument factory/class. Returns
+ * `{ objectName, typeText }` or null.
+ */
+function enforceOkShape(test, thrown, sourceCode) {
+  if (test.type !== "UnaryExpression" || test.operator !== "!") return null;
+  const okRead = test.argument;
+  if (
+    okRead.type !== "MemberExpression" ||
+    okRead.computed ||
+    okRead.property.name !== "ok" ||
+    okRead.object.type !== "Identifier"
+  ) {
+    return null;
+  }
+  if (
+    (thrown.type !== "CallExpression" && thrown.type !== "NewExpression") ||
+    thrown.arguments.length !== 1
+  ) {
+    return null;
+  }
+  const errorRead = thrown.arguments[0];
+  if (
+    errorRead.type !== "MemberExpression" ||
+    errorRead.computed ||
+    errorRead.property.name !== "error" ||
+    errorRead.object.type !== "Identifier" ||
+    errorRead.object.name !== okRead.object.name
+  ) {
+    return null;
+  }
+  const decomposed = decomposeErrorExpression(thrown, sourceCode);
+  if (!decomposed) return null;
+  return { objectName: okRead.object.name, typeText: decomposed.typeText };
 }
 
 export default {
@@ -167,13 +224,17 @@ export default {
     type: "suggestion",
     docs: {
       description:
-        "prefer enforceTrue(cond, err) over an `if (!cond) throw err` guard",
+        "prefer enforceTrue(cond, ErrorType, message) / enforceOk(result, ErrorType) over an `if (!cond) throw` guard",
     },
     fixable: "code",
     schema: [],
     messages: {
       preferEnforce:
-        "Prefer enforceTrue(cond, err) over an if-throw guard — it reads as a precondition and narrows the checked expression.",
+        "Prefer enforceTrue(cond, ErrorType, message) over an if-throw guard — it reads as a precondition and narrows the checked expression.",
+      preferEnforceOk:
+        "Prefer enforceOk(result, ErrorType) over an if-throw result guard — the `.error` read moves inside the helper where the narrowing is legal.",
+      legacySignature:
+        "enforceTrue takes (condition, ErrorType, errorMessage) — wrap a multi-argument error in a `(message) => …` factory.",
     },
   },
 
@@ -185,8 +246,9 @@ export default {
     const sourceCode = context.sourceCode;
     const program = sourceCode.ast;
     const enforceSource = enforceSourceFor(context.filename);
-    const needsImport = !alreadyImported(program);
-    let importInjected = false;
+    const enforceImport = enforceImportOf(program);
+    const imported = importedNames(enforceImport);
+    const injected = new Set();
 
     // The import must land after any leading directive prologue
     // (`"use client"`, `"use strict"`), which has to stay the first statement.
@@ -203,7 +265,50 @@ export default {
       }
     }
 
+    function importFixes(fixer, name) {
+      if (imported.has(name) || injected.has(name)) return [];
+      injected.add(name);
+      if (enforceImport) {
+        const lastSpecifier =
+          enforceImport.specifiers[enforceImport.specifiers.length - 1];
+        return [fixer.insertTextAfter(lastSpecifier, `, ${name}`)];
+      }
+      const importLine = `import { ${name} } from "${enforceSource}";`;
+      return [
+        lastDirective
+          ? fixer.insertTextAfter(lastDirective, `\n${importLine}`)
+          : fixer.insertTextBeforeRange([0, 0], `${importLine}\n`),
+      ];
+    }
+
     return {
+      CallExpression(node) {
+        if (
+          node.callee.type !== "Identifier" ||
+          node.callee.name !== "enforceTrue" ||
+          node.arguments.length !== 2 ||
+          node.arguments[1].type === "SpreadElement"
+        ) {
+          return;
+        }
+
+        const decomposed = decomposeErrorExpression(
+          node.arguments[1],
+          sourceCode,
+        );
+        context.report({
+          node,
+          messageId: "legacySignature",
+          fix: decomposed
+            ? (fixer) =>
+                fixer.replaceText(
+                  node.arguments[1],
+                  `${decomposed.typeText}, ${decomposed.messageText}`,
+                )
+            : null,
+        });
+      },
+
       IfStatement(node) {
         if (node.alternate) return;
 
@@ -218,6 +323,26 @@ export default {
           return;
         }
 
+        const okShape = enforceOkShape(
+          node.test,
+          throwStatement.argument,
+          sourceCode,
+        );
+        if (okShape) {
+          context.report({
+            node,
+            messageId: "preferEnforceOk",
+            fix: (fixer) => [
+              fixer.replaceText(
+                node,
+                `enforceOk(${okShape.objectName}, ${okShape.typeText});`,
+              ),
+              ...importFixes(fixer, "enforceOk"),
+            ],
+          });
+          return;
+        }
+
         // Skip when the thrown value depends on a variable the test narrows —
         // enforceTrue can't preserve that narrowing (see narrowedRoots).
         const narrowed = narrowedRoots(node.test);
@@ -226,26 +351,24 @@ export default {
           if (narrowed.some((root) => thrownIds.has(root))) return;
         }
 
+        // Only the shapes the 3-arg signature can express get rewritten;
+        // pre-built errors and multi-arg constructors stay as if-throws.
+        const decomposed = decomposeErrorExpression(
+          throwStatement.argument,
+          sourceCode,
+        );
+        if (!decomposed) return;
+
         context.report({
           node,
           messageId: "preferEnforce",
-          fix(fixer) {
-            const condition = positiveConditionText(node.test, sourceCode);
-            const thrown = sourceCode.getText(throwStatement.argument);
-            const fixes = [
-              fixer.replaceText(node, `enforceTrue(${condition}, ${thrown});`),
-            ];
-            if (needsImport && !importInjected) {
-              importInjected = true;
-              const importLine = `import { enforceTrue } from "${enforceSource}";`;
-              fixes.push(
-                lastDirective
-                  ? fixer.insertTextAfter(lastDirective, `\n${importLine}`)
-                  : fixer.insertTextBeforeRange([0, 0], `${importLine}\n`),
-              );
-            }
-            return fixes;
-          },
+          fix: (fixer) => [
+            fixer.replaceText(
+              node,
+              `enforceTrue(${positiveConditionText(node.test, sourceCode)}, ${decomposed.typeText}, ${decomposed.messageText});`,
+            ),
+            ...importFixes(fixer, "enforceTrue"),
+          ],
         });
       },
     };

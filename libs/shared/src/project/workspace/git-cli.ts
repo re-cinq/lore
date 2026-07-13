@@ -64,9 +64,8 @@ export class GitCli implements GitPort {
 
       enforceTrue(
         !(current !== branch && this.isDirty(dir)),
-        new Error(
-          `refusing to switch ${dir} to ${branch}: the working tree has uncommitted changes`,
-        ),
+        Error,
+        `refusing to switch ${dir} to ${branch}: the working tree has uncommitted changes`,
       );
       this.git(["checkout", branch], dir);
     }

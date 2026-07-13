@@ -112,17 +112,15 @@ export class ExecTestRunner implements TestRunnerPort {
 function loadManifest(cwd: string): TestCommandManifest {
   const file = join(cwd, ".lore", "test-commands.yml");
 
-  enforceTrue(
-    existsSync(file),
-    new Error(`No test-command manifest at ${file}`),
-  );
+  enforceTrue(existsSync(file), Error, `No test-command manifest at ${file}`);
   const manifests = resolveTestCommandManifest({
     file: parse(readFileSync(file, "utf8")),
   });
 
   enforceTrue(
     !(!manifests || manifests.length === 0),
-    new Error(`No usable test-command manifest in ${file}`),
+    Error,
+    `No usable test-command manifest in ${file}`,
   );
 
   return manifests[0];

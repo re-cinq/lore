@@ -100,7 +100,8 @@ export function selectMemoryStore(clients: {
   if (backend === "dgraph") {
     enforceTrue(
       clients.dgraph,
-      new Error("LORE_MEMORY_BACKEND=dgraph but no dgraph client provided"),
+      Error,
+      "LORE_MEMORY_BACKEND=dgraph but no dgraph client provided",
     );
 
     return new DgraphMemoryStore(clients.dgraph as DgraphClientPort);
@@ -113,7 +114,8 @@ export function selectMemoryStore(clients: {
   }
   enforceTrue(
     clients.pgPool,
-    new Error("LORE_MEMORY_BACKEND=postgres but no pgPool client provided"),
+    Error,
+    "LORE_MEMORY_BACKEND=postgres but no pgPool client provided",
   );
 
   return new PostgresMemoryStore(clients.pgPool as PgPool);
@@ -130,7 +132,8 @@ export function setMemoryStore(store: MemoryStore): void {
 export function memoryStore(): MemoryStore {
   enforceTrue(
     registeredStore,
-    new Error("No memory store configured — call setMemoryStore() at startup"),
+    Error,
+    "No memory store configured — call setMemoryStore() at startup",
   );
 
   return registeredStore;

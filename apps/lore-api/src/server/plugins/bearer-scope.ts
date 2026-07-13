@@ -47,11 +47,15 @@ const scheme =
         Array.isArray(authHeader) ? authHeader[0] : authHeader
       )?.replace("Bearer ", "");
 
-      enforceTrue(bearer, denied(401, "unauthorized"));
+      enforceTrue(bearer, (message) => denied(401, message), "unauthorized");
 
       const scopes = await resolveTokenScopes(getPool(), bearer);
 
-      enforceTrue(scopes, denied(403, "insufficient scope"));
+      enforceTrue(
+        scopes,
+        (message) => denied(403, message),
+        "insufficient scope",
+      );
 
       const routeConfig = request.route.settings.plugins as Record<
         string,
@@ -61,7 +65,8 @@ const scheme =
 
       enforceTrue(
         !(required && !scopes.includes("admin") && !scopes.includes(required)),
-        denied(403, "insufficient scope"),
+        (message) => denied(403, message),
+        "insufficient scope",
       );
 
       return h.authenticated({ credentials: { scope: scopes } });

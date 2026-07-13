@@ -32,9 +32,8 @@ export class PgSettings implements SettingsPort {
   private writer(): RepoConfigWriter {
     enforceTrue(
       this.repoConfig,
-      new Error(
-        "PgSettings: repo-config writer not provided (read-only binding)",
-      ),
+      Error,
+      "PgSettings: repo-config writer not provided (read-only binding)",
     );
 
     return this.repoConfig;

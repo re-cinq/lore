@@ -33,7 +33,8 @@ const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 function enforceSchema(schema: string): void {
   enforceTrue(
     SCHEMA_RE.test(schema),
-    new Error(`Invalid schema name: ${JSON.stringify(schema)}`),
+    Error,
+    `Invalid schema name: ${JSON.stringify(schema)}`,
   );
 }
 

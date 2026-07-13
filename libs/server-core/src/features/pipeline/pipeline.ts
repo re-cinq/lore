@@ -28,7 +28,7 @@ import type { Pool } from "pg";
 let pool: Pool | null = null;
 
 function getPool(): Pool {
-  enforceTrue(pool, new Error("Pipeline database not configured"));
+  enforceTrue(pool, Error, "Pipeline database not configured");
 
   return pool;
 }

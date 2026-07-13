@@ -72,10 +72,7 @@ export async function ingestFiles(
 }> {
   const schema = await resolveSchema(pool, repo);
 
-  enforceTrue(
-    SCHEMA_RE.test(schema),
-    new Error(`Invalid schema name: ${schema}`),
-  );
+  enforceTrue(SCHEMA_RE.test(schema), Error, `Invalid schema name: ${schema}`);
 
   // Determine if we need GitHub access (only for path-based files)
   const needsGitHub = files.some((f) => typeof f === "string");
@@ -86,7 +83,8 @@ export async function ingestFiles(
   if (needsGitHub) {
     enforceTrue(
       isConfigured(),
-      new Error("GitHub App not configured — cannot fetch file content"),
+      Error,
+      "GitHub App not configured — cannot fetch file content",
     );
     octokit = await getOctokit();
     [owner, repoName] = repo.split("/");

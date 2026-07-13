@@ -281,7 +281,8 @@ export async function handleOnboard(
 
   enforceTrue(
     toGenerate.length !== 0,
-    new Error("All onboarding files already exist — nothing to generate"),
+    Error,
+    "All onboarding files already exist — nothing to generate",
   );
 
   console.log(`[floor] Onboard: generating ${toGenerate.length} files...`);

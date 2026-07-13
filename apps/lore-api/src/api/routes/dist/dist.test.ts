@@ -37,9 +37,11 @@ describe("GET /dist/lore-code-trace", () => {
   useRateLimitSafeClock();
   let dir: string | undefined;
   const inject = (url: string) => buildServer(() => null).inject({ method: "GET", url });
+
   afterEach(async () => {
     delete process.env.LORE_DIST_DIR;
-    if (dir) await rm(dir, { recursive: true, force: true });
+
+    if (dir) {await rm(dir, { recursive: true, force: true });}
     dir = undefined;
   });
 
@@ -49,6 +51,7 @@ describe("GET /dist/lore-code-trace", () => {
     process.env.LORE_DIST_DIR = dir;
 
     const res = await inject("/dist/lore-code-trace/linux-amd64");
+
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toBe("application/octet-stream");
     expect(res.headers["content-length"]).toBe(6);
@@ -59,11 +62,13 @@ describe("GET /dist/lore-code-trace", () => {
     process.env.LORE_DIST_DIR = dir;
 
     const res = await inject("/dist/lore-code-trace/linux-amd64");
+
     expect(res.statusCode).toBe(404);
   });
 
   it("404s an unknown artifact name without touching the filesystem", async () => {
     const res = await inject("/dist/lore-code-trace/windows-386");
+
     expect(res.statusCode).toBe(404);
     expect(res.result).toEqual({ error: "unknown artifact" });
   });

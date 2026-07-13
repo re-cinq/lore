@@ -35,6 +35,7 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   enforceTrue(
     owner && repo,
+    Error,
     `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
   );
   const project = await projectFor(fullName);

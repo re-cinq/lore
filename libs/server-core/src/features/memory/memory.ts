@@ -364,7 +364,7 @@ export async function restoreSnapshot(snapshotId: string) {
     [snapshotId],
   );
 
-  enforceTrue(snaps.length !== 0, new Error("Snapshot not found"));
+  enforceTrue(snaps.length !== 0, Error, "Snapshot not found");
   const snap = snaps[0];
   const refs = snap.memory_refs as Array<{
     memory_id: string;

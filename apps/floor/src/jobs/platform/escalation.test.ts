@@ -27,10 +27,11 @@ function mockIssues(
     async (title: string, body: string, labels?: string[]) => {
       createCalls.push({ title, body, labels });
       attempts++;
-      enforceTrue(!opts.alwaysFails, new Error("github 503"));
+      enforceTrue(!opts.alwaysFails, Error, "github 503");
       enforceTrue(
         !(opts.failures && attempts <= opts.failures),
-        new Error("transient 502"),
+        Error,
+        "transient 502",
       );
 
       return { number: 42, url: "https://github.com/owner/repo/issues/42" };

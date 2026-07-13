@@ -94,7 +94,7 @@ function parseCoveredChunks(raw: unknown): CoveredChunk[] {
 }
 
 function asArray(raw: unknown, what: string): Record<string, unknown>[] {
-  enforceTrue(Array.isArray(raw), new Error(`${what}: expected an array`));
+  enforceTrue(Array.isArray(raw), Error, `${what}: expected an array`);
 
   return raw as Record<string, unknown>[];
 }
@@ -108,7 +108,8 @@ function requireString(
 
   enforceTrue(
     !(typeof value !== "string" || value === ""),
-    new Error(`${what}: '${field}' is required`),
+    Error,
+    `${what}: '${field}' is required`,
   );
 
   return value;
@@ -123,7 +124,8 @@ function requireNumber(
 
   enforceTrue(
     typeof value === "number",
-    new Error(`${what}: '${field}' is required`),
+    Error,
+    `${what}: '${field}' is required`,
   );
 
   return value;

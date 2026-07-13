@@ -40,7 +40,8 @@ export async function runDetectStation(
 
   enforceTrue(
     detector,
-    new Error(`detect station: no detector for job_ref "${jobRef}"`),
+    Error,
+    `detect station: no detector for job_ref "${jobRef}"`,
   );
   const summary = await detector(input.repo, makeProject(input.repo));
 

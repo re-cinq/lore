@@ -10,14 +10,16 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ServerRoute } from "@hapi/hapi";
+import { errorMessage } from "@re-cinq/lore-shared";
 
 const DIST_PREFIX = "/dist/lore-code-trace/";
 const ALLOWED = new Set(["linux-amd64", "linux-arm64", "darwin-amd64", "darwin-arm64", "checksums.txt"]);
 
 /** The requested artifact name iff it is on the allowlist, else null. */
 export function parseDistArtifact(url: string): string | null {
-  if (!url.startsWith(DIST_PREFIX)) return null;
+  if (!url.startsWith(DIST_PREFIX)) {return null;}
   const name = url.slice(DIST_PREFIX.length).split("?")[0];
+
   return ALLOWED.has(name) ? name : null;
 }
 
@@ -32,16 +34,21 @@ export function distRoute(): ServerRoute {
     options: { auth: false },
     handler: async (request, h) => {
       const artifact = parseDistArtifact(request.path);
-      if (!artifact) return h.response({ error: "unknown artifact" }).code(404);
+
+      if (!artifact) {return h.response({ error: "unknown artifact" }).code(404);}
 
       let data: Buffer;
+
       try {
         data = await readFile(join(distDir(), artifact));
-      } catch {
+      } catch (err) {
+        console.warn(`[dist] artifact read failed: ${errorMessage(err)}`);
+
         return h.response({ error: "artifact not built into this image" }).code(404);
       }
 
       const isText = artifact.endsWith(".txt");
+
       return h
         .response(data)
         .type(isText ? "text/plain; charset=utf-8" : "application/octet-stream")
