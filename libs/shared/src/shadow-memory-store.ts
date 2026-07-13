@@ -61,14 +61,17 @@ export class ShadowMemoryStore implements MemoryStore {
     version?: string | number,
   ): Promise<any> {
     const primaryResult = await this.primary.readMemory(key, agentId, version);
+
     try {
       const shadowResult = await this.shadow.readMemory(key, agentId, version);
+
       if (diverges(primaryResult, shadowResult)) {
         this.deps.metrics?.increment(DIVERGENCE_METRIC);
       }
     } catch (err) {
       this.deps.logger?.error("shadow read failed", err);
     }
+
     return primaryResult;
   }
 

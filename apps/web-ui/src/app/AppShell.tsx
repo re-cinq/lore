@@ -32,11 +32,17 @@ export default function AppShell({
 
   // Close sidebar on Escape key
   useEffect(() => {
-    if (!sidebarOpen) return;
+    if (!sidebarOpen) {
+      return;
+    }
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSidebarOpen(false);
+      if (e.key === "Escape") {
+        setSidebarOpen(false);
+      }
     };
+
     document.addEventListener("keydown", handleKeyDown);
+
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [sidebarOpen]);
 

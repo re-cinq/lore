@@ -28,6 +28,7 @@ export class OllamaProvider implements LlmProvider {
     const text = await this.generate(
       this.combine(req.systemPrompt, req.prompt),
     );
+
     return {
       text,
       model: this.opts.model,
@@ -46,6 +47,7 @@ export class OllamaProvider implements LlmProvider {
         req.prompt,
       ),
     );
+
     return {
       data: JSON.parse(text) as T,
       model: this.opts.model,
@@ -71,9 +73,12 @@ export class OllamaProvider implements LlmProvider {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model: this.opts.model, prompt, stream: false }),
     });
-    if (!res.ok)
+
+    if (!res.ok) {
       throw new Error(`Ollama API error: ${res.status} ${res.statusText}`);
+    }
     const json = (await res.json()) as { response: string };
+
     return json.response;
   }
 }

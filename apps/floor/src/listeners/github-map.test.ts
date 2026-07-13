@@ -33,6 +33,7 @@ describe("mapGitHubEvent — pull_request", () => {
         labels: [{ name: "spec" }],
       },
     };
+
     expect(mapGitHubEvent("pull_request", payload, "d2")).toEqual([
       {
         eventName: "github.pull_request.closed",
@@ -61,6 +62,7 @@ describe("mapGitHubEvent — pull_request", () => {
         labels: [],
       },
     };
+
     expect(mapGitHubEvent("pull_request", payload, "d3")).toEqual([
       {
         eventName: "github.pull_request.closed",
@@ -114,6 +116,7 @@ describe("mapGitHubEvent — review and comments", () => {
       issue: { number: 5, pull_request: {} },
       comment: { id: 111, body: "please fix", user: { login: "alice" } },
     };
+
     expect(mapGitHubEvent("issue_comment", payload, "d6")).toEqual([
       {
         eventName: "github.issue_comment.created",
@@ -147,6 +150,7 @@ describe("mapGitHubEvent — review and comments", () => {
       pull_request: { number: 8 },
       comment: { id: 222, body: "why here?", user: { login: "bob" } },
     };
+
     expect(
       mapGitHubEvent("pull_request_review_comment", payload, "d8"),
     ).toEqual([
@@ -188,6 +192,7 @@ describe("mapGitHubEvent — check fan-out", () => {
       action: "completed",
       check_suite: { pull_requests: [{ number: 1 }, { number: 2 }] },
     };
+
     expect(mapGitHubEvent("check_suite", payload, "d8")).toEqual([
       {
         eventName: "github.check_suite.completed",
@@ -229,6 +234,7 @@ describe("mapGitHubEvent — issues.labeled", () => {
         labels: [{ name: "lore" }, { name: "lore:review" }],
       },
     };
+
     expect(mapGitHubEvent("issues", payload, "d10")).toEqual([
       {
         eventName: "github.issues.labeled",

@@ -47,6 +47,7 @@ describe("extractJsonFiles", () => {
     const r = extractJsonFiles(
       JSON.stringify({ files: { "a.md": "hello", "b.md": "world" } }),
     );
+
     expect(r).toEqual({ "a.md": "hello", "b.md": "world" });
   });
 
@@ -55,6 +56,7 @@ describe("extractJsonFiles", () => {
       "Here are the files:\n```json\n" +
       JSON.stringify({ files: { "a.md": "x" } }) +
       "\n```\nDone.";
+
     expect(extractJsonFiles(text)).toEqual({ "a.md": "x" });
   });
 
@@ -63,6 +65,7 @@ describe("extractJsonFiles", () => {
       "Sure — here it is: " +
       JSON.stringify({ files: { "spec.md": "content" } }) +
       " hope that helps";
+
     expect(extractJsonFiles(text)).toEqual({ "spec.md": "content" });
   });
 
@@ -145,6 +148,7 @@ describe("createAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "gap-fill" },
     );
     const r = await handler(node, makeCtx(tmpDir));
+
     expect(r.outcome).toBe("success");
     expect(
       await fs.readFile(path.join(tmpDir, "deep/nested/path/file.md"), "utf-8"),
@@ -163,6 +167,7 @@ describe("createAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "gap-fill" },
     );
     const r = await handler(node, makeCtx(tmpDir));
+
     expect(r.outcome).toBe("failed");
     expect(r.extras?.["Lore-Validation-Status"]).toBe("parse-error");
   });
@@ -179,6 +184,7 @@ describe("createAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "gap-fill" },
     );
     const r = await handler(node, makeCtx(tmpDir));
+
     // No legal files in the response → parse-fails-back to outcome.
     // (Sanitizer dropped them; remaining count is 0; we treat that as
     // a parse-error to surface the LLM tried to write outside the tree.)
@@ -198,6 +204,7 @@ describe("createAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "gap-fill" },
     );
     const r = await handler(node, makeCtx(tmpDir));
+
     expect(r.extras?.["Lore-Files-Written"]).toBe("0");
   });
 
@@ -214,6 +221,7 @@ describe("createAgentHandler", () => {
       { id: "draft", type: "agent" } as AssemblyLineNode,
       makeCtx(tmpDir),
     );
+
     expect(r.outcome).toBe("failed");
     expect(callLLM).not.toHaveBeenCalled();
   });
@@ -228,6 +236,7 @@ describe("createAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "gap-fill" },
     );
     const r = await handler(node, makeCtx(tmpDir));
+
     expect(r.outcome).toBe("failed");
     expect(r.extras?.["Lore-Validation-Status"]).toBe("config-error");
   });
@@ -244,6 +253,7 @@ describe("createAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "gap-fill" },
     );
     const r = await handler(node, makeCtx(tmpDir));
+
     expect(r.outcome).toBe("failed");
     expect(r.extras?.["Lore-LLM-Error"]).toBe("anthropic 503");
   });
@@ -263,6 +273,7 @@ describe("createAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "review" },
     );
     const r = await handler(node, makeCtx(tmpDir));
+
     expect(r.outcome).toBe("success");
     expect(writeFile).not.toHaveBeenCalled();
     expect(r.extras?.["Lore-Cost-Tokens"]).toBeDefined();

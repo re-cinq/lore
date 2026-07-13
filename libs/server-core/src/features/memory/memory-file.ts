@@ -96,8 +96,11 @@ function ensureDir(dir: string): void {
 
 function readJson<T>(filePath: string, fallback: T): T {
   try {
-    if (!existsSync(filePath)) return fallback;
+    if (!existsSync(filePath)) {
+      return fallback;
+    }
     const raw = readFileSync(filePath, "utf-8");
+
     return JSON.parse(raw) as T;
   } catch {
     // Corrupted JSON — reset to fallback
@@ -129,6 +132,7 @@ function appendAudit(entry: Omit<AuditEntry, "id" | "created_at">): void {
     created_at: new Date().toISOString(),
     ...entry,
   };
+
   try {
     appendFileSync(AUDIT_FILE, JSON.stringify(full) + "\n", "utf-8");
   } catch {
@@ -139,7 +143,10 @@ function appendAudit(entry: Omit<AuditEntry, "id" | "created_at">): void {
 // ── Expiration helper ────────────────────────────────────────────────
 
 function isExpired(record: MemoryRecord): boolean {
-  if (!record.expires_at) return false;
+  if (!record.expires_at) {
+    return false;
+  }
+
   return new Date(record.expires_at) <= new Date();
 }
 
@@ -180,7 +187,9 @@ export function writeMemoryFile(
   };
 
   // Append version history
-  if (!versions[key]) versions[key] = [];
+  if (!versions[key]) {
+    versions[key] = [];
+  }
   versions[key].push({
     version: nextVersion,
     value,
@@ -228,7 +237,11 @@ export function readMemoryFile(
       {},
     );
     const history = versions[key];
-    if (!history || history.length === 0) return null;
+
+    if (!history || history.length === 0) {
+      return null;
+    }
+
     // Return sorted by version descending (newest first)
     return [...history].sort((a, b) => b.version - a.version);
   }
@@ -240,9 +253,16 @@ export function readMemoryFile(
       {},
     );
     const history = versions[key];
-    if (!history) return null;
+
+    if (!history) {
+      return null;
+    }
     const match = history.find((v) => v.version === version);
-    if (!match) return null;
+
+    if (!match) {
+      return null;
+    }
+
     return {
       key,
       value: match.value,
@@ -257,7 +277,10 @@ export function readMemoryFile(
   // Return latest version
   const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
   const record = memories[key];
-  if (!record || record.is_deleted || isExpired(record)) return null;
+
+  if (!record || record.is_deleted || isExpired(record)) {
+    return null;
+  }
 
   return {
     key,
@@ -280,6 +303,7 @@ export function deleteMemoryFile(
   const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
 
   const record = memories[key];
+
   if (!record || record.is_deleted) {
     return { key, deleted: false };
   }
@@ -310,8 +334,11 @@ export function listMemoriesFile(
 
   // Filter out deleted and expired entries
   const active: MemoryEntry[] = [];
+
   for (const [key, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) continue;
+    if (record.is_deleted || isExpired(record)) {
+      continue;
+    }
     active.push({
       key,
       value: record.value,
@@ -406,7 +433,11 @@ export function sharedReadFile(
   // Return a specific key
   if (key !== undefined) {
     const record = memories[key];
-    if (!record || record.is_deleted || isExpired(record)) return null;
+
+    if (!record || record.is_deleted || isExpired(record)) {
+      return null;
+    }
+
     return {
       key,
       value: record.value,
@@ -420,8 +451,11 @@ export function sharedReadFile(
 
   // Return all active entries in the pool
   const entries: MemoryEntry[] = [];
+
   for (const [k, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) continue;
+    if (record.is_deleted || isExpired(record)) {
+      continue;
+    }
     entries.push({
       key: k,
       value: record.value,
@@ -463,8 +497,11 @@ export function createSnapshotFile(agentId?: string): {
 
   // Collect all active (non-deleted, non-expired) memories
   const memoryRefs: Record<string, { value: string; version: number }> = {};
+
   for (const [key, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) continue;
+    if (record.is_deleted || isExpired(record)) {
+      continue;
+    }
     memoryRefs[key] = { value: record.value, version: record.version };
   }
 
@@ -500,6 +537,7 @@ export function restoreSnapshotFile(snapshotPath: string): {
   memory_count: number;
 } {
   const snapshot = readJson<SnapshotRecord | null>(snapshotPath, null);
+
   if (!snapshot) {
     return { restored: false, memory_count: 0 };
   }
@@ -509,6 +547,7 @@ export function restoreSnapshotFile(snapshotPath: string): {
 
   // Rebuild memories from snapshot refs
   const restoredMemories: Record<string, MemoryRecord> = {};
+
   for (const [key, ref] of Object.entries(snapshot.memory_refs)) {
     restoredMemories[key] = {
       value: ref.value,
@@ -548,8 +587,12 @@ export function searchMemoryFile(
   const lowerQuery = query.toLowerCase();
 
   const results: SearchResult[] = [];
+
   for (const [key, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) continue;
+    if (record.is_deleted || isExpired(record)) {
+      continue;
+    }
+
     if (
       key.toLowerCase().includes(lowerQuery) ||
       record.value.toLowerCase().includes(lowerQuery)
@@ -563,7 +606,10 @@ export function searchMemoryFile(
         created_at: record.created_at,
       });
     }
-    if (results.length >= limit) break;
+
+    if (results.length >= limit) {
+      break;
+    }
   }
 
   appendAudit({

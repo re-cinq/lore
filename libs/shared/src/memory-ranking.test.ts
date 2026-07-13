@@ -171,6 +171,7 @@ describe("scoreImportance", () => {
       created_at: "2020-01-01T00:00:00.000Z",
       last_retrieved_at: "2026-01-01T00:00:00.000Z",
     };
+
     expect(scoreImportance(old, Date.parse("2026-01-01T00:00:00.000Z"))).toBe(
       10,
     );
@@ -178,6 +179,7 @@ describe("scoreImportance", () => {
 
   it("clamps to 0 when decay and penalties push below zero", () => {
     const ancient = Date.parse(baseMemory.created_at) + 10 * HALF_LIFE_MS;
+
     expect(
       scoreImportance(
         { ...baseMemory, value: "short", confidence: "stale" },

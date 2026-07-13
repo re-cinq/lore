@@ -14,14 +14,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
   try {
     const task = await queryOne<Task>(
       `SELECT id, status, priority FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
+
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
+
     if (task.status !== "pending") {
       return NextResponse.json(
         {
@@ -48,6 +51,7 @@ export async function POST(
       _req.headers.get("x-forwarded-host") || _req.headers.get("host");
     const proto = _req.headers.get("x-forwarded-proto") || "https";
     const base = host ? `${proto}://${host}` : _req.url;
+
     return NextResponse.redirect(new URL(`/assembly-lines/${id}`, base));
   } catch (err) {
     return serverError("run-now", err);

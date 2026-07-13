@@ -20,12 +20,14 @@ const TASK_ID = "11111111-1111-1111-1111-111111111111";
 describe("getTask", () => {
   it("returns null when no task row matches the id", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValueOnce({ rows: [] });
     expect(await getTask(pool, TASK_ID)).toBeNull();
   });
 
   it("returns the task with its ordered events when the id matches", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({
         rows: [{ id: TASK_ID, status: "running", target_repo: "re-cinq/lore" }],
@@ -45,6 +47,7 @@ describe("getTask", () => {
 describe("listTasks", () => {
   it("returns all rows with a total count when no status filter is given", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [{ id: TASK_ID, status: "running" }] }) // rows
       .mockResolvedValueOnce({ rows: [{ total: 1 }] }); // count
@@ -56,6 +59,7 @@ describe("listTasks", () => {
 
   it("returns the filtered rows and matching total when a status is given", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [{ id: TASK_ID, status: "failed" }] })
       .mockResolvedValueOnce({ rows: [{ total: 1 }] });
@@ -69,6 +73,7 @@ describe("listTasks", () => {
 describe("cancelTask", () => {
   it("returns cancelled status when the task is running", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [{ id: TASK_ID, status: "running" }] }) // getTask: task
       .mockResolvedValueOnce({ rows: [] }) // getTask: events
@@ -83,6 +88,7 @@ describe("cancelTask", () => {
 
   it("throws task not found when no row matches", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
@@ -93,6 +99,7 @@ describe("cancelTask", () => {
 
   it("throws cannot cancel when the task is already merged", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [{ id: TASK_ID, status: "merged" }] })
       .mockResolvedValueOnce({ rows: [] });
@@ -106,6 +113,7 @@ describe("retryTask", () => {
   it("creates a linked task when the original is failed", async () => {
     const pool = makePool();
     const NEW_ID = "22222222-2222-2222-2222-222222222222";
+
     pool.query
       .mockResolvedValueOnce({
         rows: [
@@ -144,6 +152,7 @@ describe("retryTask", () => {
 
   it("throws cannot retry when the task is still running", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [{ id: TASK_ID, status: "running" }] })
       .mockResolvedValueOnce({ rows: [] });
@@ -156,6 +165,7 @@ describe("retryTask", () => {
 
   it("throws task not found when no row matches", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });

@@ -35,6 +35,7 @@ const ImpactBody = z.preprocess(
     files: z.unknown().optional(),
   }),
 );
+
 type ImpactBody = z.infer<typeof ImpactBody>;
 
 const UNAVAILABLE: ImpactReport = {
@@ -62,6 +63,7 @@ export function impactRoute(): ServerRoute {
       const annotations =
         report.status === "ok" ? buildImpactAnnotations(report, files) : [];
       const comment = buildImpactComment(report);
+
       return h.response({ ...report, annotations, comment });
     },
   };
@@ -78,15 +80,21 @@ async function safeComputeImpact(
   files: ChangedRange[],
 ): Promise<ImpactReport> {
   const dgraph = createDgraphClient(process.env);
-  if (!dgraph) return UNAVAILABLE;
+
+  if (!dgraph) {
+    return UNAVAILABLE;
+  }
+
   try {
     return await computeImpact(dgraph, repo, files);
   } catch (err) {
     const reason =
       err instanceof Error ? (err.stack ?? err.message) : String(err);
+
     console.error(
       `[impact] query failed for ${repo} (Dgraph reachable but errored): ${reason}`,
     );
+
     return UNAVAILABLE;
   }
 }

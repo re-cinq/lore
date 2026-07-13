@@ -20,6 +20,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
     async ({ agent_id }) => {
       try {
         const dbPoolRef = getPool();
+
         if (!dbPoolRef) {
           return {
             content: [
@@ -43,6 +44,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
           },
         ];
         const results: any = {};
+
         for (const period of periods) {
           const { rows } = await dbPoolRef.query(
             `SELECT COUNT(DISTINCT t.id)::int as tasks,
@@ -54,12 +56,14 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
                AND ${period.filter}`,
             [agent, `%${agent.substring(0, 8)}%`],
           );
+
           results[period.name] = {
             tasks: rows[0].tasks,
             input_tokens: Number(rows[0].input_tokens),
             output_tokens: Number(rows[0].output_tokens),
           };
         }
+
         return {
           content: [
             {
@@ -92,6 +96,7 @@ export function registerUsageTools(server: McpServer, deps: ToolDeps) {
     async ({ period }) => {
       try {
         const dbPoolRef = getPool();
+
         if (!process.env.LORE_DB_HOST) {
           return {
             content: [

@@ -16,6 +16,7 @@ describe("resolveDarkFactorySettings (web-ui mirror)", () => {
 
   it("applies dark-mode defaults when enabled with no other fields", () => {
     const r = resolveDarkFactorySettings({ enabled: true });
+
     expect(r).toMatchObject({
       create_issue: "on_gate",
       review: "trust_based",
@@ -31,6 +32,7 @@ describe("resolveDarkFactorySettings (web-ui mirror)", () => {
       create_issue: "always",
       auto_merge: { paths: ["only-this/**"], require_green_ci: false },
     });
+
     expect(r.create_issue).toBe("always");
     expect(r.auto_merge.paths).toEqual(["only-this/**"]);
     expect(r.auto_merge.min_trust).toBe("docs");

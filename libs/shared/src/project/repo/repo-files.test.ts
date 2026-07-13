@@ -12,6 +12,7 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
     "CLAUDE.md": "# Lore",
     "src/index.ts": "export {};",
   };
+
   return {
     name: "fake",
     isConfigured: () => true,

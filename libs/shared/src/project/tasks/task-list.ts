@@ -34,6 +34,7 @@ export class TaskList {
 
   async getById(id: string): Promise<Task | null> {
     const row = await this.store.getById(id);
+
     return row ? new Task(row, this.store) : null;
   }
 

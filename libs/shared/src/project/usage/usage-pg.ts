@@ -37,6 +37,7 @@ export class PgUsage implements UsagePort {
     const { rows: totalRows } = await this.pool.query(
       "SELECT count(*)::int as total FROM pipeline.llm_calls",
     );
+
     return {
       today: todayRows[0]?.today ?? 0,
       total: totalRows[0]?.total ?? 0,

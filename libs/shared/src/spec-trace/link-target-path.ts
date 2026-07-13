@@ -20,12 +20,18 @@ export function repoRelativeLinkTarget(
   target: string,
 ): string | null {
   const path = target.split("#")[0];
-  if (path === "") return null;
+
+  if (path === "") {
+    return null;
+  }
   const resolved =
     path.startsWith("./") || path.startsWith("../")
       ? posix.normalize(posix.join(posix.dirname(specFilePath), path))
       : path;
-  if (resolved === "" || resolved === "." || resolved.startsWith(".."))
+
+  if (resolved === "" || resolved === "." || resolved.startsWith("..")) {
     return null;
+  }
+
   return resolved;
 }

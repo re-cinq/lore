@@ -52,6 +52,7 @@ describe("GET /api/repos/:o/:r/webhook", () => {
   it("returns unknown when LORE_WEBHOOK_URL is not configured", async () => {
     delete process.env.LORE_WEBHOOK_URL;
     const res = await inject("GET", "/api/repos/o/r/webhook");
+
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({
       state: "unknown",
@@ -63,6 +64,7 @@ describe("GET /api/repos/:o/:r/webhook", () => {
     process.env.LORE_WEBHOOK_URL = URL;
     vi.mocked(listRepoWebhooks).mockResolvedValue([goodHook] as any);
     const res = await inject("GET", "/api/repos/o/r/webhook");
+
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({
       state: "configured",
@@ -77,6 +79,7 @@ describe("GET /api/repos/:o/:r/webhook", () => {
       Object.assign(new Error("Forbidden"), { status: 403 }),
     );
     const res = await inject("GET", "/api/repos/o/r/webhook");
+
     expect(res.result).toMatchObject({
       state: "unknown",
       reason: "app_no_webhook_permission",
@@ -101,6 +104,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
       reason: "secret_not_configured",
     });
     const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
+
     expect(res.statusCode).toBe(503);
   });
 
@@ -111,6 +115,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
       reason: "app_no_webhook_permission",
     });
     const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
+
     expect(res.statusCode).toBe(403);
   });
 
@@ -123,6 +128,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
     });
     vi.mocked(listRepoWebhooks).mockResolvedValue([goodHook] as any);
     const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
+
     expect(ensureFloorWebhook).toHaveBeenCalledWith("o/r");
     expect(res.result).toMatchObject({ state: "configured" });
   });
@@ -142,6 +148,7 @@ describe("GET /api/repos/:o/:r/webhook/secret", () => {
     process.env.LORE_WEBHOOK_URL = URL;
     process.env.LORE_WEBHOOK_SECRET = "s3cr3t";
     const res = await inject("GET", "/api/repos/o/r/webhook/secret");
+
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({ secret: "s3cr3t", canonicalUrl: URL });
   });
@@ -150,6 +157,7 @@ describe("GET /api/repos/:o/:r/webhook/secret", () => {
     process.env.LORE_WEBHOOK_URL = URL;
     delete process.env.LORE_WEBHOOK_SECRET;
     const res = await inject("GET", "/api/repos/o/r/webhook/secret");
+
     expect(res.statusCode).toBe(503);
   });
 });

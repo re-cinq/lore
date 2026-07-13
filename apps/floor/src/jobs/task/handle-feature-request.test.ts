@@ -46,8 +46,9 @@ beforeEach(() => {
     ...Object.values(fakeRepo),
     ...Object.values(fakePulls),
     ...Object.values(fakeIssues),
-  ])
+  ]) {
     fn.mockReset();
+  }
   fetchRepoContext.mockReset();
   query.mockReset();
   writeEpisode.mockReset();
@@ -91,6 +92,7 @@ describe("handleFeatureRequest", () => {
     const lastCommit = Math.max(
       ...fakeRepo.commitFile.mock.invocationCallOrder,
     );
+
     expect(lastCommit).toBeLessThan(fakePulls.open.mock.invocationCallOrder[0]);
   });
 

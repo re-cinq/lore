@@ -9,6 +9,7 @@ describe("stationLogTail", () => {
       "remote: Repository not found.",
       "fatal: repository 'https://github.com/re-cinq/lore.git/' not found",
     ].join("\n");
+
     expect(stationLogTail(out)).toBe(
       "Cloning into '/workspace/repo'...\nremote: Repository not found.\nfatal: repository 'https://github.com/re-cinq/lore.git/' not found",
     );
@@ -21,6 +22,7 @@ describe("stationLogTail", () => {
   it("bounds to the last maxLines", () => {
     const out = Array.from({ length: 100 }, (_, i) => `line ${i}`).join("\n");
     const tail = stationLogTail(out, 5);
+
     expect(tail.split("\n")).toHaveLength(5);
     expect(tail.endsWith("line 99")).toBe(true);
   });

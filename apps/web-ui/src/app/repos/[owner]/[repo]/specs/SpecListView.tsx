@@ -25,6 +25,7 @@ export default function SpecListView({
     );
   }
   const groups = groupSpecSummaries(specs);
+
   return (
     <div>
       {groups.map((group) => (

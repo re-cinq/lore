@@ -50,6 +50,7 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
     vars: Record<string, string>,
   ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
+
     try {
       return ((await txn.queryWithVars(query, vars)).data ?? {}) as Record<
         string,
@@ -61,9 +62,13 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
   }
 
   let createdRepo = "";
+
   afterEach(async () => {
-    if (!createdRepo) return;
+    if (!createdRepo) {
+      return;
+    }
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query q($r: string){ cov(func: eq(Coverage.repo,$r)){uid} f(func: eq(File.repo,$r)){uid} }`,
@@ -74,11 +79,13 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
         f?: { uid: string }[];
       };
       const uids = [...(data.cov ?? []), ...(data.f ?? [])].map((n) => n.uid);
-      if (uids.length)
+
+      if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((u) => `<${u}> * * .`).join("\n"),
           commitNow: true,
         });
+      }
     } catch {
       // best-effort
     } finally {
@@ -88,6 +95,7 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
 
   it("sets a Coverage.covers edge to a File with a `ranges` string facet, readable via @facets", async () => {
     const repo = `test-facet/${randomUUID()}`;
+
     createdRepo = repo;
     const coverageUid = await upsertByXid(
       dgraphClient,
@@ -118,6 +126,7 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
       { $uid: coverageUid },
     )) as { cov?: { "Coverage.covers"?: Record<string, unknown>[] }[] };
     const covers = data.cov?.[0]?.["Coverage.covers"] ?? [];
+
     expect(covers).toHaveLength(1);
     expect(covers[0]).toMatchObject({
       uid: fileUid,

@@ -42,22 +42,30 @@ export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
     path: `${BASE}/{name?}`,
     options: bearerScope("read"),
     handler: async (request, h) => {
-      if (!getPool())
+      if (!getPool()) {
         return h.response({ error: "database unavailable" }).code(503);
+      }
       const name = request.params.name as string | undefined;
+
       try {
         const project = await projectFor(repoOf(request.params));
+
         if (name) {
           const def = await project.agentDefs.resolve(name);
-          if (!def)
+
+          if (!def) {
             return h
               .response({ error: "agent definition not found", name })
               .code(404);
+          }
+
           return h.response(def);
         }
+
         return h.response({ agents: await project.agentDefs.list() });
       } catch (err) {
         console.error("[agents] route failed:", err);
+
         return h.response({ error: "internal" }).code(500);
       }
     },
@@ -71,13 +79,18 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
     options: bearerScope("admin"),
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database unavailable" }).code(503);
+
+      if (!pool) {
+        return h.response({ error: "database unavailable" }).code(503);
+      }
       const repo = repoOf(request.params);
+
       try {
         const project = await projectFor(repo);
 
         const body = request.payload ?? {};
         let create: ReturnType<typeof parseAgentInput>;
+
         try {
           create = parseAgentInput(body);
         } catch (err) {
@@ -87,6 +100,7 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
         }
 
         let ceremony: Ceremony = { tier: "admin" };
+
         if (imageFieldTouched(create)) {
           const gate = await checkApproval(
             request,
@@ -94,7 +108,10 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
             ["image"],
             IMAGE_DETAIL,
           );
-          if (!gate.ok) return h.response(gate.body).code(gate.code);
+
+          if (!gate.ok) {
+            return h.response(gate.body).code(gate.code);
+          }
           ceremony = {
             tier: "two_key",
             pr_ref: gate.evidence.prRef,
@@ -104,14 +121,17 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
 
         const def = await project.agentDefs.create(create);
         const crd_applied = await applyCatalogCrd(def);
+
         await audit(pool, repo, "agent_created", {
           name: def.name,
           ceremony,
           crd_applied,
         });
+
         return h.response({ ok: true, agent: def, ceremony, crd_applied });
       } catch (err) {
         console.error("[agents] route failed:", err);
+
         return h.response({ error: "internal" }).code(500);
       }
     },
@@ -125,14 +145,19 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
     options: bearerScope("admin"),
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database unavailable" }).code(503);
+
+      if (!pool) {
+        return h.response({ error: "database unavailable" }).code(503);
+      }
       const repo = repoOf(request.params);
       const name = request.params.name;
+
       try {
         const project = await projectFor(repo);
 
         const body = request.payload ?? {};
         let patch: ReturnType<typeof parseAgentPatch>;
+
         try {
           patch = parseAgentPatch(body);
         } catch (err) {
@@ -142,6 +167,7 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
         }
 
         let ceremony: Ceremony = { tier: "admin" };
+
         if (imageFieldTouched(patch)) {
           const gate = await checkApproval(
             request,
@@ -149,7 +175,10 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
             ["image"],
             IMAGE_DETAIL,
           );
-          if (!gate.ok) return h.response(gate.body).code(gate.code);
+
+          if (!gate.ok) {
+            return h.response(gate.body).code(gate.code);
+          }
           ceremony = {
             tier: "two_key",
             pr_ref: gate.evidence.prRef,
@@ -159,14 +188,17 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
 
         const def = await project.agentDefs.update(name, patch);
         const crd_applied = await applyCatalogCrd(def);
+
         await audit(pool, repo, "agent_updated", {
           name,
           ceremony,
           crd_applied,
         });
+
         return h.response({ ok: true, agent: def, ceremony, crd_applied });
       } catch (err) {
         console.error("[agents] route failed:", err);
+
         return h.response({ error: "internal" }).code(500);
       }
     },
@@ -180,17 +212,25 @@ export function agentsDeleteRoute(getPool: () => Pool | null): ServerRoute {
     options: bearerScope("admin"),
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database unavailable" }).code(503);
+
+      if (!pool) {
+        return h.response({ error: "database unavailable" }).code(503);
+      }
       const repo = repoOf(request.params);
       const name = request.params.name;
+
       try {
         const project = await projectFor(repo);
+
         await project.agentDefs.delete(name);
         const crd_deleted = await deleteCatalogCrd(name);
+
         await audit(pool, repo, "agent_deleted", { name, crd_deleted });
+
         return h.response({ ok: true, deleted: name, crd_deleted });
       } catch (err) {
         console.error("[agents] route failed:", err);
+
         return h.response({ error: "internal" }).code(500);
       }
     },
@@ -209,25 +249,35 @@ function issuesOf(err: unknown): unknown {
  * surfaces as crd_applied:false rather than failing the edit.
  */
 async function applyCatalogCrd(def: AgentDefinition): Promise<boolean> {
-  if (!process.env.KUBERNETES_SERVICE_HOST) return false; // not in-cluster (local dev / tests)
+  if (!process.env.KUBERNETES_SERVICE_HOST) {
+    return false;
+  } // not in-cluster (local dev / tests)
+
   try {
     await applyAgentCrds(
       agentDefToCrds(def, { eventsUrl: process.env.LORE_AGENT_EVENTS_URL }),
     );
+
     return true;
   } catch (err) {
     console.error(`[agents] CRD apply failed for ${def.name}:`, err);
+
     return false;
   }
 }
 
 async function deleteCatalogCrd(name: string): Promise<boolean> {
-  if (!process.env.KUBERNETES_SERVICE_HOST) return false;
+  if (!process.env.KUBERNETES_SERVICE_HOST) {
+    return false;
+  }
+
   try {
     await deleteAgentCrds(name);
+
     return true;
   } catch (err) {
     console.error(`[agents] CRD delete failed for ${name}:`, err);
+
     return false;
   }
 }

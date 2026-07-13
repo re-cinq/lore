@@ -10,6 +10,7 @@ import type { GitPort } from "./git-port.js";
 
 function fakeGit(log: string[]): GitPort {
   const files = new Map<string, string>();
+
   return {
     clone: async () => {},
     ensureClone: async () => {},
@@ -24,6 +25,7 @@ function fakeGit(log: string[]): GitPort {
     },
     stageCommit: async (_dir, message) => {
       log.push(`commit ${message}`);
+
       return { committed: true };
     },
     push: async (_dir, branch) => {
@@ -40,6 +42,7 @@ describe("Workspace", () => {
 
     await ws.writeFile("README.md", "hello");
     const back = await ws.readFile("README.md");
+
     await ws.commit("docs: add readme");
 
     expect(back).toBe("hello");
@@ -58,6 +61,7 @@ describe("Workspace", () => {
       merge: async () => {},
       open: async (repo, branch, title) => {
         opened.push(`${repo}#${branch}`);
+
         return {
           repo,
           number: 1,

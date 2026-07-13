@@ -30,6 +30,7 @@ export class PgKnowledge implements KnowledgePort {
       undefined,
       repo,
     );
+
     return { text: result.text };
   }
 
@@ -62,6 +63,7 @@ export class PgKnowledge implements KnowledgePort {
         ORDER BY file_path`,
       [contentType, repo],
     );
+
     return rows.map((r) => ({ path: r.file_path, title: r.file_path }));
   }
 
@@ -71,6 +73,7 @@ export class PgKnowledge implements KnowledgePort {
       [repo],
     );
     const team = (rows[0]?.team as string | null) ?? "";
+
     return SCHEMA_RE.test(team) ? team : "org_shared";
   }
 }

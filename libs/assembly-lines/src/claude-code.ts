@@ -34,6 +34,7 @@ export type LogUsage = (record: {
 export function isClaudeCodeAvailable(): boolean {
   try {
     execFileSync("claude", ["--version"], { stdio: "pipe", timeout: 5_000 });
+
     return true;
   } catch {
     return false;
@@ -160,6 +161,7 @@ export async function runClaudeCode(params: {
             `Claude Code failed (exit ${exitCode}): ${stderr.substring(0, 500)}`,
           ),
         );
+
         return;
       }
 

@@ -38,6 +38,7 @@ describe("parseStationInput", () => {
         task_id: null,
       }),
     );
+
     expect(input).toMatchObject({ task_id: null, params: {} });
   });
 

@@ -16,6 +16,7 @@ const ListTasksQuery = z.object({
   limit: clampedLimit.default(20),
   offset: offsetParam,
 });
+
 type ListTasksQuery = z.infer<typeof ListTasksQuery>;
 
 export function listTasksRoute(): ServerRoute {
@@ -29,8 +30,10 @@ export function listTasksRoute(): ServerRoute {
     handler: async (request, h) => {
       const { status, limit, offset } =
         request.query as unknown as ListTasksQuery;
+
       try {
         const result = await listTasks(status, limit, offset);
+
         return h.response({ ...result, limit, offset });
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

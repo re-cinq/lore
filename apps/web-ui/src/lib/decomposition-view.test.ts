@@ -29,6 +29,7 @@ describe("groupDecomposition", () => {
       }),
     ];
     const grouped = groupDecomposition(rows);
+
     expect(grouped.total).toBe(2);
     expect(grouped.stories).toEqual([
       {
@@ -56,6 +57,7 @@ describe("groupDecomposition", () => {
       row({ context_bundle: { spec_task_id: "T002", story_issue: 9 } }),
       row({ context_bundle: { spec_task_id: "T001", story_issue: 8 } }),
     ];
+
     expect(groupDecomposition(rows).stories.map((s) => s.storyIssue)).toEqual([
       8, 9,
     ]);
@@ -66,6 +68,7 @@ describe("groupDecomposition", () => {
       row({ context_bundle: { spec_task_id: "T002" } }), // no story_issue
       row({ context_bundle: { spec_task_id: "T001", story_issue: 5 } }),
     ];
+
     expect(groupDecomposition(rows).stories.map((s) => s.storyIssue)).toEqual([
       5,
       null,

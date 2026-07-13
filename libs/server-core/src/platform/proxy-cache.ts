@@ -73,12 +73,17 @@ function entryPath(tool: string, key: string): string {
 
 // Owner-only (0700) so cached org reads are not world-readable on a shared box.
 function ensureDir(dir: string): void {
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
 }
 
 function readJson<T>(filePath: string, fallback: T): T {
   try {
-    if (!existsSync(filePath)) return fallback;
+    if (!existsSync(filePath)) {
+      return fallback;
+    }
+
     return JSON.parse(readFileSync(filePath, "utf-8")) as T;
   } catch {
     return fallback;
@@ -110,19 +115,30 @@ function loadConfig(): CacheConfig {
 }
 
 export function isCacheEnabled(): boolean {
-  if (process.env.LORE_CACHE_ENABLED === "false") return false;
-  if (process.env.LORE_CACHE_ENABLED === "true") return true;
+  if (process.env.LORE_CACHE_ENABLED === "false") {
+    return false;
+  }
+
+  if (process.env.LORE_CACHE_ENABLED === "true") {
+    return true;
+  }
+
   return loadConfig().enabled;
 }
 
 function canonical(value: unknown): string {
-  if (value === null || typeof value !== "object")
+  if (value === null || typeof value !== "object") {
     return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map(canonical).join(",")}]`;
+  }
   const obj = value as Record<string, unknown>;
   const keys = Object.keys(obj)
     .filter((k) => obj[k] !== undefined)
     .sort();
+
   return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(obj[k])}`).join(",")}}`;
 }
 
@@ -148,6 +164,7 @@ function ageSeconds(entry: CacheEntry): number {
 
 function effectiveTtl(policy: ReadCachePolicy): number {
   const override = loadConfig().ttl_overrides[policy.tool];
+
   return typeof override === "number" ? override : policy.ttlSeconds;
 }
 
@@ -161,25 +178,42 @@ function readEntry(policy: ReadCachePolicy): CacheEntry | null {
 export function readFresh(
   policy: ReadCachePolicy,
 ): { body: string; ageSeconds: number } | null {
-  if (!isCacheEnabled()) return null;
+  if (!isCacheEnabled()) {
+    return null;
+  }
   const entry = readEntry(policy);
-  if (!entry) return null;
+
+  if (!entry) {
+    return null;
+  }
   const age = ageSeconds(entry);
-  if (age >= entry.ttlSeconds) return null;
+
+  if (age >= entry.ttlSeconds) {
+    return null;
+  }
+
   return { body: entry.body, ageSeconds: age };
 }
 
 export function readAny(
   policy: ReadCachePolicy,
 ): { body: string; ageSeconds: number } | null {
-  if (!isCacheEnabled()) return null;
+  if (!isCacheEnabled()) {
+    return null;
+  }
   const entry = readEntry(policy);
-  if (!entry) return null;
+
+  if (!entry) {
+    return null;
+  }
+
   return { body: entry.body, ageSeconds: ageSeconds(entry) };
 }
 
 export function store(policy: ReadCachePolicy, body: string): void {
-  if (!isCacheEnabled()) return;
+  if (!isCacheEnabled()) {
+    return;
+  }
   const entry: CacheEntry = {
     tool: policy.tool,
     repo: policy.repo || "",
@@ -187,6 +221,7 @@ export function store(policy: ReadCachePolicy, body: string): void {
     storedAt: new Date().toISOString(),
     ttlSeconds: effectiveTtl(policy),
   };
+
   writeJson(
     entryPath(policy.tool, buildKey(policy.tool, policy.args, policy.repo)),
     entry,
@@ -195,42 +230,67 @@ export function store(policy: ReadCachePolicy, body: string): void {
 }
 
 export function invalidate(tools: string[], repo?: string): void {
-  if (!existsSync(entriesDir())) return;
+  if (!existsSync(entriesDir())) {
+    return;
+  }
   const prefixes = new Set(tools.map((t) => `${fileToolPrefix(t)}.`));
+
   for (const file of readdirSync(entriesDir())) {
-    if (!file.endsWith(".json")) continue;
-    if (!prefixes.has(file.slice(0, file.indexOf(".") + 1))) continue;
+    if (!file.endsWith(".json")) {
+      continue;
+    }
+
+    if (!prefixes.has(file.slice(0, file.indexOf(".") + 1))) {
+      continue;
+    }
     const path = join(entriesDir(), file);
+
     // Only entries scoped to a specific repo need a read to confirm the match;
     // the common unscoped invalidate unlinks straight off the filename.
     if (
       repo !== undefined &&
       readJson<CacheEntry | null>(path, null)?.repo !== repo
-    )
+    ) {
       continue;
+    }
     safeUnlink(path);
   }
 }
 
 function evictIfNeeded(): void {
   const { max_entries } = loadConfig();
-  if (!existsSync(entriesDir())) return;
+
+  if (!existsSync(entriesDir())) {
+    return;
+  }
   const files = readdirSync(entriesDir()).filter((f) => f.endsWith(".json"));
-  if (files.length <= max_entries) return;
+
+  if (files.length <= max_entries) {
+    return;
+  }
   const sorted = files
     .map((f) => {
       const path = join(entriesDir(), f);
       const entry = readJson<CacheEntry | null>(path, null);
+
       return { path, storedAt: entry ? Date.parse(entry.storedAt) : 0 };
     })
     .sort((a, b) => a.storedAt - b.storedAt);
-  for (const { path } of sorted.slice(0, files.length - max_entries))
+
+  for (const { path } of sorted.slice(0, files.length - max_entries)) {
     safeUnlink(path);
+  }
 }
 
 function formatAge(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  if (seconds < 3600) {
+    return `${Math.floor(seconds / 60)}m`;
+  }
+
   return `${Math.floor(seconds / 3600)}h`;
 }
 

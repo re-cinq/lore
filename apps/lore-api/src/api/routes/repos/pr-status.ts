@@ -15,6 +15,7 @@ const PrStatusQuery = z.object({
   repo: repoFullName,
   pr_number: z.coerce.number().int().positive(),
 });
+
 type PrStatusQuery = z.infer<typeof PrStatusQuery>;
 
 export function prStatusRoute(): ServerRoute {
@@ -28,8 +29,10 @@ export function prStatusRoute(): ServerRoute {
     handler: async (request, h) => {
       const { repo, pr_number: prNumber } =
         request.query as unknown as PrStatusQuery;
+
       try {
         const result = await fetchPrStatus(repo, prNumber);
+
         if (!result) {
           // 424 (not 502): a missing-GitHub-credentials config gap is deterministic,
           // so the proxy must classify it non-retriable and not burn its retry budget
@@ -41,6 +44,7 @@ export function prStatusRoute(): ServerRoute {
             })
             .code(424);
         }
+
         return h.response(result);
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

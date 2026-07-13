@@ -77,6 +77,7 @@ describe("ThemeSwitcher", () => {
 
     const elegant = screen.getByRole("radio", { name: "Elegant" });
     const retro = screen.getByRole("radio", { name: "Retro" });
+
     expect(elegant).toBeChecked();
     expect(retro).not.toBeChecked();
     // the wrapping label gets the `selected` modifier only for the active value
@@ -91,6 +92,7 @@ describe("ThemeSwitcher", () => {
     const dark = screen.getByRole("radio", { name: "Dark" });
     const light = screen.getByRole("radio", { name: "Light" });
     const auto = screen.getByRole("radio", { name: "Auto" });
+
     expect(dark).toBeChecked();
     expect(light).not.toBeChecked();
     expect(auto).not.toBeChecked();

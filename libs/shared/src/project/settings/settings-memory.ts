@@ -43,13 +43,17 @@ export class InMemorySettings implements SettingsPort {
   async resolveOrNull(
     repo: string,
   ): Promise<ResolvedDarkFactorySettings | null> {
-    if (!this.row(repo)) return null;
+    if (!this.row(repo)) {
+      return null;
+    }
+
     return resolveDarkFactorySettings(this.darkFactory(repo));
   }
 
   private darkFactory(repo: string): DarkFactorySettings | undefined {
     const settings = this.row(repo)?.settings as
       { dark_factory?: DarkFactorySettings } | undefined;
+
     return settings?.dark_factory;
   }
 
@@ -71,7 +75,11 @@ export class InMemorySettings implements SettingsPort {
 
   async rawSettings(repo: string): Promise<Record<string, unknown> | null> {
     const row = this.row(repo);
-    if (!row) return null;
+
+    if (!row) {
+      return null;
+    }
+
     return row.settings ?? null;
   }
 
@@ -80,8 +88,12 @@ export class InMemorySettings implements SettingsPort {
     settings: Record<string, unknown>,
   ): Promise<void> {
     const row = this.row(repo);
-    if (row) row.settings = settings;
-    else this.repos.push({ full_name: repo, settings });
+
+    if (row) {
+      row.settings = settings;
+    } else {
+      this.repos.push({ full_name: repo, settings });
+    }
   }
 
   async team(repo: string): Promise<string | null> {
@@ -109,7 +121,10 @@ export class InMemorySettings implements SettingsPort {
 
   async markIngested(repo: string): Promise<void> {
     const row = this.row(repo);
-    if (row) row.last_ingested_at = new Date();
+
+    if (row) {
+      row.last_ingested_at = new Date();
+    }
   }
 
   async pendingOnboardingRepos(): Promise<PendingOnboardingRepo[]> {
@@ -126,6 +141,7 @@ export class InMemorySettings implements SettingsPort {
 
   async markOnboardingMergedById(id: string): Promise<void> {
     const row = this.repos.find((r) => r.id === id);
+
     if (row) {
       row.onboarding_pr_merged = true;
       row.last_ingested_at = new Date();
@@ -134,8 +150,12 @@ export class InMemorySettings implements SettingsPort {
 
   async setOnboardingPrUrl(repo: string, url: string): Promise<void> {
     const row = this.row(repo);
-    if (row) row.onboarding_pr_url = url;
-    else this.repos.push({ full_name: repo, onboarding_pr_url: url });
+
+    if (row) {
+      row.onboarding_pr_url = url;
+    } else {
+      this.repos.push({ full_name: repo, onboarding_pr_url: url });
+    }
   }
 
   async bumpOutcomeStats(
@@ -144,8 +164,12 @@ export class InMemorySettings implements SettingsPort {
     hoursToMerge: number,
   ): Promise<void> {
     const row = this.row(repo);
-    if (!row) return;
+
+    if (!row) {
+      return;
+    }
     const stats = row.outcome_stats ?? {};
+
     row.outcome_stats = {
       ...stats,
       merged_count: (stats.merged_count ?? 0) + 1,

@@ -9,5 +9,6 @@ import { NextResponse } from "next/server";
 export function serverError(context: string, err: unknown): NextResponse {
   console.error(`[api:${context}]`, err);
   const message = err instanceof Error ? err.message : String(err);
+
   return NextResponse.json({ error: message }, { status: 500 });
 }

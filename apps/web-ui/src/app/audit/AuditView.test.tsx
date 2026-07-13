@@ -47,12 +47,14 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
+
     expect(screen.getByText("abcdef01...")).toBeInTheDocument();
     expect(screen.getByText("99887766...")).toBeInTheDocument();
     expect(
       container.querySelector('td[title="abcdef0123456789"]'),
     ).toBeInTheDocument();
     const writeBadge = container.querySelector(".op-badge.op-write");
+
     expect(writeBadge).toBeInTheDocument();
     expect(writeBadge).toHaveTextContent("write");
     expect(container.querySelector(".op-badge.op-read")).toBeInTheDocument();
@@ -99,6 +101,7 @@ describe("AuditView", () => {
 
   it("truncates metadata longer than 50 characters", () => {
     const big = { description: "x".repeat(200) };
+
     render(
       <AuditView
         entries={[row({ metadata: big })]}
@@ -111,6 +114,7 @@ describe("AuditView", () => {
       />,
     );
     const expected = JSON.stringify(big).substring(0, 50);
+
     expect(screen.getByText(expected)).toBeInTheDocument();
     expect(expected).toHaveLength(50);
   });
@@ -127,6 +131,7 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
+
     expect(screen.getByText("No audit entries found")).toBeInTheDocument();
     expect(container.querySelector('td[colspan="6"]')).toBeInTheDocument();
   });
@@ -165,6 +170,7 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
+
     expect(container.querySelector('input[name="agent"]')).toHaveValue(
       "abcdef0123456789",
     );
@@ -184,6 +190,7 @@ describe("AuditView", () => {
       />,
     );
     const links = container.querySelectorAll(".pagination a");
+
     expect(links).toHaveLength(2);
     links.forEach((a) => expect(a).toHaveClass("disabled"));
     expect(screen.getByText("1 of 1", { exact: false })).toBeInTheDocument();
@@ -205,6 +212,7 @@ describe("AuditView", () => {
     );
     const prev = screen.getByRole("link", { name: /Previous/ });
     const next = screen.getByRole("link", { name: /Next/ });
+
     expect(prev).not.toHaveClass("disabled");
     expect(next).not.toHaveClass("disabled");
     // offset 0 omits the offset param; filters preserved

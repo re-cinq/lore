@@ -32,6 +32,7 @@ function slack(
   const sig =
     "v0=" +
     createHmac("sha256", SLACK_SECRET).update(`v0:${ts}:${raw}`).digest("hex");
+
   return buildServer(() => pool as any).inject({
     method: "POST",
     url: "/api/webhook/slack",
@@ -61,6 +62,7 @@ describe("POST /api/webhook/slack", () => {
   it("returns 503 when the signing secret is unset", async () => {
     delete process.env.LORE_SLACK_SIGNING_SECRET;
     const res = await slack({ text: "hi" });
+
     expect(res.statusCode).toBe(503);
   });
 
@@ -70,6 +72,7 @@ describe("POST /api/webhook/slack", () => {
       url: "/api/webhook/slack",
       payload: "text=hi",
     });
+
     expect(res.statusCode).toBe(401);
   });
 
@@ -78,34 +81,40 @@ describe("POST /api/webhook/slack", () => {
       { text: "hi" },
       { ts: String(Math.floor(Date.now() / 1000) - 400) },
     );
+
     expect(res.statusCode).toBe(401);
   });
 
   it("returns 401 on an invalid signature", async () => {
     const res = await slack({ text: "hi" }, { sign: false });
+
     expect(res.statusCode).toBe(401);
   });
 
   it("answers the url_verification challenge", async () => {
     const res = await slack({ type: "url_verification", challenge: "ch123" });
+
     expect(res.statusCode).toBe(200);
     expect(res.payload).toBe("ch123");
   });
 
   it("answers url_verification with an empty challenge when absent", async () => {
     const res = await slack({ type: "url_verification" });
+
     expect(res.statusCode).toBe(200);
     expect(res.payload).toBe("");
   });
 
   it("returns usage help when text is empty", async () => {
     const res = await slack({ text: "", channel_id: "C1", user_name: "u" });
+
     expect(text(res.result)).toContain("Usage:");
   });
 
   it("retries a task", async () => {
     vi.mocked(retryTask).mockResolvedValue({ task_id: "new" } as any);
     const res = await slack({ text: "retry t1", channel_id: "C1" });
+
     expect(res.result).toMatchObject({ response_type: "in_channel" });
     expect(text(res.result)).toContain("Retrying task");
   });
@@ -113,17 +122,20 @@ describe("POST /api/webhook/slack", () => {
   it("reports a failed retry", async () => {
     vi.mocked(retryTask).mockRejectedValue(new Error("nope"));
     const res = await slack({ text: "retry t1" });
+
     expect(text(res.result)).toContain("Retry failed");
   });
 
   it("returns the no-repo message when the channel is unmapped", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [] });
     const res = await slack(
       { text: "do something", channel_id: "C-unmapped" },
       {},
       pool,
     );
+
     expect(text(res.result)).toContain("No repo mapped");
   });
 
@@ -133,22 +145,26 @@ describe("POST /api/webhook/slack", () => {
       {},
       null,
     );
+
     expect(text(res.result)).toContain("No repo mapped");
   });
 
   it("falls through to no-repo when the channel query throws", async () => {
     const pool = makePool();
+
     pool.query.mockRejectedValue(new Error("lookup fail"));
     const res = await slack(
       { text: "do something", channel_id: "C1" },
       {},
       pool,
     );
+
     expect(text(res.result)).toContain("No repo mapped");
   });
 
   it("creates an immediate task with a known type", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
     vi.mocked(createTask).mockResolvedValue({ task_id: "s1" } as any);
     const res = await slack(
@@ -160,6 +176,7 @@ describe("POST /api/webhook/slack", () => {
       {},
       pool,
     );
+
     expect(text(res.result)).toContain("Priority: `immediate`");
     expect(createTask).toHaveBeenCalledWith(
       "add caching",
@@ -173,6 +190,7 @@ describe("POST /api/webhook/slack", () => {
 
   it("creates a normal-priority task and reports the backlog", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
     vi.mocked(createTask).mockResolvedValue({ task_id: "s2" } as any);
     const res = await slack(
@@ -180,11 +198,13 @@ describe("POST /api/webhook/slack", () => {
       {},
       pool,
     );
+
     expect(text(res.result)).toContain("backlog");
   });
 
   it("reports a failed task creation", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
     vi.mocked(createTask).mockRejectedValue(new Error("create fail"));
     const res = await slack(
@@ -192,11 +212,13 @@ describe("POST /api/webhook/slack", () => {
       {},
       pool,
     );
+
     expect(text(res.result)).toContain("Failed to create task");
   });
 
   it("treats a bare retry with no task id as a general-task description", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
     vi.mocked(createTask).mockResolvedValue({ task_id: "r1" } as any);
     const res = await slack(
@@ -204,6 +226,7 @@ describe("POST /api/webhook/slack", () => {
       {},
       pool,
     );
+
     expect(createTask).toHaveBeenCalledWith(
       "retry",
       "general",
@@ -217,6 +240,7 @@ describe("POST /api/webhook/slack", () => {
 
   it("creates an immediate general-typed task when no known type follows the bang", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ full_name: "o/r" }] });
     vi.mocked(createTask).mockResolvedValue({ task_id: "b1" } as any);
     const res = await slack(
@@ -224,6 +248,7 @@ describe("POST /api/webhook/slack", () => {
       {},
       pool,
     );
+
     expect(createTask).toHaveBeenCalledWith(
       "fix the login bug",
       "general",

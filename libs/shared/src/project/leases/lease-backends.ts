@@ -97,6 +97,7 @@ export class DbLeaseBackend implements LeaseBackend {
       span.setAttribute("holder", holder);
       span.setAttribute("ttl_sec", ttlSec);
       span.setAttribute("backend", "db");
+
       try {
         // The CTE captures the previous holder (if any) so a takeover
         // from an expired prior pod can be reported and audited (T027).
@@ -122,8 +123,13 @@ export class DbLeaseBackend implements LeaseBackend {
 
         if ((result.rowCount ?? 0) > 0) {
           const tookOverFrom = result.rows[0]?.previous_holder ?? undefined;
+
           span.setAttribute("outcome", tookOverFrom ? "takeover" : "acquired");
-          if (tookOverFrom) span.setAttribute("took_over_from", tookOverFrom);
+
+          if (tookOverFrom) {
+            span.setAttribute("took_over_from", tookOverFrom);
+          }
+
           return tookOverFrom
             ? { acquired: true, tookOverFrom }
             : { acquired: true };
@@ -134,8 +140,13 @@ export class DbLeaseBackend implements LeaseBackend {
           [branchName],
         );
         const currentHolder = cur.rows[0]?.holder;
+
         span.setAttribute("outcome", "rejected");
-        if (currentHolder) span.setAttribute("current_holder", currentHolder);
+
+        if (currentHolder) {
+          span.setAttribute("current_holder", currentHolder);
+        }
+
         return { acquired: false, currentHolder };
       } finally {
         span.end();
@@ -154,7 +165,11 @@ export class DbLeaseBackend implements LeaseBackend {
       span.setAttribute("holder", holder);
       span.setAttribute("ttl_sec", ttlSec);
       span.setAttribute("backend", "db");
-      if (phase) span.setAttribute("phase", phase);
+
+      if (phase) {
+        span.setAttribute("phase", phase);
+      }
+
       try {
         const result = await this.pool.query(
           `UPDATE pipeline.task_leases
@@ -164,7 +179,9 @@ export class DbLeaseBackend implements LeaseBackend {
           [branchName, ttlSec, phase ?? null, holder],
         );
         const refreshed = (result.rowCount ?? 0) > 0;
+
         span.setAttribute("outcome", refreshed ? "refreshed" : "not_held");
+
         return refreshed;
       } finally {
         span.end();
@@ -177,6 +194,7 @@ export class DbLeaseBackend implements LeaseBackend {
       span.setAttribute("branch_name", branchName);
       span.setAttribute("holder", holder);
       span.setAttribute("backend", "db");
+
       try {
         const result = await this.pool.query(
           `DELETE FROM pipeline.task_leases
@@ -184,7 +202,9 @@ export class DbLeaseBackend implements LeaseBackend {
           [branchName, holder],
         );
         const released = (result.rowCount ?? 0) > 0;
+
         span.setAttribute("outcome", released ? "released" : "not_held");
+
         return released;
       } finally {
         span.end();
@@ -195,6 +215,7 @@ export class DbLeaseBackend implements LeaseBackend {
   async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
     return await tracer.startActiveSpan("lore.lease.reap", async (span) => {
       span.setAttribute("backend", "db");
+
       try {
         const result = await this.pool.query<ExpiredLease>(
           `DELETE FROM pipeline.task_leases
@@ -202,7 +223,9 @@ export class DbLeaseBackend implements LeaseBackend {
           RETURNING branch_name, task_id, holder, expires_at`,
           [cutoff],
         );
+
         span.setAttribute("reaped_count", result.rows.length);
+
         return result.rows;
       } finally {
         span.end();
@@ -234,9 +257,12 @@ export class FileLeaseBackend implements LeaseBackend {
   ): Promise<FileLeaseRecord | null> {
     try {
       const raw = await fs.readFile(this.filename(branchName), "utf-8");
+
       return JSON.parse(raw) as FileLeaseRecord;
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return null;
+      }
       throw err;
     }
   }
@@ -261,6 +287,7 @@ export class FileLeaseBackend implements LeaseBackend {
       span.setAttribute("holder", holder);
       span.setAttribute("ttl_sec", ttlSec);
       span.setAttribute("backend", "file");
+
       try {
         const existing = await this.readRecord(branchName);
         const now = Date.now();
@@ -270,10 +297,12 @@ export class FileLeaseBackend implements LeaseBackend {
         if (existing && !expired) {
           span.setAttribute("outcome", "rejected");
           span.setAttribute("current_holder", existing.holder);
+
           return { acquired: false, currentHolder: existing.holder };
         }
 
         const tookOverFrom = existing?.holder;
+
         await this.writeRecord({
           branch_name: branchName,
           task_id: taskId,
@@ -282,7 +311,11 @@ export class FileLeaseBackend implements LeaseBackend {
           expires_at: new Date(now + ttlSec * 1000).toISOString(),
         });
         span.setAttribute("outcome", tookOverFrom ? "takeover" : "acquired");
-        if (tookOverFrom) span.setAttribute("took_over_from", tookOverFrom);
+
+        if (tookOverFrom) {
+          span.setAttribute("took_over_from", tookOverFrom);
+        }
+
         return tookOverFrom
           ? { acquired: true, tookOverFrom }
           : { acquired: true };
@@ -303,11 +336,17 @@ export class FileLeaseBackend implements LeaseBackend {
       span.setAttribute("holder", holder);
       span.setAttribute("ttl_sec", ttlSec);
       span.setAttribute("backend", "file");
-      if (phase) span.setAttribute("phase", phase);
+
+      if (phase) {
+        span.setAttribute("phase", phase);
+      }
+
       try {
         const existing = await this.readRecord(branchName);
+
         if (!existing || existing.holder !== holder) {
           span.setAttribute("outcome", "not_held");
+
           return false;
         }
         await this.writeRecord({
@@ -316,6 +355,7 @@ export class FileLeaseBackend implements LeaseBackend {
           ...(phase ? { phase } : {}),
         });
         span.setAttribute("outcome", "refreshed");
+
         return true;
       } finally {
         span.end();
@@ -328,14 +368,18 @@ export class FileLeaseBackend implements LeaseBackend {
       span.setAttribute("branch_name", branchName);
       span.setAttribute("holder", holder);
       span.setAttribute("backend", "file");
+
       try {
         const existing = await this.readRecord(branchName);
+
         if (!existing || existing.holder !== holder) {
           span.setAttribute("outcome", "not_held");
+
           return false;
         }
         await fs.unlink(this.filename(branchName));
         span.setAttribute("outcome", "released");
+
         return true;
       } finally {
         span.end();
@@ -346,21 +390,28 @@ export class FileLeaseBackend implements LeaseBackend {
   async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
     return await tracer.startActiveSpan("lore.lease.reap", async (span) => {
       span.setAttribute("backend", "file");
+
       try {
         let entries: string[];
+
         try {
           entries = await fs.readdir(this.leasesDir);
         } catch (err) {
-          if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+          if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+            return [];
+          }
           throw err;
         }
         const reaped: ExpiredLease[] = [];
+
         for (const entry of entries) {
           const rec = await this.readRecord(
             decodeURIComponent(entry.replace(/\.json$/, "")),
           );
-          if (!rec || new Date(rec.expires_at).getTime() >= cutoff.getTime())
+
+          if (!rec || new Date(rec.expires_at).getTime() >= cutoff.getTime()) {
             continue;
+          }
           await fs.unlink(path.join(this.leasesDir, entry));
           reaped.push({
             branch_name: rec.branch_name,
@@ -370,6 +421,7 @@ export class FileLeaseBackend implements LeaseBackend {
           });
         }
         span.setAttribute("reaped_count", reaped.length);
+
         return reaped;
       } finally {
         span.end();
@@ -396,7 +448,9 @@ export class InMemoryLeaseReaper implements LeaseReaper {
       !(lease.expires_at instanceof Date) ||
       lease.expires_at.getTime() < cutoff.getTime();
     const expired = this.leases.filter(isExpired);
+
     this.leases = this.leases.filter((lease) => !isExpired(lease));
+
     return expired;
   }
 }

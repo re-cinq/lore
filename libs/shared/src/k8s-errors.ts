@@ -7,7 +7,9 @@
  * reported as a task failure.
  */
 export function isAlreadyExistsError(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
+  if (!err || typeof err !== "object") {
+    return false;
+  }
   const e = err as {
     code?: unknown;
     statusCode?: unknown;
@@ -16,11 +18,19 @@ export function isAlreadyExistsError(err: unknown): boolean {
     message?: unknown;
   };
 
-  if (e.code === 409 || e.statusCode === 409 || e.response?.statusCode === 409)
+  if (
+    e.code === 409 ||
+    e.statusCode === 409 ||
+    e.response?.statusCode === 409
+  ) {
     return true;
-  if (e.body && (e.body.code === 409 || e.body.reason === "AlreadyExists"))
+  }
+
+  if (e.body && (e.body.code === 409 || e.body.reason === "AlreadyExists")) {
     return true;
+  }
 
   const message = typeof e.message === "string" ? e.message : "";
+
   return /already exists/i.test(message) || /AlreadyExists/.test(message);
 }

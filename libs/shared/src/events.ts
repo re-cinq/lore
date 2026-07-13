@@ -21,6 +21,7 @@ export interface EventInsert {
  */
 export function eventRepo(params?: Record<string, unknown>): string | null {
   const repo = params?.repo;
+
   return typeof repo === "string" ? repo : null;
 }
 

@@ -31,7 +31,11 @@ export class ChunksHttp implements ChunksPort {
 
   private headers(): Record<string, string> {
     const h: Record<string, string> = { "content-type": "application/json" };
-    if (this.token) h["authorization"] = `Bearer ${this.token}`;
+
+    if (this.token) {
+      h["authorization"] = `Bearer ${this.token}`;
+    }
+
     return h;
   }
 
@@ -42,7 +46,11 @@ export class ChunksHttp implements ChunksPort {
     const qs = new URLSearchParams(query).toString();
     const url = `${this.baseUrl}/api/repos/${this.repo}/chunks/${kind}${qs ? `?${qs}` : ""}`;
     const res = await this.fetchImpl(url, { headers: this.headers() });
-    if (!res.ok) throw new Error(`chunks.${kind} failed: ${res.status}`);
+
+    if (!res.ok) {
+      throw new Error(`chunks.${kind} failed: ${res.status}`);
+    }
+
     return (await res.json()) as T;
   }
 
@@ -83,7 +91,11 @@ export class ChunksHttp implements ChunksPort {
     fileSuffix?: string,
   ): Promise<boolean> {
     const q: Record<string, string> = { content_type: contentType };
-    if (fileSuffix) q.file_suffix = fileSuffix;
+
+    if (fileSuffix) {
+      q.file_suffix = fileSuffix;
+    }
+
     return (await this.get<{ has: boolean }>("has", q)).has;
   }
 

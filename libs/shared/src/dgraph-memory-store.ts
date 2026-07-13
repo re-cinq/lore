@@ -88,6 +88,7 @@ interface MemoryRow {
  */
 function stripMemoryPrefix(row: Record<string, any>): Record<string, any> {
   const fields: Record<string, any> = {};
+
   for (const [predicate, value] of Object.entries(row)) {
     fields[
       predicate.startsWith("Memory.")
@@ -95,11 +96,13 @@ function stripMemoryPrefix(row: Record<string, any>): Record<string, any> {
         : predicate
     ] = value;
   }
+
   return fields;
 }
 
 function toMemoryRow(row: Record<string, any>): MemoryRow {
   const { uid, key, value, version } = stripMemoryPrefix(row);
+
   return { uid, key, value, version };
 }
 
@@ -140,12 +143,16 @@ function flattenHops(
   maxDepth: number,
   depth = 1,
 ): GraphHop[] {
-  if (depth > maxDepth) return [];
+  if (depth > maxDepth) {
+    return [];
+  }
   const rels = (entity["Entity.out_rels"] ?? []) as Record<string, any>[];
   const hops: GraphHop[] = [];
+
   for (const rel of rels) {
     const targetNode = rel["GraphRel.target"];
     const target = Array.isArray(targetNode) ? targetNode[0] : targetNode;
+
     hops.push({
       entity: entity["Entity.name"],
       relation: rel["GraphRel.relation_type"],
@@ -154,8 +161,12 @@ function flattenHops(
       depth,
       valid_from: rel["GraphRel.valid_from"],
     });
-    if (target) hops.push(...flattenHops(target, maxDepth, depth + 1));
+
+    if (target) {
+      hops.push(...flattenHops(target, maxDepth, depth + 1));
+    }
   }
+
   return hops;
 }
 
@@ -168,6 +179,7 @@ export class DgraphMemoryStore implements MemoryStore {
 
   private async withTxn<T>(fn: (txn: DgraphTxn) => Promise<T>): Promise<T> {
     const txn = this.client.newTxn();
+
     try {
       return await fn(txn);
     } finally {
@@ -187,6 +199,7 @@ export class DgraphMemoryStore implements MemoryStore {
       $now: new Date().toISOString(),
     });
     const row = res.data?.latest?.[0];
+
     return row ? toMemoryRow(row) : null;
   }
 
@@ -210,6 +223,7 @@ export class DgraphMemoryStore implements MemoryStore {
 
       if (existing) {
         const nextVersion = existing.version + 1;
+
         await txn.mutate({
           setJson: {
             uid: existing.uid,
@@ -219,6 +233,7 @@ export class DgraphMemoryStore implements MemoryStore {
           },
           commitNow: true,
         });
+
         return {
           key: input.key,
           version: nextVersion,
@@ -279,6 +294,7 @@ export class DgraphMemoryStore implements MemoryStore {
 
       if (input.embedding) {
         const factUid = newUid(created, "newfact");
+
         await this.invalidateContradictions(
           input.agentId,
           input.embedding,
@@ -315,16 +331,26 @@ export class DgraphMemoryStore implements MemoryStore {
         }`,
         { $vec: toVectorLiteral(embedding), $agent: agentId },
       );
+
       return (res.data?.cand ?? []) as Record<string, any>[];
     });
 
     const nodes: Record<string, any>[] = [];
+
     for (const candidate of candidates) {
-      if (candidate["Fact.xid"] === newXid) continue;
+      if (candidate["Fact.xid"] === newXid) {
+        continue;
+      }
       const candEmbedding = parseEmbedding(candidate["Fact.embedding"]);
-      if (!candEmbedding) continue;
+
+      if (!candEmbedding) {
+        continue;
+      }
       const similarity = cosineSimilarity(embedding, candEmbedding);
-      if (similarity < FACT_SIMILARITY_THRESHOLD) continue;
+
+      if (similarity < FACT_SIMILARITY_THRESHOLD) {
+        continue;
+      }
 
       nodes.push({
         uid: candidate.uid,
@@ -342,7 +368,9 @@ export class DgraphMemoryStore implements MemoryStore {
       });
     }
 
-    if (nodes.length === 0) return;
+    if (nodes.length === 0) {
+      return;
+    }
 
     await this.withTxn((txn) =>
       txn.mutate({ setJson: nodes, commitNow: true }),
@@ -368,9 +396,13 @@ export class DgraphMemoryStore implements MemoryStore {
         { $h: contentHash },
       );
       const found = res.data?.found?.[0];
-      if (found) return { id: found["Episode.xid"] };
+
+      if (found) {
+        return { id: found["Episode.xid"] };
+      }
 
       const xid = randomUUID();
+
       await txn.mutate({
         setJson: {
           "dgraph.type": "Episode",
@@ -385,6 +417,7 @@ export class DgraphMemoryStore implements MemoryStore {
         },
         commitNow: true,
       });
+
       return { id: xid };
     });
   }
@@ -397,7 +430,11 @@ export class DgraphMemoryStore implements MemoryStore {
         agentId,
         key,
       );
-      if (!row) return null;
+
+      if (!row) {
+        return null;
+      }
+
       return { key: row.key, value: row.value, version: row.version };
     });
   }
@@ -413,12 +450,14 @@ export class DgraphMemoryStore implements MemoryStore {
         agentId,
         key,
       );
+
       if (existing) {
         await txn.mutate({
           setJson: { uid: existing.uid, "Memory.is_deleted": true },
           commitNow: true,
         });
       }
+
       return { key, deleted: true };
     });
   }
@@ -450,9 +489,11 @@ export class DgraphMemoryStore implements MemoryStore {
       const memories = (res.data?.memories ?? []).map(
         (row: Record<string, any>) => {
           const { key, agent_id, version } = stripMemoryPrefix(row);
+
           return { key, agent_id, version };
         },
       );
+
       return { memories, total: res.data?.total?.[0]?.count ?? 0 };
     });
   }
@@ -463,13 +504,17 @@ export class DgraphMemoryStore implements MemoryStore {
     repo: string,
   ): Promise<string> {
     const dedupKey = `${name}|${entityType}|${repo}`;
+
     return this.withTxn(async (txn) => {
       const res = await txn.queryWithVars(
         `query e($dk: string) { found(func: eq(Entity.dedup_key, $dk), first: 1) { uid } }`,
         { $dk: dedupKey },
       );
       const found = res.data?.found?.[0];
-      if (found) return found.uid;
+
+      if (found) {
+        return found.uid;
+      }
 
       const now = new Date().toISOString();
       const created = await txn.mutate({
@@ -486,6 +531,7 @@ export class DgraphMemoryStore implements MemoryStore {
         },
         commitNow: true,
       });
+
       return newUid(created, "ent") as string;
     });
   }
@@ -565,6 +611,7 @@ export class DgraphMemoryStore implements MemoryStore {
       );
       const rels = (res.data?.contradictions?.[0]?.["Entity.out_rels"] ??
         []) as Record<string, any>[];
+
       return rels
         .filter((rel) => rel["GraphRel.target"]?.uid !== targetUid)
         .map((rel) => rel.uid as string);
@@ -576,7 +623,9 @@ export class DgraphMemoryStore implements MemoryStore {
     depth: number,
     _relationType?: string,
   ): Promise<GraphHop[]> {
-    if (!Number.isInteger(depth) || depth < 1) return [];
+    if (!Number.isInteger(depth) || depth < 1) {
+      return [];
+    }
 
     // `@recurse(depth: N)` counts PREDICATE levels, and one graph hop spans
     // three (Entity → out_rels → target). Resolving the relation_type AND the
@@ -600,7 +649,11 @@ export class DgraphMemoryStore implements MemoryStore {
       );
       const root = (res.data?.result ?? [])[0] as
         Record<string, any> | undefined;
-      if (!root) return [];
+
+      if (!root) {
+        return [];
+      }
+
       return flattenHops(root, depth);
     });
   }
@@ -613,6 +666,7 @@ export class DgraphMemoryStore implements MemoryStore {
       const toItems = (rows: Record<string, any>[]): RankedItem[] =>
         rows.map((row) => {
           const { key, value, agent_id } = stripMemoryPrefix(row);
+
           return { key, value, agent_id, source: "memory" as const };
         });
 
@@ -633,7 +687,10 @@ export class DgraphMemoryStore implements MemoryStore {
           ${kmemBlock}
         }`;
       const vars: Record<string, string> = { $q: query };
-      if (opts.embedding) vars.$vec = toVectorLiteral(opts.embedding);
+
+      if (opts.embedding) {
+        vars.$vec = toVectorLiteral(opts.embedding);
+      }
 
       const res = await txn.queryWithVars(queryText, vars);
       const kmemItems = toItems(res.data?.kmem ?? []);
@@ -641,6 +698,7 @@ export class DgraphMemoryStore implements MemoryStore {
         ? [toItems(res.data?.vmem ?? []), kmemItems]
         : [kmemItems];
       const fused = rrfMerge(lists);
+
       return opts.limit ? fused.slice(0, opts.limit) : fused;
     });
   }

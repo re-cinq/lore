@@ -62,13 +62,18 @@ function toTarget(ref: SpecLinkRef): LinkTarget {
 
 function addEntry(index: SpecCodeIndex, path: string, entry: RangeEntry): void {
   const existing = index.get(path);
-  if (existing) existing.push(entry);
-  else index.set(path, [entry]);
+
+  if (existing) {
+    existing.push(entry);
+  } else {
+    index.set(path, [entry]);
+  }
 }
 
 /** Drop the trailing `([…](…))` link parenthetical so the hover shows prose. */
 function cleanStatementText(text: string): string {
   const marker = text.indexOf(" ([");
+
   return (marker >= 0 ? text.slice(0, marker) : text).trim();
 }
 
@@ -77,8 +82,12 @@ function locateStatementLine(lines: string[], refs: SpecLinkRef[]): number {
   for (const ref of refs) {
     const needle = ref.line !== null ? `${ref.path}#L${ref.line}` : ref.path;
     const idx = lines.findIndex((line) => line.includes(needle));
-    if (idx >= 0) return idx + 1;
+
+    if (idx >= 0) {
+      return idx + 1;
+    }
   }
+
   return 0;
 }
 
@@ -87,12 +96,17 @@ function locateStatementLine(lines: string[], refs: SpecLinkRef[]): number {
  * cross-linked to the statement's other artifacts. */
 export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
   const index: SpecCodeIndex = new Map();
+
   for (const spec of specs) {
     const lines = spec.content.split(/\r?\n/);
+
     for (const statement of segmentStatements(spec.content)) {
       const codeLinks = parseCodeLinksInStatement(statement.text);
       const testLinks = parseTestLinksInStatement(statement.text);
-      if (codeLinks.length === 0 && testLinks.length === 0) continue;
+
+      if (codeLinks.length === 0 && testLinks.length === 0) {
+        continue;
+      }
 
       const statementText = cleanStatementText(statement.text);
       const specLine = locateStatementLine(lines, [...codeLinks, ...testLinks]);
@@ -100,7 +114,9 @@ export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
       const testTargets = testLinks.map(toTarget);
 
       for (const link of codeLinks) {
-        if (link.line === null) continue;
+        if (link.line === null) {
+          continue;
+        }
         addEntry(index, link.path, {
           startLine: link.line,
           endLine: link.line,
@@ -112,8 +128,11 @@ export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
           related: testTargets,
         });
       }
+
       for (const link of testLinks) {
-        if (link.line === null) continue;
+        if (link.line === null) {
+          continue;
+        }
         addEntry(index, link.path, {
           startLine: link.line,
           endLine: link.line,
@@ -127,6 +146,7 @@ export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
       }
     }
   }
+
   return index;
 }
 
@@ -140,22 +160,34 @@ export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
   );
 
   const statementByTest = new Map<string, SpecGraphNode>();
+
   for (const link of graph.links) {
-    if (link.kind !== "validated_by") continue;
+    if (link.kind !== "validated_by") {
+      continue;
+    }
     const stmt = nodeById.get(link.source);
-    if (stmt) statementByTest.set(link.target, stmt);
+
+    if (stmt) {
+      statementByTest.set(link.target, stmt);
+    }
   }
 
   for (const link of graph.links) {
-    if (link.kind !== "covers") continue;
+    if (link.kind !== "covers") {
+      continue;
+    }
     const test = nodeById.get(link.source);
     const file = nodeById.get(link.target);
     const stmt = statementByTest.get(link.source);
-    if (!test || !file?.path || !stmt) continue;
+
+    if (!test || !file?.path || !stmt) {
+      continue;
+    }
 
     const related: LinkTarget[] = test.path
       ? [{ label: test.label, path: test.path, line: test.line ?? null }]
       : [];
+
     for (const interval of parseRangesFacet(file.detail)) {
       addEntry(index, file.path, {
         startLine: interval.startLine,
@@ -169,6 +201,7 @@ export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
       });
     }
   }
+
   return index;
 }
 
@@ -179,15 +212,21 @@ export function mergeIndexes(
   coverage: SpecCodeIndex,
 ): SpecCodeIndex {
   const merged: SpecCodeIndex = new Map();
-  for (const [path, entries] of local) merged.set(path, [...entries]);
+
+  for (const [path, entries] of local) {
+    merged.set(path, [...entries]);
+  }
 
   for (const [path, entries] of coverage) {
     const localEntries = local.get(path);
+
     for (const entry of entries) {
-      if (localEntries?.some((e) => e.statementText === entry.statementText))
+      if (localEntries?.some((e) => e.statementText === entry.statementText)) {
         continue;
+      }
       addEntry(merged, path, entry);
     }
   }
+
   return merged;
 }

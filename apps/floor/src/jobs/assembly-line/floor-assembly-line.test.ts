@@ -44,6 +44,7 @@ describe("nodeAgentSpec", () => {
       type: "agent",
       model: "claude-sonnet-4-6",
     };
+
     expect(nodeAgentSpec(node, task, "do it")).toEqual({
       taskId: "abcdef1234567890",
       taskType: "implementation",
@@ -81,6 +82,7 @@ describe("buildFloorAssemblyLineHandlers", () => {
       episodeDeps,
       ...over,
     };
+
     return { ports: base, dispatched };
   }
 
@@ -91,6 +93,7 @@ describe("buildFloorAssemblyLineHandlers", () => {
       { id: "implement", type: "agent" },
       ctx,
     );
+
     expect(result.outcome).toBe("success");
     expect(dispatched).toHaveLength(1);
     expect(dispatched[0]).toMatchObject({
@@ -155,6 +158,7 @@ describe("buildFloorAssemblyLineHandlers", () => {
       { id: "merge-gate", type: "gate" },
       ctx,
     );
+
     expect(result.outcome).toBe("success");
     expect(dispatched[0]).toMatchObject({ stationRef: "def-gate" });
   });
@@ -169,6 +173,7 @@ describe("nodeStationSpec", () => {
       station_ref: "acme-scanner",
     };
     const spec = nodeStationSpec(node, task);
+
     expect(spec).toMatchObject({
       stationRef: "acme-scanner",
       name: "a1b2c3d4-detect",

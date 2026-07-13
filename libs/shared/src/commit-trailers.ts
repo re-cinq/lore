@@ -31,14 +31,17 @@ export function formatTrailers(t: Trailers): string {
     `${ITERATION_KEY}: ${t.iteration}`,
     `${TASK_KEY}: ${t.taskId}`,
   ];
+
   if (t.assemblyLineId) {
     lines.push(`${ASSEMBLY_LINE_KEY}: ${t.assemblyLineId}`);
   }
+
   if (t.extras) {
     for (const [k, v] of Object.entries(t.extras)) {
       lines.push(`${k}: ${v}`);
     }
   }
+
   return lines.join("\n");
 }
 
@@ -55,7 +58,10 @@ export function formatTrailers(t: Trailers): string {
  */
 export function parseTrailers(message: string): Trailers | null {
   const normalized = message.replace(/\r\n/g, "\n").trimEnd();
-  if (!normalized) return null;
+
+  if (!normalized) {
+    return null;
+  }
 
   const paragraphs = normalized.split(/\n\s*\n/);
   const last = paragraphs[paragraphs.length - 1];
@@ -64,23 +70,36 @@ export function parseTrailers(message: string): Trailers | null {
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
-  if (lines.length === 0) return null;
+
+  if (lines.length === 0) {
+    return null;
+  }
 
   const map = new Map<string, string>();
+
   for (const line of lines) {
     const m = line.match(TRAILER_LINE_RE);
-    if (!m) return null;
+
+    if (!m) {
+      return null;
+    }
     map.set(m[1], m[2]);
   }
 
   for (const k of REQUIRED_KEYS) {
-    if (!map.has(k)) return null;
+    if (!map.has(k)) {
+      return null;
+    }
   }
 
   const iteration = Number.parseInt(map.get(ITERATION_KEY)!, 10);
-  if (!Number.isFinite(iteration)) return null;
+
+  if (!Number.isFinite(iteration)) {
+    return null;
+  }
 
   const extras: Record<string, string> = {};
+
   for (const [k, v] of map.entries()) {
     if (
       !(REQUIRED_KEYS as readonly string[]).includes(k) &&
@@ -91,6 +110,7 @@ export function parseTrailers(message: string): Trailers | null {
   }
 
   const assemblyLineId = map.get(ASSEMBLY_LINE_KEY);
+
   return {
     stage: map.get(STAGE_KEY)!,
     iteration,
@@ -110,11 +130,15 @@ export async function lastStageOnBranch(
   gitDir?: string,
 ): Promise<Trailers | null> {
   const args: string[] = [];
-  if (gitDir) args.push("-C", gitDir);
+
+  if (gitDir) {
+    args.push("-C", gitDir);
+  }
   args.push("log", "-1", "--format=%B", branchName);
 
   try {
     const { stdout } = await execFile("git", args);
+
     return parseTrailers(stdout);
   } catch {
     return null;
@@ -153,14 +177,19 @@ export function formatValidatesTrailer(ref: ProvenanceRef): string {
  */
 export function parseValidatesTrailers(message: string): ProvenanceRef[] {
   const refs: ProvenanceRef[] = [];
+
   for (const line of message.replace(/\r\n/g, "\n").split("\n")) {
     const match = line.trim().match(VALIDATES_LINE_RE);
-    if (!match) continue;
+
+    if (!match) {
+      continue;
+    }
     refs.push({
       specPath: match[1],
       ordinal: Number.parseInt(match[2], 10),
       target: match[3],
     });
   }
+
   return refs;
 }

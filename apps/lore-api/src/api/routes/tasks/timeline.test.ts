@@ -60,29 +60,39 @@ describe("GET /api/tasks/:id/timeline", () => {
     created_at: new Date(Date.now() - 60_000),
     ...over,
   });
+
   function timelinePool(taskResult: any, leaseResult: any = { rows: [] }) {
     const pool = makePool();
+
     pool.query.mockImplementation((sql: string) => {
-      if (sql.includes("task_leases")) return Promise.resolve(leaseResult);
+      if (sql.includes("task_leases")) {
+        return Promise.resolve(leaseResult);
+      }
+
       return Promise.resolve(taskResult);
     });
+
     return pool;
   }
 
   it("returns 503 when pool is null", async () => {
     const res = await get(null);
+
     expect(res.statusCode).toBe(503);
   });
 
   it("returns 500 when the task lookup throws", async () => {
     const pool = makePool();
+
     pool.query.mockRejectedValue(new Error("db"));
     const res = await get(pool);
+
     expect(res.statusCode).toBe(500);
   });
 
   it("returns 404 when the task does not exist", async () => {
     const res = await get(timelinePool({ rows: [] }));
+
     expect(res.result).toEqual({ error: "task_not_found" });
   });
 
@@ -91,11 +101,13 @@ describe("GET /api/tasks/:id/timeline", () => {
       rows: [taskRow({ target_repo: null, target_branch: null })],
     });
     const res = await get(pool);
+
     expect(res.result).toMatchObject({ pending: "no_branch", commits: [] });
   });
 
   it("builds the timeline with stage commits, merged PR, and held lease", async () => {
     const oct = makeOctokit();
+
     oct.rest.repos.listCommits.mockResolvedValue({
       data: [
         {
@@ -136,18 +148,21 @@ describe("GET /api/tasks/:id/timeline", () => {
       },
     );
     const res = await get(pool);
+
     expect(res.result).toMatchObject({
       pr_state: "merged",
       current_stage: "impl",
       lease: { held: true, holder: "agent-1" },
     });
     const body = res.result as TimelineBody;
+
     expect(body.commits).toHaveLength(1);
     expect(typeof body.commits[0].duration_ms).toBe("number");
   });
 
   it("tolerates a failing PR fetch and empty lease, no trailers", async () => {
     const oct = makeOctokit();
+
     oct.rest.repos.listCommits.mockResolvedValue({
       data: [
         { sha: "s1", commit: { message: "plain", committer: { date: null } } },
@@ -158,6 +173,7 @@ describe("GET /api/tasks/:id/timeline", () => {
     vi.mocked(parseTrailers).mockReturnValue(null as any);
     const pool = timelinePool({ rows: [taskRow()] }, { rows: [] });
     const res = await get(pool);
+
     expect(res.result).toMatchObject({
       pr_state: null,
       current_stage: null,
@@ -167,16 +183,19 @@ describe("GET /api/tasks/:id/timeline", () => {
 
   it("skips the PR fetch when there is no pr_number", async () => {
     const oct = makeOctokit();
+
     oct.rest.repos.listCommits.mockResolvedValue({ data: [] });
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = timelinePool({ rows: [taskRow({ pr_number: null })] });
     const res = await get(pool);
+
     expect(oct.rest.pulls.get).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(200);
   });
 
   it("covers commit field fallbacks (null date, no extras, non-finite duration)", async () => {
     const oct = makeOctokit();
+
     oct.rest.repos.listCommits.mockResolvedValue({
       data: [
         {
@@ -200,6 +219,7 @@ describe("GET /api/tasks/:id/timeline", () => {
     const pool = timelinePool({ rows: [taskRow({ pr_number: null })] });
     const res = await get(pool);
     const body = res.result as TimelineBody;
+
     expect(body.commits).toHaveLength(2);
     expect(
       body.commits.every(
@@ -211,40 +231,49 @@ describe("GET /api/tasks/:id/timeline", () => {
 
   it("returns branch_deleted when GitHub 404s", async () => {
     const oct = makeOctokit();
+
     oct.rest.repos.listCommits.mockRejectedValue(
       Object.assign(new Error("gone"), { status: 404 }),
     );
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = timelinePool({ rows: [taskRow()] });
     const res = await get(pool);
+
     expect(res.result).toMatchObject({ branch_deleted: true });
   });
 
   it("returns 500 on a non-404 GitHub error", async () => {
     const oct = makeOctokit();
+
     oct.rest.repos.listCommits.mockRejectedValue(
       Object.assign(new Error("boom"), { status: 500 }),
     );
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = timelinePool({ rows: [taskRow()] });
     const res = await get(pool);
+
     expect(res.result).toEqual({ error: "github_api" });
   });
 
   it("tolerates a failing lease query", async () => {
     const oct = makeOctokit();
+
     oct.rest.repos.listCommits.mockResolvedValue({ data: [] });
     oct.rest.pulls.get.mockResolvedValue({
       data: { merged: false, state: "open" },
     });
     vi.mocked(getOctokit).mockResolvedValue(oct as any);
     const pool = makePool();
+
     pool.query.mockImplementation((sql: string) => {
-      if (sql.includes("task_leases"))
+      if (sql.includes("task_leases")) {
         return Promise.reject(new Error("no table"));
+      }
+
       return Promise.resolve({ rows: [taskRow()] });
     });
     const res = await get(pool);
+
     expect(res.result).toMatchObject({ pr_state: "open", lease: null });
   });
 });

@@ -22,6 +22,7 @@ const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
 describe("AssemblyLineRunsSection", () => {
   it("renders nothing when there are no runs (pre-migration databases)", () => {
     const { container } = render(<AssemblyLineRunsSection runs={[]} />);
+
     expect(container.firstChild).toBeNull();
   });
 

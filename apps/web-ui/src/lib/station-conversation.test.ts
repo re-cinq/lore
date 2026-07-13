@@ -47,6 +47,7 @@ describe("formatStationConversation", () => {
     ].join("\n");
 
     const out = formatStationConversation(raw);
+
     expect(out).toContain(
       "[runner] Reusing cached repo at /workspace/repo (fetch)",
     );
@@ -73,6 +74,7 @@ describe("formatStationConversation", () => {
         ],
       },
     });
+
     expect(formatStationConversation(raw)).toBe(
       "→ Write: /workspace/repo/result.json",
     );
@@ -90,6 +92,7 @@ describe("formatStationConversation", () => {
         ],
       },
     });
+
     expect(formatStationConversation(raw)).toBe("← line A line B");
   });
 
@@ -100,6 +103,7 @@ describe("formatStationConversation", () => {
         content: [{ type: "tool_result", content: { ignored: true } }],
       },
     });
+
     expect(formatStationConversation(raw)).toMatch(/^←/);
   });
 
@@ -108,6 +112,7 @@ describe("formatStationConversation", () => {
       type: "assistant",
       message: { content: [{ type: "tool_use", input: { unknown_key: "x" } }] },
     });
+
     expect(formatStationConversation(raw)).toBe("→ tool");
   });
 
@@ -120,14 +125,17 @@ describe("formatStationConversation", () => {
       "[runner] kept",
     ].join("\n");
     const out = formatStationConversation(raw);
+
     expect(out).toBe("[runner] kept");
     expect(out).not.toContain("noise");
   });
 
   it("returns only the last maxEvents lines and skips unparseable JSON", () => {
     const lines = Array.from({ length: 40 }, (_, i) => `[runner] line ${i}`);
+
     lines.push("{ not valid json");
     const out = formatStationConversation(lines.join("\n"), 5);
+
     expect(out.split("\n")).toHaveLength(5);
     expect(out).toContain("[runner] line 39");
     expect(out).not.toContain("[runner] line 34");

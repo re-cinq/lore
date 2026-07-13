@@ -69,8 +69,10 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     vars: Record<string, string>,
   ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(query, vars);
+
       return (res.data ?? {}) as Record<string, unknown>;
     } finally {
       await txn.discard().catch(() => {});
@@ -79,6 +81,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -101,6 +104,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         ...(data.blocks ?? []),
         ...(data.features ?? []),
       ].map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -115,12 +119,16 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
   }
 
   let createdRepo = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
   });
 
   it("writes a Spec node keyed by repo|filePath with content_hash = sha256(content)", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content = "# Example Spec\nThe widget MUST emit a click event.";
@@ -137,6 +145,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }`,
       { $xid: expectedXid },
     )) as { node?: Record<string, unknown>[] };
+
     expect(data.node?.[0]).toMatchObject({
       "Spec.xid": expectedXid,
       "Spec.repo": repo,
@@ -147,6 +156,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("groups a feature folder's md files under one Feature node via Spec.feature", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const content = "# F\n\nA point.\n";
 
@@ -180,6 +190,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }>;
     };
     const feature = data.feature?.[0];
+
     expect(feature).toMatchObject({
       "Feature.path": "specs/5-lore-agent",
       "Feature.title": "5-lore-agent",
@@ -191,6 +202,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("sets Statement.repo and AcceptanceCriterion.repo so nodes are repo-queryable", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const content =
       "# S\n\n## Overview\n\nThe widget MUST work.\n\n## Acceptance Criteria\n\n1. A criterion holds.\n";
@@ -204,12 +216,14 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }`,
       { $repo: repo },
     )) as { stmts?: unknown[]; acs?: unknown[] };
+
     expect(data.stmts?.length).toBeGreaterThanOrEqual(1);
     expect(data.acs?.length).toBeGreaterThanOrEqual(1);
   });
 
   it("stores the spec's H1 heading as Spec.title for sentence-link spec resolution", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content =
@@ -221,6 +235,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       `query q($xid: string) { node(func: eq(Spec.xid, $xid)) { Spec.title } }`,
       { $xid: `${repo}|${filePath}` },
     )) as { node?: Record<string, unknown>[] };
+
     expect(data.node?.[0]).toMatchObject({
       "Spec.title": "Feature Specification: Lore Agent Service",
     });
@@ -228,11 +243,13 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("projects two Statement nodes linked to the Spec with verbatim text and sha256 text_hash", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content =
       "## Overview\n\nFirst statement here.\n\nSecond statement here.\n";
     const segments = segmentStatements(content);
+
     expect(segments).toHaveLength(2);
 
     const expectedStatements = segments.map((segment) => ({
@@ -263,11 +280,13 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         (left["Statement.ordinal"] as number) -
         (right["Statement.ordinal"] as number),
     );
+
     expect(sortedByOrdinal).toMatchObject(expectedStatements);
   });
 
   it("stores Statement and AcceptanceCriterion embeddings from the injected embedder", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content =
@@ -275,6 +294,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     // 768-dim to match the shared Statement.embedding/AcceptanceCriterion.embedding
     // HNSW index (the real Vertex text-embedding-005 dimension); values are exact in float32.
     const vector = new Array(768).fill(0);
+
     vector[0] = 0.5;
     vector[1] = 0.25;
     vector[2] = 0.125;
@@ -314,11 +334,13 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("links the Statement to a TestChunk via validated_by for an inline test link", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content =
       "## Overview\n\n- Returns the value ([validated by](src/x.test.ts#L42))\n";
     const segments = segmentStatements(content);
+
     expect(segments).toHaveLength(1);
     const [link] = parseTestLinksInStatement(segments[0].text);
     // TestChunks are file-scoped (reconcile with the runner's `${repo}|${file}` node).
@@ -339,6 +361,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { $sx: `${repo}|${filePath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
     const testChunks = data.stmt?.[0]?.["Statement.validated_by"] ?? [];
+
     expect(testChunks).toHaveLength(1);
     expect(testChunks[0]).toMatchObject({
       "TestChunk.xid": expectedXid,
@@ -352,6 +375,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("keys a validated_by TestChunk by repo|filePath so two links to one file collapse to the runner's node", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     // Two statements validated by the SAME test file at different lines: the runner
@@ -381,11 +405,13 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("links the Statement to a CodeChunk via implemented_by for an inline code link", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content =
       "## Overview\n\n- The widget renders on mount ([impl](src/widget.ts#L10))\n";
     const segments = segmentStatements(content);
+
     expect(segments).toHaveLength(1);
     const [link] = parseCodeLinksInStatement(segments[0].text);
     const expectedXid = `${repo}|${link.path}|${link.line ?? link.label}`;
@@ -405,6 +431,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       stmt?: { "Statement.implemented_by"?: Record<string, unknown>[] }[];
     };
     const codeChunks = data.stmt?.[0]?.["Statement.implemented_by"] ?? [];
+
     expect(codeChunks).toHaveLength(1);
     expect(codeChunks[0]).toMatchObject({
       "CodeChunk.xid": expectedXid,
@@ -416,19 +443,23 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("returns projected true on first call and projected false on an unchanged second call", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content = "## Overview\n\n- A point\n";
 
     const first = await projectSpecFile(repo, filePath, content, dgraphClient);
+
     expect(first).toEqual({ projected: true });
 
     const second = await projectSpecFile(repo, filePath, content, dgraphClient);
+
     expect(second).toEqual({ projected: false });
   });
 
   it("re-projects unchanged content when force is true after the gate skipped it", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content = "## Overview\n\n- A point\n";
@@ -440,6 +471,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       dgraphClient,
       async () => null,
     );
+
     expect(first).toEqual({ projected: true });
 
     const unchanged = await projectSpecFile(
@@ -449,6 +481,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       dgraphClient,
       async () => null,
     );
+
     expect(unchanged).toEqual({ projected: false });
 
     const forced = await projectSpecFile(
@@ -459,11 +492,13 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       async () => null,
       true,
     );
+
     expect(forced).toEqual({ projected: true });
   });
 
   it("re-projects changed content and updates the reworded statement's text_hash", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
 
@@ -481,6 +516,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       reworded,
       dgraphClient,
     );
+
     expect(second).toEqual({ projected: true });
 
     const [stmt] = segmentStatements(reworded);
@@ -503,14 +539,17 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("carries classifier kind/testability/category on an untestable Background statement", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content =
       "## Background\n\nThis section describes the prior art and context.\n";
     const segments = segmentStatements(content);
+
     expect(segments).toHaveLength(1);
     const intro = buildIntroOrdinals(segments);
     const classification = classifyByHeuristic(segments[0], intro);
+
     expect(classification.testability).toBe("untestable");
 
     await projectSpecFile(repo, filePath, content, dgraphClient);
@@ -523,6 +562,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }`,
       { $xid: `${repo}|${filePath}|0` },
     )) as { stmt?: Record<string, unknown>[] };
+
     expect(data.stmt?.[0]).toMatchObject({
       "Statement.kind": segments[0].kind,
       "Statement.testability": classification.testability,
@@ -532,10 +572,12 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("groups both statements under one Section keyed by repo|filePath|0 reachable via Spec.sections", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content = "## Overview\n\n- First point\n- Second point\n";
     const segments = segmentStatements(content);
+
     expect(segments).toHaveLength(2);
     expect(
       segments.every((segment) => segment.enclosingHeading === "Overview"),
@@ -567,8 +609,10 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }[];
     };
     const sections = data.spec?.[0]?.["Spec.sections"] ?? [];
+
     expect(sections).toHaveLength(1);
     const [section] = sections;
+
     expect(section).toMatchObject({
       "Section.xid": `${repo}|${filePath}|0`,
       "Section.heading": "Overview",
@@ -576,15 +620,18 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const sectionStatementXids = (section.stmts ?? [])
       .map((stmt) => stmt["Statement.xid"])
       .sort();
+
     expect(sectionStatementXids).toEqual(expectedStatementXids);
   });
 
   it("prunes the orphaned second Statement when re-projecting content with only the first", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const withTwo = "## Overview\n\n- First point\n- Second point\n";
     const withOne = "## Overview\n\n- First point\n";
+
     expect(segmentStatements(withOne)).toHaveLength(1);
 
     await projectSpecFile(repo, filePath, withTwo, dgraphClient);
@@ -599,6 +646,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { $xid: `${repo}|${filePath}` },
     )) as { spec?: { stmts?: Record<string, unknown>[] }[] };
     const stmts = data.spec?.[0]?.stmts ?? [];
+
     expect(stmts).toHaveLength(1);
     expect(stmts[0]).toMatchObject({
       "Statement.xid": `${repo}|${filePath}|0`,
@@ -608,6 +656,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("prunes an orphaned Section and its Spec.sections edge when a heading is removed on re-projection", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const withTwo =
@@ -642,6 +691,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("prunes an orphaned AcceptanceCriterion and its Spec.acceptance_criteria edge when an item is removed", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const withTwo =
@@ -676,10 +726,12 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("projects ordered Block nodes reconstructing heading, blank, and paragraph source off the Spec", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content = "## Overview\n\nThe widget emits a click event.";
     const expectedBlocks = segmentBlocks(content);
+
     expect(expectedBlocks).toHaveLength(3);
 
     await projectSpecFile(repo, filePath, content, dgraphClient);
@@ -717,6 +769,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("projects Acceptance Criteria items as AcceptanceCriterion nodes off the Spec and not as Statements", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content = [
@@ -731,6 +784,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const acSegs = segs.filter(
       (segment) => segment.enclosingHeading === "Acceptance Criteria",
     );
+
     expect(acSegs.length).toBeGreaterThanOrEqual(2);
 
     const expectedCriteria = acSegs
@@ -770,6 +824,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         (left["AcceptanceCriterion.ordinal"] as number) -
         (right["AcceptanceCriterion.ordinal"] as number),
     );
+
     expect(criteria).toMatchObject(expectedCriteria);
 
     const stmtData = (await readGraph(
@@ -780,11 +835,13 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }`,
       { $xid: `${repo}|${filePath}` },
     )) as { spec?: { stmts?: Record<string, unknown>[] }[] };
+
     expect(stmtData.spec?.[0]?.stmts ?? []).toEqual([]);
   });
 
   it("recomputes the exact source of a multi-kind document from its projected Blocks", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content = [
@@ -810,6 +867,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("recomputes the shorter source when re-projecting fewer blocks prunes the orphaned Blocks", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const longContent = ["# Title", "", "Para one.", "", "Para two."].join(
@@ -827,6 +885,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("replaces a surviving statement's validated_by link when its inline test link changes on re-projection", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const linkedToA =
@@ -853,6 +912,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("deletes a TestChunk that no surviving statement links after re-projection", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const withLink =
@@ -872,6 +932,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("keeps a TestChunk that another statement still links after one statement drops it", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const bothLink =
@@ -894,6 +955,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("keeps a coverage-bearing TestChunk when the only linking statement drops its link", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const withLink =
@@ -908,8 +970,10 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { uid } }`,
       { $xid: `${repo}|src/covered.test.ts` },
     ).then((d) => (d as { tc?: { uid: string }[] }).tc?.[0]?.uid);
+
     expect(testChunkUid).toBeTruthy();
     const txn = dgraphClient.newTxn();
+
     try {
       await txn.mutate({
         setJson: {
@@ -938,6 +1002,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("links an AcceptanceCriterion to a TestChunk via validated_by for an inline test link", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/x/spec.md";
     const content =
@@ -969,6 +1034,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     };
 
     const criterion = data.spec?.[0]?.acs?.[0];
+
     expect(criterion?.["AcceptanceCriterion.validated_by"]).toEqual([
       { "TestChunk.file_path": "src/thing.test.ts" },
     ]);
@@ -976,6 +1042,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
   it("links a statement to a cited ADR via decided_by", async () => {
     const repo = `test-proj/${randomUUID()}`;
+
     createdRepo = repo;
     // Project the ADR first so it can be resolved by number.
     await projectAdrFile(

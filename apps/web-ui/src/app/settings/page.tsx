@@ -9,6 +9,7 @@ async function saveSettings(formData: FormData) {
     { key: "api_url", value: formData.get("api_url") as string },
     { key: "ingest_token", value: formData.get("ingest_token") as string },
   ];
+
   for (const { key, value } of entries) {
     if (value?.trim()) {
       await query(
@@ -33,11 +34,16 @@ async function saveApprovalConfig(formData: FormData) {
     .filter(Boolean);
   const reposRaw = (formData.get("approval_repos") as string) || "";
   const repos: Record<string, { required: boolean }> = {};
+
   for (const line of reposRaw.split("\n")) {
     const repo = line.trim();
-    if (repo) repos[repo] = { required: true };
+
+    if (repo) {
+      repos[repo] = { required: true };
+    }
   }
   const config = { required, label, auto_approve, repos };
+
   await query(
     `INSERT INTO lore.settings (key, value) VALUES ('approval_config', $1)
      ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
@@ -50,6 +56,7 @@ async function regenerateToken() {
   "use server";
   const crypto = await import("crypto");
   const newToken = crypto.randomBytes(32).toString("hex");
+
   await query(
     `INSERT INTO lore.settings (key, value) VALUES ('ingest_token', $1)
      ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
@@ -65,7 +72,10 @@ export default async function SettingsPage() {
     updated_at: string;
   }>(`SELECT key, value, updated_at FROM lore.settings ORDER BY key`);
   const settingsMap: Record<string, string> = {};
-  for (const s of settings) settingsMap[s.key] = s.value;
+
+  for (const s of settings) {
+    settingsMap[s.key] = s.value;
+  }
 
   const repoCount = await queryOne<{ count: number }>(
     `SELECT count(*)::int as count FROM lore.repos`,
@@ -83,12 +93,14 @@ export default async function SettingsPage() {
     auto_approve: ["general", "gap-fill"],
     repos: {},
   };
+
   try {
-    if (settingsMap.approval_config)
+    if (settingsMap.approval_config) {
       approvalConfig = {
         ...approvalConfig,
         ...JSON.parse(settingsMap.approval_config),
       };
+    }
   } catch {
     /* use defaults */
   }

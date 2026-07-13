@@ -53,10 +53,12 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
     setJson: Record<string, unknown>,
   ): Promise<Record<string, string>> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = (await txn.mutate({ setJson, commitNow: true })) as {
         data?: { uids?: Record<string, string> };
       };
+
       return res.data?.uids ?? {};
     } finally {
       await txn.discard().catch(() => {});
@@ -68,6 +70,7 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
     statementXid: string,
   ): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string, $sx: string) {
@@ -90,6 +93,7 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
         ...(data.testchunks ?? []),
         ...(data.statements ?? []),
       ].map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -105,14 +109,19 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
 
   let createdRepo = "";
   let createdStatementXid = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo, createdStatementXid);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo, createdStatementXid);
+    }
   });
 
   it("returns execution-verified when the validating test covers code the statement implements", async () => {
     const repo = `test-verify/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/x/spec.md|0`;
+
     createdStatementXid = statementXid;
 
     const ccUids = await mutate({
@@ -171,8 +180,10 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
 
   it("returns untested when the statement has no validated_by test", async () => {
     const repo = `test-verify/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/x/spec.md|0`;
+
     createdStatementXid = statementXid;
 
     const ccUids = await mutate({
@@ -199,8 +210,10 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
 
   it("returns link-unproven when a validating test exists but covers nothing the statement implements", async () => {
     const repo = `test-verify/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/x/spec.md|0`;
+
     createdStatementXid = statementXid;
 
     const ccUids = await mutate({

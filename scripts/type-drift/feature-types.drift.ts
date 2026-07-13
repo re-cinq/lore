@@ -51,10 +51,23 @@ type UnionEqual<A, B> = [A] extends [B]
 
 export const _gapResult: KeysCovered<CanonGapResult, MirrorGapResult> = true;
 export const _gapSection: KeysCovered<CanonGapSection, MirrorGapSection> = true;
-export const _gapQuestion: KeysCovered<CanonGapQuestion, MirrorGapQuestion> = true;
+export const _gapQuestion: KeysCovered<CanonGapQuestion, MirrorGapQuestion> =
+  true;
 export const _gapMockup: KeysCovered<CanonGapMockup, MirrorGapMockup> = true;
-export const _sectionAnswers: KeysCovered<CanonSectionAnswers, MirrorSectionAnswers> = true;
+export const _sectionAnswers: KeysCovered<
+  CanonSectionAnswers,
+  MirrorSectionAnswers
+> = true;
 
-export const _featureStatus: UnionEqual<CanonFeatureStatus, MirrorFeatureStatus> = true;
-export const _iterationStatus: UnionEqual<CanonIterationStatus, MirrorIterationStatus> = true;
-export const _sectionDirection: UnionEqual<CanonSectionDirection, MirrorSectionDirection> = true;
+export const _featureStatus: UnionEqual<
+  CanonFeatureStatus,
+  MirrorFeatureStatus
+> = true;
+export const _iterationStatus: UnionEqual<
+  CanonIterationStatus,
+  MirrorIterationStatus
+> = true;
+export const _sectionDirection: UnionEqual<
+  CanonSectionDirection,
+  MirrorSectionDirection
+> = true;

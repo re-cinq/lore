@@ -33,6 +33,7 @@ export default function AgentList({
         <div className={styles.list}>
           {agents.map((a) => {
             const isProject = a.project_id != null && a.project_id !== "";
+
             return (
               <div key={a.name} className={styles.card}>
                 <span className={styles.name}>{a.name}</span>

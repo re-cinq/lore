@@ -11,29 +11,43 @@ const TITLE_PREFIX_RE =
 
 export function parseSpecTitle(content: string, filePath: string): string {
   const h1 = content.split("\n").find((line) => /^#\s+\S/.test(line));
+
   if (h1) {
     return h1.replace(/^#\s+/, "").replace(TITLE_PREFIX_RE, "").trim();
   }
+
   return featureDir(filePath) ?? filePath;
 }
 
 function featureDir(filePath: string): string | null {
   const parts = filePath.split("/").filter(Boolean);
   const specsIdx = parts.indexOf("specs");
-  if (specsIdx >= 0 && parts.length > specsIdx + 2) return parts[specsIdx + 1];
-  if (parts.length >= 2) return parts[parts.length - 2];
+
+  if (specsIdx >= 0 && parts.length > specsIdx + 2) {
+    return parts[specsIdx + 1];
+  }
+
+  if (parts.length >= 2) {
+    return parts[parts.length - 2];
+  }
+
   return null;
 }
 
 export function extractSummary(content: string, maxLength = 280): string {
   const paragraphs = content.split(/\n\s*\n/);
+
   for (const block of paragraphs) {
     const lines = block
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
-    if (lines.length === 0) continue;
+
+    if (lines.length === 0) {
+      continue;
+    }
     const first = lines[0];
+
     if (
       first.startsWith("#") ||
       first.startsWith("|") ||
@@ -44,11 +58,16 @@ export function extractSummary(content: string, maxLength = 280): string {
       continue;
     }
     const text = lines.join(" ").replace(/\s+/g, " ").trim();
-    if (text.length === 0) continue;
+
+    if (text.length === 0) {
+      continue;
+    }
+
     return text.length > maxLength
       ? text.slice(0, maxLength).trimEnd() + "…"
       : text;
   }
+
   return "";
 }
 
@@ -64,10 +83,14 @@ export function reassembleSpec(chunks: SpecChunk[]): string {
   );
   const seen = new Set<string>();
   const parts: string[] = [];
+
   for (const chunk of ordered) {
-    if (seen.has(chunk.content)) continue;
+    if (seen.has(chunk.content)) {
+      continue;
+    }
     seen.add(chunk.content);
     parts.push(chunk.content);
   }
+
   return parts.join("\n\n");
 }

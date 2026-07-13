@@ -36,9 +36,15 @@ export function decideDecomposeKick(task: FinalizeTaskShape): {
   featureId?: string;
   slug?: string;
 } {
-  if (task.task_type !== "feature-finalize") return { kick: false };
+  if (task.task_type !== "feature-finalize") {
+    return { kick: false };
+  }
   const featureId = task.context_bundle?.feature_id;
-  if (!featureId) return { kick: false };
+
+  if (!featureId) {
+    return { kick: false };
+  }
+
   return { kick: true, featureId, slug: task.context_bundle?.slug };
 }
 
@@ -47,17 +53,20 @@ export async function handleFeatureDecompose(
   targetRepo: string,
 ): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
+
   enforceTrue(
     featureId,
     "feature-decompose task is missing feature_id in context_bundle",
   );
 
   const project = await projectFor(targetRepo);
+
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
 
   try {
     const feature = await project.features.get(featureId);
+
     enforceTrue(feature, `feature ${featureId} not found`);
     const specSlug = feature.slug;
 
@@ -67,6 +76,7 @@ export async function handleFeatureDecompose(
       targetRepo,
       specSlug,
     );
+
     if (alreadyDecomposed) {
       await setStatus(task.id, "completed");
       await insertEvent(task.id, "running", "completed", {
@@ -76,6 +86,7 @@ export async function handleFeatureDecompose(
       console.log(
         `[floor] feature-decompose: ${specSlug} already has spec-tasks — skipping`,
       );
+
       return;
     }
 
@@ -83,6 +94,7 @@ export async function handleFeatureDecompose(
     const specMd =
       (await project.repo.read(specPath).catch(() => null)) ??
       feature.draft_spec_md;
+
     enforceTrue(specMd, `no spec content at ${specPath} or in draft_spec_md`);
 
     const agentDef = await project.agentDefs
@@ -108,6 +120,7 @@ export async function handleFeatureDecompose(
 
     for (const story of decomposition.stories) {
       let storyIssue: number | undefined;
+
       if (createIssues) {
         try {
           const issue = await project.issues.create(
@@ -115,6 +128,7 @@ export async function handleFeatureDecompose(
             storyIssueBody(story, { specPath, featureTitle: feature.title }),
             ["lore-managed", "user-story"],
           );
+
           storyIssue = issue.number;
           storiesCreated++;
         } catch (err: any) {
@@ -138,7 +152,10 @@ export async function handleFeatureDecompose(
           createdBy: "feature-decompose",
           taskGroupId,
         });
-        if (insertedId) tasksCreated++;
+
+        if (insertedId) {
+          tasksCreated++;
+        }
       }
     }
 

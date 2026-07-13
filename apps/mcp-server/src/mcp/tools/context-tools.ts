@@ -53,6 +53,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
       // Auto-detect repo from git remote when no team is specified.
       // Scopes DB search to the detected repo's context namespace.
       const detectedRepo = !team ? detectCurrentRepo() : null;
+
       if (detectedRepo) {
         console.error(
           `[lore] lore_search_context: auto-detected repo ${detectedRepo}`,
@@ -74,17 +75,20 @@ Use this when you want chunk-level evidence or the exact wording of a convention
           topScore: results[0]?.rrf_score || 0,
           resultCount: results.length,
         });
-        if (results.length === 0)
+
+        if (results.length === 0) {
           return {
             content: [
               { type: "text" as const, text: `No results for "${query}".` },
             ],
           };
+        }
         const text = results
           .map(
             (r: any) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`,
           )
           .join("\n\n---\n\n");
+
         return { content: [{ type: "text" as const, text }] };
       }
 
@@ -92,6 +96,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
       const searchRoot = team
         ? join(CONTEXT_PATH, "teams", team)
         : CONTEXT_PATH;
+
       if (!existsSync(searchRoot)) {
         return {
           content: [
@@ -111,22 +116,33 @@ Use this when you want chunk-level evidence or the exact wording of a convention
 
       for (const file of files) {
         const raw = readFileSafe(file);
-        if (!raw) continue;
+
+        if (!raw) {
+          continue;
+        }
         const paragraphs = raw.split(/\n{2,}/);
+
         for (const para of paragraphs) {
           if (para.toLowerCase().includes(lowerQuery)) {
             results.push({
               source: relative(CONTEXT_PATH, file),
               paragraph: para.trim(),
             });
-            if (results.length >= limit) break;
+
+            if (results.length >= limit) {
+              break;
+            }
           }
         }
-        if (results.length >= limit) break;
+
+        if (results.length >= limit) {
+          break;
+        }
       }
 
       // Trace the retrieval for observability + gap detection
       const topScore = results.length > 0 ? 1.0 : 0.0; // Phase 0: binary score. Phase 1: RRF score.
+
       traceRetrieval({
         query,
         namespace: team || "org",
@@ -144,6 +160,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
       const text = results
         .map((r) => `**Source:** ${r.source}\n\n${r.paragraph}`)
         .join("\n\n---\n\n");
+
       return { content: [{ type: "text" as const, text }] };
     },
   );
@@ -193,10 +210,12 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
       return trackLatency("lore_assemble_context", async () => {
         try {
           const dbPoolRef = getPool();
+
           if (!isMemoryDbAvailable()) {
             // Local stdio mode: proxy to GKE through the read-through cache.
             const apiUrl = process.env.LORE_API_URL;
             const apiToken = process.env.LORE_INGEST_TOKEN;
+
             if (!apiUrl || !apiToken) {
               return {
                 content: [
@@ -213,9 +232,18 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
             // is only sent when true. The same extras seed the cache key so a
             // 16000-token request is never served an 8000-token cached body.
             const extras: Record<string, string> = {};
-            if (max_tokens) extras.max_tokens = String(max_tokens);
-            if (cross_repo) extras.cross_repo = "true";
-            if (agent_id) extras.agent_id = agent_id;
+
+            if (max_tokens) {
+              extras.max_tokens = String(max_tokens);
+            }
+
+            if (cross_repo) {
+              extras.cross_repo = "true";
+            }
+
+            if (agent_id) {
+              extras.agent_id = agent_id;
+            }
             const params = new URLSearchParams({
               query,
               template,
@@ -233,22 +261,33 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
                 const r = await proxyGetApi(
                   `/api/context?${params.toString()}`,
                 );
-                if (!r.ok) return r;
+
+                if (!r.ok) {
+                  return r;
+                }
                 const data = JSON.parse(r.body) as { text?: string };
+
                 // A reachable backend that returns empty context is a real
                 // (empty) result, not an outage — return it as-is rather than
                 // forcing a stale, mislabeled "backend unreachable" serve.
                 return { ok: true as const, body: data.text ?? "" };
               },
             );
-            if (proxied.ok)
+
+            if (proxied.ok) {
               return {
                 content: [{ type: "text" as const, text: proxied.body }],
               };
-            if (proxied.reason === "unreachable")
+            }
+
+            if (proxied.reason === "unreachable") {
               return unreachableError("lore_assemble_context", proxied.detail);
-            if (proxied.reason === "denied")
+            }
+
+            if (proxied.reason === "denied") {
               return deniedError("lore_assemble_context", proxied.detail);
+            }
+
             return {
               content: [
                 {
@@ -272,6 +311,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
             agent_id,
             enableCrossRepo,
           );
+
           if (!result.text || result.text.trim().length === 0) {
             return {
               content: [
@@ -283,6 +323,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
             };
           }
           const meta = `<!-- context: template=${template}, sections=${result.sections.length}, tokens=${result.sections.reduce((s, r) => s + r.tokens, 0)} -->\n\n`;
+
           return {
             content: [{ type: "text" as const, text: meta + result.text }],
           };

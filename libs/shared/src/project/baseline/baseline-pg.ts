@@ -53,6 +53,7 @@ export class PgBaseline implements BaselinePort {
       [repo, windowStart, windowEnd],
     );
     const row = rows[0] as BaselineStatsRow | undefined;
+
     return {
       issues_count: parseInt(row?.issues_count ?? "0", 10),
       median_ttm_hours: row?.median_ttm ? parseFloat(row.median_ttm) : null,

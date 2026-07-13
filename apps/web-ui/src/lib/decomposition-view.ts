@@ -32,6 +32,7 @@ export function groupDecomposition(rows: DecompTaskRow[]): {
   total: number;
 } {
   const byStory = new Map<number | null, DecompTask[]>();
+
   for (const r of rows) {
     const key = r.context_bundle?.story_issue ?? null;
     const task: DecompTask = {
@@ -41,8 +42,12 @@ export function groupDecomposition(rows: DecompTaskRow[]): {
       phase: r.context_bundle?.phase ?? 0,
     };
     const list = byStory.get(key);
-    if (list) list.push(task);
-    else byStory.set(key, [task]);
+
+    if (list) {
+      list.push(task);
+    } else {
+      byStory.set(key, [task]);
+    }
   }
 
   const stories = [...byStory.entries()]
@@ -51,8 +56,14 @@ export function groupDecomposition(rows: DecompTaskRow[]): {
       tasks: tasks.sort((a, b) => a.specTaskId.localeCompare(b.specTaskId)),
     }))
     .sort((a, b) => {
-      if (a.storyIssue === null) return 1;
-      if (b.storyIssue === null) return -1;
+      if (a.storyIssue === null) {
+        return 1;
+      }
+
+      if (b.storyIssue === null) {
+        return -1;
+      }
+
       return a.storyIssue - b.storyIssue;
     });
 

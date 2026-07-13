@@ -152,7 +152,9 @@ export class Project {
   async cache(path: string): Promise<Workspace> {
     assertCanClone(this.env);
     const git = this.port<GitPort>("git");
+
     await git.clone(this.fullName, path);
+
     return new Workspace(
       this.fullName,
       path,
@@ -163,12 +165,14 @@ export class Project {
 
   private port<T>(name: string): T {
     const built = this.ports.get(name);
+
     enforceTrue(
       built !== undefined,
       new Error(
         `Project port "${name}" is not wired yet (pending its live adapter)`,
       ),
     );
+
     return built as T;
   }
 }

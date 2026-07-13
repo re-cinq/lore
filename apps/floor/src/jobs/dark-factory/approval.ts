@@ -23,8 +23,10 @@ export async function loadApprovalConfig(): Promise<void> {
     const rows = await query<{ value: string }>(
       `SELECT value FROM lore.settings WHERE key = 'approval_config'`,
     );
+
     if (rows.length > 0) {
       const parsed = JSON.parse(rows[0].value);
+
       config = { ...config, ...parsed };
     }
   } catch {
@@ -43,11 +45,16 @@ export function requiresApproval(
   targetRepo: string,
 ): boolean {
   // Auto-approve task types skip the gate everywhere
-  if (config.auto_approve.includes(taskType)) return false;
+  if (config.auto_approve.includes(taskType)) {
+    return false;
+  }
 
   // Per-repo override takes priority
   const repoConfig = config.repos[targetRepo];
-  if (repoConfig !== undefined) return repoConfig.required;
+
+  if (repoConfig !== undefined) {
+    return repoConfig.required;
+  }
 
   // Fall back to org default
   return config.required;

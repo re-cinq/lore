@@ -28,6 +28,7 @@ export async function handleFeaturePlanning(
 ): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
   const iteration: number | undefined = task.context_bundle?.iteration;
+
   enforceTrue(
     featureId && iteration != null,
     "feature-planning task is missing feature_id/iteration in context_bundle",
@@ -40,6 +41,7 @@ export async function handleFeaturePlanning(
   const agentDef = await project.agentDefs
     .resolve("feature-planning")
     .catch(() => null);
+
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
 
@@ -59,6 +61,7 @@ export async function handleFeaturePlanning(
     // Only advance a feature still mid-planning — a stale/duplicate round
     // completing after finalize must not drag pr-open back into the wizard.
     const feature = await features.get(featureId);
+
     if (feature && isPlanningPhase(feature.status)) {
       await features.transitionStatus(featureId, decideFeatureStatus(gap), {
         draft_spec_md: gap.draft_spec_markdown,
@@ -82,6 +85,7 @@ export async function handleFeaturePlanning(
       .setIterationResult(featureId, iteration, null, "failed")
       .catch(() => {});
     const failedFeature = await features.get(featureId).catch(() => null);
+
     if (
       failedFeature &&
       isPlanningPhase(failedFeature.status) &&

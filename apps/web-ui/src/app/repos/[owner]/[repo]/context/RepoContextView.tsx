@@ -30,8 +30,14 @@ export interface RepoContextViewProps {
 }
 
 function emptyMessage(q?: string, type?: string): string {
-  if (q) return `No context matches “${q}”${type ? ` in ${type}` : ""}.`;
-  if (type) return `No ${type} context ingested yet.`;
+  if (q) {
+    return `No context matches “${q}”${type ? ` in ${type}` : ""}.`;
+  }
+
+  if (type) {
+    return `No ${type} context ingested yet.`;
+  }
+
   return "No context ingested yet. Context will appear after the nightly ingestion runs.";
 }
 
@@ -52,6 +58,7 @@ export default function RepoContextView({
 }: RepoContextViewProps) {
   const base = `/repos/${owner}/${repo}/context`;
   const fullName = `${owner}/${repo}`;
+
   return (
     <div>
       <div className={styles.header}>

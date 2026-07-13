@@ -13,6 +13,7 @@ import { revalidatePath } from "next/cache";
  */
 export async function reonboard(fullName: string): Promise<void> {
   const id = await createOnboardTask(fullName);
+
   redirect(id ? `/assembly-lines/${id}` : `/repos/${fullName}`);
 }
 

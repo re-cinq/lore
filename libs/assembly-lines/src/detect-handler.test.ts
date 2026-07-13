@@ -28,6 +28,7 @@ describe("createDetectHandler", () => {
       {
         spec_drift: async ({ repo }) => {
           seen.push(repo);
+
           return "Checked 4 specs (1 drifted)";
         },
       },
@@ -61,6 +62,7 @@ describe("createDetectHandler", () => {
 
   it("throws on a job_ref missing from the registry", async () => {
     const handler = createDetectHandler({}, { repo: "re-cinq/lore" });
+
     await expect(handler(detectNode("ghost_job"), ctx)).rejects.toThrow(
       new Error(
         'detect node "detect": no detector registered for job_ref "ghost_job"',
@@ -73,6 +75,7 @@ describe("createDetectHandler", () => {
       { spec_drift: async () => "ok" },
       { repo: "re-cinq/lore" },
     );
+
     await expect(handler(detectNode(undefined), ctx)).rejects.toThrow(
       new Error(
         'detect node "detect": no detector registered for job_ref "undefined"',
@@ -89,6 +92,7 @@ describe("createDetectHandler", () => {
       },
       { repo: "re-cinq/lore" },
     );
+
     await expect(handler(detectNode("spec_drift"), ctx)).rejects.toThrow(
       new Error("db unreachable"),
     );

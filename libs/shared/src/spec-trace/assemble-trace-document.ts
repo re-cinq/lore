@@ -159,8 +159,10 @@ async function listDocPaths(
 ): Promise<string[]> {
   const rows = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(dql, { $repo: repo });
+
     return (res.data?.q ?? []) as Array<Record<string, string | undefined>>;
   });
+
   return rows
     .map((r) => r[predicate])
     .filter((p): p is string => typeof p === "string");
@@ -195,10 +197,12 @@ export async function listAdrSummaries(
   dgraph: DgraphClientPort,
 ): Promise<AdrSummary[]> {
   const paths = await listAdrDocuments(repo, dgraph);
+
   return Promise.all(
     paths.map(async (filePath) => {
       const source = await recomputeFile(repo, filePath, dgraph);
       const { title, description } = summarizeMarkdown(source ?? "");
+
       return { filePath, title: title || basename(filePath), description };
     }),
   );
@@ -214,11 +218,13 @@ export async function listAllSpecDocuments(
 ): Promise<Array<{ repo: string; filePath: string }>> {
   const rows = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(LIST_ALL_SPECS_DQL, {});
+
     return (res.data?.q ?? []) as Array<{
       "Spec.repo"?: string;
       "Spec.file_path"?: string;
     }>;
   });
+
   return rows
     .filter(
       (r) =>
@@ -238,8 +244,10 @@ export async function fetchTraceDocument(
     const res = await txn.queryWithVars(TRACE_DOC_DQL, {
       $xid: `${repo}|${filePath}`,
     });
+
     return (res.data ?? {}) as TraceDocumentResult;
   });
+
   return assembleTraceDocument(data);
 }
 
@@ -261,9 +269,11 @@ export async function listSpecSummaries(
   dgraph: DgraphClientPort,
 ): Promise<SpecSummary[]> {
   const paths = await listSpecDocuments(repo, dgraph);
+
   return Promise.all(
     paths.map(async (filePath) => {
       const doc = await fetchTraceDocument(repo, filePath, dgraph);
+
       return {
         filePath,
         title: doc.title,
@@ -285,8 +295,10 @@ type LinkableRow = Pick<
 
 function linksOf(stmt: LinkableRow): TraceLinkRef[] {
   const links: TraceLinkRef[] = [];
+
   for (const t of stmt.vb ?? []) {
     const path = t["TestChunk.file_path"];
+
     links.push({
       kind: "test",
       label: path ? basename(path) : t.uid,
@@ -295,8 +307,10 @@ function linksOf(stmt: LinkableRow): TraceLinkRef[] {
       detail: t["TestChunk.test_name"],
     });
   }
+
   for (const c of stmt.ib ?? []) {
     const path = c["CodeChunk.file_path"];
+
     links.push({
       kind: "code",
       label: c["CodeChunk.symbol_name"] ?? (path ? basename(path) : c.uid),
@@ -304,15 +318,18 @@ function linksOf(stmt: LinkableRow): TraceLinkRef[] {
       line: c["CodeChunk.start_line"],
     });
   }
+
   for (const a of stmt.db ?? []) {
     const path = a["ADR.file_path"];
     const num = a["ADR.number"];
+
     links.push({
       kind: "adr",
       label: num !== undefined ? `ADR-${num}` : path ? basename(path) : a.uid,
       path,
     });
   }
+
   return links;
 }
 
@@ -320,7 +337,10 @@ function stateOf(
   testability: string | undefined,
   hasValidatingLink: boolean,
 ): StatementState {
-  if (testability === "untestable") return "narrative";
+  if (testability === "untestable") {
+    return "narrative";
+  }
+
   return hasValidatingLink ? "tested" : "untested";
 }
 
@@ -345,7 +365,8 @@ export function assembleTraceDocument(
   data: TraceDocumentResult,
 ): TraceDocument {
   const spec = data.q?.[0];
-  if (!spec)
+
+  if (!spec) {
     return {
       filePath: "",
       ...cardSummary("", [], []),
@@ -353,6 +374,7 @@ export function assembleTraceDocument(
       statements: [],
       coverage: { testable: 0, covered: 0, untestable: 0, ratio: 0 },
     };
+  }
 
   const sections: TraceSection[] = (spec.sections ?? [])
     .map((s) => ({
@@ -365,6 +387,7 @@ export function assembleTraceDocument(
 
   const fromStatements: TraceStatement[] = (spec.stmts ?? []).map((st) => {
     const links = linksOf(st);
+
     return {
       uid: st.uid,
       ordinal: st["Statement.ordinal"] ?? 0,
@@ -385,6 +408,7 @@ export function assembleTraceDocument(
   const fromAcceptanceCriteria: TraceStatement[] = (spec.acs ?? []).map(
     (ac) => {
       const links = linksOf(ac);
+
       return {
         uid: ac.uid,
         ordinal: ac["AcceptanceCriterion.ordinal"] ?? 0,

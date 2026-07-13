@@ -56,12 +56,14 @@ export default async function RepoOverview({
   const iso = (d: unknown): string | null =>
     d ? new Date(d as string | Date).toISOString() : null;
   let localMcp = { developerCount: 0, lastActivity: null as string | null };
+
   try {
     const row = await queryOne<{ devs: number; last: string | Date | null }>(
       `SELECT count(DISTINCT agent_id)::int AS devs, max(created_at) AS last
          FROM memory.episodes WHERE source = 'session' AND ref = $1`,
       [fullName],
     );
+
     localMcp = { developerCount: row?.devs ?? 0, lastActivity: iso(row?.last) };
   } catch {
     // memory.episodes may not exist on legacy clusters.
@@ -108,12 +110,14 @@ export default async function RepoOverview({
   let darkTasksWeek = 0;
   let autoMergedWeek = 0;
   let escalationsWeek = 0;
+
   try {
     const dt = await queryOne<{ c: number }>(
       `SELECT count(*)::int as c FROM pipeline.tasks
         WHERE target_repo = $1 AND created_at >= now() - interval '7 days'`,
       [fullName],
     );
+
     darkTasksWeek = dt?.c ?? 0;
     const am = await queryOne<{ c: number }>(
       `SELECT count(*)::int as c FROM pipeline.audit_log
@@ -123,6 +127,7 @@ export default async function RepoOverview({
           AND created_at >= now() - interval '7 days'`,
       [fullName],
     );
+
     autoMergedWeek = am?.c ?? 0;
     const es = await queryOne<{ c: number }>(
       `SELECT count(*)::int as c FROM pipeline.audit_log
@@ -131,6 +136,7 @@ export default async function RepoOverview({
           AND created_at >= now() - interval '7 days'`,
       [fullName],
     );
+
     escalationsWeek = es?.c ?? 0;
   } catch {
     // pipeline.audit_log may not exist yet on legacy clusters.

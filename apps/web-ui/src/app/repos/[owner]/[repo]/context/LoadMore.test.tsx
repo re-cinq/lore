@@ -40,6 +40,7 @@ describe("LoadMore", () => {
       ).toBeInTheDocument(),
     );
     const link = screen.getByRole("link", { name: "docs/next.md" });
+
     expect(link).toHaveAttribute("href", "/repos/o/r/context/docs%2Fnext.md");
     expect(fetch).toHaveBeenCalledWith("/api/repos/o/r/context?offset=50");
   });

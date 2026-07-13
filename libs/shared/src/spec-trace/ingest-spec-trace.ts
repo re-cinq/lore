@@ -51,6 +51,7 @@ export async function ingestSpecTrace(
         repo,
         payload as TestReport,
       );
+
       return { kind, ...result };
     }
     case "coverage": {
@@ -60,6 +61,7 @@ export async function ingestSpecTrace(
         { repo, tool: "coverage-report", commit: report.commit ?? "" },
         coverageRecordsFromGroups(report),
       );
+
       return {
         kind,
         testChunks: 0,

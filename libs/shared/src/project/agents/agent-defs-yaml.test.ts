@@ -82,6 +82,7 @@ describe("AgentDefsYaml", () => {
 
   it("serves PLANNING_INSTRUCTIONS as the feature-planning prompt, not the yaml wrapper", async () => {
     const fp = join(dir, "fp.yaml");
+
     writeFileSync(
       fp,
       [
@@ -99,6 +100,7 @@ describe("AgentDefsYaml", () => {
       "re-cinq/lore",
       "feature-planning",
     );
+
     expect(def?.prompt).toBe(PLANNING_INSTRUCTIONS);
     expect(def?.model).toBe("claude-sonnet-4-6");
     expect(def?.timeout_minutes).toBe(15);
@@ -106,6 +108,7 @@ describe("AgentDefsYaml", () => {
 
   it("serves DECOMPOSITION_INSTRUCTIONS as the feature-decompose prompt, not the yaml wrapper", async () => {
     const fp = join(dir, "fd.yaml");
+
     writeFileSync(
       fp,
       [
@@ -122,6 +125,7 @@ describe("AgentDefsYaml", () => {
       "re-cinq/lore",
       "feature-decompose",
     );
+
     expect(def?.prompt).toBe(DECOMPOSITION_INSTRUCTIONS);
     expect(def?.model).toBe("claude-sonnet-4-6");
   });

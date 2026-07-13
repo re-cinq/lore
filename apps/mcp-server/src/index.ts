@@ -16,6 +16,7 @@ async function main() {
   loadDefaultTemplates();
 
   const transport = new StdioServerTransport();
+
   await server.connect(transport);
   console.error(
     "[lore] Local MCP adapter ready (stdio) — proxying to LORE_API_URL",
@@ -23,6 +24,7 @@ async function main() {
 
   // Dump session log on exit (for the Stop hook to POST as an episode)
   const exitHandler = () => dumpSessionLog();
+
   process.on("SIGTERM", exitHandler);
   process.on("SIGINT", exitHandler);
   process.on("beforeExit", exitHandler);

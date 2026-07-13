@@ -21,6 +21,7 @@ vi.mock("../../../features/dark-factory/dark-factory-authz.js", () => {
       super(message);
     }
   }
+
   return { verifyApproval: vi.fn(), TwoKeyError };
 });
 vi.mock("../../../platform/github-client.js", () => ({
@@ -35,6 +36,7 @@ const fakeAgents = {
   update: vi.fn(),
   delete: vi.fn(),
 };
+
 vi.mock("../../../platform/project-boot.js", () => ({
   projectFor: vi.fn(async () => ({ agentDefs: fakeAgents })),
 }));
@@ -78,6 +80,7 @@ describe("routes — agents", () => {
   ) {
     pool.query.mockResolvedValue({}); // audit insert (real pg returns a Promise)
     const payload = body === undefined ? undefined : JSON.stringify(body);
+
     return buildServer(() => pool as any)
       .inject({ method, url, headers: { ...AUTH, ...headers }, payload })
       .then((res) => ({ res, pool }));
@@ -89,6 +92,7 @@ describe("routes — agents", () => {
       url: BASE,
       headers: AUTH,
     });
+
     expect(res.statusCode).toBe(503);
   });
 
@@ -96,12 +100,14 @@ describe("routes — agents", () => {
     it("lists the repo's resolved agents", async () => {
       fakeAgents.list.mockResolvedValue([def]);
       const { res } = await call(BASE, "GET");
+
       expect(res.result).toEqual({ agents: [def] });
     });
 
     it("resolves one agent by name", async () => {
       fakeAgents.resolve.mockResolvedValue(def);
       const { res } = await call(`${BASE}/general`, "GET");
+
       expect(res.result).toEqual(def);
       expect(fakeAgents.resolve).toHaveBeenCalledWith("general");
     });
@@ -109,6 +115,7 @@ describe("routes — agents", () => {
     it("returns 404 when the agent does not exist", async () => {
       fakeAgents.resolve.mockResolvedValue(null);
       const { res } = await call(`${BASE}/nope`, "GET");
+
       expect(res.statusCode).toBe(404);
       expect(res.result).toEqual({
         error: "agent definition not found",
@@ -124,6 +131,7 @@ describe("routes — agents", () => {
         name: "general",
         model: "claude-opus-4-8",
       });
+
       expect(res.result).toMatchObject({
         ok: true,
         agent: def,
@@ -138,6 +146,7 @@ describe("routes — agents", () => {
 
     it("rejects an invalid body with 400", async () => {
       const { res } = await call(BASE, "POST", { name: "NotKebab" });
+
       expect(res.statusCode).toBe(400);
       expect((res.result as { error: string }).error).toBe("invalid_agent");
     });
@@ -147,6 +156,7 @@ describe("routes — agents", () => {
         name: "custom",
         image: "golang:1.23",
       });
+
       expect(res.statusCode).toBe(403);
       expect((res.result as { error: string }).error).toBe("two_key_required");
       expect(fakeAgents.create).not.toHaveBeenCalled();
@@ -170,6 +180,7 @@ describe("routes — agents", () => {
         { name: "custom", image: "golang:1.23" },
         { "x-lore-approval-pr": "#5" },
       );
+
       expect(res.result).toMatchObject({
         ok: true,
         ceremony: { tier: "two_key", approver: "alice" },
@@ -187,6 +198,7 @@ describe("routes — agents", () => {
         { name: "custom", image: "golang:1.23" },
         { "x-lore-approval-pr": "#5" },
       );
+
       expect(res.result).toMatchObject({
         error: "codeowners_check_failed",
         code: "approver_not_codeowner",
@@ -198,6 +210,7 @@ describe("routes — agents", () => {
       const { res } = await call(`${BASE}/general`, "PUT", {
         model: "claude-haiku-4-5-20251001",
       });
+
       expect(res.result).toMatchObject({ ok: true, agent: def });
       expect(fakeAgents.update).toHaveBeenCalledWith("general", {
         model: "claude-haiku-4-5-20251001",
@@ -207,6 +220,7 @@ describe("routes — agents", () => {
     it("deletes an agent by name", async () => {
       fakeAgents.delete.mockResolvedValue(undefined);
       const { res } = await call(`${BASE}/general`, "DELETE");
+
       expect(res.result).toEqual({
         ok: true,
         deleted: "general",

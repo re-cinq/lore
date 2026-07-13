@@ -37,6 +37,7 @@ export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
 
   if (!(await project.settings.isOnboarded())) {
     console.log(`[job] gap-detect: ${repo} is not onboarded — skipping`);
+
     return `Repo ${repo} not onboarded`;
   }
 
@@ -44,7 +45,9 @@ export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
   const created = await fileGaps(gaps, project);
 
   const summary = `Checked ${repo}, ${gaps.length} gaps detected, ${created} tasks created`;
+
   console.log(`[job] gap-detect: ${summary}`);
+
   return summary;
 }
 
@@ -53,6 +56,7 @@ async function detectGaps(
   project: Project,
 ): Promise<GapReport[]> {
   const gaps: GapReport[] = [];
+
   try {
     if (!(await project.chunks.hasChunk("doc", "CLAUDE.md"))) {
       gaps.push({
@@ -61,6 +65,7 @@ async function detectGaps(
         detail: `${repo} has no CLAUDE.md in context`,
       });
     }
+
     if (!(await project.chunks.hasChunk("adr"))) {
       gaps.push({
         repo,
@@ -68,6 +73,7 @@ async function detectGaps(
         detail: `${repo} has no architecture decision records`,
       });
     }
+
     if (!(await project.chunks.hasChunk("spec"))) {
       gaps.push({
         repo,
@@ -76,6 +82,7 @@ async function detectGaps(
       });
     }
     const staleCount = await project.chunks.staleChunkCount(STALE_DAYS);
+
     if (staleCount > STALE_CHUNK_FLOOR) {
       gaps.push({
         repo,
@@ -86,6 +93,7 @@ async function detectGaps(
   } catch (err) {
     console.error(`[job] gap-detect: error checking ${repo}:`, err);
   }
+
   return gaps;
 }
 
@@ -97,6 +105,7 @@ async function detectGaps(
 async function fileGaps(gaps: GapReport[], project: Project): Promise<number> {
   let created = 0;
   const dedupStatuses = [...OPEN_TASK_STATES, "failed"];
+
   for (const gap of gaps) {
     try {
       const existing = await project.tasks.findOpenLike({
@@ -105,7 +114,10 @@ async function fileGaps(gaps: GapReport[], project: Project): Promise<number> {
         descriptionPrefix: `Gap: ${gap.type}`,
         statuses: dedupStatuses,
       });
-      if (existing.length > 0) continue;
+
+      if (existing.length > 0) {
+        continue;
+      }
 
       await project.tasks.create({
         description: `Gap: ${gap.type} — ${gap.detail}`,
@@ -121,5 +133,6 @@ async function fileGaps(gaps: GapReport[], project: Project): Promise<number> {
       );
     }
   }
+
   return created;
 }

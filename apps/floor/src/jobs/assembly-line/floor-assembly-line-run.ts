@@ -154,12 +154,15 @@ export async function checkoutBranch(
   const dir = await fs.mkdtemp(
     path.join(os.tmpdir(), `lore-assembly-line-${repo.replace("/", "-")}-`),
   );
+
   await execFile("git", [...authArgs, "clone", url, dir]);
+
   try {
     await execFile("git", ["-C", dir, "checkout", branch]);
   } catch {
     await execFile("git", ["-C", dir, "checkout", "-b", branch]);
   }
+
   return dir;
 }
 
@@ -172,6 +175,7 @@ export async function runFloorAssemblyLineForTask(
 ): Promise<SupervisorResult> {
   const definitions = await loadBuiltinAssemblyLines();
   const assemblyLine = definitions.get(task.taskType);
+
   enforceTrue(
     assemblyLine,
     new Error(`No assembly line defined for task type "${task.taskType}"`),
@@ -184,6 +188,7 @@ export async function runFloorAssemblyLineForTask(
     url,
     authArgs,
   );
+
   try {
     const ports: FloorAssemblyLinePorts = {
       dispatchAgent: async (spec) => {
@@ -202,6 +207,7 @@ export async function runFloorAssemblyLineForTask(
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       episodeDeps: rt.episodeDeps,
     };
+
     return await runFloorAssemblyLine({
       task,
       assemblyLine,
@@ -224,6 +230,7 @@ export function floorAssemblyLineRuntime(
 ): FloorAssemblyLineRuntime {
   const kubeApi = new KubeAgentApi();
   const gh = new PlatformGitHub(process.env);
+
   return {
     dispatcher: { launch: (spec) => dispatcher.launch(spec) },
     status: { read: (name) => kubeApi.getStatus(name) },

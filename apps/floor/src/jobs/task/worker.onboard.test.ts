@@ -57,8 +57,9 @@ beforeEach(() => {
     ...Object.values(fakePulls),
     ...Object.values(fakeSettings),
     ...Object.values(fakeIssues),
-  ])
+  ]) {
     fn.mockReset();
+  }
   fetchRepoContext.mockReset();
   query.mockReset();
   writeEpisode.mockReset();
@@ -121,6 +122,7 @@ describe("handleOnboard", () => {
           (c) => c[1] === LORE_INGEST_WORKFLOW_PATH,
         )
       ];
+
     expect(workflowCall).toBeLessThan(
       fakePulls.open.mock.invocationCallOrder[0],
     );

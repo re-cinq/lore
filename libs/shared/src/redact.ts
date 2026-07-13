@@ -39,8 +39,10 @@ export function redactSecrets(
   const allPatterns = extraPatterns
     ? [...PATTERNS, ...extraPatterns]
     : PATTERNS;
+
   for (const p of allPatterns) {
     result = result.replace(p.re, `[REDACTED:${p.name}]`);
   }
+
   return result;
 }

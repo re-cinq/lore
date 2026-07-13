@@ -79,6 +79,7 @@ describe("parseDecomposition", () => {
     const r = parseDecomposition({
       stories: [{ title: "S", acceptance_criteria: "just one" }],
     });
+
     expect(r.stories[0].acceptance_criteria).toEqual(["just one"]);
   });
 
@@ -86,6 +87,7 @@ describe("parseDecomposition", () => {
     const r = parseDecomposition({
       stories: [{ title: "S", tasks: ["do the thing", "do the other"] }],
     });
+
     expect(r.stories[0].tasks).toEqual([
       {
         id: "T001",
@@ -113,6 +115,7 @@ describe("parseDecomposition", () => {
         },
       ],
     });
+
     expect(r.stories[0].tasks[0]).toEqual({
       id: "T001",
       description: "wire it",

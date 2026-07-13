@@ -54,6 +54,7 @@ export async function dispatchSpecTrace(
       },
       { repo: project.repo, dgraph: deps.dgraph },
     );
+
     return {
       logLine: graphIngestLogLine(repo, summary),
       audit: graphIngestAuditEntry(repo, summary),
@@ -61,6 +62,7 @@ export async function dispatchSpecTrace(
   }
 
   const outcome = await ingestSpecTrace(deps.dgraph, repo, kind, payload);
+
   return {
     logLine: specTraceLogLine(repo, outcome),
     audit: specTraceAuditEntry(repo, outcome),

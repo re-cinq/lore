@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
+import stylistic from "@stylistic/eslint-plugin";
 import lore from "./tools/eslint-plugin-lore/index.mjs";
 
 /**
@@ -52,6 +53,34 @@ export default tseslint.config(
       ],
       "lore/prefer-enforce-true": "error",
       "lore/require-colocated-tests": "error",
+    },
+  },
+
+  // House style everywhere (JS + TS, incl. scripts/.mjs and tests): mandatory
+  // braces + blank-line padding. Rules-only so it layers onto each file's parser
+  // without touching the type-aware setup above.
+  {
+    files: ["**/*.{ts,tsx,mts,cts,mjs,cjs,js}"],
+    plugins: { "@stylistic": stylistic },
+    rules: {
+      curly: ["error", "all"],
+      "@stylistic/padding-line-between-statements": [
+        "error",
+        { blankLine: "always", prev: "*", next: "return" },
+        { blankLine: "always", prev: "import", next: "*" },
+        { blankLine: "any", prev: "import", next: "import" },
+        { blankLine: "always", prev: ["const", "let", "var"], next: "*" },
+        {
+          blankLine: "any",
+          prev: ["const", "let", "var"],
+          next: ["const", "let", "var"],
+        },
+        {
+          blankLine: "always",
+          prev: "*",
+          next: ["if", "for", "while", "switch", "try", "do"],
+        },
+      ],
     },
   },
 

@@ -48,11 +48,13 @@ export async function leaseReaperJob(
       }
 
       span.setAttribute("expired_count", expired.length);
+
       if (expired.length > 0) {
         console.log(
           `[job] lease-reaper: removed ${expired.length} expired leases`,
         );
       }
+
       return `Reaped ${expired.length} expired leases`;
     } finally {
       span.end();

@@ -7,6 +7,7 @@ import type { ThemeFamily } from "@/lib/theme/types";
 // the DOM/inline-script, which is irrelevant here. We only care that Icon maps
 // `ICONS[family][name]` correctly and threads size/className/aria through.
 const family = vi.fn<() => ThemeFamily>(() => "elegant");
+
 vi.mock("@/lib/theme/ThemeProvider", () => ({
   useTheme: () => ({ family: family() }),
 }));
@@ -20,7 +21,11 @@ function svgOf(name: IconName, fam: ThemeFamily = "elegant") {
   family.mockReturnValue(fam);
   const { container } = render(<Icon name={name} />);
   const svg = container.querySelector("svg");
-  if (!svg) throw new Error(`no svg rendered for ${fam}/${name}`);
+
+  if (!svg) {
+    throw new Error(`no svg rendered for ${fam}/${name}`);
+  }
+
   return svg;
 }
 
@@ -29,6 +34,7 @@ describe("Icon icon-family mapping", () => {
     "renders the lucide glyph for the elegant family: %s",
     (name) => {
       const expected = ICONS.elegant[name];
+
       expect(expected.startsWith("lucide:")).toBe(true);
       // Every elegant glyph resolves to an inline lucide <svg> (no <span> fallback).
       expect(svgOf(name, "elegant").getAttribute("class")).toContain(
@@ -41,6 +47,7 @@ describe("Icon icon-family mapping", () => {
     "renders the pixelarticons glyph for the retro family: %s",
     (name) => {
       const expected = ICONS.retro[name];
+
       expect(expected.startsWith("pixelarticons:")).toBe(true);
       expect(svgOf(name, "retro").getAttribute("class")).toContain(
         "iconify--pixelarticons",
@@ -61,6 +68,7 @@ describe("Icon icon-family mapping", () => {
 describe("Icon size prop", () => {
   it("defaults width and height to 16 when size is omitted", () => {
     const svg = svgOf("check", "elegant");
+
     expect(svg.getAttribute("width")).toBe("16");
     expect(svg.getAttribute("height")).toBe("16");
   });
@@ -69,6 +77,7 @@ describe("Icon size prop", () => {
     family.mockReturnValue("elegant");
     const { container } = render(<Icon name="search" size={32} />);
     const svg = container.querySelector("svg")!;
+
     expect(svg.getAttribute("width")).toBe("32");
     expect(svg.getAttribute("height")).toBe("32");
   });
@@ -79,6 +88,7 @@ describe("Icon className prop", () => {
     family.mockReturnValue("retro");
     const { container } = render(<Icon name="settings" className="nav-icon" />);
     const cls = container.querySelector("svg")!.getAttribute("class") ?? "";
+
     expect(cls).toContain("iconify");
     expect(cls).toContain("nav-icon");
   });
@@ -87,6 +97,7 @@ describe("Icon className prop", () => {
     family.mockReturnValue("elegant");
     const { container } = render(<Icon name="menu" />);
     const cls = container.querySelector("svg")!.getAttribute("class") ?? "";
+
     expect(cls).toContain("iconify");
     expect(cls.split(/\s+/)).not.toContain("nav-icon");
   });
@@ -97,6 +108,7 @@ describe("Icon aria handling", () => {
     family.mockReturnValue("elegant");
     render(<Icon name="close" aria-label="Close menu" />);
     const labelled = screen.getByLabelText("Close menu");
+
     expect(labelled.tagName.toLowerCase()).toBe("svg");
     // Branch: aria present -> the component passes aria-hidden={undefined}.
     expect(labelled).toHaveAttribute("aria-label", "Close menu");
@@ -104,6 +116,7 @@ describe("Icon aria handling", () => {
 
   it("marks the glyph aria-hidden and exposes no label when aria-label is omitted", () => {
     const svg = svgOf("lock", "elegant");
+
     expect(svg).toHaveAttribute("aria-hidden", "true");
     expect(svg).not.toHaveAttribute("aria-label");
     expect(screen.queryByLabelText("lock")).toBeNull();

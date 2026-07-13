@@ -79,6 +79,7 @@ describe("POST /api/memory", () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
     vi.mocked(writeMemory).mockResolvedValue({ id: 1 } as any);
     const res = await post({ action: "write", key: "k", value: "v" });
+
     expect(res.result).toEqual({ id: 1 });
     expect(getQueryEmbedding).toHaveBeenCalledWith("v");
   });
@@ -87,6 +88,7 @@ describe("POST /api/memory", () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
     vi.mocked(writeMemoryFile).mockReturnValue({ id: "f" } as any);
     const res = await post({ action: "write", key: "k", value: "v" });
+
     expect(res.result).toEqual({ id: "f" });
   });
 
@@ -101,11 +103,13 @@ describe("POST /api/memory", () => {
       JSON.stringify({ action: "write", key: "k", value: "v" }),
       { ...AUTH, "content-type": "application/x-www-form-urlencoded" },
     );
+
     expect(res.result).toEqual({ id: 7 });
   });
 
   it("returns 400 when write is missing value", async () => {
     const res = await post({ action: "write", key: "k" });
+
     expect(res.statusCode).toBe(400);
   });
 
@@ -113,6 +117,7 @@ describe("POST /api/memory", () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
     vi.mocked(readMemory).mockResolvedValue({ value: "v" } as any);
     const res = await post({ action: "read", key: "k", version: "3" });
+
     expect(res.result).toEqual({ value: "v" });
     expect(readMemory).toHaveBeenCalledWith("k", undefined, 3);
   });
@@ -169,6 +174,7 @@ describe("POST /api/memory", () => {
 
   it("returns 400 when read is missing key", async () => {
     const res = await post({ action: "read" });
+
     expect(res.statusCode).toBe(400);
   });
 
@@ -176,6 +182,7 @@ describe("POST /api/memory", () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
     vi.mocked(searchMemories).mockResolvedValue([{ m: 1 }] as any);
     const res = await post({ action: "search", query: "q" });
+
     expect(res.result).toEqual([{ m: 1 }]);
     expect(getQueryEmbedding).toHaveBeenCalledWith("q");
   });
@@ -189,6 +196,7 @@ describe("POST /api/memory", () => {
 
   it("returns 400 when search is missing query", async () => {
     const res = await post({ action: "search" });
+
     expect(res.statusCode).toBe(400);
   });
 
@@ -196,6 +204,7 @@ describe("POST /api/memory", () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
     vi.mocked(deleteMemory).mockResolvedValue({ ok: true } as any);
     const res = await post({ action: "delete", key: "k" });
+
     expect(res.result).toEqual({ ok: true });
   });
 
@@ -208,6 +217,7 @@ describe("POST /api/memory", () => {
 
   it("returns 400 when delete is missing key", async () => {
     const res = await post({ action: "delete" });
+
     expect(res.statusCode).toBe(400);
   });
 
@@ -228,6 +238,7 @@ describe("POST /api/memory", () => {
       total: 9,
     } as any);
     const res = await post({ action: "list", limit: 5, offset: 5 });
+
     expect(listMemories).toHaveBeenCalledWith(undefined, 5, 5);
     expect(res.result).toEqual({
       memories: [{ k: 2 }],
@@ -259,6 +270,7 @@ describe("POST /api/memory", () => {
 
   it("returns 400 for an unknown action", async () => {
     const res = await post({ action: "frobnicate" });
+
     expect(res.statusCode).toBe(400);
   });
 
@@ -266,23 +278,27 @@ describe("POST /api/memory", () => {
     // ADR-034: hapi parses the payload natively, so malformed JSON is a 400
     // (was 500 under the legacy hand-rolled parse).
     const res = await inject("{bad");
+
     expect(res.statusCode).toBe(400);
   });
 
   it("returns 401 when the bearer token is absent", async () => {
     const res = await inject(JSON.stringify({ action: "list" }), {});
+
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.payload)).toEqual({ error: "unauthorized" });
   });
 
   it("returns 403 when the token lacks write scope", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
     const res = await inject(
       JSON.stringify({ action: "list" }),
       { authorization: "Bearer read-only" },
       pool,
     );
+
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
   });

@@ -52,10 +52,12 @@ describe("JobRunView", () => {
   it("renders job name badge, status badge with op class, and all optional fields for a full run", () => {
     render(<JobRunView id="run-abc-123" run={fullRun} logs={null} />);
     const heading = screen.getByRole("heading", { level: 1 });
+
     expect(
       within(heading).getByText("spec-coverage-validate"),
     ).toBeInTheDocument();
     const statusBadge = within(heading).getByText("success");
+
     expect(statusBadge).toHaveClass("op-badge", "op-success");
 
     expect(screen.getByText("run-abc-123")).toBeInTheDocument();
@@ -80,6 +82,7 @@ describe("JobRunView", () => {
     const statusBadge = within(
       screen.getByRole("heading", { level: 1 }),
     ).getByText("failed");
+
     expect(statusBadge).toHaveClass("op-failed");
   });
 
@@ -105,6 +108,7 @@ describe("JobRunView", () => {
       <JobRunView id="run-abc-123" run={fullRun} logs={"line one\nline two"} />,
     );
     const pre = document.querySelector("pre");
+
     expect(pre).toBeInTheDocument();
     expect(pre).toHaveTextContent("line one line two");
     expect(

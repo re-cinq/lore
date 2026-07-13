@@ -27,6 +27,7 @@ let pool: Pool | null = null;
 
 function getPool(): Pool {
   enforceTrue(pool, new Error("Pipeline database not configured"));
+
   return pool;
 }
 
@@ -88,7 +89,10 @@ export async function handleReviewResult(
   comments: string,
 ): Promise<void> {
   const task = await getTask(taskId);
-  if (!task) return;
+
+  if (!task) {
+    return;
+  }
 
   if (approved) {
     await updateTaskStatus(taskId, "review", {
@@ -99,6 +103,7 @@ export async function handleReviewResult(
   } else {
     // Check iteration count
     const iteration = (task.review_iteration || 0) + 1;
+
     await getPool().query(
       `UPDATE pipeline.tasks SET review_iteration = $1 WHERE id = $2`,
       [iteration, taskId],

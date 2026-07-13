@@ -15,6 +15,7 @@ export async function GET(
   const query = url.searchParams.get("query");
   const template = url.searchParams.get("template") || "implementation";
   const debug = url.searchParams.get("debug") === "1" ? "&debug=1" : "";
+
   if (!query) {
     return NextResponse.json({ error: "query is required" }, { status: 400 });
   }
@@ -26,6 +27,7 @@ export async function GET(
     // tabs show any onboarded repo's context to any authenticated org member,
     // and this preview is the same org-wide context — just assembled.
     const session = await getServerSession(authOptions);
+
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -34,6 +36,7 @@ export async function GET(
     // preview is byte-for-byte what a dev session receives on turn 1.
     const apiUrl = process.env.LORE_API_URL;
     const apiToken = process.env.LORE_INGEST_TOKEN;
+
     if (!apiUrl || !apiToken) {
       return NextResponse.json(
         { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
@@ -46,6 +49,7 @@ export async function GET(
       { headers: { Authorization: `Bearer ${apiToken}` } },
     );
     const body = await upstream.text();
+
     return new NextResponse(body, {
       status: upstream.status,
       headers: { "Content-Type": "application/json" },

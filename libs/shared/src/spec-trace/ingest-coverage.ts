@@ -45,6 +45,7 @@ async function upsertCoveredFiles(
   covered: CoveredChunk[],
 ): Promise<FacetedTarget[]> {
   const rangesByFile = new Map<string, CoveredChunk[]>();
+
   for (const range of covered) {
     (
       rangesByFile.get(range.file) ??
@@ -52,13 +53,16 @@ async function upsertCoveredFiles(
     ).push(range);
   }
   const targets: FacetedTarget[] = [];
+
   for (const [file, ranges] of rangesByFile) {
     const uid = await upsertByXid(dgraph, "File", `${repo}|${file}`, {
       "File.repo": repo,
       "File.path": file,
     });
+
     targets.push({ uid, facets: { ranges: serializeRanges(ranges) } });
   }
+
   return targets;
 }
 
@@ -75,6 +79,7 @@ async function readCoversUids(
     const covers = (res.data?.cov?.[0]?.["Coverage.covers"] ?? []) as {
       uid: string;
     }[];
+
     return covers.map((c) => c.uid);
   });
 }
@@ -96,9 +101,13 @@ async function linkTestChunkCoverage(
       `query q($file: string, $name: string, $repo: string){ tc(func: eq(TestChunk.file_path, $file)) @filter(eq(TestChunk.test_name, $name) AND eq(TestChunk.repo, $repo)){ uid } }`,
       { $file: record.testFile, $name: record.testName, $repo: repo },
     );
+
     return res.data?.tc?.[0]?.uid as string | undefined;
   });
-  if (!testChunkUid) return;
+
+  if (!testChunkUid) {
+    return;
+  }
   await withTxn(dgraph, (txn) =>
     txn.mutate({
       setJson: {
@@ -120,6 +129,7 @@ export async function ingestCoverageReport(
   }>,
 ): Promise<{ coverageNodes: number; coversEdges: number; unmatched: number }> {
   let coversEdges = 0;
+
   for (const record of records) {
     const xid = `${meta.repo}|${record.testFile}|${record.testName}`;
     const coverageUid = await upsertByXid(dgraph, "Coverage", xid, {
@@ -134,6 +144,7 @@ export async function ingestCoverageReport(
       record.covered,
     );
     const fileUids = fileTargets.map((t) => t.uid);
+
     await replaceEdgeWithFacets(
       dgraph,
       coverageUid,
@@ -155,6 +166,7 @@ export async function ingestCoverageReport(
 
     await linkTestChunkCoverage(dgraph, meta.repo, record, coverageUid);
   }
+
   // `coversEdges` counts covered FILES (one Coverage→File edge each); `unmatched`
   // is always 0 now (every covered file is upserted). Both kept for return-shape
   // stability with existing callers.

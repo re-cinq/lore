@@ -27,12 +27,14 @@ describe("dedupeItems", () => {
       item({ source_path: "adrs/B.md", score: 0.5 }),
     ];
     const result = dedupeItems(items);
+
     expect(result).toHaveLength(2);
     expect(result.find((i) => i.source_path === "adrs/A.md")?.score).toBe(0.9);
   });
 
   it("keeps items without a source_path untouched", () => {
     const items = [item({ text: "x" }), item({ text: "y" })];
+
     expect(dedupeItems(items)).toHaveLength(2);
   });
 });
@@ -48,6 +50,7 @@ describe("serializeDocument", () => {
         tokens: 640,
       }),
     );
+
     expect(out).toBe(
       '<document source="adrs/ADR-016-dark-factory.md" type="adr" relevance="0.83" tokens="640">\n## Consequences\n\nbody\n</document>',
     );
@@ -57,6 +60,7 @@ describe("serializeDocument", () => {
     const out = serializeDocument(item({ source_path: "x.md", tokens: 5 }), {
       truncated: true,
     });
+
     expect(out).toContain('truncated="true"');
   });
 });
@@ -81,6 +85,7 @@ describe("serializeContext", () => {
         },
       ],
     );
+
     expect(out).toContain(
       '<context query="add auth" template="implementation" budget="8000">',
     );

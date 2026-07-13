@@ -45,6 +45,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         JSON.stringify(input.args ?? {}),
       ],
     );
+
     return rows[0].id;
   }
 
@@ -80,6 +81,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         input.agentCrName ?? null,
       ],
     );
+
     return String(rows[0].id);
   }
 
@@ -103,7 +105,11 @@ export class PgAssemblyLines implements AssemblyLinesPort {
          FROM pipeline.assembly_lines WHERE id = $1`,
       [id],
     );
-    if (rows.length === 0) return null;
+
+    if (rows.length === 0) {
+      return null;
+    }
+
     return toRecord(rows[0]);
   }
 
@@ -116,6 +122,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         ORDER BY created_at DESC`,
       [taskId],
     );
+
     return rows.map(toRecord);
   }
 
@@ -133,6 +140,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         ORDER BY created_at DESC`,
       [repo, prNumber],
     );
+
     return rows.map(toRecord);
   }
 
@@ -150,6 +158,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
       RETURNING id`,
       [outcome, repo, prNumber],
     );
+
     return rows.length;
   }
 }

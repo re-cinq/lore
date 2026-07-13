@@ -3,10 +3,15 @@ import { parseSettingsForm, parsePrivilegedChanges } from "./settings-form";
 
 function form(fields: Record<string, string | string[]>): FormData {
   const fd = new FormData();
+
   for (const [k, v] of Object.entries(fields)) {
-    if (Array.isArray(v)) v.forEach((x) => fd.append(k, x));
-    else fd.set(k, v);
+    if (Array.isArray(v)) {
+      v.forEach((x) => fd.append(k, x));
+    } else {
+      fd.set(k, v);
+    }
   }
+
   return fd;
 }
 
@@ -80,6 +85,7 @@ describe("parseSettingsForm", () => {
     const result = parseSettingsForm(
       form({ slack_channel_id: "   ", dispatch_label: "" }),
     );
+
     expect("slack_channel_id" in result).toBe(false);
     expect("dispatch_label" in result).toBe(false);
   });
@@ -99,11 +105,13 @@ describe("parsePrivilegedChanges", () => {
       df_enabled: "no",
       df_execution_image: "ghcr.io/re-cinq/lore-claude-runner:latest",
     });
+
     expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({});
   });
 
   it("flags dark_factory.enabled when toggled on", () => {
     const fd = form({ df_enabled: "yes" });
+
     expect(
       parsePrivilegedChanges(fd, { dark_factory: { enabled: false } }, TYPES),
     ).toEqual({ dark_factory: { enabled: true } });
@@ -112,12 +120,14 @@ describe("parsePrivilegedChanges", () => {
   it("does NOT emit execution.image when unchanged (avoids spurious two-key)", () => {
     const current = { dark_factory: { execution: { image: "golang:1.23" } } };
     const fd = form({ df_execution_image: "golang:1.23" });
+
     expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({});
   });
 
   it("emits dark_factory.execution.image when changed", () => {
     const current = { dark_factory: { execution: { image: "golang:1.22" } } };
     const fd = form({ df_execution_image: "golang:1.23" });
+
     expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({
       dark_factory: { execution: { image: "golang:1.23" } },
     });
@@ -126,6 +136,7 @@ describe("parsePrivilegedChanges", () => {
   it("does NOT emit execution.image when unchanged", () => {
     const current = { dark_factory: { execution: { image: "golang:1.22" } } };
     const fd = form({ df_execution_image: "golang:1.22" });
+
     expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({});
   });
 
@@ -136,6 +147,7 @@ describe("parsePrivilegedChanges", () => {
       },
     };
     const fd = form({ df_am_min_trust: "full", df_am_green_ci: "no" });
+
     expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({
       dark_factory: {
         auto_merge: { min_trust: "full", require_green_ci: false },
@@ -145,6 +157,7 @@ describe("parsePrivilegedChanges", () => {
 
   it("splits auto_merge paths on newlines and commas", () => {
     const fd = form({ df_am_paths: "specs/**\nCLAUDE.md, docs/**" });
+
     expect(parsePrivilegedChanges(fd, { dark_factory: {} }, TYPES)).toEqual({
       dark_factory: {
         auto_merge: { paths: ["specs/**", "CLAUDE.md", "docs/**"] },
@@ -155,6 +168,7 @@ describe("parsePrivilegedChanges", () => {
   it("diffs the notify channel list", () => {
     const current = { dark_factory: { notify: ["escalation"] } };
     const fd = form({ df_notify: ["escalation", "watched"] });
+
     expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({
       dark_factory: { notify: ["escalation", "watched"] },
     });
@@ -162,6 +176,7 @@ describe("parsePrivilegedChanges", () => {
 
   it("emits task_overrides.<type>.execution.image when a per-type image changes", () => {
     const fd = form({ to_implementation_image: "golang:1.23" });
+
     expect(parsePrivilegedChanges(fd, {}, TYPES)).toEqual({
       task_overrides: {
         implementation: { execution: { image: "golang:1.23" } },
@@ -174,6 +189,7 @@ describe("parsePrivilegedChanges", () => {
       to_review_model: "claude-opus-4-8",
       to_review_timeout: "45",
     });
+
     expect(parsePrivilegedChanges(fd, {}, TYPES)).toEqual({
       task_overrides: {
         review: { model: "claude-opus-4-8", timeout_minutes: 45 },
@@ -186,6 +202,7 @@ describe("parsePrivilegedChanges", () => {
       task_overrides: { implementation: { model: "claude-opus-4-8" } },
     };
     const fd = form({ to_implementation_model: "claude-opus-4-8" });
+
     expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({});
   });
 });

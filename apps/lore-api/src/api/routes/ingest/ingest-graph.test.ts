@@ -40,6 +40,7 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
   it("inserts a spec-trace event for the specs kind and creates no task", async () => {
     const pool = makePool();
     const res = await post({ kinds: ["specs"], commit: "abc123" }, pool);
+
     expect(insertCalls(pool)[0]?.[1]?.[0]).toBe("internal.ingest.spec_trace");
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({ triggered: ["specs"] });
@@ -48,6 +49,7 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
   it("rejects the tests kind with 400 (test projection is CI-only)", async () => {
     const pool = makePool();
     const res = await post({ kinds: ["tests"] }, pool);
+
     expect(res.statusCode).toBe(400);
     expect(insertCalls(pool)).toHaveLength(0);
   });
@@ -64,6 +66,7 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
       headers: { ...AUTH, "content-type": "application/x-www-form-urlencoded" },
       payload: JSON.stringify({ kinds: ["tests"] }),
     });
+
     expect(res.statusCode).toBe(400);
     expect(insertCalls(pool)).toHaveLength(0);
   });
@@ -78,6 +81,7 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
       headers: AUTH,
       payload: "{not json",
     });
+
     expect(res.statusCode).toBe(400);
     expect(insertCalls(pool)).toHaveLength(0);
   });

@@ -15,6 +15,7 @@ export async function query<T = any>(
   params?: any[],
 ): Promise<T[]> {
   const { rows } = await pool.query(text, params);
+
   return rows as T[];
 }
 
@@ -23,6 +24,7 @@ export async function queryOne<T = any>(
   params?: any[],
 ): Promise<T | null> {
   const rows = await query<T>(text, params);
+
   return rows[0] || null;
 }
 
@@ -44,6 +46,7 @@ export async function queryAllowMissing<T = any>(
       console.warn(
         `[db] relation missing, returning empty: ${(err as Error).message}`,
       );
+
       return [];
     }
     throw err;
@@ -60,6 +63,7 @@ export async function listChunkSchemas(): Promise<string[]> {
     `SELECT table_schema FROM information_schema.tables
       WHERE table_name = 'chunks' AND table_schema ~ '^[a-z][a-z0-9_]{0,62}$'`,
   );
+
   return rows
     .map((r: any) => r.table_schema as string)
     .filter((s: string) => SCHEMA_RE.test(s));
@@ -74,7 +78,11 @@ export async function getChunkSchemas(): Promise<string[]> {
   const schemas = rows
     .map((r: any) => r.team as string)
     .filter((s: string) => SCHEMA_RE.test(s) && existing.has(s));
-  if (!schemas.includes(ORG_SHARED_SCHEMA)) schemas.push(ORG_SHARED_SCHEMA);
+
+  if (!schemas.includes(ORG_SHARED_SCHEMA)) {
+    schemas.push(ORG_SHARED_SCHEMA);
+  }
+
   return schemas;
 }
 
@@ -84,6 +92,7 @@ export async function getRepoSchema(fullName: string): Promise<string> {
     `SELECT team FROM lore.repos WHERE full_name = $1`,
     [fullName],
   );
+
   return pickSchema(row?.team, await listChunkSchemas());
 }
 
@@ -98,9 +107,13 @@ export async function getRepoSchemaAndTeam(
     `SELECT team FROM lore.repos WHERE full_name = $1`,
     [fullName],
   );
-  if (row === null) return null;
+
+  if (row === null) {
+    return null;
+  }
   const team = row.team ?? "";
   const schema = pickSchema(team, await listChunkSchemas());
+
   return { schema, team };
 }
 
@@ -119,13 +132,19 @@ export async function queryAllChunks<T = any>(
   const schemas = await getChunkSchemas();
   const parts: string[] = [];
   const allParams: any[] = [...baseParams];
+
   for (const schema of schemas) {
     const { sql, params } = selectFn(schema, allParams.length + 1);
+
     parts.push(sql);
     allParams.push(...params);
   }
-  if (parts.length === 0) return [];
+
+  if (parts.length === 0) {
+    return [];
+  }
   const unionSql = parts.join(" UNION ALL ");
   const { rows } = await pool.query(unionSql, allParams);
+
   return rows as T[];
 }

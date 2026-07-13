@@ -77,6 +77,7 @@ function fakeDeps(
     },
     poll: async (assemblyLineId, nodeId) => {
       calls.poll.push(`${assemblyLineId}/${nodeId}`);
+
       return queue.length ? queue.shift()! : null;
     },
     heartbeat: async (_b, nodeId) => {
@@ -87,6 +88,7 @@ function fakeDeps(
     },
     ...over,
   };
+
   return { deps, calls };
 }
 
@@ -96,6 +98,7 @@ describe("createAgentNodeHandler", () => {
       { phase: "Running" },
       { phase: "Succeeded" },
     ]);
+
     expect(await createAgentNodeHandler(deps)(node, ctx)).toEqual({
       outcome: "success",
     });
@@ -110,6 +113,7 @@ describe("createAgentNodeHandler", () => {
       null,
       { phase: "Succeeded", output: "REVIEW_RESULT:CHANGES_REQUESTED" },
     ]);
+
     expect((await createAgentNodeHandler(deps)(node, ctx)).outcome).toBe(
       "changes_requested",
     );
@@ -117,6 +121,7 @@ describe("createAgentNodeHandler", () => {
 
   it("surfaces a failed agent run", async () => {
     const { deps } = fakeDeps([{ phase: "Failed", failureReason: "oom" }]);
+
     expect((await createAgentNodeHandler(deps)(node, ctx)).outcome).toBe(
       "failed",
     );
@@ -128,6 +133,7 @@ describe("createAgentNodeHandler", () => {
       pollIntervalMs: 1,
     });
     const result = await createAgentNodeHandler(deps)(node, ctx);
+
     expect(result).toMatchObject({
       outcome: "failed",
       extras: { "Lore-Validation-Status": "agent-timeout" },

@@ -40,8 +40,10 @@ export function rrfMerge(lists: RankedItem[][]): MemorySearchResult[] {
       const contribution = 1 / (RRF_K + rank);
       const dedupeKey = fusionKey(item);
       const existing = fused.get(dedupeKey);
+
       if (existing) {
         existing.score += contribution;
+
         return;
       }
       fused.set(dedupeKey, {
@@ -85,12 +87,19 @@ const LOCAL_KEYWORDS = [
 export function computeTransferScore(text: string): number {
   const lower = text.toLowerCase();
   let score = 0.5;
+
   for (const kw of PORTABLE_KEYWORDS) {
-    if (lower.includes(kw)) score += 0.15;
+    if (lower.includes(kw)) {
+      score += 0.15;
+    }
   }
+
   for (const kw of LOCAL_KEYWORDS) {
-    if (lower.includes(kw)) score -= 0.15;
+    if (lower.includes(kw)) {
+      score -= 0.15;
+    }
   }
+
   return Math.max(0, Math.min(1, score));
 }
 
@@ -104,14 +113,22 @@ export function diversify(
   const sorted = [...results].sort((a, b) => b.score - a.score);
   const sourceCounts = new Map<string, number>();
   const out: MemorySearchResult[] = [];
+
   for (const r of sorted) {
     const sourceKey = `${r.agent_id}::${r.source}`;
     const count = sourceCounts.get(sourceKey) ?? 0;
-    if (count >= maxPerSource) continue;
+
+    if (count >= maxPerSource) {
+      continue;
+    }
     sourceCounts.set(sourceKey, count + 1);
     out.push(r);
-    if (out.length >= limit) break;
+
+    if (out.length >= limit) {
+      break;
+    }
   }
+
   return out;
 }
 
@@ -132,17 +149,39 @@ export function scoreImportance(
   const effectiveAgeDays = (now - new Date(effectiveDate).getTime()) / 86400000;
   const strength = Math.pow(0.5, effectiveAgeDays / halfLife);
   let score = Math.round(strength * 10);
-  if (memory.value.length < 50) score -= 2;
-  else if (memory.value.length > 500) score += 1;
-  if (memory.key.startsWith("auto-curation/")) score -= 1;
-  if (memory.key.startsWith("session-summary/")) score -= 1;
-  if (memory.key.includes("gotcha") || memory.key.includes("decision"))
+
+  if (memory.value.length < 50) {
+    score -= 2;
+  } else if (memory.value.length > 500) {
+    score += 1;
+  }
+
+  if (memory.key.startsWith("auto-curation/")) {
+    score -= 1;
+  }
+
+  if (memory.key.startsWith("session-summary/")) {
+    score -= 1;
+  }
+
+  if (memory.key.includes("gotcha") || memory.key.includes("decision")) {
     score += 2;
-  if (memory.key.includes("convention") || memory.key.includes("pattern"))
+  }
+
+  if (memory.key.includes("convention") || memory.key.includes("pattern")) {
     score += 2;
+  }
   const retrievals = memory.retrieval_count || 0;
-  if (retrievals >= 20) score += 2;
-  else if (retrievals >= 5) score += 1;
-  if (memory.confidence === "stale") score -= 1;
+
+  if (retrievals >= 20) {
+    score += 2;
+  } else if (retrievals >= 5) {
+    score += 1;
+  }
+
+  if (memory.confidence === "stale") {
+    score -= 1;
+  }
+
   return Math.max(0, Math.min(10, score));
 }

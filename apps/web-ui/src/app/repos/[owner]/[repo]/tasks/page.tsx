@@ -32,5 +32,6 @@ export default async function RepoTasks({
   );
 
   const runs = groupTasksIntoAssemblyLines(tasks);
+
   return <RepoTasksView owner={owner} repo={repo} runs={runs} />;
 }

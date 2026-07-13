@@ -31,15 +31,28 @@ const HINTS: Record<FailureCategory, string> = {
 };
 
 function categorize(message: string, step?: string): FailureCategory {
-  if (/credit balance is too low/i.test(message)) return "anthropic-credit";
-  if (/rate.?limit|\b429\b/i.test(message)) return "anthropic-rate-limit";
+  if (/credit balance is too low/i.test(message)) {
+    return "anthropic-credit";
+  }
+
+  if (/rate.?limit|\b429\b/i.test(message)) {
+    return "anthropic-rate-limit";
+  }
+
   if (/resource not accessible by integration/i.test(message)) {
     return step && /\.github\/workflows\//i.test(step)
       ? "github-workflows-permission"
       : "github-permission";
   }
-  if (/\b403\b|forbidden/i.test(message)) return "github-permission";
-  if (/\b401\b|bad credentials|unauthorized/i.test(message)) return "auth";
+
+  if (/\b403\b|forbidden/i.test(message)) {
+    return "github-permission";
+  }
+
+  if (/\b401\b|bad credentials|unauthorized/i.test(message)) {
+    return "auth";
+  }
+
   return "unknown";
 }
 
@@ -48,6 +61,7 @@ export function classifyError(
   step?: string,
 ): { category: FailureCategory; hint: string } {
   const category = categorize(message, step);
+
   return { category, hint: HINTS[category] };
 }
 
@@ -66,10 +80,12 @@ export function summarizeFailures(failures: StepFailure[]): {
 } {
   const details: ClassifiedFailure[] = failures.map((f) => {
     const { category, hint } = classifyError(f.error, f.step);
+
     return { ...f, category, hint };
   });
 
   const counts = new Map<FailureCategory, number>();
+
   for (const d of details) {
     counts.set(d.category, (counts.get(d.category) ?? 0) + 1);
   }

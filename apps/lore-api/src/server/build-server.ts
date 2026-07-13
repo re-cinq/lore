@@ -141,6 +141,7 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
   registerBearerScope(server, getPool);
 
   const routes = routeList(getPool);
+
   server.route(routes);
 
   // FR7: surface OpenAPI coverage once at boot so drops/uncovered routes are not
@@ -148,7 +149,9 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
   // the CI enforcement.
   if (!process.env.VITEST) {
     const { coverage } = generateOpenApi(routes);
+
     console.log(summarizeCoverage(coverage));
+
     if (coverage.uncovered.length) {
       console.warn(
         `[openapi] WARNING uncovered write routes: ${coverage.uncovered.join(", ")}`,

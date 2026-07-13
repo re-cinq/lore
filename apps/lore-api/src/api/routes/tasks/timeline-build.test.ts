@@ -16,6 +16,7 @@ describe("buildTimeline", () => {
     const commits = [
       commit("a", "no trailers here", "2026-01-01T00:01:00.000Z"),
     ];
+
     expect(buildTimeline(commits, new Date(T0))).toEqual([]);
   });
 
@@ -32,6 +33,7 @@ describe("buildTimeline", () => {
     );
     // GitHub returns most-recent-first.
     const result = buildTimeline([second, first], new Date(T0));
+
     expect(result.map((c) => c.stage)).toEqual(["plan", "implement"]);
     expect(result.map((c) => c.sha)).toEqual(["s1", "s2"]);
   });
@@ -48,6 +50,7 @@ describe("buildTimeline", () => {
       "2026-01-01T00:02:00.000Z",
     );
     const result = buildTimeline([second, first], new Date(T0));
+
     expect(result[0].duration_ms).toBe(60_000); // 00:01 - 00:00
     expect(result[1].duration_ms).toBe(60_000); // 00:02 - 00:01
   });
@@ -59,6 +62,7 @@ describe("buildTimeline", () => {
       "2026-01-01T00:05:00.000Z",
     );
     const [entry] = buildTimeline([c], new Date(T0));
+
     expect(entry).toMatchObject({
       stage: "retrospective",
       iteration: 2,
@@ -76,6 +80,7 @@ describe("buildTimeline", () => {
       "2026-01-01T00:04:00.000Z",
     );
     const result = buildTimeline([noise, real], new Date(T0));
+
     expect(result.map((c) => c.sha)).toEqual(["real"]);
   });
 });

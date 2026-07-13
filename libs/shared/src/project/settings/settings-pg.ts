@@ -36,6 +36,7 @@ export class PgSettings implements SettingsPort {
         "PgSettings: repo-config writer not provided (read-only binding)",
       ),
     );
+
     return this.repoConfig;
   }
 
@@ -46,6 +47,7 @@ export class PgSettings implements SettingsPort {
     );
     const settings = rows[0]?.settings as
       { dark_factory?: DarkFactorySettings } | undefined;
+
     return resolveDarkFactorySettings(settings?.dark_factory);
   }
 
@@ -56,9 +58,13 @@ export class PgSettings implements SettingsPort {
       "SELECT settings FROM lore.repos WHERE full_name = $1",
       [repo],
     );
-    if (rows.length === 0) return null;
+
+    if (rows.length === 0) {
+      return null;
+    }
     const settings = rows[0]?.settings as
       { dark_factory?: DarkFactorySettings } | undefined;
+
     return resolveDarkFactorySettings(settings?.dark_factory);
   }
 
@@ -75,7 +81,11 @@ export class PgSettings implements SettingsPort {
       "SELECT settings FROM lore.repos WHERE full_name = $1",
       [repo],
     );
-    if (rows.length === 0) return null;
+
+    if (rows.length === 0) {
+      return null;
+    }
+
     return (rows[0]?.settings as Record<string, unknown> | null) ?? null;
   }
 
@@ -94,6 +104,7 @@ export class PgSettings implements SettingsPort {
       "SELECT team FROM lore.repos WHERE full_name = $1",
       [repo],
     );
+
     return (rows[0]?.team as string | undefined) ?? null;
   }
 
@@ -102,13 +113,15 @@ export class PgSettings implements SettingsPort {
       "SELECT full_name FROM lore.repos WHERE team = $1 LIMIT 1",
       [team],
     );
+
     return (rows[0]?.full_name as string | undefined) ?? null;
   }
 
   async onboardedRepos(): Promise<OnboardedRepo[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<OnboardedRepo>(
       "SELECT full_name, last_ingested_at FROM lore.repos WHERE onboarding_pr_merged = true",
     );
+
     return rows as OnboardedRepo[];
   }
 
@@ -117,6 +130,7 @@ export class PgSettings implements SettingsPort {
       "SELECT 1 FROM lore.repos WHERE full_name = $1 AND onboarding_pr_merged = true",
       [repo],
     );
+
     return rows.length > 0;
   }
 
@@ -128,12 +142,13 @@ export class PgSettings implements SettingsPort {
   }
 
   async pendingOnboardingRepos(): Promise<PendingOnboardingRepo[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<PendingOnboardingRepo>(
       `SELECT id, full_name, onboarding_pr_url
          FROM lore.repos
         WHERE onboarding_pr_merged = false
           AND onboarding_pr_url IS NOT NULL`,
     );
+
     return rows as PendingOnboardingRepo[];
   }
 

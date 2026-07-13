@@ -38,20 +38,29 @@ export class LoreClient {
 
   private async get<T>(path: string): Promise<T> {
     let lastError = "no attempts made";
+
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
       try {
         const res = await fetch(`${this.apiUrl}${path}`, {
           headers: { Authorization: `Bearer ${this.token}` },
           signal: AbortSignal.timeout(15_000),
         });
-        if (res.ok) return (await res.json()) as T;
+
+        if (res.ok) {
+          return (await res.json()) as T;
+        }
         lastError = `HTTP ${res.status} ${res.statusText}`;
-        if (!isRetriable(res.status)) break;
+
+        if (!isRetriable(res.status)) {
+          break;
+        }
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
       }
-      if (attempt < RETRY_DELAYS_MS.length)
+
+      if (attempt < RETRY_DELAYS_MS.length) {
         await delay(RETRY_DELAYS_MS[attempt]);
+      }
     }
     throw new Error(`Lore API GET ${path} failed: ${lastError}`);
   }

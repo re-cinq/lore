@@ -22,7 +22,9 @@ export class KubeAgentApi implements AgentApi {
     const { KubeConfig, CustomObjectsApi } =
       await import("@kubernetes/client-node");
     const kc = new KubeConfig();
+
     kc.loadFromCluster();
+
     return kc.makeApiClient(CustomObjectsApi);
   }
 
@@ -31,6 +33,7 @@ export class KubeAgentApi implements AgentApi {
     const namespace = this.namespace();
     const name = agent.metadata?.name ?? "";
     const body = { apiVersion: `${GROUP}/${VERSION}`, kind: "Agent", ...agent };
+
     try {
       await api.createNamespacedCustomObject({
         group: GROUP,
@@ -39,6 +42,7 @@ export class KubeAgentApi implements AgentApi {
         plural: PLURAL,
         body,
       });
+
       return { name, created: true };
     } catch (err) {
       const e = err as {
@@ -50,7 +54,10 @@ export class KubeAgentApi implements AgentApi {
         e?.code === 409 ||
         e?.response?.statusCode === 409 ||
         String(e?.message).includes("already exists");
-      if (is409) return { name, created: false };
+
+      if (is409) {
+        return { name, created: false };
+      }
       throw err;
     }
   }
@@ -59,6 +66,7 @@ export class KubeAgentApi implements AgentApi {
    *  graph handler's poll expects. Null when the CR doesn't exist yet (404). */
   async getStatus(name: string): Promise<AgentNodeStatus | null> {
     const api = await this.customObjects();
+
     try {
       const obj = (await api.getNamespacedCustomObject({
         group: GROUP,
@@ -68,7 +76,11 @@ export class KubeAgentApi implements AgentApi {
         name,
       })) as AgentCr;
       const status = obj.status;
-      if (!status) return null;
+
+      if (!status) {
+        return null;
+      }
+
       return {
         phase: status.phase,
         output: status.output,
@@ -76,7 +88,10 @@ export class KubeAgentApi implements AgentApi {
       };
     } catch (err) {
       const e = err as { code?: number; response?: { statusCode?: number } };
-      if (e?.code === 404 || e?.response?.statusCode === 404) return null;
+
+      if (e?.code === 404 || e?.response?.statusCode === 404) {
+        return null;
+      }
       throw err;
     }
   }
@@ -90,6 +105,7 @@ export class KubeAgentApi implements AgentApi {
       plural: PLURAL,
       labelSelector: selector,
     })) as { items?: AgentCr[]; body?: { items?: AgentCr[] } };
+
     return res.items ?? res.body?.items ?? [];
   }
 }

@@ -44,6 +44,7 @@ describe("sectionsOf parity (web-ui mirror vs shared canonical)", () => {
 
   it("both return [] for an empty sections array", () => {
     const empty: GapResult = { sections: [], draft_spec_markdown: "x" };
+
     expect(mirrorSectionsOf(empty)).toEqual([]);
     expect(canonical(empty)).toEqual([]);
   });

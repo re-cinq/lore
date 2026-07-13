@@ -28,6 +28,7 @@ export interface CrdOptions {
 
 export function agentDefToCrds(def: RecipeDef, opts: CrdOptions = {}): CrdPair {
   const sinks: OutputSink[] = [{ type: "stdout" }];
+
   if (opts.eventsUrl) {
     sinks.push({
       type: "http",
@@ -36,6 +37,7 @@ export function agentDefToCrds(def: RecipeDef, opts: CrdOptions = {}): CrdPair {
     });
   }
   const isStation = def.execution_mode === "station";
+
   return {
     agentDefinition: {
       apiVersion: API_VERSION,

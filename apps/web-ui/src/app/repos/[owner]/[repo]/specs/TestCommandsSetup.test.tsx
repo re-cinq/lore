@@ -25,6 +25,7 @@ describe("TestCommandsSetup", () => {
 
   it("copies the full setup prompt to the clipboard on Copy click", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
+
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText },
       configurable: true,

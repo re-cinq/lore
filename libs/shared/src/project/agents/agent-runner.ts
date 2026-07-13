@@ -40,11 +40,13 @@ export class AgentRunner implements AgentRunnerPort {
         model: opts?.model,
         env: this.env,
       });
+
       return { taskId, mode, started: result.exitCode === 0 };
     }
 
     if (mode === "cluster") {
       const station = this.providers.station;
+
       enforceTrue(
         station,
         new Error('agents.run mode "cluster" needs a StationBackend provider'),
@@ -64,6 +66,7 @@ export class AgentRunner implements AgentRunnerPort {
         darkFactory: opts?.darkFactory,
         image: opts?.image,
       });
+
       // Sync backends (docker) carry completion back so the caller can finalize
       // the run inline; async backends (k8s) omit it (the watcher resolves it).
       return {
@@ -75,11 +78,13 @@ export class AgentRunner implements AgentRunnerPort {
     }
 
     const llm = this.providers.llm;
+
     enforceTrue(
       llm,
       new Error('agents.run mode "direct" needs an LlmPort provider'),
     );
     await llm.complete(prompt, { model: opts?.model });
+
     return { taskId, mode, started: true };
   }
 }

@@ -23,6 +23,7 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
           loadTestCommandManifest(root),
           root,
         );
+
         return { content: [{ type: "text" as const, text }] };
       } catch (err: any) {
         return {
@@ -56,6 +57,7 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
           selector,
           root,
         );
+
         return { content: [{ type: "text" as const, text }] };
       } catch (err: any) {
         return {

@@ -14,13 +14,28 @@ function documentAttrs(
   truncated: boolean,
 ): [string, string][] {
   const attrs: [string, string][] = [];
-  if (item.source_path) attrs.push(["source", item.source_path]);
-  if (item.content_type) attrs.push(["type", item.content_type]);
-  if (item.repo) attrs.push(["repo", item.repo]);
-  if (typeof item.score === "number")
+
+  if (item.source_path) {
+    attrs.push(["source", item.source_path]);
+  }
+
+  if (item.content_type) {
+    attrs.push(["type", item.content_type]);
+  }
+
+  if (item.repo) {
+    attrs.push(["repo", item.repo]);
+  }
+
+  if (typeof item.score === "number") {
     attrs.push(["relevance", item.score.toFixed(2)]);
+  }
   attrs.push(["tokens", String(item.tokens)]);
-  if (truncated) attrs.push(["truncated", "true"]);
+
+  if (truncated) {
+    attrs.push(["truncated", "true"]);
+  }
+
   return attrs;
 }
 

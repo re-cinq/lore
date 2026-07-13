@@ -57,6 +57,7 @@ describe("formatReviewFeedback", () => {
       comment({ path: "a.ts", line: 1, body: "  first  " }),
       comment({ path: "b.ts", line: 2, body: "second" }),
     ]);
+
     expect(out).toBe("- a.ts:1 — first\n- b.ts:2 — second");
   });
 });

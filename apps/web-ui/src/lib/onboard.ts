@@ -16,11 +16,13 @@ export async function createOnboardTask(
     [fullName, fullName],
   );
   const id = task[0]?.id ?? null;
+
   if (id) {
     await query(
       `INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`,
       [id],
     );
   }
+
   return id;
 }

@@ -20,7 +20,9 @@ export function enforceTrue(
   condition: unknown,
   error: string | Error | (() => Error),
 ): asserts condition {
-  if (condition) return;
+  if (condition) {
+    return;
+  }
   throw typeof error === "string"
     ? new Error(error)
     : typeof error === "function"
@@ -41,6 +43,8 @@ export function enforceOk<R extends { ok: boolean }>(
   result: R,
   message: string,
 ): asserts result is Extract<R, { ok: true }> {
-  if (result.ok) return;
+  if (result.ok) {
+    return;
+  }
   throw new Error(message);
 }

@@ -7,6 +7,7 @@ const JobRunLogsQuery = z.object({
   job_name: z.string().min(1).max(200),
   run_id: z.string().min(1).max(200),
 });
+
 type JobRunLogsQuery = z.infer<typeof JobRunLogsQuery>;
 
 export function jobRunLogsRoute(): ServerRoute {
@@ -20,6 +21,7 @@ export function jobRunLogsRoute(): ServerRoute {
     handler: async (request, h) => {
       const { job_name: jobName, run_id: runId } =
         request.query as JobRunLogsQuery;
+
       try {
         const { Storage } = await import("@google-cloud/storage");
         const bucket = new Storage().bucket(
@@ -27,8 +29,12 @@ export function jobRunLogsRoute(): ServerRoute {
         );
         const file = bucket.file(`__job_runs__/${jobName}/${runId}/output.log`);
         const [exists] = await file.exists();
-        if (!exists) return h.response({ logs: "", complete: false });
+
+        if (!exists) {
+          return h.response({ logs: "", complete: false });
+        }
         const [content] = await file.download();
+
         return h.response({ logs: content.toString("utf-8"), complete: true });
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

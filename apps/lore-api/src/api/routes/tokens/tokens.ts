@@ -25,6 +25,7 @@ const TokensQuery = z.object({
   limit: clampedLimit.default(20),
   offset: offsetParam,
 });
+
 type TokensQuery = z.infer<typeof TokensQuery>;
 
 export function tokensRoute(getPool: () => Pool | null): ServerRoute {
@@ -42,7 +43,10 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute {
     },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
+
+      if (!pool) {
+        return h.response({ error: DB_UNAVAILABLE }).code(503);
+      }
 
       if (request.method.toUpperCase() === "GET") {
         // List active tokens (never return the actual token)
@@ -56,6 +60,7 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute {
         const { rows: countRows } = await pool.query(
           `SELECT count(*)::int as total FROM pipeline.api_tokens WHERE revoked_at IS NULL`,
         );
+
         return h.response({
           tokens: rows,
           total: countRows[0].total,
@@ -74,11 +79,14 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute {
               `UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1`,
               [token_id],
             );
+
             return h.response({ ok: true });
           }
 
           // Create new token
-          if (!name) return h.response({ error: "name required" }).code(400);
+          if (!name) {
+            return h.response({ error: "name required" }).code(400);
+          }
           const { randomBytes } = await import("node:crypto");
           const rawToken = `lore_${randomBytes(32).toString("hex")}`;
           const tokenHash = createHash("sha256").update(rawToken).digest("hex");
@@ -101,6 +109,7 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute {
              VALUES ($1, $2, $3, $4, $5) RETURNING id, name, scopes, created_at`,
             [name, tokenHash, resolvedScopes, "admin", expiresAt],
           );
+
           // Return the raw token ONCE — it cannot be retrieved again
           return h
             .response({ ...rows[0], token: rawToken, expires_at: expiresAt })

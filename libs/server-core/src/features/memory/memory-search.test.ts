@@ -12,10 +12,12 @@ function poolWithNoSuchPool() {
   const pool = {
     query: vi.fn(async (sql: string, params: any[] = []) => {
       calls.push({ sql, params });
+
       return { rows: [] };
     }),
     calls,
   };
+
   return pool;
 }
 

@@ -16,12 +16,17 @@ const SRC_DIR = fileURLToPath(new URL(".", import.meta.url));
 // code, not test helpers (which never end up in the static binary).
 function tsFiles(dir: string): string[] {
   const out: string[] = [];
+
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry);
-    if (statSync(full).isDirectory()) out.push(...tsFiles(full));
-    else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts"))
+
+    if (statSync(full).isDirectory()) {
+      out.push(...tsFiles(full));
+    } else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts")) {
       out.push(full);
+    }
   }
+
   return out;
 }
 

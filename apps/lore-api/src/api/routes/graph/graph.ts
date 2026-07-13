@@ -12,6 +12,7 @@ const GraphQuery = z.object({
   repo: repoFullName.optional(),
   include_invalidated: boolFlag,
 });
+
 type GraphQuery = z.infer<typeof GraphQuery>;
 
 /**
@@ -29,10 +30,12 @@ export function graphRoute(getPool: () => Pool | null): ServerRoute {
     },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool)
+
+      if (!pool) {
         return h
           .response({ error: "knowledge graph requires PostgreSQL" })
           .code(503);
+      }
 
       const {
         entity,
@@ -40,6 +43,7 @@ export function graphRoute(getPool: () => Pool | null): ServerRoute {
         repo,
         include_invalidated: includeInvalidated,
       } = request.query as unknown as GraphQuery;
+
       try {
         const results = await queryLiveGraph(
           pool,
@@ -48,6 +52,7 @@ export function graphRoute(getPool: () => Pool | null): ServerRoute {
           repo,
           includeInvalidated,
         );
+
         return h.response(results);
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

@@ -22,19 +22,29 @@ export function buildVertexUrl(project: string, region: string): string {
 let cachedProject: string | null = null;
 
 export async function resolveVertexProject(): Promise<string> {
-  if (cachedProject !== null) return cachedProject;
+  if (cachedProject !== null) {
+    return cachedProject;
+  }
   const fromEnv =
     process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
-  if (fromEnv) return (cachedProject = fromEnv);
+
+  if (fromEnv) {
+    return (cachedProject = fromEnv);
+  }
+
   try {
     const res = await fetch(
       "http://metadata.google.internal/computeMetadata/v1/project/project-id",
       { headers: { "Metadata-Flavor": "Google" } },
     );
-    if (res.ok) return (cachedProject = (await res.text()).trim());
+
+    if (res.ok) {
+      return (cachedProject = (await res.text()).trim());
+    }
   } catch {
     // fall through to empty
   }
+
   return (cachedProject = "");
 }
 
@@ -48,23 +58,30 @@ export async function getQueryEmbedding(
 ): Promise<number[] | null> {
   try {
     let token: string;
+
     try {
       const metaRes = await fetch(
         "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
         { headers: { "Metadata-Flavor": "Google" } },
       );
       const metaJson = (await metaRes.json()) as { access_token: string };
+
       token = metaJson.access_token;
     } catch {
       token = process.env.GOOGLE_ACCESS_TOKEN || "";
-      if (!token) return null;
+
+      if (!token) {
+        return null;
+      }
     }
 
     const project = await resolveVertexProject();
+
     if (!project) {
       console.error(
         "[embeddings] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)",
       );
+
       return null;
     }
 
@@ -81,15 +98,18 @@ export async function getQueryEmbedding(
 
     if (!res.ok) {
       console.error(`[embeddings] Vertex AI embedding failed: ${res.status}`);
+
       return null;
     }
 
     const json = (await res.json()) as {
       predictions: Array<{ embeddings: { values: number[] } }>;
     };
+
     return json.predictions[0].embeddings.values;
   } catch (err) {
     console.error("[embeddings] Vertex AI embedding error:", err);
+
     return null;
   }
 }

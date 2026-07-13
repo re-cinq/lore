@@ -84,6 +84,7 @@ describe("commit SHA fallback", () => {
     const localHead = "abc1234";
 
     const commit = localRepo === targetRepo ? localHead : "HEAD";
+
     expect(commit).toBe("HEAD");
   });
 
@@ -93,18 +94,21 @@ describe("commit SHA fallback", () => {
     const localHead = "abc1234";
 
     const commit = localRepo === targetRepo ? localHead : "HEAD";
+
     expect(commit).toBe("abc1234");
   });
 
   it("should retry refs in order: specific commit, then HEAD", () => {
     const commit: string = "abc1234";
     const refs = commit !== "HEAD" ? [commit, "HEAD"] : ["HEAD"];
+
     expect(refs).toEqual(["abc1234", "HEAD"]);
   });
 
   it("should not duplicate HEAD in retry list", () => {
     const commit: string = "HEAD";
     const refs = commit !== "HEAD" ? [commit, "HEAD"] : ["HEAD"];
+
     expect(refs).toEqual(["HEAD"]);
   });
 });

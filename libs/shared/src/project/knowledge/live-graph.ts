@@ -58,6 +58,7 @@ export async function queryLiveGraph(
        LIMIT 50`,
       [entity, relationType || null, repo || null],
     );
+
     return rows;
   }
 
@@ -79,5 +80,6 @@ export async function queryLiveGraph(
      LIMIT 50`,
     [relationType || null, repo || null],
   );
+
   return rows;
 }

@@ -54,9 +54,13 @@ export async function linkPrToIssue(
   issueNumber: number | null,
   prUrl: string,
 ): Promise<void> {
-  if (!issueNumber) return;
+  if (!issueNumber) {
+    return;
+  }
+
   try {
     const project = await projectFor(repo);
+
     await project.issues.comment(issueNumber, `PR created: ${prUrl}`);
   } catch {
     /* best effort */

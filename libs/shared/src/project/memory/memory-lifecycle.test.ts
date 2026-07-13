@@ -18,9 +18,11 @@ function fakePool(responses: Array<{ rows: unknown[] }> = []): {
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
       calls.push({ text, params });
+
       return responses[i++] ?? { rows: [] };
     },
   };
+
   return { pool, calls };
 }
 

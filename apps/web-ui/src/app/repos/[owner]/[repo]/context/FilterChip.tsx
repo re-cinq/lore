@@ -4,6 +4,7 @@ import Link, { useLinkStatus } from "next/link";
 
 function PendingDot() {
   const { pending } = useLinkStatus();
+
   return pending ? <span className="chip-spinner" aria-hidden="true" /> : null;
 }
 

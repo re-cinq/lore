@@ -54,6 +54,7 @@ export async function recoverStaleTasks(
   const stale = await deps.queue.findRecoverable();
 
   let recovered = 0;
+
   for (const row of stale) {
     // Don't reset implementation tasks — they run in ephemeral Job pods
     // managed by the LoreTask CRD. The loretask-watcher handles completion.
@@ -103,11 +104,17 @@ export async function pollWithGuard<T>(deps: {
   claim: () => Promise<T | null>;
   process: (task: T) => Promise<void>;
 }): Promise<void> {
-  if (processing) return;
+  if (processing) {
+    return;
+  }
   processing = true;
+
   try {
     const task = await deps.claim();
-    if (!task) return;
+
+    if (!task) {
+      return;
+    }
     await deps.process(task);
   } finally {
     processing = false;
@@ -136,6 +143,7 @@ async function processTask(task: any): Promise<void> {
   // never a Station (it mutates no repo files).
   if (task.task_type === "feature-decompose") {
     await handleFeatureDecompose(task, targetRepo);
+
     return;
   }
 
@@ -146,13 +154,17 @@ async function processTask(task: any): Promise<void> {
   const isFeaturePlanningType =
     task.task_type === "feature-planning" ||
     task.task_type === "feature-finalize";
+
   if (
     isFeaturePlanningType &&
     selectStationBackend(process.env) === "inprocess"
   ) {
-    if (task.task_type === "feature-planning")
+    if (task.task_type === "feature-planning") {
       await handleFeaturePlanning(task, targetRepo);
-    else await handleFeatureFinalize(task, targetRepo);
+    } else {
+      await handleFeatureFinalize(task, targetRepo);
+    }
+
     return;
   }
 
@@ -174,6 +186,7 @@ async function processTask(task: any): Promise<void> {
   // queued → running
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
+
   if (issueNumber) {
     await project.issues
       .comment(issueNumber, `Agent \`${agentId}\` picked up this task.`)
@@ -183,6 +196,7 @@ async function processTask(task: any): Promise<void> {
   try {
     // Fetch per-repo settings for prompt customization
     let repoSettings: any = {};
+
     try {
       repoSettings = (await settings().rawSettings(targetRepo)) ?? {};
     } catch {
@@ -230,6 +244,7 @@ async function processTask(task: any): Promise<void> {
     // entrypoint.sh refactor lands.
     const { isDarkFactoryEligible } = await import("./orchestrator.js");
     const darkFactoryEnabled = repoSettings?.dark_factory?.enabled === true;
+
     if (darkFactoryEnabled && isDarkFactoryEligible(task.task_type)) {
       // Fire-and-observe: start() persists the pipeline.assembly_lines row and
       // the assembly_line.start event atomically; the Floor event loop claims
@@ -242,9 +257,11 @@ async function processTask(task: any): Promise<void> {
         branch: branchName,
         args: { description: task.description },
       });
+
       console.log(
         `[floor] Task ${task.id} started assembly line ${assemblyLineId} (${task.task_type} on ${targetRepo})`,
       );
+
       return;
     }
 
@@ -276,6 +293,7 @@ async function processTask(task: any): Promise<void> {
       // master/develop. The pod uses this for `git diff origin/<base>`
       // to detect "did anything actually change?"
       let darkFactoryBaseBranch: string | undefined;
+
       if (darkFactoryAssemblyLine) {
         try {
           darkFactoryBaseBranch = await project.repo.defaultBranch();
@@ -293,6 +311,7 @@ async function processTask(task: any): Promise<void> {
         repoSettings,
         task.task_type,
       );
+
       await handleClaudeCodeTask(
         task,
         targetRepo,
@@ -312,13 +331,16 @@ async function processTask(task: any): Promise<void> {
       err instanceof TaskFailure
         ? { error: failureReason, details: err.details }
         : { error: failureReason, ...classifyError(failureReason) };
+
     await setStatus(task.id, "failed", {
       failure_reason: failureReason,
     });
     await insertEvent(task.id, "running", "failed", meta);
+
     // Update issue with failure
     if (issueNumber) {
       const hint = "hint" in meta && meta.hint ? ` — ${meta.hint}` : "";
+
       await project.issues
         .comment(issueNumber, `Task failed: \`${failureReason}\`${hint}`)
         .catch(() => {});
@@ -345,6 +367,7 @@ async function ensureIssue(
   let issueNumber: number | null = task.issue_number || null;
   const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
   const issueGate = await shouldCreateIssue(task);
+
   if (
     !issueNumber &&
     task.task_type !== "general" &&
@@ -369,6 +392,7 @@ async function ensureIssue(
         composeIssueBody(issueBody, task, process.env.LORE_UI_URL),
         ["lore-managed", taskTypeLabel],
       );
+
       issueNumber = issue.number;
       await taskQueue().setColumns(task.id, {
         issue_number: issue.number,
@@ -390,6 +414,7 @@ async function ensureIssue(
       `[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`,
     );
   }
+
   return issueNumber;
 }
 
@@ -406,12 +431,16 @@ async function awaitApprovalIfRequired(
 ): Promise<boolean> {
   const { requiresApproval, getApprovalLabel } =
     await import("../dark-factory/approval.js");
-  if (!requiresApproval(task.task_type, targetRepo)) return false;
+
+  if (!requiresApproval(task.task_type, targetRepo)) {
+    return false;
+  }
 
   await setStatus(task.id, "awaiting_approval");
   await insertEvent(task.id, "pending", "awaiting_approval", {
     reason: "approval-required",
   });
+
   if (issueNumber) {
     await project.issues.comment(
       issueNumber,
@@ -422,5 +451,6 @@ async function awaitApprovalIfRequired(
   console.log(
     `[floor] Task ${task.id} requires approval — waiting for label on issue #${issueNumber}`,
   );
+
   return true;
 }

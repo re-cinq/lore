@@ -35,17 +35,22 @@ async function resolveSchema(pool: any, repo: string): Promise<string> {
       [repo],
     );
     const team = rows[0]?.team;
+
     if (team && SCHEMA_RE.test(team)) {
       // Verify schema exists in DB
       const { rows: schemas } = await pool.query(
         `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1`,
         [team],
       );
-      if (schemas.length > 0) return team;
+
+      if (schemas.length > 0) {
+        return team;
+      }
     }
   } catch (err) {
     console.error("[ingest] Schema resolution error:", err);
   }
+
   return "org_shared";
 }
 
@@ -75,6 +80,7 @@ export async function ingestFiles(
   let octokit: any;
   let owner = "";
   let repoName = "";
+
   if (needsGitHub) {
     enforceTrue(
       isConfigured(),
@@ -91,6 +97,7 @@ export async function ingestFiles(
 
   for (const fileEntry of files) {
     const filePath = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
+
     try {
       let content: string | null = null;
 
@@ -107,6 +114,7 @@ export async function ingestFiles(
               path: filePath,
               ref,
             });
+
             if ("content" in data) {
               content = Buffer.from(data.content, "base64").toString("utf-8");
             }
@@ -116,6 +124,7 @@ export async function ingestFiles(
               // Commit doesn't exist in this repo — retry with HEAD
               continue;
             }
+
             if (err.status === 404) {
               // File genuinely doesn't exist — remove from chunks
               await pool.query(
@@ -129,8 +138,10 @@ export async function ingestFiles(
             throw err;
           }
         }
-        if (!content && results[results.length - 1]?.status === "deleted")
+
+        if (!content && results[results.length - 1]?.status === "deleted") {
           continue;
+        }
       }
 
       if (!content) {
@@ -143,6 +154,7 @@ export async function ingestFiles(
       }
 
       const contentType = classifyFile(filePath);
+
       if (!contentType) {
         results.push({
           file: filePath,
@@ -186,14 +198,19 @@ export async function ingestFiles(
         );
 
         const chunkId = rows[0]?.id;
-        if (!firstChunkId) firstChunkId = chunkId;
+
+        if (!firstChunkId) {
+          firstChunkId = chunkId;
+        }
 
         // Generate and store embedding per chunk (cap input at 8k chars as safety net)
         const embedding = await getQueryEmbedding(
           chunk.content.substring(0, 8000),
         );
+
         if (embedding && chunkId) {
           const embeddingStr = `[${embedding.join(",")}]`;
+
           await pool.query(
             `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
             [embeddingStr, chunkId],
@@ -219,5 +236,6 @@ export async function ingestFiles(
   console.error(
     `[ingest] ${repo}@${commit.slice(0, 7)}: ${ingested} ingested, ${deleted} deleted, ${errors} errors (schema: ${schema})`,
   );
+
   return { ingested, deleted, errors, schema, results };
 }

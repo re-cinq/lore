@@ -94,9 +94,11 @@ export function createProductionRetrospectiveHandler(
     // the assembly line exit; no separate poll/webhook needed.
     const triggerAutoMerge = deps.evaluateAndMerge;
     const resolvePrForTask = deps.resolvePrForTask;
+
     if (triggerAutoMerge && resolvePrForTask) {
       try {
         const pr = await resolvePrForTask(ctx.taskId);
+
         if (pr) {
           await triggerAutoMerge({
             taskId: ctx.taskId,

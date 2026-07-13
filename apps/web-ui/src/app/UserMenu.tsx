@@ -6,7 +6,9 @@ import styles from "./UserMenu.module.css";
 export default function UserMenu() {
   const { data: session } = useSession();
 
-  if (!session?.user) return null;
+  if (!session?.user) {
+    return null;
+  }
 
   return (
     <div className={styles.menu}>

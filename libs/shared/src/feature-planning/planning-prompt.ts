@@ -44,7 +44,11 @@ export function composePlanningPrompt(input: PlanningPromptInput): string {
     tag("UserPrompt", input.originalPrompt),
   ];
   const draftSpec = currentDraftSpec(input.priorGap, input.answers);
-  if (draftSpec) blocks.push(draftSpec);
+
+  if (draftSpec) {
+    blocks.push(draftSpec);
+  }
+
   return blocks.join("\n\n");
 }
 
@@ -57,13 +61,19 @@ function currentDraftSpec(
   answers: SectionAnswers | null,
 ): string | null {
   const sections = sectionsOf(gap);
+
   if (!sections.length) {
     const note = answers?.free_form?.trim();
+
     return note ? tag("OtherUserComments", note) : null;
   }
   const inner = sections.map((s) => sectionBlock(s, answers));
   const note = answers?.free_form?.trim();
-  if (note) inner.push(tag("OtherUserComments", note));
+
+  if (note) {
+    inner.push(tag("OtherUserComments", note));
+  }
+
   return tag("CurrentDraftSpec", inner.join("\n\n"));
 }
 
@@ -72,26 +82,36 @@ function sectionBlock(
   answers: SectionAnswers | null,
 ): string {
   const parts = [tag("Generated", generatedContent(section))];
-  if (section.questions?.length)
+
+  if (section.questions?.length) {
     parts.push(questionsBlock(section.questions, answers));
+  }
   const feedback = answers?.sections?.[section.title];
+
   if (feedback?.comment?.trim() || feedback?.direction) {
     const direction = feedback.direction ?? "keep";
+
     parts.push(
       `<UserComment direction="${direction}">\n${feedback.comment?.trim() ?? ""}\n</UserComment>`,
     );
   }
+
   return `<Section title="${section.title.replace(/"/g, "'")}">\n${parts.join("\n")}\n</Section>`;
 }
 
 function generatedContent(section: GapSection): string {
   const parts: string[] = [];
-  if (section.content?.trim()) parts.push(section.content.trim());
+
+  if (section.content?.trim()) {
+    parts.push(section.content.trim());
+  }
+
   if (section.mockups?.length) {
     parts.push(
       `Diagrams: ${section.mockups.map((m, i) => m.title || `Mockup ${i + 1}`).join(", ")}`,
     );
   }
+
   return parts.join("\n\n") || "(no content)";
 }
 
@@ -102,8 +122,10 @@ function questionsBlock(
   const body = questions
     .map((q) => {
       const answer = answers?.questions?.[q.id]?.trim() || "(unanswered)";
+
       return `<Question id="${q.id}">\n<Asked>${q.question}</Asked>\n<Answer>${answer}</Answer>\n</Question>`;
     })
     .join("\n");
+
   return tag("Questions", body);
 }

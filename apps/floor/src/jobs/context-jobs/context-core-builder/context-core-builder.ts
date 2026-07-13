@@ -20,6 +20,7 @@ export async function contextCoreBuilderJob(): Promise<string> {
 
   if (namespaces.length === 0) {
     console.log("[job] context-core: no namespaces found");
+
     return "No namespaces to evaluate";
   }
 
@@ -30,16 +31,23 @@ export async function contextCoreBuilderJob(): Promise<string> {
   for (const team of namespaces) {
     try {
       const result = await evaluateNamespace(team);
-      if (result === "promoted") promoted++;
-      else if (result === "rejected") rejected++;
-      else unchanged++;
+
+      if (result === "promoted") {
+        promoted++;
+      } else if (result === "rejected") {
+        rejected++;
+      } else {
+        unchanged++;
+      }
     } catch (err) {
       console.error(`[job] context-core: error evaluating ${team}:`, err);
     }
   }
 
   const summary = `Evaluated ${namespaces.length} namespaces: ${promoted} promoted, ${rejected} rejected, ${unchanged} unchanged`;
+
   console.log(`[job] context-core: ${summary}`);
+
   return summary;
 }
 
@@ -48,14 +56,17 @@ async function evaluateNamespace(
 ): Promise<"promoted" | "rejected" | "unchanged"> {
   // Count promoted chunks
   const count = await chunks().countChunksByTeam(namespace);
+
   if (count === 0) {
     console.log(`[job] context-core: ${namespace} has 0 chunks, skipping`);
+
     return "unchanged";
   }
 
   // Run PromptFoo eval for this namespace
   const configPath = join("evals", namespace, "promptfooconfig.yaml");
   const evalResult = await runPromptfooEval({ configPath });
+
   if (!evalResult.ok) {
     // Distinguish a genuinely-absent config from a crash/timeout — the old catch
     // logged every failure (including real regressions the eval surfaced) as
@@ -70,6 +81,7 @@ async function evaluateNamespace(
         evalResult.reason === "exec-failed" ? evalResult.error : "",
       );
     }
+
     return "unchanged";
   }
   const currentScore = evalResult.stats.passRate;
@@ -96,6 +108,7 @@ async function evaluateNamespace(
     console.log(
       `[job] context-core: PROMOTED ${namespace} ${version} (${(prevScore * 100).toFixed(1)}% → ${(currentScore * 100).toFixed(1)}%)`,
     );
+
     return "promoted";
   }
 
@@ -118,6 +131,7 @@ async function evaluateNamespace(
     console.log(
       `[job] context-core: REJECTED ${namespace} ${version} — regression of ${(delta * 100).toFixed(1)}%`,
     );
+
     return "rejected";
   }
 

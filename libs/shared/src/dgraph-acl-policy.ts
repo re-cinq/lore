@@ -19,44 +19,67 @@ function isBootstrapJob(doc: any): boolean {
 
 function* findEnvEntries(node: any): Generator<any> {
   if (Array.isArray(node)) {
-    for (const child of node) yield* findEnvEntries(child);
+    for (const child of node) {
+      yield* findEnvEntries(child);
+    }
+
     return;
   }
+
   if (node && typeof node === "object") {
-    if (Array.isArray(node.env))
-      for (const envEntry of node.env) yield envEntry;
-    for (const value of Object.values(node)) yield* findEnvEntries(value);
+    if (Array.isArray(node.env)) {
+      for (const envEntry of node.env) {
+        yield envEntry;
+      }
+    }
+
+    for (const value of Object.values(node)) {
+      yield* findEnvEntries(value);
+    }
   }
 }
 
 function* findContainers(node: any): Generator<any> {
   if (Array.isArray(node)) {
-    for (const child of node) yield* findContainers(child);
+    for (const child of node) {
+      yield* findContainers(child);
+    }
+
     return;
   }
+
   if (node && typeof node === "object") {
-    if (Array.isArray(node.command) || Array.isArray(node.args)) yield node;
-    for (const value of Object.values(node)) yield* findContainers(value);
+    if (Array.isArray(node.command) || Array.isArray(node.args)) {
+      yield node;
+    }
+
+    for (const value of Object.values(node)) {
+      yield* findContainers(value);
+    }
   }
 }
 
 function checkAclEnabled(doc: any): string[] {
   const violations: string[] = [];
+
   for (const container of findContainers(doc)) {
     const argv = [...(container.command ?? []), ...(container.args ?? [])].map(
       String,
     );
+
     if (argv.includes("alpha") && !argv.some((arg) => arg.includes("--acl"))) {
       violations.push(
         `dgraph alpha (${doc?.metadata?.name ?? "alpha"}) does not enable ACL: missing --acl`,
       );
     }
   }
+
   return violations;
 }
 
 function checkNoHardcodedCreds(doc: any): string[] {
   const violations: string[] = [];
+
   for (const envEntry of findEnvEntries(doc)) {
     if (
       envEntry &&
@@ -65,26 +88,37 @@ function checkNoHardcodedCreds(doc: any): string[] {
       envEntry.value.length > 0
     ) {
       const where = doc?.metadata?.name ?? doc?.kind ?? "doc";
+
       violations.push(
         `hardcoded credential in env ${envEntry.name} (${where}): use valueFrom.secretKeyRef / ESO, not a literal value`,
       );
     }
   }
+
   return violations;
 }
 
 function checkWorkloadIdentity(doc: any): string[] {
-  if (doc?.kind !== "ServiceAccount") return [];
+  if (doc?.kind !== "ServiceAccount") {
+    return [];
+  }
   const gsa = doc?.metadata?.annotations?.["iam.gke.io/gcp-service-account"];
-  if (gsa) return [];
+
+  if (gsa) {
+    return [];
+  }
+
   return [
     `ServiceAccount ${doc?.metadata?.name ?? "?"} is missing the Workload Identity annotation iam.gke.io/gcp-service-account`,
   ];
 }
 
 function checkGuardianIsolation(doc: any): string[] {
-  if (isBootstrapJob(doc)) return [];
+  if (isBootstrapJob(doc)) {
+    return [];
+  }
   const violations: string[] = [];
+
   for (const envEntry of findEnvEntries(doc)) {
     if (
       envEntry &&
@@ -96,6 +130,7 @@ function checkGuardianIsolation(doc: any): string[] {
       );
     }
   }
+
   return violations;
 }
 

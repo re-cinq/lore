@@ -14,6 +14,7 @@ const IngestBody = z.object({
   repo: z.string().min(1),
   commit: z.string().optional(),
 });
+
 type IngestBody = z.infer<typeof IngestBody>;
 
 export function ingestRoute(getPool: () => Pool | null): ServerRoute {
@@ -26,7 +27,11 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
     },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
+
+      if (!pool) {
+        return h.response({ error: DB_UNAVAILABLE }).code(503);
+      }
+
       try {
         const { files, repo, commit } = request.payload as IngestBody;
         const result = await ingestFiles(pool, files, repo, commit || "HEAD");
@@ -40,10 +45,15 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
                 r.status === "ingested" || r.status === "deleted",
             )
           : false;
-        if (landed) void triggerAgentSpecCoverageValidate(pool, repo);
+
+        if (landed) {
+          void triggerAgentSpecCoverageValidate(pool, repo);
+        }
+
         return h.response(result);
       } catch (err: any) {
         console.error("[ingest] API error:", err.message);
+
         return h.response({ error: err.message }).code(500);
       }
     },

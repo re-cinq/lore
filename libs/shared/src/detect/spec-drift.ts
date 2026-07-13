@@ -43,6 +43,7 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
 
   if (specs.length === 0) {
     console.log(`[job] spec-drift: no specs found for ${repo}`);
+
     return "No specs found";
   }
 
@@ -75,6 +76,7 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
       );
       continue;
     }
+
     try {
       totalChecked++;
 
@@ -90,6 +92,7 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
           filed >= MAX_DRIFT_TASKS_PER_REPO_RUN,
           activeIssues,
         );
+
         if (outcome === "filed") {
           totalDrift++;
           filed++;
@@ -103,10 +106,12 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
       // deterministic and free of the symbol-membership false positives.
       if (graphEnabled) {
         const graph = await detectGraphDrift(project, spec.filePath);
+
         if (graph?.available) {
           console.log(
             `[job] spec-drift: ${repo}:${spec.filePath} — graph: ${graph.statements.length} drifted statement(s)`,
           );
+
           if (graph.drifted) {
             await fileDrift(graphTaskCopy(spec.filePath, graph.statements));
           }
@@ -119,6 +124,7 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
       const assertions = await extractAssertions(spec.content, spec.filePath, {
         jobName: "spec_drift",
       });
+
       if (assertions.length === 0) {
         console.log(
           `[job] spec-drift: ${repo}:${spec.filePath} — no assertions extracted`,
@@ -126,9 +132,11 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
         continue;
       }
       const decision = decideHeuristicDrift(assertions, knownSymbols);
+
       console.log(
         `[job] spec-drift: ${repo}:${spec.filePath} — ${decision.scored} scorable, ${decision.missing.length} missing (${(decision.divergence * 100).toFixed(0)}%)`,
       );
+
       if (decision.drifted) {
         await fileDrift(heuristicTaskCopy(spec.filePath, decision));
       }
@@ -145,7 +153,9 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
       ? `; deferred ${deferred} over the ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap`
       : "";
   const summary = `Checked ${totalChecked} specs in ${repo} (${totalDrift} drifted${deferredNote}); skipped ${filteredDocs} prose docs`;
+
   console.log(`[job] spec-drift: ${summary}`);
+
   return summary;
 }
 
@@ -160,6 +170,7 @@ type FileOutcome = "filed" | "skipped" | "deferred";
 async function detectGraphDrift(project: Project, specPath: string) {
   try {
     const doc = await project.trace.document(specPath);
+
     return decideGraphDrift(doc);
   } catch {
     return undefined; // graph read failed → caller falls back to the heuristic
@@ -176,6 +187,7 @@ async function fetchActiveIssues(
 ): Promise<Set<number> | null> {
   try {
     const open = await project.issues.list({ state: "open" });
+
     return new Set(
       open
         .filter((i) => !i.labels.includes("lore-failed"))
@@ -196,6 +208,7 @@ function graphTaskCopy(
   statements: DriftedStatement[],
 ): DriftTaskCopy {
   const shown = statements.slice(0, 20);
+
   return {
     title: `Spec drift: ${specPath} (${statements.length} statement${statements.length === 1 ? "" : "s"})`,
     bundle: {
@@ -214,6 +227,7 @@ function heuristicTaskCopy(
   decision: HeuristicDriftDecision,
 ): DriftTaskCopy {
   const pct = (decision.divergence * 100).toFixed(0);
+
   return {
     title: `Spec drift: ${specPath} (${pct}% divergence)`,
     bundle: {
@@ -245,6 +259,7 @@ async function createDriftTask(
     console.log(
       `[job] spec-drift: skipping ${repo}:${specPath} — ${existing.length} existing task(s), in flight or within cooldown`,
     );
+
     return "skipped";
   }
 
@@ -257,6 +272,7 @@ async function createDriftTask(
     console.log(
       `[job] spec-drift: skipping ${repo}:${specPath} — an open issue already tracks it`,
     );
+
     return "skipped";
   }
 
@@ -266,6 +282,7 @@ async function createDriftTask(
     console.log(
       `[job] spec-drift: deferring ${repo}:${specPath} — ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap reached`,
     );
+
     return "deferred";
   }
 
@@ -280,5 +297,6 @@ async function createDriftTask(
   console.log(
     `[job] spec-drift: created gap-fill task for ${repo}:${specPath} (${copy.bundle.source})`,
   );
+
   return "filed";
 }

@@ -18,6 +18,7 @@ export default function SecretReveal({
   label?: string;
 }) {
   const [shown, setShown] = useState(false);
+
   return (
     <span className={styles.copyUrl}>
       {label && <span className="meta">{label}:</span>}

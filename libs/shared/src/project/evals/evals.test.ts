@@ -11,9 +11,11 @@ function fakePool(rows: Array<{ pass_rate: number }> = []): {
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
       calls.push({ text, params });
+
       return { rows };
     },
   };
+
   return { pool, calls };
 }
 
@@ -78,6 +80,7 @@ describe("InMemoryEvalRuns double", () => {
 
   it("returns the latest run for a team newest-first", async () => {
     const evals = new InMemoryEvalRuns();
+
     await evals.record({
       team: "platform",
       pass_rate: 0.6,
@@ -98,6 +101,7 @@ describe("InMemoryEvalRuns double", () => {
 
   it("returns the previous run with offset 1 for the regression check", async () => {
     const evals = new InMemoryEvalRuns();
+
     await evals.record({
       team: "platform",
       pass_rate: 0.6,
@@ -118,6 +122,7 @@ describe("InMemoryEvalRuns double", () => {
 
   it("scopes recent reads to the requested team", async () => {
     const evals = new InMemoryEvalRuns();
+
     await evals.record({
       team: "platform",
       pass_rate: 0.9,

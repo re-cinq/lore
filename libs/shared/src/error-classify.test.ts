@@ -52,6 +52,7 @@ describe("classifyError", () => {
       "401 Bad credentials",
       "weird unmatched failure",
     ];
+
     for (const m of messages) {
       expect(classifyError(m).hint.length).toBeGreaterThan(0);
     }
@@ -66,6 +67,7 @@ describe("summarizeFailures", () => {
         error: "Resource not accessible by integration",
       },
     ]);
+
     expect(details[0]).toMatchObject({
       step: ".github/workflows/lore-ingest.yml",
       category: "github-workflows-permission",
@@ -84,6 +86,7 @@ describe("summarizeFailures", () => {
         error: "Resource not accessible by integration",
       },
     ]);
+
     expect(details).toHaveLength(3);
     expect(summary).toMatch(/credit/i);
     expect(summary).toMatch(/\(2/);
@@ -107,6 +110,7 @@ describe("TaskFailure", () => {
       },
     ];
     const err = new TaskFailure("summary text", details);
+
     expect(err).toBeInstanceOf(Error);
     expect(err.message).toEqual("summary text");
     expect(err.details).toEqual(details);

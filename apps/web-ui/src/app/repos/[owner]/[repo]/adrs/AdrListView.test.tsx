@@ -17,6 +17,7 @@ describe("AdrListView", () => {
         description: "Event-driven review",
       },
     ];
+
     render(<AdrListView owner="re-cinq" repo="lore" adrs={adrs} />);
 
     expect(screen.getByText("Dark Factory")).toBeTruthy();
@@ -25,6 +26,7 @@ describe("AdrListView", () => {
     const detailsHrefs = screen
       .queryAllByText("Details")
       .map((node) => node.closest("a")?.getAttribute("href"));
+
     expect(detailsHrefs).toEqual([
       `/repos/re-cinq/lore/adrs/${encodeURIComponent("adrs/ADR-016-dark-factory.md")}`,
       `/repos/re-cinq/lore/adrs/${encodeURIComponent("adrs/ADR-015-review-reactor.md")}`,

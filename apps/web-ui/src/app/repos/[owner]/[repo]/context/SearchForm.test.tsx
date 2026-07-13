@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 const push = vi.fn();
+
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 import SearchForm from "./SearchForm";

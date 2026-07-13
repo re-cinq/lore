@@ -24,7 +24,11 @@ export async function anthropicCreditsExhausted(
   fetchImpl: typeof fetch = fetch,
 ): Promise<boolean> {
   const apiKey = env.ANTHROPIC_API_KEY;
-  if (!apiKey) return false;
+
+  if (!apiKey) {
+    return false;
+  }
+
   try {
     const resp = await fetchImpl("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -39,10 +43,13 @@ export async function anthropicCreditsExhausted(
         messages: [{ role: "user", content: "hi" }],
       }),
     });
+
     if (resp.status === 429 || resp.status === 403) {
       const body = await resp.text().catch(() => "");
+
       return BILLING_ERROR.test(body);
     }
+
     return false;
   } catch {
     return false; // network error — proceed and let individual tasks handle it

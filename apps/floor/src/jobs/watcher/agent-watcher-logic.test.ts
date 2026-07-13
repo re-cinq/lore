@@ -18,6 +18,7 @@ describe("taskIdOf / taskTypeOf", () => {
         },
       },
     };
+
     expect(taskIdOf(agent)).toBe("t1");
     expect(taskTypeOf(agent)).toBe("implementation");
   });

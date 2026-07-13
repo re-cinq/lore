@@ -10,7 +10,11 @@ export function getTaskRoute(): ServerRoute {
     handler: async (request, h) => {
       try {
         const task = await getTask(request.params.id);
-        if (!task) return h.response({ error: "not found" }).code(404);
+
+        if (!task) {
+          return h.response({ error: "not found" }).code(404);
+        }
+
         return h.response(task);
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

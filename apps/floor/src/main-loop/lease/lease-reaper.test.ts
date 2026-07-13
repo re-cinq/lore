@@ -47,6 +47,7 @@ describe("leaseReaperJob", () => {
   it("ISO-stringifies a Date expiry in the audit payload", async () => {
     const leases = new InMemoryLeaseReaper([lease({ expires_at: STALE })]);
     const audit = new InMemoryAudit();
+
     await leaseReaperJob({ leases, audit }, NOW);
     expect(audit.entries[0].payload.expired_at).toBe(STALE.toISOString());
   });
@@ -56,6 +57,7 @@ describe("leaseReaperJob", () => {
       lease({ expires_at: "2026-06-03T09:50:00+00:00" }),
     ]);
     const audit = new InMemoryAudit();
+
     await leaseReaperJob({ leases, audit }, NOW);
     expect(audit.entries[0].payload.expired_at).toBe(
       "2026-06-03T09:50:00+00:00",
@@ -66,6 +68,7 @@ describe("leaseReaperJob", () => {
     const leases = new InMemoryLeaseReaper([lease({ expires_at: RECENT })]);
     const audit = new InMemoryAudit();
     const result = await leaseReaperJob({ leases, audit }, NOW);
+
     expect(result).toBe("Reaped 0 expired leases");
     expect(audit.entries).toEqual([]);
   });

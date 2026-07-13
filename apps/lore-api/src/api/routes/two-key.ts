@@ -33,6 +33,7 @@ export async function checkApproval(
   detail: string,
 ): Promise<ApprovalOutcome> {
   const prRef = request.headers["x-lore-approval-pr"];
+
   if (typeof prRef !== "string" || !prRef) {
     return {
       ok: false,
@@ -40,9 +41,11 @@ export async function checkApproval(
       body: { error: "two_key_required", field_paths: fieldPaths, detail },
     };
   }
+
   try {
     const octokit = await getOctokit();
     const evidence = await verifyApproval({ octokit, prRef, targetRepo: repo });
+
     return { ok: true, evidence };
   } catch (err) {
     if (err instanceof TwoKeyError) {
@@ -57,6 +60,7 @@ export async function checkApproval(
       };
     }
     console.error("[two-key] verify failed:", err);
+
     return { ok: false, code: 503, body: { error: "github_api_unavailable" } };
   }
 }

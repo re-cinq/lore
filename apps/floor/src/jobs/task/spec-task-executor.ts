@@ -32,6 +32,7 @@ export async function specTaskExecutorJob(): Promise<string> {
   // group must not starve another (the former global gate did exactly that).
   const runningByGroup = new Map<string, number>();
   const runningRows = await taskQueue().countRunningSpecTasksByGroup();
+
   for (const row of runningRows) {
     runningByGroup.set(row.task_group_id, parseInt(row.cnt, 10));
   }
@@ -42,6 +43,7 @@ export async function specTaskExecutorJob(): Promise<string> {
     console.warn(
       "[spec-task-executor] API credits exhausted, skipping dispatch",
     );
+
     return "Skipped: API credits exhausted";
   }
 
@@ -55,6 +57,7 @@ export async function specTaskExecutorJob(): Promise<string> {
     // Enforce concurrency limit per task group
     if (task.task_group_id) {
       const running = runningByGroup.get(task.task_group_id) || 0;
+
       if (running >= MAX_CONCURRENT_PER_GROUP) {
         continue;
       }
@@ -62,7 +65,10 @@ export async function specTaskExecutorJob(): Promise<string> {
 
     // Atomic claim: set to running only if still pending
     const claimed = await taskQueue().claimSpecTask(task.id);
-    if (!claimed) continue;
+
+    if (!claimed) {
+      continue;
+    }
 
     // Record event
     await insertEvent(task.id, "pending", "running", {
@@ -119,6 +125,7 @@ export async function specTaskExecutorJob(): Promise<string> {
 
       if (result.started) {
         dispatched++;
+
         // Update concurrency counter
         if (task.task_group_id) {
           runningByGroup.set(

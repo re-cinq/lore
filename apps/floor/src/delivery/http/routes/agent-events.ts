@@ -35,6 +35,7 @@ async function recordAgentCosts(rows: readonly LlmCallRow[]): Promise<number> {
       );
     }
   }
+
   return recorded;
 }
 

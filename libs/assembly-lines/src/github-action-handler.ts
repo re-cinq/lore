@@ -55,11 +55,13 @@ export function createGithubActionHandler(deps: GithubActionDeps): NodeHandler {
       await deps.heartbeat(ctx.branchName, node.id);
       const conclusion = await deps.ciConclusion(ctx.branchName);
       const outcome = ciOutcome(conclusion);
+
       if (outcome) {
         return { outcome, extras: { "Lore-CI-Conclusion": conclusion } };
       }
       await deps.sleep(intervalMs);
     }
+
     return {
       outcome: "failed",
       extras: {

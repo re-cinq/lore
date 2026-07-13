@@ -36,6 +36,7 @@ describe("createClaudeCodeAgentHandler", () => {
     );
 
     const r = await handler(node, ctx);
+
     expect(r.outcome).toBe("success");
     expect(r.extras?.["Lore-CLI-Duration-Ms"]).toBe("100");
     expect(runner).toHaveBeenCalledWith({
@@ -55,6 +56,7 @@ describe("createClaudeCodeAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "implementation" },
     );
     const r = await handler(node, ctx);
+
     expect(r.outcome).toBe("failed");
     expect(r.extras?.["Lore-Validation-Status"]).toBe("cli-nonzero");
     expect(r.extras?.["Lore-Validation-Summary"]).toContain("exited 2");
@@ -69,6 +71,7 @@ describe("createClaudeCodeAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "implementation" },
     );
     const r = await handler(node, ctx);
+
     expect(r.outcome).toBe("failed");
     expect(r.extras?.["Lore-Validation-Status"]).toBe("cli-error");
     expect(r.extras?.["Lore-Validation-Summary"]).toContain("timed out");
@@ -84,6 +87,7 @@ describe("createClaudeCodeAgentHandler", () => {
       { id: "implement", type: "agent" } as AssemblyLineNode,
       ctx,
     );
+
     expect(r.outcome).toBe("failed");
     expect(r.extras?.["Lore-Validation-Status"]).toBe("config-error");
     expect(runner).not.toHaveBeenCalled();
@@ -96,6 +100,7 @@ describe("createClaudeCodeAgentHandler", () => {
       { taskId: "t", description: "d", taskType: "implementation" },
     );
     const r = await handler(node, ctx);
+
     expect(r.outcome).toBe("failed");
     expect(r.extras?.["Lore-Validation-Status"]).toBe("config-error");
   });

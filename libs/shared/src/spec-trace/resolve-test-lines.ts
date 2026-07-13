@@ -28,15 +28,21 @@ interface Declaration {
 function findDeclarations(content: string): Declaration[] {
   const declarations: Declaration[] = [];
   const lines = content.split("\n");
+
   for (let index = 0; index < lines.length; index += 1) {
     const match = DECLARATION.exec(lines[index]);
-    if (match) declarations.push({ name: match[2], line: index + 1 });
+
+    if (match) {
+      declarations.push({ name: match[2], line: index + 1 });
+    }
   }
+
   return declarations;
 }
 
 function leafName(descriptorName: string): string {
   const segments = descriptorName.split(" > ");
+
   return segments[segments.length - 1];
 }
 
@@ -52,12 +58,16 @@ export function resolveTestLines(
     const index = declarations.findIndex(
       (declaration) => declaration.name === leaf,
     );
-    if (index === -1) return descriptor;
+
+    if (index === -1) {
+      return descriptor;
+    }
     const startLine = declarations[index].line;
     const endLine =
       index + 1 < declarations.length
         ? declarations[index + 1].line - 1
         : lastLine;
+
     return { ...descriptor, startLine, endLine };
   });
 }

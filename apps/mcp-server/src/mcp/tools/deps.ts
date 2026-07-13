@@ -33,17 +33,21 @@ export function makeTrackLatency(getPool: () => any) {
   ): Promise<any> {
     const start = Date.now();
     let success = true;
+
     try {
       const result = await fn();
+
       return result;
     } catch (err) {
       success = false;
       throw err;
     } finally {
       const latencyMs = Date.now() - start;
+
       trackToolCall(tool, latencyMs, success);
       traceTool(tool, latencyMs, success);
       const pool = getPool();
+
       if (pool) {
         pool
           .query(

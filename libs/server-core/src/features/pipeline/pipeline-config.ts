@@ -40,14 +40,17 @@ export function loadTaskTypes(): void {
       "task-types.yaml",
     ),
   ].filter(Boolean);
+
   for (const p of paths) {
     try {
       const raw = readFileSync(p, "utf-8");
       const parsed = parse(raw);
+
       config = parsed.task_types || {};
       console.log(
         `[pipeline] Loaded ${Object.keys(config).length} task types from ${p}`,
       );
+
       return;
     } catch {
       // ignore malformed candidate; try the next path
@@ -72,6 +75,7 @@ export function buildPrompt(type: string, description: string): string {
   const tmpl =
     config[type]?.prompt_template ||
     "Complete the following task: {description}";
+
   return tmpl.replace("{description}", description);
 }
 
@@ -89,6 +93,7 @@ export function getTaskTypeConfigForRepo(
     review_required: false,
   };
   const overrides = repoSettings?.task_overrides?.[type] || {};
+
   return {
     ...base,
     ...overrides,

@@ -22,6 +22,7 @@ export interface CostRow {
 
 export function parseCostReport(raw: unknown): CostRow[] {
   const report = CostReport.parse(raw);
+
   return report.data.flatMap((bucket) =>
     bucket.results.map((result) => ({
       date: bucket.starting_at.slice(0, 10),
@@ -91,6 +92,7 @@ export function mergeCostAndUsage(
   for (const cost of costRows) {
     const key = `${cost.date}|${cost.model}`;
     const row = byKey.get(key) ?? blank(cost.date, cost.model);
+
     row.costUsd += cost.costUsd;
     byKey.set(key, row);
   }
@@ -98,6 +100,7 @@ export function mergeCostAndUsage(
   for (const usage of usageRows) {
     const key = `${usage.date}|${usage.model}`;
     const row = byKey.get(key) ?? blank(usage.date, usage.model);
+
     row.inputTokens += usage.inputTokens;
     row.outputTokens += usage.outputTokens;
     row.cacheReadTokens += usage.cacheReadTokens;
@@ -110,6 +113,7 @@ export function mergeCostAndUsage(
 
 export function parseUsageReport(raw: unknown): UsageRow[] {
   const report = UsageReport.parse(raw);
+
   return report.data.flatMap((bucket) =>
     bucket.results.map((result) => ({
       date: bucket.starting_at.slice(0, 10),

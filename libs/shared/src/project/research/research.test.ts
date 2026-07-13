@@ -12,9 +12,11 @@ function fakePool(): {
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
       calls.push({ text, params });
+
       return { rows: [] };
     },
   };
+
   return { pool, calls };
 }
 

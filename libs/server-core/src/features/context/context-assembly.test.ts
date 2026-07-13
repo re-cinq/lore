@@ -10,12 +10,17 @@ function estimateTokens(text: string): number {
 
 function truncateToTokens(text: string, maxTokens: number): string {
   const maxChars = maxTokens * 4;
-  if (text.length <= maxChars) return text;
+
+  if (text.length <= maxChars) {
+    return text;
+  }
   const truncated = text.substring(0, maxChars);
   const lastParagraph = truncated.lastIndexOf("\n\n");
+
   if (lastParagraph > maxChars * 0.5) {
     return truncated.substring(0, lastParagraph) + "\n\n...(truncated)";
   }
+
   return truncated + "\n\n...(truncated)";
 }
 
@@ -30,6 +35,7 @@ describe("token estimation", () => {
 describe("truncateToTokens", () => {
   it("returns text unchanged when under budget", () => {
     const text = "short text";
+
     expect(truncateToTokens(text, 100)).toBe(text);
   });
 
@@ -39,6 +45,7 @@ describe("truncateToTokens", () => {
     const text = `${paragraph1}\n\n${paragraph2}`;
 
     const result = truncateToTokens(text, 100); // ~400 chars
+
     expect(result).toContain("First paragraph");
     expect(result).toContain("...(truncated)");
     expect(result.length).toBeLessThan(text.length);
@@ -56,6 +63,7 @@ describe("loadTemplates", () => {
       "..",
       "templates",
     );
+
     // This should not throw
     loadTemplates(templateDir);
   });
@@ -75,6 +83,7 @@ describe("assembleContext", () => {
       "default",
       8000,
     );
+
     expect(result.text).toBe("");
     expect(result.sections).toEqual([]);
   });
@@ -83,6 +92,7 @@ describe("assembleContext", () => {
     const mockPool = {
       query: async (sql: string, params: any[]) => {
         const ct = params?.find(Array.isArray) as string[] | undefined;
+
         if (sql.includes("org_shared.chunks") && ct?.includes("doc")) {
           return {
             rows: [
@@ -94,6 +104,7 @@ describe("assembleContext", () => {
             ],
           };
         }
+
         return { rows: [] };
       },
     };
@@ -105,6 +116,7 @@ describe("assembleContext", () => {
       8000,
       "owner/repo",
     );
+
     expect(result.text).toContain("Conventions");
     expect(result.text).toContain("CLAUDE.md content here");
     expect(result.sections.length).toBeGreaterThan(0);
@@ -117,6 +129,7 @@ describe("assembleContext", () => {
         if (sql.includes("org_shared.chunks")) {
           return { rows: [{ content: longContent, file_path: "test.md" }] };
         }
+
         return { rows: [] };
       },
     };
@@ -129,6 +142,7 @@ describe("assembleContext", () => {
       "owner/repo",
     );
     const totalChars = result.text.length;
+
     // With 2000 token budget (~8000 chars), result should be under that
     expect(totalChars).toBeLessThan(10000);
     expect(result.sections.some((s) => s.truncated)).toBe(true);
@@ -140,6 +154,7 @@ describe("assembleContext — traceable XML output", () => {
     const mockPool = {
       query: async (sql: string, params: any[]) => {
         const ct = params?.find(Array.isArray) as string[] | undefined;
+
         if (ct?.includes("adr")) {
           return {
             rows: [
@@ -152,6 +167,7 @@ describe("assembleContext — traceable XML output", () => {
             ],
           };
         }
+
         return { rows: [] };
       },
     };
@@ -162,6 +178,7 @@ describe("assembleContext — traceable XML output", () => {
       8000,
       "o/r",
     );
+
     expect(result.text).toContain('<context query="dark factory"');
     // Scores are normalized so the top (here, only) result is 1.00.
     expect(result.text).toContain(
@@ -176,12 +193,15 @@ describe("assembleContext — traceable XML output", () => {
     const mockPool = {
       query: async (sql: string, params: any[]) => {
         const ct = params?.find(Array.isArray) as string[] | undefined;
+
         if (ct?.includes("adr")) {
           adrSql = sql;
         }
+
         return { rows: [] };
       },
     };
+
     await assembleContext(
       mockPool,
       "auth middleware",
@@ -198,12 +218,15 @@ describe("assembleContext — traceable XML output", () => {
     const mockPool = {
       query: async (sql: string, params: any[]) => {
         const ct = params?.find(Array.isArray) as string[] | undefined;
+
         if (sql.includes("org_shared.chunks") && ct?.includes("doc")) {
           repoTypes = ct;
         }
+
         return { rows: [] };
       },
     };
+
     await assembleContext(mockPool, "x", "implementation", 8000, "o/r");
     expect(repoTypes).toEqual(["doc", "spec"]);
     expect(repoTypes).not.toContain("adr");
@@ -214,8 +237,10 @@ describe("assembleContext — traceable XML output", () => {
     const mockPool = {
       query: async (sql: string, params: any[]) => {
         const ct = params?.find(Array.isArray) as string[] | undefined;
+
         if (sql.includes("org_shared.chunks") && ct?.includes("code")) {
           codeTypes = ct;
+
           return {
             rows: [
               {
@@ -227,6 +252,7 @@ describe("assembleContext — traceable XML output", () => {
             ],
           };
         }
+
         return { rows: [] };
       },
     };
@@ -237,6 +263,7 @@ describe("assembleContext — traceable XML output", () => {
       8000,
       "o/r",
     );
+
     expect(codeTypes).toEqual(["code"]);
     expect(result.text).toContain("settings-form.ts");
     expect(result.text).toContain("parseSettingsForm");
@@ -255,9 +282,11 @@ describe("assembleContext — traceable XML output", () => {
       false,
       true,
     );
+
     expect(result.trace).toBeDefined();
     expect(result.trace?.budget.total).toBe(8000);
     const adr = result.trace?.sections.find((s) => s.source === "adrs");
+
     expect(adr).toMatchObject({
       included: false,
       status: "empty",

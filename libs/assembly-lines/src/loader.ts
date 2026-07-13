@@ -62,6 +62,7 @@ export class AssemblyLineLoadError extends Error {
     public readonly source?: string,
   ) {
     const where = source ? ` [${source}]` : "";
+
     super(`${message}${where}`);
     this.name = "AssemblyLineLoadError";
   }
@@ -78,6 +79,7 @@ export function parseAssemblyLine(
   source = "<inline>",
 ): AssemblyLine {
   let raw: unknown;
+
   try {
     raw = parseYaml(yamlSrc);
   } catch (err) {
@@ -88,15 +90,19 @@ export function parseAssemblyLine(
   }
 
   const parsed = AssemblyLineSchema.safeParse(raw);
+
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
       .join("; ");
+
     throw new AssemblyLineLoadError(`Schema violation: ${issues}`, source);
   }
 
   const wf = parsed.data;
+
   validateAssemblyLine(wf, source);
+
   return wf;
 }
 
@@ -104,6 +110,7 @@ export async function loadAssemblyLineFile(
   filepath: string,
 ): Promise<AssemblyLine> {
   const yamlSrc = await fs.readFile(filepath, "utf-8");
+
   return parseAssemblyLine(yamlSrc, filepath);
 }
 
@@ -115,6 +122,7 @@ export async function loadAssemblyLineDir(
   dir: string,
 ): Promise<Map<string, AssemblyLine>> {
   let entries: string[];
+
   try {
     entries = await fs.readdir(dir);
   } catch (err) {
@@ -127,8 +135,10 @@ export async function loadAssemblyLineDir(
     (e) => e.endsWith(".yaml") || e.endsWith(".yml"),
   );
   const out = new Map<string, AssemblyLine>();
+
   for (const f of yamls) {
     const wf = await loadAssemblyLineFile(path.join(dir, f));
+
     enforceTrue(
       !out.has(wf.name),
       new AssemblyLineLoadError(
@@ -138,6 +148,7 @@ export async function loadAssemblyLineDir(
     );
     out.set(wf.name, wf);
   }
+
   return out;
 }
 
@@ -173,8 +184,10 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   // Reachability from entry (BFS).
   const reachable = new Set<string>([wf.entry]);
   const queue: string[] = [wf.entry];
+
   while (queue.length > 0) {
     const cur = queue.shift()!;
+
     for (const e of wf.edges) {
       if (e.from === cur && !reachable.has(e.to)) {
         reachable.add(e.to);
@@ -182,6 +195,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
       }
     }
   }
+
   for (const id of nodeIds) {
     enforceTrue(
       reachable.has(id),
@@ -194,8 +208,11 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
 
   // Every non-exit node has at least one outgoing edge.
   for (const n of wf.nodes) {
-    if (n.id === wf.exit) continue;
+    if (n.id === wf.exit) {
+      continue;
+    }
     const hasOut = wf.edges.some((e) => e.from === n.id);
+
     enforceTrue(
       hasOut,
       new AssemblyLineLoadError(
@@ -219,14 +236,23 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
 
 function detectCycles(wf: AssemblyLine, source: string): void {
   const adj = new Map<string, AssemblyLineEdge[]>();
-  for (const n of wf.nodes) adj.set(n.id, []);
-  for (const e of wf.edges) adj.get(e.from)!.push(e);
+
+  for (const n of wf.nodes) {
+    adj.set(n.id, []);
+  }
+
+  for (const e of wf.edges) {
+    adj.get(e.from)!.push(e);
+  }
 
   const WHITE = 0;
   const GRAY = 1;
   const BLACK = 2;
   const color = new Map<string, number>();
-  for (const n of wf.nodes) color.set(n.id, WHITE);
+
+  for (const n of wf.nodes) {
+    color.set(n.id, WHITE);
+  }
 
   // Iterative DFS with explicit stack. Each frame holds the node id
   // and an index into its outgoing edge list — when we exhaust edges,
@@ -234,15 +260,19 @@ function detectCycles(wf: AssemblyLine, source: string): void {
   // reachability above, and won't blow the stack on deeply-nested
   // hand-authored YAML.
   for (const start of wf.nodes) {
-    if (color.get(start.id) !== WHITE) continue;
+    if (color.get(start.id) !== WHITE) {
+      continue;
+    }
     const stack: Array<{ id: string; edgeIndex: number }> = [
       { id: start.id, edgeIndex: 0 },
     ];
+
     color.set(start.id, GRAY);
 
     while (stack.length > 0) {
       const frame = stack[stack.length - 1];
       const edges = adj.get(frame.id) ?? [];
+
       if (frame.edgeIndex >= edges.length) {
         color.set(frame.id, BLACK);
         stack.pop();
@@ -250,6 +280,7 @@ function detectCycles(wf: AssemblyLine, source: string): void {
       }
       const e = edges[frame.edgeIndex++];
       const c = color.get(e.to);
+
       if (c === GRAY) {
         if (!e.iteration_max) {
           throw new AssemblyLineLoadError(

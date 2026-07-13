@@ -21,6 +21,7 @@ describe("slugify", () => {
   it("truncates to 30 characters", () => {
     const long =
       "this is a very long description that exceeds thirty characters";
+
     expect(slugify(long).length).toBeLessThanOrEqual(30);
   });
 
@@ -35,6 +36,7 @@ describe("slugify", () => {
   it("does not leave a trailing hyphen when the 30-char cut lands on a dash", () => {
     // 29 'a's, then a word boundary: the dash falls at index 29, inside the cut.
     const slug = slugify(`${"a".repeat(29)} tail`);
+
     expect(slug).toBe("a".repeat(29));
     expect(slug.endsWith("-")).toBe(false);
   });
@@ -104,6 +106,7 @@ describe("buildPrompt", () => {
     const cfg = taskTypes.get(taskType) ?? taskTypes.get("general");
     const template =
       cfg?.prompt_template ?? "Complete the following task: {description}";
+
     return template.replace("{description}", description);
   }
 
@@ -111,6 +114,7 @@ describe("buildPrompt", () => {
     const types = new Map([
       ["implementation", { prompt_template: "Implement: {description}" }],
     ]);
+
     expect(buildPrompt("implementation", "add health check", types)).toBe(
       "Implement: add health check",
     );
@@ -120,6 +124,7 @@ describe("buildPrompt", () => {
     const types = new Map([
       ["general", { prompt_template: "General task: {description}" }],
     ]);
+
     expect(buildPrompt("unknown-type", "do something", types)).toBe(
       "General task: do something",
     );
@@ -127,6 +132,7 @@ describe("buildPrompt", () => {
 
   it("falls back to hardcoded default when both type and general are missing", () => {
     const types = new Map<string, { prompt_template: string }>();
+
     expect(buildPrompt("anything", "my task", types)).toBe(
       "Complete the following task: my task",
     );
@@ -136,6 +142,7 @@ describe("buildPrompt", () => {
     const types = new Map([
       ["review", { prompt_template: "Review this PR: {description}" }],
     ]);
+
     expect(buildPrompt("review", "PR #42 on re-cinq/lore", types)).toBe(
       "Review this PR: PR #42 on re-cinq/lore",
     );

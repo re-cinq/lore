@@ -51,6 +51,7 @@ const trace: AssemblyTrace = {
 describe("buildTagTree", () => {
   it("nests context → section → document and drops omitted sections", () => {
     const root = buildTagTree(trace);
+
     expect(root.tag).toBe("context");
     expect(root.attrs).toContainEqual(["budget", "8000"]);
     // only the included section appears
@@ -62,6 +63,7 @@ describe("buildTagTree", () => {
   it("renders document provenance as attributes and marks only the last as truncated", () => {
     const section = buildTagTree(trace).children![0];
     const [first, last] = section.children!;
+
     expect(first.attrs).toContainEqual(["relevance", "0.50"]);
     expect(first.attrs.some(([k]) => k === "truncated")).toBe(false);
     expect(last.attrs).toContainEqual(["truncated", "true"]);

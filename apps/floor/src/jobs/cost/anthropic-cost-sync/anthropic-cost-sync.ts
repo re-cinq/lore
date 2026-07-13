@@ -23,11 +23,15 @@ async function fetchAllBuckets(
 
   do {
     const url = new URL(`${ADMIN_BASE}/${endpoint}`);
+
     for (const [key, value] of Object.entries(baseParams)) {
       url.searchParams.set(key, value);
     }
     url.searchParams.append("group_by[]", groupBy);
-    if (page) url.searchParams.set("page", page);
+
+    if (page) {
+      url.searchParams.set("page", page);
+    }
 
     const res = await fetch(url, {
       headers: {
@@ -35,6 +39,7 @@ async function fetchAllBuckets(
         "anthropic-version": ANTHROPIC_VERSION,
       },
     });
+
     if (!res.ok) {
       throw new Error(
         `Anthropic ${endpoint} returned ${res.status}: ${await res.text()}`,
@@ -46,7 +51,10 @@ async function fetchAllBuckets(
       has_more?: boolean;
       next_page?: string | null;
     };
-    if (Array.isArray(body.data)) buckets.push(...body.data);
+
+    if (Array.isArray(body.data)) {
+      buckets.push(...body.data);
+    }
     page = body.has_more ? (body.next_page ?? null) : null;
   } while (page);
 
@@ -67,6 +75,7 @@ function upsertRow(row: AnthropicCostDailyRow): Promise<void> {
 
 export async function anthropicCostSyncJob(): Promise<string> {
   const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
+
   if (!adminKey) {
     return "ANTHROPIC_ADMIN_KEY not set; skipping Anthropic org cost sync";
   }
@@ -93,5 +102,6 @@ export async function anthropicCostSyncJob(): Promise<string> {
   await Promise.all(merged.map(upsertRow));
 
   const total = merged.reduce((sum, row) => sum + row.costUsd, 0);
+
   return `Synced ${merged.length} day/model rows over ${SYNC_WINDOW_DAYS}d ($${total.toFixed(2)} billed)`;
 }

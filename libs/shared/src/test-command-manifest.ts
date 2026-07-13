@@ -21,6 +21,7 @@ export interface TestCommandManifest {
 
 export function parseTestCommandManifest(raw: unknown): TestCommandManifest[] {
   const entries = Array.isArray(raw) ? raw : [raw];
+
   return entries.map(normalizeEntry);
 }
 
@@ -33,7 +34,10 @@ export function resolveTestCommandManifest(sources: {
   settings?: unknown;
   file?: unknown;
 }): TestCommandManifest[] | null {
-  if (!isManifestDeclared(sources)) return null;
+  if (!isManifestDeclared(sources)) {
+    return null;
+  }
+
   return parseTestCommandManifest(sources.settings ?? sources.file);
 }
 
@@ -59,7 +63,11 @@ export function decideTestInterfaceCheck(sources: {
   const declared =
     sources.manifestFileDeclared ||
     isManifestDeclared({ settings: sources.settingsTestCommands });
-  if (declared) return { status: "configured" };
+
+  if (declared) {
+    return { status: "configured" };
+  }
+
   return {
     status: "scaffold",
     files: [".lore/test-commands.yml", ".github/workflows/lore-tests.yml"],

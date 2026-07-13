@@ -4,6 +4,7 @@ import { InMemoryAudit } from "./audit-memory.js";
 describe("InMemoryAudit", () => {
   it("captures written entries for assertion", async () => {
     const audit = new InMemoryAudit();
+
     await audit.write({
       event_type: "lease_expired",
       task_id: "t1",

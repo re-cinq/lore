@@ -38,6 +38,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     ];
     const { container } = renderSpec(md, statements);
     const mark = container.querySelector('mark[data-state="tested"]');
+
     expect(mark).not.toBeNull();
     expect(mark?.className).toContain("stmt-tested");
   });
@@ -56,6 +57,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
       }),
     ];
     const { container } = renderSpec(md, statements);
+
     expect(container.querySelector('mark[data-drifted="true"]')).not.toBeNull();
   });
 
@@ -74,6 +76,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     ];
     const { container } = renderSpec(md, statements);
     const mark = container.querySelector('mark[data-drifted="true"]');
+
     expect(mark?.className).toContain("stmt-drifted");
   });
 
@@ -89,6 +92,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     ];
     const { container } = renderSpec(md, statements);
     const mark = container.querySelector('mark[data-state="untested"]');
+
     expect(mark?.className).toContain("stmt-untested");
   });
 
@@ -104,6 +108,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
       }),
     ];
     const { container } = renderSpec(md, statements);
+
     expect(
       container.querySelector('mark[data-state="narrative"]'),
     ).not.toBeNull();
@@ -131,6 +136,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     const link = container.querySelector<HTMLAnchorElement>(
       `a[href="${gh("agent/src/lib/redact.test.ts#L7")}"]`,
     );
+
     expect(link).not.toBeNull();
     expect(link?.getAttribute("target")).toEqual("_blank");
     expect(link?.getAttribute("rel")).toEqual("noopener noreferrer");
@@ -154,6 +160,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     const adrLink = container.querySelector(
       `a[href="${gh("adrs/ADR-015.md")}"]`,
     );
+
     expect(adrLink?.className ?? "").not.toContain("stmt-test-link");
     expect(adrLink?.getAttribute("target")).toEqual("_blank");
     expect(
@@ -176,6 +183,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     const link = container.querySelector<HTMLAnchorElement>(
       'a[href="src/x.test.ts#L1"]',
     );
+
     expect(link).not.toBeNull();
     expect(link?.getAttribute("target")).toBeNull();
   });
@@ -193,8 +201,10 @@ describe("SpecDetails v3 (markdown-driven)", () => {
       }),
     ];
     const { container } = renderSpec(md, statements);
+
     fireEvent.mouseOver(container.querySelector('mark[data-ordinal="0"]')!);
     const link = screen.getByRole("tooltip").querySelector("a");
+
     expect(link?.getAttribute("href")).toEqual(gh("src/x.test.ts#L1"));
     expect(link?.getAttribute("target")).toEqual("_blank");
     expect(link?.getAttribute("rel")).toEqual("noopener noreferrer");
@@ -214,6 +224,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
       }),
     ];
     const { container } = renderSpec(md, statements);
+
     fireEvent.mouseOver(container.querySelector('mark[data-ordinal="0"]')!);
     expect(screen.getByRole("tooltip").textContent).toMatch(/drift/i);
   });
@@ -223,6 +234,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     const statements = [
       stmt({ ordinal: 0, text: "Plain.", state: "untested" }),
     ];
+
     renderSpec(md, statements);
     expect(screen.queryByText(/Tests validating this spec/)).toBeNull();
     expect(screen.queryByText(/list-only/)).toBeNull();
@@ -242,6 +254,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     ];
     const { container } = renderSpec(md, statements);
     const mark = container.querySelector('mark[data-state="tested"]');
+
     expect(mark?.className).toContain("stmt-tested");
     expect(
       container.querySelector(`a[href="${gh("src/x.test.ts#L1")}"]`),
@@ -262,6 +275,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     ];
     const { container } = renderSpec(md, statements);
     const mark = container.querySelector('mark[data-state="tested"]');
+
     expect(mark?.className).toContain("stmt-tested");
     expect(mark?.getAttribute("data-ordinal")).toEqual("0");
     expect(container.querySelector("code")?.textContent).toEqual("covered");
@@ -282,6 +296,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     const { container, rerender } = render(
       <SpecDetails repo={REPO} content={md} statements={statements} />,
     );
+
     expect(container.querySelector('mark[data-state="tested"]')).not.toBeNull();
     rerender(<SpecDetails repo={REPO} content={md} statements={statements} />);
     expect(container.querySelector('mark[data-state="tested"]')).not.toBeNull();
@@ -300,6 +315,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
       }),
     ];
     const { container } = renderSpec(md, statements);
+
     expect(
       container.querySelector('mark[data-state="tested"]')?.className,
     ).toContain("stmt-tested");

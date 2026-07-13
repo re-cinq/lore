@@ -36,13 +36,18 @@ export function parsePromptfooStats(stdout: string): PromptfooStats | null {
       stats?: { passRate?: number; passes?: number; total?: number };
     };
   };
+
   try {
     output = JSON.parse(stdout);
   } catch {
     return null;
   }
   const stats = output.stats ?? output.results?.stats;
-  if (!stats || typeof stats.passRate !== "number") return null;
+
+  if (!stats || typeof stats.passRate !== "number") {
+    return null;
+  }
+
   return {
     passRate: stats.passRate,
     passes: stats.passes ?? null,
@@ -54,6 +59,7 @@ export function parsePromptfooStats(stdout: string): PromptfooStats | null {
 export async function isPromptfooAvailable(): Promise<boolean> {
   try {
     await execFileAsync("npx", ["promptfoo", "--version"], { timeout: 10_000 });
+
     return true;
   } catch {
     return false;
@@ -71,7 +77,10 @@ export async function runPromptfooEval(opts: {
     () => true,
     () => false,
   );
-  if (!configExists) return { ok: false, reason: "config-missing" };
+
+  if (!configExists) {
+    return { ok: false, reason: "config-missing" };
+  }
 
   try {
     const { stdout } = await execFileAsync(
@@ -89,6 +98,7 @@ export async function runPromptfooEval(opts: {
       { timeout: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS, maxBuffer: MAX_BUFFER },
     );
     const stats = parsePromptfooStats(stdout);
+
     return stats ? { ok: true, stats } : { ok: false, reason: "no-stats" };
   } catch (error) {
     return { ok: false, reason: "exec-failed", error };

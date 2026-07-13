@@ -73,6 +73,7 @@ export async function handleClaudeCodeTask(
   // the agent-watcher resolves it later. See ADR-028.
   if (result.completion) {
     const { finalizeStationRun } = await import("./finalize-station-run.js");
+
     await finalizeStationRun({
       task,
       targetRepo,
@@ -80,6 +81,7 @@ export async function handleClaudeCodeTask(
       completion: result.completion,
       project,
     });
+
     return;
   }
 

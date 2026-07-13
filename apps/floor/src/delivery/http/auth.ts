@@ -20,6 +20,7 @@ import type { Server, ServerAuthScheme } from "@hapi/hapi";
 function tokensMatch(provided: string, expected: string): boolean {
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
+
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
@@ -32,6 +33,7 @@ interface BearerOptions {
 const bearerScheme: ServerAuthScheme = (_server, options) => {
   const { token, unconfiguredStatusCode, unconfiguredMessage } =
     options as BearerOptions;
+
   return {
     authenticate(request, h) {
       enforceTrue(
@@ -46,9 +48,11 @@ const bearerScheme: ServerAuthScheme = (_server, options) => {
         "Bearer ",
         "",
       );
+
       enforceTrue(provided !== undefined && tokensMatch(provided, token), () =>
         Boom.unauthorized("unauthorized"),
       );
+
       return h.authenticated({ credentials: {} });
     },
   };

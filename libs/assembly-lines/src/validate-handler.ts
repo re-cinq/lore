@@ -22,6 +22,7 @@ function relayValidationExec(relay: RelayExecutor): ValidationExec {
   return async (command) => {
     const r = await relay.run(command);
     const output = [r.stdout, r.stderr].filter(Boolean).join("\n").trim();
+
     return { output, passed: r.exitCode === 0 };
   };
 }
@@ -39,6 +40,7 @@ export function createValidateHandler(
 ): NodeHandler {
   return async (_node, ctx) => {
     const tooling = detectTooling(ctx.gitDir);
+
     if (tooling.quickChecks.length === 0) {
       return {
         outcome: "success",
@@ -61,6 +63,7 @@ export function createValidateHandler(
     );
 
     const failed = result.steps.filter((s) => !s.passed).map((s) => s.name);
+
     return {
       outcome: result.passed ? "success" : "failed",
       extras: {

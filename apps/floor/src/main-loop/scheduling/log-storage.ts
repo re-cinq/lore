@@ -14,6 +14,7 @@ function getStorage(): Storage {
   if (!storage) {
     storage = new Storage();
   }
+
   return storage;
 }
 
@@ -29,6 +30,7 @@ export async function writeJobRunLogs(
   const redacted = redactSecrets(rawLogs);
   const bucket = getStorage().bucket(BUCKET_NAME);
   const file = bucket.file(jobRunLogKey(jobName, runId));
+
   await file.save(redacted, {
     resumable: false,
     contentType: "text/plain",
@@ -46,8 +48,12 @@ export async function readJobRunLogs(
     const bucket = getStorage().bucket(BUCKET_NAME);
     const file = bucket.file(jobRunLogKey(jobName, runId));
     const [exists] = await file.exists();
-    if (!exists) return null;
+
+    if (!exists) {
+      return null;
+    }
     const [content] = await file.download();
+
     return content.toString("utf-8");
   } catch {
     return null;

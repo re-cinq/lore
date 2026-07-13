@@ -10,14 +10,17 @@ export async function GET(
 ) {
   const { owner, repo } = await params;
   const specPath = new URL(req.url).searchParams.get("spec");
+
   if (!specPath) {
     return NextResponse.json(
       { error: "required: spec query param" },
       { status: 400 },
     );
   }
+
   try {
     const ring = await fetchTraceRing(`${owner}/${repo}`, specPath);
+
     return NextResponse.json(ring);
   } catch (err) {
     return serverError("spec-ring", err);

@@ -38,6 +38,7 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
       { commit: "abc123", files: [{ path: "src/a.ts", ranges: [[1, 5]] }] },
       AUTH,
     );
+
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({
       status: "unavailable",
@@ -53,6 +54,7 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
       { files: [] },
       { authorization: "Bearer not-a-real-token" },
     );
+
     expect(res.statusCode).toBe(403);
   });
 
@@ -64,6 +66,7 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
       headers: AUTH,
       payload: "{not json",
     });
+
     expect(res.statusCode).toBe(400);
   });
 });

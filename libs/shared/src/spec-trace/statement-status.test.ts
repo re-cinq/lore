@@ -49,6 +49,7 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
 
   async function deleteStatementNode(statementXid: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query stmt($sx: string) {
@@ -58,6 +59,7 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
       );
       const data = res.data as { stmts?: { uid: string }[] };
       const uids = (data.stmts ?? []).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -76,6 +78,7 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
     repo: string,
   ): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -85,6 +88,7 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
       );
       const data = res.data as { nodes?: { uid: string }[] };
       const uids = (data.nodes ?? []).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -100,12 +104,16 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
 
   let createdStatementXid = "";
   let createdRepo = "";
+
   afterEach(async () => {
     if (createdRepo) {
       await deleteNodesByRepo("TraceLink.repo", createdRepo);
       await deleteNodesByRepo("TestChunk.repo", createdRepo);
     }
-    if (createdStatementXid) await deleteStatementNode(createdStatementXid);
+
+    if (createdStatementXid) {
+      await deleteStatementNode(createdStatementXid);
+    }
     createdStatementXid = "";
     createdRepo = "";
   });
@@ -113,6 +121,7 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
   it("returns untested for a Statement with no trace links", async () => {
     const repo = `status/${randomUUID()}`;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     await dgraphClient.newTxn().mutate({
@@ -133,6 +142,7 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
   it("returns claimed for a statement whose only trace link is human-linked", async () => {
     const repo = `status/${randomUUID()}`;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdRepo = repo;
     createdStatementXid = statementXid;
 
@@ -178,6 +188,7 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
   it("returns verified-implemented for a statement with an execution-verified trace link", async () => {
     const repo = `status/${randomUUID()}`;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdRepo = repo;
     createdStatementXid = statementXid;
 

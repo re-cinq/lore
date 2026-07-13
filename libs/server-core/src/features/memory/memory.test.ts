@@ -26,10 +26,12 @@ function scriptedPool(scripts: ScriptedRow[]) {
     query: vi.fn(async (sql: string, params: any[] = []) => {
       calls.push({ sql, params });
       const hit = scripts.find((s) => s.match.test(sql));
+
       return { rows: hit ? hit.rows : [] };
     }),
     calls,
   };
+
   return pool;
 }
 
@@ -63,6 +65,7 @@ describe("writeMemory", () => {
         rows: [{ created_at: "2026-06-10" }],
       },
     ]);
+
     setMemoryPool(pool);
 
     const result = await writeMemory("auth-pattern", "use JWT", "agent-7");
@@ -89,6 +92,7 @@ describe("writeMemory", () => {
         rows: [{ created_at: "2026-06-10" }],
       },
     ]);
+
     setMemoryPool(pool);
 
     const result = await writeMemory("auth-pattern", "use JWT", "agent-7");
@@ -97,6 +101,7 @@ describe("writeMemory", () => {
     const update = pool.calls.find((c) =>
       /UPDATE memory\.memories/.test(c.sql),
     );
+
     expect(update?.sql).toMatch(/SET value = \$1, version = \$2/);
   });
 });
@@ -116,6 +121,7 @@ describe("readMemory", () => {
         ],
       },
     ]);
+
     setMemoryPool(pool);
 
     const result = await readMemory("auth-pattern", "agent-7");
@@ -138,6 +144,7 @@ describe("readMemory", () => {
         ],
       },
     ]);
+
     setMemoryPool(pool);
 
     const result = await readMemory("auth-pattern", "agent-7", "all");
@@ -150,6 +157,7 @@ describe("readMemory", () => {
 
   it("returns null when the key does not exist", async () => {
     const pool = scriptedPool([]);
+
     setMemoryPool(pool);
 
     const result = await readMemory("missing", "agent-7");
@@ -161,6 +169,7 @@ describe("readMemory", () => {
 describe("deleteMemory", () => {
   it("soft-deletes by agent and key, returns deleted true", async () => {
     const pool = scriptedPool([]);
+
     setMemoryPool(pool);
 
     const result = await deleteMemory("auth-pattern", "agent-7");
@@ -176,11 +185,13 @@ describe("deleteMemory", () => {
 
   it("writes a delete audit-log entry for the key", async () => {
     const pool = scriptedPool([]);
+
     setMemoryPool(pool);
 
     await deleteMemory("stale-key", "agent-7");
 
     const audit = pool.calls.find((c) => /audit_log/.test(c.sql));
+
     expect(audit?.params).toEqual(["agent-7", "delete", "stale-key", null]);
   });
 });
@@ -194,6 +205,7 @@ describe("listMemories", () => {
       },
       { match: /count\(\*\)::int as total/, rows: [{ total: 1 }] },
     ]);
+
     setMemoryPool(pool);
 
     const result = await listMemories(undefined, 50, 0, "o/r");
@@ -205,6 +217,7 @@ describe("listMemories", () => {
     const listCall = pool.calls.find((c) =>
       /FROM memory\.memories m/.test(c.sql),
     );
+
     expect(listCall?.params).toEqual(["o/r", 50, 0]);
   });
 
@@ -212,6 +225,7 @@ describe("listMemories", () => {
     const pool = scriptedPool([
       { match: /count\(\*\)::int as total/, rows: [{ total: 0 }] },
     ]);
+
     setMemoryPool(pool);
 
     await listMemories("agent-7", 10, 5, "o/r");
@@ -219,6 +233,7 @@ describe("listMemories", () => {
     const listCall = pool.calls.find((c) =>
       /FROM memory\.memories m/.test(c.sql),
     );
+
     expect(listCall?.params).toEqual(["o/r", 10, 5]);
     expect(listCall?.sql).toMatch(/repo = \$1 AND/);
   });
@@ -227,6 +242,7 @@ describe("listMemories", () => {
     const pool = scriptedPool([
       { match: /count\(\*\)::int as total/, rows: [{ total: 3 }] },
     ]);
+
     setMemoryPool(pool);
 
     const result = await listMemories("agent-7", 50, 0);
@@ -235,6 +251,7 @@ describe("listMemories", () => {
     const countCall = pool.calls.find((c) =>
       /count\(\*\)::int as total/.test(c.sql),
     );
+
     expect(countCall?.params).toEqual(["agent-7"]);
   });
 
@@ -242,6 +259,7 @@ describe("listMemories", () => {
     const pool = scriptedPool([
       { match: /count\(\*\)::int as total/, rows: [{ total: 9 }] },
     ]);
+
     setMemoryPool(pool);
 
     await listMemories(undefined, 20, 0);
@@ -249,10 +267,12 @@ describe("listMemories", () => {
     const listCall = pool.calls.find((c) =>
       /FROM memory\.memories m/.test(c.sql),
     );
+
     expect(listCall?.params).toEqual([20, 0]);
     const countCall = pool.calls.find((c) =>
       /count\(\*\)::int as total/.test(c.sql),
     );
+
     expect(countCall?.params).toEqual([]);
   });
 });
@@ -267,6 +287,7 @@ describe("agentHealth", () => {
         ],
       },
     ]);
+
     setMemoryPool(pool);
 
     const result = await agentHealth("agent-7");
@@ -297,6 +318,7 @@ describe("agentStats", () => {
         ],
       },
     ]);
+
     setMemoryPool(pool);
 
     const result = await agentStats("agent-7");

@@ -75,6 +75,7 @@ describe("captureBaselineAllRepos", () => {
       },
       baselineStats: async (repo) => {
         enforceTrue(repo !== "re-cinq/bad", new Error("boom"));
+
         return { issues_count: 1, median_ttm_hours: 5 };
       },
     };

@@ -12,11 +12,13 @@ export function initPool(): pg.Pool {
     password: process.env.LORE_DB_PASSWORD,
     max: 5,
   });
+
   return pool;
 }
 
 export function getPool(): pg.Pool {
   enforceTrue(pool, "DB pool not initialized — call initPool() first");
+
   return pool;
 }
 
@@ -25,6 +27,7 @@ export async function query<T = any>(
   params?: any[],
 ): Promise<T[]> {
   const { rows } = await getPool().query(text, params);
+
   return rows as T[];
 }
 
@@ -33,12 +36,14 @@ export async function queryOne<T = any>(
   params?: any[],
 ): Promise<T | null> {
   const rows = await query<T>(text, params);
+
   return rows[0] || null;
 }
 
 export async function isDbAvailable(): Promise<boolean> {
   try {
     await getPool().query("SELECT 1");
+
     return true;
   } catch {
     return false;

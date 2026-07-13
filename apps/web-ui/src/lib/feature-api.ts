@@ -16,7 +16,11 @@ async function send<T>(
 ): Promise<FeatureApiResult<T>> {
   const apiUrl = process.env.LORE_API_URL;
   const token = process.env.LORE_ADMIN_TOKEN ?? process.env.LORE_INGEST_TOKEN;
-  if (!apiUrl || !token) return { status: "unconfigured" };
+
+  if (!apiUrl || !token) {
+    return { status: "unconfigured" };
+  }
+
   try {
     const res = await fetch(`${apiUrl}/api/repos/${repo}/features${path}`, {
       method,
@@ -28,11 +32,14 @@ async function send<T>(
       cache: "no-store",
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok)
+
+    if (!res.ok) {
       return {
         status: "error",
         message: (data as { error?: string }).error ?? `HTTP ${res.status}`,
       };
+    }
+
     return { status: "ok", data: data as T };
   } catch (err) {
     return { status: "error", message: (err as Error).message };

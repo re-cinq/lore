@@ -59,10 +59,18 @@ const isTerminalPhase = (phase?: string): boolean =>
 export function parseReviewVerdict(
   output?: string,
 ): "success" | "changes_requested" | null {
-  if (!output) return null;
-  if (/REVIEW_RESULT:\s*CHANGES_REQUESTED/i.test(output))
+  if (!output) {
+    return null;
+  }
+
+  if (/REVIEW_RESULT:\s*CHANGES_REQUESTED/i.test(output)) {
     return "changes_requested";
-  if (/REVIEW_RESULT:\s*APPROVED/i.test(output)) return "success";
+  }
+
+  if (/REVIEW_RESULT:\s*APPROVED/i.test(output)) {
+    return "success";
+  }
+
   return null;
 }
 
@@ -73,8 +81,12 @@ export function parseReviewVerdict(
  */
 export function parseNodeResult(output?: string): NodeResult | null {
   const match = output?.match(/LORE_NODE_RESULT:\s*(\{.*\})/);
-  if (!match) return null;
+
+  if (!match) {
+    return null;
+  }
   let payload: unknown;
+
   try {
     payload = JSON.parse(match[1]);
   } catch {
@@ -84,11 +96,18 @@ export function parseNodeResult(output?: string): NodeResult | null {
     outcome?: string;
     extras?: Record<string, unknown>;
   };
-  if (!OUTCOMES.has(outcome as StageOutcome)) return null;
-  const stringExtras: Record<string, string> = {};
-  for (const [key, value] of Object.entries(extras ?? {})) {
-    if (typeof value === "string") stringExtras[key] = value;
+
+  if (!OUTCOMES.has(outcome as StageOutcome)) {
+    return null;
   }
+  const stringExtras: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(extras ?? {})) {
+    if (typeof value === "string") {
+      stringExtras[key] = value;
+    }
+  }
+
   return { outcome: outcome as StageOutcome, extras: stringExtras };
 }
 
@@ -112,10 +131,15 @@ export function stationNodeOutcome(
     };
   }
   const stationResult = parseNodeResult(status.output);
-  if (stationResult) return stationResult;
+
+  if (stationResult) {
+    return stationResult;
+  }
+
   if (parseReviewVerdict(status.output) === "changes_requested") {
     return { outcome: "changes_requested" };
   }
+
   return { outcome: "success" };
 }
 
@@ -137,14 +161,17 @@ export function createStationNodeHandler(deps: AgentNodeDeps): NodeHandler {
       : defaultMaxPolls;
 
     await deps.launch(node, ctx);
+
     for (let poll = 0; poll < maxPolls; poll++) {
       await deps.heartbeat(ctx.branchName, node.id);
       const status = await deps.poll(ctx.assemblyLineId, node.id);
+
       if (status && isTerminalPhase(status.phase)) {
         return stationNodeOutcome(node, status);
       }
       await deps.sleep(intervalMs);
     }
+
     return {
       outcome: "failed",
       extras: {

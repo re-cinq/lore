@@ -10,8 +10,15 @@ import type { Request } from "@hapi/hapi";
 
 export function rawBody(request: Request): string {
   const payload = request.payload;
-  if (Buffer.isBuffer(payload)) return payload.toString("utf8");
-  if (typeof payload === "string") return payload;
+
+  if (Buffer.isBuffer(payload)) {
+    return payload.toString("utf8");
+  }
+
+  if (typeof payload === "string") {
+    return payload;
+  }
+
   return "";
 }
 

@@ -31,8 +31,11 @@ async function withRetry<T>(
     try {
       return await fn();
     } catch (err) {
-      if (i === attempts - 1) throw err;
+      if (i === attempts - 1) {
+        throw err;
+      }
       const delay = baseDelayMs * Math.pow(3, i); // 1s, 3s, 9s
+
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
@@ -51,6 +54,7 @@ function parseFacts(raw: string): string[] {
       .replace(/```/g, "")
       .trim();
     const parsed = JSON.parse(cleaned);
+
     if (Array.isArray(parsed)) {
       return parsed
         .filter(
@@ -100,7 +104,9 @@ async function invalidateContradictions(
       [embeddingStr, newFactId, SIMILARITY_THRESHOLD],
     );
 
-    if (rows.length === 0) return 0;
+    if (rows.length === 0) {
+      return 0;
+    }
 
     for (const row of rows) {
       // Record the conflict before invalidating
@@ -143,6 +149,7 @@ async function invalidateContradictions(
     return rows.length;
   } catch (err) {
     console.warn("[facts] Contradiction detection failed (non-fatal):", err);
+
     return 0;
   }
 }
@@ -156,6 +163,7 @@ async function getAgentIdForMemory(
       `SELECT agent_id FROM memory.memories WHERE id = $1`,
       [memoryId],
     );
+
     return rows[0]?.agent_id || null;
   } catch {
     return null;
@@ -171,6 +179,7 @@ export async function extractFacts(
 ): Promise<void> {
   try {
     let rawResponse: string;
+
     try {
       rawResponse = await withRetry(() =>
         Llm.instance
@@ -186,6 +195,7 @@ export async function extractFacts(
         "[facts] LLM unreachable after 3 attempts, skipping fact extraction:",
         err,
       );
+
       return;
     }
 
@@ -193,6 +203,7 @@ export async function extractFacts(
 
     if (facts.length === 0) {
       console.warn("[facts] No facts extracted from LLM response");
+
       return;
     }
 
@@ -218,6 +229,7 @@ export async function extractFacts(
             embeddingStr,
             agentId,
           );
+
           totalInvalidated += invalidated;
         }
       } catch (err) {
@@ -232,6 +244,7 @@ export async function extractFacts(
       totalInvalidated > 0
         ? `, invalidated ${totalInvalidated} stale facts`
         : "";
+
     console.log(
       `[facts] Extracted and stored ${facts.length} facts for memory ${memoryId}${invalidMsg}`,
     );
@@ -251,6 +264,7 @@ export async function extractFactsFromEpisode(
 ): Promise<void> {
   try {
     let rawResponse: string;
+
     try {
       rawResponse = await withRetry(() =>
         Llm.instance
@@ -263,11 +277,15 @@ export async function extractFactsFromEpisode(
       );
     } catch (err) {
       console.warn("[facts] LLM unreachable for episode extraction:", err);
+
       return;
     }
 
     const facts = parseFacts(rawResponse);
-    if (facts.length === 0) return;
+
+    if (facts.length === 0) {
+      return;
+    }
 
     let totalInvalidated = 0;
 
@@ -290,6 +308,7 @@ export async function extractFactsFromEpisode(
             embeddingStr,
             agentId,
           );
+
           totalInvalidated += invalidated;
         }
       } catch (err) {
@@ -304,6 +323,7 @@ export async function extractFactsFromEpisode(
       totalInvalidated > 0
         ? `, invalidated ${totalInvalidated} stale facts`
         : "";
+
     console.log(
       `[facts] Extracted ${facts.length} facts from episode ${episodeId}${invalidMsg}`,
     );

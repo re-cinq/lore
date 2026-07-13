@@ -44,6 +44,7 @@ describe("GET /api/tasks", () => {
   it("defaults to limit 20 offset 0 and echoes them", async () => {
     vi.mocked(listTasks).mockResolvedValue({ tasks: [], total: 0 });
     const res = await get("/api/tasks");
+
     expect(listTasks).toHaveBeenCalledWith(undefined, 20, 0);
     expect(res.result).toMatchObject({ limit: 20, offset: 0 });
   });
@@ -51,6 +52,7 @@ describe("GET /api/tasks", () => {
   it("passes offset through and returns paging metadata alongside rows", async () => {
     vi.mocked(listTasks).mockResolvedValue({ tasks: [{ id: 2 }], total: 7 });
     const res = await get("/api/tasks?limit=5&offset=10");
+
     expect(listTasks).toHaveBeenCalledWith(undefined, 5, 10);
     expect(res.result).toEqual({
       tasks: [{ id: 2 }],
@@ -62,17 +64,20 @@ describe("GET /api/tasks", () => {
 
   it("returns 400 for a negative offset", async () => {
     const res = await get("/api/tasks?offset=-1");
+
     expect(res.statusCode).toBe(400);
   });
 
   it("returns 500 when listTasks throws", async () => {
     vi.mocked(listTasks).mockRejectedValue(new Error("fail"));
     const res = await get("/api/tasks");
+
     expect(res.statusCode).toBe(500);
   });
 
   it("returns 400 when status has an invalid shape", async () => {
     const res = await get("/api/tasks?status=Broken!");
+
     expect(res.statusCode).toBe(400);
   });
 });

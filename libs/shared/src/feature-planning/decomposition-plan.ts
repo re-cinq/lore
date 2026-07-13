@@ -42,8 +42,15 @@ export function specTaskRows(
       phase: task.phase,
       feature_id: ctx.featureId,
     };
-    if (task.file_path) metadata.file_path = task.file_path;
-    if (ctx.storyIssue !== undefined) metadata.story_issue = ctx.storyIssue;
+
+    if (task.file_path) {
+      metadata.file_path = task.file_path;
+    }
+
+    if (ctx.storyIssue !== undefined) {
+      metadata.story_issue = ctx.storyIssue;
+    }
+
     return { title: `${task.id}: ${task.description}`, metadata };
   });
 }
@@ -54,6 +61,7 @@ export function storyIssueBody(
   opts: { specPath: string; featureTitle: string },
 ): string {
   const parts = [story.summary, ""];
+
   if (story.acceptance_criteria.length) {
     parts.push(
       "## Acceptance criteria",
@@ -61,6 +69,7 @@ export function storyIssueBody(
       "",
     );
   }
+
   if (story.tasks.length) {
     parts.push(
       "## Tasks",
@@ -72,5 +81,6 @@ export function storyIssueBody(
     "---",
     `Decomposed from **${opts.featureTitle}** — spec: \`${opts.specPath}\`.`,
   );
+
   return parts.join("\n");
 }

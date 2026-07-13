@@ -22,6 +22,7 @@ async function checkRepoAccess(
         Accept: "application/vnd.github+json",
       },
     });
+
     return res.ok;
   } catch {
     return false;
@@ -38,6 +39,7 @@ export async function GET(
     const session = (await getServerSession(authOptions)) as {
       accessToken?: string;
     } | null;
+
     if (!session?.accessToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -46,6 +48,7 @@ export async function GET(
       `SELECT id, status, target_repo FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
+
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
@@ -54,6 +57,7 @@ export async function GET(
       session.accessToken,
       task.target_repo,
     );
+
     if (!hasAccess) {
       return NextResponse.json(
         { error: "Access denied — you do not have access to this repo" },
@@ -65,6 +69,7 @@ export async function GET(
     // does the GitHub commit walk + trailer parsing.
     const apiUrl = process.env.LORE_API_URL;
     const apiToken = process.env.LORE_INGEST_TOKEN;
+
     if (!apiUrl || !apiToken) {
       return NextResponse.json(
         { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
@@ -77,6 +82,7 @@ export async function GET(
       { headers: { Authorization: `Bearer ${apiToken}` } },
     );
     const body = await upstream.text();
+
     return new NextResponse(body, {
       status: upstream.status,
       headers: { "Content-Type": "application/json" },

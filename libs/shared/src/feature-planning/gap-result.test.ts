@@ -67,6 +67,7 @@ describe("parseGapResult", () => {
 
   it("throws when draft_spec_markdown is missing", () => {
     const { draft_spec_markdown: _omit, ...rest } = validResult;
+
     expect(() => parseGapResult(rest)).toThrow(/draft_spec_markdown/);
   });
 
@@ -82,6 +83,7 @@ describe("parseGapResult", () => {
       ],
       draft_spec_markdown: "x",
     };
+
     expect(() => parseGapResult(bad)).toThrow(/options/);
   });
 
@@ -103,6 +105,7 @@ describe("parseGapResult", () => {
       ],
       draft_spec_markdown: "x",
     };
+
     expect(parseGapResult(drift).sections[0].questions?.[0]).toEqual({
       id: "q1",
       question: "Which path?",
@@ -117,6 +120,7 @@ describe("parseGapResult", () => {
       sections: [{ title: "D", mockups: ['<svg viewBox="0 0 10 10"></svg>'] }],
       draft_spec_markdown: "x",
     };
+
     expect(parseGapResult(drift).sections[0].mockups?.[0]).toEqual({
       title: "Mockup 1",
       format: "svg",
@@ -126,6 +130,7 @@ describe("parseGapResult", () => {
 
   it("normalizes a legacy architecture/user_flows payload into sections", () => {
     const r = parseGapResult(structuredClone(legacyPayload));
+
     expect(r.sections.map((s) => s.title)).toEqual([
       "Architecture",
       "User flows",
@@ -169,6 +174,7 @@ describe("parseGapResult", () => {
       ],
       draft_spec_markdown: "x",
     };
+
     expect(() => parseGapResult(bad)).toThrow(/options must be non-empty/);
   });
 
@@ -178,6 +184,7 @@ describe("parseGapResult", () => {
       split_suggestion: { rationale: "too big" },
       draft_spec_markdown: "x",
     };
+
     expect(() => parseGapResult(bad)).toThrow(
       /proposed_features must be an array/,
     );
@@ -235,6 +242,7 @@ describe("sanitizeSvg", () => {
 
   it("keeps a clean svg with a fragment href unchanged", () => {
     const clean = '<svg viewBox="0 0 10 10"><use href="#a"/></svg>';
+
     expect(sanitizeSvg(clean)).toBe(clean);
   });
 });
@@ -256,6 +264,7 @@ describe("sanitizeGapResult", () => {
       ],
       draft_spec_markdown: "x",
     });
+
     expect(sanitizeGapResult(g).sections[0].mockups?.[0].markup).toBe(
       "<svg><rect/></svg>",
     );
@@ -276,6 +285,7 @@ describe("decideFeatureStatus", () => {
       },
       draft_spec_markdown: "# spec",
     };
+
     expect(decideFeatureStatus(withSplit)).toBe("awaiting-input");
   });
 
@@ -287,6 +297,7 @@ describe("decideFeatureStatus", () => {
       ],
       draft_spec_markdown: "# spec",
     };
+
     expect(decideFeatureStatus(ready)).toBe("spec-ready");
   });
 });

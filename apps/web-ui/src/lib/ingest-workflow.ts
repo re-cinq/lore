@@ -82,6 +82,7 @@ export type IngestWorkflowStatus = "missing" | "stale" | "aligned";
 /** Read the `# lore-ingest-version: N` marker, or null when absent. */
 export function parseIngestWorkflowVersion(content: string): number | null {
   const match = content.match(/^#\s*lore-ingest-version:\s*(\d+)/m);
+
   return match ? parseInt(match[1], 10) : null;
 }
 
@@ -93,8 +94,11 @@ export function parseIngestWorkflowVersion(content: string): number | null {
 export function ingestWorkflowStatus(
   content: string | null,
 ): IngestWorkflowStatus {
-  if (content === null) return "missing";
+  if (content === null) {
+    return "missing";
+  }
   const version = parseIngestWorkflowVersion(content);
+
   return version !== null && version >= LORE_INGEST_WORKFLOW_VERSION
     ? "aligned"
     : "stale";

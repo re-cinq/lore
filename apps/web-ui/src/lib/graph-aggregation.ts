@@ -43,6 +43,7 @@ export function aggregateLeaves(
   // A degree-1 node appears in exactly one link, so its single opposite endpoint
   // is its parent. (Hubs get overwritten here, but we never read theirs.)
   const parentOf = new Map<string, string>();
+
   for (const { source, target } of links) {
     parentOf.set(source, target);
     parentOf.set(target, source);
@@ -50,17 +51,31 @@ export function aggregateLeaves(
 
   const hidden = new Set<string>();
   const groups = new Map<string, LeafBadge>();
+
   for (const node of nodes) {
-    if (!collapsibleTypes.has(node.type)) continue;
-    if ((degree.get(node.id) ?? 0) !== 1) continue;
+    if (!collapsibleTypes.has(node.type)) {
+      continue;
+    }
+
+    if ((degree.get(node.id) ?? 0) !== 1) {
+      continue;
+    }
     const parentId = parentOf.get(node.id);
-    if (parentId === undefined) continue;
+
+    if (parentId === undefined) {
+      continue;
+    }
     hidden.add(node.id);
     const key = `${parentId}::${node.type}`;
     const badge = groups.get(key);
-    if (badge) badge.count += 1;
-    else groups.set(key, { parentId, type: node.type, count: 1 });
+
+    if (badge) {
+      badge.count += 1;
+    } else {
+      groups.set(key, { parentId, type: node.type, count: 1 });
+    }
   }
+
   return { hidden, badges: [...groups.values()] };
 }
 

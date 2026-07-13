@@ -25,6 +25,7 @@ describe("parseDarkFactorySettings", () => {
       review: "trust_based",
       notify: ["escalation"],
     };
+
     expect(parseDarkFactorySettings(doc)).toEqual(doc);
   });
 
@@ -70,6 +71,7 @@ describe("parseDarkFactorySettings", () => {
 describe("resolveSettings", () => {
   it("applies opt-out defaults when partial is null", () => {
     const r = resolveSettings(null);
+
     expect(r.enabled).toBe(false);
     expect(r.create_issue).toBe("always");
     expect(r.review).toBe("always");
@@ -78,6 +80,7 @@ describe("resolveSettings", () => {
 
   it("applies dark-mode defaults when enabled: true with no other fields", () => {
     const r = resolveSettings({ enabled: true });
+
     expect(r.create_issue).toBe("on_gate");
     expect(r.review).toBe("trust_based");
     // Empty notify list — escalations always fire via decideNotify
@@ -92,6 +95,7 @@ describe("resolveSettings", () => {
       create_issue: "always",
       auto_merge: { paths: ["only-this/**"] },
     });
+
     expect(r.create_issue).toBe("always");
     expect(r.auto_merge.paths).toEqual(["only-this/**"]);
     // Other auto_merge sub-fields fall back to defaults
@@ -187,6 +191,7 @@ describe("parseTaskOverrides", () => {
         execution: { image: "golang:1.23" },
       },
     };
+
     expect(parseTaskOverrides(doc)).toEqual(doc);
   });
 

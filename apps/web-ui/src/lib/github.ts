@@ -31,6 +31,7 @@ export interface PRDetails {
 
 function split(repo: string): [string, string] {
   const [owner, name] = repo.split("/");
+
   return [owner, name];
 }
 
@@ -38,9 +39,11 @@ async function octokit(): Promise<Octokit> {
   const appId = process.env.GITHUB_APP_ID || "";
   const privateKey = process.env.GITHUB_APP_PRIVATE_KEY || "";
   const installationId = process.env.GITHUB_APP_INSTALLATION_ID || "";
+
   if (!appId || !privateKey || !installationId) {
     throw new Error("GitHub App credentials not configured");
   }
+
   return new Octokit({
     authStrategy: createAppAuth,
     auth: { appId, privateKey, installationId },
@@ -60,17 +63,30 @@ export function computeStatus(
   checks: Array<{ conclusion: string | null }>,
   reviews: Array<{ state: string }>,
 ): PRStatus {
-  if (pr.merged) return "merged";
-  if (pr.state === "closed") return "closed";
-  if (pr.draft) return "draft";
+  if (pr.merged) {
+    return "merged";
+  }
+
+  if (pr.state === "closed") {
+    return "closed";
+  }
+
+  if (pr.draft) {
+    return "draft";
+  }
+
   if (
     checks.some(
       (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
     )
-  )
+  ) {
     return "checks-failing";
-  if (reviews.some((r) => r.state === "CHANGES_REQUESTED"))
+  }
+
+  if (reviews.some((r) => r.state === "CHANGES_REQUESTED")) {
     return "changes-requested";
+  }
+
   if (
     reviews.some((r) => r.state === "APPROVED") &&
     checks.every(
@@ -79,8 +95,10 @@ export function computeStatus(
         c.conclusion === "skipped" ||
         c.conclusion === null,
     )
-  )
+  ) {
     return "approved";
+  }
+
   return "open";
 }
 
@@ -100,12 +118,17 @@ export async function checkRepoFiles(
   paths: string[],
 ): Promise<Record<string, boolean | null>> {
   const result: Record<string, boolean | null> = {};
+
   if (!isGitHubConfigured()) {
-    for (const p of paths) result[p] = null;
+    for (const p of paths) {
+      result[p] = null;
+    }
+
     return result;
   }
   const ok = await octokit();
   const [owner, name] = split(repo);
+
   await Promise.all(
     paths.map(async (path) => {
       try {
@@ -116,6 +139,7 @@ export async function checkRepoFiles(
       }
     }),
   );
+
   return result;
 }
 
@@ -132,24 +156,32 @@ export async function getRepoFileContent(
   repo: string,
   path: string,
 ): Promise<string | null> {
-  if (!isGitHubConfigured()) return null;
+  if (!isGitHubConfigured()) {
+    return null;
+  }
   const ok = await octokit();
   const [owner, name] = split(repo);
+
   try {
     const { data } = await ok.rest.repos.getContent({
       owner,
       repo: name,
       path,
     });
+
     if (
       Array.isArray(data) ||
       data.type !== "file" ||
       typeof data.content !== "string"
-    )
+    ) {
       return null;
+    }
+
     return Buffer.from(data.content, "base64").toString("utf-8");
   } catch (e) {
-    if ((e as { status?: number }).status === 404) return null;
+    if ((e as { status?: number }).status === 404) {
+      return null;
+    }
     throw e;
   }
 }
@@ -168,7 +200,9 @@ export async function openIngestWorkflowPR(
   path: string,
   content: string,
 ): Promise<{ url: string; number: number } | null> {
-  if (!isGitHubConfigured()) return null;
+  if (!isGitHubConfigured()) {
+    return null;
+  }
   const ok = await octokit();
   const [owner, name] = split(repo);
   const branch = "lore/fix-ingest-workflow";
@@ -181,6 +215,7 @@ export async function openIngestWorkflowPR(
     repo: name,
     ref: `heads/${base}`,
   });
+
   try {
     await ok.rest.git.createRef({
       owner,
@@ -189,10 +224,13 @@ export async function openIngestWorkflowPR(
       sha: baseRef.object.sha,
     });
   } catch (e) {
-    if (!isAlreadyExists(e)) throw e; // branch already exists — commit onto it
+    if (!isAlreadyExists(e)) {
+      throw e;
+    } // branch already exists — commit onto it
   }
 
   let sha: string | undefined;
+
   try {
     const { data } = await ok.rest.repos.getContent({
       owner,
@@ -200,7 +238,10 @@ export async function openIngestWorkflowPR(
       path,
       ref: branch,
     });
-    if (!Array.isArray(data) && "sha" in data) sha = data.sha;
+
+    if (!Array.isArray(data) && "sha" in data) {
+      sha = data.sha;
+    }
   } catch {
     // file not on the branch yet — create it fresh
   }
@@ -224,9 +265,12 @@ export async function openIngestWorkflowPR(
       title: "lore: install context ingest workflow",
       body: "This PR installs (or repairs) `.github/workflows/lore-ingest.yml` so pushes to context files trigger Lore re-ingestion.\n\nOpened from the Lore dashboard.",
     });
+
     return { url: pr.html_url, number: pr.number };
   } catch (e) {
-    if (!isAlreadyExists(e)) throw e;
+    if (!isAlreadyExists(e)) {
+      throw e;
+    }
     const { data: existing } = await ok.rest.pulls.list({
       owner,
       repo: name,
@@ -234,15 +278,19 @@ export async function openIngestWorkflowPR(
       state: "open",
     });
     const pr = existing[0];
+
     return pr ? { url: pr.html_url, number: pr.number } : null;
   }
 }
 
 export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
-  if (!isGitHubConfigured()) return null;
+  if (!isGitHubConfigured()) {
+    return null;
+  }
   const ok = await octokit();
   const [owner, name] = split(repo);
   const { data } = await ok.rest.repos.get({ owner, repo: name });
+
   return {
     description: data.description ?? null,
     default_branch: data.default_branch,
@@ -257,13 +305,17 @@ export interface RepoReadme {
 }
 
 export async function getReadme(repo: string): Promise<RepoReadme | null> {
-  if (!isGitHubConfigured()) return null;
+  if (!isGitHubConfigured()) {
+    return null;
+  }
   const ok = await octokit();
   const [owner, name] = split(repo);
+
   try {
     const { data } = await ok.rest.repos.getReadme({ owner, repo: name });
     const markdown = Buffer.from(data.content, "base64").toString("utf-8");
     const rawBaseUrl = (data.download_url ?? "").replace(/[^/]+$/, "");
+
     return { markdown, rawBaseUrl, htmlUrl: data.html_url ?? "" };
   } catch {
     return null;

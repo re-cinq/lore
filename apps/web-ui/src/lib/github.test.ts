@@ -125,8 +125,11 @@ describe("isGitHubConfigured", () => {
 
   afterEach(() => {
     keys.forEach((k) => {
-      if (saved[k] === undefined) delete process.env[k];
-      else process.env[k] = saved[k];
+      if (saved[k] === undefined) {
+        delete process.env[k];
+      } else {
+        process.env[k] = saved[k];
+      }
     });
   });
 
@@ -158,7 +161,9 @@ function configureApp() {
 
 function resetRest() {
   for (const group of Object.values(rest)) {
-    for (const fn of Object.values(group)) fn.mockReset();
+    for (const fn of Object.values(group)) {
+      fn.mockReset();
+    }
   }
 }
 

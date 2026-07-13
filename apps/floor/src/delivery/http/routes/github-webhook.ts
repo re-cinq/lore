@@ -23,6 +23,7 @@ export function verifyGitHubSignature(
     "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
   const sigBuf = Buffer.from(signature);
   const expBuf = Buffer.from(expected);
+
   return sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
 }
 
@@ -52,9 +53,11 @@ export const githubWebhookRoute: ServerRoute = {
     );
 
     const events = mapGitHubEvent(eventType, parseJsonBody(raw), deliveryId);
+
     // Each insert is idempotent (ON CONFLICT on dedupe_key). The loop does the
     // work — return 202 fast so GitHub's delivery doesn't time out.
     await insertEventList(events, "github");
+
     return h
       .response({
         captured: events.length,

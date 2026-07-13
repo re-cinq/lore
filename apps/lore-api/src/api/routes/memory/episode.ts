@@ -15,6 +15,7 @@ const EpisodeBody = z.object({
   ref: z.string().optional(),
   agent_id: z.string().optional(),
 });
+
 type EpisodeBody = z.infer<typeof EpisodeBody>;
 
 export function episodeRoute(getPool: () => Pool | null): ServerRoute {
@@ -27,6 +28,7 @@ export function episodeRoute(getPool: () => Pool | null): ServerRoute {
     },
     handler: async (request, h) => {
       const pool = getPool();
+
       try {
         const { content, source, ref, agent_id } =
           request.payload as EpisodeBody;
@@ -42,13 +44,17 @@ export function episodeRoute(getPool: () => Pool | null): ServerRoute {
            RETURNING id`,
           [agent, safeContent, contentHash, source || "session", ref || null],
         );
-        if (rows.length === 0) return h.response({ status: "duplicate" });
+
+        if (rows.length === 0) {
+          return h.response({ status: "duplicate" });
+        }
 
         extractFactsFromEpisode(rows[0].id, safeContent, agent, pool!).catch(
           () => {},
         );
         const gLlm = makeGraphLlmCall(pool);
-        if (gLlm)
+
+        if (gLlm) {
           extractAndUpdateGraph(
             pool!,
             safeContent,
@@ -57,6 +63,8 @@ export function episodeRoute(getPool: () => Pool | null): ServerRoute {
             null,
             gLlm,
           ).catch(() => {});
+        }
+
         return h.response({ status: "ok", episode_id: rows[0].id });
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

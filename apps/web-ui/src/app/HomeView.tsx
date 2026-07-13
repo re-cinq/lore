@@ -48,10 +48,14 @@ function freshnessIndicator(lastIngestedAt: string | null): {
 function ingestBadge(
   status: IngestWorkflowStatus | undefined,
 ): { label: string; color: string } | null {
-  if (status === "missing")
+  if (status === "missing") {
     return { label: "no ingest workflow", color: "var(--danger)" };
-  if (status === "stale")
+  }
+
+  if (status === "stale") {
     return { label: "ingest workflow outdated", color: "var(--warning)" };
+  }
+
   return null;
 }
 
@@ -106,6 +110,7 @@ export default function HomeView({
               )}
               {(() => {
                 const badge = ingestBadge(ingestStatus.get(r.full_name));
+
                 return badge ? (
                   <span
                     className={`badge ${styles.ingestBadge}`}

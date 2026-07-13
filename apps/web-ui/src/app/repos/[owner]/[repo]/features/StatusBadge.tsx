@@ -5,6 +5,7 @@ import type { FeatureStatus } from "@/lib/feature-types";
 
 export default function StatusBadge({ status }: { status: FeatureStatus }) {
   const badge = statusBadge(status);
+
   return (
     <span
       role="status"

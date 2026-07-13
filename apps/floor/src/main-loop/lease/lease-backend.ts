@@ -14,5 +14,6 @@ export function leaseBackendForEnv(): LeaseBackend {
   if (process.env.LORE_DB_HOST) {
     return leaseBackend();
   }
+
   return new FileLeaseBackend(path.join(os.homedir(), ".lore", "leases"));
 }

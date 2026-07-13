@@ -22,6 +22,7 @@ describe("RepoTaskCreateView", () => {
     const { container } = render(
       <RepoTaskCreateView fullName="re-cinq/lore" createTaskAction={action} />,
     );
+
     expect(
       screen.getByRole("button", { name: "Create Task" }),
     ).toBeInTheDocument();
@@ -63,6 +64,7 @@ describe("RepoTaskCreateView", () => {
       ),
     ).toBeInTheDocument();
     const priority = screen.getByRole("checkbox");
+
     expect(priority).toHaveAttribute("name", "priority");
     expect(priority).toHaveAttribute("value", "immediate");
     expect(screen.getByText("Execute immediately")).toBeInTheDocument();

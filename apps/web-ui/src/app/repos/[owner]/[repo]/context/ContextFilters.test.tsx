@@ -27,6 +27,7 @@ describe("ContextFilters", () => {
   it("renders one chip per detected type only, in canonical order", () => {
     render(<ContextFilters basePath="/context" types={["code", "doc"]} />);
     const chips = screen.getAllByRole("link").map((a) => a.textContent);
+
     expect(chips).toEqual(["All", "doc", "code"]);
     expect(screen.queryByRole("link", { name: "runbook" })).toBeNull();
   });

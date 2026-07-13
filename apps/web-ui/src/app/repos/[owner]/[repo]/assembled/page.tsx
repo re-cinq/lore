@@ -7,5 +7,6 @@ export default async function RepoAssembled({
   params: Promise<{ owner: string; repo: string }>;
 }) {
   const { owner, repo } = await params;
+
   return <AssembledContextPanel owner={owner} repo={repo} />;
 }

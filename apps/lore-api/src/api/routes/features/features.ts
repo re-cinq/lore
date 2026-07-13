@@ -46,8 +46,10 @@ async function run(
   try {
     return await fn();
   } catch (err) {
-    if (err instanceof ValidationError)
+    if (err instanceof ValidationError) {
       return h.response({ error: err.message }).code(400);
+    }
+
     return h
       .response({ error: err instanceof Error ? err.message : String(err) })
       .code(500);
@@ -73,6 +75,7 @@ async function kickPlanning(
     { feature_id: featureId, iteration },
     "immediate",
   );
+
   return task.task_id as string;
 }
 
@@ -88,6 +91,7 @@ export function featuresRoutes(): ServerRoute[] {
           const status =
             (request.query.status as string | undefined) ?? undefined;
           const features = (await projectFor(repoOf(request.params))).features;
+
           return h.response({ features: await features.list(status as never) });
         }),
     },
@@ -122,7 +126,9 @@ export function featuresRoutes(): ServerRoute[] {
             row.iteration,
             prompt,
           );
+
           await features.attachIterationTask(feature.id, row.iteration, taskId);
+
           return h.response({ id: feature.id, task_id: taskId }).code(201);
         }),
     },
@@ -137,8 +143,11 @@ export function featuresRoutes(): ServerRoute[] {
           const feature = await (
             await projectFor(repoOf(request.params))
           ).features.get(request.params.id);
-          if (!feature)
+
+          if (!feature) {
             return h.response({ error: "feature not found" }).code(404);
+          }
+
           return h.response(feature);
         }),
     },
@@ -153,8 +162,11 @@ export function featuresRoutes(): ServerRoute[] {
           const deleted = await (
             await projectFor(repoOf(request.params))
           ).features.delete(request.params.id);
-          if (!deleted)
+
+          if (!deleted) {
             return h.response({ error: "feature not found" }).code(404);
+          }
+
           return h.response({ ok: true });
         }),
     },
@@ -171,12 +183,15 @@ export function featuresRoutes(): ServerRoute[] {
           const body = request.payload as { user_answers?: unknown };
           const features = (await projectFor(repo)).features;
           const feature = await features.get(id);
-          if (!feature)
+
+          if (!feature) {
             return h.response({ error: "feature not found" }).code(404);
+          }
 
           // One planning round per feature at a time (a stale page / double-click
           // must not spawn a 2nd pod). An orphaned `running` past the window is dead.
           const inFlight = roundInFlight(feature.iterations, Date.now());
+
           if (inFlight) {
             return h
               .response({
@@ -200,7 +215,9 @@ export function featuresRoutes(): ServerRoute[] {
             row.iteration,
             description,
           );
+
           await features.attachIterationTask(id, row.iteration, taskId);
+
           return h
             .response({ task_id: taskId, iteration: row.iteration })
             .code(202);
@@ -216,6 +233,7 @@ export function featuresRoutes(): ServerRoute[] {
         run(h, async () => {
           const id = request.params.id;
           const iteration = Number(request.params.n);
+
           if (!Number.isInteger(iteration) || iteration < 0) {
             return h
               .response({ error: "iteration must be a non-negative integer" })
@@ -227,14 +245,18 @@ export function featuresRoutes(): ServerRoute[] {
           // forged result against another repo's feature.
           const features = (await projectFor(repoOf(request.params))).features;
           const feature = await features.get(id);
-          if (!feature)
+
+          if (!feature) {
             return h.response({ error: "feature not found" }).code(404);
+          }
 
           let planningResult: GapResult;
+
           try {
             planningResult = sanitizeGapResult(parseGapResult(request.payload));
           } catch (err) {
             await features.setIterationResult(id, iteration, null, "failed");
+
             return h
               .response({
                 error: err instanceof Error ? err.message : String(err),
@@ -248,6 +270,7 @@ export function featuresRoutes(): ServerRoute[] {
             planningResult,
             "ready",
           );
+
           // Only advance a feature still mid-planning; a slow/duplicate pod POSTing
           // a stale GapResult must not drag a finalized feature back into the wizard.
           if (isPlanningPhase(feature.status)) {
@@ -257,6 +280,7 @@ export function featuresRoutes(): ServerRoute[] {
               { draft_spec_md: planningResult.draft_spec_markdown },
             );
           }
+
           return h.response({ ok: true });
         }),
     },
@@ -272,8 +296,11 @@ export function featuresRoutes(): ServerRoute[] {
           const id = request.params.id;
           const features = (await projectFor(repo)).features;
           const feature = await features.get(id);
-          if (!feature)
+
+          if (!feature) {
             return h.response({ error: "feature not found" }).code(404);
+          }
+
           if (!canFinalize(feature.status)) {
             return h
               .response({
@@ -289,6 +316,7 @@ export function featuresRoutes(): ServerRoute[] {
             { feature_id: id, slug: feature.slug },
             "immediate",
           );
+
           return h.response({ task_id: task.task_id }).code(202);
         }),
     },
@@ -308,8 +336,11 @@ export function featuresRoutes(): ServerRoute[] {
           );
           const features = (await projectFor(repoOf(request.params))).features;
           const parent = await features.get(parentId);
-          if (!parent)
+
+          if (!parent) {
             return h.response({ error: "feature not found" }).code(404);
+          }
+
           if (!latestReadyGap(parent.iterations)?.split_suggestion) {
             return h
               .response({
@@ -321,6 +352,7 @@ export function featuresRoutes(): ServerRoute[] {
             title,
             prompt,
           });
+
           return h.response(child).code(201);
         }),
     },

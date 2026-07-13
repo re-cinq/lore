@@ -39,17 +39,20 @@ export async function handleFeatureRequest(
   issueNumber: number | null,
 ): Promise<void> {
   const project = await projectFor(targetRepo);
+
   console.log(`[floor] Feature request: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
   const contextStr = JSON.stringify(context, null, 2);
 
   // Also fetch existing specs as examples for format matching
   let existingSpecExample = "";
+
   try {
     const specs = await query(
       `SELECT content FROM org_shared.chunks WHERE repo = $1 AND content_type = 'spec' LIMIT 1`,
       [targetRepo],
     );
+
     if (specs.length > 0) {
       existingSpecExample = `\n\n## Existing Spec Example (match this format)\n\n${(specs[0] as any).content.substring(0, 3000)}`;
     }
@@ -121,6 +124,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
   await project.repo.createBranch(branchName);
 
   const committed: string[] = [];
+
   for (const file of SPEC_FILES) {
     try {
       const result = await Llm.instance.complete({
@@ -132,6 +136,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
       });
 
       const text = result.text.trim();
+
       if (text === "SKIP" || text.length < 20) {
         console.log(
           `[floor] Feature request: skipping ${file.path} (not needed)`,
@@ -169,6 +174,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
     "main",
     ["spec", "needs-review"],
   );
+
   await linkPrToIssue(targetRepo, issueNumber, pr.url);
 
   await setStatus(task.id, "pr-created", {

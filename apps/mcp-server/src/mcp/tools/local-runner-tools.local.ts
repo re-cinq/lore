@@ -30,7 +30,8 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         const { spawnLocalTask, detectRepo, getRepoRoot } =
           await import("../../features/pipeline/runner.local.js");
         const repo = detectRepo();
-        if (!repo)
+
+        if (!repo) {
           return {
             content: [
               {
@@ -39,11 +40,13 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
               },
             ],
           };
+        }
 
         // Warn if the task description references a different repo
         const repoRefMatch = args.description.match(
           /\b([\w-]+\/[\w-]+)(?:#|\s)/,
         );
+
         if (
           repoRefMatch &&
           repoRefMatch[1] !== repo &&
@@ -80,7 +83,10 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
               }),
             });
             const data = (await resp.json()) as any;
-            if (data.task_id) taskId = data.task_id;
+
+            if (data.task_id) {
+              taskId = data.task_id;
+            }
           } catch {
             /* use generated UUID */
           }
@@ -120,6 +126,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         const { listLocalTasks } =
           await import("../../features/pipeline/runner.local.js");
         const tasks = listLocalTasks();
+
         if (tasks.length === 0) {
           return {
             content: [{ type: "text" as const, text: "No local tasks." }],
@@ -129,6 +136,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
           (t: any) =>
             `${t.taskId.substring(0, 8)} ${t.status} ${t.repo} ${t.branch}${t.prUrl ? " → " + t.prUrl : ""}${t.error ? " ✗ " + t.error : ""}`,
         );
+
         return { content: [{ type: "text" as const, text: lines.join("\n") }] };
       } catch (err: any) {
         return {
@@ -149,6 +157,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         const { cancelLocalTask } =
           await import("../../features/pipeline/runner.local.js");
         const result = cancelLocalTask(args.task_id);
+
         return {
           content: [
             {
@@ -198,13 +207,16 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         if (!task) {
           const apiUrl = process.env.LORE_API_URL || "";
           const apiToken = process.env.LORE_INGEST_TOKEN || "";
+
           if (apiUrl && apiToken) {
             try {
               const resp = await fetch(`${apiUrl}/api/task/${args.task_id}`, {
                 headers: { Authorization: `Bearer ${apiToken}` },
               });
+
               if (resp.ok) {
                 const data = (await resp.json()) as any;
+
                 if (data.status === "pending") {
                   task = {
                     id: data.id,
@@ -236,6 +248,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         // Claim via API (best effort)
         const apiUrl = process.env.LORE_API_URL || "";
         const token = process.env.LORE_INGEST_TOKEN || "";
+
         if (apiUrl && token) {
           try {
             await fetch(`${apiUrl}/api/task`, {
@@ -334,13 +347,24 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         }
 
         // Update provided fields
-        if (args.max_concurrent !== undefined)
+        if (args.max_concurrent !== undefined) {
           config.max_concurrent = args.max_concurrent;
-        if (args.repos) config.repos = args.repos;
-        if (args.task_types) config.task_types = args.task_types;
-        if (args.model) config.model = args.model;
+        }
+
+        if (args.repos) {
+          config.repos = args.repos;
+        }
+
+        if (args.task_types) {
+          config.task_types = args.task_types;
+        }
+
+        if (args.model) {
+          config.model = args.model;
+        }
 
         writeConfig(config);
+
         return {
           content: [
             {

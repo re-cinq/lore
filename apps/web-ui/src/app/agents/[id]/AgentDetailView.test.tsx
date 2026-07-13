@@ -109,6 +109,7 @@ describe("AgentDetailView", () => {
     );
     expect(screen.getByText("Extracted Facts (2)")).toBeInTheDocument();
     const list = screen.getByRole("list");
+
     expect(within(list).getByText("The agent runs on GKE")).toBeInTheDocument();
     expect(within(list).getByText("The DB is Postgres")).toBeInTheDocument();
   });

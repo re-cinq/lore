@@ -15,10 +15,13 @@ const PREFIX_KINDS: ReadonlyArray<{ prefix: string; kind: TraceUnit["kind"] }> =
 
 export function planTraceUnits(changedFiles: string[]): TraceUnit[] {
   return changedFiles.flatMap((filePath) => {
-    if (!filePath.endsWith(".md")) return [];
+    if (!filePath.endsWith(".md")) {
+      return [];
+    }
     const route = PREFIX_KINDS.find(({ prefix }) =>
       filePath.startsWith(prefix),
     );
+
     return route ? [{ filePath, kind: route.kind }] : [];
   });
 }
@@ -31,6 +34,7 @@ export async function runTraceUnits(
 ): Promise<{ projected: number; failed: TraceUnit[] }> {
   let projected = 0;
   const failed: TraceUnit[] = [];
+
   await Promise.all(
     units.map(async (unit) => {
       try {
@@ -41,5 +45,6 @@ export async function runTraceUnits(
       }
     }),
   );
+
   return { projected, failed };
 }

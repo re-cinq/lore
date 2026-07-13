@@ -14,9 +14,11 @@ export async function GET(
       `SELECT full_name, team, settings FROM lore.repos WHERE full_name = $1`,
       [fullName],
     );
+
     if (!repoData) {
       return NextResponse.json({ error: "Repo not found" }, { status: 404 });
     }
+
     return NextResponse.json(repoData);
   } catch (err) {
     return serverError("settings.GET", err);
@@ -37,6 +39,7 @@ export async function POST(
       `SELECT full_name FROM lore.repos WHERE full_name = $1`,
       [fullName],
     );
+
     if (!existing) {
       return NextResponse.json({ error: "Repo not found" }, { status: 404 });
     }

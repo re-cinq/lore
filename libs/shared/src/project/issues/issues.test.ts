@@ -30,7 +30,9 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
         labels: labels ?? [],
         url: "u",
       };
+
       issues.push(ref);
+
       return ref;
     },
     createLabels: async () => {},

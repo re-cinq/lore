@@ -29,6 +29,7 @@ async function withTxn<T>(
   fn: (txn: DgraphTxn) => Promise<T>,
 ): Promise<T> {
   const txn = dgraph.newTxn();
+
   try {
     return await fn(txn);
   } finally {
@@ -64,6 +65,7 @@ async function fetchPresentXids(
     );
     const existing =
       (res.data as { existing?: Record<string, string>[] }).existing ?? [];
+
     return new Set(existing.map((node) => node[xidPredicate]));
   });
 }
@@ -82,12 +84,17 @@ async function migratePass<Row extends { id: string }>(
   buildNode: (row: Row) => Promise<Record<string, unknown>>,
 ): Promise<number> {
   const present = await fetchPresentXids(dgraph, xidPredicate);
+
   for (const row of rows) {
-    if (present.has(row.id)) continue;
+    if (present.has(row.id)) {
+      continue;
+    }
     const setJson = await buildNode(row);
+
     await withTxn(dgraph, (txn) => txn.mutate({ setJson, commitNow: true }));
     present.add(row.id);
   }
+
   return rows.length;
 }
 
@@ -100,6 +107,7 @@ async function resolveMemoryUid(
       `query m($x: string) { m(func: eq(Memory.xid, $x)) { uid } }`,
       { $x: memoryXid },
     );
+
     return (res.data as { m?: { uid: string }[] }).m?.[0]?.uid;
   });
 }
@@ -108,9 +116,14 @@ export async function backfillMemoryToDgraph(deps: {
   pgPool: PgPool;
   dgraph: DgraphClientPort;
 }): Promise<BackfillReport> {
-  const { rows: memories } = await deps.pgPool.query(
-    "SELECT id, agent_id, key, value, version, embedding FROM memory.memories",
-  );
+  const { rows: memories } = await deps.pgPool.query<{
+    id: string;
+    agent_id: string;
+    key: string;
+    value: string;
+    version: number;
+    embedding: unknown;
+  }>("SELECT id, agent_id, key, value, version, embedding FROM memory.memories");
   const memoryCount = await migratePass(
     deps.dgraph,
     memories,
@@ -126,9 +139,12 @@ export async function backfillMemoryToDgraph(deps: {
     }),
   );
 
-  const { rows: facts } = await deps.pgPool.query(
-    "SELECT id, memory_id, fact_text, valid_from FROM memory.facts",
-  );
+  const { rows: facts } = await deps.pgPool.query<{
+    id: string;
+    memory_id: string | null;
+    fact_text: string;
+    valid_from: string;
+  }>("SELECT id, memory_id, fact_text, valid_from FROM memory.facts");
   const factCount = await migratePass(
     deps.dgraph,
     facts,
@@ -137,6 +153,7 @@ export async function backfillMemoryToDgraph(deps: {
       const memoryUid = fact.memory_id
         ? await resolveMemoryUid(deps.dgraph, fact.memory_id)
         : undefined;
+
       return {
         "dgraph.type": "Fact",
         "Fact.xid": fact.id,

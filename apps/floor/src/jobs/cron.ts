@@ -36,7 +36,10 @@ export const leaseReaper = fromJob(() => leaseReaperJob());
 /** Housekeeping: drop old terminal event rows so the claim index stays small. */
 export const eventsPrune: EventHandler = async () => {
   const n = await pruneHandled(7);
-  if (n > 0) console.log(`[events] pruned ${n} handled event(s)`);
+
+  if (n > 0) {
+    console.log(`[events] pruned ${n} handled event(s)`);
+  }
 };
 
 /** Safety net for dropped k8s watch events: re-emit for terminal-unhandled CRs + prune old ones. */

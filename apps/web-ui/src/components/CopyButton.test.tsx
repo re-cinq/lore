@@ -30,6 +30,7 @@ describe("CopyButton", () => {
 
   it("writes the given text to the clipboard on click", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
+
     stubClipboard(writeText);
     render(<CopyButton text="payload-to-copy" />);
 
@@ -72,6 +73,7 @@ describe("CopyButton", () => {
     const writeText = vi
       .fn()
       .mockRejectedValue(new Error("clipboard unavailable"));
+
     stubClipboard(writeText);
     render(<CopyButton text="hello" />);
 

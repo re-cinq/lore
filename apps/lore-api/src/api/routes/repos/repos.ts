@@ -16,6 +16,7 @@ const ReposQuery = z.object({
   limit: clampedLimit.default(100),
   offset: offsetParam,
 });
+
 type ReposQuery = z.infer<typeof ReposQuery>;
 
 export function reposRoute(getPool: () => Pool | null): ServerRoute {
@@ -28,13 +29,19 @@ export function reposRoute(getPool: () => Pool | null): ServerRoute {
     },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
+
+      if (!pool) {
+        return h.response({ error: DB_UNAVAILABLE }).code(503);
+      }
       const { limit, offset } = request.query as unknown as ReposQuery;
+
       try {
         const result = await getOnboardedReposWithCounts(pool, limit, offset);
+
         return h.response({ ...result, limit, offset });
       } catch (err: any) {
         console.error("[repos] API error:", err.message);
+
         return h.response({ error: err.message }).code(500);
       }
     },

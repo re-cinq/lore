@@ -15,13 +15,19 @@ async function submitFeedback(formData: FormData) {
   "use server";
   const taskId = formData.get("task_id") as string;
   const feedback = formData.get("feedback") as string;
-  if (!taskId || !feedback?.trim()) return;
+
+  if (!taskId || !feedback?.trim()) {
+    return;
+  }
 
   const task = await queryOne<Task>(
     `SELECT * FROM pipeline.tasks WHERE id = $1`,
     [taskId],
   );
-  if (!task) return;
+
+  if (!task) {
+    return;
+  }
 
   // Create a revision task on the same branch with the feedback (immediate — active feedback loop)
   const result = await query<{ id: string }>(
@@ -71,12 +77,14 @@ export default async function TaskDetailPage({
     `SELECT * FROM pipeline.tasks WHERE id = $1`,
     [id],
   );
-  if (!task)
+
+  if (!task) {
     return (
       <div>
         <h1>Task not found</h1>
       </div>
     );
+  }
 
   const events = await query<TaskEvent>(
     `SELECT * FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,

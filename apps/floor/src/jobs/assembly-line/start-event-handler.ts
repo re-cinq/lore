@@ -64,6 +64,7 @@ export function createStartEventHandler(
 ): EventHandler {
   return async (params) => {
     const assemblyLineId = params.assemblyLineId;
+
     enforceTrue(
       typeof assemblyLineId === "string" && assemblyLineId.length > 0,
       "assembly_line.start event params missing assemblyLineId",
@@ -78,6 +79,7 @@ export function createStartEventHandler(
 
     const definitions = await deps.definitions();
     const definition = definitions.get(definitionName);
+
     if (!definition) {
       // Config error, not a transient failure — close the row and resolve so the
       // loop never retries an assembly line that can't exist.
@@ -86,6 +88,7 @@ export function createStartEventHandler(
         "error",
         `no assembly line defined for task type "${definitionName}"`,
       );
+
       return;
     }
 
@@ -110,6 +113,7 @@ export function createStartEventHandler(
           finishRow(supervisorOutcome(result), result.errorMessage),
         )
         .catch((err) => finishRow("error", (err as Error).message));
+
       return;
     }
 
@@ -125,14 +129,19 @@ export function createStartEventHandler(
         })
         .then(async (result) => {
           await finishRow(result.outcome, result.errorMessage);
-          if (taskId) await deps.applyTaskOutcome(taskId, result);
+
+          if (taskId) {
+            await deps.applyTaskOutcome(taskId, result);
+          }
         })
         .catch(async (err) => {
           const result: ProcessTaskViaSupervisorResult = {
             outcome: "error",
             errorMessage: (err as Error).message,
           };
+
           await finishRow("error", result.errorMessage);
+
           if (taskId) {
             await deps
               .applyTaskOutcome(taskId, result)
@@ -144,6 +153,7 @@ export function createStartEventHandler(
               );
           }
         });
+
       return;
     }
 
@@ -153,6 +163,7 @@ export function createStartEventHandler(
     // triple that concurrent runs across repos race on (wrong-repo clone). The
     // watcher's `processAgentCr` no-ops on a taskId with no backing task.
     const runTaskId = taskId ?? assemblyLineId;
+
     void deps
       .runOnStation({
         assemblyLineId,
@@ -208,6 +219,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
       const repoSettings = await settings()
         .rawSettings(input.repo)
         .catch(() => null);
+
       return processTaskViaSupervisor({
         task: {
           id: input.taskId ?? "",
@@ -234,5 +246,6 @@ export const assemblyLineStart: EventHandler = async (params) => {
     applyTaskOutcome: applySupervisorOutcome,
     cleanupToken: cleanupPerTaskToken,
   });
+
   return handler(params);
 };

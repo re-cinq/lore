@@ -65,6 +65,7 @@ const MemoryBody = z.discriminatedUnion("action", [
     offset: listOffset,
   }),
 ]);
+
 type MemoryBody = z.infer<typeof MemoryBody>;
 
 export function memoryRoute(getPool: () => Pool | null): ServerRoute {
@@ -78,6 +79,7 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
       const body = request.payload as MemoryBody;
+
       try {
         const embedInput =
           body.action === "write"
@@ -115,6 +117,7 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
                 : body.version
                   ? Number(body.version)
                   : undefined;
+
             return h.response(
               isMemoryDbAvailable()
                 ? await readMemory(body.key, body.agent_id, v)
@@ -143,6 +146,7 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
             const result = isMemoryDbAvailable()
               ? await listMemories(body.agent_id, body.limit, body.offset)
               : listMemoriesFile(body.agent_id, body.limit, body.offset);
+
             return h.response({
               ...result,
               limit: body.limit,

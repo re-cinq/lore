@@ -26,6 +26,7 @@ export function decideReviewOnOpen(input: {
   pr: PullRef | null;
 }): { start: boolean } {
   const { autoReview, pr } = input;
+
   return {
     start:
       autoReview &&
@@ -42,6 +43,7 @@ export function decideReviewOnReply(input: {
   commentAuthor: string;
 }): { start: boolean } {
   const { autoReview, pr, commentAuthor } = input;
+
   return {
     start:
       autoReview &&
@@ -91,10 +93,16 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
   const onOpen: EventHandler = async (params) => {
     const { repo, pr_number } = params as unknown as OpenParams;
     const autoReview = await deps.autoReview(repo);
-    if (!autoReview) return;
+
+    if (!autoReview) {
+      return;
+    }
     const project = await deps.project(repo);
     const pr = await project.pulls.get(pr_number);
-    if (!decideReviewOnOpen({ autoReview, pr }).start) return;
+
+    if (!decideReviewOnOpen({ autoReview, pr }).start) {
+      return;
+    }
     const id = await project.assemblyLines.start("code-review", {
       branch: pr!.branch,
       args: {
@@ -103,6 +111,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
         description: `Review pull request #${pr_number} in ${repo} (branch ${pr!.branch}).`,
       },
     });
+
     await project.pulls.comment(
       pr_number,
       `Lore review has started — ${loreTaskRef(id, deps.uiUrl())}`,
@@ -113,14 +122,19 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     const { repo, pr_number, comment_id, comment_author, comment_body } =
       params as unknown as ReplyParams;
     const autoReview = await deps.autoReview(repo);
-    if (!autoReview || isBotActor(comment_author)) return; // loop guard before any API call
+
+    if (!autoReview || isBotActor(comment_author)) {
+      return;
+    } // loop guard before any API call
     const project = await deps.project(repo);
     const pr = await project.pulls.get(pr_number);
+
     if (
       !decideReviewOnReply({ autoReview, pr, commentAuthor: comment_author })
         .start
-    )
+    ) {
       return;
+    }
     await project.assemblyLines.start("code-review", {
       branch: pr!.branch,
       args: {
@@ -136,6 +150,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
   const onClose: EventHandler = async (params) => {
     const { repo, pr_number } = params as unknown as OpenParams;
     const project = await deps.project(repo);
+
     await project.assemblyLines.finishOpenByPr(pr_number, "pr_closed");
   };
 

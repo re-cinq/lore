@@ -161,6 +161,7 @@ describe("selectCandidates", () => {
     const out = selectCandidates(spec, assertions, [
       chunk({ content: "expect(runTaskLocally()).toBe(1)" }),
     ]);
+
     expect(out.candidates).toMatchObject([
       { match_kind: "assertion", symbol: "runTaskLocally" },
     ]);
@@ -176,6 +177,7 @@ describe("selectCandidates", () => {
         chunk({ file_path: "agent/src/unrelated.test.ts", embedding: [1, 0] }),
       ],
     );
+
     expect(out.candidates.map((c) => c.match_kind).sort()).toEqual([
       "directory",
       "embedding",
@@ -187,6 +189,7 @@ describe("selectCandidates", () => {
       chunk({ file_path: "agent/src/runner.ts", content: "runTaskLocally" }),
       chunk({ content: "runTaskLocally", test_name: "" }),
     ]);
+
     expect(out.candidates).toEqual([]);
   });
 
@@ -197,6 +200,7 @@ describe("selectCandidates", () => {
         content: "runTaskLocally here",
       }),
     ]);
+
     expect(out.candidates).toHaveLength(1);
     expect(out.candidates[0].match_kind).toBe("assertion");
   });
@@ -209,6 +213,7 @@ describe("selectCandidates", () => {
       }),
     );
     const out = selectCandidates(spec, [], chunks, { maxCandidates: 2 });
+
     expect(out).toMatchObject({ truncated: true, total: 3 });
     expect(out.candidates).toHaveLength(2);
   });
@@ -234,6 +239,7 @@ describe("argmaxByTest", () => {
       judgment({ match_score: 0.6 }),
       judgment({ match_score: 0.95, statement_ordinal: 1 }),
     ]);
+
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ match_score: 0.95, statement_ordinal: 1 });
   });
@@ -250,6 +256,7 @@ describe("staleLinkKeys", () => {
       { test_file: "a.test.ts", test_name: "one" },
       { test_file: "b.test.ts", test_name: "two" },
     ];
+
     expect(
       staleLinkKeys(existing, [{ test_file: "a.test.ts", test_name: "one" }]),
     ).toEqual([{ test_file: "b.test.ts", test_name: "two" }]);
@@ -265,6 +272,7 @@ describe("staleStatementOrdinals", () => {
 describe("hashSpecContent", () => {
   it("returns a stable 64-char sha-256 hex digest", () => {
     const hash = hashSpecContent("spec body");
+
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
     expect(hashSpecContent("spec body")).toBe(hash);
   });

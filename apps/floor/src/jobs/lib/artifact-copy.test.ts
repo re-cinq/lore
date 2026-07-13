@@ -20,6 +20,7 @@ const input: ArtifactCopyInput = {
 describe("buildCopyPrompt", () => {
   it("includes the kind, repo, task intent and agent output", () => {
     const prompt = buildCopyPrompt(input);
+
     expect(prompt).toContain("pull request");
     expect(prompt).toContain("re-cinq/lore");
     expect(prompt).toContain("Spec drift: specs/6-dark-factory/research.md");
@@ -36,6 +37,7 @@ describe("buildCopyPrompt", () => {
       changedFiles: 0,
       agentOutput: undefined,
     });
+
     expect(prompt).not.toContain("Files changed");
     expect(prompt).not.toContain("What the agent reported");
   });
@@ -51,6 +53,7 @@ describe("fallbackCopy", () => {
   it("truncates a long first line to 70 chars with an ellipsis", () => {
     const long = "x".repeat(100);
     const copy = fallbackCopy({ ...input, description: long });
+
     expect(copy.title).toBe("x".repeat(69) + "…");
   });
 
@@ -82,6 +85,7 @@ describe("generateArtifactCopy", () => {
       },
     });
     const copy = await generateArtifactCopy(input, llm);
+
     expect(copy).toMatchObject({
       title: "Reconcile dark-factory research doc with the settings resolver",
       source: "llm",
@@ -93,12 +97,14 @@ describe("generateArtifactCopy", () => {
     const llm = vi
       .fn()
       .mockResolvedValue({ data: { title: "  Tidy title  ", body: "b" } });
+
     expect((await generateArtifactCopy(input, llm)).title).toBe("Tidy title");
   });
 
   it("falls back when the LLM throws", async () => {
     const llm = vi.fn().mockRejectedValue(new Error("rate limited"));
     const copy = await generateArtifactCopy(input, llm);
+
     expect(copy.source).toBe("fallback");
     expect(copy.title).toBe(input.description);
   });
@@ -107,11 +113,13 @@ describe("generateArtifactCopy", () => {
     const llm = vi
       .fn()
       .mockResolvedValue({ data: { title: "   ", body: "b" } });
+
     expect((await generateArtifactCopy(input, llm)).source).toBe("fallback");
   });
 
   it("falls back when the model omits the title entirely", async () => {
     const llm = vi.fn().mockResolvedValue({ data: { body: "b" } });
+
     expect((await generateArtifactCopy(input, llm)).source).toBe("fallback");
   });
 
@@ -119,6 +127,7 @@ describe("generateArtifactCopy", () => {
     const llm = vi
       .fn()
       .mockResolvedValue({ data: { title: "Good title", body: "" } });
+
     expect((await generateArtifactCopy(input, llm)).source).toBe("fallback");
   });
 
@@ -126,8 +135,10 @@ describe("generateArtifactCopy", () => {
     const fake = new FakeLlm({
       data: { title: "Default-path title", body: "Body" },
     });
+
     Llm.setInstance(fake);
     const copy = await generateArtifactCopy(input);
+
     expect(copy).toMatchObject({ title: "Default-path title", source: "llm" });
     expect(fake.calls).toHaveLength(1);
     Llm.reset();

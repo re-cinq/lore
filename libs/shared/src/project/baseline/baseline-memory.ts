@@ -41,13 +41,17 @@ export class InMemoryBaseline implements BaselinePort {
     const ttms = inWindow
       .map((t) => (t.updated_at.getTime() - t.created_at.getTime()) / 3600_000)
       .sort((a, b) => a - b);
+
     return { issues_count, median_ttm_hours: median(ttms) };
   }
 }
 
 function median(sorted: number[]): number | null {
-  if (sorted.length === 0) return null;
+  if (sorted.length === 0) {
+    return null;
+  }
   const mid = Math.floor(sorted.length / 2);
+
   return sorted.length % 2 === 0
     ? (sorted[mid - 1] + sorted[mid]) / 2
     : sorted[mid];

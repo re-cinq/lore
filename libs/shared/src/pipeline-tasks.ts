@@ -57,6 +57,7 @@ export async function createTask(
   const taskType = input.taskType ?? "general";
   const repo = input.targetRepo;
   const createdBy = input.createdBy ?? "ui";
+
   enforceTrue(
     input.description.length <= 10000,
     new Error("Description too long (max 10000 chars)"),
@@ -68,11 +69,14 @@ export async function createTask(
         `SELECT settings FROM lore.repos WHERE full_name = $1`,
         [repo],
       );
+
       if (repoRows.length > 0) {
         const settings = repoRows[0].settings || {};
         const trustLevel = settings.trust?.level;
+
         if (trustLevel && TRUST_LEVELS[trustLevel]) {
           const allowed = TRUST_LEVELS[trustLevel];
+
           enforceTrue(
             allowed.includes(taskType),
             new Error(
@@ -82,7 +86,9 @@ export async function createTask(
         }
       }
     } catch (err: any) {
-      if (err.message.includes("not allowed at trust level")) throw err;
+      if (err.message.includes("not allowed at trust level")) {
+        throw err;
+      }
       // Non-trust errors are non-fatal
     }
   }
@@ -93,6 +99,7 @@ export async function createTask(
     ? JSON.stringify(input.contextBundle)
     : null;
   let rows: any[];
+
   if (input.taskGroupId) {
     const result = await pool.query(
       `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
@@ -108,6 +115,7 @@ export async function createTask(
         input.taskGroupId,
       ],
     );
+
     rows = result.rows;
   } else {
     const result = await pool.query(
@@ -123,9 +131,11 @@ export async function createTask(
         resolvedPriority,
       ],
     );
+
     rows = result.rows;
   }
   const task = rows[0];
+
   if (
     input.contextRefs &&
     (input.contextRefs.fact_ids.length > 0 ||
@@ -142,6 +152,7 @@ export async function createTask(
     created_by: createdBy,
     priority: resolvedPriority,
   });
+
   return {
     task_id: task.id,
     task_type: taskType,
@@ -153,6 +164,7 @@ export async function createTask(
 
 export async function retryTask(pool: PgPool, taskId: string): Promise<any> {
   const task = await getTask(pool, taskId);
+
   enforceTrue(task, new Error("Task not found"));
   enforceTrue(
     !(task.status !== "failed" && task.status !== "needs-human-help"),
@@ -167,9 +179,11 @@ export async function retryTask(pool: PgPool, taskId: string): Promise<any> {
     createdBy: `retry:${task.created_by}`,
     contextBundle: { ...(task.context_bundle || {}), retry_of: taskId },
   });
+
   await updateTaskStatus(pool, taskId, "retried", {
     retried_as: result.task_id,
   });
+
   return { task_id: result.task_id, status: result.status, retry_of: taskId };
 }
 
@@ -178,11 +192,15 @@ export async function getTask(pool: PgPool, taskId: string): Promise<any> {
     `SELECT * FROM pipeline.tasks WHERE id = $1`,
     [taskId],
   );
-  if (tasks.length === 0) return null;
+
+  if (tasks.length === 0) {
+    return null;
+  }
   const { rows: events } = await pool.query(
     `SELECT * FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
     [taskId],
   );
+
   return { ...tasks[0], events };
 }
 
@@ -207,6 +225,7 @@ export async function listTasks(
     `SELECT count(*)::int as total FROM pipeline.tasks ${where}`,
     status ? [status] : [],
   );
+
   return { tasks: rows, total: countRows[0].total };
 }
 
@@ -244,8 +263,11 @@ export async function setTaskStatus(
   const setClauses = ["status = $1", "updated_at = now()"];
   const params: unknown[] = [status];
   let idx = 2;
+
   for (const [key, value] of Object.entries(extra)) {
-    if (!ALLOWED_TASK_COLUMNS.has(key)) continue;
+    if (!ALLOWED_TASK_COLUMNS.has(key)) {
+      continue;
+    }
     setClauses.push(`${key} = $${idx}`);
     params.push(value);
     idx++;
@@ -273,20 +295,26 @@ export async function setTaskStatusIf(
   const setClauses = ["status = $1", "updated_at = now()"];
   const params: unknown[] = [status];
   let idx = 2;
+
   for (const [key, value] of Object.entries(extra)) {
-    if (!ALLOWED_TASK_COLUMNS.has(key)) continue;
+    if (!ALLOWED_TASK_COLUMNS.has(key)) {
+      continue;
+    }
     setClauses.push(`${key} = $${idx}`);
     params.push(value);
     idx++;
   }
   const idIdx = idx;
+
   params.push(taskId);
   const expectedIdx = idx + 1;
+
   params.push(expectedStatus);
   const { rows } = await pool.query(
     `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idIdx} AND status = $${expectedIdx} RETURNING id`,
     params,
   );
+
   return rows.length > 0;
 }
 
@@ -319,20 +347,26 @@ export async function updateTaskStatus(
     `SELECT status FROM pipeline.tasks WHERE id = $1`,
     [taskId],
   );
-  if (rows.length === 0) return;
+
+  if (rows.length === 0) {
+    return;
+  }
   const oldStatus = rows[0].status;
+
   await setTaskStatus(pool, taskId, newStatus);
   await recordEvent(pool, taskId, oldStatus, newStatus, meta);
 }
 
 export async function cancelTask(pool: PgPool, taskId: string): Promise<any> {
   const task = await getTask(pool, taskId);
+
   enforceTrue(task, new Error("Task not found"));
   enforceTrue(
     !["merged", "failed", "cancelled"].includes(task.status),
     new Error(`Cannot cancel task in ${task.status} state`),
   );
   await updateTaskStatus(pool, taskId, "cancelled", { cancelled_by: "user" });
+
   return { task_id: taskId, status: "cancelled" };
 }
 
@@ -341,6 +375,7 @@ export async function markTaskMerged(
   taskId: string,
 ): Promise<any> {
   const task = await getTask(pool, taskId);
+
   enforceTrue(task, new Error("Task not found"));
   enforceTrue(
     !(task.status !== "pr-created" && task.status !== "review"),
@@ -349,5 +384,6 @@ export async function markTaskMerged(
     ),
   );
   await updateTaskStatus(pool, taskId, "merged", { merged_by: "manual" });
+
   return { task_id: taskId, status: "merged" };
 }

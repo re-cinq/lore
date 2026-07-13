@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const openIngestWorkflowPR = vi.fn();
 const revalidatePath = vi.fn();
+
 vi.mock("@/lib/github", () => ({
   openIngestWorkflowPR: (...a: unknown[]) => openIngestWorkflowPR(...a),
 }));

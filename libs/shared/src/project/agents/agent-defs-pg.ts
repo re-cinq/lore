@@ -65,6 +65,7 @@ export class PgAgentDefs implements AgentDefsPort {
     );
     const { project, org } = split(rows as AgentRow[]);
     const yamlDefault = await this.base.resolve(repo, name);
+
     return resolveAgentConfig(
       project ? toDef(project) : null,
       org ? toDef(org) : null,
@@ -80,8 +81,10 @@ export class PgAgentDefs implements AgentDefsPort {
       [repo],
     );
     const byName = new Map<string, AgentRow[]>();
+
     for (const r of rows as AgentRow[]) {
       const list = byName.get(r.name) ?? [];
+
       list.push(r);
       byName.set(r.name, list);
     }
@@ -91,6 +94,7 @@ export class PgAgentDefs implements AgentDefsPort {
       ...byName.keys(),
     ]);
     const out: AgentDefinition[] = [];
+
     for (const name of names) {
       const group = byName.get(name) ?? [];
       const { project, org } = split(group);
@@ -99,8 +103,12 @@ export class PgAgentDefs implements AgentDefsPort {
         org ? toDef(org) : null,
         baseDefs.find((d) => d.name === name) ?? null,
       );
-      if (resolved) out.push(resolved);
+
+      if (resolved) {
+        out.push(resolved);
+      }
     }
+
     return out.sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -124,6 +132,7 @@ export class PgAgentDefs implements AgentDefsPort {
         repo,
       ],
     );
+
     return toDef(rows[0] as AgentRow);
   }
 
@@ -157,6 +166,7 @@ export class PgAgentDefs implements AgentDefsPort {
         repo,
       ],
     );
+
     return toDef(rows[0] as AgentRow);
   }
 

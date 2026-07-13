@@ -73,6 +73,7 @@ export function resolveDarkFactorySettings(
   partial: DarkFactorySettings | null | undefined,
 ): ResolvedDarkFactorySettings {
   const enabled = partial?.enabled ?? false;
+
   return {
     enabled,
     create_issue: partial?.create_issue ?? (enabled ? "on_gate" : "always"),
@@ -99,7 +100,10 @@ export function trustMeets(
   actual: TrustLevel | undefined,
   min: TrustLevel,
 ): boolean {
-  if (!actual) return false;
+  if (!actual) {
+    return false;
+  }
+
   return TRUST_ORDER[actual] >= TRUST_ORDER[min];
 }
 

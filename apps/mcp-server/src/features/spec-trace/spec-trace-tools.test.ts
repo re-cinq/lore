@@ -16,6 +16,7 @@ import type { TestCommandManifest } from "@re-cinq/lore-shared";
 describe("executionRefusal", () => {
   it("returns a non-empty string when LORE_DB_HOST is set", () => {
     const refusal = executionRefusal({ LORE_DB_HOST: "10.0.0.5" });
+
     expect(typeof refusal).toBe("string");
     expect(refusal).toBeTruthy();
   });
@@ -35,6 +36,7 @@ describe("runTestsList", () => {
       `printf '[{"id":"t1","name":"first test","file":"src/a.test.ts","startLine":1,"endLine":5}]'`,
       process.cwd(),
     );
+
     expect(descriptors).toEqual([
       {
         id: "t1",
@@ -73,11 +75,13 @@ describe("listTestsTool", () => {
       manifest,
       process.cwd(),
     );
+
     expect(text).toMatch(/CI|local/i);
   });
 
   it("reports no manifest declared when the manifest is null on a local sandbox", async () => {
     const text = await listTestsTool({}, null, process.cwd());
+
     expect(text).toMatch(/manifest/i);
   });
 
@@ -90,6 +94,7 @@ describe("listTestsTool", () => {
       path_prefix_strip: "",
     };
     const text = await listTestsTool({}, manifest, process.cwd());
+
     expect(JSON.parse(text)).toEqual([
       {
         id: "t1",
@@ -117,6 +122,7 @@ describe("runTestTool", () => {
       "src/a.test.ts::my test",
       process.cwd(),
     );
+
     expect(text).toMatch(/CI|local/i);
   });
 });
@@ -125,7 +131,9 @@ describe("loadTestCommandManifest", () => {
   let repoRoot: string;
 
   afterEach(() => {
-    if (repoRoot) rmSync(repoRoot, { recursive: true, force: true });
+    if (repoRoot) {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
   });
 
   it("returns the manifest parsed from .lore/test-commands.yml", () => {
@@ -158,6 +166,7 @@ describe("runTestsRun", () => {
       "src/a.test.ts::my test",
       process.cwd(),
     );
+
     expect(result).toEqual({
       passed: true,
       covered: [{ file: "src/a.test.ts::my test", startLine: 1, endLine: 1 }],

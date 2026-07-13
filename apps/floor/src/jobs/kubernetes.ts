@@ -18,12 +18,16 @@ const PLURAL = "agents";
  * instead of silently marking the event handled. */
 function isNotFound(err: unknown): boolean {
   const e = err as { code?: number; response?: { statusCode?: number } };
+
   return e?.code === 404 || e?.response?.statusCode === 404;
 }
 
 const handleAgent: EventHandler = async (params) => {
   const { agentName } = params as { agentName?: string };
-  if (!agentName) return;
+
+  if (!agentName) {
+    return;
+  }
   const { k8sApi, namespace } = makeAgentsApi();
   const cr = (await k8sApi
     .getNamespacedCustomObject({
@@ -34,10 +38,15 @@ const handleAgent: EventHandler = async (params) => {
       name: agentName,
     })
     .catch((err: unknown) => {
-      if (isNotFound(err)) return null; // CR already pruned — nothing to do
+      if (isNotFound(err)) {
+        return null;
+      } // CR already pruned — nothing to do
       throw err;
     })) as AgentCr | null;
-  if (!cr) return;
+
+  if (!cr) {
+    return;
+  }
   await processAgentCr(cr, k8sApi);
 };
 

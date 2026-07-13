@@ -54,7 +54,12 @@ export interface AgentDefsPort {
 }
 
 const pick = <T>(...layers: (T | null | undefined)[]): T | null => {
-  for (const v of layers) if (v !== null && v !== undefined) return v;
+  for (const v of layers) {
+    if (v !== null && v !== undefined) {
+      return v;
+    }
+  }
+
   return null;
 };
 
@@ -70,7 +75,10 @@ export function resolveAgentConfig(
   yamlDefault: AgentDefinition | null,
 ): AgentDefinition | null {
   const top = project ?? org ?? yamlDefault;
-  if (!top) return null;
+
+  if (!top) {
+    return null;
+  }
 
   return {
     name: top.name,

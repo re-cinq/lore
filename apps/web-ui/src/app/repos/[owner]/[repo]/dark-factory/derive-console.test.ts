@@ -24,6 +24,7 @@ describe("deriveDarkFactoryConsole activation", () => {
       ...baseInput,
       resolved: resolvedDisabled,
     });
+
     expect(model.activation.state).toBe("disabled");
   });
 });
@@ -31,6 +32,7 @@ describe("deriveDarkFactoryConsole activation", () => {
 describe("deriveDarkFactoryConsole projections", () => {
   it("exposes the resolved config and trust level", () => {
     const model = deriveDarkFactoryConsole({ ...baseInput });
+
     expect(model.config).toBe(resolvedEnabled);
     expect(model.trustLevel).toBe("implementation");
   });
@@ -48,6 +50,7 @@ describe("deriveDarkFactoryConsole projections", () => {
         },
       ],
     });
+
     expect(model.workItems[0]).toEqual({
       id: "t1",
       type: "implementation",
@@ -83,6 +86,7 @@ describe("deriveDarkFactoryConsole projections", () => {
         },
       ],
     });
+
     expect(model.decisions.map((d) => d.summary)).toEqual([
       "Auto-merge: merged",
       "Escalation: validation failed",

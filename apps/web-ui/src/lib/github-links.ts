@@ -10,9 +10,13 @@ export function resolveHref(
   if (!rawHref || /^(https?:|mailto:|tel:|#|\/\/)/i.test(rawHref)) {
     return { href: rawHref, external: /^https?:/i.test(rawHref) };
   }
+
   // Only rewrite when we know the owner/name repo; otherwise leave as-is.
-  if (!repo.includes("/")) return { href: rawHref, external: false };
+  if (!repo.includes("/")) {
+    return { href: rawHref, external: false };
+  }
   const clean = rawHref.replace(/^\.?\//, "");
+
   return {
     href: `https://github.com/${repo}/blob/${branch}/${clean}`,
     external: true,
@@ -29,10 +33,19 @@ export function blobUrl(
   start?: number,
   end?: number,
 ): string {
-  if (!repo.includes("/")) return "";
+  if (!repo.includes("/")) {
+    return "";
+  }
   const clean = filePath.replace(/^\.?\//, "");
   const base = `https://github.com/${repo}/blob/${branch}/${clean}`;
-  if (start && end) return `${base}#L${start}-L${end}`;
-  if (start) return `${base}#L${start}`;
+
+  if (start && end) {
+    return `${base}#L${start}-L${end}`;
+  }
+
+  if (start) {
+    return `${base}#L${start}`;
+  }
+
   return base;
 }

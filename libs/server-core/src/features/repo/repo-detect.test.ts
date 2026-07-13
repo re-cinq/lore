@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const execSync = vi.fn();
+
 vi.mock("node:child_process", () => ({
   execSync: (...args: unknown[]) => execSync(...args),
 }));

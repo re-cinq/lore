@@ -11,6 +11,7 @@ export default function Linkified({
   branch,
 }: { text: string } & RefContext) {
   const segments = parseReferences(text, { repo, branch });
+
   return (
     <>
       {segments.map((s, i) =>

@@ -25,7 +25,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 function categoryLabel(category?: string): string {
-  if (!category) return "";
+  if (!category) {
+    return "";
+  }
+
   return CATEGORY_LABELS[category] ?? category;
 }
 
@@ -41,7 +44,9 @@ export default function FailurePanel({
   metadata: FailureMetadata;
   repo: string;
 }) {
-  if (!metadata?.error && !metadata?.details?.length) return null;
+  if (!metadata?.error && !metadata?.details?.length) {
+    return null;
+  }
 
   return (
     <div className={`spec-card ${styles.card}`}>

@@ -45,13 +45,18 @@ const isSpecDoc = (path: string): boolean => basename(path) === "spec.md";
 /** The spec folder a file belongs to: everything under `specs/<name>/` folds into `specs/<name>`; otherwise its directory. */
 export function specGroupKey(filePath: string): string {
   const parts = filePath.split("/");
-  if (parts[0] === "specs" && parts.length > 2) return `specs/${parts[1]}`;
+
+  if (parts[0] === "specs" && parts.length > 2) {
+    return `specs/${parts[1]}`;
+  }
+
   return parts.length > 1 ? parts.slice(0, -1).join("/") : filePath;
 }
 
 /** spec.md first, then alphabetical — so the card's primary doc and file order are stable. */
 function orderSpecFirst(a: SpecSummaryInput, b: SpecSummaryInput): number {
   const rank = (s: SpecSummaryInput) => (isSpecDoc(s.filePath) ? 0 : 1);
+
   return rank(a) - rank(b) || a.filePath.localeCompare(b.filePath);
 }
 
@@ -59,12 +64,16 @@ function sumCoverage(items: SpecSummaryInput[]): SpecGroupCoverage {
   let testable = 0;
   let covered = 0;
   let untestable = 0;
+
   for (const { coverage } of items) {
-    if (!coverage) continue;
+    if (!coverage) {
+      continue;
+    }
     testable += coverage.testable;
     covered += coverage.covered;
     untestable += coverage.untestable ?? 0;
   }
+
   return {
     testable,
     covered,
@@ -76,15 +85,19 @@ function sumCoverage(items: SpecSummaryInput[]): SpecGroupCoverage {
 /** Collapse per-file summaries into one card per spec folder, titled from spec.md. */
 export function groupSpecSummaries(summaries: SpecSummaryInput[]): SpecGroup[] {
   const byKey = new Map<string, SpecSummaryInput[]>();
+
   for (const summary of summaries) {
     const key = specGroupKey(summary.filePath);
+
     (byKey.get(key) ?? byKey.set(key, []).get(key)!).push(summary);
   }
 
   const groups: SpecGroup[] = [];
+
   for (const [key, items] of byKey) {
     const sorted = [...items].sort(orderSpecFirst);
     const primary = sorted.find((s) => isSpecDoc(s.filePath)) ?? sorted[0];
+
     groups.push({
       key,
       title: primary.title || basename(key),
@@ -93,5 +106,6 @@ export function groupSpecSummaries(summaries: SpecSummaryInput[]): SpecGroup[] {
       files: sorted.map((s) => ({ filePath: s.filePath, title: s.title })),
     });
   }
+
   return groups.sort((a, b) => a.key.localeCompare(b.key));
 }

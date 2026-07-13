@@ -19,6 +19,7 @@ describe("resolveExecutionImage", () => {
 
   it("returns the per-repo image from dark_factory.execution.image", () => {
     const settings = { dark_factory: { execution: { image: "golang:1.23" } } };
+
     expect(resolveExecutionImage(settings, "implementation")).toBe(
       "golang:1.23",
     );
@@ -31,6 +32,7 @@ describe("resolveExecutionImage", () => {
         implementation: { execution: { image: "golang:1.23-toolchain" } },
       },
     };
+
     expect(resolveExecutionImage(settings, "implementation")).toBe(
       "golang:1.23-toolchain",
     );
@@ -43,6 +45,7 @@ describe("resolveExecutionImage", () => {
         implementation: { execution: { image: "golang:1.23-toolchain" } },
       },
     };
+
     expect(resolveExecutionImage(settings, "gap-fill")).toBe("golang:1.23");
   });
 });

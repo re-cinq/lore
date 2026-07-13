@@ -23,6 +23,7 @@ describe("ChunkBody", () => {
     const link = container.querySelector<HTMLAnchorElement>(
       'a[href="https://github.com/re-cinq/lore/blob/main/specs/x/spec.md"]',
     );
+
     expect(link).not.toBeNull();
     expect(link?.getAttribute("target")).toEqual("_blank");
     expect(link?.getAttribute("rel")).toEqual("noopener noreferrer");
@@ -44,12 +45,14 @@ describe("ChunkBody", () => {
       />,
     );
     const code = container.querySelector("code.hljs");
+
     expect(code).not.toBeNull();
     expect(code?.className).toContain("language-typescript");
     expect(container.textContent).toContain("function foo · L10–42");
     const gh = container.querySelector<HTMLAnchorElement>(
       'a[href="https://github.com/re-cinq/lore/blob/main/agent/src/foo.ts#L10-L42"]',
     );
+
     expect(gh?.getAttribute("target")).toEqual("_blank");
   });
 
@@ -63,6 +66,7 @@ describe("ChunkBody", () => {
         metadata={{ section_title: "Architecture" }}
       />,
     );
+
     expect(container.textContent).toContain("Architecture");
     expect(
       container.querySelector(
@@ -82,6 +86,7 @@ describe("ChunkBody", () => {
         preview
       />,
     );
+
     expect(container.textContent).not.toContain("View on GitHub");
     expect(findBox(container)?.className).toContain(styles.previewBox);
   });
@@ -98,6 +103,7 @@ describe("ChunkBody", () => {
     const link = container.querySelector<HTMLAnchorElement>(
       'a[href="specs/x.md"]',
     );
+
     expect(link).not.toBeNull();
     expect(link?.getAttribute("target")).toBeNull();
   });

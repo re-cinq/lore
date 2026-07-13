@@ -63,6 +63,7 @@ const GH_FILE_PURPOSE: Record<string, string> = {
 
 function daysAgo(now: number, iso: string): string {
   const d = Math.floor((now - new Date(iso).getTime()) / 86_400_000);
+
   return d <= 0 ? "today" : `${d}d ago`;
 }
 
@@ -103,6 +104,7 @@ export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
     const stale =
       input.now - new Date(input.lastIngestedAt).getTime() > STALE_MS;
     const when = daysAgo(input.now, input.lastIngestedAt);
+
     checks.push({
       id: "ingested",
       label: "Context ingested",
@@ -136,6 +138,7 @@ export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
       label: `${path} on GitHub`,
       status,
     };
+
     if (status === "unknown") {
       check.detail = "GitHub App has no repo access";
     } else if (status === "fail") {
@@ -201,19 +204,26 @@ export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
       status: m.status,
       detail: m.detail,
     };
-    if (m.fixable) check.action = { kind: "setup-webhook", text: "set up" };
+
+    if (m.fixable) {
+      check.action = { kind: "setup-webhook", text: "set up" };
+    }
+
     // Show the URL to set by hand whenever it's known and not already in place —
     // covers manual setup and the App-lacks-permission case where the button can't help.
     // The signing secret rides alongside (fetched only in this not-configured case).
     if (w.canonicalUrl && w.state !== "configured") {
       check.copy = { value: w.canonicalUrl, label: "set this URL" };
-      if (w.secret)
+
+      if (w.secret) {
         check.secret = { value: w.secret, label: "and this secret" };
+      }
     }
     checks.push(check);
   }
 
   const { developerCount, lastActivity } = input.localMcp;
+
   checks.push({
     id: "local-mcp",
     label: "Used locally via MCP",

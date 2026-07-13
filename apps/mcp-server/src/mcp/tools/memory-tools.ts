@@ -87,6 +87,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
       try {
         const repo = detectCurrentRepo() || undefined;
         const embedding = await getQueryEmbedding(value);
+
         if (isMemoryDbAvailable()) {
           const result = await writeMemory(
             key,
@@ -96,23 +97,28 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             embedding || undefined,
             repo,
           );
+
           invalidateCache(MEMORY_DERIVED_READS);
+
           if (extract_facts) {
             void import("@re-cinq/lore-server-core/features/memory/memory.js").then(
               ({ getMemoryPool }) => {
                 const p = getMemoryPool();
+
                 if (p) {
                   p.query(
                     `SELECT id FROM memory.memories WHERE key = $1 AND (repo = $2 OR agent_id = $3) ORDER BY version DESC LIMIT 1`,
                     [key, repo || "", resolveAgentId(agent_id)],
                   ).then((r: any) => {
-                    if (r.rows[0]?.id)
+                    if (r.rows[0]?.id) {
                       extractFacts(r.rows[0].id, value, p).catch(() => {});
+                    }
                   });
                 }
               },
             );
           }
+
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result) }],
           };
@@ -125,16 +131,23 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           ttl,
           repo,
         });
+
         if (proxied.ok) {
           invalidateCache(MEMORY_DERIVED_READS);
+
           return { content: [{ type: "text" as const, text: proxied.body }] };
         }
-        if (proxied.reason === "unreachable")
+
+        if (proxied.reason === "unreachable") {
           return unreachableError("lore_write_memory", proxied.detail);
-        if (proxied.reason === "denied")
+        }
+
+        if (proxied.reason === "denied") {
           return deniedError("lore_write_memory", proxied.detail);
+        }
         // File fallback only when LORE_API_URL is not configured (true offline mode)
         const result = writeMemoryFile(key, value, agent_id, ttl);
+
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
@@ -170,14 +183,18 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
       try {
         const ver =
           version === "all" ? "all" : version ? Number(version) : undefined;
+
         if (isMemoryDbAvailable()) {
           const result = await readMemory(key, agent_id, ver);
-          if (!result)
+
+          if (!result) {
             return {
               content: [
                 { type: "text" as const, text: `Memory "${key}" not found.` },
               ],
             };
+          }
+
           return {
             content: [
               { type: "text" as const, text: JSON.stringify(result, null, 2) },
@@ -197,19 +214,28 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
               version,
             }),
         );
-        if (proxied.ok)
+
+        if (proxied.ok) {
           return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "unreachable")
+        }
+
+        if (proxied.reason === "unreachable") {
           return unreachableError("lore_read_memory", proxied.detail);
-        if (proxied.reason === "denied")
+        }
+
+        if (proxied.reason === "denied") {
           return deniedError("lore_read_memory", proxied.detail);
+        }
         const result = readMemoryFile(key, agent_id, ver);
-        if (!result)
+
+        if (!result) {
           return {
             content: [
               { type: "text" as const, text: `Memory "${key}" not found.` },
             ],
           };
+        }
+
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
@@ -239,7 +265,9 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
       try {
         if (isMemoryDbAvailable()) {
           const result = await deleteMemory(key, agent_id);
+
           invalidateCache(MEMORY_DERIVED_READS);
+
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result) }],
           };
@@ -248,15 +276,22 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           key,
           agent_id: agent_id || resolveAgentId(),
         });
+
         if (proxied.ok) {
           invalidateCache(MEMORY_DERIVED_READS);
+
           return { content: [{ type: "text" as const, text: proxied.body }] };
         }
-        if (proxied.reason === "unreachable")
+
+        if (proxied.reason === "unreachable") {
           return unreachableError("lore_delete_memory", proxied.detail);
-        if (proxied.reason === "denied")
+        }
+
+        if (proxied.reason === "denied") {
           return deniedError("lore_delete_memory", proxied.detail);
+        }
         const result = deleteMemoryFile(key, agent_id);
+
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result) }],
         };
@@ -294,8 +329,10 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
     async ({ agent_id, limit, offset }) => {
       try {
         const repo = detectCurrentRepo() || undefined;
+
         if (isMemoryDbAvailable()) {
           const result = await listMemories(agent_id, limit, offset, repo);
+
           return {
             content: [
               { type: "text" as const, text: JSON.stringify(result, null, 2) },
@@ -316,13 +353,20 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
               repo,
             }),
         );
-        if (proxied.ok)
+
+        if (proxied.ok) {
           return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "unreachable")
+        }
+
+        if (proxied.reason === "unreachable") {
           return unreachableError("lore_list_memories", proxied.detail);
-        if (proxied.reason === "denied")
+        }
+
+        if (proxied.reason === "denied") {
           return deniedError("lore_list_memories", proxied.detail);
+        }
         const result = listMemoriesFile(agent_id, limit, offset);
+
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
@@ -387,6 +431,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             include_invalidated,
             graph_augment,
           );
+
           return {
             content: [
               { type: "text" as const, text: JSON.stringify(results, null, 2) },
@@ -412,13 +457,20 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
               limit,
             }),
         );
-        if (proxied.ok)
+
+        if (proxied.ok) {
           return { content: [{ type: "text" as const, text: proxied.body }] };
-        if (proxied.reason === "unreachable")
+        }
+
+        if (proxied.reason === "unreachable") {
           return unreachableError("lore_search_memory", proxied.detail);
-        if (proxied.reason === "denied")
+        }
+
+        if (proxied.reason === "denied") {
           return deniedError("lore_search_memory", proxied.detail);
+        }
         const results = searchMemoryFile(query, agent_id, limit);
+
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(results, null, 2) },
@@ -463,6 +515,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
     async ({ content, source, ref, agent_id }) => {
       try {
         const dbPoolRef = getPool();
+
         if (!isMemoryDbAvailable()) {
           // Proxy to GKE
           const proxied = await proxyToApi("/api/episode", {
@@ -471,14 +524,21 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             ref,
             agent_id: agent_id || resolveAgentId(),
           });
+
           if (proxied.ok) {
             invalidateCache(EPISODE_DERIVED_READS);
+
             return { content: [{ type: "text" as const, text: proxied.body }] };
           }
-          if (proxied.reason === "unreachable")
+
+          if (proxied.reason === "unreachable") {
             return unreachableError("lore_write_episode", proxied.detail);
-          if (proxied.reason === "denied")
+          }
+
+          if (proxied.reason === "denied") {
             return deniedError("lore_write_episode", proxied.detail);
+          }
+
           return {
             content: [
               {
@@ -520,6 +580,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         }
 
         const episodeId = rows[0].id;
+
         invalidateCache(EPISODE_DERIVED_READS);
 
         // Trigger async fact extraction and graph update (don't block the response)
@@ -535,6 +596,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           const graphLlmCall = createGraphLlmCall(dbPoolRef);
           // Determine repo from ref (e.g. "owner/repo#42" -> "owner/repo")
           const repoFromRef = ref?.match(/^([^#]+)/)?.[1] || null;
+
           extractAndUpdateGraph(
             dbPoolRef,
             content,
@@ -618,10 +680,22 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             // Local stdio mode: proxy the read to the GKE server over LORE_API_URL
             // (mirrors lore_assemble_context) instead of requiring a direct DB.
             const params = new URLSearchParams();
-            if (entity) params.set("entity", entity);
-            if (relation_type) params.set("relation_type", relation_type);
-            if (repo) params.set("repo", repo);
-            if (include_invalidated) params.set("include_invalidated", "true");
+
+            if (entity) {
+              params.set("entity", entity);
+            }
+
+            if (relation_type) {
+              params.set("relation_type", relation_type);
+            }
+
+            if (repo) {
+              params.set("repo", repo);
+            }
+
+            if (include_invalidated) {
+              params.set("include_invalidated", "true");
+            }
             const proxied = await withReadCache(
               {
                 tool: "lore_query_graph",
@@ -631,17 +705,21 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
               },
               () => proxyGetApi(`/api/graph?${params.toString()}`),
             );
+
             if (proxied.ok) {
               return {
                 content: [{ type: "text" as const, text: proxied.body }],
               };
             }
+
             if (proxied.reason === "unreachable") {
               return unreachableError("lore_query_graph", proxied.detail);
             }
+
             if (proxied.reason === "denied") {
               return deniedError("lore_query_graph", proxied.detail);
             }
+
             return {
               content: [
                 {
@@ -658,6 +736,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             repo,
             include_invalidated,
           );
+
           if (results.length === 0) {
             return {
               content: [
@@ -670,6 +749,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
               ],
             };
           }
+
           return {
             content: [
               { type: "text" as const, text: JSON.stringify(results, null, 2) },
@@ -733,11 +813,13 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
         // Get total episode count
         let episodeCount = 0;
+
         try {
           const { rows } = await dbPoolRef.query(
             `SELECT count(*)::int as total FROM memory.episodes WHERE agent_id = $1`,
             [agent],
           );
+
           episodeCount = rows[0]?.total || 0;
         } catch {
           // best-effort: leave episodeCount at 0
@@ -751,6 +833,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
             latest: episodesResult.rows,
           },
         };
+
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(result, null, 2) },

@@ -12,6 +12,7 @@ function mockPool(responses: Array<{ rows?: unknown[] }>) {
   const pool = {
     query: vi.fn(async (sql: string, values: unknown[]) => {
       calls.push({ sql, values });
+
       return { rows: responses[i++]?.rows ?? [] };
     }),
   };
@@ -27,6 +28,7 @@ describe("PgTaskQueue.claimNextPending", () => {
       { rows: [{ id: "t1", status: "pending" }] },
     ]);
     const task = await new PgTaskQueue(pool).claimNextPending();
+
     expect(task).toEqual({ id: "t1", status: "pending" });
     expect(calls[0].sql).toContain("WHERE status = 'pending'");
     expect(calls[0].sql).toContain("priority = 'immediate'");
@@ -36,12 +38,14 @@ describe("PgTaskQueue.claimNextPending", () => {
 
   it("drops the dead `status != 'running-local'` predicate", async () => {
     const { pool, calls } = mockPool([{ rows: [] }]);
+
     await new PgTaskQueue(pool).claimNextPending();
     expect(calls[0].sql).not.toContain("running-local");
   });
 
   it("returns null when nothing is runnable", async () => {
     const { pool } = mockPool([{ rows: [] }]);
+
     expect(await new PgTaskQueue(pool).claimNextPending()).toBeNull();
   });
 });
@@ -52,6 +56,7 @@ describe("PgTaskQueue.findRecoverable", () => {
       { rows: [{ id: "t1", task_type: "general" }] },
     ]);
     const rows = await new PgTaskQueue(pool).findRecoverable(30);
+
     expect(rows).toEqual([{ id: "t1", task_type: "general" }]);
     expect(calls[0].sql).toContain("status IN ('running', 'queued')");
     expect(calls[0].sql).toContain("($1 || ' minutes')::interval");
@@ -62,6 +67,7 @@ describe("PgTaskQueue.findRecoverable", () => {
 describe("PgTaskQueue.claimSpecTask", () => {
   it("returns true when the CAS updates a still-pending row, defaulting the claimer", async () => {
     const { pool, calls } = mockPool([{ rows: [{ id: "t1" }] }]);
+
     expect(await new PgTaskQueue(pool).claimSpecTask("t1")).toBe(true);
     expect(calls[0].sql).toContain("WHERE id = $1 AND status = 'pending'");
     expect(calls[0].sql).toContain("agent_id = $2");
@@ -70,6 +76,7 @@ describe("PgTaskQueue.claimSpecTask", () => {
 
   it("records the caller-supplied claimer", async () => {
     const { pool, calls } = mockPool([{ rows: [{ id: "t1" }] }]);
+
     expect(await new PgTaskQueue(pool).claimSpecTask("t1", "agent-9")).toBe(
       true,
     );
@@ -78,6 +85,7 @@ describe("PgTaskQueue.claimSpecTask", () => {
 
   it("returns false when the row was already claimed", async () => {
     const { pool } = mockPool([{ rows: [] }]);
+
     expect(await new PgTaskQueue(pool).claimSpecTask("t1")).toBe(false);
   });
 });
@@ -85,6 +93,7 @@ describe("PgTaskQueue.claimSpecTask", () => {
 describe("PgTaskQueue.findReadySpecTasks", () => {
   it("stays org-wide with no params when no repo is given", async () => {
     const { pool, calls } = mockPool([{ rows: [] }]);
+
     await new PgTaskQueue(pool).findReadySpecTasks();
     expect(calls[0].sql).not.toContain("t.target_repo = $1");
     expect(calls[0].values).toEqual([]);
@@ -92,6 +101,7 @@ describe("PgTaskQueue.findReadySpecTasks", () => {
 
   it("scopes to one repo when given", async () => {
     const { pool, calls } = mockPool([{ rows: [] }]);
+
     await new PgTaskQueue(pool).findReadySpecTasks("a/b");
     expect(calls[0].sql).toContain("AND t.target_repo = $1");
     expect(calls[0].values).toEqual(["a/b"]);
@@ -101,6 +111,7 @@ describe("PgTaskQueue.findReadySpecTasks", () => {
 describe("PgTaskQueue.completeSpecTask", () => {
   it("returns completed false for an unknown task", async () => {
     const { pool } = mockPool([{ rows: [] }]);
+
     expect(await new PgTaskQueue(pool).completeSpecTask("missing")).toEqual({
       completed: false,
       unblocked: [],
@@ -111,6 +122,7 @@ describe("PgTaskQueue.completeSpecTask", () => {
     const { pool } = mockPool([
       { rows: [{ status: "pending", context_bundle: {}, target_repo: "a/b" }] },
     ]);
+
     expect(await new PgTaskQueue(pool).completeSpecTask("t1")).toEqual({
       completed: false,
       unblocked: [],
@@ -122,6 +134,7 @@ describe("PgTaskQueue.completeSpecTask", () => {
       { rows: [{ status: "running", context_bundle: {}, target_repo: "a/b" }] }, // load
       { rows: [] }, // UPDATE completed
     ]);
+
     expect(await new PgTaskQueue(pool).completeSpecTask("t1")).toEqual({
       completed: true,
       unblocked: [],
@@ -174,6 +187,7 @@ describe("PgTaskQueue.completeSpecTask", () => {
         ],
       }, // findReadySpecTasks
     ]);
+
     expect(await new PgTaskQueue(pool).completeSpecTask("t1")).toEqual({
       completed: true,
       unblocked: ["T2: Build B"],
@@ -187,6 +201,7 @@ describe("PgTaskQueue org-wide reads", () => {
       { rows: [{ id: "t1", target_repo: "a/b", issue_number: 7 }] },
     ]);
     const rows = await new PgTaskQueue(pool).awaitingApproval();
+
     expect(rows).toEqual([{ id: "t1", target_repo: "a/b", issue_number: 7 }]);
     expect(calls[0].sql).toContain("status = 'awaiting_approval'");
     expect(calls[0].sql).toContain("issue_number IS NOT NULL");
@@ -196,6 +211,7 @@ describe("PgTaskQueue org-wide reads", () => {
     const { pool, calls } = mockPool([
       { rows: [{ target_repo: "a/b" }, { target_repo: "c/d" }] },
     ]);
+
     expect(await new PgTaskQueue(pool).distinctTargetRepos()).toEqual([
       "a/b",
       "c/d",
@@ -208,6 +224,7 @@ describe("PgTaskQueue org-wide reads", () => {
     const { pool, calls } = mockPool([
       { rows: [{ pr_number: 12, target_repo: "a/b", target_branch: "main" }] },
     ]);
+
     expect(await new PgTaskQueue(pool).prInfo("t1")).toEqual({
       pr_number: 12,
       target_repo: "a/b",
@@ -219,6 +236,7 @@ describe("PgTaskQueue org-wide reads", () => {
 
   it("prInfo returns null for an unknown task", async () => {
     const { pool } = mockPool([{ rows: [] }]);
+
     expect(await new PgTaskQueue(pool).prInfo("nope")).toBeNull();
   });
 });
@@ -241,6 +259,7 @@ describe("InMemoryTaskQueue.claimNextPending", () => {
         created_at: at(NOW, 0),
       },
     ]);
+
     expect((await q.claimNextPending())?.id).toBe("i");
   });
 
@@ -304,6 +323,7 @@ describe("InMemoryTaskQueue.claimNextPending", () => {
         created_at: at(NOW, 200),
       },
     ]);
+
     expect((await q.claimNextPending())?.id).toBe("immediate-new");
   });
 });
@@ -335,6 +355,7 @@ describe("InMemoryTaskQueue sweeps", () => {
       ],
       () => NOW,
     );
+
     expect((await q.findRecoverable(30)).map((r) => r.id)).toEqual([
       "stale",
       "impl",
@@ -356,6 +377,7 @@ describe("InMemoryTaskQueue sweeps", () => {
       () => NOW,
     );
     const stale = await q.findStaleRunning(6);
+
     expect(stale).toMatchObject([
       { id: "old", target_repo: "a/b", issue_number: 5 },
     ]);
@@ -368,6 +390,7 @@ describe("InMemoryTaskQueue.claimSpecTask", () => {
     const q = new InMemoryTaskQueue([
       { id: "s", status: "pending", task_type: "spec-task" },
     ]);
+
     expect(await q.claimSpecTask("s")).toBe(true);
     expect(await q.claimSpecTask("s")).toBe(false);
   });
@@ -378,6 +401,7 @@ describe("InMemoryTaskQueue.claimSpecTask", () => {
       { id: "b", status: "pending", task_type: "spec-task" },
     ];
     const q = new InMemoryTaskQueue(tasks);
+
     await q.claimSpecTask("a");
     await q.claimSpecTask("b", "agent-9");
     expect(tasks[0].agent_id).toBe("spec-task-executor");
@@ -390,6 +414,7 @@ describe("InMemoryTaskQueue.completeSpecTask", () => {
     const q = new InMemoryTaskQueue([
       { id: "s", status: "pending", task_type: "spec-task" },
     ]);
+
     expect(await q.completeSpecTask("s")).toEqual({
       completed: false,
       unblocked: [],
@@ -433,6 +458,7 @@ describe("InMemoryTaskQueue.completeSpecTask", () => {
         },
       },
     ]);
+
     expect(await q.completeSpecTask("done")).toEqual({
       completed: true,
       unblocked: ["T2: Build the thing"],
@@ -457,6 +483,7 @@ describe("InMemoryTaskQueue org-wide reads", () => {
       },
       { id: "c", status: "pending", target_repo: "a/b", issue_number: 9 },
     ]);
+
     expect(await q.awaitingApproval()).toEqual([
       { id: "a", target_repo: "a/b", issue_number: 3 },
     ]);
@@ -468,6 +495,7 @@ describe("InMemoryTaskQueue org-wide reads", () => {
       { id: "2", target_repo: "a/b" },
       { id: "3", target_repo: "a/b" },
     ]);
+
     expect(await q.distinctTargetRepos()).toEqual(["a/b", "c/d"]);
   });
 
@@ -475,6 +503,7 @@ describe("InMemoryTaskQueue org-wide reads", () => {
     const q = new InMemoryTaskQueue([
       { id: "1", target_repo: "a/b", pr_number: 5, target_branch: "main" },
     ]);
+
     expect(await q.prInfo("1")).toEqual({
       pr_number: 5,
       target_repo: "a/b",
@@ -517,6 +546,7 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
         },
       },
     ]);
+
     expect((await q.findReadySpecTasks()).map((t) => t.id)).toEqual(["ready"]);
   });
 
@@ -559,6 +589,7 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
         },
       },
     ]);
+
     expect((await q.findReadySpecTasks("a/b")).map((t) => t.id)).toEqual([
       "ready-a",
     ]);

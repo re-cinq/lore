@@ -36,31 +36,50 @@ export function connectedComponents(
   const parent = new Map<string, string>();
   const find = (x: string): string => {
     let root = x;
-    while ((parent.get(root) ?? root) !== root) root = parent.get(root) ?? root;
+
+    while ((parent.get(root) ?? root) !== root) {
+      root = parent.get(root) ?? root;
+    }
     let cur = x;
+
     while (cur !== root) {
       const next = parent.get(cur) ?? cur;
+
       parent.set(cur, root);
       cur = next;
     }
+
     return root;
   };
   const union = (a: string, b: string) => {
     parent.set(find(a), find(b));
   };
 
-  for (const id of nodeIds) if (!parent.has(id)) parent.set(id, id);
+  for (const id of nodeIds) {
+    if (!parent.has(id)) {
+      parent.set(id, id);
+    }
+  }
+
   for (const { source, target } of links) {
-    if (!parent.has(source)) parent.set(source, source);
-    if (!parent.has(target)) parent.set(target, target);
+    if (!parent.has(source)) {
+      parent.set(source, source);
+    }
+
+    if (!parent.has(target)) {
+      parent.set(target, target);
+    }
     union(source, target);
   }
 
   const groups = new Map<string, string[]>();
+
   for (const id of nodeIds) {
     const root = find(id);
+
     (groups.get(root) ?? groups.set(root, []).get(root)!).push(id);
   }
+
   return [...groups.values()];
 }
 
@@ -77,14 +96,19 @@ export function rimTargets(
 ): Map<string, Point> {
   const out = new Map<string, Point>();
   const n = Math.max(1, components.length);
+
   components.forEach((comp, i) => {
     const angle = (2 * Math.PI * i) / n;
     const target = {
       x: center.x + rimRadius * Math.cos(angle),
       y: center.y + rimRadius * Math.sin(angle),
     };
-    for (const id of comp) out.set(id, target);
+
+    for (const id of comp) {
+      out.set(id, target);
+    }
   });
+
   return out;
 }
 
@@ -103,16 +127,20 @@ export function featureSeedPositions(
   const weights = features.map((f) => Math.max(1, f.size));
   const total = weights.reduce((a, b) => a + b, 0) || 1;
   let running = 0;
+
   features.forEach((f, i) => {
     const frac = (running + weights[i] / 2) / total;
+
     running += weights[i];
     const radius = maxRadius * Math.sqrt(frac);
     const angle = i * GOLDEN_ANGLE;
+
     out.set(f.id, {
       x: center.x + radius * Math.cos(angle),
       y: center.y + radius * Math.sin(angle),
     });
   });
+
   return out;
 }
 
@@ -144,6 +172,7 @@ export function boundingRadius(
   { spacing = 28, floor = 220, cap = 1100 }: BoundingRadiusOptions = {},
 ): number {
   const raw = spacing * Math.sqrt(Math.max(0, vertexCount + edgeCount));
+
   return Math.min(cap, Math.max(floor, raw));
 }
 
@@ -189,20 +218,29 @@ export function containedVelocity(
     const uy = dy / dist;
     const over = dist - radius;
     const outward = vx * ux + vy * uy;
+
     if (outward > 0) {
       vx -= outward * ux;
       vy -= outward * uy;
     }
     const ret = Math.min(maxReturn, over * returnPull);
+
     vx -= ret * ux;
     vy -= ret * uy;
     const damp = 1 / (1 + over / dampScale);
+
     vx *= damp;
     vy *= damp;
   }
 
-  if (Math.abs(vx) < epsilon) vx = 0;
-  if (Math.abs(vy) < epsilon) vy = 0;
+  if (Math.abs(vx) < epsilon) {
+    vx = 0;
+  }
+
+  if (Math.abs(vy) < epsilon) {
+    vy = 0;
+  }
+
   return { vx, vy };
 }
 
@@ -236,44 +274,61 @@ export function radialTree(
   const leaves: string[] = [];
   const visited = new Set<string>();
   const visit = (id: string, d: number) => {
-    if (visited.has(id)) return;
+    if (visited.has(id)) {
+      return;
+    }
     visited.add(id);
     depth.set(id, d);
     const children = (childrenOf.get(id) ?? []).filter(
       (child) => !visited.has(child),
     );
-    if (children.length === 0) leaves.push(id);
-    else for (const child of children) visit(child, d + 1);
+
+    if (children.length === 0) {
+      leaves.push(id);
+    } else {
+      for (const child of children) {
+        visit(child, d + 1);
+      }
+    }
     postOrder.push(id);
   };
+
   visit(root, 0);
 
   const span = angleEnd - angleStart;
   const leafCount = Math.max(leaves.length, 1);
   const angle = new Map<string, number>();
+
   leaves.forEach((id, i) =>
     angle.set(id, angleStart + (span * (i + 0.5)) / leafCount),
   );
+
   // Children precede parents in post-order, so a parent's children angles are set.
   for (const id of postOrder) {
-    if (angle.has(id)) continue;
+    if (angle.has(id)) {
+      continue;
+    }
     const children = childrenOf.get(id) ?? [];
     const sum = children.reduce(
       (acc, child) => acc + (angle.get(child) ?? 0),
       0,
     );
+
     angle.set(id, children.length ? sum / children.length : angleStart);
   }
 
   const positions = new Map<string, Point>();
+
   for (const [id, d] of depth) {
     const a = angle.get(id) ?? angleStart;
     const r = d * ringGap;
+
     positions.set(id, {
       x: center.x + r * Math.cos(a),
       y: center.y + r * Math.sin(a),
     });
   }
+
   return positions;
 }
 
@@ -337,22 +392,29 @@ export function countCrossings(
       (x): x is { s: string; t: string; a: Point; b: Point } => !!x.a && !!x.b,
     );
   let crossings = 0;
+
   for (let i = 0; i < segs.length; i += 1) {
     for (let j = i + 1; j < segs.length; j += 1) {
       const A = segs[i];
       const B = segs[j];
-      if (A.s === B.s || A.s === B.t || A.t === B.s || A.t === B.t) continue;
+
+      if (A.s === B.s || A.s === B.t || A.t === B.s || A.t === B.t) {
+        continue;
+      }
       const d1 = orient(B.a, B.b, A.a);
       const d2 = orient(B.a, B.b, A.b);
       const d3 = orient(A.a, A.b, B.a);
       const d4 = orient(A.a, A.b, B.b);
+
       if (
         ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
         ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
-      )
+      ) {
         crossings += 1;
+      }
     }
   }
+
   return crossings;
 }
 
@@ -363,8 +425,11 @@ export function separateSmallComponents(
   margin: number,
 ): Map<string, Point> {
   let mainRadius = 0;
+
   for (const node of nodes) {
-    if (smallIds.has(node.id)) continue;
+    if (smallIds.has(node.id)) {
+      continue;
+    }
     mainRadius = Math.max(
       mainRadius,
       Math.hypot(node.x - center.x, node.y - center.y),
@@ -372,16 +437,23 @@ export function separateSmallComponents(
   }
   const barrier = mainRadius + margin;
   const moved = new Map<string, Point>();
+
   for (const node of nodes) {
-    if (!smallIds.has(node.id)) continue;
+    if (!smallIds.has(node.id)) {
+      continue;
+    }
     const dx = node.x - center.x;
     const dy = node.y - center.y;
     const dist = Math.hypot(dx, dy) || 1;
-    if (dist >= barrier) continue;
+
+    if (dist >= barrier) {
+      continue;
+    }
     moved.set(node.id, {
       x: center.x + (barrier * dx) / dist,
       y: center.y + (barrier * dy) / dist,
     });
   }
+
   return moved;
 }

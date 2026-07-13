@@ -35,11 +35,16 @@ export function buildTimeline(
   const ordered = [...commitsApi].reverse();
   const stageCommits: TimelineCommit[] = [];
   let prevTimeMs = createdAt.getTime();
+
   for (const c of ordered) {
     const trailers = parseTrailers(c.commit.message);
-    if (!trailers) continue;
+
+    if (!trailers) {
+      continue;
+    }
     const committedIso = c.commit.committer?.date ?? new Date().toISOString();
     const committedMs = new Date(committedIso).getTime();
+
     stageCommits.push({
       sha: c.sha,
       stage: trailers.stage,
@@ -54,6 +59,7 @@ export function buildTimeline(
     });
     prevTimeMs = committedMs;
   }
+
   return stageCommits;
 }
 
@@ -64,7 +70,10 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
     options: bearerScope("read"),
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database unavailable" }).code(503);
+
+      if (!pool) {
+        return h.response({ error: "database unavailable" }).code(503);
+      }
       const taskId = request.params.id;
 
       let task:
@@ -77,21 +86,28 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
             created_at: Date;
           }
         | undefined;
+
       try {
         const { rows } = await pool.query(
           `SELECT target_repo, target_branch, pr_number, pr_url, status, created_at
              FROM pipeline.tasks WHERE id = $1`,
           [taskId],
         );
+
         task = rows[0];
       } catch (err) {
         console.error("[timeline] task lookup failed:", err);
+
         return h.response({ error: "internal" }).code(500);
       }
-      if (!task) return h.response({ error: "task_not_found" }).code(404);
+
+      if (!task) {
+        return h.response({ error: "task_not_found" }).code(404);
+      }
 
       const repo = task.target_repo;
       const branch = task.target_branch;
+
       if (!repo || !branch) {
         return h.response({
           task_id: taskId,
@@ -110,6 +126,7 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
       // the branch is the source of truth on the remote anyway.
       let commitsApi: RawCommit[];
       let prState: "open" | "closed" | "merged" | null = null;
+
       try {
         const [owner, repoName] = repo.split("/");
         const octokit = await getOctokit();
@@ -119,7 +136,9 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
           sha: branch,
           per_page: 100,
         });
+
         commitsApi = r.data as RawCommit[];
+
         if (task.pr_number) {
           try {
             const prRes = await octokit.rest.pulls.get({
@@ -127,6 +146,7 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
               repo: repoName,
               pull_number: task.pr_number,
             });
+
             prState = prRes.data.merged
               ? "merged"
               : (prRes.data.state as "open" | "closed");
@@ -148,6 +168,7 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
           });
         }
         console.error("[timeline] listCommits failed:", err);
+
         return h.response({ error: "github_api" }).code(500);
       }
 
@@ -163,13 +184,16 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
         holder?: string;
         expires_at?: string;
       } | null = null;
+
       try {
         const { rows } = await pool.query(
           `SELECT holder, expires_at FROM pipeline.task_leases WHERE branch_name = $1`,
           [branch],
         );
+
         if (rows.length > 0) {
           const expiresAt = new Date(rows[0].expires_at);
+
           lease = {
             held: expiresAt.getTime() > Date.now(),
             holder: rows[0].holder,

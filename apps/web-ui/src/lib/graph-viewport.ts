@@ -56,14 +56,17 @@ export function findNodeAtPoint(
 ): string | null {
   let bestId: string | null = null;
   let bestDistance = Infinity;
+
   for (const node of nodes) {
     const dx = world.x - node.x;
     const dy = world.y - node.y;
     const distance = Math.hypot(dx, dy);
+
     if (distance <= node.r + slop && distance < bestDistance) {
       bestDistance = distance;
       bestId = node.id;
     }
   }
+
   return bestId;
 }

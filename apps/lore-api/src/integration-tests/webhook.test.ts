@@ -35,6 +35,7 @@ describe("Webhook Dispatch", () => {
        VALUES ('webhook task', 'implementation', 'test/repo', 42, 'integration-test-webhook', 'pending')
        RETURNING id, status, issue_number`,
     );
+
     expect(rows[0].status).toBe("pending");
     expect(rows[0].issue_number).toBe(42);
   });
@@ -53,6 +54,7 @@ describe("Webhook Dispatch", () => {
          AND target_repo = 'test/repo'
          AND status NOT IN ('failed', 'cancelled')`,
     );
+
     expect(rows.length).toBeGreaterThan(0);
   });
 
@@ -70,6 +72,7 @@ describe("Webhook Dispatch", () => {
          AND target_repo = 'test/repo'
          AND status NOT IN ('failed', 'cancelled')`,
     );
+
     expect(rows).toHaveLength(0);
   });
 
@@ -80,6 +83,7 @@ describe("Webhook Dispatch", () => {
        FROM lore.repos
        WHERE full_name = 'test/repo'`,
     );
+
     expect(rows[0].auto_review).toBe("true");
     expect(rows[0].dispatch_label).toBe("lore");
   });
@@ -102,6 +106,7 @@ describe("Webhook Dispatch", () => {
       `SELECT issue_number, issue_url FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
+
     expect(rows[0].issue_number).toBe(123);
     expect(rows[0].issue_url).toBe("https://github.com/test/repo/issues/123");
   });

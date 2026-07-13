@@ -80,6 +80,7 @@ describe("generateOpenApi — request bodies", () => {
 
   it("carries required fields through for a flat covered route (ingest)", () => {
     const schema = bodySchema(document.paths["/api/ingest"].post);
+
     expect(schema.required).toContain("repo");
     expect(schema.properties.repo).toMatchObject({ type: "string" });
   });
@@ -88,6 +89,7 @@ describe("generateOpenApi — request bodies", () => {
     const schema = bodySchema(
       document.paths["/api/repos/{owner}/{repo}/agent-definitions"].post,
     );
+
     expect(schema.properties.name).toMatchObject({ type: "string" });
   });
 
@@ -121,6 +123,7 @@ describe("generateOpenApi — methods, scope, security", () => {
   it("merges verbs at a shared path and normalizes the optional param", () => {
     const p =
       document.paths["/api/repos/{owner}/{repo}/agent-definitions/{name}"];
+
     expect(Object.keys(p).sort()).toEqual(["delete", "get", "put"]);
     expect(p.get.description).toMatch(/optional/i);
     expect(p.get.parameters).toEqual(
@@ -204,6 +207,7 @@ describe("generateOpenApi — tag grouping", () => {
 describe("generateOpenApi — responses", () => {
   it("references the shared error envelope for a write route", () => {
     const responses = document.paths["/api/memory"].post.responses;
+
     expect(responses["400"]).toEqual({
       $ref: "#/components/responses/BadRequest",
     });

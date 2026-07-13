@@ -75,6 +75,7 @@ describe("injectRepoToken", () => {
     "GH_TOKEN_abc12345",
     "pt-abc12345",
   );
+
   it("renames, labels with the task id, and preserves the catalog recipe", () => {
     expect(def.metadata).toEqual({
       name: "pt-abc12345",
@@ -103,6 +104,7 @@ describe("injectRepoToken", () => {
   it("omits ref when the spec has no branch", () => {
     const repo = injectRepoToken(catalogDef, { ...spec, branch: "" }, "k", "n")
       .spec?.resources?.repos?.[0];
+
     expect(repo).not.toHaveProperty("ref");
   });
   it("tolerates a catalog AgentDefinition with no labels", () => {
@@ -112,6 +114,7 @@ describe("injectRepoToken", () => {
       "k",
       "n",
     );
+
     expect(def.metadata?.labels).toEqual({
       "lore.re-cinq.com/task-id": spec.taskId,
     });
@@ -126,6 +129,7 @@ describe("perTaskStation", () => {
       "pt-abc12345",
       spec.taskId,
     );
+
     expect(station.metadata).toEqual({
       name: "pt-abc12345",
       labels: {
@@ -138,6 +142,7 @@ describe("perTaskStation", () => {
   });
   it("tolerates a catalog Station with no spec (empty template fallback)", () => {
     const station = perTaskStation({ kind: "Station" }, "n", "d", spec.taskId);
+
     expect(station.spec).toEqual({ template: {}, agentDefRef: "d" });
   });
 });

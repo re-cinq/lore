@@ -13,7 +13,9 @@ const LANGFUSE_HOST = process.env.LANGFUSE_HOST;
 const LOW_CONFIDENCE_THRESHOLD = 0.72;
 
 export async function tracedSearch(params: TraceParams): Promise<void> {
-  if (!LANGFUSE_PK || !LANGFUSE_SK) return; // tracing disabled
+  if (!LANGFUSE_PK || !LANGFUSE_SK) {
+    return;
+  } // tracing disabled
 
   const isLowConfidence = params.topScore < LOW_CONFIDENCE_THRESHOLD;
 

@@ -15,6 +15,7 @@ const namespace = (): string =>
 
 const statusOf = (err: unknown): number | undefined => {
   const e = err as { code?: number; response?: { statusCode?: number } };
+
   return e?.code ?? e?.response?.statusCode;
 };
 const isNotFound = (err: unknown): boolean => statusOf(err) === 404;
@@ -24,7 +25,9 @@ async function api() {
   const { KubeConfig, CustomObjectsApi } =
     await import("@kubernetes/client-node");
   const kc = new KubeConfig();
+
   kc.loadFromCluster();
+
   return kc.makeApiClient(CustomObjectsApi);
 }
 
@@ -35,6 +38,7 @@ async function applyOne(
 ): Promise<void> {
   const client = await api();
   const ns = namespace();
+
   try {
     await client.createNamespacedCustomObject({
       group: GROUP,
@@ -44,7 +48,9 @@ async function applyOne(
       body,
     });
   } catch (err) {
-    if (!isConflict(err)) throw err;
+    if (!isConflict(err)) {
+      throw err;
+    }
     const current = (await client.getNamespacedCustomObject({
       group: GROUP,
       version: VERSION,
@@ -54,6 +60,7 @@ async function applyOne(
     })) as { metadata?: { resourceVersion?: string } };
     const meta =
       (body as { metadata?: Record<string, unknown> }).metadata ?? {};
+
     await client.replaceNamespacedCustomObject({
       group: GROUP,
       version: VERSION,
@@ -73,6 +80,7 @@ async function applyOne(
 
 async function deleteOne(plural: string, name: string): Promise<void> {
   const client = await api();
+
   try {
     await client.deleteNamespacedCustomObject({
       group: GROUP,
@@ -82,7 +90,9 @@ async function deleteOne(plural: string, name: string): Promise<void> {
       name,
     });
   } catch (err) {
-    if (!isNotFound(err)) throw err;
+    if (!isNotFound(err)) {
+      throw err;
+    }
   }
 }
 

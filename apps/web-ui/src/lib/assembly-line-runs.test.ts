@@ -46,6 +46,7 @@ describe("toAssemblyLineRun", () => {
         node_count: "0",
       }),
     );
+
     expect(run).toMatchObject({
       status: "running",
       outcome: null,
@@ -64,6 +65,7 @@ describe("toAssemblyLineRun", () => {
         node_count: "0",
       }),
     );
+
     expect(run).toMatchObject({ status: "queued", durationSeconds: null });
   });
 });

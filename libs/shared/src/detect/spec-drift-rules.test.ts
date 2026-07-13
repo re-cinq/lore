@@ -130,6 +130,7 @@ describe("shouldSkipDrift", () => {
 describe("decideGraphDrift", () => {
   it("reports no graph data when the document has no statements", () => {
     const d = decideGraphDrift(traceDoc([]));
+
     expect(d).toMatchObject({ available: false, drifted: false });
     expect(d.statements).toEqual([]);
   });
@@ -139,6 +140,7 @@ describe("decideGraphDrift", () => {
       stmt({ ordinal: 1, violated: false, drifted: false }),
       stmt({ uid: "0x2", ordinal: 2, violated: false }),
     ]);
+
     expect(decideGraphDrift(doc)).toMatchObject({
       available: true,
       drifted: false,
@@ -159,6 +161,7 @@ describe("decideGraphDrift", () => {
       [{ uid: "0xs1", heading: "Behavior", ordinal: 1 }],
     );
     const d = decideGraphDrift(doc);
+
     expect(d).toMatchObject({ available: true, drifted: true });
     expect(d.statements[0]).toMatchObject({
       text: "503 when DB down",
@@ -169,6 +172,7 @@ describe("decideGraphDrift", () => {
 
   it("flags a drifted statement", () => {
     const d = decideGraphDrift(traceDoc([stmt({ drifted: true })]));
+
     expect(d.drifted).toBe(true);
     expect(d.statements[0]?.reason).toBe("drifted");
   });
@@ -180,6 +184,7 @@ describe("decideHeuristicDrift", () => {
   it("flags drift when at least 3 scorable symbols are missing past the threshold", () => {
     const assertions = [fn("a"), fn("b"), fn("c"), fn("present")];
     const known = new Set(["present"]);
+
     expect(decideHeuristicDrift(assertions, known)).toMatchObject({
       drifted: true,
     });
@@ -193,6 +198,7 @@ describe("decideHeuristicDrift", () => {
       fn("present3"),
     ];
     const known = new Set(["present1", "present2", "present3"]);
+
     expect(decideHeuristicDrift(assertions, known).drifted).toBe(false);
   });
 
@@ -202,6 +208,7 @@ describe("decideHeuristicDrift", () => {
       { name: "status field", kind: "other", description: "" },
     ];
     const d = decideHeuristicDrift(assertions, new Set());
+
     expect(d).toMatchObject({ drifted: false, scored: 0 });
   });
 });

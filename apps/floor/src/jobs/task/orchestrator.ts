@@ -123,6 +123,7 @@ export async function processTaskViaSupervisor(
     opts.loadAssemblyLines ?? loadBuiltinAssemblyLines
   )();
   const assemblyLine = definitions.get(task.task_type);
+
   if (!assemblyLine) {
     return {
       outcome: "error",
@@ -150,7 +151,11 @@ export async function processTaskViaSupervisor(
         callLLM: (params) => Llm.instance.complete(params),
         resolvePrompt: (promptRef, description) => {
           const config = getTaskTypeConfig(promptRef);
-          if (!config) return null;
+
+          if (!config) {
+            return null;
+          }
+
           return {
             systemPrompt:
               `Output a JSON object with shape ` +
@@ -214,6 +219,7 @@ export async function processTaskViaSupervisor(
     if (result.reason === "lease_held") {
       return { outcome: "lease_held", branchName };
     }
+
     if (result.reason === "iteration_max_exceeded") {
       return {
         outcome: "iteration_max",
@@ -221,6 +227,7 @@ export async function processTaskViaSupervisor(
         errorMessage: result.errorMessage,
       };
     }
+
     if (result.reason === "executor_error") {
       return {
         outcome: "error",
@@ -267,6 +274,7 @@ async function cloneAndBranch(
   // never baked into `.git/config` or the clone URL where it would persist for
   // the workdir's lifetime and leak into logs that echo the remote.
   const token = await getToken();
+
   await execFile("git", [
     ...gitAuthArgs(token),
     "clone",
@@ -298,6 +306,7 @@ async function pushBranch(
   getToken: () => Promise<string>,
 ): Promise<void> {
   const token = await getToken();
+
   await execFile("git", [
     "-C",
     workdir,
@@ -344,6 +353,7 @@ async function pushAndOpenPr(opts: {
     "--shortstat",
     `origin/${defaultBranch}...HEAD`,
   ]);
+
   if (shortstat.trim() === "") {
     return { outcome: "no_changes", branchName: opts.branchName };
   }

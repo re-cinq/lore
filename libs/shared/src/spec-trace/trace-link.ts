@@ -56,6 +56,7 @@ export async function upsertTraceLink(
       `query q($x: string){ tl(func: eq(TraceLink.xid, $x)){ TraceLink.evidence } }`,
       { $x: xid },
     );
+
     return res.data?.tl?.[0]?.["TraceLink.evidence"] as
       EvidenceTier | undefined;
   });
@@ -69,6 +70,7 @@ export async function upsertTraceLink(
     "TraceLink.kind": args.kind,
     "TraceLink.evidence": evidence,
   });
+
   await withTxn(dgraph, (txn) =>
     txn.mutate({
       setJson: {
@@ -78,6 +80,7 @@ export async function upsertTraceLink(
       commitNow: true,
     }),
   );
+
   return traceLinkUid;
 }
 
@@ -95,6 +98,7 @@ export async function projectTraceLinks(
       } }`,
       { $sx: statementXid },
     );
+
     return res.data?.stmt?.[0] as
       | {
           uid: string;
@@ -103,7 +107,10 @@ export async function projectTraceLinks(
         }
       | undefined;
   });
-  if (!stmt) return { links: 0 };
+
+  if (!stmt) {
+    return { links: 0 };
+  }
 
   const verdict = await verifyCoverageLink(dgraph, statementXid);
   const validatedEvidence: EvidenceTier =
@@ -137,6 +144,7 @@ export async function projectTraceLinks(
       ...link,
     });
   }
+
   return { links: derivedLinks.length };
 }
 

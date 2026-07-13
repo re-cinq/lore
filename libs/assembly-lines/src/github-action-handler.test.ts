@@ -40,12 +40,14 @@ function fakeDeps(queue: CiConclusion[], over: Partial<GithubActionDeps> = {}) {
     },
     ...over,
   };
+
   return { deps, calls };
 }
 
 describe("createGithubActionHandler", () => {
   it("waits through pending, heartbeats each poll, then returns the CI verdict", async () => {
     const { deps, calls } = fakeDeps(["pending", "success"]);
+
     expect(await createGithubActionHandler(deps)(node, ctx)).toEqual({
       outcome: "success",
       extras: { "Lore-CI-Conclusion": "success" },
@@ -56,6 +58,7 @@ describe("createGithubActionHandler", () => {
 
   it("maps a red build to failed", async () => {
     const { deps } = fakeDeps(["failure"]);
+
     expect((await createGithubActionHandler(deps)(node, ctx)).outcome).toBe(
       "failed",
     );
@@ -64,6 +67,7 @@ describe("createGithubActionHandler", () => {
   it("times out to failed when CI never concludes", async () => {
     const { deps, calls } = fakeDeps([], { maxPolls: 2, pollIntervalMs: 1 });
     const result = await createGithubActionHandler(deps)(node, ctx);
+
     expect(result).toMatchObject({
       outcome: "failed",
       extras: { "Lore-CI-Conclusion": "timeout" },

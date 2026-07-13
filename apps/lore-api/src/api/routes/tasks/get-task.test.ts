@@ -32,18 +32,21 @@ describe("GET /api/task/:id", () => {
   it("returns the task when found", async () => {
     vi.mocked(getTask).mockResolvedValue({ id: "t1" } as any);
     const res = await get("/api/task/t1");
+
     expect(res.result).toEqual({ id: "t1" });
   });
 
   it("returns 404 when not found", async () => {
     vi.mocked(getTask).mockResolvedValue(null as any);
     const res = await get("/api/task/t1");
+
     expect(res.statusCode).toBe(404);
   });
 
   it("returns 500 when getTask throws", async () => {
     vi.mocked(getTask).mockRejectedValue(new Error("boom"));
     const res = await get("/api/task/t1");
+
     expect(res.statusCode).toBe(500);
   });
 });

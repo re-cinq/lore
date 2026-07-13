@@ -8,6 +8,7 @@ import { settings } from "../../kernel/queues.js";
 export function autoReviewEnabled(rawSettings: unknown): boolean {
   const parsed =
     typeof rawSettings === "string" ? safeParse(rawSettings) : rawSettings;
+
   return (parsed as { auto_review?: boolean } | null)?.auto_review === true;
 }
 

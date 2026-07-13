@@ -33,9 +33,13 @@ describe("verifyGitHubSignature", () => {
 });
 
 const ORIG = process.env.LORE_WEBHOOK_SECRET;
+
 afterEach(() => {
-  if (ORIG === undefined) delete process.env.LORE_WEBHOOK_SECRET;
-  else process.env.LORE_WEBHOOK_SECRET = ORIG;
+  if (ORIG === undefined) {
+    delete process.env.LORE_WEBHOOK_SECRET;
+  } else {
+    process.env.LORE_WEBHOOK_SECRET = ORIG;
+  }
 });
 
 describe("POST /api/webhook/github", () => {
@@ -50,6 +54,7 @@ describe("POST /api/webhook/github", () => {
       },
       payload: "{}",
     });
+
     expect(res.statusCode).toBe(503);
   });
 
@@ -65,6 +70,7 @@ describe("POST /api/webhook/github", () => {
       },
       payload: '{"tampered":true}',
     });
+
     expect(res.statusCode).toBe(401);
   });
 
@@ -81,6 +87,7 @@ describe("POST /api/webhook/github", () => {
       },
       payload: body,
     });
+
     expect(res.statusCode).toBe(202);
     expect(res.result).toMatchObject({ captured: 0, events: [] });
   });

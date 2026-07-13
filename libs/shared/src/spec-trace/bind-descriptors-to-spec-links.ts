@@ -42,10 +42,13 @@ function normalizePath(path: string): string {
 /** Flatten every spec's statements into `(test path, line) → statement anchor` entries. */
 function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
   const entries: LinkIndexEntry[] = [];
+
   for (const spec of specs) {
     for (const { statement, testLinks } of linksForStatements(spec.content)) {
       for (const link of testLinks) {
-        if (link.line === null) continue;
+        if (link.line === null) {
+          continue;
+        }
         entries.push({
           path: normalizePath(link.path),
           line: link.line,
@@ -54,6 +57,7 @@ function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
       }
     }
   }
+
   return entries;
 }
 
@@ -65,8 +69,14 @@ export function bindDescriptorsToSpecLinks(
 
   return descriptors.map((descriptor) => {
     const { startLine, endLine, spec } = descriptor;
-    if (spec !== undefined) return descriptor;
-    if (startLine === undefined || endLine === undefined) return descriptor;
+
+    if (spec !== undefined) {
+      return descriptor;
+    }
+
+    if (startLine === undefined || endLine === undefined) {
+      return descriptor;
+    }
 
     const file = normalizePath(descriptor.file);
     const anchors = [
@@ -82,7 +92,10 @@ export function bindDescriptorsToSpecLinks(
       ),
     ];
 
-    if (anchors.length === 0) return descriptor;
+    if (anchors.length === 0) {
+      return descriptor;
+    }
+
     return { ...descriptor, spec: anchors.length === 1 ? anchors[0] : anchors };
   });
 }

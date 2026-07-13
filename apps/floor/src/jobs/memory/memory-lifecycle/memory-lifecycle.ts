@@ -37,7 +37,10 @@ export async function importanceDecayJob(): Promise<string> {
 
   for (const { agent_id, cnt } of agents) {
     const excess = cnt - MAX_MEMORIES_PER_AGENT;
-    if (excess <= 0) continue;
+
+    if (excess <= 0) {
+      continue;
+    }
 
     // Get old memories (older than DECAY_MIN_AGE_DAYS), fetch double to have room for scoring
     const candidates = await memoryLifecycle().findDecayCandidates(
@@ -53,9 +56,13 @@ export async function importanceDecayJob(): Promise<string> {
 
     // Evict the least important up to the excess count
     const toEvict = scored.slice(0, excess);
-    if (toEvict.length === 0) continue;
+
+    if (toEvict.length === 0) {
+      continue;
+    }
 
     const ids = toEvict.map((m) => m.id);
+
     await memoryLifecycle().softDeleteMemories(ids);
 
     // Audit log
@@ -76,9 +83,13 @@ export async function importanceDecayJob(): Promise<string> {
     );
 
   let factsEvicted = 0;
+
   for (const { cnt } of factAgents) {
     const excess = cnt - MAX_FACTS_PER_AGENT;
-    if (excess <= 0) continue;
+
+    if (excess <= 0) {
+      continue;
+    }
 
     factsEvicted += await memoryLifecycle().deleteOldestInvalidatedFacts(
       excess,
@@ -88,6 +99,7 @@ export async function importanceDecayJob(): Promise<string> {
 
   // Transition unretrieved facts to 'stale' after 30 days
   let staleTransitioned = 0;
+
   try {
     staleTransitioned = await memoryLifecycle().transitionStaleFacts();
   } catch {
@@ -122,16 +134,22 @@ export async function consolidationJob(): Promise<string> {
 
   // Group facts by repo for context-aware consolidation
   const byRepo = new Map<string, string[]>();
+
   for (const f of recentFacts) {
     const repo = f.repo.split("/").slice(0, 2).join("/") || "unknown";
-    if (!byRepo.has(repo)) byRepo.set(repo, []);
+
+    if (!byRepo.has(repo)) {
+      byRepo.set(repo, []);
+    }
     byRepo.get(repo)!.push(f.fact_text);
   }
 
   let consolidated = 0;
 
   for (const [repo, facts] of byRepo) {
-    if (facts.length < 3) continue; // need at least 3 facts to consolidate
+    if (facts.length < 3) {
+      continue;
+    } // need at least 3 facts to consolidate
 
     try {
       const result = await Llm.instance.complete({
@@ -148,11 +166,14 @@ export async function consolidationJob(): Promise<string> {
         .map((line) => line.replace("PATTERN: ", "").trim())
         .filter((p) => p.length > 10);
 
-      if (patterns.length === 0) continue;
+      if (patterns.length === 0) {
+        continue;
+      }
 
       // Store each pattern as a memory
       for (const pattern of patterns) {
         const key = `consolidated/${repo.replace(/\//g, "-")}/${Date.now()}`;
+
         await memoryLifecycle().insertConsolidatedMemory(key, pattern);
         consolidated++;
       }

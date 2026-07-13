@@ -44,7 +44,9 @@ export async function getInstallationRepos(): Promise<InstallationRepo[]> {
       });
     }
 
-    if (data.repositories.length < perPage) break;
+    if (data.repositories.length < perPage) {
+      break;
+    }
     page++;
   }
 
@@ -76,6 +78,7 @@ export async function getOnboardedRepos(pool: any): Promise<OnboardedRepo[]> {
      FROM lore.repos
      ORDER BY onboarded_at DESC`,
   );
+
   return rows;
 }
 
@@ -105,6 +108,7 @@ export async function getOnboardedReposWithCounts(
   const { rows: countRows } = await pool.query(
     `SELECT count(*)::int as total FROM lore.repos`,
   );
+
   return { repos: rows, total: countRows[0].total };
 }
 
@@ -120,6 +124,7 @@ export async function getAvailableRepos(
   ]);
 
   const onboardedSet = new Set(onboarded.map((r) => r.full_name));
+
   return installation.filter((r) => !onboardedSet.has(r.full_name));
 }
 
@@ -145,6 +150,7 @@ export async function onboardRepo(
   fullName: string,
 ): Promise<OnboardResult> {
   const [owner, name] = fullName.split("/");
+
   enforceTrue(
     !(!owner || !name),
     new Error(
@@ -176,6 +182,7 @@ export async function onboardRepo(
   // events flow once the App is installed — without it, deliveries 401. Best-effort:
   // a missing secret/host or a lacking App permission is reported, never fatal.
   const webhook = await ensureFloorWebhook(fullName);
+
   if (webhook.ok) {
     console.log(
       `[onboard] Webhook ${webhook.created ? "created" : "updated"} for ${fullName} (hook ${webhook.hookId})`,
@@ -234,6 +241,7 @@ function decodeContent(encoded: string): string {
  */
 export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   const [owner, repo] = fullName.split("/");
+
   enforceTrue(
     !(!owner || !repo),
     new Error(
@@ -245,12 +253,14 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   // 1. Fetch top-level tree
   let tree: string[] = [];
+
   try {
     const { data } = await octokit.rest.repos.getContent({
       owner,
       repo,
       path: "",
     });
+
     if (Array.isArray(data)) {
       tree = data.map((entry: any) => entry.name);
     }
@@ -262,6 +272,7 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   // 2. Fetch key files (skip 404s)
   const files: Record<string, string> = {};
+
   await Promise.all(
     KEY_FILES.map(async (path) => {
       try {
@@ -270,6 +281,7 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
           repo,
           path,
         });
+
         if (!Array.isArray(data) && data.type === "file" && data.content) {
           files[path] = decodeContent(data.content);
         }
@@ -285,16 +297,21 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   // 3. Sample up to 3 source files from key directories
   const samples: Record<string, string> = {};
+
   for (const dir of SAMPLE_DIRS) {
-    if (Object.keys(samples).length >= 3) break;
+    if (Object.keys(samples).length >= 3) {
+      break;
+    }
 
     let entries: any[] = [];
+
     try {
       const { data } = await octokit.rest.repos.getContent({
         owner,
         repo,
         path: dir,
       });
+
       if (Array.isArray(data)) {
         entries = data.filter((e: any) => e.type === "file");
       }
@@ -308,16 +325,21 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
     }
 
     for (const entry of entries) {
-      if (Object.keys(samples).length >= 3) break;
+      if (Object.keys(samples).length >= 3) {
+        break;
+      }
+
       try {
         const { data } = await octokit.rest.repos.getContent({
           owner,
           repo,
           path: entry.path,
         });
+
         if (!Array.isArray(data) && data.type === "file" && data.content) {
           const full = decodeContent(data.content);
           const first200 = full.split("\n").slice(0, 200).join("\n");
+
           samples[entry.path] = first200;
         }
       } catch (err: any) {
@@ -343,11 +365,15 @@ export async function checkOnboardingPRs(pool: any): Promise<void> {
     `SELECT id, full_name, onboarding_pr_url FROM lore.repos
      WHERE onboarding_pr_merged = false AND onboarding_pr_url IS NOT NULL`,
   );
+
   for (const repo of rows) {
     try {
       // Extract PR number from URL
       const match = repo.onboarding_pr_url.match(/\/pull\/(\d+)/);
-      if (!match) continue;
+
+      if (!match) {
+        continue;
+      }
       const prNumber = parseInt(match[1]);
       const [owner, name] = repo.full_name.split("/");
 
@@ -367,6 +393,7 @@ export async function checkOnboardingPRs(pool: any): Promise<void> {
         // Trigger initial ingestion via pipeline
         const { createTask } =
           await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
+
         await createTask(
           `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
           "general",

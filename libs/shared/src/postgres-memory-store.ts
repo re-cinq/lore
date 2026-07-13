@@ -73,6 +73,7 @@ export class PostgresMemoryStore implements MemoryStore {
           input.repo || null,
         ],
       );
+
       memoryId = result.rows[0].id;
     }
 
@@ -121,7 +122,9 @@ export class PostgresMemoryStore implements MemoryStore {
          ORDER BY mv.version DESC`,
         [agent, key],
       );
+
       await this.auditLog(agent, "read", key);
+
       return rows;
     }
 
@@ -137,7 +140,9 @@ export class PostgresMemoryStore implements MemoryStore {
          WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`,
         [agent, key, Number(version)],
       );
+
       await this.auditLog(agent, "read", key);
+
       return rows[0] || null;
     }
 
@@ -150,7 +155,9 @@ export class PostgresMemoryStore implements MemoryStore {
        ORDER BY version DESC LIMIT 1`,
       [agent, key],
     );
+
     await this.auditLog(agent, "read", key);
+
     return rows[0] || null;
   }
 
@@ -159,11 +166,13 @@ export class PostgresMemoryStore implements MemoryStore {
     agentId: string,
   ): Promise<{ key: string; deleted: boolean }> {
     const agent = agentId;
+
     await this.pool.query(
       `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key = $2`,
       [agent, key],
     );
     await this.auditLog(agent, "delete", key);
+
     return { key, deleted: true };
   }
 
@@ -180,6 +189,7 @@ export class PostgresMemoryStore implements MemoryStore {
     // Scope by repo (preferred) or agent_id
     let filter: string;
     let params: any[];
+
     if (repo) {
       filter = "repo = $1 AND";
       params = [repo, limit, offset];
@@ -211,6 +221,7 @@ export class PostgresMemoryStore implements MemoryStore {
     );
 
     await this.auditLog(agentId || "org", "list", null);
+
     return { memories: rows, total: countResult.rows[0].total };
   }
 

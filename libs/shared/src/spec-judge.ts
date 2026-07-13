@@ -100,8 +100,15 @@ const KIND_RANK: Record<MatchKind, number> = {
 export function specFeatureSlug(specPath: string): string | null {
   const parts = specPath.split("/").filter(Boolean);
   const specsIdx = parts.indexOf("specs");
-  if (specsIdx >= 0 && parts.length > specsIdx + 2) return parts[specsIdx + 1];
-  if (parts.length >= 2) return parts[parts.length - 2];
+
+  if (specsIdx >= 0 && parts.length > specsIdx + 2) {
+    return parts[specsIdx + 1];
+  }
+
+  if (parts.length >= 2) {
+    return parts[parts.length - 2];
+  }
+
   return null;
 }
 
@@ -119,26 +126,45 @@ export function hasDirectoryAffinity(
   testPath: string,
 ): boolean {
   const slug = specFeatureSlug(specPath);
-  if (!slug) return false;
+
+  if (!slug) {
+    return false;
+  }
   const slugTokens = new Set(significantTokens(slug));
-  if (slugTokens.size === 0) return false;
+
+  if (slugTokens.size === 0) {
+    return false;
+  }
   const testTokens = new Set(significantTokens(testPath));
   let overlap = 0;
-  for (const token of slugTokens) if (testTokens.has(token)) overlap++;
+
+  for (const token of slugTokens) {
+    if (testTokens.has(token)) {
+      overlap++;
+    }
+  }
+
   return overlap >= Math.max(1, Math.ceil(slugTokens.size / 2));
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length === 0 || a.length !== b.length) return 0;
+  if (a.length === 0 || a.length !== b.length) {
+    return 0;
+  }
   let dot = 0;
   let normA = 0;
   let normB = 0;
+
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
     normA += a[i] * a[i];
     normB += b[i] * b[i];
   }
-  if (normA === 0 || normB === 0) return 0;
+
+  if (normA === 0 || normB === 0) {
+    return 0;
+  }
+
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
@@ -148,10 +174,15 @@ export function matchedAssertion(
   assertions: Assertion[],
 ): string | null {
   const lower = content.toLowerCase();
+
   for (const assertion of assertions) {
     const name = assertion.name.toLowerCase();
-    if (name.length >= 3 && lower.includes(name)) return assertion.name;
+
+    if (name.length >= 3 && lower.includes(name)) {
+      return assertion.name;
+    }
   }
+
   return null;
 }
 
@@ -160,20 +191,33 @@ export function matchedAssertion(
 export function deriveTestName(
   metadata: Record<string, unknown> | null,
 ): string | null {
-  if (!metadata) return null;
+  if (!metadata) {
+    return null;
+  }
   const it = metadata["symbol_name"];
-  if (typeof it !== "string" || it.length === 0) return null;
+
+  if (typeof it !== "string" || it.length === 0) {
+    return null;
+  }
   const parent = metadata["parent_symbol"] ?? metadata["describe"];
   const describe = typeof parent === "string" ? parent : "";
+
   return normalizeTestName(describe, it);
 }
 
 /** pgvector returns embeddings as `"[0.1,0.2,...]"`; parse defensively. */
 export function parseEmbedding(raw: unknown): number[] | null {
-  if (Array.isArray(raw)) return raw as number[];
-  if (typeof raw !== "string" || raw.length === 0) return null;
+  if (Array.isArray(raw)) {
+    return raw as number[];
+  }
+
+  if (typeof raw !== "string" || raw.length === 0) {
+    return null;
+  }
+
   try {
     const parsed = JSON.parse(raw);
+
     return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
@@ -202,10 +246,13 @@ export function selectCandidates(
   const byKey = new Map<string, JudgeCandidate>();
 
   for (const chunk of codeChunks) {
-    if (!isTestFile(chunk.file_path) || chunk.test_name.length === 0) continue;
+    if (!isTestFile(chunk.file_path) || chunk.test_name.length === 0) {
+      continue;
+    }
 
     const symbol = matchedAssertion(chunk.content, assertions);
     let kind: MatchKind | null = null;
+
     if (symbol) {
       kind = "assertion";
     } else if (hasDirectoryAffinity(spec.file_path, chunk.file_path)) {
@@ -217,7 +264,10 @@ export function selectCandidates(
     ) {
       kind = "embedding";
     }
-    if (!kind) continue;
+
+    if (!kind) {
+      continue;
+    }
 
     const candidate: JudgeCandidate = {
       test_file: chunk.file_path,
@@ -229,6 +279,7 @@ export function selectCandidates(
     };
     const key = candidateKey(candidate);
     const existing = byKey.get(key);
+
     if (!existing || KIND_RANK[kind] > KIND_RANK[existing.match_kind]) {
       byKey.set(key, candidate);
     }
@@ -237,6 +288,7 @@ export function selectCandidates(
   const ranked = [...byKey.values()].sort(
     (a, b) => KIND_RANK[b.match_kind] - KIND_RANK[a.match_kind],
   );
+
   return {
     candidates: ranked.slice(0, maxCandidates),
     truncated: ranked.length > maxCandidates,
@@ -249,6 +301,7 @@ export function staleLinkKeys<
   T extends { test_file: string; test_name: string },
 >(existing: T[], confirmed: { test_file: string; test_name: string }[]): T[] {
   const keep = new Set(confirmed.map(candidateKey));
+
   return existing.filter((link) => !keep.has(candidateKey(link)));
 }
 
@@ -258,6 +311,7 @@ export function staleStatementOrdinals(
   currentOrdinals: number[],
 ): number[] {
   const keep = new Set(currentOrdinals);
+
   return existingOrdinals.filter((o) => !keep.has(o));
 }
 
@@ -272,15 +326,23 @@ export function argmaxByTest(
   threshold = JUDGE_SCORE_THRESHOLD,
 ): Judgment[] {
   const best = new Map<string, Judgment>();
+
   for (const j of judgments) {
-    if (!j.matches) continue;
-    if (j.match_score < threshold) continue;
+    if (!j.matches) {
+      continue;
+    }
+
+    if (j.match_score < threshold) {
+      continue;
+    }
     const key = candidateKey(j);
     const existing = best.get(key);
+
     if (!existing || j.match_score > existing.match_score) {
       best.set(key, j);
     }
   }
+
   return [...best.values()];
 }
 

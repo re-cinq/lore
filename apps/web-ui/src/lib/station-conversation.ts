@@ -15,6 +15,7 @@ interface StreamEvent {
 
 function clip(text: string, max: number): string {
   const flat = text.replace(/\s+/g, " ").trim();
+
   return flat.length > max ? `${flat.slice(0, max)}…` : flat;
 }
 
@@ -30,32 +31,44 @@ function toolSummary(block: {
     input.path,
     input.description,
   ].find((v): v is string => typeof v === "string" && v.length > 0);
+
   return arg
     ? `→ ${block.name}: ${clip(arg, 100)}`
     : `→ ${block.name ?? "tool"}`;
 }
 
 function resultText(content: unknown): string {
-  if (typeof content === "string") return content;
+  if (typeof content === "string") {
+    return content;
+  }
+
   if (Array.isArray(content)) {
     return content.map((c) => (c as { text?: string }).text ?? "").join(" ");
   }
+
   return "";
 }
 
 function renderEvent(event: StreamEvent): string | null {
   const content = event.message?.content;
-  if (!Array.isArray(content)) return null;
+
+  if (!Array.isArray(content)) {
+    return null;
+  }
 
   if (event.type === "assistant") {
     const parts: string[] = [];
+
     for (const block of content) {
-      if (block.type === "text" && block.text?.trim())
+      if (block.type === "text" && block.text?.trim()) {
         parts.push(clip(block.text, 300));
-      else if (block.type === "thinking" && block.thinking?.trim())
+      } else if (block.type === "thinking" && block.thinking?.trim()) {
         parts.push(`thinking: ${clip(block.thinking, 240)}`);
-      else if (block.type === "tool_use") parts.push(toolSummary(block));
+      } else if (block.type === "tool_use") {
+        parts.push(toolSummary(block));
+      }
     }
+
     return parts.length ? parts.join("\n") : null;
   }
 
@@ -66,6 +79,7 @@ function renderEvent(event: StreamEvent): string | null {
           b.type === "tool_result",
       )
       .map((b) => `← ${clip(resultText(b.content), 120)}`);
+
     return results.length ? results.join("\n") : null;
   }
 
@@ -79,21 +93,31 @@ export function formatStationConversation(
   maxEvents = 30,
 ): string {
   const out: string[] = [];
+
   for (const line of rawLog.split("\n")) {
     const trimmed = line.trim();
-    if (!trimmed) continue;
+
+    if (!trimmed) {
+      continue;
+    }
+
     if (trimmed.startsWith("{")) {
       let event: StreamEvent;
+
       try {
         event = JSON.parse(trimmed) as StreamEvent;
       } catch {
         continue;
       }
       const rendered = renderEvent(event);
-      if (rendered) out.push(rendered);
+
+      if (rendered) {
+        out.push(rendered);
+      }
     } else if (MARKER_RE.test(trimmed)) {
       out.push(trimmed);
     }
   }
+
   return out.slice(-maxEvents).join("\n");
 }

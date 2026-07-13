@@ -24,6 +24,7 @@ function generateCatalog(): void {
     task_types: Record<string, AgentCatalogConfig>;
     stations?: Record<string, StationCatalogConfig>;
   };
+
   writeFileSync(
     dest,
     catalogChartYaml(parsed.task_types, parsed.stations ?? {}),
@@ -34,6 +35,7 @@ function generateCatalog(): void {
 // Only run the filesystem write when invoked as the CLI, not on import (a bare
 // `import` of this module used to read + write files as a side effect).
 const argv1 = process.argv[1] ?? "";
+
 if (argv1.endsWith("gen-catalog.js") || argv1.endsWith("gen-catalog.ts")) {
   generateCatalog();
 }

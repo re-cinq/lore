@@ -54,8 +54,10 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     vars: Record<string, string>,
   ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(query, vars);
+
       return (res.data ?? {}) as Record<string, unknown>;
     } finally {
       await txn.discard().catch(() => {});
@@ -64,6 +66,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -89,6 +92,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         ...(data.files ?? []),
         ...(data.root ?? []),
       ].map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -103,12 +107,16 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
   }
 
   let createdRepo = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
   });
 
   it("attaches the Coverage node and covered Files to the Repo root via Repo.coverage and Repo.files", async () => {
     const repo = `test-cov/${randomUUID()}`;
+
     createdRepo = repo;
 
     await ingestCoverageReport(
@@ -137,6 +145,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         files?: Array<{ "File.path"?: string }>;
       }>;
     };
+
     expect(data.root?.[0]?.cov).toHaveLength(1);
     expect((data.root?.[0]?.files ?? []).map((f) => f["File.path"])).toEqual([
       "src/a.ts",
@@ -145,6 +154,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
   it("writes one Coverage node keyed by repo|testFile|testName with repo/tool/commit for a record with no covered ranges", async () => {
     const repo = `test-cov/${randomUUID()}`;
+
     createdRepo = repo;
     const expectedXid = `${repo}|test/widget.test.ts|renders`;
 
@@ -162,6 +172,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       }`,
       { $xid: expectedXid },
     )) as { cov?: Record<string, unknown>[] };
+
     expect(data.cov?.[0]).toMatchObject({
       "Coverage.xid": expectedXid,
       "Coverage.repo": repo,
@@ -172,6 +183,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
   it("upserts one File per covered file with a ranges facet (merging that file's intervals) and links it via COVERS", async () => {
     const repo = `test-cov/${randomUUID()}`;
+
     createdRepo = repo;
 
     const result = await ingestCoverageReport(
@@ -188,6 +200,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         },
       ],
     );
+
     expect(result).toMatchObject({ coversEdges: 1, unmatched: 0 }); // ONE File, not two ranges
 
     const data = (await readGraph(
@@ -210,6 +223,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
   it("deletes the orphaned File when re-ingest drops its covered file", async () => {
     const repo = `test-cov/${randomUUID()}`;
+
     createdRepo = repo;
 
     await ingestCoverageReport(
@@ -244,6 +258,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         "Coverage.covers"?: { "File.xid": string }[];
       }[];
     };
+
     expect(cov.cov?.[0]?.["Coverage.commit"]).toEqual("c2");
     expect(
       (cov.cov?.[0]?.["Coverage.covers"] ?? []).map((c) => c["File.xid"]),
@@ -254,11 +269,13 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       `query q($xid: string) { f(func: eq(File.xid, $xid)) { uid } }`,
       { $xid: `${repo}|a.ts` },
     )) as { f?: { uid: string }[] };
+
     expect(orphan.f ?? []).toEqual([]);
   });
 
   it("keeps a File that another Coverage still covers after one drops it", async () => {
     const repo = `test-cov/${randomUUID()}`;
+
     createdRepo = repo;
     const shared = { file: "shared.ts", startLine: 1, endLine: 10 };
 
@@ -281,14 +298,17 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       `query q($xid: string) { f(func: eq(File.xid, $xid)) { File.xid } }`,
       { $xid: `${repo}|shared.ts` },
     )) as { f?: Record<string, unknown>[] };
+
     expect(data.f).toEqual([{ "File.xid": `${repo}|shared.ts` }]);
   });
 
   it("links the matching TestChunk to the Coverage node via HAS_COVERAGE", async () => {
     const repo = `test-cov/${randomUUID()}`;
+
     createdRepo = repo;
 
     const txn = dgraphClient.newTxn();
+
     try {
       await txn.mutate({
         setJson: {

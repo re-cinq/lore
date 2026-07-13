@@ -12,7 +12,11 @@ export function prFooter(opts: {
   taskId: string;
 }): string {
   const lines: string[] = [];
-  if (opts.issueNumber) lines.push(`Refs #${opts.issueNumber}`);
+
+  if (opts.issueNumber) {
+    lines.push(`Refs #${opts.issueNumber}`);
+  }
   lines.push(`Lore-Task: ${opts.taskId}`);
+
   return `\n\n${lines.join("\n")}`;
 }

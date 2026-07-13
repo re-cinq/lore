@@ -57,13 +57,20 @@ export function mapGitHubEvent(
   deliveryId: string,
 ): EventInput[] {
   const repo: string | undefined = payload?.repository?.full_name;
-  if (!repo) return [];
+
+  if (!repo) {
+    return [];
+  }
   const key = githubDedupeKey(deliveryId);
 
   if (eventType === "pull_request") {
     const pr = payload.pull_request;
     const prNumber: number | undefined = pr?.number;
-    if (!prNumber) return [];
+
+    if (!prNumber) {
+      return [];
+    }
+
     if (payload.action === "closed") {
       // Emit for merged AND unmerged closes: specPrMerge guards on `merged`, while
       // code-review's onClose must finish its line on any close.
@@ -83,6 +90,7 @@ export function mapGitHubEvent(
         },
       ];
     }
+
     if (PR_REVIEW_TRIGGER_ACTIONS.has(payload.action)) {
       return [
         {
@@ -93,13 +101,20 @@ export function mapGitHubEvent(
         },
       ];
     }
+
     return [];
   }
 
   if (eventType === "pull_request_review") {
-    if (payload.action !== "submitted") return [];
+    if (payload.action !== "submitted") {
+      return [];
+    }
     const prNumber: number | undefined = payload.pull_request?.number;
-    if (!prNumber) return [];
+
+    if (!prNumber) {
+      return [];
+    }
+
     return [
       {
         eventName: "github.pull_request_review.submitted",
@@ -111,11 +126,14 @@ export function mapGitHubEvent(
   }
 
   if (eventType === "check_run" || eventType === "check_suite") {
-    if (payload.action !== "completed") return [];
+    if (payload.action !== "completed") {
+      return [];
+    }
     const prList: Array<{ number: number }> =
       payload.check_run?.pull_requests ??
       payload.check_suite?.pull_requests ??
       [];
+
     return prList
       .filter((pr) => typeof pr?.number === "number")
       .map((pr) => ({
@@ -127,9 +145,15 @@ export function mapGitHubEvent(
   }
 
   if (eventType === "issue_comment") {
-    if (payload.action !== "created" || !payload.issue?.pull_request) return [];
+    if (payload.action !== "created" || !payload.issue?.pull_request) {
+      return [];
+    }
     const prNumber: number | undefined = payload.issue?.number;
-    if (!prNumber) return [];
+
+    if (!prNumber) {
+      return [];
+    }
+
     return [
       {
         eventName: "github.issue_comment.created",
@@ -145,9 +169,15 @@ export function mapGitHubEvent(
   }
 
   if (eventType === "pull_request_review_comment") {
-    if (payload.action !== "created") return [];
+    if (payload.action !== "created") {
+      return [];
+    }
     const prNumber: number | undefined = payload.pull_request?.number;
-    if (!prNumber) return [];
+
+    if (!prNumber) {
+      return [];
+    }
+
     return [
       {
         eventName: "github.pull_request_review_comment.created",
@@ -163,10 +193,16 @@ export function mapGitHubEvent(
   }
 
   if (eventType === "issues") {
-    if (payload.action !== "labeled") return [];
+    if (payload.action !== "labeled") {
+      return [];
+    }
     const issue = payload.issue;
     const label: string | undefined = payload.label?.name;
-    if (!issue || !label) return [];
+
+    if (!issue || !label) {
+      return [];
+    }
+
     return [
       {
         eventName: "github.issues.labeled",

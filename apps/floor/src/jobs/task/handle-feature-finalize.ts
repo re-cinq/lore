@@ -17,6 +17,7 @@ export async function handleFeatureFinalize(
   targetRepo: string,
 ): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
+
   enforceTrue(
     featureId,
     "feature-finalize task is missing feature_id in context_bundle",
@@ -24,11 +25,13 @@ export async function handleFeatureFinalize(
 
   const project = await projectFor(targetRepo);
   const features = project.features;
+
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
 
   try {
     const feature = await features.get(featureId);
+
     enforceTrue(feature, `feature ${featureId} not found`);
     enforceTrue(feature.draft_spec_md, "feature has no draft spec to finalize");
 
@@ -48,6 +51,7 @@ export async function handleFeatureFinalize(
       await import("../dark-factory/dark-factory.js");
     let issueNumber: number | undefined;
     let issueUrl: string | undefined;
+
     if ((await shouldCreateIssue(task)).create) {
       try {
         const issue = await project.issues.create(
@@ -55,6 +59,7 @@ export async function handleFeatureFinalize(
           `${feature.original_prompt}\n\n---\nSpec: \`${specPath}\` (see the linked PR).`,
           ["lore-managed", "user-story"],
         );
+
         issueNumber = issue.number;
         issueUrl = issue.url;
       } catch (err: any) {

@@ -41,6 +41,7 @@ describe("AssemblyLineListView", () => {
   it("marks All active and links every rolled-up status filter when none is selected", () => {
     render(<AssemblyLineListView runs={[]} />);
     const all = screen.getByRole("link", { name: "All" });
+
     expect(all).toHaveAttribute("href", "/assembly-lines");
     expect(all).toHaveClass("active");
 
@@ -53,6 +54,7 @@ describe("AssemblyLineListView", () => {
       ["Needs human", "needs-human"],
       ["Pending", "pending"],
     ];
+
     for (const [label, key] of labels) {
       expect(screen.getByRole("link", { name: label })).toHaveAttribute(
         "href",
@@ -74,6 +76,7 @@ describe("AssemblyLineListView", () => {
     const runs = groupTasksIntoAssemblyLines([
       taskRow({ id: "task-abcd1234" }),
     ]);
+
     render(<AssemblyLineListView runs={runs} />);
     expect(screen.getByRole("link", { name: "#task-abc" })).toHaveAttribute(
       "href",

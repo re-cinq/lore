@@ -108,6 +108,7 @@ export async function writeMemory(
         repo || null,
       ],
     );
+
     memoryId = result.rows[0].id;
   }
 
@@ -148,7 +149,9 @@ export async function readMemory(
        ORDER BY mv.version DESC`,
       [agent, key],
     );
+
     await auditLog(agent, "read", key);
+
     return rows;
   }
 
@@ -164,7 +167,9 @@ export async function readMemory(
        WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`,
       [agent, key, Number(version)],
     );
+
     await auditLog(agent, "read", key);
+
     return rows[0] || null;
   }
 
@@ -177,7 +182,9 @@ export async function readMemory(
      ORDER BY version DESC LIMIT 1`,
     [agent, key],
   );
+
   await auditLog(agent, "read", key);
+
   return rows[0] || null;
 }
 
@@ -188,11 +195,13 @@ export async function deleteMemory(
   agentId?: string,
 ): Promise<{ key: string; deleted: boolean }> {
   const agent = resolveAgentId(agentId);
+
   await pool.query(
     `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key = $2`,
     [agent, key],
   );
   await auditLog(agent, "delete", key);
+
   return { key, deleted: true };
 }
 
@@ -207,6 +216,7 @@ export async function listMemories(
   // Scope by repo (preferred) or agent_id
   let filter: string;
   let params: any[];
+
   if (repo) {
     filter = "repo = $1 AND";
     params = [repo, limit, offset];
@@ -238,6 +248,7 @@ export async function listMemories(
   );
 
   await auditLog(agentId || "org", "list", null);
+
   return { memories: rows, total: countResult.rows[0].total };
 }
 
@@ -256,6 +267,7 @@ export async function sharedWrite(
     `SELECT id FROM memory.shared_pools WHERE name = $1`,
     [poolName],
   );
+
   if (poolResult.rows.length === 0) {
     poolResult = await pool.query(
       `INSERT INTO memory.shared_pools (name, created_by) VALUES ($1, $2) RETURNING id`,
@@ -268,11 +280,13 @@ export async function sharedWrite(
     `INSERT INTO memory.memories (agent_id, key, value, embedding, version, pool_id) VALUES ($1, $2, $3, $4, 1, $5) RETURNING id, created_at`,
     [agent, key, value, embedding ? `[${embedding.join(",")}]` : null, poolId],
   );
+
   await pool.query(
     `INSERT INTO memory.memory_versions (memory_id, version, value, embedding) VALUES ($1, 1, $2, $3)`,
     [result.rows[0].id, value, embedding ? `[${embedding.join(",")}]` : null],
   );
   await auditLog(agent, "shared_write", key, { pool: poolName });
+
   return {
     key,
     version: 1,
@@ -286,19 +300,25 @@ export async function sharedRead(poolName: string, key?: string): Promise<any> {
     `SELECT id FROM memory.shared_pools WHERE name = $1`,
     [poolName],
   );
-  if (poolResult.rows.length === 0) return key ? null : [];
+
+  if (poolResult.rows.length === 0) {
+    return key ? null : [];
+  }
   const poolId = poolResult.rows[0].id;
+
   if (key) {
     const { rows } = await pool.query(
       `SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND key = $2 AND is_deleted = FALSE ORDER BY version DESC LIMIT 1`,
       [poolId, key],
     );
+
     return rows[0] || null;
   }
   const { rows } = await pool.query(
     `SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND is_deleted = FALSE ORDER BY created_at DESC LIMIT 100`,
     [poolId],
   );
+
   return rows;
 }
 
@@ -318,10 +338,12 @@ export async function createSnapshot(agentId?: string): Promise<any> {
     `INSERT INTO memory.snapshots (agent_id, memory_refs, trigger) VALUES ($1, $2, 'manual') RETURNING id, created_at`,
     [agent, JSON.stringify(memoryRefs)],
   );
+
   await auditLog(agent, "snapshot", null, {
     snapshot_id: rows[0].id,
     memory_count: memoryRefs.length,
   });
+
   return {
     snapshot_id: rows[0].id,
     agent_id: agent,
@@ -335,6 +357,7 @@ export async function restoreSnapshot(snapshotId: string): Promise<any> {
     `SELECT agent_id, memory_refs, created_at FROM memory.snapshots WHERE id = $1`,
     [snapshotId],
   );
+
   enforceTrue(snaps.length !== 0, new Error("Snapshot not found"));
   const snap = snaps[0];
   const refs = snap.memory_refs as Array<{
@@ -342,12 +365,14 @@ export async function restoreSnapshot(snapshotId: string): Promise<any> {
     version: number;
   }>;
   const refIds = refs.map((r) => r.memory_id);
+
   // Revert each memory to snapshotted version
   for (const ref of refs) {
     const { rows: ver } = await pool.query(
       `SELECT value, embedding FROM memory.memory_versions WHERE memory_id = $1 AND version = $2`,
       [ref.memory_id, ref.version],
     );
+
     if (ver.length > 0) {
       await pool.query(
         `UPDATE memory.memories SET value = $1, version = $2, embedding = $3, is_deleted = FALSE WHERE id = $4`,
@@ -364,6 +389,7 @@ export async function restoreSnapshot(snapshotId: string): Promise<any> {
     snapshot_id: snapshotId,
     restored_count: refs.length,
   });
+
   return {
     snapshot_id: snapshotId,
     memories_restored: refs.length,
@@ -384,6 +410,7 @@ export async function agentHealth(agentId?: string): Promise<any> {
   `,
     [agent],
   );
+
   return { agent_id: agent, ...rows[0] };
 }
 
@@ -401,6 +428,7 @@ export async function agentStats(agentId?: string): Promise<any> {
   `,
     [agent],
   );
+
   return { agent_id: agent, ...rows[0] };
 }
 

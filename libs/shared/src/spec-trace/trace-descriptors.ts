@@ -20,6 +20,7 @@ export interface VitestListEntry {
 function repoRelative(absolutePath: string, pkg: string): string {
   const marker = `/${pkg}/`;
   const at = absolutePath.indexOf(marker);
+
   return at === -1 ? absolutePath : absolutePath.slice(at + 1);
 }
 
@@ -35,11 +36,16 @@ export function descriptorsFromVitestList(
 ): TestDescriptor[] {
   const { pkg } = options;
   const descriptors: TestDescriptor[] = [];
+
   for (const entry of entries) {
     const file = repoRelative(entry.file, pkg);
-    if (!file.startsWith(`${pkg}/src/`)) continue;
+
+    if (!file.startsWith(`${pkg}/src/`)) {
+      continue;
+    }
     const segments = entry.name.split(" > ");
     const suite = segments.slice(0, -1);
+
     descriptors.push({
       id: `${file}::${entry.name}`,
       name: entry.name,
@@ -47,6 +53,7 @@ export function descriptorsFromVitestList(
       ...(suite.length > 0 ? { suite } : {}),
     });
   }
+
   return descriptors;
 }
 
@@ -59,11 +66,13 @@ export function groupRunsByFile(
   descriptors: TestDescriptor[],
 ): Map<string, string[]> {
   const byFile = new Map<string, string[]>();
+
   for (const descriptor of descriptors) {
     (
       byFile.get(descriptor.file) ??
       byFile.set(descriptor.file, []).get(descriptor.file)!
     ).push(descriptor.id);
   }
+
   return byFile;
 }

@@ -33,9 +33,11 @@ export function makeReq(init: MockReqInit): IncomingMessage {
     method: string;
     headers: Record<string, string>;
   };
+
   stream.url = init.url;
   stream.method = init.method ?? "GET";
   stream.headers = init.headers ?? {};
+
   return stream;
 }
 
@@ -56,18 +58,26 @@ export function makeRes(): MockRes {
     ended: false,
     writeHead(code: number, headers?: Record<string, string>) {
       this.statusCode = code;
-      if (headers) Object.assign(this.headers, headers);
+
+      if (headers) {
+        Object.assign(this.headers, headers);
+      }
+
       return this;
     },
     end(chunk?: unknown) {
-      if (chunk !== undefined && chunk !== null) this.body += String(chunk);
+      if (chunk !== undefined && chunk !== null) {
+        this.body += String(chunk);
+      }
       this.ended = true;
+
       return this;
     },
     get json() {
       return JSON.parse(this.body);
     },
   };
+
   return res as MockRes;
 }
 
@@ -82,6 +92,7 @@ export function makePool() {
     connect: vi.fn().mockResolvedValue(client),
     __client: client,
   };
+
   return pool;
 }
 

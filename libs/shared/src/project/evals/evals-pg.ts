@@ -30,6 +30,7 @@ export class PgEvalRuns implements EvalRunsPort {
        OFFSET $2 LIMIT $3`,
       [team, offset, limit],
     );
+
     return rows.map((row) => ({ pass_rate: row.pass_rate }));
   }
 }

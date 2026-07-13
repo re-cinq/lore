@@ -17,6 +17,7 @@ async function main() {
   await initOtel();
 
   const dbHost = process.env.LORE_DB_HOST;
+
   if (dbHost) {
     const dbPool = new pg.Pool({
       host: dbHost,
@@ -25,6 +26,7 @@ async function main() {
       user: process.env.LORE_DB_USER || "postgres",
       password: process.env.LORE_DB_PASSWORD,
     });
+
     setPool(dbPool);
     setMemoryPool(dbPool);
     setPipelinePool(dbPool);

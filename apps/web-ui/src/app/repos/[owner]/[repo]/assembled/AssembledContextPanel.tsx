@@ -27,12 +27,15 @@ export default function AssembledContextPanel({
 
   const assemble = async () => {
     setLoading(true);
+
     try {
       const url = `/api/repos/${owner}/${repo}/context-preview?query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}&debug=1`;
       const r = await fetch(url);
+
       if (!r.ok) {
         setError(`HTTP ${r.status}`);
         setResult(null);
+
         return;
       }
       setResult((await r.json()) as AssembledResult);

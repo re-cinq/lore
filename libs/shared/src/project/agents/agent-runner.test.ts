@@ -35,6 +35,7 @@ describe("AgentRunner", () => {
     const station: StationBackend = {
       launch: async (spec) => {
         created.push(spec);
+
         return { ref: `loretask-${spec.taskId}`, launched: true };
       },
       isActive: async () => true,
@@ -71,6 +72,7 @@ describe("AgentRunner", () => {
     const station: StationBackend = {
       launch: async (spec) => {
         created.push(spec);
+
         return { ref: `loretask-${spec.taskId}`, launched: true };
       },
       isActive: async () => true,
@@ -90,6 +92,7 @@ describe("AgentRunner", () => {
     const llm: LlmPort = {
       complete: async (prompt) => {
         prompts.push(prompt);
+
         return { text: "done" };
       },
     };

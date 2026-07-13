@@ -32,13 +32,17 @@ export function selectSeedFiles(treePaths: string[]): string[] {
 async function resolveSchema(repo: string): Promise<string> {
   try {
     const team = await settings().team(repo);
+
     if (team && SCHEMA_RE.test(team)) {
       // Verify schema exists in DB
-      if (await chunks().schemaExists(team)) return team;
+      if (await chunks().schemaExists(team)) {
+        return team;
+      }
     }
   } catch (err) {
     console.error("[job] Schema resolution error:", err);
   }
+
   return "org_shared";
 }
 
@@ -53,11 +57,13 @@ async function getChangedFiles(
   );
 
   const paths = new Set<string>();
+
   for (const commit of commits) {
     for (const file of commit.files) {
       paths.add(file);
     }
   }
+
   return Array.from(paths);
 }
 
@@ -65,6 +71,7 @@ async function getChangedFiles(
 
 async function getSeedFiles(fullName: string): Promise<string[]> {
   const tree = await projectFor(fullName).then((p) => p.repo.tree());
+
   return selectSeedFiles(tree);
 }
 
@@ -77,17 +84,21 @@ async function ingestFile(
 ): Promise<boolean> {
   // Classify before fetching content
   const contentType = classifyFile(filePath);
+
   if (!contentType) {
     console.log(`[job] Skipping ${filePath} (unsupported type)`);
+
     return false;
   }
 
   // Fetch file content via platform
   const content = await projectFor(fullName).then((p) => p.repo.read(filePath));
+
   if (content === null) {
     // File was deleted or not found — remove existing chunks
     await chunks().deleteChunksForFile(schema, filePath, fullName);
     console.log(`[job] Deleted chunks for removed file ${filePath}`);
+
     return true;
   }
 
@@ -112,8 +123,10 @@ async function ingestFile(
 
     // Generate and store embedding per chunk (input already capped at 8k in the service)
     const embedding = await getQueryEmbedding(chunk.content);
+
     if (embedding && chunkId) {
       const embeddingStr = `[${embedding.join(",")}]`;
+
       await chunks().setEmbedding(schema, chunkId, embeddingStr);
       console.log(
         `[job] Embedded ${filePath} chunk ${chunk.metadata.chunk_index} (id ${chunkId})`,
@@ -135,6 +148,7 @@ export async function reindexJob(): Promise<string> {
 
   if (repos.length === 0) {
     console.log("[job] No onboarded repos to reindex");
+
     return "No onboarded repos to reindex";
   }
 
@@ -149,6 +163,7 @@ export async function reindexJob(): Promise<string> {
     try {
       // Resolve target schema
       const schema = await resolveSchema(repo.full_name);
+
       if (!SCHEMA_RE.test(schema)) {
         console.error(
           `[job] Invalid schema "${schema}" for ${repo.full_name}, skipping`,
@@ -162,6 +177,7 @@ export async function reindexJob(): Promise<string> {
         (await chunks().countChunks(schema, repo.full_name)) > 0;
 
       let filePaths: string[];
+
       if (repo.last_ingested_at && hasChunks) {
         filePaths = await getChangedFiles(
           repo.full_name,
@@ -183,10 +199,14 @@ export async function reindexJob(): Promise<string> {
       );
 
       let repoFileCount = 0;
+
       for (const filePath of filePaths) {
         try {
           const ingested = await ingestFile(filePath, repo.full_name, schema);
-          if (ingested) repoFileCount++;
+
+          if (ingested) {
+            repoFileCount++;
+          }
         } catch (err: any) {
           console.error(
             `[job] Error processing ${repo.full_name}:${filePath}: ${err.message}`,
@@ -208,6 +228,8 @@ export async function reindexJob(): Promise<string> {
   }
 
   const summary = `Reindexed ${totalFiles} files across ${totalRepos} repos`;
+
   console.log(`[job] ${summary}`);
+
   return summary;
 }

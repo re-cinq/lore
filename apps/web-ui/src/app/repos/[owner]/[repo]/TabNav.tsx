@@ -11,6 +11,7 @@ export interface Tab {
 
 export default function TabNav({ tabs, base }: { tabs: Tab[]; base: string }) {
   const pathname = usePathname();
+
   return (
     <nav className="tab-nav">
       {tabs.map((tab) => (

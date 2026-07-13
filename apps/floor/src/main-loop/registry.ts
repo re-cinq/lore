@@ -30,6 +30,7 @@ export function withExtra(
 ): EventHandler {
   return async (params) => {
     await primary(params);
+
     for (const handler of extra) {
       await handler(params).catch((err) =>
         console.warn(

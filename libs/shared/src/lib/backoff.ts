@@ -24,12 +24,16 @@ export async function withBackoff<T>(
 ): Promise<T> {
   const sleep = opts.sleep ?? defaultSleep;
   let lastError: unknown;
+
   for (let attempt = 0; attempt <= opts.delaysMs.length; attempt++) {
     try {
       return await fn();
     } catch (err) {
       lastError = err;
-      if (attempt < opts.delaysMs.length) await sleep(opts.delaysMs[attempt]);
+
+      if (attempt < opts.delaysMs.length) {
+        await sleep(opts.delaysMs[attempt]);
+      }
     }
   }
   throw lastError;

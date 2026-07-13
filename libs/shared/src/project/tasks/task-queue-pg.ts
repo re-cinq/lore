@@ -40,7 +40,7 @@ export class PgTaskQueue implements TaskQueueRepository {
   constructor(private readonly pool: PgPool) {}
 
   async claimNextPending(): Promise<PipelineTask | null> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<PipelineTask>(
       `SELECT * FROM pipeline.tasks
         WHERE status = 'pending'
           AND (
@@ -52,21 +52,23 @@ export class PgTaskQueue implements TaskQueueRepository {
           created_at ASC
         LIMIT 1`,
     );
+
     return (rows[0] as PipelineTask) ?? null;
   }
 
   async findRecoverable(maxAgeMinutes = 30): Promise<RecoverableTask[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<RecoverableTask>(
       `SELECT id, task_type FROM pipeline.tasks
         WHERE status IN ('running', 'queued')
           AND updated_at < now() - ($1 || ' minutes')::interval`,
       [String(maxAgeMinutes)],
     );
+
     return rows as RecoverableTask[];
   }
 
   async findStaleRunning(thresholdHours: number): Promise<StaleTask[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<StaleTask>(
       `SELECT id,
               target_repo,
               task_type,
@@ -78,11 +80,12 @@ export class PgTaskQueue implements TaskQueueRepository {
           AND created_at < now() - ($1 || ' hours')::interval`,
       [String(thresholdHours)],
     );
+
     return rows as StaleTask[];
   }
 
   async findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<ReadySpecTask>(
       `SELECT t.id, t.description, t.context_bundle, t.target_repo, t.task_group_id
          FROM pipeline.tasks t
         WHERE t.task_type = 'spec-task'
@@ -103,11 +106,12 @@ export class PgTaskQueue implements TaskQueueRepository {
         ORDER BY t.context_bundle->>'spec_task_id'`,
       repo ? [repo] : [],
     );
+
     return rows as ReadySpecTask[];
   }
 
   async countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<SpecGroupCount>(
       `SELECT task_group_id, COUNT(*) as cnt
          FROM pipeline.tasks
         WHERE task_type = 'spec-task'
@@ -115,6 +119,7 @@ export class PgTaskQueue implements TaskQueueRepository {
           AND task_group_id IS NOT NULL
         GROUP BY task_group_id`,
     );
+
     return rows as SpecGroupCount[];
   }
 
@@ -129,6 +134,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       RETURNING id`,
       [id, agentId],
     );
+
     return rows.length > 0;
   }
 
@@ -144,8 +150,10 @@ export class PgTaskQueue implements TaskQueueRepository {
           status: string;
         }
       | undefined;
-    if (!task || task.status !== "running")
+
+    if (!task || task.status !== "running") {
       return { completed: false, unblocked: [] };
+    }
 
     await this.pool.query(
       `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`,
@@ -154,9 +162,13 @@ export class PgTaskQueue implements TaskQueueRepository {
 
     const specTaskId = task.context_bundle?.spec_task_id as string | undefined;
     const specSlug = task.context_bundle?.spec_slug as string | undefined;
-    if (!specTaskId || !specSlug) return { completed: true, unblocked: [] };
+
+    if (!specTaskId || !specSlug) {
+      return { completed: true, unblocked: [] };
+    }
 
     const ready = await this.findReadySpecTasks(task.target_repo);
+
     return {
       completed: true,
       unblocked: unblockedBy(ready, specSlug, specTaskId),
@@ -164,10 +176,11 @@ export class PgTaskQueue implements TaskQueueRepository {
   }
 
   async awaitingApproval(): Promise<AwaitingApprovalTask[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<AwaitingApprovalTask>(
       `SELECT id, target_repo, issue_number FROM pipeline.tasks
         WHERE status = 'awaiting_approval' AND issue_number IS NOT NULL`,
     );
+
     return rows as AwaitingApprovalTask[];
   }
 
@@ -178,20 +191,22 @@ export class PgTaskQueue implements TaskQueueRepository {
         WHERE target_repo IS NOT NULL
         ORDER BY target_repo`,
     );
+
     return (rows as { target_repo: string }[]).map((r) => r.target_repo);
   }
 
   async prInfo(taskId: string): Promise<TaskPrInfo | null> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<TaskPrInfo>(
       `SELECT pr_number, target_repo, target_branch
          FROM pipeline.tasks WHERE id = $1`,
       [taskId],
     );
+
     return (rows[0] as TaskPrInfo) ?? null;
   }
 
   async reviewable(): Promise<ReviewableTask[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<ReviewableTask>(
       `SELECT id, description, task_type, target_repo, pr_number, pr_url,
               issue_number, review_iteration, target_branch
          FROM pipeline.tasks
@@ -199,6 +214,7 @@ export class PgTaskQueue implements TaskQueueRepository {
           AND pr_number IS NOT NULL
           AND (review_iteration IS NULL OR review_iteration < 3)`,
     );
+
     return rows as ReviewableTask[];
   }
 
@@ -206,7 +222,7 @@ export class PgTaskQueue implements TaskQueueRepository {
     repo: string,
     prNumber: number,
   ): Promise<ReviewableTask | null> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<ReviewableTask>(
       `SELECT id, description, task_type, target_repo, pr_number, pr_url,
               issue_number, review_iteration, target_branch
          FROM pipeline.tasks
@@ -217,6 +233,7 @@ export class PgTaskQueue implements TaskQueueRepository {
         LIMIT 1`,
       [repo, prNumber],
     );
+
     return (rows[0] as ReviewableTask) ?? null;
   }
 
@@ -228,11 +245,12 @@ export class PgTaskQueue implements TaskQueueRepository {
       RETURNING review_iteration`,
       [taskId],
     );
+
     return (rows[0]?.review_iteration as number) ?? 1;
   }
 
   async mergeableTasks(): Promise<MergeableTask[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<MergeableTask>(
       `SELECT id, target_repo, target_branch, pr_url, pr_number, issue_number,
               task_type, description, created_at, context_bundle
          FROM pipeline.tasks
@@ -240,6 +258,7 @@ export class PgTaskQueue implements TaskQueueRepository {
           AND pr_number IS NOT NULL
           AND pr_url IS NOT NULL`,
     );
+
     return rows as MergeableTask[];
   }
 
@@ -252,6 +271,7 @@ export class PgTaskQueue implements TaskQueueRepository {
         LIMIT 1`,
       [repo, slug],
     );
+
     return rows.length > 0;
   }
 
@@ -260,6 +280,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       `SELECT context_refs FROM pipeline.tasks WHERE id = $1`,
       [taskId],
     );
+
     return (rows[0]?.context_refs as TaskContextRefs) ?? null;
   }
 
@@ -270,18 +291,22 @@ export class PgTaskQueue implements TaskQueueRepository {
       input.taskType,
       input.targetRepo,
     ];
+
     if (input.status !== undefined) {
       cols.push("status");
       vals.push(input.status);
     }
+
     if (input.contextBundle !== undefined) {
       cols.push("context_bundle");
       vals.push(JSON.stringify(input.contextBundle));
     }
+
     if (input.createdBy !== undefined) {
       cols.push("created_by");
       vals.push(input.createdBy);
     }
+
     if (input.taskGroupId !== undefined) {
       cols.push("task_group_id");
       vals.push(input.taskGroupId);
@@ -291,6 +316,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       `INSERT INTO pipeline.tasks (${cols.join(", ")}) VALUES (${placeholders}) ON CONFLICT DO NOTHING RETURNING id`,
       vals,
     );
+
     return (rows[0]?.id as string) ?? null;
   }
 
@@ -301,13 +327,19 @@ export class PgTaskQueue implements TaskQueueRepository {
     const setClauses: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
+
     for (const [key, value] of Object.entries(columns)) {
-      if (!SETTABLE_TASK_COLUMNS.has(key)) continue;
+      if (!SETTABLE_TASK_COLUMNS.has(key)) {
+        continue;
+      }
       setClauses.push(`${key} = $${idx}`);
       params.push(value);
       idx++;
     }
-    if (setClauses.length === 0) return;
+
+    if (setClauses.length === 0) {
+      return;
+    }
     params.push(taskId);
     await this.pool.query(
       `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`,
@@ -323,6 +355,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       `SELECT id FROM pipeline.tasks WHERE target_repo = $1 AND pr_number = $2 ORDER BY created_at DESC LIMIT 1`,
       [repo, prNumber],
     );
+
     return (rows[0] as { id: string }) ?? null;
   }
 
@@ -334,6 +367,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       `SELECT id FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND status NOT IN ('failed', 'cancelled')`,
       [issueNumber, repo],
     );
+
     return (rows[0] as { id: string }) ?? null;
   }
 

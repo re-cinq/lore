@@ -11,7 +11,9 @@ const num = (n: number) => Number(n).toLocaleString();
 const tableByHeading = (heading: string): HTMLElement => {
   const h2 = screen.getByRole("heading", { name: heading, level: 2 });
   const table = h2.nextElementSibling as HTMLElement;
+
   expect(table.tagName).toBe("TABLE");
+
   return table;
 };
 
@@ -115,6 +117,7 @@ describe("SpendView", () => {
   it("renders billed-cost-by-model rows including the (non-token) fallback label", () => {
     render(<SpendView {...populated} />);
     const table = tableByHeading("Billed Cost by Model (MTD)");
+
     expect(within(table).getByText("claude-opus-4")).toBeInTheDocument();
     expect(within(table).getByText("(non-token)")).toBeInTheDocument();
     expect(within(table).getByText(usd(900.25))).toBeInTheDocument();
@@ -129,6 +132,7 @@ describe("SpendView", () => {
   it("renders daily billed cost rows with localized dates", () => {
     render(<SpendView {...populated} />);
     const table = tableByHeading("Daily Billed Cost (This Month)");
+
     expect(
       within(table).getByText(new Date("2026-06-04").toLocaleDateString()),
     ).toBeInTheDocument();
@@ -142,6 +146,7 @@ describe("SpendView", () => {
   it("renders lore-computed cost by repo rows with task counts", () => {
     render(<SpendView {...populated} />);
     const table = tableByHeading("Lore-Computed Cost by Repo (MTD)");
+
     expect(within(table).getByText("re-cinq/lore")).toBeInTheDocument();
     expect(within(table).getByText("re-cinq/other")).toBeInTheDocument();
     expect(within(table).getByText("42")).toBeInTheDocument();
@@ -151,6 +156,7 @@ describe("SpendView", () => {
   it("renders lore-computed cost by task type rows with badges", () => {
     render(<SpendView {...populated} />);
     const table = tableByHeading("Lore-Computed Cost by Task Type (MTD)");
+
     expect(within(table).getByText("implementation")).toBeInTheDocument();
     expect(within(table).getByText("review")).toBeInTheDocument();
     expect(within(table).getByText("30")).toBeInTheDocument();

@@ -29,7 +29,9 @@ export default function TaskLogs({
 
   const fetchLogs = useCallback(async () => {
     // Don't keep polling if access was denied
-    if (accessDenied) return;
+    if (accessDenied) {
+      return;
+    }
 
     const useOffset = totalSize > 0 && ACTIVE_STATES.has(status);
     const url = useOffset
@@ -42,15 +44,19 @@ export default function TaskLogs({
       if (res.status === 403) {
         setAccessDenied(true);
         setError(null);
+
         return;
       }
 
       if (res.status === 401) {
         setError("You must be signed in to view logs.");
+
         return;
       }
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
 
       const data: LogsResponse = await res.json();
 
@@ -79,8 +85,11 @@ export default function TaskLogs({
 
   // Poll while running
   useEffect(() => {
-    if (!ACTIVE_STATES.has(status) || accessDenied) return;
+    if (!ACTIVE_STATES.has(status) || accessDenied) {
+      return;
+    }
     const id = setInterval(() => void fetchLogs(), POLL_INTERVAL_MS);
+
     return () => clearInterval(id);
   }, [fetchLogs, status, accessDenied]);
 

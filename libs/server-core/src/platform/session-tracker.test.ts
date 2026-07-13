@@ -14,7 +14,9 @@ function formatSessionSummaryFromLog(
   log: ToolCallEntry[],
   startTime: string,
 ): string {
-  if (log.length === 0) return "";
+  if (log.length === 0) {
+    return "";
+  }
 
   const now = new Date();
   const start = new Date(startTime);
@@ -24,13 +26,17 @@ function formatSessionSummaryFromLog(
     string,
     { calls: number; errors: number; totalMs: number }
   > = {};
+
   for (const entry of log) {
     if (!toolCounts[entry.tool]) {
       toolCounts[entry.tool] = { calls: 0, errors: 0, totalMs: 0 };
     }
     toolCounts[entry.tool].calls++;
     toolCounts[entry.tool].totalMs += entry.durationMs;
-    if (!entry.success) toolCounts[entry.tool].errors++;
+
+    if (!entry.success) {
+      toolCounts[entry.tool].errors++;
+    }
   }
 
   const totalCalls = log.length;
@@ -45,9 +51,11 @@ function formatSessionSummaryFromLog(
   const sorted = Object.entries(toolCounts).sort(
     (a, b) => b[1].calls - a[1].calls,
   );
+
   for (const [tool, stats] of sorted) {
     const avgMs = Math.round(stats.totalMs / stats.calls);
     const errSuffix = stats.errors > 0 ? ` (${stats.errors} errors)` : "";
+
     lines.push(`  ${tool}: ${stats.calls}x, avg ${avgMs}ms${errSuffix}`);
   }
 
@@ -153,6 +161,7 @@ describe("session tracker", () => {
 
       const aIdx = summary.indexOf("a_tool");
       const bIdx = summary.indexOf("b_tool");
+
       expect(aIdx).toBeLessThan(bIdx); // a_tool (3x) should come before b_tool (1x)
     });
 
@@ -184,8 +193,11 @@ describe("session tracker", () => {
     it("caps at MAX_ENTRIES", () => {
       const MAX = 500;
       const log: ToolCallEntry[] = [];
+
       for (let i = 0; i < MAX + 100; i++) {
-        if (log.length >= MAX) log.shift();
+        if (log.length >= MAX) {
+          log.shift();
+        }
         log.push({
           tool: `tool_${i}`,
           timestamp: new Date().toISOString(),

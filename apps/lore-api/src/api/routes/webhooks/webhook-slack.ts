@@ -16,6 +16,7 @@ export function verifySlackSignature(
     "v0=" + createHmac("sha256", secret).update(sigBase).digest("hex");
   const sigBuf = Buffer.from(signature);
   const expBuf = Buffer.from(expected);
+
   return sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
 }
 
@@ -28,22 +29,30 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const body = rawBody(request);
       const slackSecret = process.env.LORE_SLACK_SIGNING_SECRET;
+
       // Plain-string error bodies: pin text/plain (hapi would default a string to
       // text/html) to match the legacy node:http `res.end("…")` responses.
-      if (!slackSecret)
+      if (!slackSecret) {
         return h
           .response("Slack signing secret not configured")
           .type("text/plain")
           .code(503);
+      }
 
       const timestamp = request.headers["x-slack-request-timestamp"] as string;
       const slackSig = request.headers["x-slack-signature"] as string;
-      if (!timestamp || !slackSig)
+
+      if (!timestamp || !slackSig) {
         return h.response("Unauthorized").type("text/plain").code(401);
-      if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300)
+      }
+
+      if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
         return h.response("Request too old").type("text/plain").code(401);
-      if (!verifySlackSignature(slackSecret, timestamp, slackSig, body))
+      }
+
+      if (!verifySlackSignature(slackSecret, timestamp, slackSig, body)) {
         return h.response("Invalid signature").type("text/plain").code(401);
+      }
 
       const params = new URLSearchParams(body);
 
@@ -69,6 +78,7 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
 
       let words = commandText.split(/\s+/);
       let priority = "normal";
+
       if (words[0] === "!") {
         priority = "immediate";
         words = words.slice(1);
@@ -76,10 +86,12 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
 
       if (words[0] === "retry" && words[1]) {
         const retryTaskId = words[1];
+
         try {
           const { retryTask } =
             await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
           const retryResult = await retryTask(retryTaskId);
+
           return h.response({
             response_type: "in_channel",
             text: `Retrying task \`${retryTaskId}\`\nNew task: \`${retryResult.task_id}\``,
@@ -102,6 +114,7 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
       ];
       let taskType = "general";
       let description = words.join(" ");
+
       if (words.length > 1 && knownTypes.includes(words[0])) {
         taskType = words[0];
         description = words.slice(1).join(" ");
@@ -109,13 +122,17 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
 
       let targetRepo = "";
       const pool = getPool();
+
       if (pool) {
         try {
           const { rows } = await pool.query(
             `SELECT full_name FROM lore.repos WHERE settings->>'slack_channel_id' = $1`,
             [channelId],
           );
-          if (rows.length > 0) targetRepo = rows[0].full_name;
+
+          if (rows.length > 0) {
+            targetRepo = rows[0].full_name;
+          }
         } catch {
           /* fall through */
         }
@@ -132,6 +149,7 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
         slack_channel_id: channelId,
         slack_user: userName,
       };
+
       try {
         const taskResult = await createTask(
           description,
@@ -143,6 +161,7 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
         );
         const priorityLabel =
           priority === "immediate" ? " | Priority: `immediate`" : "";
+
         return h.response({
           response_type: "in_channel",
           text: `Task created on \`${targetRepo}\`:\n> ${description}\n\nType: \`${taskType}\`${priorityLabel} | ID: \`${taskResult.task_id}\`\n${priority === "immediate" ? "Agent will pick this up shortly." : "Task in backlog — claim locally or use the UI to run now."}`,

@@ -50,6 +50,7 @@ describe("selectIngestFiles", () => {
       "design/draft.md",
       "docs/notes.md",
     ];
+
     expect(
       selectIngestFiles(tree, "specs", undefined, undefined, [
         "design/**/*.md",
@@ -90,14 +91,19 @@ describe("summarizeIngest", () => {
 
 function fakeRegistry(): Record<string, IngestKindDef> {
   const seen = new Set<string>();
+
   return {
     specs: {
       prefixes: ["specs/", ".specify/"],
       runsOn: "runner+local",
       project: async (_repo, filePath, content) => {
         const key = `${filePath}:${content}`;
-        if (seen.has(key)) return { projected: false };
+
+        if (seen.has(key)) {
+          return { projected: false };
+        }
         seen.add(key);
+
         return { projected: true };
       },
     },
@@ -112,6 +118,7 @@ describe("runIngestGraph", () => {
       { kind: "specs", repo: "o/r" },
       { dgraph: null, listTree: async () => TREE, readFile: async () => "x" },
     );
+
     expect(result).toMatchObject({ status: "skipped" });
     expect(result.message).toMatch(/LORE_DGRAPH_HTTP/);
   });
@@ -156,6 +163,7 @@ describe("runIngestGraph", () => {
         readFile: async () => "",
       },
     );
+
     expect(result.status).toBe("skipped");
     expect(result.message).toMatch(/local/i);
   });

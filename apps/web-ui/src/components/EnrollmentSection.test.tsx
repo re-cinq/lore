@@ -33,6 +33,7 @@ const checks: Check[] = [
 describe("EnrollmentSection", () => {
   it("renders the reonboard button, the link, and the pass summary when a handler is provided", () => {
     const reonboardAction = vi.fn().mockResolvedValue(undefined);
+
     render(
       <EnrollmentSection checks={checks} reonboardAction={reonboardAction} />,
     );

@@ -23,6 +23,7 @@ const ContextQuery = z.object({
   agent_id: z.string().optional(),
   cross_repo: boolFlag,
 });
+
 type ContextQuery = z.infer<typeof ContextQuery>;
 
 export function contextRoute(getPool: () => Pool | null): ServerRoute {
@@ -44,6 +45,7 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
         agent_id: agentId,
         cross_repo: crossRepoRequested,
       } = request.query as unknown as ContextQuery;
+
       try {
         if (query && pool) {
           // Fail-soft: null when LORE_DGRAPH_HTTP is unset, so the coupling source
@@ -66,6 +68,7 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
             debug,
             dgraph,
           );
+
           return h.response({
             text: result.text || null,
             sections: result.sections,
@@ -73,6 +76,7 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
           });
         }
         const parts: string[] = [];
+
         if (repo && pool) {
           const { rows } = await pool.query(
             `SELECT content, content_type, file_path FROM org_shared.chunks
@@ -80,8 +84,12 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
              ORDER BY content_type, ingested_at DESC`,
             [repo],
           );
-          for (const r of rows) parts.push(r.content);
+
+          for (const r of rows) {
+            parts.push(r.content);
+          }
         }
+
         return h.response({
           text: parts.length > 0 ? parts.join("\n\n---\n\n") : null,
         });

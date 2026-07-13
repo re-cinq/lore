@@ -31,6 +31,7 @@ const SAMPLE_DIRS = ["src", "lib", "cmd", "internal", "app", "pkg"];
  */
 export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   const [owner, repo] = fullName.split("/");
+
   enforceTrue(
     owner && repo,
     `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
@@ -39,6 +40,7 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   // 1. Fetch top-level tree
   let tree: string[] = [];
+
   try {
     tree = await project.repo.list("");
   } catch (err: any) {
@@ -49,10 +51,12 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   // 2. Fetch key files in parallel (skip missing)
   const files: Record<string, string> = {};
+
   await Promise.all(
     KEY_FILES.map(async (path) => {
       try {
         const content = await project.repo.read(path);
+
         if (content !== null) {
           files[path] = content;
         }
@@ -66,10 +70,14 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   // 3. Sample up to 3 source files from well-known directories
   const samples: Record<string, string> = {};
+
   for (const dir of SAMPLE_DIRS) {
-    if (Object.keys(samples).length >= 3) break;
+    if (Object.keys(samples).length >= 3) {
+      break;
+    }
 
     let entries: string[];
+
     try {
       entries = await project.repo.list(dir);
     } catch (err: any) {
@@ -78,12 +86,17 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
     }
 
     for (const entryName of entries) {
-      if (Object.keys(samples).length >= 3) break;
+      if (Object.keys(samples).length >= 3) {
+        break;
+      }
       const entryPath = `${dir}/${entryName}`;
+
       try {
         const content = await project.repo.read(entryPath);
+
         if (content !== null) {
           const first200 = content.split("\n").slice(0, 200).join("\n");
+
           samples[entryPath] = first200;
         }
       } catch (err: any) {

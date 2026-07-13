@@ -67,6 +67,7 @@ describe("specTaskRows", () => {
 
   it("omits story_issue when no Issue was created (tasks-only mode)", () => {
     const rows = specTaskRows(story, { specSlug: "fav", featureId: "f1" });
+
     expect(rows[0].metadata.story_issue).toBeUndefined();
     expect(rows[0].metadata.feature_id).toBe("f1");
   });
@@ -78,6 +79,7 @@ describe("storyIssueBody", () => {
       specPath: "specs/favorite-a-repo/spec.md",
       featureTitle: "Favorites",
     });
+
     expect(body).toContain("A developer can star a repo");
     expect(body).toContain("Star toggles the favorite");
     expect(body).toContain("T001: Add favorites table");

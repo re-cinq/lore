@@ -44,6 +44,7 @@ export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
             1000,
         )
       : null;
+
   return {
     id: row.id,
     definitionName: row.definition_name,
@@ -74,5 +75,6 @@ export async function fetchRecentAssemblyLineRuns(
       LIMIT $1`,
     [limit],
   );
+
   return rows.map(toAssemblyLineRun);
 }

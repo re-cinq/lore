@@ -58,6 +58,7 @@ function parseGraphExtraction(raw: string): GraphExtractionResult {
         relation: String(e.relation).toLowerCase().trim(),
       }))
       .slice(0, 10);
+
     return { entities, edges };
   } catch {
     return { entities: [], edges: [] };
@@ -80,6 +81,7 @@ async function upsertEntity(
      RETURNING id`,
     [name, entityType, repo],
   );
+
   return rows[0].id;
 }
 
@@ -99,7 +101,10 @@ async function upsertEdge(
      WHERE source_id = $1 AND target_id = $2 AND relation_type = $3 AND valid_to IS NULL`,
     [sourceId, targetId, relationType],
   );
-  if (existing.length > 0) return;
+
+  if (existing.length > 0) {
+    return;
+  }
 
   // Invalidate contradictory edges (same source + relation, different target)
   await pool.query(
@@ -134,12 +139,16 @@ export async function extractAndUpdateGraph(
     const raw = await llmCall(`${GRAPH_EXTRACTION_PROMPT}\n\n${text}`);
     const { entities, edges } = parseGraphExtraction(raw);
 
-    if (entities.length === 0) return;
+    if (entities.length === 0) {
+      return;
+    }
 
     const entityIds = new Map<string, string>();
+
     for (const entity of entities) {
       try {
         const id = await upsertEntity(pool, entity.name, entity.type, repo);
+
         entityIds.set(entity.name, id);
       } catch (err) {
         console.warn(`[graph] Failed to upsert entity "${entity.name}":`, err);
@@ -147,10 +156,14 @@ export async function extractAndUpdateGraph(
     }
 
     let edgeCount = 0;
+
     for (const edge of edges) {
       const sourceId = entityIds.get(edge.source);
       const targetId = entityIds.get(edge.target);
-      if (!sourceId || !targetId) continue;
+
+      if (!sourceId || !targetId) {
+        continue;
+      }
 
       try {
         await upsertEdge(
@@ -221,6 +234,7 @@ interface Community {
 function readJsonSafe<T>(path: string): T | null {
   try {
     const raw = readFileSync(path, "utf-8");
+
     return JSON.parse(raw) as T;
   } catch {
     return null;
@@ -228,14 +242,26 @@ function readJsonSafe<T>(path: string): T | null {
 }
 
 function entityMatchesQuery(entity: GraphEntity, lowerQuery: string): boolean {
-  if (entity.name.toLowerCase().includes(lowerQuery)) return true;
-  if (entity.id.toLowerCase().includes(lowerQuery)) return true;
-  if (entity.type.toLowerCase().includes(lowerQuery)) return true;
+  if (entity.name.toLowerCase().includes(lowerQuery)) {
+    return true;
+  }
+
+  if (entity.id.toLowerCase().includes(lowerQuery)) {
+    return true;
+  }
+
+  if (entity.type.toLowerCase().includes(lowerQuery)) {
+    return true;
+  }
+
   if (entity.aliases) {
     for (const alias of entity.aliases) {
-      if (alias.toLowerCase().includes(lowerQuery)) return true;
+      if (alias.toLowerCase().includes(lowerQuery)) {
+        return true;
+      }
     }
   }
+
   return false;
 }
 
@@ -253,6 +279,7 @@ function traverseGraph(
   depth: number,
 ): string[] {
   const entityById = new Map<string, GraphEntity>();
+
   for (const e of graph.entities) {
     entityById.set(e.id, e);
   }
@@ -262,9 +289,15 @@ function traverseGraph(
     string,
     { relType: string; neighborId: string }[]
   >();
+
   for (const rel of graph.relationships) {
-    if (!adjacency.has(rel.source)) adjacency.set(rel.source, []);
-    if (!adjacency.has(rel.target)) adjacency.set(rel.target, []);
+    if (!adjacency.has(rel.source)) {
+      adjacency.set(rel.source, []);
+    }
+
+    if (!adjacency.has(rel.target)) {
+      adjacency.set(rel.target, []);
+    }
     adjacency
       .get(rel.source)!
       .push({ relType: rel.type, neighborId: rel.target });
@@ -287,8 +320,12 @@ function traverseGraph(
 
   for (const seedId of seedIds) {
     const entity = entityById.get(seedId);
-    if (!entity) continue;
+
+    if (!entity) {
+      continue;
+    }
     const label = formatEntity(entity);
+
     queue.push({ entityId: seedId, chain: label, hops: 0 });
     visited.add(seedId);
     // Include the seed entity itself as a result
@@ -297,17 +334,27 @@ function traverseGraph(
 
   while (queue.length > 0) {
     const item = queue.shift()!;
-    if (item.hops >= depth) continue;
+
+    if (item.hops >= depth) {
+      continue;
+    }
 
     const neighbors = adjacency.get(item.entityId) || [];
+
     for (const { relType, neighborId } of neighbors) {
-      if (visited.has(neighborId)) continue;
+      if (visited.has(neighborId)) {
+        continue;
+      }
       visited.add(neighborId);
 
       const neighbor = entityById.get(neighborId);
-      if (!neighbor) continue;
+
+      if (!neighbor) {
+        continue;
+      }
 
       const newChain = `${item.chain} \u2192 ${relType}:${formatEntity(neighbor)}`;
+
       chains.push(newChain);
       queue.push({
         entityId: neighborId,
@@ -362,6 +409,7 @@ export async function graphSearchHandler({
     }
 
     const graph = readJsonSafe<Graph>(graphPath);
+
     if (!graph) {
       return {
         content: [
@@ -383,6 +431,7 @@ export async function graphSearchHandler({
 
     const lowerQuery = query.toLowerCase();
     const matchingIds = new Set<string>();
+
     for (const entity of graph.entities) {
       if (entityMatchesQuery(entity, lowerQuery)) {
         matchingIds.add(entity.id);
@@ -415,6 +464,7 @@ export async function graphSearchHandler({
     return { content: [{ type: "text" as const, text: header + output }] };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
+
     return {
       content: [
         {
@@ -442,6 +492,7 @@ export async function getDomainSummaryHandler({
     }
 
     const communities = readJsonSafe<Community[]>(communitiesPath);
+
     if (!communities) {
       return {
         content: [
@@ -474,6 +525,7 @@ export async function getDomainSummaryHandler({
         .map((c) => c.domain)
         .filter(Boolean)
         .join(", ");
+
       return {
         content: [
           {
@@ -494,6 +546,7 @@ export async function getDomainSummaryHandler({
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
+
     return {
       content: [
         {

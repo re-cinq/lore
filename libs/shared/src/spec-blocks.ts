@@ -69,7 +69,10 @@ export function segmentBlocks(content: string): Block[] {
 
   const emit = (kind: BlockKind, text: string, level?: number) => {
     const block: Block = { ordinal: blocks.length, kind, text };
-    if (level !== undefined) block.level = level;
+
+    if (level !== undefined) {
+      block.level = level;
+    }
     blocks.push(block);
   };
 
@@ -80,13 +83,20 @@ export function segmentBlocks(content: string): Block[] {
   // not accumulate — each is flushed and emitted as its own block.)
   let pending: { kind: BlockKind; lines: string[] } | null = null;
   const flushPending = () => {
-    if (pending === null) return;
+    if (pending === null) {
+      return;
+    }
     emit(pending.kind, pending.lines.join("\n"));
     pending = null;
   };
   const accumulate = (kind: BlockKind, line: string) => {
-    if (pending !== null && pending.kind !== kind) flushPending();
-    if (pending === null) pending = { kind, lines: [] };
+    if (pending !== null && pending.kind !== kind) {
+      flushPending();
+    }
+
+    if (pending === null) {
+      pending = { kind, lines: [] };
+    }
     pending.lines.push(line);
   };
 
@@ -96,6 +106,7 @@ export function segmentBlocks(content: string): Block[] {
   for (const line of lines) {
     if (inFence) {
       codeBuffer.push(line);
+
       if (/^```/.test(line)) {
         emit("code", codeBuffer.join("\n"));
         codeBuffer = [];
@@ -103,28 +114,33 @@ export function segmentBlocks(content: string): Block[] {
       }
       continue;
     }
+
     if (/^```/.test(line)) {
       flushPending();
       inFence = true;
       codeBuffer = [line];
       continue;
     }
+
     if (line.trim() === "") {
       flushPending();
       emit("blank", line);
       continue;
     }
     const headingMatch = line.match(/^(#{1,6})\s/);
+
     if (headingMatch) {
       flushPending();
       emit("heading", line, headingMatch[1].length);
       continue;
     }
+
     if (/^\s*[-*+]\s/.test(line)) {
       flushPending();
       emit("list-item", line);
       continue;
     }
+
     if (/^\s*\|/.test(line)) {
       accumulate("table", line);
       continue;
@@ -132,7 +148,10 @@ export function segmentBlocks(content: string): Block[] {
     accumulate("paragraph", line);
   }
   flushPending();
-  if (inFence) emit("code", codeBuffer.join("\n"));
+
+  if (inFence) {
+    emit("code", codeBuffer.join("\n"));
+  }
 
   return blocks;
 }

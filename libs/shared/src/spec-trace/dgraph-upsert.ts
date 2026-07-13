@@ -46,6 +46,7 @@ export async function withTxn<T>(
   fn: (txn: DgraphTxn) => Promise<T>,
 ): Promise<T> {
   const txn = dgraph.newTxn();
+
   try {
     return await fn(txn);
   } finally {
@@ -73,6 +74,7 @@ function splitEmptyStringFields(fields: Record<string, unknown>): {
 } {
   const jsonFields: Record<string, unknown> = {};
   const emptyStringPredicates: string[] = [];
+
   for (const [predicate, value] of Object.entries(fields)) {
     if (value === "") {
       emptyStringPredicates.push(predicate);
@@ -80,6 +82,7 @@ function splitEmptyStringFields(fields: Record<string, unknown>): {
       jsonFields[predicate] = value;
     }
   }
+
   return { jsonFields, emptyStringPredicates };
 }
 
@@ -95,7 +98,9 @@ async function setEmptyStrings(
   uid: string,
   predicates: string[],
 ): Promise<void> {
-  if (!predicates.length) return;
+  if (!predicates.length) {
+    return;
+  }
   await withTxn(dgraph, async (txn) => {
     await txn.mutate({
       setNquads: predicates
@@ -148,7 +153,10 @@ export async function replaceEdge(
       commitNow: true,
     }),
   );
-  if (!targetUids.length) return;
+
+  if (!targetUids.length) {
+    return;
+  }
   await withTxn(dgraph, (txn) =>
     txn.mutate({
       setJson: {
@@ -184,7 +192,10 @@ export async function replaceEdgeWithFacets(
       commitNow: true,
     }),
   );
-  if (!targets.length) return;
+
+  if (!targets.length) {
+    return;
+  }
   await withTxn(dgraph, (txn) =>
     txn.mutate({
       setJson: {
@@ -223,12 +234,14 @@ export async function upsertByXid(
       { $xid: xid },
     );
     const existing = res.data?.found?.[0]?.uid as string | undefined;
+
     if (existing) {
       await txn.mutate({
         setJson: { uid: existing, ...jsonFields },
         commitNow: true,
       });
       await setEmptyStrings(dgraph, existing, emptyStringPredicates);
+
       return existing;
     }
     const label = nodeType.toLowerCase();
@@ -242,7 +255,9 @@ export async function upsertByXid(
       commitNow: true,
     });
     const uid = newUid(created, label);
+
     await setEmptyStrings(dgraph, uid, emptyStringPredicates);
+
     return uid;
   });
 }

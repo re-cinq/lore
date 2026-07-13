@@ -93,6 +93,7 @@ describe("ContextFileView", () => {
         ]}
       />,
     );
+
     expect(container.querySelectorAll("hr").length).toBeGreaterThanOrEqual(1);
   });
 });

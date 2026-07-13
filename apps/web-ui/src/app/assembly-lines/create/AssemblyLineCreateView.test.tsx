@@ -47,6 +47,7 @@ describe("AssemblyLineCreateView", () => {
       />,
     );
     const select = container.querySelector('select[name="target_repo"]');
+
     expect(select).toBeInTheDocument();
     expect(
       container.querySelector('input[name="target_repo"]'),
@@ -63,6 +64,7 @@ describe("AssemblyLineCreateView", () => {
     const { container } = render(
       <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
+
     expect(
       container.querySelector('select[name="target_repo"]'),
     ).not.toBeInTheDocument();
@@ -76,6 +78,7 @@ describe("AssemblyLineCreateView", () => {
       <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     const checkbox = container.querySelector('input[name="priority"]');
+
     expect(checkbox).toHaveAttribute("type", "checkbox");
     expect(checkbox).toHaveAttribute("value", "immediate");
     expect(screen.getByText("Execute immediately")).toBeInTheDocument();
@@ -89,6 +92,7 @@ describe("AssemblyLineCreateView", () => {
       <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     const textarea = container.querySelector('textarea[name="description"]');
+
     expect(textarea).toBeRequired();
     expect(textarea).toHaveAttribute(
       "placeholder",
@@ -100,6 +104,7 @@ describe("AssemblyLineCreateView", () => {
     const { container } = render(
       <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
+
     expect(container.querySelector("form.task-form")).toBeInTheDocument();
   });
 });

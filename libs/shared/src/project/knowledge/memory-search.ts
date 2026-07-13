@@ -39,16 +39,19 @@ export async function searchMemories(
 
   // Resolve pool name to pool_id when provided
   let poolId: string | null = null;
+
   if (poolName) {
     const { rows } = await pool.query(
       `SELECT id FROM memory.shared_pools WHERE name = $1`,
       [poolName],
     );
+
     if (rows.length > 0) {
       poolId = rows[0].id;
     } else {
       // Pool does not exist — return empty
       await auditLog(pool, agent, query, 0);
+
       return [];
     }
   }
@@ -61,6 +64,7 @@ export async function searchMemories(
 
   if (embedding) {
     const embeddingStr = `[${embedding.join(",")}]`;
+
     [vectorMemories, vectorFacts] = await Promise.all([
       vectorSearchMemories(pool, embeddingStr, agent, poolId),
       vectorSearchFacts(pool, embeddingStr, agent, includeInvalidated),
@@ -92,6 +96,7 @@ export async function searchMemories(
   if (graphAugmentEnabled && results.length > 0) {
     await refreshEntityCache(pool);
     const entities = detectEntities(results);
+
     if (entities.length > 0) {
       const graphResults = await graphAugment(pool, entities);
       // Give graph results a lower score than the worst direct result
@@ -101,6 +106,7 @@ export async function searchMemories(
         ...r,
         score: minScore * (1 - i * 0.05), // Decreasing scores
       }));
+
       results = [...results, ...graphWithScores].slice(0, limit);
     }
   }
@@ -110,6 +116,7 @@ export async function searchMemories(
 
   // Audit log with latency
   const latencyMs = Date.now() - searchStartTime;
+
   await auditLog(pool, agent, query, results.length, latencyMs);
 
   return results;
@@ -145,6 +152,7 @@ async function vectorSearchMemories(
       AND ($3::uuid IS NULL OR m.pool_id = $3)
     LIMIT 20`;
   const { rows } = await pool.query(sql, [embeddingStr, agentId, poolId]);
+
   return rows.map((r: any) => ({
     id: r.id,
     key: r.key,
@@ -180,6 +188,7 @@ async function vectorSearchFacts(
     agentId,
     includeInvalidated,
   ]);
+
   return rows.map((r: any) => ({
     id: r.id,
     key: r.key,
@@ -211,6 +220,7 @@ async function keywordSearchMemories(
       AND ($3::uuid IS NULL OR m.pool_id = $3)
     LIMIT 20`;
   const { rows } = await pool.query(sql, [pattern, agentId, poolId]);
+
   return rows.map((r: any) => ({
     id: r.id,
     key: r.key,
@@ -248,6 +258,7 @@ async function keywordSearchFacts(
     agentId,
     includeInvalidated,
   ]);
+
   return rows.map((r: any) => ({
     id: r.id,
     key: r.key,
@@ -314,12 +325,15 @@ async function refreshEntityCache(pool: any): Promise<void> {
   if (
     Date.now() - entityCacheUpdatedAt < ENTITY_CACHE_TTL_MS &&
     entityNameCache.size > 0
-  )
+  ) {
     return;
+  }
+
   try {
     const { rows } = await pool.query(
       `SELECT LOWER(name) as name FROM memory.entities`,
     );
+
     entityNameCache = new Set(rows.map((r: any) => r.name));
     entityCacheUpdatedAt = Date.now();
   } catch {
@@ -329,14 +343,17 @@ async function refreshEntityCache(pool: any): Promise<void> {
 
 function detectEntities(results: MemorySearchResult[]): string[] {
   const found = new Set<string>();
+
   for (const r of results) {
     const text = `${r.key} ${r.value}`.toLowerCase();
+
     for (const entity of entityNameCache) {
       if (entity.length >= 3 && text.includes(entity)) {
         found.add(entity);
       }
     }
   }
+
   return [...found].slice(0, 5); // Max 5 entities to augment
 }
 
@@ -344,7 +361,9 @@ async function graphAugment(
   pool: any,
   entities: string[],
 ): Promise<MemorySearchResult[]> {
-  if (entities.length === 0) return [];
+  if (entities.length === 0) {
+    return [];
+  }
 
   const results: MemorySearchResult[] = [];
   const seen = new Set<string>();
@@ -365,7 +384,10 @@ async function graphAugment(
 
       for (const row of rows) {
         const desc = `${row.source_name} (${row.source_type}) --${row.relation_type}--> ${row.target_name} (${row.target_type})`;
-        if (seen.has(desc)) continue;
+
+        if (seen.has(desc)) {
+          continue;
+        }
         seen.add(desc);
         results.push({
           key: entity,

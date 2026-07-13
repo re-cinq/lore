@@ -23,7 +23,10 @@ export class GitCli implements GitPort {
 
   async clone(repo: string, destDir: string, opts?: CloneOpts): Promise<void> {
     const args = [...this.authArgs(), "clone"];
-    if (opts?.ref) args.push("--branch", opts.ref);
+
+    if (opts?.ref) {
+      args.push("--branch", opts.ref);
+    }
     args.push(this.remoteUrl(repo), destDir);
     this.git(args);
   }
@@ -38,7 +41,11 @@ export class GitCli implements GitPort {
     // any local state. Only clone when the dir has no .git.
     if (existsSync(join(destDir, ".git"))) {
       this.git([...this.authArgs(), "fetch", "origin"], destDir);
-      if (opts?.ref) this.git(["checkout", opts.ref], destDir);
+
+      if (opts?.ref) {
+        this.git(["checkout", opts.ref], destDir);
+      }
+
       return;
     }
     await this.clone(repo, destDir, opts);
@@ -54,6 +61,7 @@ export class GitCli implements GitPort {
         ["rev-parse", "--abbrev-ref", "HEAD"],
         dir,
       ).trim();
+
       enforceTrue(
         !(current !== branch && this.isDirty(dir)),
         new Error(
@@ -62,6 +70,7 @@ export class GitCli implements GitPort {
       );
       this.git(["checkout", branch], dir);
     }
+
     if (commit) {
       this.git(["reset", "--hard", commit], dir);
     }
@@ -73,6 +82,7 @@ export class GitCli implements GitPort {
 
   async listBranches(dir: string): Promise<string[]> {
     const out = this.git(["branch", "--format=%(refname:short)"], dir);
+
     return out
       .split("\n")
       .map((b) => b.trim())
@@ -96,6 +106,7 @@ export class GitCli implements GitPort {
 
   async writeFile(dir: string, path: string, content: string): Promise<void> {
     const full = join(dir, path);
+
     mkdirSync(dirname(full), { recursive: true });
     writeFileSync(full, content);
   }
@@ -106,8 +117,12 @@ export class GitCli implements GitPort {
   ): Promise<{ committed: boolean }> {
     this.git(["add", "-A"], dir);
     const staged = this.git(["diff", "--cached", "--name-only"], dir).trim();
-    if (!staged) return { committed: false };
+
+    if (!staged) {
+      return { committed: false };
+    }
     this.git(["commit", "-m", message], dir);
+
     return { committed: true };
   }
 
@@ -131,6 +146,7 @@ export class GitCli implements GitPort {
       GIT_COMMITTER_EMAIL: "lore-agent@re-cinq.com",
       ...this.env,
     };
+
     return execFileSync("git", args, { cwd, env, encoding: "utf8" });
   }
 
@@ -143,12 +159,15 @@ export class GitCli implements GitPort {
    *  bare-repo remote (the extraheader is scoped to the https host). */
   private authArgs(): string[] {
     const token = this.env.GITHUB_TOKEN ?? this.env.LORE_INGEST_TOKEN;
+
     return token ? gitAuthArgs(token, this.host()) : [];
   }
 
   private remoteUrl(repo: string): string {
-    if (repo.includes("://") || repo.startsWith("/") || repo.startsWith("."))
+    if (repo.includes("://") || repo.startsWith("/") || repo.startsWith(".")) {
       return repo;
+    }
+
     return repoCloneUrl(repo, this.host());
   }
 }

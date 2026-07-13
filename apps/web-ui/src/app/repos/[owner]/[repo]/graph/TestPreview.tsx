@@ -30,33 +30,43 @@ export default function TestPreview({
       start: String(start),
       ...(end ? { end: String(end) } : {}),
     });
+
     fetch(`/api/repos/${repo}/file?${params.toString()}`)
       .then((res) =>
         res.ok ? res.json() : Promise.reject(new Error("unavailable")),
       )
       .then((json: { text: string }) => {
-        if (!cancelled) setText(json.text);
+        if (!cancelled) {
+          setText(json.text);
+        }
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled) {
+          setError(true);
+        }
       });
+
     return () => {
       cancelled = true;
     };
   }, [repo, path, start, end]);
 
-  if (error)
+  if (error) {
     return (
       <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
         Preview unavailable.
       </div>
     );
-  if (text === null)
+  }
+
+  if (text === null) {
     return (
       <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
         Loading preview…
       </div>
     );
+  }
+
   return (
     <div className="md-popover" style={{ fontSize: 12 }}>
       <ReactMarkdown

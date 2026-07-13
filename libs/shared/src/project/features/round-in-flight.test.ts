@@ -6,6 +6,7 @@ import {
 } from "./features-port.js";
 
 const now = 1_000_000_000_000;
+
 function iter(over: Partial<FeatureIteration>): FeatureIteration {
   return {
     id: "i",
@@ -28,6 +29,7 @@ describe("roundInFlight", () => {
       status: "running",
       created_at: new Date(now - 60_000).toISOString(),
     });
+
     expect(
       roundInFlight([iter({ iteration: 2, status: "ready" }), running], now),
     ).toBe(running);
@@ -39,6 +41,7 @@ describe("roundInFlight", () => {
       status: "running",
       created_at: new Date(now - (ROUND_IN_FLIGHT_MS + 60_000)).toISOString(),
     });
+
     expect(roundInFlight([orphan], now)).toBeNull();
   });
 

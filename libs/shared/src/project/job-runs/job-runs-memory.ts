@@ -23,6 +23,7 @@ export class InMemoryJobRuns implements JobRunsPort {
 
   async start(jobName: string): Promise<string> {
     const id = String(this.nextId++);
+
     this.rows.push({
       id,
       jobName,
@@ -33,6 +34,7 @@ export class InMemoryJobRuns implements JobRunsPort {
       error: null,
       logPath: null,
     });
+
     return id;
   }
 
@@ -42,7 +44,10 @@ export class InMemoryJobRuns implements JobRunsPort {
     logPath?: string,
   ): Promise<void> {
     const row = this.rows.find((candidate) => candidate.id === runId);
-    if (!row) return;
+
+    if (!row) {
+      return;
+    }
     row.status = "completed";
     row.completedAt = new Date();
     row.resultSummary = resultSummary;
@@ -51,7 +56,10 @@ export class InMemoryJobRuns implements JobRunsPort {
 
   async fail(runId: string, error: string, logPath?: string): Promise<void> {
     const row = this.rows.find((candidate) => candidate.id === runId);
-    if (!row) return;
+
+    if (!row) {
+      return;
+    }
     row.status = "failed";
     row.completedAt = new Date();
     row.error = error;
@@ -62,7 +70,11 @@ export class InMemoryJobRuns implements JobRunsPort {
     const matches = this.rows
       .filter((row) => row.jobName === jobName)
       .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
-    if (matches.length === 0) return null;
+
+    if (matches.length === 0) {
+      return null;
+    }
+
     return { startedAt: matches[0].startedAt };
   }
 }

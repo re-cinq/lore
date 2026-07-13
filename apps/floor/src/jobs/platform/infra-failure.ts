@@ -20,6 +20,9 @@ export const MAX_INFRA_RETRIES = 2;
 export function isTransientInfraFailure(
   reason: string | null | undefined,
 ): boolean {
-  if (!reason) return false;
+  if (!reason) {
+    return false;
+  }
+
   return TRANSIENT_INFRA_PATTERNS.some((p) => reason.includes(p));
 }

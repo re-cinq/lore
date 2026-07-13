@@ -47,6 +47,7 @@ beforeAll(async () => {
       handlers[name] = handler;
     },
   };
+
   registerContextTools(fakeServer as never, { getPool: () => null });
   searchContext = handlers["lore_search_context"];
   assembleContext = handlers["lore_assemble_context"];
@@ -64,6 +65,7 @@ describe("lore_search_context file-based fallback", () => {
       limit: 8,
     });
     const text = result.content[0].text;
+
     expect(text).toContain("**Source:** conventions.md");
     expect(text).toContain("We deploy on Friday afternoons.");
   });
@@ -73,11 +75,13 @@ describe("lore_search_context file-based fallback", () => {
       query: "FRIDAY AFTERNOONS",
       limit: 8,
     });
+
     expect(result.content[0].text).toContain("We deploy on Friday afternoons.");
   });
 
   it("excludes paragraphs that do not contain the query", async () => {
     const result = await searchContext({ query: "deploy", limit: 8 });
+
     expect(result.content[0].text).not.toContain(
       "Unrelated paragraph about cats",
     );
@@ -88,6 +92,7 @@ describe("lore_search_context file-based fallback", () => {
       query: "nonexistent-term-xyz",
       limit: 8,
     });
+
     expect(result.content[0].text).toEqual(
       'No results found for "nonexistent-term-xyz".',
     );
@@ -96,6 +101,7 @@ describe("lore_search_context file-based fallback", () => {
   it("caps the number of returned paragraphs at the limit", async () => {
     const result = await searchContext({ query: "Friday", limit: 1 });
     const separators = result.content[0].text.split("\n\n---\n\n").length;
+
     expect(separators).toBe(1);
   });
 
@@ -105,6 +111,7 @@ describe("lore_search_context file-based fallback", () => {
       team: "payments",
       limit: 8,
     });
+
     expect(result.content[0].text).toContain("Payments uses idempotency keys.");
   });
 
@@ -114,6 +121,7 @@ describe("lore_search_context file-based fallback", () => {
       team: "does-not-exist",
       limit: 8,
     });
+
     expect(result.content[0].text).toMatch(/Error: search path not found at/);
   });
 });
@@ -156,6 +164,7 @@ describe("lore_assemble_context proxy path (read-through cache)", () => {
       template: "default",
       repo: "owner/r",
     });
+
     expect(result.content[0].text).toBe("");
   });
 
@@ -175,6 +184,7 @@ describe("lore_assemble_context proxy path (read-through cache)", () => {
       template: "default",
       repo: "owner/r",
     });
+
     expect(result.content[0].text).not.toContain("OLD CONTEXT");
     expect(result.content[0].text).toContain("denied access");
   });
@@ -192,6 +202,7 @@ describe("lore_assemble_context proxy path (read-through cache)", () => {
       template: "default",
       repo: "owner/r",
     });
+
     expect(result.content[0].text).toBe("FRESH CONTEXT");
   });
 });

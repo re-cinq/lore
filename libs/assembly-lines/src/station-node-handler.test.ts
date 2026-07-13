@@ -76,6 +76,7 @@ describe("stationNodeOutcome", () => {
         extras: { "Lore-Validation-Failed": "lint" },
       }),
     };
+
     expect(stationNodeOutcome(detectNode, status)).toEqual({
       outcome: "failed",
       extras: { "Lore-Validation-Failed": "lint" },
@@ -84,6 +85,7 @@ describe("stationNodeOutcome", () => {
 
   it("falls back to the review verdict, then success", () => {
     const agentNode: AssemblyLineNode = { id: "review", type: "agent" };
+
     expect(
       stationNodeOutcome(agentNode, {
         phase: "Succeeded",
@@ -133,6 +135,7 @@ function fakeDeps(
     sleep: async () => void calls.sleep++,
     ...over,
   };
+
   return { deps, calls };
 }
 
@@ -148,6 +151,7 @@ describe("createStationNodeHandler", () => {
         }),
       },
     ]);
+
     expect(await createStationNodeHandler(deps)(detectNode, ctx)).toEqual({
       outcome: "success",
       extras: { "Lore-Detect-Summary": "ok" },
@@ -161,6 +165,7 @@ describe("createStationNodeHandler", () => {
       maxPolls: 2,
       pollIntervalMs: 1,
     });
+
     expect(await createStationNodeHandler(deps)(detectNode, ctx)).toMatchObject(
       {
         outcome: "failed",
@@ -178,6 +183,7 @@ describe("createStationNodeHandler", () => {
     });
     const timedNode: AssemblyLineNode = { ...detectNode, timeout_minutes: 1 };
     const result = await createStationNodeHandler(deps)(timedNode, ctx);
+
     expect(result.extras?.["Lore-Validation-Status"]).toBe("station-timeout");
     expect(calls.heartbeat).toHaveLength(3);
   });

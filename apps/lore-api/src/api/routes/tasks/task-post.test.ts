@@ -39,6 +39,7 @@ describe("POST /api/task", () => {
 
   function post(body: unknown, pool: unknown = makePool()) {
     const payload = typeof body === "string" ? body : JSON.stringify(body);
+
     return buildServer(() => pool as any).inject({
       method: "POST",
       url: "/api/task",
@@ -49,29 +50,35 @@ describe("POST /api/task", () => {
 
   it("returns 503 when pool is null", async () => {
     const res = await post({}, null);
+
     expect(res.statusCode).toBe(503);
   });
 
   it("retries a task", async () => {
     vi.mocked(retryTask).mockResolvedValue({ task_id: "new" } as any);
     const res = await post({ action: "retry", task_id: "old" });
+
     expect(res.result).toEqual({ task_id: "new" });
   });
 
   it("cancels a task", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({});
     const res = await post({ action: "cancel", task_id: "t1" }, pool);
+
     expect(res.result).toEqual({ ok: true, task_id: "t1" });
   });
 
   it("sets immediate priority", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({});
     const res = await post(
       { action: "set-priority", task_id: "t1", priority: "immediate" },
       pool,
     );
+
     expect(res.result).toEqual({
       ok: true,
       task_id: "t1",
@@ -81,21 +88,25 @@ describe("POST /api/task", () => {
 
   it("normalizes a non-immediate priority", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({});
     const res = await post(
       { action: "set-priority", task_id: "t1", priority: "low" },
       pool,
     );
+
     expect(res.result).toMatchObject({ priority: "normal" });
   });
 
   it("updates status with pr_url and error", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({});
     const res = await post(
       { task_id: "t1", status: "pr-created", pr_url: "u", error: "e" },
       pool,
     );
+
     expect(res.result).toEqual({
       ok: true,
       task_id: "t1",
@@ -105,13 +116,16 @@ describe("POST /api/task", () => {
 
   it("updates status without optional fields", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({});
     const res = await post({ task_id: "t1", status: "completed" }, pool);
+
     expect(res.result).toMatchObject({ status: "completed" });
   });
 
   it("rejects an invalid status", async () => {
     const res = await post({ task_id: "t1", status: "bogus" });
+
     expect(res.statusCode).toBe(400);
   });
 
@@ -178,20 +192,24 @@ describe("POST /api/task", () => {
 
   it("returns 400 when description is blank", async () => {
     const res = await post({ description: "   " });
+
     expect(res.statusCode).toBe(400);
   });
 
   it("returns 400 on invalid JSON", async () => {
     // ADR-034: hapi parses the payload, so malformed JSON is a 400 (was 500).
     const res = await post("{bad");
+
     expect(res.statusCode).toBe(400);
   });
 
   it("cancel issues the guarded tasks UPDATE with the task_id", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({});
     await post({ action: "cancel", task_id: "t1" }, pool);
     const [sql, params] = pool.query.mock.calls[0];
+
     expect(sql).toContain("status = 'cancelled'");
     expect(sql).toContain(
       "status NOT IN ('completed', 'failed', 'cancelled', 'merged')",
@@ -201,18 +219,21 @@ describe("POST /api/task", () => {
 
   it("set-priority updates only pending tasks with the resolved priority", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({});
     await post(
       { action: "set-priority", task_id: "t1", priority: "immediate" },
       pool,
     );
     const [sql, params] = pool.query.mock.calls[0];
+
     expect(sql).toContain("status = 'pending'");
     expect(params).toEqual(["immediate", "t1"]);
   });
 
   it("set-priority without a priority falls through to create and 400s", async () => {
     const res = await post({ action: "set-priority", task_id: "t1" });
+
     expect(res.statusCode).toBe(400);
     expect(res.result).toEqual({ error: "description is required" });
   });

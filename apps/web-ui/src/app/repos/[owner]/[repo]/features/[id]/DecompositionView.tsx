@@ -47,7 +47,10 @@ export default function DecompositionView({
   stories: DecompStoryGroup[];
   total: number;
 }) {
-  if (total === 0) return null;
+  if (total === 0) {
+    return null;
+  }
+
   return (
     <div className="spec-card" style={{ marginBottom: 12 }}>
       <h3 style={{ marginTop: 0 }}>

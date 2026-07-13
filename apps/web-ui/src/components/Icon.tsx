@@ -27,6 +27,7 @@ export default function Icon({
 }: IconProps) {
   const { family } = useTheme();
   const aria = rest["aria-label"];
+
   return (
     <Iconify
       icon={ICONS[family][name]}

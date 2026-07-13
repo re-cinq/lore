@@ -73,6 +73,7 @@ describe("supervisor integration (T058 vertical slice)", () => {
     await fs.mkdir(leasesDir, { recursive: true });
     // Initialize a git repo so the executor can commit.
     const repoDir = path.join(workDir, "repo");
+
     await fs.mkdir(repoDir);
     await execFile("git", ["-C", repoDir, "init", "-b", "main"]);
     await execFile("git", [
@@ -174,6 +175,7 @@ describe("supervisor integration (T058 vertical slice)", () => {
 
     // Lease was released cleanly (file gone).
     const remainingLeases = await fs.readdir(leasesDir);
+
     expect(remainingLeases).toHaveLength(0);
 
     // The agent handler wrote the file.
@@ -191,6 +193,7 @@ describe("supervisor integration (T058 vertical slice)", () => {
         [{ repo: string; prNumber: number }]
       >
     )[0][0];
+
     expect(call.repo).toBe("owner/repo");
     expect(call.prNumber).toBe(42);
 
@@ -202,6 +205,7 @@ describe("supervisor integration (T058 vertical slice)", () => {
       "--format=%B",
       "--no-merges",
     ]);
+
     expect(log.stdout).toContain("Lore-Stage: draft");
     expect(log.stdout).toContain("Lore-Stage: validate");
     expect(log.stdout).toContain("Lore-Task: t-1");
@@ -228,6 +232,7 @@ edges:
     on: success
 `);
     const emptyDir = path.join(workDir, "empty");
+
     await fs.mkdir(emptyDir);
     const commits: string[] = [];
     const detected: string[] = [];
@@ -250,6 +255,7 @@ edges:
           {
             spec_drift: async ({ repo }) => {
               detected.push(repo);
+
               return "Checked 2 specs (0 drifted)";
             },
           },
@@ -277,6 +283,7 @@ edges:
       holder: "test-pod",
       leaseBackend: new FileLeaseBackend(leasesDir),
     });
+
     expect(result.reason).toBe("executor_pending");
   });
 });

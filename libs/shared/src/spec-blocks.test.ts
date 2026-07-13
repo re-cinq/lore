@@ -4,6 +4,7 @@ import { segmentBlocks, reassembleBlocks } from "./spec-blocks.js";
 describe("segmentBlocks / reassembleBlocks", () => {
   it("round-trips a single-paragraph source verbatim", () => {
     const content = "The widget emits a click event.";
+
     expect(reassembleBlocks(segmentBlocks(content))).toBe(content);
     expect(segmentBlocks(content)).toEqual([
       { ordinal: 0, kind: "paragraph", text: content },
@@ -12,6 +13,7 @@ describe("segmentBlocks / reassembleBlocks", () => {
 
   it("segments two blank-separated paragraphs into paragraph, blank, paragraph", () => {
     const content = "First paragraph.\n\nSecond paragraph.";
+
     expect(segmentBlocks(content)).toEqual([
       { ordinal: 0, kind: "paragraph", text: "First paragraph." },
       { ordinal: 1, kind: "blank", text: "" },
@@ -22,6 +24,7 @@ describe("segmentBlocks / reassembleBlocks", () => {
 
   it("splits an ATX heading into a level-2 heading block before the following paragraph", () => {
     const content = "## Overview\nThe widget emits a click event.";
+
     expect(segmentBlocks(content)).toEqual([
       { ordinal: 0, kind: "heading", level: 2, text: "## Overview" },
       {
@@ -41,6 +44,7 @@ describe("segmentBlocks / reassembleBlocks", () => {
       "# not a heading inside code",
       "```",
     ].join("\n");
+
     expect(segmentBlocks(content)).toEqual([
       { ordinal: 0, kind: "code", text: content },
     ]);
@@ -51,6 +55,7 @@ describe("segmentBlocks / reassembleBlocks", () => {
     const content = ["| Col A | Col B |", "| --- | --- |", "| 1 | 2 |"].join(
       "\n",
     );
+
     expect(segmentBlocks(content)).toEqual([
       { ordinal: 0, kind: "table", text: content },
     ]);
@@ -59,6 +64,7 @@ describe("segmentBlocks / reassembleBlocks", () => {
 
   it("splits two bullet lines into two separate list-item blocks", () => {
     const content = ["- First point", "- Second point"].join("\n");
+
     expect(segmentBlocks(content)).toEqual([
       { ordinal: 0, kind: "list-item", text: "- First point" },
       { ordinal: 1, kind: "list-item", text: "- Second point" },

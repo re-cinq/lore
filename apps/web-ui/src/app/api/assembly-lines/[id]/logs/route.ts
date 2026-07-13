@@ -25,6 +25,7 @@ async function checkRepoAccess(
         Accept: "application/vnd.github+json",
       },
     });
+
     return res.ok;
   } catch {
     return false;
@@ -42,6 +43,7 @@ export async function GET(
   try {
     // Auth check
     const session = (await getServerSession(authOptions)) as any;
+
     if (!session?.accessToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -50,14 +52,17 @@ export async function GET(
       `SELECT id, status, target_repo FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
-    if (!task)
+
+    if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
 
     // Repo access check
     const hasAccess = await checkRepoAccess(
       session.accessToken,
       task.target_repo,
     );
+
     if (!hasAccess) {
       return NextResponse.json(
         { error: "Access denied — you do not have access to this repo" },
@@ -72,6 +77,7 @@ export async function GET(
       .file(`${task.target_repo}/${task.id}/output.log`);
 
     const [exists] = await file.exists();
+
     if (!exists) {
       return NextResponse.json({
         logs: null,
@@ -83,6 +89,7 @@ export async function GET(
     if (offset > 0) {
       const [metadata] = await file.getMetadata();
       const totalSize = Number(metadata.size || 0);
+
       if (offset >= totalSize) {
         return NextResponse.json({ logs: "", status: task.status, totalSize });
       }
@@ -90,6 +97,7 @@ export async function GET(
         start: offset,
         end: totalSize - 1,
       });
+
       return NextResponse.json({
         logs: content.toString("utf-8"),
         status: task.status,
@@ -98,6 +106,7 @@ export async function GET(
     }
 
     const [content] = await file.download();
+
     return NextResponse.json({
       logs: content.toString("utf-8"),
       status: task.status,

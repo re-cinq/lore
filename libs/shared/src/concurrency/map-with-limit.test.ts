@@ -5,6 +5,7 @@ describe("mapWithLimit", () => {
   it("never runs more than `limit` tasks at once", async () => {
     let inFlight = 0;
     let maxInFlight = 0;
+
     await mapWithLimit(
       Array.from({ length: 10 }, (_, i) => i),
       2,
@@ -24,6 +25,7 @@ describe("mapWithLimit", () => {
       3,
       (ms) => new Promise<number>((r) => setTimeout(() => r(ms * 2), ms)),
     );
+
     expect(out).toEqual([60, 20, 40]);
   });
 });

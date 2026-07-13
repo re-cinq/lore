@@ -16,11 +16,14 @@ function fakeMemory(): MemoryPort {
   const rows = new Map<string, MemoryRecord>();
   const keyOf = (repo: string, agentId: string, key: string) =>
     `${repo}|${agentId}|${key}`;
+
   return {
     write: async (repo, key, value, agentId): Promise<MemoryWriteResult> => {
       const prev = rows.get(keyOf(repo, agentId, key));
       const version = (prev?.version ?? 0) + 1;
+
       rows.set(keyOf(repo, agentId, key), { key, value, version });
+
       return { key, version };
     },
     read: async (repo, key, agentId) =>

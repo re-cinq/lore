@@ -38,12 +38,14 @@ describe("sectionsOf legacy normalization (web-ui mirror)", () => {
 
   it("bolds components in Architecture content and attaches its default-bucketed mockup", () => {
     const arch = sectionsOf(legacy)[0];
+
     expect(arch.content).toContain("- **features port**: persist lifecycle");
     expect(arch.mockups?.[0].title).toBe("arch");
   });
 
   it("numbers user-flow steps and attaches the user_flows-tagged mockup", () => {
     const flows = sectionsOf(legacy)[1];
+
     expect(flows.content).toContain("**create draft**");
     expect(flows.content).toContain("1. open tab");
     expect(flows.content).toContain("2. submit");
@@ -59,6 +61,7 @@ describe("sectionsOf legacy normalization (web-ui mirror)", () => {
       architecture: { summary: "just a summary", components: [] },
       draft_spec_markdown: "x",
     };
+
     expect(sectionsOf(minimal)[0]).toEqual({
       title: "Architecture",
       content: "just a summary",
@@ -73,6 +76,7 @@ describe("sectionsOf legacy normalization (web-ui mirror)", () => {
       draft_spec_markdown: "x",
     } as unknown as GapResult;
     const sections = sectionsOf(g);
+
     expect(sections.map((s) => s.title)).toEqual([
       "Architecture",
       "User flows",

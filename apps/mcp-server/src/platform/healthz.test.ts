@@ -14,6 +14,7 @@ describe("getHealthStatus", () => {
   it("returns connected=false when no pool is configured", async () => {
     setPool(null as any);
     const result = await getHealthStatus();
+
     expect(result.connected).toBe(false);
     expect(result.chunk_count).toBeNull();
   });
@@ -21,12 +22,17 @@ describe("getHealthStatus", () => {
   it("returns connected=true when pool query succeeds", async () => {
     const mockPool = {
       query: vi.fn().mockImplementation((sql: string) => {
-        if (sql === "SELECT 1") return Promise.resolve({});
+        if (sql === "SELECT 1") {
+          return Promise.resolve({});
+        }
+
         return Promise.resolve({ rows: [{ cnt: 42 }] });
       }),
     };
+
     setPool(mockPool as any);
     const result = await getHealthStatus();
+
     expect(result.connected).toBe(true);
     expect(result.chunk_count).toBe(42);
   });
@@ -35,8 +41,10 @@ describe("getHealthStatus", () => {
     const mockPool = {
       query: vi.fn().mockRejectedValue(new Error("connection refused")),
     };
+
     setPool(mockPool as any);
     const result = await getHealthStatus();
+
     expect(result.connected).toBe(false);
     expect(result.reason).toBeDefined();
   });
@@ -67,10 +75,14 @@ describe("/healthz endpoint", () => {
     process.env.LORE_DB_HOST = "localhost";
     const mockPool = {
       query: vi.fn().mockImplementation((sql: string) => {
-        if (sql === "SELECT 1") return Promise.resolve({});
+        if (sql === "SELECT 1") {
+          return Promise.resolve({});
+        }
+
         return Promise.resolve({ rows: [{ cnt: 0 }] });
       }),
     };
+
     setPool(mockPool as any);
 
     const health = await getHealthStatus();
@@ -87,6 +99,7 @@ describe("/healthz endpoint", () => {
     const mockPool = {
       query: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
     };
+
     setPool(mockPool as any);
 
     const health = await getHealthStatus();

@@ -64,10 +64,16 @@ export default function PlanningWizard({
       `/api/repos/${owner}/${repo}/features/${feature.id}`,
       { cache: "no-store" },
     );
-    if (!r.ok) return null;
+
+    if (!r.ok) {
+      return null;
+    }
+
     try {
       const json = (await r.json()) as Poll;
+
       setData(json);
+
       return json;
     } catch {
       return null;
@@ -88,13 +94,19 @@ export default function PlanningWizard({
 
   useEffect(() => {
     if (!running) {
-      if (timer.current) clearInterval(timer.current);
+      if (timer.current) {
+        clearInterval(timer.current);
+      }
+
       return;
     }
     void fetchLatest();
     timer.current = setInterval(() => void fetchLatest(), POLL_MS);
+
     return () => {
-      if (timer.current) clearInterval(timer.current);
+      if (timer.current) {
+        clearInterval(timer.current);
+      }
     };
   }, [running, fetchLatest]);
 
@@ -116,12 +128,18 @@ export default function PlanningWizard({
   // until the feature leaves the planning phase (→ pr-open), then refresh the server
   // component so the parent swaps the wizard for the FinalizedView.
   useEffect(() => {
-    if (!finalizing) return;
+    if (!finalizing) {
+      return;
+    }
     const tick = async () => {
       const json = await fetchLatest();
-      if (json && !isPlanningActive(json.feature.status)) router.refresh();
+
+      if (json && !isPlanningActive(json.feature.status)) {
+        router.refresh();
+      }
     };
     const id = setInterval(() => void tick(), POLL_MS);
+
     return () => clearInterval(id);
   }, [finalizing, fetchLatest, router]);
 

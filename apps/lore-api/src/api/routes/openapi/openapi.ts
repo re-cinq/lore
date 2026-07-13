@@ -29,6 +29,7 @@ const generate = (getPool: () => Pool | null) =>
 /** Inline the spec safely inside a <script> — neutralize `</script>` / `<!--`. */
 function docsHtml(spec: object): string {
   const json = JSON.stringify(spec).replace(/</g, "\\u003c");
+
   return `<!DOCTYPE html>
 <html>
   <head>
@@ -57,6 +58,7 @@ export function openApiJsonRoute(getPool: () => Pool | null): ServerRoute {
         return h.response(generate(getPool));
       } catch (err: any) {
         console.error("[openapi] generation failed:", err.message);
+
         return h
           .response({ error: "failed to generate openapi document" })
           .code(500);
@@ -75,6 +77,7 @@ export function docsRoute(getPool: () => Pool | null): ServerRoute {
         return h.response(docsHtml(generate(getPool))).type("text/html");
       } catch (err: any) {
         console.error("[openapi] docs render failed:", err.message);
+
         return h.response({ error: "failed to render docs" }).code(500);
       }
     },

@@ -56,12 +56,19 @@ const DEFAULT_1H_JOBS = new Set([
 
 function resolveEligibility(): { allEligible: boolean; jobs: Set<string> } {
   const raw = process.env.LORE_CACHE_1H_JOBS;
+
   if (raw === undefined || raw === "") {
     return { allEligible: false, jobs: DEFAULT_1H_JOBS };
   }
-  if (raw === "*") return { allEligible: true, jobs: new Set() };
-  if (raw.toLowerCase() === "none")
+
+  if (raw === "*") {
+    return { allEligible: true, jobs: new Set() };
+  }
+
+  if (raw.toLowerCase() === "none") {
     return { allEligible: false, jobs: new Set() };
+  }
+
   return {
     allEligible: false,
     jobs: new Set(
@@ -79,8 +86,14 @@ function resolveEligibility(): { allEligible: boolean; jobs: Set<string> } {
 const ELIGIBILITY = resolveEligibility();
 
 export function shouldUse1hTTL(jobName?: string): boolean {
-  if (ELIGIBILITY.allEligible) return true;
-  if (!jobName) return false;
+  if (ELIGIBILITY.allEligible) {
+    return true;
+  }
+
+  if (!jobName) {
+    return false;
+  }
+
   return ELIGIBILITY.jobs.has(jobName);
 }
 
@@ -94,6 +107,7 @@ export function getCacheControl(jobName?: string): CacheControl {
   if (shouldUse1hTTL(jobName)) {
     return { type: "ephemeral", ttl: "1h" };
   }
+
   return { type: "ephemeral" };
 }
 
@@ -102,9 +116,11 @@ export function getCacheControl(jobName?: string): CacheControl {
 /** djb2 — deterministic across runs and runtime-independent. */
 export function djb2Hash(str: string): string {
   let hash = 5381;
+
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
   }
+
   return (hash >>> 0).toString(16);
 }
 
@@ -141,6 +157,7 @@ export function computeCachePrefixHash(
           ),
         )
       : "";
+
   return { system, tools: toolsHash };
 }
 
@@ -187,6 +204,7 @@ export function analyzeCacheBreak(
   const isHit = cacheReadTokens > 0;
 
   let analysis: CacheBreakAnalysis;
+
   if (isHit) {
     analysis = { status: "hit" };
   } else if (!prev) {
@@ -194,14 +212,22 @@ export function analyzeCacheBreak(
   } else {
     const systemChanged = prev.systemHash !== newHash.system;
     const toolsChanged = prev.toolsHash !== newHash.tools;
+
     if (systemChanged || toolsChanged) {
       const parts: string[] = [];
-      if (systemChanged) parts.push("system");
-      if (toolsChanged) parts.push("tools");
+
+      if (systemChanged) {
+        parts.push("system");
+      }
+
+      if (toolsChanged) {
+        parts.push("tools");
+      }
       analysis = { status: "prompt-changed", reason: parts.join("+") };
     } else if (cacheCreationTokens > 0) {
       // Hashes match but we paid to write again — prefix aged out
       const ageMinutes = Math.round((now - prev.lastCallAt) / 60_000);
+
       analysis = { status: "ttl-expired", ageMinutes };
     } else {
       analysis = { status: "unknown-miss" };

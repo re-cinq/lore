@@ -28,6 +28,7 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     seen.push(`${req.headers.authorization ?? "-"} ${req.url}`);
     res.setHeader("content-type", "application/json");
+
     if (req.url === "/api/repos/re-cinq/re-plan/agent-definitions/general") {
       res.end(JSON.stringify(general));
     } else if (req.url === "/api/repos/re-cinq/re-plan/agent-definitions") {
@@ -39,6 +40,7 @@ beforeAll(async () => {
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const addr = server.address();
+
   enforceTrue(
     !(addr === null || typeof addr === "string"),
     new Error("no server address"),

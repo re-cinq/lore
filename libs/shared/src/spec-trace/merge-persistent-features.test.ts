@@ -30,6 +30,7 @@ describe("mergePersistentFeatures", () => {
       },
     ]);
     const node = merged.nodes.find((n) => n.id === "u1");
+
     expect(node).toMatchObject({
       label: "Smart Feature Planning",
       status: "pr-open",
@@ -47,6 +48,7 @@ describe("mergePersistentFeatures", () => {
       },
     ]);
     const injected = merged.nodes.find((n) => n.id === "feature:f2");
+
     expect(injected).toMatchObject({
       type: "Feature",
       label: "Draft Idea",
@@ -65,12 +67,14 @@ describe("mergePersistentFeatures", () => {
         status: "implemented",
       },
     ]);
+
     expect(merged.links).toEqual(baseGraph.links);
     expect(merged.nodes.filter((n) => n.type === "Feature")).toHaveLength(1);
   });
 
   it("returns the graph unchanged when there are no persistent features", () => {
     const merged = mergePersistentFeatures(baseGraph, []);
+
     expect(merged.nodes).toHaveLength(2);
   });
 });

@@ -23,6 +23,7 @@ export function parseAgentForm(fd: FormData): ParsedAgentForm {
       ? ((fd.get("model_custom") as string) || "").trim() || null
       : modelSel || null;
   const timeoutRaw = ((fd.get("timeout_minutes") as string) || "").trim();
+
   return {
     name,
     isNew,
@@ -46,10 +47,21 @@ export interface AgentFormState {
 
 /** Map an agents-api save result to the form state (ok → {} so the page redirects). */
 export function saveResultToState(r: AgentSaveResult): AgentFormState {
-  if (r.status === "ok") return {};
-  if (r.status === "two_key_required") return { twoKey: true };
-  if (r.status === "unconfigured")
+  if (r.status === "ok") {
+    return {};
+  }
+
+  if (r.status === "two_key_required") {
+    return { twoKey: true };
+  }
+
+  if (r.status === "unconfigured") {
     return { error: "LORE_API_URL / LORE_ADMIN_TOKEN not set" };
-  if (r.status === "codeowners_failed") return { error: r.detail || r.code };
+  }
+
+  if (r.status === "codeowners_failed") {
+    return { error: r.detail || r.code };
+  }
+
   return { error: r.message };
 }

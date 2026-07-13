@@ -14,6 +14,7 @@ export default function FeatureListView({
   features: FeatureRow[];
 }) {
   const base = `/repos/${owner}/${repo}/features`;
+
   return (
     <div>
       <div

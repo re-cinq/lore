@@ -34,23 +34,27 @@ describe("POST /api/onboard", () => {
 
   it("returns 503 when pool is null", async () => {
     const res = await post({ repo: "o/r" }, null);
+
     expect(res.statusCode).toBe(503);
   });
 
   it("returns 400 when repo is missing or malformed", async () => {
     const res = await post({ repo: "noslash" }, makePool());
+
     expect(res.statusCode).toBe(400);
   });
 
   it("returns 200 with the onboard result", async () => {
     vi.mocked(onboardRepo).mockResolvedValue({ ok: true } as any);
     const res = await post({ repo: "o/r" }, makePool());
+
     expect(res.result).toEqual({ ok: true });
   });
 
   it("returns 500 when onboardRepo throws", async () => {
     vi.mocked(onboardRepo).mockRejectedValue(new Error("onboard fail"));
     const res = await post({ repo: "o/r" }, makePool());
+
     expect(res.statusCode).toBe(500);
   });
 });

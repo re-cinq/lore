@@ -6,6 +6,7 @@ import ReonboardButton from "./ReonboardButton";
 describe("ReonboardButton", () => {
   it("renders the given text and invokes the action on click", async () => {
     const action = vi.fn().mockResolvedValue(undefined);
+
     render(
       <ReonboardButton action={action} text="create a PR with this file" />,
     );
@@ -25,6 +26,7 @@ describe("ReonboardButton", () => {
           release = resolve;
         }),
     );
+
     render(<ReonboardButton action={action} text="create a PR" />);
 
     fireEvent.click(screen.getByRole("button"));

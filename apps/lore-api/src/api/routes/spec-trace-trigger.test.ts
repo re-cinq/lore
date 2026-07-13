@@ -3,10 +3,12 @@ import { triggerAgentSpecTrace } from "../routes.js";
 
 function recordingPool() {
   const calls: Array<{ text: string; params: unknown[] }> = [];
+
   return {
     calls,
     query: async (text: string, params: unknown[]) => {
       calls.push({ text, params });
+
       return { rows: [] };
     },
   };
@@ -15,6 +17,7 @@ function recordingPool() {
 describe("triggerAgentSpecTrace", () => {
   it("inserts an internal.ingest.spec_trace event carrying repo, kind and payload", async () => {
     const pool = recordingPool();
+
     await triggerAgentSpecTrace(pool as never, "re-cinq/lore", "test-report", {
       commit: "abc",
       tests: [],

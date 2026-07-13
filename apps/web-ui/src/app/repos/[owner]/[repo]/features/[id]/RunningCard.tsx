@@ -13,14 +13,20 @@ function ElapsedTimer({
   timeoutMinutes: number;
 }) {
   const [now, setNow] = useState(() => Date.now());
+
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
+
     return () => clearInterval(id);
   }, []);
   const start = since ? Date.parse(since) : NaN;
-  if (Number.isNaN(start)) return null;
+
+  if (Number.isNaN(start)) {
+    return null;
+  }
   const secs = Math.max(0, Math.floor((now - start) / 1000));
   const over = secs > timeoutMinutes * 60;
+
   return (
     <span
       role="timer"
