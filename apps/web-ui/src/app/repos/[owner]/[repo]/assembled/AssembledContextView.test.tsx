@@ -1,4 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -74,7 +73,7 @@ const baseProps = (
 
 function submitForm(container: HTMLElement) {
   const form = container.querySelector("form");
-  enforceTrue(form, new Error("no form"));
+  if (!form) throw new Error("no form");
   fireEvent.submit(form);
 }
 

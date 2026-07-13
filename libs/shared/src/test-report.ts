@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "./lib/enforce.js";
 /**
  * Parsers for the deterministic, zero-LLM output of the project's test
  * commands: `parseTestDescriptors` turns `tests.list` stdout into

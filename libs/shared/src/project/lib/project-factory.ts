@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool, DgraphClientPort } from "../../memory-store.js";
 import type { ProjectProviders } from "./providers.js";
 import type { LeasePool } from "../leases/lease-backends.js";

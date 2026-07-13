@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../lib/enforce.js";
 /**
  * OpenAI (and OpenAI-compatible, e.g. Codex) chat-completions provider. Moved
  * from the facts.ts vendor switch and generalized: the request's systemPrompt +

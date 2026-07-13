@@ -1,4 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -21,7 +20,7 @@ function svgOf(name: IconName, fam: ThemeFamily = "elegant") {
   family.mockReturnValue(fam);
   const { container } = render(<Icon name={name} />);
   const svg = container.querySelector("svg");
-  enforceTrue(svg, new Error(`no svg rendered for ${fam}/${name}`));
+  if (!svg) throw new Error(`no svg rendered for ${fam}/${name}`);
   return svg;
 }
 

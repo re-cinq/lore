@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../../lib/enforce.js";
 import { ChunkStore } from "../chunks/chunks.js";
 import { IssueCollection } from "../issues/issues.js";
 import { RepoFiles } from "../repo/repo-files.js";

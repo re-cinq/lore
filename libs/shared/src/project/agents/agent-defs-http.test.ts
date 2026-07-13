@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../../lib/enforce.js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createServer, type Server } from "node:http";
 import { AgentDefsHttp } from "./agent-defs-http.js";

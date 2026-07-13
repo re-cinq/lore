@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "./lib/enforce.js";
 /**
  * Parser + resolver for the per-repo test-command manifest — the optional
  * `.lore/test-commands.yml` file (or `lore.repos.settings.test_commands`)

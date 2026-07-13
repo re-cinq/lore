@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "./enforce.js";
 import { describe, it, expect, vi } from "vitest";
 import { withBackoff } from "./backoff.js";
 

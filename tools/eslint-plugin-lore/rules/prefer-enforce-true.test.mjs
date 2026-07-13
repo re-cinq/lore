@@ -22,6 +22,11 @@ ruleTester.run("prefer-enforce-true", rule, {
     `if (!refusal) throw new Error(refusal);`,
     `if (x === null) throw x;`,
     `if (!state.labelError) throw state.labelError;`,
+    // web-ui cannot import @re-cinq/lore-shared — never rewrite guards there
+    {
+      code: `if (!x) throw new Error("z");`,
+      filename: "/repo/apps/web-ui/src/lib/github.ts",
+    },
     // positive truthy guard reading the narrowed variable
     `if (refusal) throw new Error(refusal);`,
     `if (state.labelError) throw state.labelError;`,
@@ -70,6 +75,14 @@ ruleTester.run("prefer-enforce-true", rule, {
       // injected import must land AFTER a leading "use client" directive
       code: `"use client";\nif (!x) throw new Error("z");`,
       output: `"use client";\n${IMPORT}\nenforceTrue(x, new Error("z"));`,
+      errors: [{ messageId: "preferEnforce" }],
+    },
+    {
+      // inside the shared package, import enforceTrue by RELATIVE path (a
+      // self-package import resolves to unbuilt dist)
+      code: `if (!x) throw new Error("z");`,
+      filename: "/repo/libs/shared/src/project/lib/trust.ts",
+      output: `import { enforceTrue } from "../../lib/enforce.js";\nenforceTrue(x, new Error("z"));`,
       errors: [{ messageId: "preferEnforce" }],
     },
   ],

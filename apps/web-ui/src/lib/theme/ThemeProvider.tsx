@@ -1,7 +1,5 @@
 "use client";
 
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-
 import {
   createContext,
   useCallback,
@@ -99,6 +97,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
-  enforceTrue(ctx, new Error("useTheme must be used within a ThemeProvider"));
+  if (!ctx) throw new Error("useTheme must be used within a ThemeProvider");
   return ctx;
 }

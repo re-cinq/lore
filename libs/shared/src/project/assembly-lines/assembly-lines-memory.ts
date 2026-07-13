@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import type {
   AssemblyLinesPort,

@@ -7,9 +7,29 @@
  * value through verbatim (enforceTrue accepts `string | Error | () => Error`),
  * and injects the import when missing. Skips the shapes the helper can't model:
  * `if/else`, multi-statement bodies, and rethrow-in-catch.
+ *
+ * Import target is resolved per file: a relative path inside the shared package
+ * (self-package imports resolve to unbuilt dist), the package subpath elsewhere,
+ * and web-ui is skipped entirely — it cannot import `@re-cinq/lore-shared`.
  */
 
-const ENFORCE_SOURCE = "@re-cinq/lore-shared/lib/enforce.js";
+import path from "node:path";
+
+const PACKAGE_SOURCE = "@re-cinq/lore-shared/lib/enforce.js";
+const SHARED_SRC_MARKER = "/libs/shared/src/";
+const WEB_UI_MARKER = "/apps/web-ui/";
+
+/** Where `enforceTrue` should be imported from, given the file being linted. */
+function enforceSourceFor(filename) {
+  const unix = filename.replace(/\\/g, "/");
+  const idx = unix.indexOf(SHARED_SRC_MARKER);
+  if (idx === -1) return PACKAGE_SOURCE;
+  const srcRoot = unix.slice(0, idx + SHARED_SRC_MARKER.length);
+  const rel = path
+    .relative(path.dirname(unix), `${srcRoot}lib/enforce.js`)
+    .replace(/\\/g, "/");
+  return rel.startsWith(".") ? rel : `./${rel}`;
+}
 
 const FLIPPED_OPERATOR = {
   "===": "!==",
@@ -133,7 +153,7 @@ function alreadyImported(program) {
   return program.body.some(
     (statement) =>
       statement.type === "ImportDeclaration" &&
-      statement.source.value === ENFORCE_SOURCE &&
+      statement.source.value.endsWith("enforce.js") &&
       statement.specifiers.some(
         (specifier) =>
           specifier.type === "ImportSpecifier" &&
@@ -158,8 +178,13 @@ export default {
   },
 
   create(context) {
+    // web-ui cannot import @re-cinq/lore-shared (it is not a workspace and
+    // mirrors types) — never rewrite guards there.
+    if (context.filename.replace(/\\/g, "/").includes(WEB_UI_MARKER)) return {};
+
     const sourceCode = context.sourceCode;
     const program = sourceCode.ast;
+    const enforceSource = enforceSourceFor(context.filename);
     const needsImport = !alreadyImported(program);
     let importInjected = false;
 
@@ -212,7 +237,7 @@ export default {
             ];
             if (needsImport && !importInjected) {
               importInjected = true;
-              const importLine = `import { enforceTrue } from "${ENFORCE_SOURCE}";`;
+              const importLine = `import { enforceTrue } from "${enforceSource}";`;
               fixes.push(
                 lastDirective
                   ? fixer.insertTextAfter(lastDirective, `\n${importLine}`)

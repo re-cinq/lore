@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../lib/enforce.js";
 /**
  * spec-traceability-graph — Phase 5 deterministic vector candidate suggestion.
  *

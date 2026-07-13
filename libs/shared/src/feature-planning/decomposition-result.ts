@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../lib/enforce.js";
 // The decomposition of a finalized feature spec into an implementable tree:
 // user stories, each with its tasks. Produced by the `feature-decompose` agent
 // (ADR-029) and parsed leniently — the same drift tolerance as GapResult — so

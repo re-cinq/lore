@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../../lib/enforce.js";
 /**
  * The execution trust boundary, in one place. Relocated verbatim from
  * mcp-server/src/spec-trace-tools.ts (executionRefusal) so the tests port AND

@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../lib/enforce.js";
 /**
  * Anthropic provider — the proven `callLLM`/`callLLMWithTool` logic (relocated
  * from agent/src/platform/anthropic.ts) wrapped behind {@link LlmProvider}.

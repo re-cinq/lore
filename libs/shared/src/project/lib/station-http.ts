@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../../lib/enforce.js";
 import { Project } from "./project.js";
 import { ChunksHttp } from "../chunks/chunks-http.js";
 import type { IssueRef, IssueFilter } from "./github-port.js";

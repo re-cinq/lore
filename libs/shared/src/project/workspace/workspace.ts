@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../../lib/enforce.js";
 import type { GitPort } from "./git-port.js";
 import type { PullRequestsPort, PullRef } from "../pulls/pull-requests-port.js";
 

@@ -1,4 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { enforceTrue } from "../lib/enforce.js";
 /**
  * Untrusted-input guards for the feature-planning HTTP routes. `enforceFeatureInput`
  * is the bouncer for create/split (trim + non-empty + length); `parseSectionAnswers`
