@@ -10,6 +10,7 @@
 
 import { getQueryEmbedding } from "../../platform/db.js";
 import { Llm } from "@re-cinq/lore-shared";
+import type { PgPool } from "@re-cinq/lore-shared";
 
 // Provider selection (Anthropic/OpenAI/Ollama) + cost logging now live behind
 // the shared `Llm` singleton (LORE_LLM_PROVIDER / LORE_FACT_LLM). Fact extraction
@@ -86,7 +87,7 @@ const SIMILARITY_THRESHOLD = parseFloat(
  * anything goes wrong, the new fact is still inserted.
  */
 async function invalidateContradictions(
-  pool: any,
+  pool: PgPool,
   newFactId: string,
   embeddingStr: string,
   agentId: string | null,
@@ -136,9 +137,9 @@ async function invalidateContradictions(
             agentId,
             JSON.stringify({
               new_fact_id: newFactId,
-              invalidated: rows.map((r: any) => ({
-                id: r.id,
-                similarity: r.similarity,
+              invalidated: rows.map((r) => ({
+                id: r.id as string,
+                similarity: r.similarity as number,
               })),
             }),
           ],
@@ -155,7 +156,7 @@ async function invalidateContradictions(
 }
 
 async function getAgentIdForMemory(
-  pool: any,
+  pool: PgPool,
   memoryId: string,
 ): Promise<string | null> {
   try {
@@ -164,7 +165,7 @@ async function getAgentIdForMemory(
       [memoryId],
     );
 
-    return rows[0]?.agent_id || null;
+    return (rows[0]?.agent_id as string) || null;
   } catch {
     return null;
   }
@@ -175,7 +176,7 @@ async function getAgentIdForMemory(
 export async function extractFacts(
   memoryId: string,
   value: string,
-  pool: any,
+  pool: PgPool,
 ): Promise<void> {
   try {
     let rawResponse: string;
@@ -225,7 +226,7 @@ export async function extractFacts(
         if (embeddingStr && rows[0]?.id) {
           const invalidated = await invalidateContradictions(
             pool,
-            rows[0].id,
+            rows[0].id as string,
             embeddingStr,
             agentId,
           );
@@ -260,7 +261,7 @@ export async function extractFactsFromEpisode(
   episodeId: string,
   content: string,
   agentId: string,
-  pool: any,
+  pool: PgPool,
 ): Promise<void> {
   try {
     let rawResponse: string;
@@ -304,7 +305,7 @@ export async function extractFactsFromEpisode(
         if (embeddingStr && rows[0]?.id) {
           const invalidated = await invalidateContradictions(
             pool,
-            rows[0].id,
+            rows[0].id as string,
             embeddingStr,
             agentId,
           );

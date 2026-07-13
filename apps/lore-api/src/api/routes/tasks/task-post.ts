@@ -148,7 +148,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           resolvedType,
           target_repo,
           "remote-mcp",
-          context || undefined,
+          (context as Record<string, unknown>) || undefined,
           priority || "normal",
           group_id || undefined,
         );

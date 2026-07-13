@@ -85,7 +85,10 @@ export function buildPrompt(type: string, description: string): string {
  */
 export function getTaskTypeConfigForRepo(
   type: string,
-  repoSettings: any,
+  repoSettings:
+    | { task_overrides?: Record<string, Record<string, unknown>> }
+    | null
+    | undefined,
 ): TaskTypeConfig & { model?: string; system_prompt_suffix?: string } {
   const base = config[type] || {
     prompt_template: "Complete the following task: {description}",
@@ -98,6 +101,7 @@ export function getTaskTypeConfigForRepo(
     ...base,
     ...overrides,
     // Always use base prompt_template unless explicitly overridden
-    prompt_template: overrides.prompt_template || base.prompt_template,
+    prompt_template:
+      (overrides.prompt_template as string) || base.prompt_template,
   };
 }

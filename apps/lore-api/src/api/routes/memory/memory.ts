@@ -119,9 +119,9 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
                   : undefined;
 
             return h.response(
-              isMemoryDbAvailable()
+              (isMemoryDbAvailable()
                 ? await readMemory(body.key, body.agent_id, v)
-                : readMemoryFile(body.key, body.agent_id, v),
+                : readMemoryFile(body.key, body.agent_id, v)) as object,
             );
           }
           case "search":

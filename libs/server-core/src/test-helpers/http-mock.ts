@@ -47,11 +47,11 @@ export interface MockRes extends ServerResponse {
   body: string;
   ended: boolean;
   /** Parsed JSON body — throws if the body was not JSON. */
-  readonly json: any;
+  readonly json: unknown;
 }
 
 export function makeRes(): MockRes {
-  const res: any = {
+  const res = {
     statusCode: 0,
     headers: {},
     body: "",
@@ -78,7 +78,7 @@ export function makeRes(): MockRes {
     },
   };
 
-  return res as MockRes;
+  return res as unknown as MockRes;
 }
 
 /** A pg Pool mock — `query` is a vi.fn; `connect` returns a client mock. */

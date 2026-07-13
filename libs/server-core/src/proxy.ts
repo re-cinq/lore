@@ -85,7 +85,7 @@ function errorBodyDetail(
 
 export async function proxyToApi(
   endpoint: string,
-  body: Record<string, any>,
+  body: Record<string, unknown>,
 ): Promise<ProxyResult> {
   const apiUrl = process.env.LORE_API_URL;
   const apiToken = process.env.LORE_INGEST_TOKEN;
@@ -134,11 +134,11 @@ export async function proxyToApi(
 
         return { ok: false, reason: "unreachable", detail };
       }
-    } catch (err: any) {
+    } catch (err) {
       lastDetail =
-        err?.name === "TimeoutError"
+        (err as { name?: string })?.name === "TimeoutError"
           ? "request timed out (15s)"
-          : err?.message || String(err);
+          : (err as { message?: string })?.message || String(err);
     }
 
     if (attempt < PROXY_RETRY_DELAYS_MS.length) {
@@ -159,7 +159,7 @@ export async function proxyToApi(
 
 export function proxyMemory(
   action: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
 ): Promise<ProxyResult> {
   return proxyToApi("/api/memory", { action, ...params });
 }
@@ -258,11 +258,11 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
 
         return { ok: false, reason: "unreachable", detail };
       }
-    } catch (err: any) {
+    } catch (err) {
       lastDetail =
-        err?.name === "TimeoutError"
+        (err as { name?: string })?.name === "TimeoutError"
           ? "request timed out (15s)"
-          : err?.message || String(err);
+          : (err as { message?: string })?.message || String(err);
     }
 
     if (attempt < PROXY_RETRY_DELAYS_MS.length) {

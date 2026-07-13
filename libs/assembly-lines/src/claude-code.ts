@@ -142,9 +142,9 @@ export async function runClaudeCode(params: {
             outputTokens: estimatedOutputTokens,
             durationMs,
           });
-        } catch (logErr: any) {
+        } catch (logErr) {
           console.error(
-            `[agent] Failed to log Claude Code call: ${logErr.message}`,
+            `[agent] Failed to log Claude Code call: ${logErr instanceof Error ? logErr.message : String(logErr)}`,
           );
         }
       }

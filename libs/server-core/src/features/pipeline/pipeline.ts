@@ -43,12 +43,12 @@ export const recordEvent = (
   taskId: string,
   fromStatus: string | null,
   toStatus: string | null,
-  meta?: any,
+  meta?: Record<string, unknown>,
 ) => recordTaskEvent(getPool(), taskId, fromStatus, toStatus, meta);
 export const updateTaskStatus = (
   taskId: string,
   newStatus: string,
-  meta?: any,
+  meta?: Record<string, unknown>,
 ) => sharedUpdateTaskStatus(getPool(), taskId, newStatus, meta);
 export const cancelTask = (taskId: string) =>
   cancelPipelineTask(getPool(), taskId);
@@ -64,11 +64,17 @@ export function createTask(
   taskType: string = "general",
   targetRepo?: string,
   createdBy: string = "ui",
-  contextBundle?: any,
+  contextBundle?: Record<string, unknown>,
   priority: string = "normal",
   taskGroupId?: string,
   contextRefs?: { fact_ids: string[]; memory_ids: string[] },
-): Promise<any> {
+): Promise<{
+  task_id: string;
+  task_type: string;
+  status: string;
+  priority: string;
+  created_at: string;
+}> {
   return createPipelineTask(getPool(), {
     description,
     taskType,

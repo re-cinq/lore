@@ -1,4 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type { PgPool } from "@re-cinq/lore-shared";
 /**
  * PostgreSQL-backed memory CRUD module.
  *
@@ -11,13 +12,13 @@ import { resolveAgentId } from "../../platform/agent-id.js";
 
 // ── Pool management ──────────────────────────────────────────────────
 
-let pool: any = null;
+let pool: PgPool | null = null;
 
-export function getMemoryPool(): any {
+export function getMemoryPool(): PgPool | null {
   return pool;
 }
 
-export function setMemoryPool(p: any): void {
+export function setMemoryPool(p: PgPool | null): void {
   pool = p;
 }
 
@@ -63,7 +64,7 @@ export async function writeMemory(
   // Check if key already exists for this repo (or agent if no repo)
   const lookupField = repo ? "repo" : "agent_id";
   const lookupValue = repo || agent;
-  const existing = await pool.query(
+  const existing = await pool!.query(
     `SELECT id, version FROM memory.memories
      WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
      ORDER BY version DESC LIMIT 1`,
@@ -75,10 +76,10 @@ export async function writeMemory(
 
   if (existing.rows.length > 0) {
     // Update: increment version
-    version = existing.rows[0].version + 1;
-    memoryId = existing.rows[0].id;
+    version = (existing.rows[0].version as number) + 1;
+    memoryId = existing.rows[0].id as string;
 
-    await pool.query(
+    await pool!.query(
       `UPDATE memory.memories
        SET value = $1, version = $2, embedding = $3,
            ttl_seconds = $4, expires_at = ${expiresAt ? expiresAt : "NULL"},
@@ -95,7 +96,7 @@ export async function writeMemory(
   } else {
     // New memory
     version = 1;
-    const result = await pool.query(
+    const result = await pool!.query(
       `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
        VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : "NULL"}, $6)
        RETURNING id, created_at`,
@@ -109,11 +110,11 @@ export async function writeMemory(
       ],
     );
 
-    memoryId = result.rows[0].id;
+    memoryId = result.rows[0].id as string;
   }
 
   // Always insert a version record
-  await pool.query(
+  await pool!.query(
     `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
      VALUES ($1, $2, $3, $4)`,
     [memoryId, version, value, embedding ? `[${embedding.join(",")}]` : null],
@@ -122,12 +123,17 @@ export async function writeMemory(
   // Audit log
   await auditLog(agent, "write", key);
 
-  const row = await pool.query(
+  const row = await pool!.query(
     `SELECT created_at FROM memory.memories WHERE id = $1`,
     [memoryId],
   );
 
-  return { key, version, agent_id: agent, created_at: row.rows[0].created_at };
+  return {
+    key,
+    version,
+    agent_id: agent,
+    created_at: row.rows[0].created_at as string,
+  };
 }
 
 // ── Read ─────────────────────────────────────────────────────────────
@@ -136,12 +142,12 @@ export async function readMemory(
   key: string,
   agentId?: string,
   version?: string | number,
-): Promise<any> {
+) {
   const agent = resolveAgentId(agentId);
 
   if (version === "all") {
     // Return all versions
-    const { rows } = await pool.query(
+    const { rows } = await pool!.query(
       `SELECT mv.version, mv.value, mv.created_at
        FROM memory.memory_versions mv
        JOIN memory.memories m ON m.id = mv.memory_id
@@ -160,7 +166,7 @@ export async function readMemory(
     (typeof version === "string" && !isNaN(Number(version)))
   ) {
     // Specific version
-    const { rows } = await pool.query(
+    const { rows } = await pool!.query(
       `SELECT mv.version, mv.value, mv.created_at
        FROM memory.memory_versions mv
        JOIN memory.memories m ON m.id = mv.memory_id
@@ -174,7 +180,7 @@ export async function readMemory(
   }
 
   // Latest version
-  const { rows } = await pool.query(
+  const { rows } = await pool!.query(
     `SELECT key, value, version, created_at
      FROM memory.memories
      WHERE agent_id = $1 AND key = $2 AND is_deleted = FALSE
@@ -196,7 +202,7 @@ export async function deleteMemory(
 ): Promise<{ key: string; deleted: boolean }> {
   const agent = resolveAgentId(agentId);
 
-  await pool.query(
+  await pool!.query(
     `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key = $2`,
     [agent, key],
   );
@@ -212,10 +218,10 @@ export async function listMemories(
   limit: number = 50,
   offset: number = 0,
   repo?: string,
-): Promise<{ memories: any[]; total: number }> {
+): Promise<{ memories: Record<string, unknown>[]; total: number }> {
   // Scope by repo (preferred) or agent_id
   let filter: string;
-  let params: any[];
+  let params: unknown[];
 
   if (repo) {
     filter = "repo = $1 AND";
@@ -228,7 +234,7 @@ export async function listMemories(
     params = [limit, offset];
   }
 
-  const { rows } = await pool.query(
+  const { rows } = await pool!.query(
     `SELECT key, agent_id, repo, version, created_at, ttl_seconds,
             EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
      FROM memory.memories m
@@ -240,7 +246,7 @@ export async function listMemories(
   );
 
   const countParams = repo ? [repo] : agentId ? [resolveAgentId(agentId)] : [];
-  const countResult = await pool.query(
+  const countResult = await pool!.query(
     `SELECT count(*)::int as total FROM memory.memories
      WHERE ${filter} is_deleted = FALSE
        AND (expires_at IS NULL OR expires_at > now())`,
@@ -249,7 +255,7 @@ export async function listMemories(
 
   await auditLog(agentId || "org", "list", null);
 
-  return { memories: rows, total: countResult.rows[0].total };
+  return { memories: rows, total: countResult.rows[0].total as number };
 }
 
 // ── Shared Pools ─────────────────────────────────────────────────────
@@ -263,25 +269,25 @@ export async function sharedWrite(
 ): Promise<WriteResult> {
   const agent = resolveAgentId(agentId);
   // Get or create pool
-  let poolResult = await pool.query(
+  let poolResult = await pool!.query(
     `SELECT id FROM memory.shared_pools WHERE name = $1`,
     [poolName],
   );
 
   if (poolResult.rows.length === 0) {
-    poolResult = await pool.query(
+    poolResult = await pool!.query(
       `INSERT INTO memory.shared_pools (name, created_by) VALUES ($1, $2) RETURNING id`,
       [poolName, agent],
     );
   }
   const poolId = poolResult.rows[0].id;
   // Write memory with pool_id
-  const result = await pool.query(
+  const result = await pool!.query(
     `INSERT INTO memory.memories (agent_id, key, value, embedding, version, pool_id) VALUES ($1, $2, $3, $4, 1, $5) RETURNING id, created_at`,
     [agent, key, value, embedding ? `[${embedding.join(",")}]` : null, poolId],
   );
 
-  await pool.query(
+  await pool!.query(
     `INSERT INTO memory.memory_versions (memory_id, version, value, embedding) VALUES ($1, 1, $2, $3)`,
     [result.rows[0].id, value, embedding ? `[${embedding.join(",")}]` : null],
   );
@@ -291,12 +297,12 @@ export async function sharedWrite(
     key,
     version: 1,
     agent_id: agent,
-    created_at: result.rows[0].created_at,
+    created_at: result.rows[0].created_at as string,
   };
 }
 
-export async function sharedRead(poolName: string, key?: string): Promise<any> {
-  const poolResult = await pool.query(
+export async function sharedRead(poolName: string, key?: string) {
+  const poolResult = await pool!.query(
     `SELECT id FROM memory.shared_pools WHERE name = $1`,
     [poolName],
   );
@@ -307,14 +313,14 @@ export async function sharedRead(poolName: string, key?: string): Promise<any> {
   const poolId = poolResult.rows[0].id;
 
   if (key) {
-    const { rows } = await pool.query(
+    const { rows } = await pool!.query(
       `SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND key = $2 AND is_deleted = FALSE ORDER BY version DESC LIMIT 1`,
       [poolId, key],
     );
 
     return rows[0] || null;
   }
-  const { rows } = await pool.query(
+  const { rows } = await pool!.query(
     `SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND is_deleted = FALSE ORDER BY created_at DESC LIMIT 100`,
     [poolId],
   );
@@ -324,17 +330,17 @@ export async function sharedRead(poolName: string, key?: string): Promise<any> {
 
 // ── Snapshots ────────────────────────────────────────────────────────
 
-export async function createSnapshot(agentId?: string): Promise<any> {
+export async function createSnapshot(agentId?: string) {
   const agent = resolveAgentId(agentId);
-  const { rows: memories } = await pool.query(
+  const { rows: memories } = await pool!.query(
     `SELECT id, version FROM memory.memories WHERE agent_id = $1 AND is_deleted = FALSE AND (expires_at IS NULL OR expires_at > now())`,
     [agent],
   );
-  const memoryRefs = memories.map((m: any) => ({
+  const memoryRefs = memories.map((m) => ({
     memory_id: m.id,
     version: m.version,
   }));
-  const { rows } = await pool.query(
+  const { rows } = await pool!.query(
     `INSERT INTO memory.snapshots (agent_id, memory_refs, trigger) VALUES ($1, $2, 'manual') RETURNING id, created_at`,
     [agent, JSON.stringify(memoryRefs)],
   );
@@ -352,8 +358,8 @@ export async function createSnapshot(agentId?: string): Promise<any> {
   };
 }
 
-export async function restoreSnapshot(snapshotId: string): Promise<any> {
-  const { rows: snaps } = await pool.query(
+export async function restoreSnapshot(snapshotId: string) {
+  const { rows: snaps } = await pool!.query(
     `SELECT agent_id, memory_refs, created_at FROM memory.snapshots WHERE id = $1`,
     [snapshotId],
   );
@@ -368,24 +374,24 @@ export async function restoreSnapshot(snapshotId: string): Promise<any> {
 
   // Revert each memory to snapshotted version
   for (const ref of refs) {
-    const { rows: ver } = await pool.query(
+    const { rows: ver } = await pool!.query(
       `SELECT value, embedding FROM memory.memory_versions WHERE memory_id = $1 AND version = $2`,
       [ref.memory_id, ref.version],
     );
 
     if (ver.length > 0) {
-      await pool.query(
+      await pool!.query(
         `UPDATE memory.memories SET value = $1, version = $2, embedding = $3, is_deleted = FALSE WHERE id = $4`,
         [ver[0].value, ref.version, ver[0].embedding, ref.memory_id],
       );
     }
   }
   // Soft-delete memories created after snapshot that aren't in refs
-  await pool.query(
+  await pool!.query(
     `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND id != ALL($2::uuid[]) AND created_at > $3`,
     [snap.agent_id, refIds, snap.created_at],
   );
-  await auditLog(snap.agent_id, "restore", null, {
+  await auditLog(snap.agent_id as string, "restore", null, {
     snapshot_id: snapshotId,
     restored_count: refs.length,
   });
@@ -399,9 +405,9 @@ export async function restoreSnapshot(snapshotId: string): Promise<any> {
 
 // ── Health & Stats ───────────────────────────────────────────────────
 
-export async function agentHealth(agentId?: string): Promise<any> {
+export async function agentHealth(agentId?: string) {
   const agent = resolveAgentId(agentId);
-  const { rows } = await pool.query(
+  const { rows } = await pool!.query(
     `
     SELECT count(*)::int as memory_count,
            max(created_at) as last_active,
@@ -414,9 +420,9 @@ export async function agentHealth(agentId?: string): Promise<any> {
   return { agent_id: agent, ...rows[0] };
 }
 
-export async function agentStats(agentId?: string): Promise<any> {
+export async function agentStats(agentId?: string) {
   const agent = resolveAgentId(agentId);
-  const { rows } = await pool.query(
+  const { rows } = await pool!.query(
     `
     SELECT
       (SELECT count(*)::int FROM memory.memories WHERE agent_id = $1 AND is_deleted = FALSE) as total_memories,
@@ -438,10 +444,10 @@ async function auditLog(
   agentId: string,
   operation: string,
   key: string | null,
-  meta?: any,
+  meta?: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await pool.query(
+    await pool!.query(
       `INSERT INTO memory.audit_log (agent_id, operation, memory_key, metadata)
        VALUES ($1, $2, $3, $4)`,
       [agentId, operation, key, meta ? JSON.stringify(meta) : null],

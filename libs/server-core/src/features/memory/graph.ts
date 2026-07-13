@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PgPool } from "@re-cinq/lore-shared";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
@@ -42,17 +43,20 @@ function parseGraphExtraction(raw: string): GraphExtractionResult {
       .replace(/```json?\s*/g, "")
       .replace(/```/g, "")
       .trim();
-    const parsed = JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned) as {
+      entities?: Array<{ name?: unknown; type?: unknown }>;
+      edges?: Array<{ source?: unknown; target?: unknown; relation?: unknown }>;
+    };
     const entities: ExtractedGraphEntity[] = (parsed.entities || [])
-      .filter((e: any) => e.name && e.type)
-      .map((e: any) => ({
+      .filter((e) => e.name && e.type)
+      .map((e) => ({
         name: String(e.name).toLowerCase().trim(),
         type: String(e.type).toLowerCase().trim(),
       }))
       .slice(0, 10);
     const edges: ExtractedGraphEdge[] = (parsed.edges || [])
-      .filter((e: any) => e.source && e.target && e.relation)
-      .map((e: any) => ({
+      .filter((e) => e.source && e.target && e.relation)
+      .map((e) => ({
         source: String(e.source).toLowerCase().trim(),
         target: String(e.target).toLowerCase().trim(),
         relation: String(e.relation).toLowerCase().trim(),
@@ -68,7 +72,7 @@ function parseGraphExtraction(raw: string): GraphExtractionResult {
 // ── Entity upsert ──────────────────────────────────────────────────
 
 async function upsertEntity(
-  pool: any,
+  pool: PgPool,
   name: string,
   entityType: string,
   repo: string | null,
@@ -82,13 +86,13 @@ async function upsertEntity(
     [name, entityType, repo],
   );
 
-  return rows[0].id;
+  return rows[0].id as string;
 }
 
 // ── Edge upsert with temporal invalidation ─────────────────────────
 
 async function upsertEdge(
-  pool: any,
+  pool: PgPool,
   sourceId: string,
   targetId: string,
   relationType: string,
@@ -128,7 +132,7 @@ async function upsertEdge(
  * Called after fact extraction in the ingestion pipeline.
  */
 export async function extractAndUpdateGraph(
-  pool: any,
+  pool: PgPool,
   text: string,
   repo: string | null,
   sourceEpisodeId: string | null,
