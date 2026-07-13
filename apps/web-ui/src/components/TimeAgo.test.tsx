@@ -43,4 +43,13 @@ describe('TimeAgo', () => {
   it('renders the raw value for an unparseable date', () => {
     expect(renderTime('not-a-date')).toBe('not-a-date');
   });
+
+  it("renders absolute and relative on one line without a break when inline", () => {
+    const iso = ago(3 * HOUR);
+    const { container } = render(<TimeAgo date={iso} nowMs={NOW} inline />);
+    expect(container.querySelector("br")).toBeNull();
+    const text = container.querySelector("time")?.textContent ?? "";
+    expect(text).toContain(new Date(iso).toLocaleString());
+    expect(text).toContain("(3 hours ago)");
+  });
 });

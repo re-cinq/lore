@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import EventRow from './EventRow';
-import { EVENTS_PAGE_SIZE, type RepoEvent } from './pagination';
+import { useEffect, useRef, useState } from "react";
+import EventRow from "./EventRow";
+import { EVENTS_PAGE_SIZE, type RepoEvent } from "./pagination";
+import styles from "./InfiniteEvents.module.css";
 
 export interface InfiniteEventsProps {
   owner: string;
@@ -23,36 +24,51 @@ interface EventsPage {
  * rendered server-side; this appends subsequent pages as a sentinel row scrolls
  * into view, so the initial load stays at one page. The observer re-binds on
  * every offset change, so a sentinel still in view after a fetch pulls the next
- * page automatically until the stream is exhausted.
+ * page automatically until the stream is exhausted. A failed fetch pauses
+ * paging until the user retries — never an automatic refetch loop.
  */
-export default function InfiniteEvents({ owner, repo, initialOffset, hasMore }: InfiniteEventsProps) {
+export default function InfiniteEvents({
+  owner,
+  repo,
+  initialOffset,
+  hasMore,
+}: InfiniteEventsProps) {
   const [events, setEvents] = useState<RepoEvent[]>([]);
   const [offset, setOffset] = useState(initialOffset);
   const [more, setMore] = useState(hasMore);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const sentinel = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
     const node = sentinel.current;
-    if (!node || !more || loading) return;
+    if (!node || !more || loading || failed) return;
 
     const observer = new IntersectionObserver(async (entries) => {
       if (!entries[0]?.isIntersecting) return;
+      observer.disconnect();
       setLoading(true);
       try {
-        const res = await fetch(`/api/repos/${owner}/${repo}/events?offset=${offset}`);
-        if (!res.ok) return;
+        const res = await fetch(
+          `/api/repos/${owner}/${repo}/events?offset=${offset}`,
+        );
+        if (!res.ok) {
+          setFailed(true);
+          return;
+        }
         const data = (await res.json()) as EventsPage;
         setEvents((prev) => [...prev, ...data.events]);
         setOffset((prev) => prev + EVENTS_PAGE_SIZE);
         setMore(data.hasMore);
+      } catch {
+        setFailed(true);
       } finally {
         setLoading(false);
       }
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [owner, repo, offset, more, loading]);
+  }, [owner, repo, offset, more, loading, failed]);
 
   return (
     <>
@@ -61,20 +77,31 @@ export default function InfiniteEvents({ owner, repo, initialOffset, hasMore }: 
       ))}
       {more && (
         <tr ref={sentinel}>
-          <td colSpan={4} className="meta" style={{ textAlign: 'center' }}>
+          <td colSpan={4} className={`meta ${styles.pagerCell}`}>
             {loading && (
-              <span
-                className="route-loading-spinner"
-                style={{ width: 14, height: 14, borderWidth: 2, display: 'inline-block', verticalAlign: 'middle', marginRight: 6 }}
-              />
+              <span className={`route-loading-spinner ${styles.spinner}`} />
             )}
-            {loading ? 'Loading more…' : ''}
+            {loading && "Loading more…"}
+            {failed && (
+              <>
+                Couldn&apos;t load more events.{" "}
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setFailed(false)}
+                >
+                  Retry
+                </button>
+              </>
+            )}
           </td>
         </tr>
       )}
       {!more && events.length > 0 && (
         <tr>
-          <td colSpan={4} className="meta" style={{ textAlign: 'center' }}>You&apos;ve reached the end.</td>
+          <td colSpan={4} className={`meta ${styles.pagerCell}`}>
+            You&apos;ve reached the end.
+          </td>
         </tr>
       )}
     </>

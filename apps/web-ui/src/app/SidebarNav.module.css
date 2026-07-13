@@ -95,3 +95,7 @@
   color: var(--text);
   text-decoration: none;
 }
+
+.addRepo:global(.active) {
+  color: var(--accent);
+}

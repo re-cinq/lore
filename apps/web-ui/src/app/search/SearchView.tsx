@@ -1,12 +1,13 @@
-import { formatEnumLabel } from '@/lib/enum-label';
-import styles from './SearchView.module.css';
+import { displayAgentId } from "@/lib/agent-id";
+import { formatEnumLabel } from "@/lib/enum-label";
+import styles from "./SearchView.module.css";
 
 export interface SearchResult {
   key: string;
   value: string;
   agent_id: string;
   score: number;
-  source: 'memory' | 'fact' | 'chunk' | 'episode';
+  source: "memory" | "fact" | "chunk" | "episode";
   repo: string | null;
 }
 
@@ -25,8 +26,12 @@ export interface SearchViewProps {
   results: SearchResult[];
 }
 
-function sourceBadgeClass(source: SearchResult['source']): string {
-  return source === 'fact' ? 'op-search' : source === 'chunk' ? 'op-write' : 'op-read';
+function sourceBadgeClass(source: SearchResult["source"]): string {
+  return source === "fact"
+    ? "op-search"
+    : source === "chunk"
+      ? "op-write"
+      : "op-read";
 }
 
 /**
@@ -34,26 +39,48 @@ function sourceBadgeClass(source: SearchResult['source']): string {
  * container (`page.tsx`) runs the memory/fact/chunk queries, merges and scores
  * them, and passes the resolved view-model down.
  */
-export default function SearchView({ q, repo, repos, results }: SearchViewProps) {
+export default function SearchView({
+  q,
+  repo,
+  repos,
+  results,
+}: SearchViewProps) {
   return (
     <div>
       <h1>Search Memories</h1>
       <form method="get" className="search-form">
         <div className={styles.repoFilter}>
-          <select name="repo" defaultValue={repo || ''} className={styles.repoSelect}>
+          <select
+            name="repo"
+            defaultValue={repo || ""}
+            className={styles.repoSelect}
+          >
             <option value="">All repos</option>
-            {repos.map(r => (
-              <option key={r.full_name} value={r.full_name}>{r.full_name}</option>
+            {repos.map((r) => (
+              <option key={r.full_name} value={r.full_name}>
+                {r.full_name}
+              </option>
             ))}
           </select>
         </div>
-        <input type="text" name="q" defaultValue={q || ''} placeholder="Search memories, facts, and ingested docs..." />
+        <input
+          type="text"
+          name="q"
+          defaultValue={q || ""}
+          placeholder="Search memories, facts, and ingested docs..."
+        />
         <button type="submit">Search</button>
       </form>
       {q && (
         <p className={`meta ${styles.resultCount}`}>
-          {results.length} result{results.length !== 1 ? 's' : ''} for &quot;{q}&quot;
-          {repo && <> in <strong>{repo}</strong></>}
+          {results.length} result{results.length !== 1 ? "s" : ""} for &quot;{q}
+          &quot;
+          {repo && (
+            <>
+              {" "}
+              in <strong>{repo}</strong>
+            </>
+          )}
         </p>
       )}
       {results.map((r, i) => (
@@ -61,14 +88,24 @@ export default function SearchView({ q, repo, repos, results }: SearchViewProps)
           <div className="result-header">
             <strong>{r.key}</strong>
             <span className="meta">
-              agent: {r.agent_id.substring(0, 8)}... · score: {r.score.toFixed(3)}
-              {r.repo && <> · repo: <strong>{r.repo}</strong></>}
+              agent: {displayAgentId(r.agent_id)} · score: {r.score.toFixed(3)}
+              {r.repo && (
+                <>
+                  {" "}
+                  · repo: <strong>{r.repo}</strong>
+                </>
+              )}
             </span>
           </div>
           <pre>{r.value}</pre>
           <div className="result-source">
-            source: <span className={`op-badge ${sourceBadgeClass(r.source)}`}>{formatEnumLabel(r.source)}</span>
-            {r.repo && <span className={`badge ${styles.repoBadge}`}>{r.repo}</span>}
+            source:{" "}
+            <span className={`op-badge ${sourceBadgeClass(r.source)}`}>
+              {formatEnumLabel(r.source)}
+            </span>
+            {r.repo && (
+              <span className={`badge ${styles.repoBadge}`}>{r.repo}</span>
+            )}
           </div>
         </div>
       ))}

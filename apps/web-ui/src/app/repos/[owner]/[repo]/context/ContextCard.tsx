@@ -1,10 +1,10 @@
-import Link from 'next/link';
-import ChunkBody from './ChunkBody';
-import { badgeClassForType } from '@/lib/content-types';
-import { chunkHeader, type ChunkMeta } from '@/lib/chunk-presenter';
-import { formatEnumLabel } from '@/lib/enum-label';
-import { TimeAgo } from '@/components/TimeAgo';
-import styles from './ContextCard.module.css';
+import Link from "next/link";
+import ChunkBody from "./ChunkBody";
+import { badgeClassForType } from "@/lib/content-types";
+import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
+import { formatEnumLabel } from "@/lib/enum-label";
+import { TimeAgo } from "@/components/TimeAgo";
+import styles from "./ContextCard.module.css";
 
 export interface ContextCardChunk {
   id: string;
@@ -30,18 +30,27 @@ export interface ContextCardProps {
  * route), the derived metadata header, ingest date, and a clamped rich
  * preview of the chunk via `ChunkBody`. Pure render.
  */
-export default function ContextCard({ chunk, detailHref, repo, repoLabel }: ContextCardProps) {
+export default function ContextCard({
+  chunk,
+  detailHref,
+  repo,
+  repoLabel,
+}: ContextCardProps) {
   const header = chunkHeader(chunk.content_type, chunk.metadata ?? null);
 
   return (
     <div className={styles.card}>
       <div className={styles.head}>
-        <span className={badgeClassForType(chunk.content_type)}>{formatEnumLabel(chunk.content_type)}</span>
+        <span className={badgeClassForType(chunk.content_type)}>
+          {formatEnumLabel(chunk.content_type)}
+        </span>
         <Link href={detailHref} className={styles.path}>
           {chunk.file_path}
         </Link>
         {repoLabel && <span className={styles.repo}>{repoLabel}</span>}
-        <span className={styles.date}><TimeAgo date={chunk.ingested_at} /></span>
+        <span className={styles.date}>
+          <TimeAgo date={chunk.ingested_at} inline />
+        </span>
       </div>
       {header && <p className={styles.subhead}>{header}</p>}
       <ChunkBody
