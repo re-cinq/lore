@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -96,10 +97,10 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
             response_type: "in_channel",
             text: `Retrying task \`${retryTaskId}\`\nNew task: \`${retryResult.task_id}\``,
           });
-        } catch (err: any) {
+        } catch (err) {
           return h.response({
             response_type: "ephemeral",
-            text: `Retry failed: ${err.message}`,
+            text: `Retry failed: ${errorMessage(err)}`,
           });
         }
       }
@@ -166,10 +167,10 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
           response_type: "in_channel",
           text: `Task created on \`${targetRepo}\`:\n> ${description}\n\nType: \`${taskType}\`${priorityLabel} | ID: \`${taskResult.task_id}\`\n${priority === "immediate" ? "Agent will pick this up shortly." : "Task in backlog — claim locally or use the UI to run now."}`,
         });
-      } catch (err: any) {
+      } catch (err) {
         return h.response({
           response_type: "ephemeral",
-          text: `Failed to create task: ${err.message}`,
+          text: `Failed to create task: ${errorMessage(err)}`,
         });
       }
     },

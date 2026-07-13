@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { createDgraphClient } from "@re-cinq/lore-shared";
@@ -93,8 +94,8 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
         return h.response({
           text: parts.length > 0 ? parts.join("\n\n---\n\n") : null,
         });
-      } catch (err: any) {
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

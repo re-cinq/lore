@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { createHash } from "node:crypto";
@@ -81,8 +82,8 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
         }
 
         return h.response({ status: "ok", episode_id: rows[0].id });
-      } catch (err: any) {
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

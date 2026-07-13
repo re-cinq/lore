@@ -186,14 +186,14 @@ export async function postReviewComment(
 export async function fetchPrStatus(
   repo: string,
   prNumber: number,
-): Promise<Record<string, any> | null> {
+): Promise<Record<string, unknown> | null> {
   const token = await getGitHubToken();
 
   if (!token) {
     return null;
   }
 
-  async function ghFetch(path: string): Promise<any> {
+  async function ghFetch(path: string): Promise<Record<string, unknown>> {
     const res = await fetch(`https://api.github.com${path}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -214,27 +214,36 @@ export async function fetchPrStatus(
     ghFetch(`/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
   ]);
 
-  let checkRuns: any[] = [];
+  let checkRuns: Array<{
+    name: string;
+    status: string;
+    conclusion: string | null;
+  }> = [];
 
   try {
     const checksResp = await ghFetch(
-      `/repos/${repo}/commits/${pr.head.sha}/check-runs`,
+      `/repos/${repo}/commits/${(pr.head as { sha: string }).sha}/check-runs`,
     );
 
-    checkRuns = checksResp.check_runs || [];
+    checkRuns = (checksResp.check_runs as typeof checkRuns) || [];
   } catch {
     /* no checks */
   }
 
-  const checks = checkRuns.map((c: any) => ({
+  const checks = checkRuns.map((c) => ({
     name: c.name,
     status: c.status,
     conclusion: c.conclusion ?? null,
   }));
   const reviewList = Array.isArray(reviews)
-    ? reviews.map((r: any) => ({
+    ? reviews.map(
+        (r: {
+          user?: { login?: string };
+          state?: string;
+          submitted_at?: string;
+        }) => ({
         user: r.user?.login || "unknown",
-        state: r.state,
+        state: r.state ?? "",
         submitted_at: r.submitted_at || "",
       }))
     : [];

@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -51,10 +52,10 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
         }
 
         return h.response(result);
-      } catch (err: any) {
-        console.error("[ingest] API error:", err.message);
+      } catch (err) {
+        console.error("[ingest] API error:", errorMessage(err));
 
-        return h.response({ error: err.message }).code(500);
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

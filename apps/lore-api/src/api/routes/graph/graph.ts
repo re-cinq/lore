@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -54,8 +55,8 @@ export function graphRoute(getPool: () => Pool | null): ServerRoute {
         );
 
         return h.response(results);
-      } catch (err: any) {
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

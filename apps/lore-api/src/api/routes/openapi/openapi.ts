@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * Serve the generated OpenAPI 3.1 document (ADR-035).
  *
@@ -56,8 +57,8 @@ export function openApiJsonRoute(getPool: () => Pool | null): ServerRoute {
     handler: (_request, h) => {
       try {
         return h.response(generate(getPool));
-      } catch (err: any) {
-        console.error("[openapi] generation failed:", err.message);
+      } catch (err) {
+        console.error("[openapi] generation failed:", errorMessage(err));
 
         return h
           .response({ error: "failed to generate openapi document" })
@@ -75,8 +76,8 @@ export function docsRoute(getPool: () => Pool | null): ServerRoute {
     handler: (_request, h) => {
       try {
         return h.response(docsHtml(generate(getPool))).type("text/html");
-      } catch (err: any) {
-        console.error("[openapi] docs render failed:", err.message);
+      } catch (err) {
+        console.error("[openapi] docs render failed:", errorMessage(err));
 
         return h.response({ error: "failed to render docs" }).code(500);
       }

@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * `GET /api/repos/:o/:r/webhook` — classify the repo's GitHub webhook against the
  * canonical Floor ingress URL (read scope). `POST .../webhook/ensure` — create or
@@ -40,11 +41,11 @@ export function webhookStatusRoute(): ServerRoute {
         return h.response(
           classifyWebhook(await listRepoWebhooks(repoOf(request)), url),
         );
-      } catch (err: any) {
+      } catch (err) {
         // 403 = the App lacks the Webhooks permission. Surface as unknown so the UI
         // degrades gracefully (like the githubFiles 'no access' state).
         const reason =
-          err?.status === 403 ? "app_no_webhook_permission" : "read_failed";
+          (err as { status?: number })?.status === 403 ? "app_no_webhook_permission" : "read_failed";
 
         return h.response({ state: "unknown", canonicalUrl: url, reason });
       }
@@ -112,8 +113,8 @@ export function webhookEnsureRoute(): ServerRoute {
         return h.response(
           classifyWebhook(await listRepoWebhooks(repo), canonicalUrl()),
         );
-      } catch (err: any) {
-        return h.response({ error: err?.message || String(err) }).code(500);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) || String(err) }).code(500);
       }
     },
   };

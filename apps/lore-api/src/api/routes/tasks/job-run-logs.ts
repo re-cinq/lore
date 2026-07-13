@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
@@ -36,8 +37,8 @@ export function jobRunLogsRoute(): ServerRoute {
         const [content] = await file.download();
 
         return h.response({ logs: content.toString("utf-8"), complete: true });
-      } catch (err: any) {
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

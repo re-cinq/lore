@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -154,10 +155,10 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         );
 
         return h.response(result);
-      } catch (err: any) {
-        console.error("[api/task] error:", err.message);
+      } catch (err) {
+        console.error("[api/task] error:", errorMessage(err));
 
-        return h.response({ error: err.message }).code(500);
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

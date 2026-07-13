@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -62,10 +63,10 @@ export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
           last_ingested_at: lastIngested,
           stale,
         });
-      } catch (err: any) {
-        console.error("[repo-status] Error:", err.message);
+      } catch (err) {
+        console.error("[repo-status] Error:", errorMessage(err));
 
-        return h.response({ onboarded: false, error: err.message });
+        return h.response({ onboarded: false, error: errorMessage(err) });
       }
     },
   };

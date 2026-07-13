@@ -1,3 +1,5 @@
+import type { Pool } from "pg";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Incremental file ingestion module.
@@ -28,7 +30,7 @@ export interface IngestResult {
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
 
-async function resolveSchema(pool: any, repo: string): Promise<string> {
+async function resolveSchema(pool: Pool, repo: string): Promise<string> {
   try {
     const { rows } = await pool.query(
       `SELECT team FROM lore.repos WHERE full_name = $1`,
@@ -57,7 +59,7 @@ async function resolveSchema(pool: any, repo: string): Promise<string> {
 export type IngestFile = string | { path: string; content: string };
 
 export async function ingestFiles(
-  pool: any,
+  pool: Pool,
   files: IngestFile[],
   repo: string,
   commit: string,
@@ -77,7 +79,7 @@ export async function ingestFiles(
 
   // Determine if we need GitHub access (only for path-based files)
   const needsGitHub = files.some((f) => typeof f === "string");
-  let octokit: any;
+  let octokit: Awaited<ReturnType<typeof getOctokit>> | undefined;
   let owner = "";
   let repoName = "";
 
@@ -108,7 +110,7 @@ export async function ingestFiles(
         // Fetch from GitHub — try the given ref, fall back to default branch
         for (const ref of [commit, "HEAD"]) {
           try {
-            const { data } = await octokit.rest.repos.getContent({
+            const { data } = await octokit!.rest.repos.getContent({
               owner,
               repo: repoName,
               path: filePath,
@@ -119,13 +121,13 @@ export async function ingestFiles(
               content = Buffer.from(data.content, "base64").toString("utf-8");
             }
             break; // success
-          } catch (err: any) {
-            if (err.status === 404 && ref === commit && commit !== "HEAD") {
+          } catch (err) {
+            if ((err as { status?: number }).status === 404 && ref === commit && commit !== "HEAD") {
               // Commit doesn't exist in this repo — retry with HEAD
               continue;
             }
 
-            if (err.status === 404) {
+            if ((err as { status?: number }).status === 404) {
               // File genuinely doesn't exist — remove from chunks
               await pool.query(
                 `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
@@ -226,9 +228,9 @@ export async function ingestFiles(
         embedded,
       });
       ingested++;
-    } catch (err: any) {
-      console.error(`[ingest] Error processing ${filePath}:`, err.message);
-      results.push({ file: filePath, status: "error", error: err.message });
+    } catch (err) {
+      console.error(`[ingest] Error processing ${filePath}:`, errorMessage(err));
+      results.push({ file: filePath, status: "error", error: errorMessage(err) });
       errors++;
     }
   }

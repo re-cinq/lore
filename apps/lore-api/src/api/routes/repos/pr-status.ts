@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * `GET /api/pr-status?repo=owner/name&pr_number=N` — live PR/CI/review verdict
  * from GitHub. Server-side because it needs the GitHub App credentials; the
@@ -46,8 +47,8 @@ export function prStatusRoute(): ServerRoute {
         }
 
         return h.response(result);
-      } catch (err: any) {
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

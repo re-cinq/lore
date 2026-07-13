@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { listTasks } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
@@ -35,8 +36,8 @@ export function listTasksRoute(): ServerRoute {
         const result = await listTasks(status, limit, offset);
 
         return h.response({ ...result, limit, offset });
-      } catch (err: any) {
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

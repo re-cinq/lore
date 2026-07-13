@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -39,10 +40,10 @@ export function reposRoute(getPool: () => Pool | null): ServerRoute {
         const result = await getOnboardedReposWithCounts(pool, limit, offset);
 
         return h.response({ ...result, limit, offset });
-      } catch (err: any) {
-        console.error("[repos] API error:", err.message);
+      } catch (err) {
+        console.error("[repos] API error:", errorMessage(err));
 
-        return h.response({ error: err.message }).code(500);
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };
