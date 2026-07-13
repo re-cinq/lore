@@ -72,7 +72,7 @@ export class PgFeatures implements FeaturesPort {
       `SELECT * FROM lore.features WHERE id = $1 AND repo = $2`,
       [id, repo],
     );
-    const feature = rows[0] as Feature | undefined;
+    const feature = rows[0] as unknown as Feature | undefined;
 
     if (!feature) {
       return null;
@@ -82,7 +82,10 @@ export class PgFeatures implements FeaturesPort {
       [id],
     );
 
-    return { ...feature, iterations: iterations as FeatureIteration[] };
+    return {
+      ...feature,
+      iterations: iterations as unknown as FeatureIteration[],
+    };
   }
 
   async list(repo: string, status?: FeatureStatus): Promise<Feature[]> {

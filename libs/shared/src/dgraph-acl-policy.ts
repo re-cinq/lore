@@ -141,6 +141,6 @@ const CHECKS = [
   checkGuardianIsolation,
 ];
 
-export function auditDgraphAcl(docs: Array<Record<string, any>>): string[] {
+export function auditDgraphAcl(docs: Array<Record<string, unknown>>): string[] {
   return docs.flatMap((doc) => CHECKS.flatMap((check) => check(doc)));
 }

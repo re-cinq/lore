@@ -17,7 +17,7 @@ export class PgJobRuns implements JobRunsPort {
       [jobName],
     );
 
-    return rows[0].id;
+    return rows[0].id as string;
   }
 
   async complete(
@@ -60,6 +60,6 @@ export class PgJobRuns implements JobRunsPort {
       return null;
     }
 
-    return { startedAt: rows[0].started_at };
+    return { startedAt: rows[0].started_at as Date };
   }
 }

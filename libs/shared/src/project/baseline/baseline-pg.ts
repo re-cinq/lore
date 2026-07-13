@@ -52,7 +52,7 @@ export class PgBaseline implements BaselinePort {
          AND created_at < $3`,
       [repo, windowStart, windowEnd],
     );
-    const row = rows[0] as BaselineStatsRow | undefined;
+    const row = rows[0] as unknown as BaselineStatsRow | undefined;
 
     return {
       issues_count: parseInt(row?.issues_count ?? "0", 10),

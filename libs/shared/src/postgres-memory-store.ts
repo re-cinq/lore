@@ -28,7 +28,7 @@ export class PostgresMemoryStore implements MemoryStore {
     // Check if key already exists for this repo (or agent if no repo)
     const lookupField = input.repo ? "repo" : "agent_id";
     const lookupValue = input.repo || agent;
-    const existing = await this.pool.query(
+    const existing = await this.pool.query<{ version: number; id: string }>(
       `SELECT id, version FROM memory.memories
        WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
        ORDER BY version DESC LIMIT 1`,
@@ -60,7 +60,7 @@ export class PostgresMemoryStore implements MemoryStore {
     } else {
       // New memory
       version = 1;
-      const result = await this.pool.query(
+      const result = await this.pool.query<{ id: string }>(
         `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
          VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : "NULL"}, $6)
          RETURNING id, created_at`,
@@ -101,7 +101,7 @@ export class PostgresMemoryStore implements MemoryStore {
       key: input.key,
       version,
       agent_id: agent,
-      created_at: row.rows[0].created_at,
+      created_at: row.rows[0].created_at as string,
     };
   }
 
@@ -222,7 +222,7 @@ export class PostgresMemoryStore implements MemoryStore {
 
     await this.auditLog(agentId || "org", "list", null);
 
-    return { memories: rows, total: countResult.rows[0].total };
+    return { memories: rows, total: countResult.rows[0].total as number };
   }
 
   private async auditLog(

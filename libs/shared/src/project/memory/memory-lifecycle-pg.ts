@@ -80,7 +80,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
      SELECT count(*)::text AS count FROM expired`,
     );
 
-    return parseInt(rows[0]?.count || "0", 10);
+    return parseInt((rows[0]?.count as string) || "0", 10);
   }
 
   async upsertMemory(memory: MemoryUpsert): Promise<void> {
@@ -243,6 +243,6 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
       ],
     );
 
-    return rows[0]?.id || null;
+    return (rows[0]?.id as string) || null;
   }
 }

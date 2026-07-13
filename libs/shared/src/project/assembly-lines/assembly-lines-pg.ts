@@ -46,7 +46,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
       ],
     );
 
-    return rows[0].id;
+    return rows[0].id as string;
   }
 
   async markRunning(id: string): Promise<void> {
@@ -110,7 +110,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
       return null;
     }
 
-    return toRecord(rows[0]);
+    return toRecord(rows[0] as Parameters<typeof toRecord>[0]);
   }
 
   async listForTask(taskId: string): Promise<AssemblyLineRecord[]> {
@@ -123,7 +123,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
       [taskId],
     );
 
-    return rows.map(toRecord);
+    return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
   }
 
   async findOpenByPr(
@@ -141,7 +141,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
       [repo, prNumber],
     );
 
-    return rows.map(toRecord);
+    return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
   }
 
   async finishOpenByPr(

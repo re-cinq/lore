@@ -71,7 +71,9 @@ export async function createTask(
       );
 
       if (repoRows.length > 0) {
-        const settings = repoRows[0].settings || {};
+        const settings = (repoRows[0].settings as {
+          trust?: { level?: string };
+        }) || { trust: undefined };
         const trustLevel = settings.trust?.level;
 
         if (trustLevel && TRUST_LEVELS[trustLevel]) {
@@ -85,8 +87,8 @@ export async function createTask(
           );
         }
       }
-    } catch (err: any) {
-      if (err.message.includes("not allowed at trust level")) {
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("not allowed at trust level")) {
         throw err;
       }
       // Non-trust errors are non-fatal
@@ -226,7 +228,7 @@ export async function listTasks(
     status ? [status] : [],
   );
 
-  return { tasks: rows, total: countRows[0].total };
+  return { tasks: rows, total: countRows[0].total as number };
 }
 
 /**
@@ -351,7 +353,7 @@ export async function updateTaskStatus(
   if (rows.length === 0) {
     return;
   }
-  const oldStatus = rows[0].status;
+  const oldStatus = rows[0].status as string;
 
   await setTaskStatus(pool, taskId, newStatus);
   await recordEvent(pool, taskId, oldStatus, newStatus, meta);

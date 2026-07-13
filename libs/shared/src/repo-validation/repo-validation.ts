@@ -41,7 +41,7 @@ export interface ValidationResult {
 
 // ── Detection ───────────────────────────────────────────────────────
 
-function readJsonFile(filePath: string): Record<string, any> | null {
+function readJsonFile(filePath: string): Record<string, unknown> | null {
   try {
     return JSON.parse(readFileSync(filePath, "utf-8"));
   } catch {
@@ -57,7 +57,7 @@ function detectNode(repoRoot: string): RepoTooling | null {
     return null;
   }
 
-  const scripts = pkg.scripts || {};
+  const scripts = (pkg.scripts || {}) as Record<string, string>;
   const quick: ValidationStep[] = [];
   const full: ValidationStep[] = [];
 

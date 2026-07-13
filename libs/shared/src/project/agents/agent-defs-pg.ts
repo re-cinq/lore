@@ -133,7 +133,7 @@ export class PgAgentDefs implements AgentDefsPort {
       ],
     );
 
-    return toDef(rows[0] as AgentRow);
+    return toDef(rows[0] as unknown as AgentRow);
   }
 
   async update(
@@ -167,7 +167,7 @@ export class PgAgentDefs implements AgentDefsPort {
       ],
     );
 
-    return toDef(rows[0] as AgentRow);
+    return toDef(rows[0] as unknown as AgentRow);
   }
 
   async delete(repo: string, name: string): Promise<void> {

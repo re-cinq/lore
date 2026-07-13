@@ -235,7 +235,7 @@ export async function driftCheckFile(
       $fp: filePath,
     });
 
-    return (res.data?.chunks ?? []) as GraphCodeChunk[];
+    return (res.data?.chunks ?? []) as unknown as GraphCodeChunk[];
   });
 
   let baselined = 0;

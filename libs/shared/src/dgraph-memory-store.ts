@@ -86,8 +86,8 @@ interface MemoryRow {
  * literals. `uid` carries no prefix and passes through untouched. The single
  * authoritative place the `Memory.` predicate naming is peeled back.
  */
-function stripMemoryPrefix(row: Record<string, any>): Record<string, any> {
-  const fields: Record<string, any> = {};
+function stripMemoryPrefix(row: Record<string, unknown>): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
 
   for (const [predicate, value] of Object.entries(row)) {
     fields[
@@ -100,10 +100,15 @@ function stripMemoryPrefix(row: Record<string, any>): Record<string, any> {
   return fields;
 }
 
-function toMemoryRow(row: Record<string, any>): MemoryRow {
+function toMemoryRow(row: Record<string, unknown>): MemoryRow {
   const { uid, key, value, version } = stripMemoryPrefix(row);
 
-  return { uid, key, value, version };
+  return {
+    uid: uid as string | undefined,
+    key: key as string,
+    value: value as string,
+    version: version as number,
+  };
 }
 
 /**
@@ -139,27 +144,29 @@ export interface GraphHop {
  * array form is normalized defensively.
  */
 function flattenHops(
-  entity: Record<string, any>,
+  entity: Record<string, unknown>,
   maxDepth: number,
   depth = 1,
 ): GraphHop[] {
   if (depth > maxDepth) {
     return [];
   }
-  const rels = (entity["Entity.out_rels"] ?? []) as Record<string, any>[];
+  const rels = (entity["Entity.out_rels"] ?? []) as Record<string, unknown>[];
   const hops: GraphHop[] = [];
 
   for (const rel of rels) {
     const targetNode = rel["GraphRel.target"];
-    const target = Array.isArray(targetNode) ? targetNode[0] : targetNode;
+    const target = (
+      Array.isArray(targetNode) ? targetNode[0] : targetNode
+    ) as Record<string, unknown> | undefined;
 
     hops.push({
-      entity: entity["Entity.name"],
-      relation: rel["GraphRel.relation_type"],
-      related_entity: target?.["Entity.name"],
+      entity: entity["Entity.name"] as string,
+      relation: rel["GraphRel.relation_type"] as string,
+      related_entity: target?.["Entity.name"] as string,
       direction: "outgoing",
       depth,
-      valid_from: rel["GraphRel.valid_from"],
+      valid_from: rel["GraphRel.valid_from"] as string | undefined,
     });
 
     if (target) {
@@ -332,10 +339,10 @@ export class DgraphMemoryStore implements MemoryStore {
         { $vec: toVectorLiteral(embedding), $agent: agentId },
       );
 
-      return (res.data?.cand ?? []) as Record<string, any>[];
+      return (res.data?.cand ?? []) as Record<string, unknown>[];
     });
 
-    const nodes: Record<string, any>[] = [];
+    const nodes: Record<string, unknown>[] = [];
 
     for (const candidate of candidates) {
       if (candidate["Fact.xid"] === newXid) {
@@ -398,7 +405,7 @@ export class DgraphMemoryStore implements MemoryStore {
       const found = res.data?.found?.[0];
 
       if (found) {
-        return { id: found["Episode.xid"] };
+        return { id: found["Episode.xid"] as string };
       }
 
       const xid = randomUUID();
@@ -487,14 +494,17 @@ export class DgraphMemoryStore implements MemoryStore {
         },
       );
       const memories = (res.data?.memories ?? []).map(
-        (row: Record<string, any>) => {
+        (row: Record<string, unknown>) => {
           const { key, agent_id, version } = stripMemoryPrefix(row);
 
           return { key, agent_id, version };
         },
       );
 
-      return { memories, total: res.data?.total?.[0]?.count ?? 0 };
+      return {
+        memories,
+        total: (res.data?.total?.[0]?.count as number) ?? 0,
+      };
     });
   }
 
@@ -513,7 +523,7 @@ export class DgraphMemoryStore implements MemoryStore {
       const found = res.data?.found?.[0];
 
       if (found) {
-        return found.uid;
+        return found.uid as string;
       }
 
       const now = new Date().toISOString();
@@ -610,10 +620,14 @@ export class DgraphMemoryStore implements MemoryStore {
         { $src: sourceUid, $rel: relationType },
       );
       const rels = (res.data?.contradictions?.[0]?.["Entity.out_rels"] ??
-        []) as Record<string, any>[];
+        []) as Record<string, unknown>[];
 
       return rels
-        .filter((rel) => rel["GraphRel.target"]?.uid !== targetUid)
+        .filter(
+          (rel) =>
+            (rel["GraphRel.target"] as { uid?: string } | undefined)?.uid !==
+            targetUid,
+        )
         .map((rel) => rel.uid as string);
     });
   }
@@ -648,7 +662,7 @@ export class DgraphMemoryStore implements MemoryStore {
         { $name: entityName },
       );
       const root = (res.data?.result ?? [])[0] as
-        Record<string, any> | undefined;
+        Record<string, unknown> | undefined;
 
       if (!root) {
         return [];
@@ -663,11 +677,16 @@ export class DgraphMemoryStore implements MemoryStore {
     opts: { agentId?: string; limit?: number; embedding?: number[] },
   ): Promise<MemorySearchResult[]> {
     return this.withTxn(async (txn) => {
-      const toItems = (rows: Record<string, any>[]): RankedItem[] =>
+      const toItems = (rows: Record<string, unknown>[]): RankedItem[] =>
         rows.map((row) => {
           const { key, value, agent_id } = stripMemoryPrefix(row);
 
-          return { key, value, agent_id, source: "memory" as const };
+          return {
+            key: key as string,
+            value: value as string,
+            agent_id: agent_id as string,
+            source: "memory" as const,
+          };
         });
 
       const kmemBlock = `kmem(func: anyoftext(Memory.value, $q), orderdesc: Memory.created_at, first: 20)

@@ -83,7 +83,7 @@ export class PgChunks implements ChunksPort {
       ],
     );
 
-    return rows[0]?.id ?? null;
+    return (rows[0]?.id as string) ?? null;
   }
 
   async setEmbedding(
@@ -112,7 +112,7 @@ export class PgChunks implements ChunksPort {
       [team],
     );
 
-    return parseInt(rows[0]?.count || "0", 10);
+    return parseInt((rows[0]?.count as string) || "0", 10);
   }
 
   async specChunks(repo: string): Promise<SpecChunkRow[]> {
@@ -175,7 +175,7 @@ export class PgChunks implements ChunksPort {
       [repo, String(olderThanDays)],
     );
 
-    return parseInt(rows[0]?.count || "0", 10);
+    return parseInt((rows[0]?.count as string) || "0", 10);
   }
 
   /** The schema reindex wrote this repo's chunks to: its team schema when one
