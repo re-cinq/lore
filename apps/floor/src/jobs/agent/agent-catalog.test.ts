@@ -128,6 +128,14 @@ describe("station catalog (exec vendor recipes)", () => {
     expect(buildStationStation("gate", { command: ["lore-station", "gate"] }).spec?.deadlineMinutes).toBe(15);
   });
 
+  it("sanitizes underscores in the station name to a valid RFC-1123 k8s name", () => {
+    const githubAction: StationCatalogConfig = { command: ["lore-station", "github_action"], timeout_minutes: 60 };
+    expect(buildStationDefinition("github_action", githubAction).metadata?.name).toBe("def-github-action");
+    const station = buildStationStation("github_action", githubAction);
+    expect(station.metadata?.name).toBe("def-github-action");
+    expect(station.spec?.agentDefRef).toBe("def-github-action");
+  });
+
   it("buildCatalog appends def-<name> pairs for stations and catalogChartYaml templates the image", () => {
     const cat = buildCatalog({ implementation: impl }, { validate });
     expect(cat.map((c) => `${c.kind}/${c.metadata?.name}`)).toEqual([

@@ -20,6 +20,7 @@ export function healthRoute(getJobStatus: () => unknown): ServerRoute {
         return h.response({ status: "error", reason: "database connection failed" }).code(503);
       }
 
+      // todo: We must wrap with try/catch only the code that can throw. Here, we can have a test db connection that returns a status and avoid try/catch completely. Here try/catch is used for controll flow, not for handling unexpected errors.
       try {
         const { today: processedToday, total: processedTotal } = await usage().processedCounts();
         return h

@@ -34,8 +34,10 @@ const NAMESPACE_SENTINEL = "__NAMESPACE__";
 const STATION_IMAGE_SENTINEL = "__STATION_IMAGE__";
 
 /** Station Station/AgentDefinition names: `def-<node type>` — what the Floor's
- *  nodeStationSpec resolves when a node has no explicit station_ref. */
-const stationName = (name: string): string => `def-${name}`;
+ *  nodeStationSpec resolves when a node has no explicit station_ref. Underscores in
+ *  a node type (e.g. `github_action`) are not valid in an RFC-1123 k8s resource name,
+ *  so they become dashes; the Floor's resolver applies the same transform. */
+export const stationName = (name: string): string => `def-${name.replaceAll("_", "-")}`;
 
 const OUTPUT_SINKS: NonNullable<NonNullable<AgentDefinition["spec"]>["output"]> = {
   sinks: [
